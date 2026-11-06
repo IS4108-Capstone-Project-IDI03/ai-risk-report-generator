@@ -72,7 +72,7 @@ The point of this system is **consistency**. The same kind of information looks 
 - **Keyboard-only focus ring.** The navy focus ring shows for keyboard use only (`:focus-visible`), never after a mouse click, on every control.
 - **A toast for every confirmed action.** Create, save, delete, archive, upload and restore each show a toast (section 7), so the state is always clear.
 - **Collapsed sidebar = full width.** When the sidebar collapses, the page content fills the full width, keeping its 32 px side padding. Check every screen with the sidebar open AND collapsed.
-- **Layout.** Navy sidebar on the left, in navy, white and one light blue only (the avatar), with no accent colours. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
+- **Layout.** Navy sidebar on the left, in navy, white and one light blue only (the avatar), with no accent colours. The one exception is the Inbox's red count, like the bell's, because it means work is waiting; the collapsed rail and phone menu show it as a dot. A white top bar holds the round Back button (section 6) beside the eyebrow and page title, the main action (top right) and the bell. Page background `--graphite-50`, cards white.
 - **One list frame.** Every list screen: top bar with one helper line under the title (what the page is for), then a 64 px toolbar (search, filter pills, a labelled sort pill, the main button at the right end), so every list's header row starts at the same height.
 - **No filler copy.** No captions explaining the obvious ("Kept under the client"), no counts in page headers; the one helper line under a list's title is the exception. Counts live in the table footer ("5 assessments · 3 reports late", the late count is a filter link). Help goes behind a (?) icon.
 - **Words.** Plain English, short. Use "assessment type" (First survey, Resurvey, Follow-up); never "visit". Errors say what's wrong in ≤ 4 words, then the fix.
@@ -160,6 +160,12 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 - **Documents popover:** opened from a "Documents · N" button in the client card; rows of file tile, name + size, Tag pill, bin; a dashed "Add documents" row. No caption.
 - **Reading status cell** (files being processed): words first, then the indicator at the right edge. Working = status words in 13 px `--graphite-700` + a 16 px spinner; Waiting = "Waiting" in `--graphite-600` (the words need 4.5:1 contrast) + a 16 px hollow circle in `--graphite-400`; Done = 16 px green filled tick only. **Spinner, circle and tick are the same size and sit in the same pixel column.**
 - **Failed row:** neutral row and tile; under the file name, a red alert icon + the short error in red 600, then the fix in grey ("Can't read .zip files. Add PDF, Word, Outlook (.msg) or .eml files."); one grey bin (or retry) icon on the right. Only the icon and the short error are red.
+- **Inbox row** (a mail list crossed with a checklist, not a table): one card of rows, each a tick circle, an icon tile, three lines of words (sender in grey, task in bold, detail in grey), the due date cell and the time. Every marker is centred to the row's height, and this goes for row icons in any list. Words keep a fixed column and never run under the dates; title and helper wrap to two lines each, then "…"; desktop text stops at 640 px. A failure's detail word and tile are red, and a document needing a look is amber. The bin appears on hover or focus in place of the time. Tabs are To do with a red count, and Done; their empty cards are the same height.
+- **Phone Inbox row:** the ring holds the type icon and ticks the item when tapped, as a 44 px target. Two lines of words, and the due date alone on the right, or nothing if there is no date. The bin shows on Done rows only.
+- **Thin popover header** (the bell): 40 px, with 28 px grey icon buttons for its actions, and no count text or close button. On a phone sheet: title 19 px, header 60 px, 44 px targets with 20 px icons.
+- **Bell number:** app font, 12 px bold, tabular numbers, 18 px tall, growing to the right so 99+ doesn't cover the bell.
+- **Already-handled dialog** (`AlreadyHandledDialog`): says a row's work was already dealt with. Centred: 48 px green tick badge, title 17 / 600, then the person's avatar, name and time at 13 px on one line. One normal-size primary pill, only as wide as its words. No close button, and Esc does nothing, because it has one way out: a `Dialog` with no `onClose`.
+- **Assigned engineer picker:** a person's role sits in grey on the right of their name, in the list and once chosen. A long name is cut and the role stays.
 
 ## 7. Toasts
 
@@ -204,8 +210,16 @@ Rules: 120 ms for hover and colour, 180 ms for things appearing, 240–260 ms fo
 | Toasts | Come in from the edge they leave by | 260 ms in; 120 ms out |
 | Press feedback | Buttons scale to 0.97 while pressed (Back button 0.96) | 120 ms |
 | Hover | Background fades | 120 ms |
+| Ticking an Inbox row | Circle presses to 0.88 and fills, tick draws, pause, row fades and lifts 4 px, list closes up. Unticking is the mirror | fill 120 ms; tick 260 ms; pause 240 ms; row 180 ms |
+| Back to the Inbox after opening a row | The row is there ticked, then leaves as above, only when returning by Back | pause 240 ms; row 180 ms |
+| New item on an open Inbox | Row fades in rising 6 px and holds the blue "just changed" tint | 180 ms; tint 1 s + 260 ms |
+| A count rising (sidebar) | One pop to 1.2 and the number crossfades; the phone menu's dot pops | 260 ms; 120 ms |
+| Last To do item cleared | Tick draws, "All done" rises 4 px | 260 ms; 180 ms |
+| Move to Done (already-handled dialog) | Dialog fades out, then the row's usual tick plays. No toast: the tick is the confirmation | 150 ms, then as ticking |
 
 Not animated: rows reordering on sort or filter, row hover actions and the rows themselves, opening filter and sort menus beyond their quick scale-in, staggering list rows on load, keyboard shortcuts, Report due cells.
+
+**Sound (F-10).** Generated in code with Web Audio, no sound files. The bell is a soft handbell; the Inbox is two rising notes. A sound plays only for an item newer than anything this person has seen, so your own actions and an item coming back by an untick stay silent. Several at once play one sound, and the Inbox wins. Two open tabs don't both play.
 
 ## 9. How this system grows
 
@@ -217,6 +231,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.0 (4 Nov 2026, CP-23): first version from the CP-23 canvas.
   - v2.1 (5 Nov 2026, CP-23 feedback rounds 7–16): tooltips name the action only; grey out and explain (reason box); hover by background; keyboard-only focus ring; one list frame with a helper line; first column left, the rest centred; labelled sort; "just changed" row; dates as dd/mm/yyyy in forms; Not-sure icon placement; Back button, date picker, sheets, sticky action bar, Apple dialog (look, copy and motion), long lists in popovers, Found so far; one date cell for Report due and Next survey; toast tick and width; the full motion set with its rules (replaces the seven-motion list, and "no shake" becomes one shake on a repeated error).
   - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line. Phone lists run edge to edge with fixed due columns; the phone All view shows Client › Site under the reference. On tablets (768–1023 px) Rename and Remove are round icon buttons, and Sort drops to its icon only where a labelled pill would squeeze search under 96 px.
+  - v2.3 (6 Nov 2026, F-10 and RV-11): Inbox row and phone ring; row icons centred to the row; red Inbox count as the sidebar's one exception; thin popover header and bell number; already-handled dialog; role in the engineer picker; Inbox motions and the sound rules.
 
 ## 10. When this file says nothing
 

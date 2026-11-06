@@ -2129,6 +2129,14 @@ Rejected:
 - Closing a shared item automatically when it is filled: Jesper chose not to track whether work was done, so Omar still sees a request Sana filled in To do until he opens or bins it.
 - Engineers choosing another engineer, or asking for a handover in the app.
 
-Known limits: a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
+- Round 2 (6 Nov, replaced by round 3): tick and untick change the item for everyone, open and bin change only your list. Counts are checked every 10 seconds, and any change reloads the open Inbox or Assessments list. A sound plays only for an item newer than anything this person has seen, compared by the newest item's time from the count route, so an item coming back by an untick stays silent.
+
+- Round 3 (6 Nov): tick and untick are personal too, so every Inbox action changes only your own list. `markDone` adds you to `readBy` and `unmarkDone` removes only you; `doneAt`, `doneBy` and the DTO's `shared` are gone. Reason: a tick that moved an item for everyone hid work from an admin who had not seen it, and "Done" should mean done by me. A shared item therefore stays in the other admins' To do until each presses it. Pressing a request or document row first reads that item (`GET /api/knowledge-gaps/:id`, `GET /api/knowledge-documents/:id`) to tell if someone already handled it; knowledge documents record who last handled them in `handled`, written by correct, decide, retry and cancel.
+
+Rejected in round 2:
+- Server push (SSE): instant, but a new endpoint, Redis signals, an nginx rule on EC2 and reconnect handling, for a list of 0 to 20 items. It can be added later without changing the screens.
+- Webhooks: a browser has no address a server can call.
+
+Known limits: a third person's Engineer column updates on their next visit, because their counts don't change; a visible list reloading on a colleague's change refreshes the session, as the Inbox's did; a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
 
 Stories: F-10, RV-11, F-05.

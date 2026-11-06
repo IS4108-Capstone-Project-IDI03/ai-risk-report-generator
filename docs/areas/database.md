@@ -1328,6 +1328,12 @@ corrected. Reinstating removes `withdrawn` and records no one. Only the latest
 withdrawal is kept. As with a correction, a failed relabel puts `withdrawn` back
 as it was. The API returns `withdrawn` as `{ at, by } | null`.
 
+`handled: { at, by: { id, name } }` (F-10) records who last corrected, decided on
+(keep both, supersede, add as older, discard the other), retried or cancelled the
+document; it is absent on older documents and the API returns `{ at, by } | null`.
+Withdrawing keeps using `withdrawn`. A discarded document is gone, so it has none.
+A failed correction or re-queue puts `handled` back as it was.
+
 #### Duplicates and newer editions (IN-07)
 
 Two more fields on `knowledge_documents`:
@@ -1371,6 +1377,7 @@ copies and restart. The upload's own check still rejects most repeats.
 | `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
+| `GET /api/knowledge-documents/:id` | One document as the lists show it (F-10), `knowledge:view`. 200, or 404 (unknown or malformed id) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
@@ -1424,7 +1431,7 @@ Fields: `purpose` (one of `ingestion_status`, `transcription_status`,
 `site_walk_failed`, `assessment_assigned`, `assessment_moved`), `kind` (`inbox` or
 `bell`), `message` (the line shown), `details` (the longer text behind the row's
 expand control, e.g. a failure reason), `targetRole` (a `USER_ROLES` value),
-`targetUserIds`, `readBy`, `dismissedBy`, `doneAt` and `doneBy` (Inbox only),
+`targetUserIds`, `readBy`, `dismissedBy`,
 `createdBy` and `createdByService`, and `context`.
 
 `targetUserIds` names who within the role sees it: user ids, or `['all']` for
@@ -1475,20 +1482,21 @@ query matches "kind is not `inbox`", never "kind is `bell`". No migration.
 To do and Done are worked out for each person, never stored as a status:
 
 ```
-To do for me:  kind is inbox, I haven't dismissed it, I'm not in readBy, doneAt is empty
-Done for me:   kind is inbox, I haven't dismissed it, and I'm in readBy or doneAt is set
+To do for me:  kind is inbox, I haven't dismissed it, I'm not in readBy
+Done for me:   kind is inbox, I haven't dismissed it, and I'm in readBy
 Open:          add me to readBy
-Tick:          add me to readBy, set doneAt and doneBy
-Untick:        remove me from readBy, clear doneAt and doneBy
+Tick:          add me to readBy
+Untick:        remove me from readBy
 Bin:           add me to dismissedBy; restore removes me
 ```
 
-`doneAt` and `doneBy` are on the shared document, so a tick by one admin moves a
-shared item to Done for every admin, while opening it (`readBy`) moves it for
-that admin alone. Unticking brings it back for admins who never opened it; an
-admin who did open it stays in Done. Known gap, accepted: an admin who opens a
+Every action is personal: open, tick, untick and bin change only the list of the
+person who did them, so a tick by one admin never moves a shared item for another.
+Open and tick are the same write, so an Undo of a tick also returns an item the
+admin had only opened to their To do. Known gap, accepted: an admin who opens a
 request and fills it never ticks it, so the other admin still sees it in To do;
-there is no auto-closing on fill.
+there is no auto-closing on fill. The Inbox checks the item's current state when
+it is pressed (`GET /api/knowledge-gaps/:id`, `GET /api/knowledge-documents/:id`).
 
 When an assessment moves to another engineer, the old engineer's Inbox items for
 it (found by `context.reference` and a `targetUserIds` naming them) have them
@@ -1541,6 +1549,11 @@ Each `knowledge_gap_request` notification's `context` carries the request's part
 strings, so the bell can lay them out with labels: `requestId` and `question` always;
 `askedBy` and `message` (if given) on a new request; `status` plus `documents` (a JSON
 array of `{ title, uploadedAt }`) or `reason` on a closed one.
+
+`GET /api/knowledge-gaps/:id` (F-10, `knowledge:manage`) returns one request, open or
+closed, with `closed: { at, by: { id, name } } | null` read from `closedAt` and
+`closedBy`. `closed` is null while open, or when the closer's account no longer exists.
+The list route does not carry it. 404 for an unknown or malformed id.
 
 Index: `{ status: 1, createdAt: -1 }` for the admin's open list.
 
