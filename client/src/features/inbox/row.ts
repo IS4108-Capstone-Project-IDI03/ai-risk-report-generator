@@ -10,7 +10,11 @@ export type InboxRowModel = {
   phoneTask: string
   phoneDetail: string
   icon: string
-  tone: 'blue' | 'violet' | 'red' | 'grey'
+  tone: 'blue' | 'violet' | 'red' | 'amber' | 'grey'
+  // The colour of the detail word and of the phone's short line: red for a failure's reason,
+  // amber for a document that needs a look, grey otherwise. A Done row greys both (inbox.css).
+  detailTone: 'red' | 'amber' | 'grey'
+  phoneDetailTone: 'red' | 'amber' | 'grey'
   // Whether the row has a due date cell at all: an assessment's items do, an admin's don't.
   showsDue: boolean
   // The assessment's report due date (ISO); null when it has none ("Not set").
@@ -39,6 +43,8 @@ export function rowOf(n: Notification): InboxRowModel {
         phoneDetail: c.site ?? '',
         icon: 'clipboard-list',
         tone: 'blue',
+        detailTone: 'grey',
+        phoneDetailTone: 'grey',
         showsDue: true,
         due: dueOf(c.reportDue),
       }
@@ -55,6 +61,8 @@ export function rowOf(n: Notification): InboxRowModel {
         phoneDetail: failed ? detail : (c.site ?? ''),
         icon: 'mic',
         tone: failed ? 'red' : 'violet',
+        detailTone: failed ? 'red' : 'grey',
+        phoneDetailTone: failed ? 'red' : 'grey',
         showsDue: true,
         due: dueOf(c.reportDue),
       }
@@ -69,6 +77,8 @@ export function rowOf(n: Notification): InboxRowModel {
         phoneDetail: question,
         icon: 'book-open',
         tone: 'blue',
+        detailTone: 'grey',
+        phoneDetailTone: 'grey',
         showsDue: false,
         due: null,
       }
@@ -87,8 +97,11 @@ export function rowOf(n: Notification): InboxRowModel {
         detail,
         phoneTask: `${failed ? 'Retry' : 'Review'} document`,
         phoneDetail: title,
-        icon: failed ? 'file-warning' : 'file-text',
-        tone: failed ? 'red' : 'blue',
+        icon: 'file-warning',
+        tone: failed ? 'red' : 'amber',
+        detailTone: failed ? 'red' : 'amber',
+        // The phone's short line is the title, which is never coloured.
+        phoneDetailTone: 'grey',
         showsDue: false,
         due: null,
       }
@@ -102,6 +115,8 @@ export function rowOf(n: Notification): InboxRowModel {
         phoneDetail: n.details ?? '',
         icon: 'bell',
         tone: 'grey',
+        detailTone: 'grey',
+        phoneDetailTone: 'grey',
         showsDue: false,
         due: null,
       }

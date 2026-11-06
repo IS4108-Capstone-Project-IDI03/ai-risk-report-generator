@@ -1,5 +1,5 @@
-// One Inbox row (F-10, boards 01, 02, 07 and 08): the tick, the tile, three lines of words
-// (two on a phone), the due date, the time and the bin. The whole row is pressable and opens
+// One Inbox row (F-10, boards 01, 02, 07, 08 and 20): the tick, the tile, three lines of words
+// (two on a phone), the due date, the time and the bin. A phone shows the due date alone. The whole row is pressable and opens
 // the item; the tick and the bin are separate buttons above it, so none is inside another.
 // Used by InboxList. Calls row.ts for the words, and ReportDue for the due date.
 import { IconButton, ReportDue } from '../../../design-system'
@@ -65,16 +65,23 @@ export function InboxRow({
           <button type="button" className="inbox-row__main" onClick={() => onOpen(item)}>
             {!phone && <span className="inbox-row__sender">{row.sender}</span>}
             <span className="inbox-row__task">{phone ? row.phoneTask : row.task}</span>
-            <span className="inbox-row__detail">{phone ? row.phoneDetail : row.detail}</span>
+            <span
+              className="inbox-row__detail"
+              data-tone={phone ? row.phoneDetailTone : row.detailTone}
+            >
+              {phone ? row.phoneDetail : row.detail}
+            </span>
           </button>
           {tab === 'todo' && dueColumn && (
             <span className="inbox-row__due">
-              {row.showsDue && <ReportDue date={row.due} short={phone} />}
+              {/* A phone shows no "Not set": a row without a date has nothing on the right. */}
+              {row.showsDue && (!phone || row.due) && <ReportDue date={row.due} />}
             </span>
           )}
-          <span className="inbox-row__end">
-            <time dateTime={item.createdAt}>{formatInboxWhen(item.createdAt)}</time>
-            {showBin && (
+          {/* A phone has no arrival time: its To do row ends at the due date, its Done row at the bin. */}
+          {showBin && (
+            <span className="inbox-row__end">
+              {!phone && <time dateTime={item.createdAt}>{formatInboxWhen(item.createdAt)}</time>}
               <span className="inbox-bin-slot">
                 <IconButton
                   icon="trash-2"
@@ -90,8 +97,8 @@ export function InboxRow({
                   onClick={() => onBin(item)}
                 />
               </span>
-            )}
-          </span>
+            </span>
+          )}
         </div>
       </div>
     </li>

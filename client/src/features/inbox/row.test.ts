@@ -12,7 +12,6 @@ const base = {
   details: null,
   read: false,
   done: false,
-  doneAt: null,
   createdAt: '2026-11-05T03:42:00.000Z',
 } as const
 
@@ -76,7 +75,11 @@ describe('rowOf', () => {
       phoneDetail: "Couldn't read the recording",
       icon: 'mic',
       tone: 'red',
+      // The reason is the failure itself, so the word is red on both layouts.
+      detailTone: 'red',
+      phoneDetailTone: 'red',
     })
+    expect(ready).toMatchObject({ detailTone: 'grey', phoneDetailTone: 'grey' })
   })
 
   it('lays out a knowledge request with who asked and the question', () => {
@@ -109,7 +112,12 @@ describe('rowOf', () => {
       sender: 'Knowledge base',
       task: 'Review document: NFPA 13-2022',
       detail: 'Possible newer edition of NFPA_13_2019',
-      icon: 'file-text',
+      // Needs a look: amber tile and word, with the warning file icon (round 2, item 2).
+      icon: 'file-warning',
+      tone: 'amber',
+      detailTone: 'amber',
+      // The phone's short line is the document's title, which is never coloured.
+      phoneDetailTone: 'grey',
     })
     const failed = rowOf(
       note('ingestion_status', '"FM_2.0_Apr_26" failed to ingest during OCR.', {
@@ -122,6 +130,8 @@ describe('rowOf', () => {
       task: 'Retry document: FM_2.0_Apr_26',
       detail: 'Failed during OCR',
       tone: 'red',
+      detailTone: 'red',
+      phoneDetailTone: 'grey',
     })
   })
 

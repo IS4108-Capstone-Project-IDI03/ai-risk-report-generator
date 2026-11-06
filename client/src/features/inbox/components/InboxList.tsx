@@ -1,5 +1,5 @@
 // The Inbox's card of rows (F-10): the rows, a Load more at the foot when the gateway holds
-// more, and the empty states. Used by screens/Inbox.tsx. Renders InboxRow and AllDone.
+// more, and the empty states. Used by screens/Inbox.tsx. Renders InboxRow, AllDone and NothingDone.
 import { Button, Callout } from '../../../design-system'
 import type { Notification } from '../../notifications/api'
 import type { UseInbox } from '../useInbox'
@@ -7,6 +7,7 @@ import { useKeepRowFocus } from '../useKeepRowFocus'
 import { AllDone } from './AllDone'
 import { rowOf } from '../row'
 import { InboxRow } from './InboxRow'
+import { NothingDone } from './NothingDone'
 
 export function InboxList({
   inbox,
@@ -59,7 +60,7 @@ export function InboxList({
           tab === 'todo' ? (
             <AllDone draw={inbox.cleared} />
           ) : (
-            <p className="inbox-empty inbox-empty--quiet">Nothing in Done yet</p>
+            <NothingDone />
           )
         ) : (
           <ul>
