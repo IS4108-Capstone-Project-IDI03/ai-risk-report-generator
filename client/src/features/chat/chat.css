@@ -1348,7 +1348,14 @@
   }
 }
 .voice-input__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
   margin: var(--space-3) var(--space-5) 0;
+}
+.voice-input__panel .voice-input__state {
+  margin: 0;
 }
 .voice-settings {
   display: grid;

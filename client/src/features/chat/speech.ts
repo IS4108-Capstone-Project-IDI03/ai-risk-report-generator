@@ -92,7 +92,8 @@ export function micProblem(error?: unknown): Problem | null {
 /** True for a spoken "stop" (any case, with or without a full stop), which ends hands-free mode. */
 export const isStopWord = (text: string) => /^stop[.!]?$/i.test(text.trim())
 
-// Tells the mic that the answer has finished being read, so hands-free mode can listen again.
+// Tells the mic when the answer starts ('start') and finishes ('done') being read, so hands-free
+// mode can show where it is and listen again.
 export const answerSpoken = new EventTarget()
 
 // Set when hands-free sends a spoken question, so only that answer is read out by itself.

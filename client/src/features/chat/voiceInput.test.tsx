@@ -115,12 +115,17 @@ describe('ask by voice (CB-10)', () => {
     expect(await screen.findByText('No speech was heard')).toBeInTheDocument()
   })
 
-  it('turns hands-free on from the mic cog, so the question is sent without being checked', async () => {
+  it('shows the hands-free switch at once, and says what it does', async () => {
     render(<VoiceInput />)
+    expect(await screen.findByText(/Off: you check each question/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Hands-free' }))
+    expect(screen.getByText(/Say “stop” to end/)).toBeInTheDocument()
+  })
+
+  it('sends the question without checking it, and says it is searching', async () => {
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('switch', { name: 'Hands-free' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Hands-free settings' }))
-    // Switched on mid-recording: it counts when the recording ends.
-    fireEvent.click(screen.getByRole('switch', { name: /Hands-free/ }))
     await listened()
     fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
     await waitFor(() =>
@@ -130,6 +135,7 @@ describe('ask by voice (CB-10)', () => {
       }),
     )
     expect(document.querySelector('textarea')).toHaveValue('')
+    expect(screen.getByText('Searching the knowledge base…')).toBeInTheDocument()
   })
 
   it('does not send a clip with no sound in it, and says to check the microphone', async () => {

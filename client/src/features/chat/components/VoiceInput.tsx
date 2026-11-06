@@ -81,7 +81,8 @@ export function VoiceInput() {
     'idle',
   )
   const [note, setNote] = useState<Problem | null>(null)
-  const [cog, setCog] = useState(false)
+  // Where a hands-free turn is after the question is sent: waiting for the answer, or hearing it.
+  const [after, setAfter] = useState<'asking' | 'speaking' | null>(null)
   // How loud the microphone is now (for the meter) and how loud it got at all (for the check).
   const [level, setLevel] = useState(0)
   const peak = useRef(0)
@@ -101,6 +102,7 @@ export function VoiceInput() {
       // Saying "stop" leaves hands-free mode without asking anything.
       if (isStopWord(text)) return change({ handsFree: false })
       handsFreeTurn.waiting = true
+      setAfter('asking')
       void processMessage({ role: 'user', content: text })
     },
     [change, processMessage],
@@ -108,6 +110,7 @@ export function VoiceInput() {
 
   const start = useCallback(async () => {
     setNote(null)
+    setAfter(null)
     const blocked = micProblem()
     if (blocked) return setNote(blocked)
     // Made here, in the click, not after the permission prompt: a browser may keep a meter made
@@ -186,9 +189,17 @@ export function VoiceInput() {
 
   // Hands-free: listen again once the answer has been read.
   useEffect(() => {
-    const again = () => settings.handsFree && state === 'idle' && void start()
+    const again = () => {
+      setAfter(null)
+      if (settings.handsFree && state === 'idle') void start()
+    }
+    const speaking = () => setAfter('speaking')
     answerSpoken.addEventListener('done', again)
-    return () => answerSpoken.removeEventListener('done', again)
+    answerSpoken.addEventListener('start', speaking)
+    return () => {
+      answerSpoken.removeEventListener('done', again)
+      answerSpoken.removeEventListener('start', speaking)
+    }
   }, [settings.handsFree, state, start])
 
   // Pause holds the recording; Resume carries on. Stop ends it and turns it into text.
@@ -220,12 +231,6 @@ export function VoiceInput() {
             label="Stop recording"
             onClick={() => recorder.current?.stop()}
           />
-          <IconButton
-            icon="settings"
-            label="Hands-free settings"
-            selected={cog}
-            onClick={() => setCog((open) => !open)}
-          />
         </>
       ) : (
         <IconButton
@@ -238,33 +243,43 @@ export function VoiceInput() {
     </div>
   )
   // Errors follow design system v2: a red icon and short problem, then the fix in grey.
-  const message =
-    cog && live ? (
+  const step =
+    state === 'starting'
+      ? 'Waiting for the microphone…'
+      : state === 'recording'
+        ? metered
+          ? 'Listening… stop talking to send'
+          : 'Listening… press Stop when you finish'
+        : state === 'paused'
+          ? 'Paused'
+          : state === 'working'
+            ? 'Reading your question…'
+            : after === 'asking'
+              ? 'Searching the knowledge base…'
+              : after === 'speaking'
+                ? 'Reading the answer. The mic opens again when it ends.'
+                : ''
+  // Hands-free is always one switch away, with a line saying what it does or what it is doing.
+  const hint = settings.handsFree
+    ? 'Tap the mic and ask. Your question is sent, the answer is read aloud, then I listen again. Say “stop” to end.'
+    : 'Off: you check each question before it is sent.'
+  const message = (
+    <>
+      {note && (
+        <p className="voice-input__note" role="alert">
+          <Icon name="circle-alert" size={16} />
+          <strong>{note.problem}</strong>
+          {note.fix && <span>{note.fix}</span>}
+        </p>
+      )}
       <div className="voice-input__panel">
         <Switch
-          label="Hands-free: read answers and listen again"
+          label="Hands-free"
           checked={settings.handsFree}
           onChange={(on) => change({ handsFree: on })}
         />
-      </div>
-    ) : note ? (
-      <p className="voice-input__note" role="alert">
-        <Icon name="circle-alert" size={16} />
-        <strong>{note.problem}</strong>
-        {note.fix && <span>{note.fix}</span>}
-      </p>
-    ) : (
-      state !== 'idle' && (
         <p className="voice-input__state" role="status">
-          {state === 'starting'
-            ? 'Waiting for the microphone…'
-            : state === 'recording'
-              ? metered
-                ? 'Listening… stop talking to send'
-                : 'Listening… press Stop when you finish'
-              : state === 'paused'
-                ? 'Paused'
-                : 'Reading your question…'}
+          {step || hint}
           {live && metered && (
             // Shows the engineer at once whether the microphone is hearing them.
             <span
@@ -279,12 +294,13 @@ export function VoiceInput() {
             </span>
           )}
         </p>
-      )
-    )
+      </div>
+    </>
+  )
   return (
     <>
       {card && createPortal(button, card)}
-      {host && message && createPortal(message, host)}
+      {host && createPortal(message, host)}
     </>
   )
 }

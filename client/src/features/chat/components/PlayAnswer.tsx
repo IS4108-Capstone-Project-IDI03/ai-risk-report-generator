@@ -39,7 +39,10 @@ function Player({ answer }: { answer: Element | null }) {
     const voice = speechSynthesis.getVoices().find((v) => v.voiceURI === settings.voiceURI)
     if (voice) say.voice = voice
     say.onboundary = (e) => void (at.current = from + e.charIndex)
-    say.onstart = () => setState('playing')
+    say.onstart = () => {
+      setState('playing')
+      answerSpoken.dispatchEvent(new Event('start'))
+    }
     say.onend = () => {
       setState('idle')
       answerSpoken.dispatchEvent(new Event('done'))
