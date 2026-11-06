@@ -792,3 +792,75 @@ describe('the cited flag on the document list (IN-12)', () => {
     expect((await listed(asPrecedent._id)).cited).toBe(true)
   })
 })
+
+describe('who last handled a document (F-10)', () => {
+  const handledBy = async (id: Types.ObjectId) => (await reload(id))!.handled
+
+  it.each([
+    ['keep_both', 'newer_edition'],
+    ['supersede', 'newer_edition'],
+    ['add_as_older', 'earlier_edition'],
+  ])('records who decided %s, and when, on the reviewed document', async (choice, kind) => {
+    const { upload } = await editionPair(kind)
+    const before = Date.now()
+
+    await decide(upload._id, choice).expect(200)
+
+    const handled = await handledBy(upload._id)
+    expect(handled!.by.name).toBe('Test User')
+    expect(handled!.at.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it.each(['keep_both', 'add_as_older'])(
+    'records who decided %s on the other document too when the two match each other',
+    async (choice) => {
+      const stored = await seed()
+      const upload = await seed({ edition: '2022', match: matchTo(stored._id, 'earlier_edition') })
+      await KnowledgeDocumentModel.updateOne(
+        { _id: stored._id },
+        { match: matchTo(upload._id, 'possible_copy') },
+      )
+
+      await decide(upload._id, choice).expect(200)
+
+      expect((await handledBy(stored._id))!.by.name).toBe('Test User')
+    },
+  )
+
+  it('records who chose discard_other on the document that is kept', async () => {
+    const { upload } = await editionPair('possible_copy', { unconfirmed: ['title'] })
+    onMatch = async (id) => {
+      await KnowledgeDocumentModel.updateOne({ _id: id }, { match: null })
+      return null
+    }
+
+    const response = await decide(upload._id, 'discard_other').expect(200)
+
+    expect((await handledBy(upload._id))!.by.name).toBe('Test User')
+    expect(response.body.document.handled).toMatchObject({ by: { name: 'Test User' } })
+  })
+
+  it('keeps the earlier handled record when the decision is rolled back', async () => {
+    const earlier = { at: new Date('2026-01-01'), by: { id: 'u1', name: 'Omar Khan' } }
+    const { upload } = await editionPair()
+    await KnowledgeDocumentModel.updateOne({ _id: upload._id }, { handled: earlier })
+    fail = ['/labels']
+
+    await decide(upload._id, 'keep_both').expect(503)
+
+    expect((await handledBy(upload._id))!.by.name).toBe('Omar Khan')
+  })
+
+  it('records who corrected it, and restores the earlier record when search fails', async () => {
+    const doc = await seed()
+    await correct(doc._id, { jurisdiction: 'MY' }).expect(200)
+    expect((await handledBy(doc._id))!.by.name).toBe('Test User')
+
+    const earlier = { at: new Date('2026-01-01'), by: { id: 'u1', name: 'Omar Khan' } }
+    await KnowledgeDocumentModel.updateOne({ _id: doc._id }, { handled: earlier })
+    fail = ['/labels']
+    await correct(doc._id, { jurisdiction: 'SG' }).expect(503)
+
+    expect((await handledBy(doc._id))!.by.name).toBe('Omar Khan')
+  })
+})

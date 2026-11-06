@@ -120,6 +120,27 @@ export async function listOpenRequests(): Promise<GapRequestDto[]> {
   return open.map((r) => toDto(r, names.get(String(r.askedBy)) ?? 'Unknown user'))
 }
 
+/** One request with who closed it and when; `closed` is null while open or when the closer's account is gone. */
+export type GapRequestDetailDto = GapRequestDto & {
+  closed: { at: string; by: { id: string; name: string } } | null
+}
+
+/** Returns one request, open or closed. Throws GapRequestNotFoundError for an unknown or malformed id. */
+export async function getRequest(id: string): Promise<GapRequestDetailDto> {
+  if (!isValidObjectId(id)) throw new GapRequestNotFoundError()
+  const r = await KnowledgeGapRequestModel.findById(id).lean<Stored>()
+  if (!r) throw new GapRequestNotFoundError()
+  const names = await namesFor(r.closedBy ? [r.askedBy, r.closedBy] : [r.askedBy])
+  const closer = r.closedBy && names.get(String(r.closedBy))
+  return {
+    ...toDto(r, names.get(String(r.askedBy)) ?? 'Unknown user'),
+    closed:
+      closer && r.closedAt
+        ? { at: r.closedAt.toISOString(), by: { id: String(r.closedBy), name: closer } }
+        : null,
+  }
+}
+
 // Closes a request only while it is still open, so two admins acting at once
 // cannot both win. Throws not-found (no such id) or closed (someone got there first).
 async function closeRequest(

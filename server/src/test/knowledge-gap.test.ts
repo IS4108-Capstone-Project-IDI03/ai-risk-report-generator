@@ -129,6 +129,66 @@ describe('GET /api/knowledge-gaps', () => {
   })
 })
 
+describe('GET /api/knowledge-gaps/:id (F-10)', () => {
+  async function ask() {
+    const who = await setup()
+    const req = await who.engineer.session.post('/api/knowledge-gaps').send({ question: 'Q?' })
+    return { ...who, id: req.body.id as string }
+  }
+
+  it('returns an open request with no closer', async () => {
+    const { admin, engineer, id } = await ask()
+
+    const res = await admin.session.get(`/api/knowledge-gaps/${id}`).expect(200)
+
+    expect(res.body).toMatchObject({
+      id,
+      question: 'Q?',
+      status: 'open',
+      askedBy: { id: engineer.id, name: 'Jide Okafor' },
+      closed: null,
+    })
+  })
+
+  it('returns who closed a request, and when', async () => {
+    const { admin, id } = await ask()
+    await admin.session.post(`/api/knowledge-gaps/${id}/dismiss`).send({ reason: 'No' }).expect(200)
+
+    const res = await admin.session.get(`/api/knowledge-gaps/${id}`).expect(200)
+
+    expect(res.body.status).toBe('dismissed')
+    expect(res.body.closed).toEqual({
+      at: expect.any(String),
+      by: { id: admin.id, name: 'Sana Patel' },
+    })
+  })
+
+  it('gives no closer when that account no longer exists', async () => {
+    const { admin, id } = await ask()
+    const other = await user('knowledge_admin', 'Omar Khan', 3)
+    await other.session.post(`/api/knowledge-gaps/${id}/dismiss`).send({ reason: 'No' }).expect(200)
+    await UserModel.deleteOne({ _id: other.id })
+
+    const res = await admin.session.get(`/api/knowledge-gaps/${id}`).expect(200)
+
+    expect(res.body.status).toBe('dismissed')
+    expect(res.body.closed).toBeNull()
+  })
+
+  it('answers 404 for an unknown or malformed id, and refuses an engineer', async () => {
+    const { admin, engineer, id } = await ask()
+    await admin.session.get(`/api/knowledge-gaps/${new Types.ObjectId()}`).expect(404)
+    await admin.session.get('/api/knowledge-gaps/not-an-id').expect(404)
+    await engineer.session.get(`/api/knowledge-gaps/${id}`).expect(403)
+  })
+
+  it('leaves the list response as it was', async () => {
+    const { admin } = await ask()
+    const [first] = (await admin.session.get('/api/knowledge-gaps').expect(200)).body.requests
+    expect(first).not.toHaveProperty('closed')
+  })
+})
+
 describe('POST /api/knowledge-gaps/:id/fill', () => {
   async function open() {
     const who = await setup()

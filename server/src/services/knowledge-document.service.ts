@@ -218,6 +218,8 @@ export type KnowledgeDocumentDto = {
   fileUrl: string
   // Who withdrew the document and when (KB-01 AC14); null while it is active.
   withdrawn: { at: Date; by: { id: string; name: string } } | null
+  // Who last corrected, decided on, retried or cancelled it, and when (F-10); null if none did.
+  handled: { at: Date; by: { id: string; name: string } } | null
   // Earlier versions of the details, newest first (KB-01 AC9).
   history: {
     sourceType: string | null
@@ -342,6 +344,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     uploadedAt: d.createdAt,
     fileUrl: `/api/knowledge-documents/${d._id}/file`,
     withdrawn: d.withdrawn ? { at: d.withdrawn.at, by: d.withdrawn.by } : null,
+    handled: d.handled ? { at: d.handled.at, by: d.handled.by } : null,
     // Records from before history existed have no field; `?? []` gives them none.
     history: [...(d.history ?? [])].reverse().map((v) => ({
       sourceType: v.metadata.source_type,
@@ -849,6 +852,19 @@ export function byteRange(
 
 const HOUR = 60 * 60 * 1000
 
+// shortcut: toDtos also works out `cited` (three queries the Inbox's check never reads); it only
+// runs on a press, so use a smaller read if a press ever feels slow.
+/**
+ * Returns one document as the list shows it. Throws KnowledgeDocumentNotFoundError
+ * for an unknown or malformed id.
+ */
+export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumentDto> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  const document = await KnowledgeDocumentModel.findById(id).lean()
+  if (!document) throw new KnowledgeDocumentNotFoundError()
+  return (await toDtos([document]))[0]
+}
+
 /**
  * Returns the recent uploads, newest first: every document still queued or
  * processing, plus those that finished recently. A success needs no follow-up,
@@ -971,9 +987,15 @@ export async function correctKnowledgeDocument(
     unconfirmed,
     labelling,
     match,
+    handled,
   } = old
   const next = recordFields(details)
-  document.set({ ...next, unconfirmed: [], labelling: adminLabelling(labelling, next) })
+  document.set({
+    ...next,
+    unconfirmed: [],
+    labelling: adminLabelling(labelling, next),
+    handled: { at: new Date(), by },
+  })
   if (differs(old, next)) {
     document.history.push({
       title,
@@ -1021,6 +1043,8 @@ export async function correctKnowledgeDocument(
       labelling,
       // /match may have saved a new match before failing.
       match: match ?? null,
+      // Without this the failed correction would still show as the last handler.
+      handled,
     })
     // The in-memory match never changed, so Mongoose must be told to write it
     // back over the one /match saved behind its back.
@@ -1112,14 +1136,14 @@ export const reinstateKnowledgeDocument = (id: string) => setWithdrawn(id, undef
  * Throws KnowledgeDocumentNotFoundError for an unknown or malformed id, or
  * KnowledgeDocumentWrongStateError when the document is already terminal.
  */
-export async function cancelIngestion(id: string): Promise<void> {
+export async function cancelIngestion(id: string, by: { id: string; name: string }): Promise<void> {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
 
   const now = new Date()
   const queued = await KnowledgeDocumentModel.findOneAndUpdate(
     { _id: id, status: 'queued' },
     {
-      $set: { status: 'cancelled', cancelledAt: now },
+      $set: { status: 'cancelled', cancelledAt: now, handled: { at: now, by } },
       $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
     },
     { returnDocument: 'after' },
@@ -1137,7 +1161,7 @@ export async function cancelIngestion(id: string): Promise<void> {
   const processing = await KnowledgeDocumentModel.findOneAndUpdate(
     { _id: id, status: 'processing' },
     {
-      $set: { status: 'cancelled', cancelledAt: now },
+      $set: { status: 'cancelled', cancelledAt: now, handled: { at: now, by } },
       $unset: { error: 1, result: 1, finishedAt: 1, cancelRequestedAt: 1 },
     },
     { returnDocument: 'after' },
@@ -1163,7 +1187,7 @@ export async function cancelIngestion(id: string): Promise<void> {
  * IngestionUnavailableError (the re-queue could not be placed), in which case
  * the document is put back to its previous terminal state.
  */
-export async function retryIngestion(id: string): Promise<void> {
+export async function retryIngestion(id: string, by: { id: string; name: string }): Promise<void> {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
   // Atomic on terminal retryable statuses: only a failed or cancelled document
   // flips, so a double click cannot queue two runs or double-count. The counter
@@ -1171,7 +1195,7 @@ export async function retryIngestion(id: string): Promise<void> {
   const updated = await KnowledgeDocumentModel.findOneAndUpdate(
     { _id: id, status: { $in: ['failed', 'cancelled'] } },
     {
-      $set: { status: 'queued' },
+      $set: { status: 'queued', handled: { at: new Date(), by } },
       $unset: {
         error: 1,
         finishedAt: 1,
@@ -1214,22 +1238,22 @@ export async function retryIngestion(id: string): Promise<void> {
   try {
     await requeueIngestion(id, (updated.retryCount ?? 0) + 1)
   } catch {
-    const rolledBackStatus = updated.status
+    const back =
+      updated.status === 'cancelled'
+        ? { status: 'cancelled', cancelledAt: new Date() }
+        : {
+            status: 'failed',
+            error: 'Ingestion could not be re-queued. Try again shortly.',
+            finishedAt: new Date(),
+          }
+    // Who handled it goes back to what it was before this retry (none, if none did).
     await KnowledgeDocumentModel.updateOne(
       { _id: id, status: 'queued' },
-      rolledBackStatus === 'cancelled'
-        ? {
-            $set: { status: 'cancelled', cancelledAt: new Date() },
-            $inc: { retryCount: -1 },
-          }
-        : {
-            $set: {
-              status: 'failed',
-              error: 'Ingestion could not be re-queued. Try again shortly.',
-              finishedAt: new Date(),
-            },
-            $inc: { retryCount: -1 },
-          },
+      {
+        $set: { ...back, ...(updated.handled ? { handled: updated.handled } : {}) },
+        ...(updated.handled ? {} : { $unset: { handled: 1 } }),
+        $inc: { retryCount: -1 },
+      },
     )
     throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
   }

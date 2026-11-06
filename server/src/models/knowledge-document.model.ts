@@ -120,6 +120,9 @@ export interface IKnowledgeDocument {
   // Present only while the document is withdrawn (KB-01): when, and by whom.
   // `status` stays `complete`; reinstating removes this.
   withdrawn?: { at: Date; by: { id: string; name: string } }
+  // Who last corrected, decided on, retried or cancelled it, and when (F-10). Absent on
+  // older documents. The Inbox reads it to say who already handled an item.
+  handled?: { at: Date; by: { id: string; name: string } }
   // Times an admin has pressed Retry on a failed ingestion. Only ever bumped by
   // retryIngestion, so it counts human retries, not automatic worker re-runs.
   // Not shown anywhere; its sole use is to make each retry's ingestion
@@ -233,6 +236,18 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     },
     editionFamily: { type: Schema.Types.ObjectId },
     withdrawn: {
+      type: new Schema(
+        {
+          at: { type: Date, required: true },
+          by: {
+            id: { type: String, required: true },
+            name: { type: String, required: true },
+          },
+        },
+        { _id: false },
+      ),
+    },
+    handled: {
       type: new Schema(
         {
           at: { type: Date, required: true },
