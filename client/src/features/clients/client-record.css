@@ -15,10 +15,6 @@
   font: 700 15px/1 var(--font-sans);
   letter-spacing: 0.02em;
 }
-/* In the top bar: centred on the eyebrow and title, whose title line sits 2 px low. */
-.ds-topbar > .client-avatar {
-  margin-top: 2px;
-}
 .client-avatar--sm {
   width: 32px;
   height: 32px;
@@ -39,9 +35,6 @@
 }
 .client-avatar[data-tone='4'] {
   background: var(--amber-600);
-}
-.ds-topbar .client-avatar {
-  align-self: flex-start;
 }
 
 /* ---- Body: the tab's content, with the facts panel beside it from wide screens ---- */
