@@ -3,6 +3,7 @@
 // browser sends with every /api request; this module never sees the token.
 import { GatewayError } from '../assessments/api'
 import type { UserRole } from '../accounts/api'
+import type { NotificationCounts } from '../notifications/api'
 
 // Matches PERMISSIONS in server/src/services/permissions.service.ts.
 export type Permission =
@@ -20,8 +21,8 @@ export type Session = {
   permissions: Permission[]
   // Populate session state so the header can show the unread badge and the
   // sidebar the Inbox count. `total` and `unread` are the bell's; `inboxTodo` is
-  // the Inbox's To do count.
-  notifications: { total: number; unread: number; inboxTodo: number }
+  // the Inbox's To do count; the times are as in notifications/api.ts.
+  notifications: NotificationCounts
 }
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {

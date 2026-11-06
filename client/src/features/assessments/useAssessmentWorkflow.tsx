@@ -660,6 +660,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // gateway cannot be reached, in which case the dashboard shows the demo rows.
   const [serverRows, setServerRows] = useState<AssessmentRow[] | null>(null)
   const [listFailed, setListFailed] = useState(false)
+  // Counts up with every read of the list and every change made here since. A reply is used only
+  // if it is the latest: without this, a read sent just before a reassign could land after it and
+  // put the old engineer back on the row.
+  const rowsRead = useRef(0)
   // The assessment the open Archive confirm is for, when asked from a list row (CP-23).
   const [archiveRef, setArchiveRef] = useState<string | null>(null)
   // The Clients list is drawn from the work list, and a client page (CP-18)
@@ -683,17 +687,33 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // A refresh inside a workspace needs the list too, for the assessment's own record.
   const needsRows =
     listScreen ?? ((onWorkspace || onField) && serverRows === null ? 'workspace' : null)
+  // Reads the work list and returns it. Its rows are used only if nothing newer happened since
+  // it was sent: a read sent before a reassign or a create would otherwise undo it.
+  async function readRows(signal?: AbortSignal) {
+    const sent = ++rowsRead.current
+    const list = await listAssessments(signal)
+    if (sent === rowsRead.current) {
+      setServerRows(list.map(toRow))
+      // A row created in this browser that the gateway no longer lists has moved to another
+      // engineer; without this it would stay on the old engineer's list until a refresh.
+      const listed = new Set(list.map((a) => a.reference))
+      updateState((previous) => ({
+        ...previous,
+        createdRows: previous.createdRows.filter((r) => !r.persisted || listed.has(r.id)),
+      }))
+    }
+    return list
+  }
   useEffect(() => {
     // Refetched on every return to the dashboard, so capture progress shows.
     if (!needsRows) return
     const controller = new AbortController()
-    listAssessments(controller.signal).then(
+    readRows(controller.signal).then(
       (list) => {
-        const rows = list.map(toRow)
-        setServerRows(rows)
         setListFailed(false)
         // An assessment reopened from the URL knows only its reference: its
         // site name (header, Recent) comes from the list.
+        const rows = list.map(toRow)
         updateState((previous) => {
           const row = rows.find((r) => r.id === previous.captureTarget.reference)
           if (!row || previous.captureTarget.site) return previous
@@ -713,11 +733,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   }, [needsRows])
   // Reads the work list again after a change elsewhere, e.g. a site corrected
   // from the Overview or a client page (CP-18).
-  async function reloadRows() {
-    const list = await listAssessments().catch(() => null)
-    if (list) setServerRows(list.map(toRow))
-    return list
-  }
+  const reloadRows = () => readRows().catch(() => null)
   // The Undo in the archived toast (CP-23): restores it and reads the list again.
   async function undoArchive(reference: string) {
     try {
@@ -868,6 +884,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // Created from the New Assessment screen (CP-23): every new assessment is
   // the engineer's own (AC10), so each joins their list, which shows next.
   function addCreatedRows(rows: AssessmentRow[]) {
+    rowsRead.current += 1
     updateState((previous) => ({
       ...previous,
       createdRows: [...rows, ...previous.createdRows],
@@ -3316,11 +3333,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       canAssign: can('assessments:assign', session),
       me: { id: session.user.id, name: session.user.name },
       // A row the gateway answered after a move replaces its entry in the list.
-      rowMoved: (moved: Assessment) =>
+      rowMoved: (moved: Assessment) => {
+        rowsRead.current += 1
         setServerRows(
           (list) => list?.map((r) => (r.id === moved.reference ? toRow(moved) : r)) ?? list,
-        ),
-      // Reads the list again, e.g. after a row turned out to be archived.
+        )
+      },
+      // Reads the list again, e.g. after a row turned out to be archived, or someone moved one.
       refreshList: () => void reloadRows(),
       onRow: (e: React.MouseEvent<HTMLElement>) => {
         const id = e.currentTarget.dataset.id

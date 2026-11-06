@@ -14,6 +14,7 @@ import {
 } from '../../../design-system'
 import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
+import { useReloadOnOutsideChange } from '../../notifications/useNotificationCounts'
 import { ClientGroup } from '../components/ClientGroup'
 import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
 import { WorkToolbar } from '../components/WorkToolbar'
@@ -34,6 +35,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
   const compact = useCompact()
+  // Someone moved an assessment to or from this person, so the list follows without a refresh.
+  // Only the rows are replaced: same keys, so no skeleton, and scroll, filters and sort stay.
+  useReloadOnOutsideChange(v.refreshList)
   // An admin's list (RV-11): the row being reassigned, and the one just changed (its tint
   // holds 1 s + 260 ms, as the Documents list's does).
   const [reassigning, setReassigning] = useState<WorkRowData | null>(null)

@@ -1096,7 +1096,8 @@ describe('Work list by client (CP-17)', () => {
 it('assigns new assessments to me, with no engineer to choose (CP-23 AC10)', async () => {
   let submitted: object | undefined
   vi.stubGlobal('fetch', (_url: string, init?: RequestInit) => {
-    if (init?.method === 'GET') return respond(200, [])
+    // Lists the new assessment once created, as the real gateway does.
+    if (init?.method === 'GET') return respond(200, submitted ? [CREATED] : [])
     submitted = JSON.parse(String(init?.body))
     return respond(201, CREATED_REPLY)
   })

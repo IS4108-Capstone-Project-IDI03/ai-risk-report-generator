@@ -95,8 +95,8 @@ export function useNotifications(pageSize: number): UseNotifications {
     (id: string) => {
       setItems((current) => current.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n)))
       change((c) => ({ ...c, unread: Math.max(0, c.unread - 1) }))
-      // Failed: the count goes back, or the next poll would read as a rise and chime on your
-      // own action. The row corrects itself on the next open.
+      // Failed: the count goes back, or the next poll would read your own action as someone
+      // else's change. The row corrects itself on the next open.
       markNotificationRead(id).catch(() => change((c) => ({ ...c, unread: c.unread + 1 })))
     },
     [change],
@@ -109,7 +109,7 @@ export function useNotifications(pageSize: number): UseNotifications {
   }, [change, unread])
 
   // Dismiss one: drop the row now and adjust the counts, then tell the gateway.
-  // A failed call puts the counts back (no false chime); the next open puts the row back.
+  // A failed call puts the counts back (no false outside change); the next open puts the row back.
   const dismiss = useCallback(
     (id: string) => {
       const row = items.find((n) => n.id === id)

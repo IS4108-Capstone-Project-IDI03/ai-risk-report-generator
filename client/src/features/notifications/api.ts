@@ -50,10 +50,8 @@ export type Notification = {
   details: string | null
   context: Record<string, string> | null
   read: boolean
-  // Inbox only: Done for this user, because they opened it or anyone ticked it.
+  // Inbox only: Done for this user, because they opened it or ticked it.
   done: boolean
-  // When anyone ticked it; null while it is not ticked. An opened-only item has none.
-  doneAt: string | null
   createdAt: string
 }
 
@@ -74,8 +72,15 @@ export function getNotificationCount(signal?: AbortSignal): Promise<Notification
   return request<NotificationCounts>('/api/notifications/count', { signal })
 }
 
-// Totals only, as the count route returns them. `total` and `unread` are the bell's.
-export type NotificationCounts = { total: number; unread: number; inboxTodo: number }
+// Totals only, as the count route returns them. `total` and `unread` are the bell's; the times
+// say when the newest Inbox and bell items addressed to this person arrived (see chime.ts).
+export type NotificationCounts = {
+  total: number
+  unread: number
+  inboxTodo: number
+  newestInbox: string | null
+  newestBell: string | null
+}
 
 // One page, newest first. `limit` is clamped server-side; `offset` is how many
 // to skip. Matches GET /api/notifications.
@@ -115,12 +120,12 @@ export function dismissNotification(id: string): Promise<void> {
   return send(`/api/notifications/${encodeURIComponent(id)}/dismiss`, { method: 'POST' })
 }
 
-// Ticks an Inbox item: Done for this user and, on an admin item, for every admin. 204.
+// Ticks an Inbox item: Done for this user only. 204.
 export function markNotificationDone(id: string): Promise<void> {
   return send(`/api/notifications/${encodeURIComponent(id)}/done`, { method: 'POST' })
 }
 
-// Unticks an Inbox item: back to To do. 204.
+// Unticks an Inbox item: back to To do for this user only. 204.
 export function unmarkNotificationDone(id: string): Promise<void> {
   return send(`/api/notifications/${encodeURIComponent(id)}/done`, { method: 'DELETE' })
 }

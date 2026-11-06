@@ -2,24 +2,50 @@
 // Called by NotificationCountsContext.tsx after each count poll. No sound files: Web Audio
 // makes both tones in code, with the values of the approved prototype (spec "Sound").
 
-export type Counts = { total: number; unread: number; inboxTodo: number }
+// `newestInbox` and `newestBell` are ISO times from the count route: when the newest Inbox and
+// bell items addressed to this person arrived, in any state. The gateway always sends them;
+// they're optional so a screen test's fake counts can leave them out.
+export type Counts = {
+  total: number
+  unread: number
+  inboxTodo: number
+  newestInbox?: string | null
+  newestBell?: string | null
+}
 export type Chime = 'inbox' | 'bell'
+// The latest time seen for each kind: this person's high-water mark, which never goes down.
+export type Seen = { newestInbox: string | null; newestBell: string | null }
+
+// Compared as text, which works because the gateway always writes the same ISO format.
+const isNewer = (time: string | null | undefined, than: string | null) =>
+  !!time && (!than || time > than)
 
 /**
- * Returns which sound a poll earns, or null. Only a rise against the last poll plays; the
- * first poll (`previous` null) just sets the baseline, so loading the page is quiet. When
- * both rise, one sound plays and the Inbox wins, since it is the one that needs a person.
+ * Returns which sound a poll earns, or null. Only an item newer than anything seen plays: one
+ * coming back through an untick has an old time, so it stays silent though the count rises. The
+ * first poll (`seen` null) only sets the mark, so loading the page is quiet. When both kinds are
+ * new, one sound plays and the Inbox wins, since it is the one that needs a person.
  */
-export function chimeFor(previous: Counts | null, next: Counts): Chime | null {
-  if (!previous) return null
-  if (next.inboxTodo > previous.inboxTodo) return 'inbox'
-  if (next.unread > previous.unread) return 'bell'
+export function chimeFor(seen: Seen | null, next: Counts): Chime | null {
+  if (!seen) return null
+  if (isNewer(next.newestInbox, seen.newestInbox)) return 'inbox'
+  if (isNewer(next.newestBell, seen.newestBell)) return 'bell'
   return null
+}
+
+/** Returns the marks after a poll: each kind moves up to the poll's time, and never down. */
+export function raiseSeen(seen: Seen | null, next: Counts): Seen {
+  const raised = (time: string | null | undefined, mark: string | null) =>
+    isNewer(time, mark) ? time! : mark
+  return {
+    newestInbox: raised(next.newestInbox, seen?.newestInbox ?? null),
+    newestBell: raised(next.newestBell, seen?.newestBell ?? null),
+  }
 }
 
 // What a tab leaves in localStorage when it plays, so two open tabs don't both chime.
 // `tab` says whose note it is: a tab's own note says nothing about a new arrival.
-export type Played = { tab?: string; at: number; inboxTodo: number; unread: number }
+export type Played = Partial<Seen> & { tab?: string; at: number }
 // This tab, for the note. Not crypto.randomUUID: it only exists on https.
 const THIS_TAB = Math.random().toString(36).slice(2)
 // Longer than a hidden tab's slowed poll (about a minute), so the second tab sees the note.
@@ -27,8 +53,8 @@ const SHARED_FOR_MS = 90_000
 const STORAGE_KEY = 'f10-chime-played'
 
 /**
- * Returns true when another tab already played for this level of count. Comparing the
- * counts too means a genuinely newer arrival still plays right after another tab's chime.
+ * Returns true when another tab already played for this item. Comparing the times too means
+ * a genuinely newer arrival still plays right after another tab's chime.
  */
 export function playedElsewhere(
   stored: Played | null,
@@ -37,7 +63,11 @@ export function playedElsewhere(
   now: number,
 ): boolean {
   if (!stored || stored.tab === THIS_TAB || now - stored.at > SHARED_FOR_MS) return false
-  return chime === 'inbox' ? stored.inboxTodo >= next.inboxTodo : stored.unread >= next.unread
+  const [played, time] =
+    chime === 'inbox'
+      ? [stored.newestInbox, next.newestInbox]
+      : [stored.newestBell, next.newestBell]
+  return !!played && !isNewer(time, played)
 }
 
 // localStorage can throw (private window, blocked site data), and a missing note only
@@ -53,7 +83,12 @@ function writePlayed(next: Counts, now: number) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ tab: THIS_TAB, at: now, inboxTodo: next.inboxTodo, unread: next.unread }),
+      JSON.stringify({
+        tab: THIS_TAB,
+        at: now,
+        newestInbox: next.newestInbox,
+        newestBell: next.newestBell,
+      }),
     )
   } catch {
     // Quiet: see above.

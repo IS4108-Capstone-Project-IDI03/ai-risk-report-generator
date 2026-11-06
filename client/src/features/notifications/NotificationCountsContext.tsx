@@ -1,18 +1,20 @@
 // The one source of the notification counts (F-10): the bell's unread, the Inbox's To do
-// count and the sounds that follow their rises. Mounted once above every screen (App.tsx),
-// because the bell is mounted again on each screen: counts and the sound baseline kept in
+// count and the sounds for brand new items. Mounted once above every screen (App.tsx),
+// because the bell is mounted again on each screen: counts and the sound's mark kept in
 // the bell would restart from the sign-in figures on every screen change and either miss a
-// chime or replay one. Read by NotificationBell, AssessmentApp (sidebar) and the Inbox.
+// chime or replay one. Read by NotificationBell, AssessmentApp (sidebar), the Inbox and the
+// Assessments list.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { getNotificationCount } from './api'
-import { chimeFor, chimeOnce, startAudioUnlock, type Counts } from './chime'
+import { chimeFor, chimeOnce, raiseSeen, startAudioUnlock, type Counts, type Seen } from './chime'
 import { CountsContext, type NotificationCountsApi } from './useNotificationCounts'
 
-// How often the counts are read. The count route does not extend the session, so polling
-// cannot keep an idle tab signed in. Browsers slow a hidden tab's timer to about a minute.
-const POLL_MS = 30_000
+// How often the counts are read: 10 seconds, so a change made in another window shows up while
+// you're still looking. The count route does not extend the session, so polling cannot keep an
+// idle tab signed in. Browsers slow a hidden tab's timer to about a minute.
+const POLL_MS = 10_000
 
-/** Polls the counts, plays a chime on a rise and shares them with everything below. */
+/** Polls the counts, plays a chime for a brand new item and shares them with everything below. */
 export function NotificationCountsProvider({
   initial,
   children,
@@ -24,8 +26,10 @@ export function NotificationCountsProvider({
   const [counts, setCounts] = useState(initial)
   const [outsideChanges, setOutsideChanges] = useState(0)
   const latest = useRef(initial)
-  // The last polled counts. Null until the first poll, which only sets it (no sound on load).
-  const baseline = useRef<Counts | null>(null)
+  // The newest item times seen. Null until the first poll, which only sets them (no sound on
+  // load). The times say when an item arrived, in any state, so opening, ticking, unticking or
+  // binning one can't move them: nothing you do to an old item makes it newer.
+  const seen = useRef<Seen | null>(null)
   // Counted up by every change the person makes. A poll sent before one is dropped when it
   // lands: its old figures would undo the change and then look like a rise.
   const epoch = useRef(0)
@@ -37,7 +41,6 @@ export function NotificationCountsProvider({
     const next =
       typeof update === 'function' ? update(latest.current) : { ...latest.current, ...update }
     latest.current = next
-    if (baseline.current) baseline.current = next
     setCounts(next)
   }, [])
 
@@ -54,14 +57,21 @@ export function NotificationCountsProvider({
       getNotificationCount(controller.signal).then(
         (next) => {
           if (controller.signal.aborted || sentAt !== epoch.current) return
-          const chime = chimeFor(baseline.current, next)
+          const chime = chimeFor(seen.current, next)
+          seen.current = raiseSeen(seen.current, next)
           const before = latest.current
-          baseline.current = next
           latest.current = next
-          const moved = next.inboxTodo !== before.inboxTodo
+          const moved =
+            next.total !== before.total ||
+            next.unread !== before.unread ||
+            next.inboxTodo !== before.inboxTodo ||
+            next.newestInbox !== before.newestInbox ||
+            next.newestBell !== before.newestBell
           // Without this check every poll made a new object, and every screen below drew again.
-          if (moved || next.total !== before.total || next.unread !== before.unread) setCounts(next)
-          if (moved) setOutsideChanges((n) => n + 1)
+          if (moved) {
+            setCounts(next)
+            setOutsideChanges((n) => n + 1)
+          }
           if (chime) chimeOnce(chime, next)
         },
         () => {
