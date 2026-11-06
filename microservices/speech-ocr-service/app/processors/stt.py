@@ -13,14 +13,33 @@ class TranscriptionError(Exception):
     """The reason a recording could not be transcribed, shown to the engineer."""
 
 
+# The SDK gives objects, a plain dict gives keys; take either.
+def _get(segment, key):
+    return segment[key] if isinstance(segment, dict) else getattr(segment, key)
+
+
 def _segments(result) -> list[dict]:
     """Whisper's timed pieces as {start, end, text}; [] when it returns none."""
-    # The SDK gives objects, a plain dict gives keys; take either.
-    get = lambda s, k: s[k] if isinstance(s, dict) else getattr(s, k)  # noqa: E731
     return [
-        {"start": get(s, "start"), "end": get(s, "end"), "text": get(s, "text").strip()}
+        {"start": _get(s, "start"), "end": _get(s, "end"), "text": _get(s, "text").strip()}
         for s in getattr(result, "segments", None) or []
     ]
+
+
+# Whisper's own score for "this piece is not speech". Real speech scores near 0; silence and room
+# noise score 0.8 or more, and Whisper then invents text such as "Thank you for watching."
+NO_SPEECH_ABOVE = 0.6
+
+
+def _spoken(result) -> str:
+    """The transcript without the pieces Whisper itself says are not speech."""
+    pieces = getattr(result, "segments", None)
+    if not pieces:
+        return result.text.strip()
+    heard = [
+        _get(s, "text").strip() for s in pieces if _get(s, "no_speech_prob") <= NO_SPEECH_ABOVE
+    ]
+    return " ".join(heard).strip()
 
 
 # Words Whisper hears wrongly without a hint (it passes them to the model as the previous
@@ -32,7 +51,7 @@ CLIP_PROMPT = (
 )
 
 
-def _whisper(name: str, audio: bytes, prompt: str | None = None) -> dict:
+def _whisper(name: str, audio: bytes, prompt: str | None = None, only_speech: bool = False) -> dict:
     """Send audio to Whisper; return {transcript, segments, usage}. `name` carries the format."""
     # Time only the OpenAI call, so duration_ms excludes any storage read.
     started = time.perf_counter()
@@ -67,7 +86,8 @@ def _whisper(name: str, audio: bytes, prompt: str | None = None) -> dict:
         "audio_seconds": audio_seconds,
         "usage_status": "recorded" if audio_seconds is not None else "unavailable",
     }
-    return {"transcript": result.text.strip(), "segments": _segments(result), "usage": [usage]}
+    transcript = _spoken(result) if only_speech else result.text.strip()
+    return {"transcript": transcript, "segments": _segments(result), "usage": [usage]}
 
 
 def transcribe(s3_key: str) -> dict:
@@ -85,4 +105,5 @@ def transcribe(s3_key: str) -> dict:
 
 def transcribe_clip(audio: bytes, filename: str) -> dict:
     """Transcribe a short clip sent directly (a spoken chat question), with the vocabulary hint."""
-    return _whisper(filename, audio, CLIP_PROMPT)
+    # only_speech: a silent or noisy clip must come back empty, not as an invented sentence.
+    return _whisper(filename, audio, CLIP_PROMPT, only_speech=True)
