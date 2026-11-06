@@ -4,7 +4,8 @@
 // Calls api.ts and pendingUploads.ts.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GatewayError } from '../assessments/api'
-import { finishWalk, saveNote, startWalk, type SiteWalk } from './api'
+import { toast } from '../../design-system'
+import { finishWalk, retryRecording, saveNote, startWalk, type SiteWalk } from './api'
 import {
   deviceStore,
   photoKey,
@@ -14,8 +15,10 @@ import {
   type PendingUpload,
   type UploadStore,
 } from './pendingUploads'
+import { refusalToast } from './refusalToast'
 import { walkItems } from './walkItems'
 import { useWalkPolling } from './useWalkPolling'
+import { hiddenKey, useWalkRemovals, type Removal } from './useWalkRemovals'
 
 // The gateway's own reason for a refusal (a 4xx), else the plain fallback.
 export const problemText = (error: unknown, fallback: string) =>
@@ -50,7 +53,14 @@ export function useWalk(reference: string, store?: UploadStore) {
   // Every confirmed upload returns the walk, so the screen shows what the server has.
   // Made once per screen: opening IndexedDB on every render would be wasted work.
   const [queue] = useState(() =>
-    uploadQueue(store ?? deviceStore(), async (item) => apply(await sendUpload(item))),
+    uploadQueue(store ?? deviceStore(), sendUpload, {
+      onSent: (walk) => apply(walk as SiteWalk),
+      // The person still has the file they picked, so a refusal drops it and says why.
+      onRefused: (item, error) => {
+        setUnsent((u) => u.filter((i) => i.key !== item.key))
+        refusalToast(item, error)
+      },
+    }),
   )
 
   // Re-sends what is still on the device and notes what is left.
@@ -110,17 +120,32 @@ export function useWalk(reference: string, store?: UploadStore) {
     [queue],
   )
 
+  // `extra` marks a picked file (Upload recording) and its own name.
   const addRecording = useCallback(
-    (seq: number, blob: Blob, durationSec: number) => {
+    (
+      seq: number,
+      blob: Blob,
+      durationSec: number,
+      extra: { uploaded?: boolean; name?: string } = {},
+    ) => {
       if (!walk) return
       const key = recordingKey(walk.id, seq)
-      return keep({ key, kind: 'recording', reference, walkId: walk.id, seq, durationSec, blob })
+      return keep({
+        key,
+        kind: 'recording',
+        reference,
+        walkId: walk.id,
+        seq,
+        durationSec,
+        blob,
+        ...extra,
+      })
     },
     [walk, reference, keep],
   )
 
   const addPhoto = useCallback(
-    (blob: Blob, recordingSeq: number | null, offsetSec: number | null) => {
+    (blob: Blob, recordingSeq: number | null, offsetSec: number | null, name?: string) => {
       if (!walk) return
       const photoId = crypto.randomUUID()
       const key = photoKey(walk.id, photoId)
@@ -133,6 +158,7 @@ export function useWalk(reference: string, store?: UploadStore) {
         recordingSeq,
         offsetSec,
         blob,
+        name,
       })
     },
     [walk, reference, keep],
@@ -163,6 +189,37 @@ export function useWalk(reference: string, store?: UploadStore) {
   // its seq when it started); says whether it was saved.
   const addNote = useCallback((text: string) => writeNote(highSeq.current + 1, text), [writeNote])
 
+  // Puts a failed recording back to Transcribing; it can be tried again any number of times.
+  const retry = useCallback(
+    async (seq: number) => {
+      if (!walk) return
+      try {
+        apply(await retryRecording(reference, walk.id, seq))
+      } catch {
+        toast.error("Couldn't try again", { description: 'Check your connection' })
+      }
+    },
+    [walk, reference, apply],
+  )
+
+  // Drops a removed item that is still only on this device from the queue and the screen,
+  // and says whether a send already running got it to the server.
+  const discardLocal = useCallback(
+    async (removal: Removal) => {
+      if (!walk || removal.kind === 'note') return false
+      const key =
+        removal.kind === 'recording'
+          ? recordingKey(walk.id, removal.seq)
+          : photoKey(walk.id, removal.id)
+      const landed = await queue.discard(key)
+      setUnsent((u) => u.filter((i) => i.key !== key))
+      return landed
+    },
+    [walk, queue],
+  )
+  const removals = useWalkRemovals(reference, walk, apply, discardLocal)
+  const { flush: flushRemovals } = removals
+
   // c. Finish: save any unsent note, make sure everything is sent, then finish.
   // Refused while anything is still on the device, or the walk would be read without it.
   const finish = useCallback(
@@ -170,6 +227,13 @@ export function useWalk(reference: string, store?: UploadStore) {
       if (!walk) return
       setProblem(null)
       try {
+        // Pending removals are deleted first, so the walk is finished without them.
+        if (!(await flushRemovals())) {
+          setProblem(
+            'Some removed items could not be deleted. Check your connection and try again.',
+          )
+          return
+        }
         if (draft?.trim()) {
           apply(await saveNote(reference, walk.id, highSeq.current + 1, draft))
           highSeq.current++
@@ -191,21 +255,26 @@ export function useWalk(reference: string, store?: UploadStore) {
         )
       }
     },
-    [walk, reference, flush, apply],
+    [walk, reference, flush, apply, flushRemovals],
   )
 
   useWalkPolling(reference, walk, finished, version, applyPolled)
 
-  const items = walkItems(walk, unsent, sendingCount > 0)
-  // The seq of the newest recording or note, so the next one numbers after it.
-  const lastSeq = Math.max(0, ...items.map((i) => i.seq))
+  const everyItem = walkItems(walk, unsent, sendingCount > 0)
+  const items = everyItem.filter((i) => !removals.hidden.has(hiddenKey(i)))
+  // The seq of the newest recording or note (removed ones included), so the next one numbers after it.
+  const lastSeq = Math.max(0, ...everyItem.map((i) => i.seq))
   useEffect(() => {
     highSeq.current = Math.max(highSeq.current, lastSeq)
   }, [lastSeq])
-  const serverPhotos = walk?.photos ?? []
+  const serverPhotos = (walk?.photos ?? []).filter(
+    (p) => !removals.hidden.has(hiddenKey({ kind: 'photo', id: p.id })),
+  )
   // Photos still only on this device, once the server has not yet confirmed them.
   const localPhotos = unsent.flatMap((i) =>
-    i.kind === 'photo' && !serverPhotos.some((p) => p.id === i.photoId)
+    i.kind === 'photo' &&
+    !(walk?.photos ?? []).some((p) => p.id === i.photoId) &&
+    !removals.hidden.has(hiddenKey({ kind: 'photo', id: i.photoId }))
       ? [{ id: i.photoId, blob: i.blob }]
       : [],
   )
@@ -224,6 +293,8 @@ export function useWalk(reference: string, store?: UploadStore) {
     addPhoto,
     addNote,
     editNote: writeNote,
+    retry,
+    remove: removals.remove,
     finish,
   }
 }

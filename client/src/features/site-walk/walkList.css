@@ -17,37 +17,6 @@
   font-size: 13px;
   font-weight: 600;
 }
-.sw-photostrip ul {
-  display: flex;
-  gap: 8px;
-  margin: 0 -16px;
-  padding: 0 16px 4px;
-  overflow-x: auto; /* the strip scrolls, never the page */
-  list-style: none;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-}
-.sw-photostrip li {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-}
-.sw-photostrip button {
-  display: block;
-  width: 64px;
-  height: 64px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 12px;
-  background: var(--sw-fill);
-  cursor: pointer;
-}
-.sw-photostrip img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 .sw-photo-large {
   display: block;
   width: 100%;
@@ -100,7 +69,8 @@
 }
 .sw-item {
   display: flex;
-  align-items: flex-start;
+  /* Every marker is centred to the row's height (design system v2, Inbox row). */
+  align-items: center;
   gap: 12px;
   min-height: 64px;
   padding: 10px 8px 10px 14px;
@@ -119,7 +89,6 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  margin-top: 4px;
   border-radius: 50%;
   background: var(--graphite-0);
   color: var(--marsh-navy);
@@ -140,7 +109,6 @@
 .sw-item-main {
   flex: 1;
   min-width: 0;
-  padding-top: 2px;
 }
 .sw-item-name,
 .sw-note-text {
@@ -199,6 +167,19 @@
 .sw-item-tools {
   display: flex;
   flex: 0 0 auto;
+  gap: 2px;
+}
+/* Row actions: 36 px round icon buttons, grey, and the bin red (design system v2, section 2). */
+.sw-item .sw-icon-button {
+  width: 36px;
+  min-height: 36px;
+  color: var(--graphite-600);
+}
+.sw-item .sw-icon-button.sw-button--danger {
+  color: var(--red-600);
+}
+.sw-item .sw-icon-button.sw-button--danger:hover:not(:disabled) {
+  background: var(--red-50);
 }
 .sw-item-actions {
   display: flex;
@@ -235,6 +216,10 @@
    which is always loaded, as the site walk screens render inside the workspace. */
 
 @media (pointer: coarse), (max-width: 559px) {
+  .sw-item .sw-icon-button {
+    width: 44px;
+    min-height: 44px;
+  }
   button.sw-play {
     width: 44px;
     height: 44px;

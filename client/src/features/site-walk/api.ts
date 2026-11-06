@@ -104,12 +104,36 @@ export async function uploadRecording(
   seq: number,
   audio: Blob,
   durationSec: number,
+  // An uploaded file's own name; a recorded clip has none and is named by its seq.
+  name?: string,
 ): Promise<SiteWalk> {
   const form = new FormData()
-  form.append('recording', audio, `recording-${seq}.${audio.type.includes('mp4') ? 'mp4' : 'webm'}`)
+  form.append(
+    'recording',
+    audio,
+    name ?? `recording-${seq}.${audio.type.includes('mp4') ? 'mp4' : 'webm'}`,
+  )
   form.append('durationSec', String(durationSec))
   const path = `${walkPath(reference, walkId)}/recordings/${seq}`
   return (await request<SiteWalk>('PUT', path, form)).data
+}
+
+// Puts a failed recording back to transcribing; any other state returns the walk unchanged.
+export async function retryRecording(reference: string, walkId: string, seq: number) {
+  const path = `${walkPath(reference, walkId)}/recordings/${seq}/retry`
+  return (await request<SiteWalk>('POST', path)).data
+}
+
+// Removes one recording and its stored file; already gone returns the walk unchanged.
+export async function deleteRecording(reference: string, walkId: string, seq: number) {
+  const path = `${walkPath(reference, walkId)}/recordings/${seq}`
+  return (await request<SiteWalk>('DELETE', path)).data
+}
+
+// Removes one photo and its stored file; already gone returns the walk unchanged.
+export async function deletePhoto(reference: string, walkId: string, photoId: string) {
+  const path = `${walkPath(reference, walkId)}/photos/${encodeURIComponent(photoId)}`
+  return (await request<SiteWalk>('DELETE', path)).data
 }
 
 // Sends one photo under the client's own id; a repeat changes nothing.

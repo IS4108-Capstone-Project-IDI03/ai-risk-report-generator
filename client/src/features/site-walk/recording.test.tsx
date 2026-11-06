@@ -143,13 +143,11 @@ describe('site walk recording', () => {
     gw.offline = true
     await tick(5_000)
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save recording' })))
-    expect(await screen.findByRole('img', { name: 'On this device' })).toBeInTheDocument()
+    expect(await screen.findByText('On this device')).toBeInTheDocument()
 
     gw.offline = false
     await act(async () => void window.dispatchEvent(new Event('online')))
-    await waitFor(() =>
-      expect(screen.queryByRole('img', { name: 'On this device' })).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByText('On this device')).not.toBeInTheDocument())
     expect(sent(/recordings\/1$/).length).toBeGreaterThanOrEqual(2)
   })
 
