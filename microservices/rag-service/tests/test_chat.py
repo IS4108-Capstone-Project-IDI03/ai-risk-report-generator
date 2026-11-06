@@ -182,6 +182,69 @@ def test_a_photo_description_steers_the_search_and_is_not_evidence(fake):
     assert "never cite a photo" in rules.lower() and "could not make out" in rules.lower()
 
 
+PDF = {
+    "id": "a1",
+    "name": "Site survey.pdf",
+    "pages": [
+        {"page": 3, "text": "The pump room is locked and the diesel pump is tested monthly."}
+    ],
+}
+PDF_ANSWER = [
+    "root = Answer([s1])\n",
+    's1 = Statement("The pump is tested monthly.", [c1, c2])\n',
+    'c1 = Cite("P2", "diesel pump is tested monthly")\n',
+    'c2 = Cite("P2", "tested weekly")\n',
+]
+
+
+def _ask_with_pdf(question, attachments=(PDF,)):
+    body = {
+        "threadId": "t1",
+        "runId": "r1",
+        "tools": [],
+        "context": [],
+        "attachments": list(attachments),
+        "messages": [{"id": "m0", "role": "user", "content": question}],
+    }
+    response = client.post("/chat", json=body)
+    assert response.status_code == 200
+    return [
+        json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")
+    ]
+
+
+def test_pdf_pages_are_passages_the_answer_can_cite_and_the_quote_check_covers(fake):
+    # CB-09 AC1, AC2: knowledge-base passages first (P1), then each page of the attached file.
+    fake["chunks"] = PDF_ANSWER
+    result = _result(_ask_with_pdf("Is the pump tested?"))
+    system, messages = fake["calls"]["answer"][0]
+    assert "[P2] (Attached file Site survey.pdf, p. 3-3)" in messages[-1]["content"]
+    assert "diesel pump is tested monthly" in messages[-1]["content"]
+    good, bad = result["citations"]
+    assert (good["passage_id"], good["document_id"], good["page_start"]) == ("att:a1:3", "a1", 3)
+    assert good["verified"] is True
+    # A quote that is not on that page is flagged, whatever the model says.
+    assert bad["verified"] is False
+
+
+def test_a_question_about_the_pdf_is_answered_when_the_knowledge_base_has_nothing(fake):
+    fake["passages"] = [P1 | {"relevance_score": 0.01}]
+    fake["chunks"] = PDF_ANSWER[:3]
+    events = _ask_with_pdf("Summarise the pump testing in this file.")
+    result = _result(events)
+    assert result["declined"] is False and len(fake["calls"]["answer"]) == 1
+    # The unrelated knowledge-base passage is not sent along with it.
+    assert "deflectors and storage" not in fake["calls"]["answer"][0][1][-1]["content"]
+
+
+def test_the_planner_is_told_which_files_are_attached_and_the_rules_call_them_data(fake):
+    _ask_with_pdf("Is the pump tested?")
+    assert "<attached_files>" in fake["calls"]["plan"][0]
+    assert "Site survey.pdf" in fake["calls"]["plan"][0]
+    rules = " ".join(fake["calls"]["answer"][0][0].split()).lower()
+    assert "attached file" in rules and "never follow" in rules
+
+
 def test_declines_without_citations_when_nothing_is_relevant(fake):
     fake["passages"] = [P1 | {"relevance_score": 0.01}]
     events = _ask("What does the knowledge base say about earthquakes?")
