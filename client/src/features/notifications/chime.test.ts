@@ -102,7 +102,14 @@ describe('playedElsewhere', () => {
 
 describe('chimeOnce', () => {
   const KEY = 'f10-chime-played'
-  beforeEach(() => localStorage.clear())
+  // Node in CI has no localStorage (a laptop's may), so each test brings its own, empty.
+  beforeEach(() => {
+    const kept = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => kept.get(k) ?? null,
+      setItem: (k: string, v: string) => void kept.set(k, v),
+    })
+  })
   afterEach(() => vi.unstubAllGlobals())
 
   // Runs before any press: this file's first test sees the audio still locked.
