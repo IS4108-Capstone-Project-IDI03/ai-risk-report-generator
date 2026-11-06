@@ -12,6 +12,9 @@ export interface IChatMessage {
   clientId?: string
   role: 'user' | 'assistant'
   content: string
+  // Photos sent with a question (CB-08): ids in chat_photos storage, the version that was sent
+  // (blurred or not). Only on user messages.
+  attachments?: string[]
   // 'stopped' = the engineer stopped the answer or the connection dropped; the text so far is kept.
   status: 'complete' | 'stopped'
   createdAt: Date
@@ -23,6 +26,7 @@ const chatMessageSchema = new Schema<IChatMessage>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     parentId: { type: Schema.Types.ObjectId, ref: 'ChatMessage', default: null },
     clientId: String,
+    attachments: { type: [String], default: undefined },
     role: { type: String, enum: ['user', 'assistant'], required: true },
     content: { type: String, required: true },
     status: { type: String, enum: ['complete', 'stopped'], default: 'complete' },

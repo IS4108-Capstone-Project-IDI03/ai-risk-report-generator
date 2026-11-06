@@ -15,6 +15,17 @@ import { chatUsageTap } from '../services/chat-usage.service'
 import { chatPrivacy } from '../services/privacy.service'
 import { MAX_AUDIO_BYTES, transcribeQuestion } from '../services/chat-voice.service'
 import {
+  MAX_PHOTO_BYTES,
+  addPhoto,
+  keepChosen,
+  openPhoto,
+  photoContext,
+  removePhotos,
+  sentPhotoIds,
+} from '../services/chat-attachment.service'
+import { SpeechServiceError } from '../services/speech.service'
+import { ChatMessageModel } from '../models/chat-message.model'
+import {
   addFact,
   deleteFact,
   editFact,
@@ -73,6 +84,13 @@ function engineerTexts(body: unknown): string[] {
   return [...said, ...noted].filter((t): t is string => typeof t === 'string')
 }
 
+// The request with extra context lines added after any the browser sent.
+function withContext(body: unknown, lines: { description: string; value: string }[]) {
+  if (!lines.length) return body
+  const context = (body as { context?: unknown })?.context
+  return { ...(body as object), context: [...(Array.isArray(context) ? context : []), ...lines] }
+}
+
 // Sends the refusal as a short answer in the same event stream S4 uses. Must
 // match the events in microservices/rag-service/app/chat/answer.py.
 function refuse(res: Response, reason: string) {
@@ -99,6 +117,39 @@ router.post(
   }),
 )
 
+// A photo for a question (CB-08): the file is the raw body. Stored and face-checked at once, so the
+// engineer can choose to blur before sending. Answers `{ id, faces, blurredId }`.
+router.post(
+  '/photos',
+  requirePermission('knowledge:view'),
+  express.raw({ type: 'image/*', limit: MAX_PHOTO_BYTES }),
+  handle(async (req, res) => {
+    // A type other than JPG or PNG never reaches the body parser, so it is refused here.
+    if (!Buffer.isBuffer(req.body))
+      throw new ChatError(415, 'Only JPG and PNG photos can be attached.')
+    res.json(await addPhoto(res.locals.user!.id, req.body))
+  }),
+)
+router.get(
+  '/photos/:id',
+  requirePermission('knowledge:view'),
+  handle(async (req, res) => {
+    const { stream, contentType } = await openPhoto(res.locals.user!.id, req.params.id)
+    res.setHeader('Content-Type', contentType)
+    // The photo may show a client's site: never cached by a shared proxy.
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+    await pipeline(stream, res)
+  }),
+)
+router.delete(
+  '/photos/:id',
+  requirePermission('knowledge:view'),
+  handle(async (req, res) => {
+    await removePhotos(res.locals.user!.id, [req.params.id])
+    res.status(204).end()
+  }),
+)
+
 router.post('/', requirePermission('knowledge:view'), async (req, res) => {
   // Refused here, before S4, so no model is called and nothing is spent. It is a
   // 200 stream, not a 429, because OpenUI's fetchLLM would show a generic error
@@ -118,26 +169,39 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     refuse(res, reason)
     return
   }
+  // a2. The photos sent with the question (CB-08): only the engineer's own, up to 3.
+  let photos: string[]
+  try {
+    photos = sentPhotoIds(req.body?.attachments)
+    await keepChosen(userId, photos)
+  } catch (error) {
+    return chatError(res, error)
+  }
   // b. Save the question before asking S4, so it is kept even if the answer fails.
   const question = lastQuestion(req.body)
   // A failed save is logged, not fatal: the engineer still gets their answer.
   const questionId =
     typeof threadId === 'string' && question
-      ? await saveQuestion(threadId, userId, question).catch((error) => {
+      ? await saveQuestion(threadId, userId, question, photos).catch((error) => {
           console.error('Could not save the chat question:', error)
           return null
         })
       : null
+  // A retry sends no photos: the saved question's own are used again (CB-08 AC5).
+  if (!photos.length && questionId) {
+    photos = (await ChatMessageModel.findById(questionId, 'attachments'))?.attachments ?? []
+  }
   // Without this, S4 keeps writing an answer after the engineer presses stop.
   const upstream = new AbortController()
   res.on('close', () => upstream.abort())
   let stream: ReadableStream<Uint8Array>
   try {
+    const seen = photos.length ? await photoContext(userId, photos) : []
     stream = await openChatStream(
       // The role is set here, never taken from the browser: it decides who S4 offers to add a document.
       // The gateway decides protection (PV-03), replacing any privacy the browser sent.
       {
-        ...(await withChatDocuments(await withChatMemory(req.body, userId))),
+        ...(await withChatDocuments(await withChatMemory(withContext(req.body, seen), userId))),
         role: res.locals.user!.role,
         privacy: await chatPrivacy(),
       },
@@ -145,6 +209,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
       userId,
     )
   } catch (error: unknown) {
+    if (error instanceof SpeechServiceError) {
+      // A chat reply, like the other failures here: nothing is asked of the answer model.
+      refuse(res, 'I could not read that photo. Please try again, or ask without it.')
+      return
+    }
     if (error instanceof RagServiceError) {
       // A chat reply, not a 503: OpenUI's fetchLLM would show a generic error box instead.
       refuse(res, pickReply(userId, UNAVAILABLE))

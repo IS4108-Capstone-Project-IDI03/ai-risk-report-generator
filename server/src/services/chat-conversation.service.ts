@@ -4,6 +4,7 @@
 // Called by routes/chat.routes.ts. Calls the chat models.
 import { Types, type HydratedDocument } from 'mongoose'
 import { ChatError } from './chat-error'
+import { photoUrl, removePhotos } from './chat-attachment.service'
 import { ChatConversationModel } from '../models/chat-conversation.model'
 import { ChatMessageModel, type IChatMessage } from '../models/chat-message.model'
 
@@ -88,7 +89,15 @@ function pathView(leafId: Types.ObjectId | undefined, all: Stored[]) {
       }
   }
   return {
-    messages: path.map((m) => ({ id: shownId(m), role: m.role, content: m.content })),
+    messages: path.map((m) => ({
+      id: shownId(m),
+      role: m.role,
+      content: m.content,
+      // The photos sent with a question (CB-08), as links the chat can show.
+      ...(m.attachments?.length && {
+        attachments: m.attachments.map((id) => ({ id, url: photoUrl(id) })),
+      }),
+    })),
     versions,
   }
 }
@@ -131,6 +140,15 @@ export async function renameConversation(userId: string, id: string, title: unkn
 /** Deletes a chat for good, with all its messages. */
 export async function deleteConversation(userId: string, id: string) {
   const chat = await ownedConversation(userId, id)
+  // Without this, a deleted chat would leave its photos in storage.
+  const sent = await ChatMessageModel.find({
+    conversationId: chat._id,
+    attachments: { $exists: true },
+  })
+  await removePhotos(
+    userId,
+    sent.flatMap((m) => m.attachments ?? []),
+  )
   await ChatMessageModel.deleteMany({ conversationId: chat._id })
   await chat.deleteOne()
 }
