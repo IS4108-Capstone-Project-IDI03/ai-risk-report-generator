@@ -81,6 +81,9 @@ export function Dialog({
       aria-label={ariaLabel}
       aria-labelledby={title ? titleId : undefined}
       aria-describedby={description ? descriptionId : undefined}
+      // No way to close: the browser mustn't close it either. Chrome lets a second Esc through
+      // however `cancel` answers, which would leave React thinking it's still open.
+      closedby={onClose ? undefined : 'none'}
       onCancel={(event) => {
         event.preventDefault()
         onClose?.()

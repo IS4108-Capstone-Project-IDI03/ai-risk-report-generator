@@ -22,8 +22,9 @@ export function listInbox(
   tab: InboxTab,
   offset: number,
   signal?: AbortSignal,
+  limit = PAGE_SIZE,
 ): Promise<NotificationPage> {
-  return listNotifications(PAGE_SIZE, offset, signal, { kind: 'inbox', tab })
+  return listNotifications(limit, offset, signal, { kind: 'inbox', tab })
 }
 
 // Each is one gateway call that answers 204. The names say what a person did to a row.

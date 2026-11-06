@@ -3,8 +3,11 @@
 // Calls api.ts; useInboxActions.ts changes the list through the setters returned here.
 import { useEffect, useRef, useState } from 'react'
 import type { Notification } from '../notifications/api'
-import { useNotificationCounts } from '../notifications/useNotificationCounts'
-import { listInbox, type InboxTab } from './api'
+import {
+  useNotificationCounts,
+  useReloadOnOutsideChange,
+} from '../notifications/useNotificationCounts'
+import { listInbox, PAGE_SIZE, type InboxTab } from './api'
 import { forgetOpened, returnedByBack } from './inboxReturn'
 
 // 'ticked' is a row shown already ticked when you come back by Back; 'ticking' and 'unticking'
@@ -23,7 +26,7 @@ export type UseInbox = ReturnType<typeof useInbox>
 
 /** Returns the Inbox list and everything that changes it. */
 export function useInbox() {
-  const { change, outsideChanges } = useNotificationCounts()
+  const { change } = useNotificationCounts()
   const [tab, setTab] = useState<InboxTab>('todo')
   const [items, setItems] = useState<Notification[]>([])
   const [total, setTotal] = useState(0)
@@ -38,8 +41,11 @@ export function useInbox() {
   const [cleared, setCleared] = useState(false)
 
   const timers = useRef(new Map<string, number[]>())
-  // Rows that have left. A refetch sent before one left could still list it.
+  // Rows that have left since the last read was sent. That read could still list them; a read
+  // sent later is the truth, so an untick in your other tab can bring a row back.
   const gone = useRef(new Set<string>())
+  // Counted up by each tick, untick, bin and Undo here. A reply sent before one has old counts.
+  const actions = useRef(0)
   const inFlight = useRef<AbortController | null>(null)
   // Counted up by every fresh read of a tab, so an older Load more's reply is dropped.
   const generation = useRef(0)
@@ -72,6 +78,7 @@ export function useInbox() {
     timers.current.get(id)?.forEach(clearTimeout)
     timers.current.delete(id)
     gone.current.delete(id)
+    actions.current += 1
     setPhase(id, null)
   }
 
@@ -86,12 +93,14 @@ export function useInbox() {
 
   /** Plays a row's exit: the circle's animation first for a tick or untick, then it closes up. */
   const leave = (id: string, phase: 'ticking' | 'unticking' | 'leaving') => {
+    actions.current += 1
     setPhase(id, phase)
     later(id, (phase === 'leaving' ? 0 : EXIT_AFTER_MS) + LEAVE_MS, () => remove(id))
   }
 
   // A page replaces the list, but a row that is still leaving stays where it was until it is
-  // gone, and a row that has already left is not brought back by an older reply.
+  // gone, and a row that has already left is not brought back by an older reply. Returns how
+  // many more rows the list now holds than the page brought, so the total can match the list.
   const apply = (page: Notification[], forTab: InboxTab) => {
     // A different tab's rows are not "before": nothing there to keep, nothing new to tint.
     const sameTab = loadedRef.current === forTab
@@ -118,6 +127,7 @@ export function useInbox() {
       window.setTimeout(() => setFresh(new Set()), FRESH_MS)
     }
     setItems(next)
+    return next.length - page.length
   }
 
   /** Fetches the first page of a tab; a reload keeps rows that are mid-animation. */
@@ -126,13 +136,24 @@ export function useInbox() {
     inFlight.current?.abort()
     const controller = new AbortController()
     inFlight.current = controller
-    listInbox(forTab, 0, controller.signal).then(
+    gone.current.clear()
+    const actionsWhenSent = actions.current
+    // A reread of the same tab asks for every row held, or it would cut a Load more list back
+    // to one page. A tab switch starts over.
+    // shortcut: the gateway caps a page at 50, so a longer list shrinks to 50, with Load more
+    // still on offer; send a limit past the cap if people ever hold more.
+    const limit =
+      loadedRef.current === forTab ? Math.max(PAGE_SIZE, itemsRef.current.length) : PAGE_SIZE
+    listInbox(forTab, 0, controller.signal, limit).then(
       (page) => {
         if (controller.signal.aborted) return
-        apply(page.items, forTab)
-        // The page carries the bell's and the Inbox's counts: the sidebar follows the list.
-        change({ unread: page.unread, inboxTodo: page.inboxTodo })
-        setTotal(page.total)
+        const extra = apply(page.items, forTab)
+        // The page carries the bell's and the Inbox's counts: the sidebar follows the list. A
+        // reply sent before the person acted would put their change back; the next poll agrees.
+        if (actions.current === actionsWhenSent)
+          change({ unread: page.unread, inboxTodo: page.inboxTodo })
+        // A row kept mid-exit is counted, because `remove` takes it off again when it goes.
+        setTotal(page.total + extra)
         setLoadedTab(forTab)
         setFailed(false)
       },
@@ -174,7 +195,6 @@ export function useInbox() {
   // Without clearing the timers, a row ticked just before the switch would show fading in Done,
   // then vanish until a reload and lower the total.
   useEffect(() => {
-    gone.current.clear()
     timers.current.forEach((list) => list.forEach(clearTimeout))
     timers.current.clear()
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resets with the tab it follows
@@ -185,29 +205,9 @@ export function useInbox() {
     return () => request.current?.abort()
   }, [tab])
 
-  // Someone else moved the To do count while the Inbox is open (new work, or an admin ticking a
-  // shared item): read the tab showing again, so rows arrive and leave. A row mid-exit stays.
-  // shortcut: a change that leaves the count equal (one ticked, one new) waits for the next
-  // change or tab switch; a list version from the gateway would catch it.
-  const seenChanges = useRef(outsideChanges)
-  const missed = useRef(false)
-  useEffect(() => {
-    if (outsideChanges === seenChanges.current) return
-    seenChanges.current = outsideChanges
-    // The list route refreshes the session cookie: reading it while hidden would let arrivals keep
-    // an idle tab signed in.
-    if (document.visibilityState === 'visible') loadRef.current(tabRef.current)
-    else missed.current = true
-  }, [outsideChanges])
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible' || !missed.current) return
-      missed.current = false
-      loadRef.current(tabRef.current)
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
+  // Something changed elsewhere while the Inbox is open (new work, or your other tab): read the
+  // tab showing again, so rows arrive and leave. A row mid-exit stays.
+  useReloadOnOutsideChange(() => loadRef.current(tabRef.current))
 
   // Leaving the screen stops every pending animation timer.
   useEffect(() => {

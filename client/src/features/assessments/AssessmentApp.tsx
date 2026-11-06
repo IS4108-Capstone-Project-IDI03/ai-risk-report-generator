@@ -327,6 +327,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   <>
                     {v.isInbox && (
                       <Inbox
+                        meId={session.user.id}
                         eyebrow={
                           session.user.role === 'risk_engineer'
                             ? 'Risk engineering'

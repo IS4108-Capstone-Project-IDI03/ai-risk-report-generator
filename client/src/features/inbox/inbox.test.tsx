@@ -20,6 +20,7 @@ import { signIn } from '../../test/session'
 import type { Notification } from '../notifications/api'
 import { assessmentOpen } from '../assessments/openAssessment'
 import { CountsContext } from '../notifications/useNotificationCounts'
+import { formatBellWhen } from '../notifications/formatWhen'
 import { useInbox } from './useInbox'
 
 beforeAll(() => {
@@ -53,7 +54,6 @@ const item = (id: string, over: Partial<Notification> = {}): Notification => ({
   },
   read: false,
   done: false,
-  doneAt: null,
   createdAt: '2026-11-05T03:42:00.000Z',
   ...over,
 })
@@ -81,12 +81,21 @@ function gateway(seed: Stored[]) {
   const lists: string[] = []
   // The Assessments list; null leaves it unreachable, so the app falls back to its demo rows.
   const assessments: { list: ReturnType<typeof assessment>[] | null } = { list: null }
+  // The already-handled check's read calls (F-10 round 3), by path; `readCalls` records them.
+  const reads: Record<string, () => Response | Promise<Response>> = {}
+  const readCalls: string[] = []
   const todo = () => store.filter((n) => !n.done && !n.binned)
   const respond = (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     const path = url.split('?')[0]
     if (path === '/api/notifications/count')
-      return Response.json({ total: 0, unread: 0, inboxTodo: todo().length })
+      return Response.json({
+        total: 0,
+        unread: 0,
+        inboxTodo: todo().length,
+        newestInbox: null,
+        newestBell: null,
+      })
     if (path === '/api/assessments' && assessments.list) return Response.json(assessments.list)
     if (path === '/api/notifications') {
       lists.push(url.split('?')[1])
@@ -107,17 +116,26 @@ function gateway(seed: Stored[]) {
     calls.push(`${method} ${action} ${id}`)
     if (refused.has(`${method} ${action}`)) return null
     if (action === 'read') row.done = true
-    if (action === 'done' && method === 'POST') Object.assign(row, { done: true, doneAt: 'now' })
-    if (action === 'done' && method === 'DELETE') Object.assign(row, { done: false, doneAt: null })
+    if (action === 'done' && method === 'POST') Object.assign(row, { done: true })
+    if (action === 'done' && method === 'DELETE') Object.assign(row, { done: false })
     if (action === 'dismiss') row.binned = true
     if (action === 'restore') row.binned = false
     return new Response(null, { status: 204 })
   }
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    const read = reads[url.split('?')[0]]
+    if (read) {
+      readCalls.push(url)
+      // Like the browser's fetch, an aborted read rejects.
+      return new Promise<Response>((resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('', 'AbortError')))
+        Promise.resolve(read()).then(resolve, reject)
+      })
+    }
     const response = respond(url, init)
     return response ? Promise.resolve(response) : Promise.reject(new TypeError('Failed to fetch'))
   })
-  return { store, calls, refused, lists, assessments }
+  return { store, calls, refused, lists, assessments, reads, readCalls }
 }
 
 // `strict` renders as main.tsx does, in StrictMode, which runs every effect twice in development.
@@ -172,6 +190,30 @@ describe('Inbox screen', () => {
     expect(await screen.findByText('All done')).toBeVisible()
   })
 
+  it('shows a Done tab with nothing in it as "Nothing done yet", with a line of help', async () => {
+    gateway([item('1')])
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    fireEvent.click(screen.getByRole('radio', { name: 'Done' }))
+    expect(await screen.findByText('Nothing done yet')).toBeVisible()
+    expect(screen.getByText('Items you open or tick show up here.')).toBeVisible()
+    expect(screen.queryByText('Nothing in Done yet')).toBeNull()
+  })
+
+  it('colours a failed document red and one that needs review amber', async () => {
+    const doc = (id: string, status: string, details: string | null) =>
+      item(id, {
+        purpose: 'ingestion_status',
+        message: `"Doc ${id}" ${status}.`,
+        context: { documentId: `d${id}`, status },
+        details,
+      })
+    gateway([doc('1', 'failed', null), doc('2', 'needs_review', 'Unconfirmed details')])
+    await openInbox('knowledge_admin')
+    expect(await screen.findByText('Failed to ingest')).toHaveAttribute('data-tone', 'red')
+    expect(screen.getByText('Unconfirmed details')).toHaveAttribute('data-tone', 'amber')
+  })
+
   it('ticks a row to Done without opening it, with a toast', async () => {
     const gw = gateway([item('1'), item('2')])
     await openInbox()
@@ -196,7 +238,7 @@ describe('Inbox screen', () => {
   })
 
   it('unticks a Done row back to To do, with a toast', async () => {
-    const gw = gateway([item('1', { done: true, doneAt: 'then' })])
+    const gw = gateway([item('1', { done: true })])
     await openInbox()
     fireEvent.click(await screen.findByRole('radio', { name: 'Done' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Move back to To do/ }))
@@ -206,7 +248,7 @@ describe('Inbox screen', () => {
   })
 
   it('undoes an untick of a ticked row by ticking it again', async () => {
-    const gw = gateway([item('1', { done: true, doneAt: 'then' })])
+    const gw = gateway([item('1', { done: true })])
     await openInbox()
     fireEvent.click(await screen.findByRole('radio', { name: 'Done' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Move back to To do/ }))
@@ -214,13 +256,13 @@ describe('Inbox screen', () => {
     await waitFor(() => expect(gw.calls).toEqual(['DELETE done 1', 'POST done 1']))
   })
 
-  it('undoes an untick of a row only opened by me by opening it again, not by ticking', async () => {
-    const gw = gateway([item('1', { done: true, doneAt: null, read: true })])
+  it('undoes an untick of a row I only opened by ticking it too', async () => {
+    const gw = gateway([item('1', { done: true, read: true })])
     await openInbox()
     fireEvent.click(await screen.findByRole('radio', { name: 'Done' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Move back to To do/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-    await waitFor(() => expect(gw.calls).toEqual(['DELETE done 1', 'PATCH read 1']))
+    await waitFor(() => expect(gw.calls).toEqual(['DELETE done 1', 'POST done 1']))
   })
 
   it('bins a row at once and restores it with Undo', async () => {
@@ -392,7 +434,18 @@ describe('Inbox screen: what can go wrong', () => {
     ).toBeInTheDocument()
   })
 
-  it('drops a row someone else ticked from an open To do list', async () => {
+  it('stays quiet about an empty list while rows are left', async () => {
+    gateway([item('1'), item('2')])
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    fireEvent.click(screen.getAllByRole('button', { name: /^Mark done/ })[0])
+    await waitFor(() => expect(screen.queryByText('New assessment: Site 1')).toBeNull(), {
+      timeout: 2000,
+    })
+    expect(screen.getByRole('status', { hidden: true })).not.toHaveTextContent('Nothing left')
+  })
+
+  it('drops a row ticked in another tab from an open To do list', async () => {
     const gw = gateway([item('1'), item('2')])
     await openInbox()
     await screen.findByText('New assessment: Site 1')
@@ -403,7 +456,7 @@ describe('Inbox screen: what can go wrong', () => {
   })
 
   it('drops a row someone else unticked from an open Done list', async () => {
-    const gw = gateway([item('1', { done: true, doneAt: 'then' }), item('2')])
+    const gw = gateway([item('1', { done: true }), item('2')])
     await openInbox()
     fireEvent.click(await screen.findByRole('radio', { name: /^Done/ }))
     await screen.findByText('New assessment: Site 1')
@@ -427,7 +480,7 @@ describe('Inbox screen: what can go wrong', () => {
   it('ignores a Load more that answers after the tab changed', async () => {
     const gw = gateway([
       ...Array.from({ length: 25 }, (_, i) => item(String(i + 1))),
-      item('D', { done: true, doneAt: 'then', message: 'Already done' }),
+      item('D', { done: true, message: 'Already done' }),
     ])
     await openInbox()
     await screen.findByText('New assessment: Site 1')
@@ -456,8 +509,92 @@ describe('Inbox screen: what can go wrong', () => {
     await waitFor(() => expect(gw.lists.at(-1)).toContain('offset=19'))
   })
 
+  // Holds list reads back: each reply is the gateway's state when it was sent, delivered by `answer`.
+  const holdListReads = () => {
+    const real = globalThis.fetch
+    const held = { answer: () => {} }
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      if (!url.startsWith('/api/notifications?')) return real(url, init)
+      const reply = real(url, init)
+      return new Promise((done) => (held.answer = () => done(reply)))
+    })
+    return held
+  }
+  const pollNow = () => document.dispatchEvent(new Event('visibilitychange'))
+  const leftTheList = (text: string) =>
+    waitFor(() => expect(screen.queryByText(text)).toBeNull(), { timeout: 2000 })
+
+  it('brings back a row unticked in another tab after you ticked it', async () => {
+    const gw = gateway([item('1'), item('2')])
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    fireEvent.click(screen.getAllByRole('button', { name: /^Mark done/ })[0])
+    await leftTheList('New assessment: Site 1')
+    gw.store[0].done = false
+    pollNow()
+    expect(await screen.findByText('New assessment: Site 1')).toBeVisible()
+  })
+
+  it('keeps a reply sent before your tick from undoing it', async () => {
+    const gw = gateway([item('1'), item('2')])
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    const held = holdListReads()
+    const before = gw.lists.length
+    gw.store.unshift(item('3'))
+    pollNow()
+    await waitFor(() => expect(gw.lists.length).toBe(before + 1))
+    await waitFor(() => expect(sidebarInbox()).toHaveTextContent('3 to do'))
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Mark done/ })[0])
+    await leftTheList('New assessment: Site 1')
+    await act(async () => held.answer())
+
+    expect(await screen.findByText('New assessment: Site 3')).toBeVisible()
+    expect(screen.queryByText('New assessment: Site 1')).toBeNull()
+    expect(sidebarInbox()).toHaveTextContent('2 to do')
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+  })
+
+  it('keeps Load more on offer when a read lands while a row is leaving', async () => {
+    const gw = gateway(Array.from({ length: 21 }, (_, i) => item(String(i + 1))))
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    fireEvent.click(screen.getAllByRole('button', { name: /^Mark done/ })[0])
+    await screen.findByText('Moved to Done')
+    const before = gw.lists.length
+    gw.store.unshift(item('N'))
+    pollNow()
+    await waitFor(() => expect(gw.lists.length).toBe(before + 1))
+    await screen.findByText('New assessment: Site N')
+    await leftTheList('New assessment: Site 1')
+    expect(rows()).toHaveLength(20)
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeVisible()
+  })
+
+  it('keeps every row Load more brought when the list is read again', async () => {
+    const gw = gateway([
+      ...Array.from({ length: 25 }, (_, i) => item(String(i + 1))),
+      item('D', { done: true, message: 'Already done' }),
+    ])
+    await openInbox()
+    await screen.findByText('New assessment: Site 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(rows()).toHaveLength(25))
+    gw.store.unshift(item('N'))
+    pollNow()
+    await screen.findByText('New assessment: Site N')
+    expect(gw.lists.at(-1)).toContain('limit=25')
+    expect(rows()).toHaveLength(25)
+
+    // A tab switch starts over with one page.
+    fireEvent.click(screen.getByRole('radio', { name: /^Done/ }))
+    await screen.findByText('Already done')
+    expect(gw.lists.at(-1)).toContain('limit=20')
+  })
+
   it('brings a row back when a bin fails on the Done tab', async () => {
-    gateway([item('1', { done: true, doneAt: 'then' })])
+    gateway([item('1', { done: true })])
     await openInbox()
     fireEvent.click(await screen.findByRole('radio', { name: /^Done/ }))
     const bin = await screen.findByRole('button', { name: /^Remove/ })
@@ -631,8 +768,38 @@ describe('Inbox screen: arrivals, Back and the phone', () => {
       }))
     })
 
+    it('shows the due date alone on the right of a To do row, with no arrival time', async () => {
+      gateway([
+        item('1'),
+        item('2', { purpose: 'knowledge_gap_request', context: { question: 'Q?' } }),
+      ])
+      await openInbox()
+      await screen.findByText('Site 1')
+      // The app's two-line date cell: date, then days left. No arrival time anywhere.
+      expect(screen.getAllByText('28 Feb 2030')).toHaveLength(1)
+      expect(screen.getByText(/^in \d+ days$/)).toBeVisible()
+      expect(card().querySelector('time')).toBeNull()
+    })
+
+    it('shows nothing on the right of an assessment that has no report due date', async () => {
+      const context = { ...item('1').context! }
+      delete context.reportDue
+      gateway([item('1', { context })])
+      await openInbox()
+      await screen.findByText('Site 1')
+      expect(screen.queryByText('Not set')).toBeNull()
+    })
+
+    it('shows the bin alone on the right of a Done row, with no arrival time', async () => {
+      gateway([item('1', { done: true })])
+      await openInbox()
+      fireEvent.click(await screen.findByRole('radio', { name: 'Done' }))
+      expect(await screen.findByRole('button', { name: /^Remove/ })).toBeVisible()
+      expect(card().querySelector('time')).toBeNull()
+    })
+
     it('shows only the title, a ring that ticks, and a bin on Done rows only', async () => {
-      const gw = gateway([item('1'), item('2', { done: true, doneAt: 'then' })])
+      const gw = gateway([item('1'), item('2', { done: true })])
       await openInbox()
       await screen.findByText('New assessment')
       expect(screen.queryByText(/Work that needs you/)).toBeNull()
@@ -645,5 +812,232 @@ describe('Inbox screen: arrivals, Back and the phone', () => {
       // Two: the Done row, and the one just ticked, which stays once the tab has changed.
       expect(await screen.findAllByRole('button', { name: /^Remove/ })).toHaveLength(2)
     })
+  })
+})
+
+// F-10 round 3: a To do row first asks whether someone already dealt with it.
+describe('Inbox screen: already handled', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+  afterEach(() => vi.useRealTimers())
+
+  const SANA = '6ab39017e45cf009e4507734'
+  const at = '2026-11-03T07:10:00.000Z'
+  const request = (over: Partial<Notification> = {}) =>
+    item('1', {
+      purpose: 'knowledge_gap_request',
+      message: 'New knowledge request',
+      context: { requestId: 'r1', question: 'Which edition?', askedBy: 'Alex Rowe' },
+      ...over,
+    })
+  const filled = (by: { id: string; name: string } | null = { id: 'u9', name: 'Omar Khan' }) =>
+    Response.json({ status: 'filled', closed: by && { at, by } })
+  const press = async () => fireEvent.click(await screen.findByText('Answer knowledge request'))
+  const dialog = (name: string) => screen.findByRole('dialog', { name })
+
+  it('shows who filled a request and when, and opens nothing', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled()
+    await openInbox('knowledge_admin')
+    await press()
+    const d = await dialog('Request already filled')
+    expect(d).toHaveTextContent('Omar Khan')
+    expect(d).toHaveTextContent(formatBellWhen(at))
+    expect(window.location.pathname).toBe('/inbox')
+    expect(gw.calls).toEqual([])
+    expect(gw.readCalls).toEqual(['/api/knowledge-gaps/r1'])
+    expect(sidebarInbox()).toHaveTextContent('1 to do')
+  })
+
+  it('shows a retried document with its name', async () => {
+    const gw = gateway([
+      item('1', {
+        purpose: 'ingestion_status',
+        message: '"Cold Store" failed.',
+        context: { documentId: 'd1', status: 'failed' },
+      }),
+    ])
+    gw.reads['/api/knowledge-documents/d1'] = () =>
+      Response.json({
+        status: 'complete',
+        withdrawn: null,
+        handled: { at, by: { id: 'u9', name: 'Omar Khan' } },
+        unconfirmed: [],
+        match: null,
+      })
+    await openInbox('knowledge_admin')
+    fireEvent.click(await screen.findByText('Failed to ingest'))
+    expect(await dialog('Document already retried')).toHaveTextContent('Omar Khan')
+  })
+
+  it('reads "You" for my own action', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled({ id: SANA, name: 'Sana Patel' })
+    await openInbox('knowledge_admin')
+    await press()
+    const d = await dialog('Request already filled')
+    expect(d).toHaveTextContent('You')
+    expect(d).not.toHaveTextContent('Sana Patel')
+  })
+
+  it('has no who line when no name is known', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled(null)
+    await openInbox('knowledge_admin')
+    await press()
+    const d = await dialog('Request already filled')
+    expect(d).not.toHaveAttribute('aria-describedby')
+    expect(within(d).queryByRole('time')).toBeNull()
+    expect(within(d).getByRole('button', { name: 'Move to Done' })).toBeVisible()
+  })
+
+  it('has no way out but Move to Done, which gets the focus', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled()
+    await openInbox('knowledge_admin')
+    await press()
+    const d = await dialog('Request already filled')
+    expect(within(d).queryByRole('button', { name: 'Close' })).toBeNull()
+    expect(within(d).getByRole('button', { name: 'Move to Done' })).toHaveFocus()
+  })
+
+  it('ticks only after the dialog has closed, with no toast', async () => {
+    const gw = gateway([request(), item('2')])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled()
+    await openInbox('knowledge_admin')
+    await press()
+    fireEvent.click(
+      within(await dialog('Request already filled')).getByRole('button', { name: 'Move to Done' }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(gw.calls).toEqual([])
+    await waitFor(() => expect(gw.calls).toEqual(['POST done 1']))
+    await waitFor(() => expect(sidebarInbox()).toHaveTextContent('1 to do'))
+    expect(screen.queryByText('Moved to Done')).toBeNull()
+    expect(gw.calls).not.toContain('PATCH read 1')
+  })
+
+  it('shows the error when the tick fails', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => filled()
+    gw.refused.add('POST done')
+    await openInbox('knowledge_admin')
+    await press()
+    fireEvent.click(
+      within(await dialog('Request already filled')).getByRole('button', { name: 'Move to Done' }),
+    )
+    expect(await screen.findByText("Couldn't update")).toBeVisible()
+  })
+
+  it('opens the row as usual when the check fails', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => new Response(null, { status: 500 })
+    await openInbox('knowledge_admin')
+    await press()
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/knowledge-base'))
+    expect(gw.calls).toEqual(['PATCH read 1'])
+  })
+
+  it('opens the row as usual when the check takes over 3 s', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => new Promise<Response>(() => {})
+    await openInbox('knowledge_admin')
+    const row = await screen.findByText('Answer knowledge request')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    fireEvent.click(row)
+    await act(() => vi.advanceTimersByTimeAsync(2900))
+    expect(window.location.pathname).toBe('/inbox')
+    await act(() => vi.advanceTimersByTimeAsync(200))
+    expect(window.location.pathname).toBe('/admin/knowledge-base')
+    expect(gw.calls).toEqual(['PATCH read 1'])
+  })
+
+  it('ignores a second press while the check runs', async () => {
+    const gw = gateway([request()])
+    gw.reads['/api/knowledge-gaps/r1'] = () => new Promise<Response>(() => {})
+    await openInbox('knowledge_admin')
+    const row = await screen.findByText('Answer knowledge request')
+    fireEvent.click(row)
+    fireEvent.click(row)
+    expect(gw.readCalls).toHaveLength(1)
+  })
+
+  it('neither opens the row nor shows the dialog once it was ticked during the check', async () => {
+    const gw = gateway([request()])
+    let answer = () => {}
+    gw.reads['/api/knowledge-gaps/r1'] = () =>
+      new Promise<Response>(
+        (resolve) => (answer = () => resolve(Response.json({ status: 'filled', closed: null }))),
+      )
+    await openInbox('knowledge_admin')
+    await press()
+    await waitFor(() => expect(gw.readCalls).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: /^Mark done/ }))
+    answer()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/inbox')
+  })
+
+  it('forgets the check when the tab changes', async () => {
+    const gw = gateway([request()])
+    let answer = () => {}
+    gw.reads['/api/knowledge-gaps/r1'] = () =>
+      new Promise<Response>(
+        (resolve) => (answer = () => resolve(Response.json({ status: 'filled', closed: null }))),
+      )
+    await openInbox('knowledge_admin')
+    await press()
+    await waitFor(() => expect(gw.readCalls).toHaveLength(1))
+    fireEvent.click(screen.getByRole('radio', { name: /^Done/ }))
+    answer()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/inbox')
+  })
+
+  it('forgets the check when another row is opened', async () => {
+    const gw = gateway([request(), item('2')])
+    let answer = () => {}
+    gw.reads['/api/knowledge-gaps/r1'] = () =>
+      new Promise<Response>(
+        (resolve) => (answer = () => resolve(Response.json({ status: 'filled', closed: null }))),
+      )
+    await openInbox('knowledge_admin')
+    await press()
+    await waitFor(() => expect(gw.readCalls).toHaveLength(1))
+    fireEvent.click(await screen.findByText('New assessment: Site 2'))
+    answer()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not navigate when the screen is left during the check', async () => {
+    const gw = gateway([request()])
+    let answer = () => {}
+    gw.reads['/api/knowledge-gaps/r1'] = () =>
+      new Promise<Response>(
+        (resolve) => (answer = () => resolve(Response.json({ status: 'open' }))),
+      )
+    await openInbox('knowledge_admin')
+    await press()
+    await waitFor(() => expect(gw.readCalls).toHaveLength(1))
+    cleanup()
+    answer()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(window.location.pathname).toBe('/inbox')
+    expect(gw.calls).toEqual([])
+  })
+
+  it('makes no check for Done rows or assessment rows', async () => {
+    const gw = gateway([item('1'), request({ id: '2', done: true })])
+    await openInbox('knowledge_admin')
+    fireEvent.click(await screen.findByRole('button', { name: /New assessment: Site 1/ }))
+    expect(gw.readCalls).toEqual([])
+    cleanup()
+    const gw2 = gateway([request({ done: true })])
+    await openInbox('knowledge_admin')
+    fireEvent.click(await screen.findByRole('radio', { name: 'Done' }))
+    fireEvent.click(await screen.findByText('Answer knowledge request'))
+    expect(gw2.readCalls).toEqual([])
   })
 })
