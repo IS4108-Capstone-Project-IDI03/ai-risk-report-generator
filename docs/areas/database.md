@@ -251,12 +251,12 @@ type left unchanged, so an assessment not yet migrated can still be edited) and 
 report due dates, with the same validation as creating one (AC11). The engineer, client and site are not editable: they stay as the
 assessment was created (CP-17 AC8). The site's details and its client's name
 change for all their assessments at once, through `/api/sites` and
-`/api/clients` (CP-18, below); a `site` sent here is ignored. A new site's
+`/api/clients` (CP-28, below); a `site` sent here is ignored. A new site's
 facility type must be one of the nine the forms offer (`FACILITY_TYPES`, as
 knowledge documents are labelled; 400, `site.facilityType`). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
-### Managing a client and its sites (CP-18)
+### Managing a client and its sites (CP-18, CP-28)
 
 A site gains `formerNames` and `formerAddresses` (what it was called and where
 it was before a correction, absent until one), `edited: { at, by }` (its latest
@@ -485,7 +485,7 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18) | yes | no |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28) | yes | no |
 | `reports:generate` | `POST /api/rag/generate` | yes | no |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01) | yes | no |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
@@ -787,7 +787,7 @@ accepted, and from when it was accepted. Each document has:
 - `facts`: Sections 4 and 5 only (GN-03), the engineer's figures the draft was
   given, as sent to S4. The draft is out of date (`changeCounts.figures: 1`)
   once the figures no longer give the same text. Any draft is also out of
-  date (`changeCounts.scope: 1`, CP-18) once its site's jurisdiction or
+  date (`changeCounts.scope: 1`, CP-28) once its site's jurisdiction or
   facility type differs from the `metadata.jurisdiction` and
   `metadata.facility_type` it was drafted with; both counts are present only
   when set, so other drafts read as before.

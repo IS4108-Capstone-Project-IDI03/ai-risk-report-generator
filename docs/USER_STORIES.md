@@ -633,7 +633,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Editing
 
   7. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
-  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments. *(Superseded by CP-18: a site's details and its client's name change for all their assessments at once, from Edit site and Rename client, when every assessment there is the engineer's.)*
+  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments. *(Superseded by CP-28: a site's details and its client's name change for all their assessments at once, from Edit site and Rename client, when every assessment there is the engineer's.)*
 
   Grouping
 
@@ -645,10 +645,10 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
   </details>
 
-- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 13 pts, deps: CP-17, RV-10, CP-08, PV-02, Sprint 4)
+- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 8 pts, deps: CP-17, RV-10, CP-08, Sprint 4; correcting split out to CP-28 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
-  Goal: view, filter, correct, remove and restore a client I survey and its sites, from the client's page, so its details are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; everything is changed only when every assessment it has, archived or not, is mine and none is finalised.
+  Goal: view, filter, remove and restore a client I survey and its sites, from the client's page, so my work for a client is in one place and what I no longer survey is out of the way. "Mine" means assigned to me now; a client or site is removed or restored only when every assessment it has, archived or not, is mine and none is finalised.
 
   Viewing and filtering
 
@@ -659,35 +659,48 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a site on the client page, when I choose New visit, then the create form opens with that client and site chosen; and given the client page, when I choose Add site, then it opens with that client chosen and a new site to name.
   6. Given my visits for a client are all archived, when I group the work list's Archived view by client, then I can open the client's page from it.
 
-  Correcting
-
-  7. Given a site, when I correct its name, address, jurisdiction or facility type, from the client page or from Edit site on an assessment's Overview, then every assessment there shows the change, and observations keep the jurisdiction and facility type they were saved with.
-  8. Given I change a site's jurisdiction or facility type, when I save, then I am told how many assessments it changes before it is saved, and afterwards their section drafts show as out of date.
-  9. Given a client, when I rename it from its page, then every assessment for it shows the new name; a name another client has, whatever its case, is refused.
-  10. Given a site name the client already has, whatever its case, or a facility type not on the list, when I save, then it is refused with the reason, and what I typed is kept. A site's older facility type, unchanged, is kept.
-  11. Given an assessment's Overview, when I choose Edit details, then it offers only the visit's own details (assessment type, site visit date and report due), and saving changes only those.
-
   Removing and restoring
 
-  12. Given a site whose assessments are all mine and all archived, when I remove it and confirm, then it leaves the client page and the create form's site list, its assessments are unchanged, and Removed sites can restore it.
-  13. Given a site with an assessment not archived, when I try to remove it, then it is refused, with how many are still open.
-  14. Given a client whose assessments are all mine and all archived, when I remove it, then all its listed sites are removed together, it leaves the create form, and Clients lists it under Removed clients; Restore brings back those sites, not one removed on its own before.
-  15. Given a removed site or client, when I try to change it, then it is refused until it is restored.
-  16. Given a removed site's name, when another site of that name is added, then it is allowed; restoring the removed one then asks for a new name, so two listed sites never share one.
-  17. Given an archived assessment on a removed site, when it is restored, then its site is restored with it, unless the site's name was taken meanwhile, when I am told to restore the site under a new name first.
-  18. Given a removed client's name, when it is typed on the create form, then the client comes back rather than a second one being added.
+  7. Given a site whose assessments are all mine and all archived, when I remove it and confirm, then it leaves the client page and the create form's site list, its assessments are unchanged, and Removed sites can restore it.
+  8. Given a site with an assessment not archived, when I try to remove it, then it is refused, with how many are still open.
+  9. Given a client whose assessments are all mine and all archived, when I remove it, then all its listed sites are removed together, it leaves the create form, and Clients lists it under Removed clients; Restore brings back those sites, not one removed on its own before.
+  10. Given a removed site's name, when another site of that name is added, then it is allowed; restoring the removed one then asks for a new name, so two listed sites never share one.
+  11. Given an archived assessment on a removed site, when it is restored, then its site is restored with it, unless the site's name was taken meanwhile, when I am told to restore the site under a new name first.
+  12. Given a removed client's name, when it is typed on the create form, then the client comes back rather than a second one being added.
+
+  Who may see and remove what
+
+  13. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to remove it, then it is refused without naming whose.
+  14. Given a site or client with a finalised report, when I try to remove it, then it is refused.
+  15. Given a client I have no assessment for, when I try to open its page, then it is refused; a knowledge admin can't open client pages.
+
+  Not in this story: correcting a client's or site's details, or a visit's own (CP-28); the knowledge admin's view of every engineer's visits, and merging (CP-44); permanently deleting (rejected, see DECISIONS).
+  </details>
+
+- [ ] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
+  <details><summary>Goal / AC</summary>
+
+  Goal: correct a client's name, a site's details and a visit's own details, so they are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; a client or site is corrected only when every assessment it has, archived or not, is mine and none is finalised.
+
+  Correcting
+
+  1. Given a site, when I correct its name, address, jurisdiction or facility type, from the client page or from Edit site on an assessment's Overview, then every assessment there shows the change, and observations keep the jurisdiction and facility type they were saved with.
+  2. Given I change a site's jurisdiction or facility type, when I save, then I am told how many assessments it changes before it is saved, and afterwards their section drafts show as out of date.
+  3. Given a client, when I rename it from its page, then every assessment for it shows the new name; a name another client has, whatever its case, is refused.
+  4. Given a site name the client already has, whatever its case, or a facility type not on the list, when I save, then it is refused with the reason, and what I typed is kept. A site's older facility type, unchanged, is kept.
+  5. Given an assessment's Overview, when I choose Edit details, then it offers only the visit's own details (assessment type, site visit date and report due), and saving changes only those.
 
   Who may change what
 
-  19. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to change or remove it, then it is refused without naming whose.
-  20. Given a site or client with a finalised report, when I try to change or remove it, then it is refused.
-  21. Given a client I have no assessment for, when I try to open its page, then it is refused; a knowledge admin can't open client pages.
+  6. Given a removed site or client, when I try to change it, then it is refused until it is restored.
+  7. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to change it, then it is refused without naming whose.
+  8. Given a site or client with a finalised report, when I try to change it, then it is refused.
 
   Privacy
 
-  22. Given a site's or client's name or address was corrected, when a report is drafted or the chat is asked with protection on, then neither the old nor the new value is sent to the model or Cohere, and the masked old value reads back as the current one.
+  9. Given a site's or client's name or address was corrected, when a report is drafted or the chat is asked with protection on, then neither the old nor the new value is sent to the model or Cohere, and the masked old value reads back as the current one.
 
-  Not in this story: the knowledge admin's view of every engineer's visits, renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); permanently deleting, or moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
+  Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
@@ -881,10 +894,10 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   14. Given a test set of documents and observations with known disagreements, when discrepancy checking is evaluated on it, then the share found meets the agreed threshold, and none is listed without both sources.
   </details>
 
-- [ ] **CP-44** — Manage clients and sites as a knowledge admin (knowledge admin, Could, 8 pts, deps: CP-18, CB-07, F-10, PV-02, unplanned) *(draft)*
+- [ ] **CP-44** — Manage clients and sites as a knowledge admin (knowledge admin, Could, 8 pts, deps: CP-18, CP-28, CB-07, F-10, PV-02, unplanned) *(draft)*
   <details><summary>Goal / AC</summary>
 
-  Goal: see every client's sites and visits, rename clients, merge duplicates and approve corrections to shared sites, so client and site records stay correct and single, even where several engineers' work is involved. Picks up what CP-18 leaves to one accountable role.
+  Goal: see every client's sites and visits, rename clients, merge duplicates and approve corrections to shared sites, so client and site records stay correct and single, even where several engineers' work is involved. Picks up what CP-18 and CP-28 leave to one accountable role.
 
   Viewing
 
@@ -1210,13 +1223,13 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a section order has been saved, when I export the report, then the export uses that order.
   </details>
 
-- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-18, GN-03, Sprint 4)
+- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-28, GN-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: switch the full edit view into a page layout that matches Marsh's existing reports, with the cover, contents page and page numbers in place, so that I can see and correct how the report reads on the page before I export it.
 
   1. Given the full edit view (RV-08) is open, when I switch to Page layout, then the report is shown as pages with the page size, margins, header and footer of Marsh's report template. It uses Marsh's fonts, or agreed substitutes where those can't be used. Switching back returns me to the continuous view at the same place.
-  2. Given the report is in page layout, when I view its first pages, then they are a cover and a details page laid out as Marsh's. They show the client, site name and site address from their records (CP-17, CP-18); the report reference, assessment type, site visit date and lead engineer from the assessment; and the Marsh logo once Marsh supplies the file, the text wordmark until then.
+  2. Given the report is in page layout, when I view its first pages, then they are a cover and a details page laid out as Marsh's. They show the client, site name and site address from their records (CP-17, CP-28); the report reference, assessment type, site visit date and lead engineer from the assessment; and the Marsh logo once Marsh supplies the file, the text wordmark until then.
   3. Given the cover is shown, when I try to type on it, then it is protected like RV-08's other protected sections. When a detail it shows changes on the assessment or site, the cover shows the new value.
   4. Given a cover field has no value, when the cover is shown, then it reads "Not entered", as Sections 4 and 5 do for missing figures (GN-03), and no value is filled in its place.
   5. Given the report has sections and sub-headings, when the contents page is shown, then it lists them in report order, to the heading depth Marsh's contents page uses, each with the page it starts on.
