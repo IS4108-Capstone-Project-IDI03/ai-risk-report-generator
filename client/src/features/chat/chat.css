@@ -1295,6 +1295,8 @@
   position: absolute;
   right: 56px;
   bottom: 10px;
+  display: flex;
+  gap: 2px;
 }
 .voice-input__state,
 .voice-input__note {

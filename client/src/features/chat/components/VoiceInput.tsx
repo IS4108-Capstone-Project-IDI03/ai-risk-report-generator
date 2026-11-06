@@ -29,14 +29,20 @@ const MAX_MS = 60_000
 const LOUD = 0.02
 
 // Calls `onQuiet` when the stream goes quiet (see above); returns a function that stops listening.
-function watchQuiet(stream: MediaStream, onQuiet: () => void) {
+// While `paused()` the clock stands still, so a pause never counts as silence.
+function watchQuiet(stream: MediaStream, onQuiet: () => void, paused: () => boolean) {
   const context = new AudioContext()
   const analyser = context.createAnalyser()
   context.createMediaStreamSource(stream).connect(analyser)
   const samples = new Float32Array(analyser.fftSize)
-  const started = Date.now()
+  let started = Date.now()
   let lastLoud = 0
   const timer = setInterval(() => {
+    if (paused()) {
+      started += 100
+      if (lastLoud) lastLoud += 100
+      return
+    }
     analyser.getFloatTimeDomainData(samples)
     const level = Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length)
     const now = Date.now()
@@ -63,7 +69,7 @@ function fillBox(text: string) {
 export function VoiceInput() {
   const processMessage = useThread((s) => s.processMessage)
   const [settings, change] = useVoiceSettings()
-  const [state, setState] = useState<'idle' | 'recording' | 'working'>('idle')
+  const [state, setState] = useState<'idle' | 'recording' | 'paused' | 'working'>('idle')
   const [note, setNote] = useState<Problem | null>(null)
   const recorder = useRef<MediaRecorder | null>(null)
   const [host, setHost] = useState<Element | null>(null)
@@ -104,7 +110,11 @@ export function VoiceInput() {
     const chunks: Blob[] = []
     const rec = new MediaRecorder(stream, { audioBitsPerSecond: 64_000 })
     recorder.current = rec
-    const stopWatching = watchQuiet(stream, () => rec.state === 'recording' && rec.stop())
+    const stopWatching = watchQuiet(
+      stream,
+      () => rec.state === 'recording' && rec.stop(),
+      () => rec.state === 'paused',
+    )
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
     rec.onstop = async () => {
       stopWatching()
@@ -132,17 +142,40 @@ export function VoiceInput() {
     return () => answerSpoken.removeEventListener('done', again)
   }, [settings.handsFree, state, start])
 
-  const press = () => (state === 'recording' ? recorder.current?.stop() : void start())
-  // The button sits in the box beside Send; what it is doing, or what went wrong, shows under it.
+  // Pause holds the recording; Resume carries on. Stop ends it and turns it into text.
+  const togglePause = () => {
+    const rec = recorder.current
+    if (!rec) return
+    if (state === 'recording') {
+      rec.pause()
+      setState('paused')
+    } else {
+      rec.resume()
+      setState('recording')
+    }
+  }
+  // While recording the mic becomes Pause and Stop, as in Claude; what it is doing, or what went
+  // wrong, shows under the box.
+  const live = state === 'recording' || state === 'paused'
   const button = (
     <div className="voice-input">
-      <IconButton
-        icon="mic"
-        label={state === 'recording' ? 'Stop recording' : 'Ask by voice'}
-        selected={state === 'recording'}
-        disabled={state === 'working'}
-        onClick={press}
-      />
+      {live ? (
+        <>
+          <IconButton
+            icon={state === 'paused' ? 'play' : 'pause'}
+            label={state === 'paused' ? 'Resume recording' : 'Pause recording'}
+            onClick={togglePause}
+          />
+          <IconButton icon="square" label="Stop recording" onClick={() => recorder.current?.stop()} />
+        </>
+      ) : (
+        <IconButton
+          icon="mic"
+          label="Ask by voice"
+          disabled={state === 'working'}
+          onClick={() => void start()}
+        />
+      )}
     </div>
   )
   // Errors follow design system v2: a red icon and short problem, then the fix in grey.
@@ -156,7 +189,11 @@ export function VoiceInput() {
     ) : (
       state !== 'idle' && (
         <p className="voice-input__state" role="status">
-          {state === 'recording' ? 'Listening… stop talking to send' : 'Reading your question…'}
+          {state === 'recording'
+            ? 'Listening… stop talking to send'
+            : state === 'paused'
+              ? 'Paused'
+              : 'Reading your question…'}
         </p>
       )
     )
