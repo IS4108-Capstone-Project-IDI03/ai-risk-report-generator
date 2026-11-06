@@ -38,7 +38,8 @@ describe('Reset password (F-06)', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument(),
     )
-    expect(screen.getByLabelText(/Reset token/)).toBeInTheDocument()
+    // Both reset screens share that heading, so wait for the field the second one adds.
+    expect(await screen.findByLabelText(/Reset token/)).toBeInTheDocument()
   })
 
   it('sets a new password and returns to sign-in', async () => {
