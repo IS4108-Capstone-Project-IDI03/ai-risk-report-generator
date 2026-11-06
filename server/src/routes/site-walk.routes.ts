@@ -23,11 +23,15 @@ import {
   getWalkRecording,
   InvalidSiteWalkError,
   listWalks,
+  loadWalk,
   mediaIdSchema,
   noteFieldsSchema,
   photoFieldsSchema,
   recordingFieldsSchema,
+  removePhoto,
+  removeRecording,
   renameWalk,
+  retryRecording,
   retryWalk,
   setNote,
   setText,
@@ -39,7 +43,14 @@ import {
 } from '../services/site-walk.service'
 import { sendFile } from './byte-range'
 import { fieldErrors } from './field-errors'
-import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
+import {
+  mediaParts,
+  multipartBody,
+  readForm,
+  tooLarge,
+  walkPhotoPart,
+  walkRecordingPart,
+} from './media-form'
 
 const router = Router({ mergeParams: true })
 
@@ -117,13 +128,12 @@ router.put(
       })
       return
     }
-    const media = await mediaParts(form)
+    // The assigned-engineer check runs first, so nobody else can make the converter work.
+    await loadWalk(req.params.reference, req.params.walkId, res.locals.user!, true)
+    const media = await walkRecordingPart(form)
     if ('error' in media) {
-      res.status(media.status).json({ error: media.error })
-      return
-    }
-    if (media.recordings.length !== 1 || media.photos.length || media.pages.length) {
-      res.status(400).json({ error: 'Send exactly one recording.' })
+      const { status, ...body } = media
+      res.status(status).json(body)
       return
     }
     res.json(
@@ -131,10 +141,37 @@ router.put(
         req.params.reference,
         req.params.walkId,
         fields.data.seq,
-        media.recordings[0],
-        fields.data.durationSec,
+        media,
+        media.durationSec ?? fields.data.durationSec,
         res.locals.user!,
       ),
+    )
+  }),
+)
+
+// Puts a failed recording back in the transcription queue; any other state is
+// left alone, so a double press does nothing.
+router.post(
+  '/:walkId/recordings/:seq/retry',
+  edit,
+  guarded(async (req, res) => {
+    const seq = recordingFieldsSchema.shape.seq.safeParse(req.params.seq)
+    if (!seq.success) throw new SiteWalkNotFoundError()
+    res.json(
+      await retryRecording(req.params.reference, req.params.walkId, seq.data, res.locals.user!),
+    )
+  }),
+)
+
+// Removes a recording and its stored file; already gone is fine.
+router.delete(
+  '/:walkId/recordings/:seq',
+  edit,
+  guarded(async (req, res) => {
+    const seq = recordingFieldsSchema.shape.seq.safeParse(req.params.seq)
+    if (!seq.success) throw new SiteWalkNotFoundError()
+    res.json(
+      await removeRecording(req.params.reference, req.params.walkId, seq.data, res.locals.user!),
     )
   }),
 )
@@ -193,13 +230,12 @@ router.put(
       })
       return
     }
-    const media = await mediaParts(form)
+    // The assigned-engineer check runs first, so nobody else can make the converter work.
+    await loadWalk(req.params.reference, req.params.walkId, res.locals.user!, true)
+    const media = await walkPhotoPart(form)
     if ('error' in media) {
-      res.status(media.status).json({ error: media.error })
-      return
-    }
-    if (media.photos.length !== 1 || media.recordings.length || media.pages.length) {
-      res.status(400).json({ error: 'Send exactly one photo.' })
+      const { status, ...body } = media
+      res.status(status).json(body)
       return
     }
     res.json(
@@ -207,9 +243,22 @@ router.put(
         req.params.reference,
         req.params.walkId,
         fields.data,
-        media.photos[0].image,
+        media.image,
         res.locals.user!,
       ),
+    )
+  }),
+)
+
+// Removes a photo and its stored file; already gone is fine.
+router.delete(
+  '/:walkId/photos/:photoId',
+  edit,
+  guarded(async (req, res) => {
+    const photoId = photoFieldsSchema.shape.photoId.safeParse(req.params.photoId)
+    if (!photoId.success) throw new SiteWalkNotFoundError()
+    res.json(
+      await removePhoto(req.params.reference, req.params.walkId, photoId.data, res.locals.user!),
     )
   }),
 )

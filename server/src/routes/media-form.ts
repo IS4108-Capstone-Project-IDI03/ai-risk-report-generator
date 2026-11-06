@@ -6,6 +6,7 @@ import {
   type NewPhoto,
   type NewRecording,
 } from '../services/observation.service'
+import { toStoredPhoto, toStoredRecording, type Refusal } from '../services/media-convert.service'
 
 // Recordings, photos and handwritten pages arrive as a multipart form, buffered
 // in memory, both when an observation is captured (CP-02, CP-03, CP-04, CP-19)
@@ -20,6 +21,7 @@ export const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type !== 'entity.too.large') return next(error)
   res.status(413).json({
     error: 'The recordings, photos and pages are larger than 100 MB in total. Save fewer at once.',
+    code: 'too_large',
   })
 }
 
@@ -117,4 +119,46 @@ export async function mediaParts(
     })),
   )
   return { recordings, photos, pages }
+}
+
+// A site walk upload that was refused: the status, a plain reason, and a `code`
+// the client words its toast from (Sprint 4 fixes, CP-22).
+export type WalkRefusal = {
+  status: 400 | 413 | 415
+  error: string
+  code?: Refusal['code']
+}
+const REFUSALS: Record<Refusal['code'], WalkRefusal> = {
+  wrong_type: { status: 415, code: 'wrong_type', error: 'This file type is not supported.' },
+  too_large: { status: 413, code: 'too_large', error: 'The file is too large.' },
+  too_long: { status: 413, code: 'too_long', error: 'The recording is over 20 minutes.' },
+}
+
+// The one file under `part` of a site walk upload, or a refusal when it is not
+// exactly one non-empty file. The bytes are read by the caller.
+function onlyFile(form: FormData, part: string, max: number): File | WalkRefusal {
+  const files = form.getAll(part).filter((p) => p instanceof File)
+  if (files.length !== 1 || form.getAll('photo').length + form.getAll('recording').length !== 1)
+    return { status: 400, error: `Send exactly one ${part}.` }
+  if (files[0].size === 0) return { status: 400, error: `The ${part} is empty.` }
+  if (files[0].size > max) return REFUSALS.too_large
+  return files[0]
+}
+
+// A site walk photo (CP-22): JPG or PNG kept as sent, HEIC, WebP, AVIF, GIF,
+// TIFF and BMP converted to JPEG. Up to 20 MB, judged by its bytes not its name.
+export async function walkPhotoPart(form: FormData) {
+  const file = onlyFile(form, 'photo', 20 * 1024 * 1024)
+  if (!(file instanceof File)) return file
+  const stored = await toStoredPhoto(Buffer.from(await file.arrayBuffer()))
+  return 'code' in stored ? REFUSALS[stored.code] : stored
+}
+
+// A site walk recording (CP-22): any common audio file up to 100 MB, kept or
+// converted for Whisper. `durationSec` is the file's own length, null if unreadable.
+export async function walkRecordingPart(form: FormData) {
+  const file = onlyFile(form, 'recording', 100 * 1024 * 1024)
+  if (!(file instanceof File)) return file
+  const stored = await toStoredRecording(Buffer.from(await file.arrayBuffer()))
+  return 'code' in stored ? REFUSALS[stored.code] : stored
 }
