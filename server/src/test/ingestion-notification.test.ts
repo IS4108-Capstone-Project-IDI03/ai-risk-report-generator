@@ -61,7 +61,7 @@ describe('ingestion failure → notification', () => {
     await postFailure().expect(201)
 
     const res = await admin.get('/api/notifications/count').expect(200)
-    expect(res.body).toEqual({ total: 0, unread: 0, inboxTodo: 1 })
+    expect(res.body).toMatchObject({ total: 0, unread: 0, inboxTodo: 1 })
   })
 
   it('carries the stage in the message so the admin knows where it broke', async () => {

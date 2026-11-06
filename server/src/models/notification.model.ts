@@ -82,11 +82,6 @@ export interface INotification {
   dismissedBy: string[]
   // Inbox only (F-10): where it shows. Absent on older documents, read as `bell`.
   kind?: NotificationKind
-  // Inbox only: set when anyone ticks the item, cleared when anyone unticks it.
-  // Document-wide on purpose, so a tick by one admin moves a shared item to Done
-  // for every admin, while opening it (readBy) moves it for that admin alone.
-  doneAt?: Date
-  doneBy?: Types.ObjectId
   // Who or what created it. A notification from a microservice has no user, so
   // both are nullable and exactly one is normally set.
   createdBy: Types.ObjectId | null
@@ -119,8 +114,6 @@ const notificationSchema = new Schema<INotification>(
     readBy: { type: [String], default: [] },
     dismissedBy: { type: [String], default: [] },
     kind: { type: String, enum: NOTIFICATION_KINDS },
-    doneAt: Date,
-    doneBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdBy: { type: Schema.Types.ObjectId, default: null },
     createdByService: { type: String, default: null, trim: true },
     context: { type: Map, of: String, default: undefined },

@@ -81,10 +81,10 @@ function oneChange(change: (id: string, user: SessionUser) => Promise<void>) {
 // Opens a notification for the caller: read, and on an Inbox item Done for them only.
 router.patch('/:id/read', oneChange(markAsRead))
 
-// Ticks an Inbox item without opening it: Done for everyone it is shared with.
+// Ticks an Inbox item without opening it: Done for the caller only.
 router.post('/:id/done', oneChange(markDone))
 
-// Unticks an Inbox item: back to To do for those who never opened it.
+// Unticks an Inbox item: back to To do for the caller only.
 router.delete('/:id/done', oneChange(unmarkDone))
 
 // Undoes a bin, for the caller only.

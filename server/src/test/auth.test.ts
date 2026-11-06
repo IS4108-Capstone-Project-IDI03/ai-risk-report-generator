@@ -202,7 +202,7 @@ describe('session notification counts', () => {
       .post('/api/auth/login')
       .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
     expect(res.status).toBe(200)
-    expect(res.body.notifications).toEqual({ total: 0, unread: 0, inboxTodo: 0 })
+    expect(res.body.notifications).toMatchObject({ total: 0, unread: 0, inboxTodo: 0 })
   })
 
   it('counts the login user\u2019s role notifications', async () => {
@@ -225,7 +225,7 @@ describe('session notification counts', () => {
       .post('/api/auth/login')
       .send({ email: 'jide.okafor@example.com', password: 'correct horse' })
 
-    expect(res.body.notifications).toEqual({ total: 1, unread: 1, inboxTodo: 0 })
+    expect(res.body.notifications).toMatchObject({ total: 1, unread: 1, inboxTodo: 0 })
   })
 
   it('includes the counts on /api/auth/me too', async () => {
@@ -240,7 +240,7 @@ describe('session notification counts', () => {
 
     const res = await agent.get('/api/auth/me')
 
-    expect(res.body.notifications).toEqual({ total: 1, unread: 1, inboxTodo: 0 })
+    expect(res.body.notifications).toMatchObject({ total: 1, unread: 1, inboxTodo: 0 })
   })
 
   it('leaves the existing user and permissions fields intact', async () => {

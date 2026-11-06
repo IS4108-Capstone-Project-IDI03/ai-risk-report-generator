@@ -1,7 +1,8 @@
 // The Inbox (F-10) through the HTTP routes: which notifications are Inbox items
 // and which bell, and what To do and Done mean for each of two admins who share
-// one item. Routing for the producers that live in other features (assignment,
+// one item (every action is personal). Routing for the producers that live in other features (assignment,
 // site walks) is asserted beside those features' tests.
+import { Types } from 'mongoose'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import app from '../index'
@@ -168,10 +169,9 @@ describe('GET /api/notifications for the Inbox', () => {
     expect(item).toMatchObject({
       kind: 'inbox',
       done: false,
-      doneAt: null,
       context: { askedBy: 'Jide Okafor' },
     })
-    for (const key of ['readBy', 'dismissedBy', 'targetUserIds', 'doneBy', 'targetShared'])
+    for (const key of ['readBy', 'dismissedBy', 'targetUserIds'])
       expect(item).not.toHaveProperty(key)
   })
 
@@ -206,35 +206,47 @@ describe('To do and Done for two admins sharing one item', () => {
     expect(await ids(omar, 'done')).toEqual([])
   })
 
-  it('moves a ticked item to Done for every admin, without opening it', async () => {
+  it('moves a ticked item to Done for that admin only, without opening it', async () => {
     const { sana, omar } = await people()
     const item = await sharedItem()
 
     await sana.api.post(`/api/notifications/${item.id}/done`).expect(204)
 
-    for (const who of [sana, omar]) {
-      expect(await ids(who, 'todo')).toEqual([])
-      expect(await ids(who, 'done')).toEqual([item.id])
-    }
-    const [done] = (await omar.api.get('/api/notifications?kind=inbox&tab=done').expect(200)).body
+    expect(await ids(sana, 'todo')).toEqual([])
+    expect(await ids(sana, 'done')).toEqual([item.id])
+    expect(await ids(omar, 'todo')).toEqual([item.id])
+    expect(await ids(omar, 'done')).toEqual([])
+    const [done] = (await sana.api.get('/api/notifications?kind=inbox&tab=done').expect(200)).body
       .items
     expect(done).toMatchObject({ done: true })
-    expect(done.doneAt).toEqual(expect.any(String))
   })
 
-  it('brings an unticked item back to To do, except for an admin who opened it', async () => {
+  it('brings an unticked item back to To do for that admin only', async () => {
     const { sana, omar } = await people()
     const item = await sharedItem()
-    await omar.api.patch(`/api/notifications/${item.id}/read`).expect(204)
     await sana.api.post(`/api/notifications/${item.id}/done`).expect(204)
+    await omar.api.post(`/api/notifications/${item.id}/done`).expect(204)
 
     await sana.api.delete(`/api/notifications/${item.id}/done`).expect(204)
 
     expect(await ids(sana, 'todo')).toEqual([item.id])
+    expect(await ids(sana, 'done')).toEqual([])
     expect(await ids(omar, 'todo')).toEqual([])
     expect(await ids(omar, 'done')).toEqual([item.id])
     const [back] = (await sana.api.get('/api/notifications?kind=inbox').expect(200)).body.items
-    expect(back).toMatchObject({ done: false, doneAt: null })
+    expect(back).toMatchObject({ read: false, done: false })
+  })
+
+  it('leaves an admin who binned the item out, whatever the other admin ticks', async () => {
+    const { sana, omar } = await people()
+    const item = await sharedItem()
+    await omar.api.post(`/api/notifications/${item.id}/dismiss`).expect(204)
+    await sana.api.post(`/api/notifications/${item.id}/done`).expect(204)
+    await sana.api.delete(`/api/notifications/${item.id}/done`).expect(204)
+
+    expect(await ids(sana, 'todo')).toEqual([item.id])
+    expect(await ids(omar, 'todo')).toEqual([])
+    expect(await ids(omar, 'done')).toEqual([])
   })
 
   it('unticks an item the admin only opened, putting it back in their To do', async () => {
@@ -255,6 +267,7 @@ describe('To do and Done for two admins sharing one item', () => {
     expect(await ids(sana, 'todo')).toEqual([])
     expect(await ids(sana, 'done')).toEqual([])
     expect(await ids(omar, 'todo')).toEqual([item.id])
+    expect(await ids(omar, 'done')).toEqual([])
 
     await sana.api.post(`/api/notifications/${item.id}/restore`).expect(204)
     expect(await ids(sana, 'todo')).toEqual([item.id])
@@ -271,16 +284,96 @@ describe('To do and Done for two admins sharing one item', () => {
       targetUserIds: ['all'],
     })
 
-    expect((await sana.api.get('/api/notifications/count').expect(200)).body).toEqual({
+    expect((await sana.api.get('/api/notifications/count').expect(200)).body).toMatchObject({
       total: 1,
       unread: 1,
       inboxTodo: 2,
     })
     await sana.api.post(`/api/notifications/${item.id}/done`).expect(204)
-    expect((await sana.api.get('/api/auth/me').expect(200)).body.notifications).toEqual({
+    expect((await sana.api.get('/api/auth/me').expect(200)).body.notifications).toMatchObject({
       total: 1,
       unread: 1,
       inboxTodo: 1,
+    })
+  })
+
+  describe('the newest item times the sounds compare', () => {
+    // Sets when an item arrived; the driver's own collection, as Mongoose won't change createdAt.
+    const arrivedAt = (id: string, at: string) =>
+      NotificationModel.collection.updateOne(
+        { _id: new Types.ObjectId(id) },
+        { $set: { createdAt: new Date(at) } },
+      )
+    const counts = async (who: { api: ReturnType<typeof signedInAs> }) =>
+      (await who.api.get('/api/notifications/count').expect(200)).body
+    const bellItem = () =>
+      createNotification({
+        purpose: 'ingestion_status',
+        message: 'Finished',
+        targetRole: 'knowledge_admin',
+        targetUserIds: ['all'],
+      })
+    const OLD = '2026-11-01T01:00:00.000Z'
+    const NEW = '2026-11-02T01:00:00.000Z'
+
+    it('are null with nothing to show', async () => {
+      const { sana } = await people()
+      expect(await counts(sana)).toEqual({
+        total: 0,
+        unread: 0,
+        inboxTodo: 0,
+        newestInbox: null,
+        newestBell: null,
+      })
+    })
+
+    it('name the newest item addressed to this person, whatever has happened to it', async () => {
+      const { sana, omar, jide } = await people()
+      const [older, newer] = [await sharedItem(), await sharedItem()]
+      const [oldBell, newBell] = [await bellItem(), await bellItem()]
+      await arrivedAt(older.id, OLD)
+      await arrivedAt(newer.id, NEW)
+      await arrivedAt(oldBell.id, OLD)
+      await arrivedAt(newBell.id, NEW)
+      const both = { newestInbox: NEW, newestBell: NEW }
+      expect(await counts(sana)).toMatchObject(both)
+
+      // Opening, ticking and binning change the lists, never when the item arrived. Without this
+      // an old item in Done would read as brand new when an untick brought it back.
+      await sana.api.patch(`/api/notifications/${newer.id}/read`).expect(204)
+      await sana.api.patch(`/api/notifications/${newBell.id}/read`).expect(204)
+      expect(await counts(sana)).toMatchObject(both)
+      await omar.api.post(`/api/notifications/${newer.id}/done`).expect(204)
+      expect(await counts(omar)).toMatchObject(both)
+      await sana.api.post(`/api/notifications/${newer.id}/dismiss`).expect(204)
+      await omar.api.post(`/api/notifications/${newBell.id}/dismiss`).expect(204)
+      expect(await counts(sana)).toMatchObject(both)
+      expect(await counts(omar)).toMatchObject(both)
+
+      // Someone outside the role is told nothing about them.
+      expect(await counts(jide)).toMatchObject({ newestInbox: null, newestBell: null })
+    })
+
+    it('keep each kind to its own and leave out what names someone else', async () => {
+      const { sana, omar } = await people()
+      const inbox = await sharedItem()
+      await arrivedAt(inbox.id, OLD)
+      const forOmar = await createNotification({
+        purpose: 'assessment_assigned',
+        message: 'New assessment',
+        targetRole: 'knowledge_admin',
+        targetUserIds: [omar.id],
+      })
+      await arrivedAt(forOmar.id, NEW)
+      expect(await counts(sana)).toMatchObject({ newestInbox: OLD, newestBell: null })
+      expect(await counts(omar)).toMatchObject({ newestInbox: NEW, newestBell: null })
+    })
+
+    it('leave list pages as they were', async () => {
+      const { sana } = await people()
+      await sharedItem()
+      const page = (await sana.api.get('/api/notifications?kind=inbox').expect(200)).body
+      expect(Object.keys(page).sort()).toEqual(['inboxTodo', 'items', 'total', 'unread'])
     })
   })
 

@@ -70,8 +70,7 @@ export const listQuerySchema = z.object({
 /**
  * One notification as the bell and the Inbox read it. `read` and `done` are this
  * caller's state, not the document's: `readBy` and `dismissedBy` hold other
- * users' ids, `doneBy` names who ticked it, and `targetUserIds` names the
- * audience, so none of them leave the server.
+ * users' ids and `targetUserIds` names the audience, so none of them leave the server.
  */
 export type NotificationDto = {
   id: string
@@ -81,10 +80,8 @@ export type NotificationDto = {
   details: string | null
   context: Record<string, string> | null
   read: boolean
-  // Inbox only: Done for this caller, because they opened it or anyone ticked it.
+  // Inbox only: Done for this caller, because they opened or ticked it.
   done: boolean
-  // When anyone ticked it; null while it is not ticked.
-  doneAt: Date | null
   createdAt: Date
 }
 
@@ -98,7 +95,16 @@ export type NotificationPage = {
   inboxTodo: number
 }
 
-export type NotificationCounts = Pick<NotificationPage, 'total' | 'unread' | 'inboxTodo'>
+type Figures = Pick<NotificationPage, 'total' | 'unread' | 'inboxTodo'>
+
+export type NotificationCounts = Figures & {
+  // When the newest Inbox item and the newest bell item addressed to this person arrived, in any
+  // state (Done, read and binned too), or null. The client compares these, not the counts, to tell
+  // a new item from one coming back by an untick. Only the newest To do would not do: a person
+  // whose newest item sat in Done would hear it as new when an untick brought it back.
+  newestInbox: string | null
+  newestBell: string | null
+}
 
 type StoredNotification = INotification & { _id: unknown }
 
@@ -115,10 +121,7 @@ function toDto(notification: StoredNotification, readerId: string): Notification
     // toObject({ flattenMaps: true }) below turns the stored Map into one.
     context: notification.context ? { ...notification.context } : null,
     read: notification.readBy.includes(readerId),
-    done:
-      notification.kind === 'inbox' &&
-      (notification.readBy.includes(readerId) || !!notification.doneAt),
-    doneAt: notification.doneAt ?? null,
+    done: notification.kind === 'inbox' && notification.readBy.includes(readerId),
     createdAt: notification.createdAt,
   }
 }
@@ -154,14 +157,11 @@ function visibleTo(user: SessionUser) {
 const BELL = { kind: { $ne: 'inbox' as const } }
 
 // To do and Done for one user are worked out, never stored (F-10): To do is
-// not opened by them and not ticked by anyone; Done is opened by them or
-// ticked by anyone. `doneAt: null` also matches a document with no doneAt.
+// not in their `readBy`, Done is in it. Opening and ticking both add them, so
+// what one admin does never moves the item for another.
 // Joined with $and because visibleTo already uses a top-level $or.
 function inboxFor(user: SessionUser, tab: InboxTab) {
-  const state =
-    tab === 'todo'
-      ? { readBy: { $ne: user.id }, doneAt: null }
-      : { $or: [{ readBy: user.id }, { doneAt: { $ne: null } }] }
+  const state = tab === 'todo' ? { readBy: { $ne: user.id } } : { readBy: user.id }
   return { $and: [visibleTo(user), { kind: 'inbox' as const }, state] }
 }
 
@@ -277,25 +277,25 @@ export async function listForUser(
   view: { kind: NotificationKind; tab: InboxTab } = { kind: 'bell', tab: 'todo' },
 ): Promise<NotificationPage> {
   const filter = view.kind === 'inbox' ? inboxFor(user, view.tab) : { ...visibleTo(user), ...BELL }
-  const [notifications, total, counts] = await Promise.all([
+  const [notifications, total, figures] = await Promise.all([
     NotificationModel.find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .skip(offset)
       .limit(limit)
       .lean<StoredNotification[]>(),
     NotificationModel.countDocuments(filter),
-    countsForUser(user),
+    figuresFor(user),
   ])
   return {
     items: notifications.map((n) => toDto(n, user.id)),
     total,
-    unread: counts.unread,
-    inboxTodo: counts.inboxTodo,
+    unread: figures.unread,
+    inboxTodo: figures.inboxTodo,
   }
 }
 
-/** How many bell notifications the user can see and has not read, and their Inbox To do count. */
-export async function countsForUser(user: SessionUser): Promise<NotificationCounts> {
+// The three counts, kept apart from the newest times so a list page doesn't pay for those too.
+async function figuresFor(user: SessionUser): Promise<Figures> {
   const bell = { ...visibleTo(user), ...BELL }
   const [total, unread, inboxTodo] = await Promise.all([
     NotificationModel.countDocuments(bell),
@@ -303,6 +303,28 @@ export async function countsForUser(user: SessionUser): Promise<NotificationCoun
     NotificationModel.countDocuments(inboxFor(user, 'todo')),
   ])
   return { total, unread, inboxTodo }
+}
+
+// When the newest match arrived. Walks the role's createdAt index from the newest down and
+// stops at the first match, so it costs less than a count.
+async function newestOf(filter: Record<string, unknown>): Promise<string | null> {
+  const newest = await NotificationModel.findOne(filter, 'createdAt')
+    .sort({ createdAt: -1 })
+    .lean<Pick<INotification, 'createdAt'>>()
+  return newest?.createdAt.toISOString() ?? null
+}
+
+/**
+ * Returns how many bell notifications the user can see and has not read, their Inbox To do
+ * count, and when the newest Inbox and bell items addressed to them arrived, in any state.
+ */
+export async function countsForUser(user: SessionUser): Promise<NotificationCounts> {
+  const [figures, newestInbox, newestBell] = await Promise.all([
+    figuresFor(user),
+    newestOf({ ...addressedTo(user), kind: 'inbox' }),
+    newestOf({ ...addressedTo(user), ...BELL }),
+  ])
+  return { ...figures, newestInbox, newestBell }
 }
 
 // Applies one change to one notification the user may see, or throws
@@ -328,29 +350,17 @@ export async function markAsRead(id: string, user: SessionUser): Promise<void> {
   await changeOne(id, visibleTo(user), { $addToSet: { readBy: user.id } })
 }
 
-/**
- * Ticks an Inbox item: Done for this user and, because `doneAt` is set on the
- * shared document, for everyone it is addressed to. A bell item is not found.
- */
+/** Ticks an Inbox item: Done for this user only. A bell item is not found. */
 export async function markDone(id: string, user: SessionUser): Promise<void> {
-  await changeOne(
-    id,
-    { ...visibleTo(user), kind: 'inbox' },
-    { $addToSet: { readBy: user.id }, $set: { doneAt: new Date(), doneBy: user.id } },
-  )
+  await changeOne(id, { ...visibleTo(user), kind: 'inbox' }, { $addToSet: { readBy: user.id } })
 }
 
 /**
- * Unticks an Inbox item: clears the tick for everyone and takes this user out of
- * `readBy`. An admin who had opened it earlier stays in `readBy`, so it stays
- * Done for them. A bell item is not found.
+ * Unticks an Inbox item: it returns to To do for this user only, whether they
+ * ticked or opened it. A bell item is not found.
  */
 export async function unmarkDone(id: string, user: SessionUser): Promise<void> {
-  await changeOne(
-    id,
-    { ...visibleTo(user), kind: 'inbox' },
-    { $pull: { readBy: user.id }, $unset: { doneAt: 1, doneBy: 1 } },
-  )
+  await changeOne(id, { ...visibleTo(user), kind: 'inbox' }, { $pull: { readBy: user.id } })
 }
 
 /**
@@ -416,8 +426,8 @@ export async function audienceOf(
  * and by naming them in `targetUserIds`, and the person is pulled from that
  * list, so they cannot bring one back with restore (which matches on it). If
  * they were the only target the list is left empty: nobody sees the item, and
- * the 90-day expiry drops it. Nobody else's Inbox changes. A shared admin item
- * is never matched, since it names no user.
+ * the 90-day expiry drops it. Nobody else's Inbox changes. An item for the whole
+ * role is never matched, since it names no user.
  */
 export async function removeAssessmentItems(reference: string, userId: string): Promise<void> {
   // Safe despite the model's "at least one target" check: updateMany skips
