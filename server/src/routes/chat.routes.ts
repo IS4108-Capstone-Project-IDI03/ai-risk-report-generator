@@ -92,6 +92,13 @@ function engineerTexts(body: unknown): string[] {
   return [...said, ...noted].filter((t): t is string => typeof t === 'string')
 }
 
+// `{ attachments }` for this chat's PDF, or nothing when it has none, so a chat without one sends
+// S4 exactly what it did before (CB-09).
+async function attachedPdfs(userId: string, threadId: unknown) {
+  const files = typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : []
+  return files.length ? { attachments: files } : {}
+}
+
 // The request with extra context lines added after any the browser sent.
 function withContext(body: unknown, lines: { description: string; value: string }[]) {
   if (!lines.length) return body
@@ -207,7 +214,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
     return chatError(res, error)
   }
   // a3. The PDF sent with the question (CB-09): tied to this chat, one per chat.
-  let pdfs: { id: string; name: string; flagged: boolean }[] = []
+  let pdfs: { id: string; name: string; flagged: boolean }[]
   try {
     pdfs = typeof threadId === 'string' ? await bindPdfs(userId, threadId, req.body?.pdfs) : []
   } catch (error) {
@@ -239,7 +246,7 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
       {
         ...(await withChatDocuments(await withChatMemory(withContext(req.body, seen), userId))),
         // The pages of this chat's PDF, read from storage, never from the browser (CB-09).
-        attachments: typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : [],
+        ...(await attachedPdfs(userId, threadId)),
         role: res.locals.user!.role,
         privacy: await chatPrivacy(),
       },

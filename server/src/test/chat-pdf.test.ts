@@ -118,7 +118,7 @@ describe('asking about a PDF (CB-09 AC1-AC4)', () => {
     await ask(alex, mine, [id])
     s4Body = {}
     await ask(alex, other)
-    expect(s4Body.attachments).toEqual([])
+    expect(s4Body.attachments ?? []).toEqual([])
     // Another engineer cannot attach it to their chat.
     const theirs = await newChat(jide)
     expect((await ask(jide, theirs, [id])).status).toBe(400)
