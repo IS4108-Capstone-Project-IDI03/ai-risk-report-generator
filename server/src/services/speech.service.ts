@@ -109,6 +109,19 @@ export async function transcribeWithSegments(
   return { transcript: body.transcript, segments }
 }
 
+// Asks S5 to transcribe a short clip sent as bytes: no S3 round trip, so a spoken chat question
+// (CB-10) comes back sooner and is stored nowhere. `extension` tells Whisper the format.
+export async function transcribeClip(audio: Buffer, extension: string): Promise<string> {
+  const body = await callS5<{ transcript: string; usage?: unknown }>(
+    '/transcribe-clip',
+    { audio_base64: audio.toString('base64'), filename: `question.${extension}` },
+    'The speech service could not be reached.',
+    (b) => typeof b.transcript === 'string',
+  )
+  await recordAiCalls(body.usage)
+  return body.transcript
+}
+
 // The text alone, for a voice note.
 export async function transcribe(s3Key: string, reportId?: string): Promise<string> {
   return (await transcribeWithSegments(s3Key, { reportId })).transcript
