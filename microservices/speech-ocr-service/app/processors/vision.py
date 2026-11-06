@@ -377,13 +377,30 @@ class PhotoDescription(BaseModel):
     description: str
 
 
-def _describe_gemini(image: str) -> tuple[PhotoDescription, dict]:
+# A photo a risk engineer attaches to a chat question (CB-08). Only the photo is sent, never the
+# question, so no client words reach Gemini. `unclear` is what could not be made out.
+CHAT_DESCRIBE_INSTRUCTION = """You look at one photograph a Marsh property risk engineer \
+attached to a question about fire-protection standards. Describe what it shows in a few plain \
+sentences: the equipment, its condition, what is visible and any readable labels or markings. \
+Use Singapore English. State only what is visible: no recommendations, no guesses. List in \
+`unclear` anything you could not make out (blurred, dark, hidden or too small); leave it empty \
+when everything is clear. Do not guess what is unclear."""
+
+
+class ChatPhotoAnswer(BaseModel):
+    description: str
+    unclear: str = ""
+
+
+def _describe_gemini(
+    image: str, instruction: str = DESCRIBE_INSTRUCTION, schema: type[BaseModel] = PhotoDescription
+) -> tuple[BaseModel, dict]:
     started = time.perf_counter()
     try:
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
                 model=VISION_MODEL,
-                system_instruction=DESCRIBE_INSTRUCTION,
+                system_instruction=instruction,
                 input=[
                     {"type": "image", "data": image, "mime_type": "image/jpeg"},
                     {"type": "text", "text": "Describe this photo."},
@@ -391,7 +408,7 @@ def _describe_gemini(image: str) -> tuple[PhotoDescription, dict]:
                 response_format={
                     "type": "text",
                     "mime_type": "application/json",
-                    "schema": PhotoDescription.model_json_schema(),
+                    "schema": schema.model_json_schema(),
                 },
                 # A client's site photo: Google need not keep the request.
                 store=False,
@@ -404,7 +421,7 @@ def _describe_gemini(image: str) -> tuple[PhotoDescription, dict]:
             f"The photo could not be described: no answer came back (status {result.status})."
         )
     try:
-        answer = PhotoDescription.model_validate_json(result.output_text)
+        answer = schema.model_validate_json(result.output_text)
     except ValidationError as error:
         raise InterpretationError(
             "The photo could not be described: the answer was not in the expected form."
@@ -443,3 +460,16 @@ def describe_photo(s3_key: str) -> dict:
     image = _prepare(_read(boto3.client("s3", region_name=AWS_REGION), s3_key))
     answer, usage = describer(image)
     return {"description": answer.description, "usage": [usage]}
+
+
+def describe_chat_photo(s3_key: str) -> dict:
+    """{description, unclear, usage} for a photo attached to a chat question (CB-08)."""
+    describer = _DESCRIBERS.get(VISION_PROVIDER)
+    if describer is None:
+        raise InterpretationError(
+            f"The photo could not be described: VISION_PROVIDER {VISION_PROVIDER!r} "
+            "is not supported."
+        )
+    image = _prepare(_read(boto3.client("s3", region_name=AWS_REGION), s3_key))
+    answer, usage = describer(image, CHAT_DESCRIBE_INSTRUCTION, ChatPhotoAnswer)
+    return {"description": answer.description, "unclear": answer.unclear, "usage": [usage]}

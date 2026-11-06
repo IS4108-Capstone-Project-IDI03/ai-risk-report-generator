@@ -5,9 +5,15 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.privacy import PrivacyUnavailable
+from app.processors.chat_photo import check_faces
 from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
-from app.processors.vision import InterpretationError, describe_photo, interpret
+from app.processors.vision import (
+    InterpretationError,
+    describe_chat_photo,
+    describe_photo,
+    interpret,
+)
 
 router = APIRouter()
 
@@ -110,6 +116,24 @@ def interpret_observation(request: InterpretRequest) -> dict:
             request.privacy.model_dump() if request.privacy else None,
         )
     except (InterpretationError, PrivacyUnavailable) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.post("/chat-photo/faces")
+def chat_photo_faces(request: S3KeyRequest) -> dict:
+    """How many faces a chat photo has, and a blurred copy (CB-08)."""
+    try:
+        return check_faces(request.s3_key)
+    except (InterpretationError, PrivacyUnavailable) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.post("/chat-photo/describe")
+def chat_photo_describe(request: S3KeyRequest) -> dict:
+    """What a chat photo shows and what could not be made out (CB-08)."""
+    try:
+        return describe_chat_photo(request.s3_key)
+    except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
