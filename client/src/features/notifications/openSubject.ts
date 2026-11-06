@@ -38,7 +38,9 @@ export function openSubject(notification: Notification) {
       if (!documentId) return
       if (status === 'needs_review')
         return goTo(KNOWLEDGE_REVIEW_PATH + encodeURIComponent(documentId))
-      return openKnowledgeTab(status === 'failed' ? 'add' : 'documents', undefined, documentId)
+      return status === 'failed'
+        ? openKnowledgeTab('add')
+        : openKnowledgeTab('documents', undefined, documentId)
     // Moved away from you: the list, where it no longer is. Already there, goTo does nothing,
     // so the list is asked to read itself again or the moved row would stay on it.
     case 'assessment_moved':

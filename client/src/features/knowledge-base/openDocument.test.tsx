@@ -1,5 +1,5 @@
 // Tests for opening a document from a notification row (F-10): the Documents list marks it,
-// and a failed one opens Add documents, where its Retry is, with its upload marked.
+// and a failed one opens Add documents, where its Retry is, with nothing marked.
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -65,9 +65,9 @@ describe('Knowledge base: a document a notification opened', () => {
     expect(document.getElementById('document-d1')).not.toHaveAttribute('data-focused')
   })
 
-  it('marks a failed upload in Recent uploads, on the Add documents tab', async () => {
+  it('opens a failed upload on Add documents, where Retry is, with nothing marked', async () => {
     await openKnowledgeAs('add', 'd3')
     expect(await screen.findByRole('button', { name: /Retry/ })).toBeVisible()
-    expect(document.getElementById('document-d3')).toHaveAttribute('data-focused')
+    expect(document.querySelector('[data-focused]')).toBeNull()
   })
 })

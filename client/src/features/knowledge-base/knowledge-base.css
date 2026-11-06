@@ -764,14 +764,6 @@
 .kb-doc-row[data-focused] > td {
   background: var(--surface-selected);
 }
-.kb-doc[data-focused] {
-  display: block;
-  padding: 6px 8px;
-  margin: -6px -8px;
-  border-radius: var(--radius-md);
-  box-shadow: 0 0 0 3px var(--surface-selected);
-  background: var(--surface-selected);
-}
 .kb-request-body {
   min-width: 0;
   max-width: 68ch;

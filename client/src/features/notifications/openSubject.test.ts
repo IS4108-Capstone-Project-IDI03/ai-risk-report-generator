@@ -24,7 +24,6 @@ const note = (purpose: Notification['purpose'], context: Record<string, string> 
     context,
     read: false,
     done: false,
-    doneAt: null,
     createdAt: '2026-11-05T09:00:00.000Z',
   }) satisfies Notification
 
@@ -65,10 +64,10 @@ describe('openSubject', () => {
     expect(window.location.pathname).toBe('/admin/knowledge-base/review/d9')
   })
 
-  it('opens a failed document where its retry is, with that document marked', () => {
+  it('opens a failed document where its retry is, with nothing marked', () => {
     openSubject(note('ingestion_status', { documentId: 'd9', status: 'failed' }))
     expect(window.location.pathname).toBe('/admin/knowledge-base')
-    expect(knowledgeTab).toMatchObject({ current: 'add', document: 'd9' })
+    expect(knowledgeTab).toMatchObject({ current: 'add', document: null })
   })
 
   it('opens a finished document in the Documents list, with that document marked', () => {

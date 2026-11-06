@@ -156,7 +156,6 @@ export function KnowledgeBase({
         <Requests key={visit} notify={notify} onCount={setOpenRequests} />
       ) : (
         <AddDocuments
-          focused={focusDoc}
           narrow={narrow}
           onCompleted={setCompleted}
           // From Add documents the list has no filters to keep.

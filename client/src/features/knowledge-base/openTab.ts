@@ -5,8 +5,8 @@ import { SCREEN_PATHS } from '../auth/access'
 // Kept outside React so coming back to the screen reopens the tab you left,
 // e.g. to see how an upload went (a module variable outlives the screen).
 // `request` is the request a notification's Go to request opened, shown highlighted once.
-// `document` is the document a notification's row opened (F-10): shown highlighted once, in the
-// Documents list or, for a failed one, Recent uploads where Retry is.
+// `document` is the finished document a notification's row opened (F-10): shown highlighted once,
+// in the Documents list only. A failed document opens Add documents with nothing marked.
 export const knowledgeTab = {
   current: 'documents',
   request: null as string | null,
