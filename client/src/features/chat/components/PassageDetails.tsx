@@ -20,11 +20,13 @@ type Props = {
   passageText: string | null
   /** Shown instead of the passage while it loads or when it can't be loaded. */
   status: ReactNode
+  /** Names the source when it is not a knowledge-base document (an attached PDF, CB-09). */
+  title?: string
 }
 
 /** The citation's details above its passage, the quoted words highlighted. */
 export function PassageDetails(props: Props) {
-  const { number, doc, withdrawn, range, state, quote, passageText, status } = props
+  const { number, doc, withdrawn, range, state, quote, passageText, status, title } = props
   const many = Boolean(range?.includes('–'))
   const where = range ? `${many ? 'pages' : 'page'} ${range}` : 'the passage'
 
@@ -39,7 +41,7 @@ export function PassageDetails(props: Props) {
           </Badge>
         )}
       </div>
-      <h3>{doc ? doc.title : 'Document details loading'}</h3>
+      <h3>{title ?? (doc ? doc.title : 'Document details loading')}</h3>
       <dl className="rv-meta">
         {doc?.kind === 'standard' && doc.edition && (
           <>

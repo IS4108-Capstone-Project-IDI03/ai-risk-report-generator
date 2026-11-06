@@ -36,6 +36,9 @@ export function CitationPanel({ selected, onClose }: Props) {
     ? pages({ pageStart: source.pageStart ?? null, pageEnd: source.pageEnd ?? null })
     : null
   const ready = loaded.status === 'ready' ? loaded.passage : null
+  // A page of the engineer's own attached PDF (CB-09): the gateway keeps its text, not the file, so
+  // there is no PDF tab, and the file's name is the title.
+  const attached = Boolean(source?.passageId?.startsWith('att:'))
   // Shown in either tab while the passage loads or when it can't be loaded.
   const status =
     loaded.status === 'loading' ? (
@@ -118,7 +121,7 @@ export function CitationPanel({ selected, onClose }: Props) {
         <Tabs
           items={[
             { value: 'passage', label: 'Passage' },
-            { value: 'pdf', label: 'PDF' },
+            ...(attached ? [] : [{ value: 'pdf', label: 'PDF' }]),
           ]}
           value={tab}
           onChange={(value) => {
@@ -150,13 +153,14 @@ export function CitationPanel({ selected, onClose }: Props) {
           quote={quote}
           passageText={ready?.text ?? null}
           status={status}
+          title={attached ? (ready?.headings[0] ?? 'Attached PDF') : undefined}
         />
       </div>
       <div
         role="tabpanel"
         aria-label="PDF"
         className="chat-tabpanel chat-tabpanel--pdf"
-        hidden={tab !== 'pdf'}
+        hidden={tab !== 'pdf' || attached}
       >
         {/* Mounted as soon as the citation opens, hidden behind Passage, even before the passage
             arrives: the PDF's index and the cited pages load while the engineer reads, so the
