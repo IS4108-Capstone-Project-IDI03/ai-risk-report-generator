@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.privacy import PrivacyUnavailable
+from app.processors.chat_pdf import PdfRefused, extract_pages
 from app.processors.chat_photo import check_faces
 from app.processors.handwriting import HandwritingError, transcribe_page
 from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
@@ -117,6 +118,25 @@ def interpret_observation(request: InterpretRequest) -> dict:
         )
     except (InterpretationError, PrivacyUnavailable) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+class PdfRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    pdf_base64: str
+
+
+@router.post("/chat-pdf/extract")
+def chat_pdf_extract(request: PdfRequest) -> dict:
+    """The text of each page of a chat PDF, or why it cannot be used (CB-09)."""
+    try:
+        data = base64.b64decode(request.pdf_base64, validate=True)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="The PDF is not valid base64.") from error
+    try:
+        return extract_pages(data)
+    except PdfRefused as error:
+        # 422: the file is the problem, so the gateway shows this wording and does not retry.
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.post("/chat-photo/faces")
