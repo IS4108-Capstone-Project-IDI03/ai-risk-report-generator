@@ -7,6 +7,8 @@ import { VoiceInput } from './components/VoiceInput'
 import { saveSettings } from './speech'
 
 let heard = true
+// 'suspended' is what Safari gives an audio meter created outside a click.
+let contextState: 'running' | 'suspended' = 'running'
 const processMessage = vi.fn()
 vi.mock('@openuidev/react-headless', async (original) => ({
   ...(await original<object>()),
@@ -45,6 +47,8 @@ beforeEach(() => {
   vi.stubGlobal(
     'AudioContext',
     class {
+      state = contextState
+      resume = async () => {}
       createAnalyser = () => ({
         fftSize: 4,
         // A microphone that hears something, unless a test says otherwise.
@@ -55,7 +59,12 @@ beforeEach(() => {
     },
   )
   vi.stubGlobal('navigator', {
-    mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: () => {} }] }) },
+    mediaDevices: {
+      getUserMedia: async () => ({
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ label: 'Test Mic' }],
+      }),
+    },
   })
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} })
   saveSettings({ rate: 1, voiceURI: '', handsFree: false })
@@ -141,5 +150,30 @@ describe('ask by voice (CB-10)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
     await listened()
     expect(screen.getByRole('meter', { name: 'Microphone level' })).toBeInTheDocument()
+  })
+
+  it('names the microphone it listened to when it heard nothing', async () => {
+    heard = false
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    await listened()
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
+    expect(await screen.findByText(/Input used: Test Mic/)).toBeInTheDocument()
+  })
+
+  it('still records when the browser will not run the level meter, and waits for Stop', async () => {
+    // Safari leaves a meter made outside a click suspended: it reads zero however loud you are.
+    heard = false
+    contextState = 'suspended'
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    expect(await screen.findByText(/press Stop when you finish/i)).toBeInTheDocument()
+    expect(screen.queryByRole('meter')).not.toBeInTheDocument()
+    await listened()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
+    // Not mistaken for a silent microphone: the clip goes to be transcribed.
+    await waitFor(() =>
+      expect(document.querySelector('textarea')).toHaveValue('What is the density for OH2?'),
+    )
   })
 })

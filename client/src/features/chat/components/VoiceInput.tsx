@@ -27,16 +27,18 @@ const LOUD = 0.02
 // A clip that never rose above this has no sound in it (a muted or wrong microphone): it is not sent,
 // because Whisper would invent a sentence for it.
 const HEARD = 0.003
+// With no level meter, a hands-free question is cut off after this long.
+const UNMETERED_MS = 15_000
 
 // Calls `onQuiet` when the stream goes quiet (see above); returns a function that stops listening.
 // While `paused()` the clock stands still, so a pause never counts as silence.
 function watchQuiet(
+  context: AudioContext,
   stream: MediaStream,
   onQuiet: () => void,
   paused: () => boolean,
   onLevel: (level: number) => void,
 ) {
-  const context = new AudioContext()
   const analyser = context.createAnalyser()
   context.createMediaStreamSource(stream).connect(analyser)
   const samples = new Float32Array(analyser.fftSize)
@@ -75,12 +77,16 @@ function fillBox(text: string) {
 export function VoiceInput() {
   const processMessage = useThread((s) => s.processMessage)
   const [settings, change] = useVoiceSettings()
-  const [state, setState] = useState<'idle' | 'recording' | 'paused' | 'working'>('idle')
+  const [state, setState] = useState<'idle' | 'starting' | 'recording' | 'paused' | 'working'>(
+    'idle',
+  )
   const [note, setNote] = useState<Problem | null>(null)
   const [cog, setCog] = useState(false)
   // How loud the microphone is now (for the meter) and how loud it got at all (for the check).
   const [level, setLevel] = useState(0)
   const peak = useRef(0)
+  // False when the browser will not run the level meter; then only Stop ends a recording.
+  const [metered, setMetered] = useState(true)
   const recorder = useRef<MediaRecorder | null>(null)
   const { card, below: host } = useComposerHosts()
 
@@ -104,6 +110,11 @@ export function VoiceInput() {
     setNote(null)
     const blocked = micProblem()
     if (blocked) return setNote(blocked)
+    // Made here, in the click, not after the permission prompt: a browser may keep a meter made
+    // later paused, and a paused meter reads zero however loud you are.
+    const context = new AudioContext()
+    void context.resume().catch(() => {})
+    setState('starting')
     let stream: MediaStream
     try {
       // Asked for by name: some browsers leave gain control off, and a quiet microphone then
@@ -112,30 +123,47 @@ export function VoiceInput() {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
     } catch (error) {
+      void context.close()
+      setState('idle')
       return setNote(micProblem(error)!)
     }
+    await context.resume().catch(() => {})
+    const meter = context.state === 'running'
+    setMetered(meter)
+    const input = stream.getAudioTracks()[0]?.label
     const chunks: Blob[] = []
     const rec = new MediaRecorder(stream, { audioBitsPerSecond: 64_000 })
     recorder.current = rec
-    const stopWatching = watchQuiet(
-      stream,
-      () => rec.state === 'recording' && rec.stop(),
-      () => rec.state === 'paused',
-      (now) => {
-        peak.current = Math.max(peak.current, now)
-        setLevel(now)
-      },
-    )
+    let stopWatching: () => void = () => void context.close()
+    if (meter)
+      stopWatching = watchQuiet(
+        context,
+        stream,
+        () => rec.state === 'recording' && rec.stop(),
+        () => rec.state === 'paused',
+        (now) => {
+          peak.current = Math.max(peak.current, now)
+          setLevel(now)
+        },
+      )
+    else if (handsFree.current) {
+      // Hands-free has no one to press Stop, so without a meter it ends after a fixed time.
+      const timer = setTimeout(() => rec.state === 'recording' && rec.stop(), UNMETERED_MS)
+      stopWatching = () => {
+        clearTimeout(timer)
+        void context.close()
+      }
+    }
     peak.current = 0
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
     rec.onstop = async () => {
       stopWatching()
       // Without this the browser keeps showing "recording" after the question is done.
       stream.getTracks().forEach((t) => t.stop())
-      if (peak.current < HEARD) {
+      if (meter && peak.current < HEARD) {
         setNote({
           problem: 'No sound from your microphone',
-          fix: 'Check it is not muted, or pick another input in your browser.',
+          fix: `${input ? `Input used: ${input}. ` : ''}Check it is not muted, or pick another input in your browser.`,
         })
         return setState('idle')
       }
@@ -203,7 +231,7 @@ export function VoiceInput() {
         <IconButton
           icon="mic"
           label="Ask by voice"
-          disabled={state === 'working'}
+          disabled={state === 'working' || state === 'starting'}
           onClick={() => void start()}
         />
       )}
@@ -228,12 +256,16 @@ export function VoiceInput() {
     ) : (
       state !== 'idle' && (
         <p className="voice-input__state" role="status">
-          {state === 'recording'
-            ? 'Listening… stop talking to send'
-            : state === 'paused'
-              ? 'Paused'
-              : 'Reading your question…'}
-          {live && (
+          {state === 'starting'
+            ? 'Waiting for the microphone…'
+            : state === 'recording'
+              ? metered
+                ? 'Listening… stop talking to send'
+                : 'Listening… press Stop when you finish'
+              : state === 'paused'
+                ? 'Paused'
+                : 'Reading your question…'}
+          {live && metered && (
             // Shows the engineer at once whether the microphone is hearing them.
             <span
               className="voice-input__meter"
