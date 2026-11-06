@@ -127,8 +127,8 @@ site, status, Archived and Removed sites. Its Add site opens New assessment
 with the client chosen and a new site to name. From it the engineer corrects a
 site's name, address, jurisdiction and facility type for every assessment at
 it (also from Edit site on an assessment's Overview), renames the client from
-the page's ⋯ menu, and removes and restores a site, or the whole client, once
-its visits are archived. Each is allowed only when every assessment the
+the page's ⋯ menu (CP-28), and removes and restores a site, or the whole
+client, once its visits are archived. Each is allowed only when every assessment the
 client or site has, archived or not, is theirs and none is finalised;
 otherwise the page says another engineer's assessment uses it. A corrected
 jurisdiction or facility type asks first and marks section drafts out of

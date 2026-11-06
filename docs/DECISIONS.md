@@ -1988,7 +1988,7 @@ Reason: CP-17's lock kept one assessment from changing another's site, but also 
 
 Known limits: a site or client a colleague's assessment uses can't be changed by anyone until CP-44, and an engineer who leaves locks their sites until RV-11 reassigns their assessments. Corrections read live everywhere, the usage report included, so past costs show under the new name; prose already drafted keeps any old name until redrafted. Former names stay masked for good, so a generic old name (e.g. "Main building") is masked in the chat for everyone. The ownership check reads, then writes, with no transaction: a colleague creating a visit at the site in between is not refused. The chat reads its masking list once a minute, so a new name can reach it unmasked for up to a minute after a rename, as a new client's name already can. A site with no client yet can be corrected but not removed, as it has no client page; `migrate:clients` gives it one.
 
-Stories: CP-18, CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.
+Stories: CP-18, CP-28 (split out on 2026-11-06), CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.
 
 ## 2026-11-04 — Marsh's page layout is the document editor restyled as Letter pages; a block that does not fit moves whole to the next page
 
@@ -2174,3 +2174,21 @@ Rejected:
 Known limits: a thread is on text only, not on a table, figure or photo filled in elsewhere. Where the window is too narrow for the margin beside the page, threads open in the comments list's place. A thread whose words changed beyond recognition outside the editor is listed with its quote rather than placed.
 
 Stories: RV-03, RV-08, F-05, EX-01.
+
+## 2026-11-06 — CP-18's editing becomes its own story, CP-28
+
+Chose: CP-28 (correct a client's and site's details) is split out of CP-18, which keeps viewing, removing and restoring. Nothing about the app changes: both stories were built and merged as CP-18, and the decisions of 2026-11-02 stand. Points divide 8 (CP-18) and 5 (CP-28), still 13 between them.
+
+- CP-18 keeps AC1-AC6 as they were. Old AC12-AC14 are now AC7-AC9, old AC16-AC18 are AC10-AC12, the removing half of old AC19 and AC20 is AC13 and AC14, and old AC21 is AC15.
+- CP-28 takes old AC7-AC11 as AC1-AC5, old AC15 as AC6, the changing half of old AC19 and AC20 as AC7 and AC8, and old AC22 as AC9. Old AC15 refuses a change to something removed, so it goes with changing; CP-28 depends on CP-18 for that and for the client page its dialogs open from.
+- Edit details goes to CP-28 with the other edits, though it changes only the visit's own details and not its site or client.
+- The one ownership rule stays one rule, in one place in the code; each story's ACs state the part that applies to it.
+- RV-12 now depends on CP-28 rather than CP-18, as its cover reads corrected details, and CP-44 depends on both.
+
+Rejected:
+- Moving removing and restoring to CP-28 as well: they are not edits, and CP-18 would be left only viewing.
+- Relabelling CP-18 in code comments and test names: they keep saying CP-18 for this work, as code still says CP-06 for what merged into CP-08, so read them with the mapping above. It would touch many merged files for no change in behaviour.
+
+Reason: at 22 ACs and 13 points, CP-18 held two jobs, seeing and clearing away a client's sites and correcting their details, which can be planned and accepted separately.
+
+Stories: CP-18, CP-28, RV-12, CP-44.
