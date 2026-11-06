@@ -3,6 +3,7 @@
 Photos (test_vision.py) and handwritten pages (test_handwriting.py) have their own.
 """
 
+import base64
 import io
 
 from fastapi.testclient import TestClient
@@ -90,6 +91,60 @@ def test_transcribe_reads_s3_and_returns_whisper_text(monkeypatch):
     assert usage["usage_status"] == "recorded"
     assert usage["input_tokens"] is None
     assert isinstance(usage["duration_ms"], int)
+
+
+def test_transcribe_clip_takes_the_audio_directly_with_a_vocabulary_hint(monkeypatch):
+    # A spoken chat question (CB-10): no S3 round trip, so the answer comes back sooner.
+    s3 = FakeS3()
+    use_fakes(monkeypatch, s3)
+
+    response = client.post(
+        "/transcribe-clip",
+        json={"audio_base64": base64.b64encode(b"clip bytes").decode(), "filename": "q.webm"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["transcript"] == "Sprinkler valve chained open."
+    assert s3.requested is None
+    assert FakeOpenAI.file == ("q.webm", b"clip bytes")
+    assert FakeOpenAI.language == "en"
+    # The hint names the standards and terms engineers say, which Whisper otherwise mishears.
+    assert "NFPA" in FakeOpenAI.prompt["prompt"]
+    assert response.json()["usage"][0]["feature"] == "transcribe"
+
+
+def test_transcribe_clip_drops_what_whisper_says_when_it_heard_no_speech(monkeypatch):
+    # Whisper invents "Thank you for watching." for silence. Its own no-speech score gives it away.
+    use_fakes(monkeypatch, FakeS3())
+    FakeOpenAI.segments = [
+        {"start": 0, "end": 2, "text": " Thank you for watching.", "no_speech_prob": 0.93}
+    ]
+    clip = {"audio_base64": base64.b64encode(b"x").decode(), "filename": "q.webm"}
+
+    assert client.post("/transcribe-clip", json=clip).json()["transcript"] == ""
+
+    # Real speech is kept, and a made-up tail after it is dropped.
+    FakeOpenAI.segments = [
+        {"start": 0, "end": 2, "text": " What is the density?", "no_speech_prob": 0.01},
+        {"start": 2, "end": 4, "text": " Thank you for watching.", "no_speech_prob": 0.9},
+    ]
+    assert client.post("/transcribe-clip", json=clip).json()["transcript"] == "What is the density?"
+
+
+def test_a_recording_keeps_every_segment_whatever_its_no_speech_score(monkeypatch):
+    # Site-walk and voice-note recordings are not filtered: the engineer reviews those.
+    use_fakes(monkeypatch, FakeS3())
+    FakeOpenAI.segments = [
+        {"start": 0, "end": 2, "text": "Quiet murmur.", "no_speech_prob": 0.9, "x": 1}
+    ]
+    body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
+    assert body["transcript"] == "Sprinkler valve chained open."
+    assert [s["text"] for s in body["segments"]] == ["Quiet murmur."]
+
+
+def test_transcribe_clip_rejects_bad_base64():
+    response = client.post("/transcribe-clip", json={"audio_base64": "!!", "filename": "q.webm"})
+    assert response.status_code == 422
 
 
 def test_transcribe_marks_usage_unavailable_without_duration(monkeypatch):

@@ -4,11 +4,16 @@
 // Appendix A's chosen photos with their captions. Read-only, like every
 // locked part (LockedBlockView).
 import { lazy, Suspense } from 'react'
+import type { Editor } from '@tiptap/core'
+import { useEditorState } from '@tiptap/react'
 import type { AcceptedOfi, SavedObservation } from '../../api'
 import { ChartBoundary } from '../../components/ChartBoundary'
+import { MaturityTable } from '../../components/MaturityTable'
 import { OfisInReport } from '../../components/OfiSuggestions'
 import { RiskMatrix } from '../../components/RiskMatrix'
 import { useAppendix } from '../../useAppendix'
+import type { ReferenceGroup } from '../export/references'
+import { programRowsOf } from './programs'
 
 // Brings the chart library, so loaded only when Section 3 is shown.
 const OfiCharts = lazy(() =>
@@ -70,5 +75,65 @@ export function AppendixReport({ reference }: { reference: string }) {
         </figure>
       ))}
     </>
+  )
+}
+
+// Section 6's programs as Marsh's two tables (GN-11, EX-01 AC7), from the
+// rows written in its subsection, read again as they change: each rank
+// coloured, each row's citations numbered as its section numbers them.
+export function ProgramsTable({
+  editor,
+  getPos,
+}: {
+  editor: Editor
+  getPos: () => number | undefined
+}) {
+  const rows = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const pos = getPos()
+      if (pos === undefined) return []
+      const at = e.state.doc.resolve(pos)
+      if (at.depth < 2) return []
+      return programRowsOf(at.node(1), at.parent).rows
+    },
+  })
+  const entries = new Map(
+    rows.map((row) => [
+      row.program,
+      {
+        rank: row.rank,
+        comment: (
+          <>
+            {row.comment}
+            {row.cites.map((n) => (
+              <sup key={n} className="dm-cite" data-n={n} />
+            ))}
+          </>
+        ),
+      },
+    ]),
+  )
+  return <MaturityTable entries={entries} />
+}
+
+// The export's References (EX-01 AC6): each section that cites anything,
+// with what each of its numbers cites.
+export function ReferencesList({ groups }: { groups: ReferenceGroup[] }) {
+  return (
+    <div className="pg-references">
+      {groups.map((group) => (
+        <section key={group.sectionId} className="pg-reference-group">
+          <h3 className="pg-reference-heading">{group.label}</h3>
+          <ol className="pg-reference-list">
+            {group.entries.map((entry) => (
+              <li key={entry.number} value={entry.number}>
+                {entry.text}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
   )
 }

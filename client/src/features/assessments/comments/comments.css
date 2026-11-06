@@ -1,0 +1,398 @@
+/* Comment threads in the document editor (RV-03): the passages threads are
+   on, the margin beside the text, and the comments list. Screen only: the
+   export (EX-01) lays out the report with an editor that has none of it. */
+
+/* The document and its margin, side by side; the comments list floats over
+   the right of the view. */
+.dm-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dm-canvas {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  min-width: 0;
+}
+.dm-canvas > .dm-sheet {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dm-canvas > .dm-sheet.is-page {
+  flex: 0 0 auto;
+}
+.dm-canvas.has-margin {
+  gap: 16px;
+  padding-right: clamp(12px, 2vw, 24px);
+}
+.dm-canvas.has-margin > .dm-sheet.is-page {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* A thread's passage: amber while the thread is open, stronger for the
+   thread being looked at and for a new one's passage. */
+.dm-prose .dm-comment {
+  background: var(--amber-50);
+  border-bottom: 2px solid var(--amber-100);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.dm-prose .dm-comment.is-active {
+  background: var(--amber-100);
+  border-bottom-color: var(--amber-500);
+}
+.dm-comment-hint {
+  margin: 0;
+  padding: 0 clamp(16px, 2vw, 28px) 8px;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-secondary);
+}
+
+/* The margin */
+.cm-margin {
+  position: relative;
+  flex: 0 0 296px;
+  min-height: 100%;
+  margin-top: 20px;
+}
+.cm-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-slot {
+    transition: none;
+  }
+}
+
+/* A thread */
+.cm-card {
+  padding: 10px 12px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-body);
+  text-align: left;
+}
+.cm-card.is-active {
+  border-color: var(--graphite-200);
+  box-shadow:
+    0 12px 32px rgb(0 15 71 / 0.16),
+    0 0 0 1px var(--graphite-200);
+}
+.cm-card.is-resolved {
+  background: var(--surface-sunken);
+}
+.cm-card-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cm-card-summary:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+.cm-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cm-card-label {
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  color: var(--graphite-700);
+}
+.cm-comments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-comments > li + li {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.cm-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ink-50);
+  color: var(--report-navy);
+  font-size: 11px;
+  font-weight: 700;
+}
+.cm-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.cm-name {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.cm-when {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cm-comment-actions {
+  display: flex;
+  gap: 2px;
+}
+.cm-body {
+  display: block;
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cm-body.is-deleted {
+  font-style: italic;
+  color: var(--text-muted);
+}
+.cm-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cm-more {
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-600);
+}
+.cm-quote {
+  display: block;
+  margin: 0;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--amber-500);
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--text-secondary);
+}
+.cm-gone,
+.cm-resolved {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+/* Writing a comment */
+.cm-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cm-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.cm-problem {
+  margin: 0;
+  color: var(--red-600);
+  font-size: 12px;
+  line-height: 16px;
+}
+.cm-problem p {
+  margin: 0 0 8px;
+}
+.cm-confirm {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--red-50);
+}
+.cm-confirm p {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+}
+
+/* The comments list */
+.cm-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 100%);
+  background: var(--surface-card);
+  border-left: 1px solid var(--border-default);
+  box-shadow: -12px 0 32px rgb(0 15 71 / 0.12);
+  font-family: var(--font-sans);
+  animation: cmPanelIn var(--duration-slow) var(--ease-out);
+}
+@keyframes cmPanelIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-panel {
+    animation: none;
+  }
+}
+.cm-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px 6px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cm-panel-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.cm-panel-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cm-panel-count,
+.cm-panel-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.cm-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px 16px;
+}
+.cm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-card);
+  font: inherit;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .cm-row:hover {
+    background: var(--surface-hover);
+  }
+}
+.cm-row[aria-current='true'] {
+  border-color: var(--ink-400);
+}
+.cm-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.cm-section {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--weight-semibold);
+  color: var(--graphite-700);
+}
+.cm-row .cm-section {
+  margin: 0;
+}
+.cm-row-comment strong {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.cm-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.cm-row-meta:empty {
+  display: none;
+}
+.cm-tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+
+/* Below the stacked breakpoint the page scrolls with the workspace, so the
+   comments list covers the window's right edge; on a phone, all of it. */
+@media (max-width: 1080px) {
+  .cm-panel {
+    position: fixed;
+    z-index: 40;
+  }
+}
+@media (max-width: 767px) {
+  .cm-panel {
+    width: 100%;
+    border-left: none;
+  }
+}

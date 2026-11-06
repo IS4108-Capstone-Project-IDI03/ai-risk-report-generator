@@ -1614,9 +1614,9 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     for (const name of ['Draft', 'Redraft section', 'Capture evidence']) {
       expect(has(name)).toBe(false)
     }
-    // Export is a read-only simulation: it opens, and records nothing.
+    // Export opens to read, and only the assigned engineer can use it (EX-01 AC2).
     tab(/^Export/)
-    expect(screen.getByText('Completeness checklist')).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: /^PDF/ })).toBeDisabled()
   })
 
   it('does everything an engineer does on their own', async () => {

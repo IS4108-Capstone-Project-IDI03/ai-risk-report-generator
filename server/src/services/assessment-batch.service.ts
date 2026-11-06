@@ -33,6 +33,7 @@ import {
   latestVisit,
   siteNameTaken,
   UnknownClientError,
+  coordinatesSchema,
 } from './client.service'
 import { FACILITY_TYPES } from './knowledge-document.service'
 import { assignedEngineers, tellAssignedEngineers } from './assessment-assign.service'
@@ -77,6 +78,8 @@ const siteEntrySchema = z
     copyLocations: z.boolean().default(true),
     name: optional('Site name'),
     address: optional('Site address'),
+    // Where a new site is (CP-26). Optional, and a listed site's is changed on its map.
+    coordinates: coordinatesSchema.optional(),
     jurisdiction: z
       .string()
       .regex(/^[A-Z]{2}$/, 'Jurisdiction must be a two-letter code, e.g. SG.')
@@ -259,7 +262,7 @@ export async function createAll(
         sites.push(listed.get(entry.id)!)
         continue
       }
-      const { name, address, jurisdiction, facilityType } = entry
+      const { name, address, coordinates, jurisdiction, facilityType } = entry
       const site = await insertWithNextCode(
         'site',
         (n) => `SITE-${pad(n)}`,
@@ -269,6 +272,7 @@ export async function createAll(
             code,
             name,
             address,
+            coordinates,
             jurisdiction,
             facilityType,
             client: client._id,
@@ -296,12 +300,15 @@ export async function createAll(
               reportDueDate: day(visit.reportDueDate),
               siteContacts: visit.siteContacts,
               engineer: new Types.ObjectId(engineers[visit.ref].id),
-              locations: (copied?.locations ?? []).map(({ building, floor, name, key }) => ({
-                building,
-                floor,
-                name,
-                key,
-              })),
+              locations: (copied?.locations ?? []).map(
+                ({ building, floor, name, key, coordinates }) => ({
+                  building,
+                  floor,
+                  name,
+                  key,
+                  coordinates,
+                }),
+              ),
             }),
         )
       }

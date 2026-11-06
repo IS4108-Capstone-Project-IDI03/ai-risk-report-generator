@@ -441,6 +441,18 @@ class ChatDocument(BaseModel):
     edition: str | None = None
 
 
+# One page of a file attached to the chat (CB-09), sent by the gateway from what it stored.
+class ChatAttachmentPage(BaseModel):
+    page: int
+    text: str
+
+
+class ChatAttachment(BaseModel):
+    id: str
+    name: str
+    pages: list[ChatAttachmentPage]
+
+
 # The body OpenUI's fetchLLM posts. Unknown fields are ignored, not refused,
 # since OpenUI adds its own (threadId, runId, tools).
 class ChatRequest(BaseModel):
@@ -452,6 +464,8 @@ class ChatRequest(BaseModel):
     role: str = "risk_engineer"
     # Set by the gateway (PV-03), never by the browser.
     privacy: Privacy | None = None
+    # The files attached to this chat (CB-09), read from storage by the gateway.
+    attachments: list[ChatAttachment] = []
 
 
 @router.post("/chat")
@@ -460,7 +474,15 @@ def chat(request: ChatRequest) -> StreamingResponse:
     messages = [m.model_dump() for m in request.messages]
     documents = [d.model_dump() for d in request.documents]
     context = [c.value for c in request.context]
-    events = answer_events(messages, context, documents, request.role, privacy=_privacy(request))
+    attachments = [a.model_dump() for a in request.attachments]
+    events = answer_events(
+        messages,
+        context,
+        documents,
+        request.role,
+        privacy=_privacy(request),
+        attachments=attachments,
+    )
     return StreamingResponse(events, media_type="text/event-stream")
 
 

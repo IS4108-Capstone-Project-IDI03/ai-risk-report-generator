@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton } from '../../../design-system'
 import { useLoadVersions, useVersions } from '../useVersions'
+import { PlayAnswer } from './PlayAnswer'
 import { VersionSwitcher } from './VersionSwitcher'
 
 const ROOT = '.knowledge-assistant'
@@ -48,6 +49,7 @@ export function AnswerBar() {
           onClick={() => void resend(question.id, question.content as string)}
         />
       )}
+      <PlayAnswer answer={host} />
     </div>
   )
   return host ? createPortal(bar, host) : bar

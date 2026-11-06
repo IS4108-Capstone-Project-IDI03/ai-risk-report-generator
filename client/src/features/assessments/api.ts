@@ -1,6 +1,8 @@
 // Gateway (S2) calls for assessments. Requests go to /api, which Vite proxies
 // to the gateway in development.
 
+import type { Coordinates } from './googleMaps'
+
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
 export type AssessmentStatus =
@@ -32,6 +34,9 @@ export type Assessment = {
     code: string
     name: string
     address: string | null
+    // Where it is and its block pins (CP-26), shared by every visit to it.
+    coordinates?: { lat: number; lng: number } | null
+    pins?: { name: string; lat: number; lng: number }[]
     jurisdiction: string
     facilityType: string
     // Removed from its client (CP-18): it takes no new visit.
@@ -181,9 +186,17 @@ export type SiteLocation = {
   building: string | null
   floor: string | null
   name: string
+  // Where it is (CP-26), when the engineer has saved that.
+  coordinates?: Coordinates
 }
-// What the engineer gives for a new or changed location; blank ones are left out.
-export type LocationDetails = { building?: string; floor?: string; name: string }
+// What the engineer gives for a new or changed location; blank ones are left
+// out. null coordinates clear the ones saved.
+export type LocationDetails = {
+  building?: string
+  floor?: string
+  name: string
+  coordinates?: Coordinates | null
+}
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03), photos (CP-04) and handwritten pages (CP-19).
@@ -271,12 +284,21 @@ export async function request<T>(
       method,
       signal,
       // A form (with recordings) is sent as-is, so the browser sets its
-      // multipart boundary; anything else as JSON.
+      // multipart boundary; a recording alone (CB-10) as raw audio; anything else as JSON.
       ...(body === undefined
         ? {}
         : body instanceof FormData
           ? { body }
-          : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+          : body instanceof Blob
+            ? {
+                headers: {
+                  'Content-Type': body.type,
+                  // A file's name travels beside its bytes (a PDF's name is shown back, CB-09).
+                  ...(body instanceof File && { 'X-File-Name': encodeURIComponent(body.name) }),
+                },
+                body,
+              }
+            : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     })
   } catch (error: unknown) {
     if (signal?.aborted) throw error
@@ -923,6 +945,9 @@ export type SourcePassage = {
     sourceType: string
     edition: string | null
     effectiveDate: string
+    // A past report's facility type, all its reference names with the year
+    // (EX-01); absent from a gateway before then.
+    facilityType?: string | null
     withdrawnAt: string | null
     fileUrl: string
   } | null
@@ -939,6 +964,9 @@ export type FieldObservation = {
   severity: string
   location: string | null
   standard: string | null
+  // When it was captured, for the export's references (EX-01); absent from a
+  // gateway before them, null if the observation is gone.
+  capturedAt?: string | null
 }
 
 // A regenerated draft waiting to be accepted or discarded (RV-02).
@@ -1377,4 +1405,105 @@ export async function saveLossEstimates(reference: string, inputs: LossInputs) {
 // Asks the model to propose each level's % and months (GN-03 addendum). A paid call.
 export async function proposeLossEstimates(reference: string) {
   return (await request<LossEstimates>('POST', `${lossEstimatesPath(reference)}/propose`)).data
+}
+
+// Exporting the finished report (EX-01). Something left to finish before it
+// can be exported, by section, with where it is finished: on Generation or in
+// the review workspace.
+export type ExportBlocker = {
+  sectionId: string
+  title: string
+  reason: string
+  where: 'generation' | 'review'
+}
+export type ExportFormat = 'pdf' | 'docx'
+
+const exportPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}/export`
+
+export async function getExportBlockers(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<ExportBlocker[]> {
+  return (
+    await request<{ blockers: ExportBlocker[] }>('GET', exportPath(reference), undefined, signal)
+  ).data.blockers
+}
+
+// The export check as the Export tab opens (EX-01): what is left to finish,
+// and how many comment threads are still open, a reminder that never blocks
+// the export (RV-03 AC9).
+export async function getExportCheck(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<{ blockers: ExportBlocker[]; openThreads: number }> {
+  const { data } = await request<{ blockers: ExportBlocker[]; openThreads?: number }>(
+    'GET',
+    exportPath(reference),
+    undefined,
+    signal,
+  )
+  return {
+    blockers: data.blockers,
+    openThreads: typeof data.openThreads === 'number' ? data.openThreads : 0,
+  }
+}
+
+// The export was refused because the report is not complete (409).
+export class ExportBlockedError extends GatewayError {
+  readonly blockers: ExportBlocker[]
+  constructor(message: string, blockers: ExportBlocker[]) {
+    super(409, message)
+    this.blockers = blockers
+  }
+}
+
+// The file's name from the gateway's Content-Disposition, else a fallback.
+export function fileNameOf(disposition: string | null, fallback: string): string {
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition ?? '')?.[1]
+  if (encoded)
+    try {
+      return decodeURIComponent(encoded)
+    } catch {
+      // Fall through to the plain name.
+    }
+  return /filename="([^"]+)"/i.exec(disposition ?? '')?.[1] ?? fallback
+}
+
+// Asks the gateway to make the file from the laid-out pages (AC1): the file
+// and its name, "RPT-2026-0411 2026-11-04.pdf".
+export async function exportReport(
+  reference: string,
+  body: { format: ExportFormat; citations: boolean; photos: boolean; html: string },
+  signal?: AbortSignal,
+): Promise<{ file: Blob; fileName: string }> {
+  let response: Response
+  try {
+    response = await fetch(exportPath(reference), {
+      method: 'POST',
+      signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (error: unknown) {
+    if (signal?.aborted) throw error
+    throw new GatewayError(null)
+  }
+  if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => ({}))) as {
+      error?: string
+      blockers?: ExportBlocker[]
+    }
+    if (response.status === 409 && Array.isArray(problem.blockers))
+      throw new ExportBlockedError(problem.error ?? 'The report is not complete.', problem.blockers)
+    if (response.status === 413)
+      throw new GatewayError(413, 'The report is too large to export in one file.')
+    throw new GatewayError(response.status, problem.error)
+  }
+  const fallback = `${reference}.${body.format}`
+  return {
+    file: await response.blob(),
+    fileName: fileNameOf(response.headers.get('Content-Disposition'), fallback),
+  }
 }

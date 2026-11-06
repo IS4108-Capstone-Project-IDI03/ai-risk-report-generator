@@ -339,11 +339,46 @@
   margin: 0;
   padding-left: 0;
 }
+/* Section 4's legends keep their own look, as in document.css. */
+.dm-sheet.is-page .dm-prose .rv-legend h4 {
+  margin: 0;
+  padding: 4pt 8pt;
+  font-size: 10pt;
+  line-height: 12pt;
+  color: var(--text-inverse);
+}
+.dm-sheet.is-page .dm-prose .rv-legend ul {
+  margin: 0;
+  padding: 0;
+}
 /* Still as drafted: the violet marks it in the margin, not in the measure. */
 .dm-sheet.is-page .dm-prose p.dm-ai {
   box-shadow:
     -6pt 0 0 0 var(--ai-bg),
     -8pt 0 0 0 var(--ai-border);
+}
+/* A citation marker as the report prints it (EX-01): a plain superscript
+   number, not the review screen's chip, so the page breaks fall where the
+   export's do. */
+.dm-sheet.is-page .dm-cite {
+  display: inline;
+  min-width: 0;
+  height: auto;
+  margin: 0 0 0 1pt;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--report-font);
+  font-size: 7.5pt;
+  font-weight: 400;
+  line-height: 0;
+  vertical-align: super;
+}
+/* Section 6's rows as Marsh's table (page/programs.ts): the rows it shows
+   are not repeated below it. */
+.dm-sheet.is-page .pg-program-row {
+  display: none;
 }
 /* Notes for the engineer are not part of the report. */
 .dm-sheet.is-page .dm-notice {
@@ -368,6 +403,11 @@
 }
 .dm-sheet.is-page .rv-maturity-scroll {
   overflow: visible;
+}
+/* On screen the damage table keeps room for its inputs; on the page it fits
+   the text width, as the other tables do. */
+.dm-sheet.is-page .rv-damage-table {
+  min-width: 0;
 }
 .pg-photo {
   margin: 0 0 12pt;
@@ -396,10 +436,47 @@
   color: var(--text-muted);
 }
 
+/* The export's References (EX-01 AC6): each section's numbered sources. */
+.pg-references {
+  font-size: 10pt;
+  line-height: 12pt;
+}
+.pg-reference-group + .pg-reference-group {
+  margin-top: 12pt;
+}
+.dm-sheet.is-page .pg-reference-heading {
+  margin: 0 0 6pt;
+  font-family: var(--report-font);
+  font-size: 12pt;
+  line-height: 15pt;
+  font-weight: 700;
+  color: var(--report-blue);
+}
+.pg-reference-list {
+  margin: 0;
+  padding-left: 22pt;
+}
+.pg-reference-list li {
+  margin: 0 0 4pt;
+}
+
+/* The export's pages are laid out off screen at their printed size, and
+   never seen (document/export/ExportPages.tsx). */
+.dm-export-stage {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  width: 900px;
+  pointer-events: none;
+}
+.dm-export-stage .dm-sheet.is-page {
+  margin: 0;
+}
+
 /* Below the stacked breakpoint the pages keep their printed size and the
    view scrolls sideways to them, rather than the whole workspace. */
 @media (max-width: 1080px) {
-  .dm-scroll:has(> .dm-sheet.is-page) {
+  .dm-scroll:has(.dm-sheet.is-page) {
     overflow-x: auto;
   }
   .dm-sheet.is-page {

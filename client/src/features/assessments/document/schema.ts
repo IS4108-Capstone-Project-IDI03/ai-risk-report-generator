@@ -14,6 +14,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react'
 import { Placeholder } from '@tiptap/extensions'
 import StarterKit from '@tiptap/starter-kit'
 import { LockedBlockView } from './LockedBlockView'
+import { ProgramRows } from './page/programs'
 
 // The top node: the report's sections in order.
 const ReportDocument = Node.create({
@@ -143,10 +144,12 @@ const LockedBlock = Node.create({
 })
 
 // A template subsection: its fixed heading, then its text, or a locked part
-// for a table.
+// for a table. Section 6's Management Programs has both: its rows as text,
+// and the locked part that sets them as Marsh's table in the page layout
+// (page/programs.ts).
 const Subsection = Node.create({
   name: 'subsection',
-  content: 'subsectionHeading (lockedBlock | block+)',
+  content: 'subsectionHeading (lockedBlock | lockedBlock? block+)',
   isolating: true,
   defining: true,
   selectable: false,
@@ -251,6 +254,7 @@ export const documentExtensions = [
   ListItem,
   Citation,
   FindingAttribute,
+  ProgramRows,
   Placeholder.configure({
     includeChildren: true,
     // Shown in every empty paragraph, so a section to write says so unfocused.

@@ -26,6 +26,7 @@ import {
   type Draft,
   type SectionDraftDto,
 } from './section.service'
+import { captureTimes } from './observation.service'
 import type { TemplateSection } from './rag.service'
 import {
   assessmentIdOf,
@@ -68,6 +69,9 @@ export type SourcePassageDto = {
     edition: string | null
     // YYYY-MM-DD: a standard's effective date, or a past report's date.
     effectiveDate: string | null
+    // A past report's facility type, which is all a reference to it names
+    // with its year (EX-01 AC6); null while Unconfirmed.
+    facilityType: string | null
     withdrawnAt: Date | null
     fileUrl: string
   } | null
@@ -85,6 +89,9 @@ export type FieldObservationDto = {
   severity: string
   location: string | null
   standard: string | null
+  // When it was captured, for the report's references (EX-01 AC6); null if
+  // the observation can no longer be found.
+  capturedAt: Date | null
 }
 
 // One finding of a draft (RV-02): a statement, with the engineer's decision.
@@ -246,6 +253,7 @@ function toPassage(
           sourceType: record.sourceType,
           edition: record.edition,
           effectiveDate: record.effectiveDate,
+          facilityType: record.facilityType,
           withdrawnAt: record.withdrawn?.at ?? null,
           fileUrl: record.fileUrl,
         }
@@ -323,6 +331,7 @@ function evidenceOf(
   draft: Draft,
   section: TemplateSection,
   documents: Map<string, KnowledgeDocumentDto>,
+  captured: Map<string, Date>,
 ) {
   const sources = Object.fromEntries(
     Object.entries(draft.sources ?? {}).map(([citation, passage]) => [
@@ -344,6 +353,7 @@ function evidenceOf(
       severity: e.severity,
       location: e.location ?? null,
       standard: e.standard ?? null,
+      capturedAt: captured.get(e.id) ?? null,
     }))
   return { sources, observations }
 }
@@ -406,6 +416,9 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
   const documents = new Map(
     (await findKnowledgeDocuments(documentIds)).map((document) => [document.id, document]),
   )
+  const captured = await captureTimes(
+    drafts.flatMap((d) => savedEvidence(d.evidence).map((e) => e.id)),
+  )
 
   const sections = loaded.map(
     ({ section, latest, replacement, changesSinceDraft, changeCounts }): ReviewSectionDto => {
@@ -417,7 +430,8 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
         history: entries
           .filter((e) => e.sectionId === section.id && !e.carriedFrom)
           .map(historyEntry),
-        replacement: replacement && toReplacement(replacement, section, documents, entries),
+        replacement:
+          replacement && toReplacement(replacement, section, documents, captured, entries),
         document: documentOf(section.id, latest),
       }
       if (!latest) {
@@ -442,7 +456,7 @@ export async function getReviewWorkspace(reference: string): Promise<ReviewWorks
       }
       const findings = foldFindings(latest, entries)
       const counts = countFindings(findings)
-      const { sources, observations } = evidenceOf(latest, section, documents)
+      const { sources, observations } = evidenceOf(latest, section, documents, captured)
       const inDraft = findings.filter(kept)
       const unsupportedStatements = inDraft.filter((f) => !f.supported).length
       const citedNow = new Set(inDraft.flatMap((f) => f.citations))
@@ -498,6 +512,7 @@ function toReplacement(
   replacement: Draft,
   section: TemplateSection,
   documents: Map<string, KnowledgeDocumentDto>,
+  captured: Map<string, Date>,
   entries: readonly ReviewEntry[],
 ): ReplacementDto {
   const asked = entries.find(
@@ -505,7 +520,7 @@ function toReplacement(
   )
   return {
     draft: reviewDraft(replacement, foldFindings(replacement, entries)),
-    ...evidenceOf(replacement, section, documents),
+    ...evidenceOf(replacement, section, documents, captured),
     instruction: replacement.provenance.instruction ?? null,
     requestedBy: asked ? { id: asked.by.id, name: asked.by.name } : null,
     requestedAt: replacement.createdAt,

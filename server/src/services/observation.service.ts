@@ -1197,6 +1197,15 @@ export async function listObservations(
 // generation (GN-01). An observation not categorised yet has a null
 // COPE_dimension, so it is left out until it is categorised (CP-02 AC4), and
 // so is a deleted one (CP-08 AC13).
+// When each observation was captured, by its ID, for a report's references
+// to them (EX-01 AC6). A deleted one still has its time.
+export async function captureTimes(ids: readonly string[]): Promise<Map<string, Date>> {
+  const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))
+  if (!valid.length) return new Map()
+  const found = await ObservationModel.find({ _id: { $in: valid } }, 'createdAt').lean()
+  return new Map(found.map((o) => [String(o._id), o.createdAt]))
+}
+
 export async function listCategoryObservations(
   reference: string,
   copeDimension: CopeDimension,

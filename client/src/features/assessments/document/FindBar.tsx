@@ -6,8 +6,17 @@ import { replaceAll, replaceCurrent, searchOf, setQuery, step } from './findRepl
 
 // Find and replace across every section (AC8): typing highlights each match,
 // Enter and Shift+Enter step through them, and each can be replaced on its
-// own or all at once. Escape closes it and returns to the document.
-export function FindBar({ editor, onClose }: { editor: Editor; onClose: () => void }) {
+// own or all at once. Escape closes it and returns to the document. In a
+// document opened read only (RV-03 AC7) it only finds.
+export function FindBar({
+  editor,
+  onClose,
+  canReplace = true,
+}: {
+  editor: Editor
+  onClose: () => void
+  canReplace?: boolean
+}) {
   const [replacement, setReplacement] = useState('')
   const [done, setDone] = useState<string | null>(null)
   const { query, current, count } = useEditorState({
@@ -31,7 +40,7 @@ export function FindBar({ editor, onClose }: { editor: Editor; onClose: () => vo
   return (
     <div
       role="search"
-      aria-label="Find and replace"
+      aria-label={canReplace ? 'Find and replace' : 'Find'}
       className="dm-find"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -57,12 +66,14 @@ export function FindBar({ editor, onClose }: { editor: Editor; onClose: () => vo
             }
           }}
         />
-        <Input
-          label="Replace with"
-          size="sm"
-          value={replacement}
-          onChange={(event) => setReplacement(event.target.value)}
-        />
+        {canReplace && (
+          <Input
+            label="Replace with"
+            size="sm"
+            value={replacement}
+            onChange={(event) => setReplacement(event.target.value)}
+          />
+        )}
       </div>
       <div className="dm-find-actions">
         <p className="dm-find-status" aria-live="polite">
@@ -82,27 +93,31 @@ export function FindBar({ editor, onClose }: { editor: Editor; onClose: () => vo
           disabled={!count}
           onClick={() => step(editor, 1)}
         />
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={IconRegistry.editor.replace}
-          disabled={!count}
-          onClick={() => replaceCurrent(editor, replacement)}
-        >
-          Replace
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={IconRegistry.editor.replaceAll}
-          disabled={!count}
-          onClick={() => {
-            const n = replaceAll(editor, replacement)
-            setDone(`Replaced ${n} match${n === 1 ? '' : 'es'}.`)
-          }}
-        >
-          Replace all
-        </Button>
+        {canReplace && (
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={IconRegistry.editor.replace}
+              disabled={!count}
+              onClick={() => replaceCurrent(editor, replacement)}
+            >
+              Replace
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={IconRegistry.editor.replaceAll}
+              disabled={!count}
+              onClick={() => {
+                const n = replaceAll(editor, replacement)
+                setDone(`Replaced ${n} match${n === 1 ? '' : 'es'}.`)
+              }}
+            >
+              Replace all
+            </Button>
+          </>
+        )}
         <IconButton icon={IconRegistry.action.close} size="sm" label="Close find" onClick={close} />
       </div>
     </div>

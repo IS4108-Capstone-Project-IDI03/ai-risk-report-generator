@@ -51,6 +51,8 @@ async function append(
     content: string
     clientId?: string
     status?: 'complete' | 'stopped'
+    attachments?: string[]
+    pdfs?: { id: string; name: string; flagged: boolean }[]
   },
 ) {
   const saved = await ChatMessageModel.create({ ...message, conversationId, userId, parentId })
@@ -70,6 +72,8 @@ export async function saveQuestion(
   conversationId: string,
   userId: string,
   question: { id?: string; content: string; parentId?: string },
+  attachments: string[] = [],
+  pdfs: { id: string; name: string; flagged: boolean }[] = [],
 ) {
   // A parent the chat doesn't know falls back to the newest message, as chats did before CB-04.
   const parent =
@@ -97,6 +101,8 @@ export async function saveQuestion(
     role: 'user',
     content: question.content,
     clientId: question.id,
+    ...(attachments.length && { attachments }),
+    ...(pdfs.length && { pdfs }),
   })
 }
 

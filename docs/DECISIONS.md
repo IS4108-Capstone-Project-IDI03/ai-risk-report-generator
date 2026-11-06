@@ -1988,7 +1988,7 @@ Reason: CP-17's lock kept one assessment from changing another's site, but also 
 
 Known limits: a site or client a colleague's assessment uses can't be changed by anyone until CP-44, and an engineer who leaves locks their sites until RV-11 reassigns their assessments. Corrections read live everywhere, the usage report included, so past costs show under the new name; prose already drafted keeps any old name until redrafted. Former names stay masked for good, so a generic old name (e.g. "Main building") is masked in the chat for everyone. The ownership check reads, then writes, with no transaction: a colleague creating a visit at the site in between is not refused. The chat reads its masking list once a minute, so a new name can reach it unmasked for up to a minute after a rename, as a new client's name already can. A site with no client yet can be corrected but not removed, as it has no client page; `migrate:clients` gives it one.
 
-Stories: CP-18, CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.
+Stories: CP-18, CP-28 (split out on 2026-11-06), CP-17, PV-02, PV-03, RV-10, RV-11, CP-44.
 
 ## 2026-11-04 — Marsh's page layout is the document editor restyled as Letter pages; a block that does not fit moves whole to the next page
 
@@ -2113,10 +2113,90 @@ Known limits: the file applies to every flow, so switching a kind off affects dr
 
 Stories: PV-04, PV-01.
 
+## 2026-11-04 — The export is the page layout, printed: the browser lays out the pages, the gateway prints them with headless Chromium
+
+Chose:
+- (EX-01) The PDF comes from Marsh's page layout itself (RV-12), as AC3 asks: the Export tab draws the report off screen with the document editor's own schema, pagination and pages (`document/export/ExportPages.tsx`), read-only and without the review screen's marks (AC10): no review plugins, so no violet AI styling, flags or deleted-citation badges; no notices; citation numbers only. Once every part has loaded and nothing has changed for four checks 300 ms apart, `snapshot.ts` turns the pages into one HTML document: the cover, details page and contents as drawn, and the report cut into Letter pages exactly where the layout breaks it. Each block of the report keeps the page `paginate` gave it and sits where it sat on that page; a table carried onto a page starts with its header again (the layout's repeated header), a split numbered list goes on counting, and a split table keeps its column widths. Each page gets the header and footer its band draws.
+- The gateway prints those pages with headless Chromium (playwright-core), the user's choice over a separate export service. The HTML comes from the browser, so it is opened with no way out: page scripts off, a content security policy allowing only inline styles and data: images and fonts, and every request refused (`export-render.service.ts`). Chromium embeds the fonts (Arial, or Liberation Sans in the server image, its metric twin), keeps backgrounds, makes the headings bookmarks and the contents entries links (AC3, AC4). One Chromium per export, closed after it, at most two at once. Chromium is `CHROMIUM_PATH` (the server image installs Alpine's), else an installed Chrome, else Playwright's.
+- The Word file is read off the same pages, so both formats hold the same text (AC6, AC7): `export-extract.ts` runs in the page and returns the blocks (sections, headings, runs with their bold, italic, underline, superscript and colour, Word lists, tables with each cell's fill, pictures, page breaks), joining a table or list split across pages by the `data-x` name the snapshot gives its parts. Charts and legends are pictured at twice their size; photos keep the bytes the export embedded. `export-docx.ts` writes it with `docx`: the navy cover (a page-sized navy picture behind white text), the details page and a Word table of contents numbered i, ii, the report from 1, Marsh's header and footer with a PAGE field, each section a Heading 1 ("Section 7", a line break, "Construction") from a new page, subsections Heading 2, other headings Heading 3. Its contents is a TOC field (`\h \o "1-2"`) holding the page layout's entries until Word refreshes it; it is marked for refreshing, so Word may ask to update fields when it opens.
+- Citations (AC6): markers keep the numbers each section already gives them (`plugins.ts citationNumbers`), and References, a part after the report (after Appendix A, so no earlier page moves), list each section's numbers: a standard by title, edition, heading trail and page; an observation by location and capture date (`capturedAt`, now on the review workspace's observations); a past Marsh report by facility type and year only (`facilityType`, now on its passage's document); a section of this report by its title. Without citations no marker is left. Page layout now draws markers as the PDF prints them, plain superscripts, so its line breaks are the export's.
+- Section 6's programs are Marsh's two tables in the page layout and the export (AC7): a `programs` locked part in the Management Programs subsection draws `MaturityTable` from the rows written there, live, and the page layout hides the rows it shows (`page/programs.ts`); the continuous view keeps editing them as paragraphs. The subsection schema allows that part before its text.
+- The export check (AC1) is the minimal one until RV-04 (`exportBlockers`): every drafted finding decided, none unsupported, no withdrawn source cited, each blocker named by section, on the tab and as the 409 body. (Widened 2026-11-05: the report must also be written in full.) Pending edits are saved first through a registry (`pendingSaves.ts`) that the document editor and Appendix A's queue join; one that fails stops the export.
+- Only the assigned engineer exports, with a new `reports:export` permission (risk engineers, F-05). An archived report can be exported again. A masking placeholder left in the text (`[PERSON_2]`, `client_1`, `[PHONE 3]`) stops the export with where it is (422, AC9). Photos go in at 300 dpi of their printed size, never above the original's own resolution, in Appendix A's order (AC8). The file is `<reference> <YYYY-MM-DD>.<pdf|docx>`, the day in `REPORT_TIME_ZONE` (Asia/Singapore). Nothing is stored.
+- The sample assessment shown without the gateway says it cannot be exported and simulates nothing (AC11); its Standards index option, which did nothing, is gone.
+
+Rejected:
+- Laying out the PDF on the gateway (pdfkit, or the docx converted by Gotenberg): its pages would not be the page layout's, which AC3 asks for.
+- Printing the browser's page with `window.print()`: a print dialog, not a download, with no API to refuse (AC2).
+- Rasterising the pages in the browser (html2canvas): no text to select or search, no embedded fonts, no links.
+- Printing the page layout's one continuous sheet and letting Chromium break it: Chromium would move a block whose space crosses a page edge, and every page after it would shift. Each page is cut out instead, so Chromium never breaks one.
+- Gotenberg's Chromium route, already in Compose: it is off on purpose (it fetches any URL), and the Word file needs the page read and pictured, which its routes do not do.
+- Chart pictures drawn in the browser (SVG to canvas): the charts' colours are CSS variables, which a standalone SVG loses; Chromium pictures them as drawn.
+- Word's hidden text for "7. " in the heading, to make the contents read "7. Construction": Word leaves hidden text out of the contents.
+
+Known limits: a block taller than a page still runs past its foot (RV-12), and is cut off at the page's edge in the PDF. Word paginates on its own, so its page numbers can differ from the PDF's; its contents shows the page layout's until refreshed. Bookmarks name a section by its title, without its number. The export waits for the off-screen pages to settle, so a report with many photos takes a few seconds before the gateway is asked. The minimal check does not cover RV-04's mandatory sections, unresolved citation targets, overrides or second-layer review.
+
+Stories: EX-01, RV-12, RV-04, F-05, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02.
+
+## 2026-11-05 — Only a complete report is exported: every section written, every finding reviewed
+
+Chose:
+- (EX-01 AC1) Until RV-04 builds its full check, `exportBlockers` (`export.service.ts`) lets a report go only once it is complete, as the team decided: Section 2's Executive Summary drafted and not out of date; at least one accepted OFI (Section 3); Sections 4-12 each drafted, or written in the document editor; Sections 4 and 5 with every figure entered; and in each draft no new draft waiting, every finding decided, none unsupported, none citing a withdrawn source, and nothing changed since it was drafted (evidence, figures or the site's scope). The 4 Nov check covered only the review half.
+- Each item names its section, in report order, and where it is finished (`where`: Generation or the review workspace), so the Export tab opens the right tab from it. `GET /api/assessments/:reference/export` returns them as `blockers`; the POST checks again and answers 409 with them. The export stays greyed out with the reason until the list is empty (design system v2).
+- Section 2's own statements are not checked for support: they cannot be decided in the review workspace, so a flag there could never clear.
+
+Rejected:
+- Exporting as it stands with the open items only as a warning (tried earlier the same day): the team wants an unfinished report kept in the tool.
+- Requiring every template subsection to have text: a draft covers only the subsections its evidence supports.
+- An override with a justification (RV-04 AC9-AC11): left to RV-04, which also adds its audit trail.
+
+Known limits: OFI suggestions left unaccepted do not block. RV-04 is still to add citation targets, high-severity findings, overrides and second-layer review.
+
+Stories: EX-01, RV-04.
+
+## 2026-11-05 — Comment threads are kept apart from the text, anchored by its words
+
+Chose:
+- (RV-03) A comment thread is a document of its own in `report_comment_threads`, never part of a section's text. A comment adds no version to `report_section_versions` and changes no review state, so a knowledge admin, who cannot change the text, still comments (AC7), and the export (EX-01), laid out by an editor with no comment marks, never shows one (AC9).
+- A thread is anchored by text, not by an editor position: its offsets in the section's text as the document editor saves it (each paragraph, sub-heading and list item, one per line, a citation marker as one character), the passage itself and up to 32 characters either side, as the W3C Web Annotation quote and position selectors do. Opening the editor finds each thread at its offsets; else where the same words stand with the most matching text around them; else, when its words changed, between the text either side; else it is listed as having lost its text. So a thread survives what changes the text outside the editor: a finding edited or rejected in review, a redraft, a restore (RV-06).
+- In the editor each thread's passage carries a mark naming it. The mark moves with the words as they are edited, stays on what remains (AC6) and comes back on undo; it is placed outside the undo history, is not a change to save, is never taken from pasted HTML, and `inlineOf` merges the text runs it splits, so the saved text is the same with or without comments. After each save the editor sends where its threads now are (`PUT …/comments/anchors`); a thread whose text was deleted entirely is `detached` and keeps quoting it.
+- Who can comment is who can open the assessment, as the work list has it: its assigned engineer and every knowledge admin (`opensAssessment`), with the new `reports:comment` permission for both roles (F-05). The Review tab now needs `reports:comment` rather than `reports:generate`, so a knowledge admin reads the review workspace and opens the document read only ("Open document"); every decision still needs `reports:generate` and the assigned engineer.
+- No @mentions and no notifications from comments: AC4 was taken out of the story the same day, with the comments list's "mentioning me" filter. A colleague sees a new thread in the margin and the comments list when they next open the document.
+- Each comment is changed or deleted only by its author. A deleted reply goes; a deleted first comment that others reply to reads "Comment deleted"; a thread left with no comment goes too. Resolve and reopen are open to anyone who can comment, as in Google Docs.
+- Threads are read again when the window regains focus, not on a timer: a timer would keep an idle session signed in (F-07).
+
+Rejected:
+- Comment marks saved in the section's text, as some editors do: every comment would add a version and could change a finding's review state, a knowledge admin could not comment without a text save, and the export would have to strip them.
+- Anchoring by editor position alone: positions mean nothing once the text changes outside the editor.
+- Real-time sync between two open editors (Google Docs' live comments): out of scope; a colleague's new thread shows once the window regains focus.
+- @mentions with notifications (AC4 as first written, built and then removed at Josiah's request): a comment names no one, so it needs no list of colleagues and sends nothing to the bell.
+
+Known limits: a thread is on text only, not on a table, figure or photo filled in elsewhere. Where the window is too narrow for the margin beside the page, threads open in the comments list's place. A thread whose words changed beyond recognition outside the editor is listed with its quote rather than placed.
+
+Stories: RV-03, RV-08, F-05, EX-01.
+
+## 2026-11-06 — CP-18's editing becomes its own story, CP-28
+
+Chose: CP-28 (correct a client's and site's details) is split out of CP-18, which keeps viewing, removing and restoring. Nothing about the app changes: both stories were built and merged as CP-18, and the decisions of 2026-11-02 stand. Points divide 8 (CP-18) and 5 (CP-28), still 13 between them.
+
+- CP-18 keeps AC1-AC6 as they were. Old AC12-AC14 are now AC7-AC9, old AC16-AC18 are AC10-AC12, the removing half of old AC19 and AC20 is AC13 and AC14, and old AC21 is AC15.
+- CP-28 takes old AC7-AC11 as AC1-AC5, old AC15 as AC6, the changing half of old AC19 and AC20 as AC7 and AC8, and old AC22 as AC9. Old AC15 refuses a change to something removed, so it goes with changing; CP-28 depends on CP-18 for that and for the client page its dialogs open from.
+- Edit details goes to CP-28 with the other edits, though it changes only the visit's own details and not its site or client.
+- The one ownership rule stays one rule, in one place in the code; each story's ACs state the part that applies to it.
+- RV-12 now depends on CP-28 rather than CP-18, as its cover reads corrected details, and CP-44 depends on both.
+
+Rejected:
+- Moving removing and restoring to CP-28 as well: they are not edits, and CP-18 would be left only viewing.
+- Relabelling CP-18 in code comments and test names: they keep saying CP-18 for this work, as code still says CP-06 for what merged into CP-08, so read them with the mapping above. It would touch many merged files for no change in behaviour.
+
+Reason: at 22 ACs and 13 points, CP-18 held two jobs, seeing and clearing away a client's sites and correcting their details, which can be planned and accepted separately.
+
+Stories: CP-18, CP-28, RV-12, CP-44.
+
 ## 2026-11-05 — Admins hold the engineer's powers, and may assign assessments; the Inbox holds what needs a person
 
 Chose:
-- (F-10, RV-11) `knowledge_admin` gains `assessments:edit` and `reports:generate`, and a new `assessments:assign` belongs to `knowledge_admin` only. An admin can do everything an engineer can under Assessments and Clients, including Generation, Review and Export, on the same screens.
+- (F-10, RV-11) `knowledge_admin` gains `assessments:edit` and `reports:generate`, and a new `assessments:assign` belongs to `knowledge_admin` only. An admin can do everything an engineer can under Assessments and Clients, including Generation, Review and Export, on the same screens. `reports:export` (EX-01, 4 Nov) belongs to `knowledge_admin` too, for the same reason; only the assigned engineer can export.
 - This reverses the 30 Sep F-05 decision that rejected a wildcard admin and kept admins read-only on assessments. The "only the assigned engineer can change it" checks stay, so an admin changes only assessments assigned to them and reads the rest. Routes that had no such check because only engineers could reach them (starting capture, adding and removing locations, retrying a transcription, reading an observation, filing and deleting client documents) now have one.
 - An admin chooses the engineer when creating an assessment (required, any active account including themselves), and can reassign one later (`POST /api/assessments/:reference/reassign`; archived ones are refused). Engineers still get themselves. Observations, drafts and costs follow the assessment. After a reassignment the new engineer carries on its observations, locations and site walks, and the old one is refused.
 - The Inbox holds what stalls work if the person ignores it; the bell holds updates. Inbox items stay in the `notifications` collection with a `kind` set at creation from one lookup in the notification service, so the ingestion worker does not change. To do and Done are worked out per person, not stored.

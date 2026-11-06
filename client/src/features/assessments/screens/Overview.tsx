@@ -4,6 +4,7 @@ import { Badge, Button, Icon } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import type { ReportSection, ReviewSection } from '../api'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
+import { SiteMapCard } from '../components/SiteMapCard'
 import { StatBox, type BoxContent } from '../components/StatBox'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { reportProgress } from '../reviewDisplay'
@@ -347,7 +348,10 @@ function OverviewLayout({ v, report }: { v: AssessmentWorkflow; report: Report }
                 <Facts facts={v.ovRecordFacts} />
               </section>
             </div>
-            <ReportSections v={v} report={report} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+              {v.ovMap && <SiteMapCard {...v.ovMap} onSaved={v.siteSaved} />}
+              <ReportSections v={v} report={report} />
+            </div>
           </div>
         </div>
       </div>

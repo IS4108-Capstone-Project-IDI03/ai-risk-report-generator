@@ -14,6 +14,7 @@ import ragRoutes from './routes/rag.routes'
 import chatRoutes from './routes/chat.routes'
 import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
+import commentRoutes from './routes/comment.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
@@ -46,6 +47,10 @@ app.use((req, res, next) => (documentSave.test(req.path) ? documentBody(req, res
 const proposalSave = /^\/api\/assessments\/[^/]+\/site-walks\/[^/]+\/proposal$/
 const proposalBody = express.json({ limit: '5mb' })
 app.use((req, res, next) => (proposalSave.test(req.path) ? proposalBody(req, res, next) : next()))
+// A report export (EX-01) carries its laid-out pages, photos included.
+const exportRequest = /^\/api\/assessments\/[^/]+\/export$/
+const exportBody = express.json({ limit: '64mb' })
+app.use((req, res, next) => (exportRequest.test(req.path) ? exportBody(req, res, next) : next()))
 app.use(express.json())
 app.use(cookieParser())
 
@@ -56,6 +61,8 @@ app.use('/api/auth', authRoutes)
 // checks its own permission from the role matrix (403, F-05).
 // Before the general assessments router, which would otherwise answer first.
 app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
+// Comment threads on the report (RV-03).
+app.use('/api/assessments/:reference/comments', requireAuth, commentRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)

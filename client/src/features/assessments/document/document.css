@@ -163,6 +163,22 @@
 .dm-prose li p {
   padding-left: 4px;
 }
+/* A part filled in elsewhere keeps its own look: the rules above are for the
+   report's text, not a legend's title or list (Section 4's Rating Legend). */
+.dm-prose .rv-legend h4 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-inverse);
+}
+.dm-prose .rv-legend ul {
+  margin: 0;
+  padding: 0;
+}
+.dm-prose .rv-legend li {
+  margin: 0;
+  list-style: none;
+}
 /* Still as the draft wrote it: provisional, so violet until a person changes it. */
 .dm-prose p.dm-ai {
   border-left-color: var(--ai-border);

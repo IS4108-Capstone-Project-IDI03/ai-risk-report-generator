@@ -633,7 +633,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Editing
 
   7. Given a copied location, when it is edited or removed, then the earlier assessment's locations do not change.
-  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments. *(Superseded by CP-18: a site's details and its client's name change for all their assessments at once, from Edit site and Rename client, when every assessment there is the engineer's.)*
+  8. Given a created assessment, when its details are edited, then its client and site cannot be changed, nor the site's details while another assessment that is not archived shares the site, to prevent one edit changing other assessments. *(Superseded by CP-28: a site's details and its client's name change for all their assessments at once, from Edit site and Rename client, when every assessment there is the engineer's.)*
 
   Grouping
 
@@ -645,10 +645,10 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
   </details>
 
-- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 13 pts, deps: CP-17, RV-10, CP-08, PV-02, Sprint 4)
+- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 8 pts, deps: CP-17, RV-10, CP-08, Sprint 4; correcting split out to CP-28 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
-  Goal: view, filter, correct, remove and restore a client I survey and its sites, from the client's page, so its details are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; everything is changed only when every assessment it has, archived or not, is mine and none is finalised.
+  Goal: view, filter, remove and restore a client I survey and its sites, from the client's page, so my work for a client is in one place and what I no longer survey is out of the way. "Mine" means assigned to me now; a client or site is removed or restored only when every assessment it has, archived or not, is mine and none is finalised.
 
   Viewing and filtering
 
@@ -659,35 +659,48 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a site on the client page, when I choose New visit, then the create form opens with that client and site chosen; and given the client page, when I choose Add site, then it opens with that client chosen and a new site to name.
   6. Given my visits for a client are all archived, when I group the work list's Archived view by client, then I can open the client's page from it.
 
-  Correcting
-
-  7. Given a site, when I correct its name, address, jurisdiction or facility type, from the client page or from Edit site on an assessment's Overview, then every assessment there shows the change, and observations keep the jurisdiction and facility type they were saved with.
-  8. Given I change a site's jurisdiction or facility type, when I save, then I am told how many assessments it changes before it is saved, and afterwards their section drafts show as out of date.
-  9. Given a client, when I rename it from its page, then every assessment for it shows the new name; a name another client has, whatever its case, is refused.
-  10. Given a site name the client already has, whatever its case, or a facility type not on the list, when I save, then it is refused with the reason, and what I typed is kept. A site's older facility type, unchanged, is kept.
-  11. Given an assessment's Overview, when I choose Edit details, then it offers only the visit's own details (assessment type, site visit date and report due), and saving changes only those.
-
   Removing and restoring
 
-  12. Given a site whose assessments are all mine and all archived, when I remove it and confirm, then it leaves the client page and the create form's site list, its assessments are unchanged, and Removed sites can restore it.
-  13. Given a site with an assessment not archived, when I try to remove it, then it is refused, with how many are still open.
-  14. Given a client whose assessments are all mine and all archived, when I remove it, then all its listed sites are removed together, it leaves the create form, and Clients lists it under Removed clients; Restore brings back those sites, not one removed on its own before.
-  15. Given a removed site or client, when I try to change it, then it is refused until it is restored.
-  16. Given a removed site's name, when another site of that name is added, then it is allowed; restoring the removed one then asks for a new name, so two listed sites never share one.
-  17. Given an archived assessment on a removed site, when it is restored, then its site is restored with it, unless the site's name was taken meanwhile, when I am told to restore the site under a new name first.
-  18. Given a removed client's name, when it is typed on the create form, then the client comes back rather than a second one being added.
+  7. Given a site whose assessments are all mine and all archived, when I remove it and confirm, then it leaves the client page and the create form's site list, its assessments are unchanged, and Removed sites can restore it.
+  8. Given a site with an assessment not archived, when I try to remove it, then it is refused, with how many are still open.
+  9. Given a client whose assessments are all mine and all archived, when I remove it, then all its listed sites are removed together, it leaves the create form, and Clients lists it under Removed clients; Restore brings back those sites, not one removed on its own before.
+  10. Given a removed site's name, when another site of that name is added, then it is allowed; restoring the removed one then asks for a new name, so two listed sites never share one.
+  11. Given an archived assessment on a removed site, when it is restored, then its site is restored with it, unless the site's name was taken meanwhile, when I am told to restore the site under a new name first.
+  12. Given a removed client's name, when it is typed on the create form, then the client comes back rather than a second one being added.
+
+  Who may see and remove what
+
+  13. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to remove it, then it is refused without naming whose.
+  14. Given a site or client with a finalised report, when I try to remove it, then it is refused.
+  15. Given a client I have no assessment for, when I try to open its page, then it is refused; a knowledge admin can't open client pages.
+
+  Not in this story: correcting a client's or site's details, or a visit's own (CP-28); the knowledge admin's view of every engineer's visits, and merging (CP-44); permanently deleting (rejected, see DECISIONS).
+  </details>
+
+- [ ] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
+  <details><summary>Goal / AC</summary>
+
+  Goal: correct a client's name, a site's details and a visit's own details, so they are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; a client or site is corrected only when every assessment it has, archived or not, is mine and none is finalised.
+
+  Correcting
+
+  1. Given a site, when I correct its name, address, jurisdiction or facility type, from the client page or from Edit site on an assessment's Overview, then every assessment there shows the change, and observations keep the jurisdiction and facility type they were saved with.
+  2. Given I change a site's jurisdiction or facility type, when I save, then I am told how many assessments it changes before it is saved, and afterwards their section drafts show as out of date.
+  3. Given a client, when I rename it from its page, then every assessment for it shows the new name; a name another client has, whatever its case, is refused.
+  4. Given a site name the client already has, whatever its case, or a facility type not on the list, when I save, then it is refused with the reason, and what I typed is kept. A site's older facility type, unchanged, is kept.
+  5. Given an assessment's Overview, when I choose Edit details, then it offers only the visit's own details (assessment type, site visit date and report due), and saving changes only those.
 
   Who may change what
 
-  19. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to change or remove it, then it is refused without naming whose.
-  20. Given a site or client with a finalised report, when I try to change or remove it, then it is refused.
-  21. Given a client I have no assessment for, when I try to open its page, then it is refused; a knowledge admin can't open client pages.
+  6. Given a removed site or client, when I try to change it, then it is refused until it is restored.
+  7. Given another engineer has an assessment, archived or not, at the site or for the client, when I try to change it, then it is refused without naming whose.
+  8. Given a site or client with a finalised report, when I try to change it, then it is refused.
 
   Privacy
 
-  22. Given a site's or client's name or address was corrected, when a report is drafted or the chat is asked with protection on, then neither the old nor the new value is sent to the model or Cohere, and the masked old value reads back as the current one.
+  9. Given a site's or client's name or address was corrected, when a report is drafted or the chat is asked with protection on, then neither the old nor the new value is sent to the model or Cohere, and the masked old value reads back as the current one.
 
-  Not in this story: the knowledge admin's view of every engineer's visits, renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); permanently deleting, or moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
+  Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
@@ -881,10 +894,10 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   14. Given a test set of documents and observations with known disagreements, when discrepancy checking is evaluated on it, then the share found meets the agreed threshold, and none is listed without both sources.
   </details>
 
-- [ ] **CP-44** — Manage clients and sites as a knowledge admin (knowledge admin, Could, 8 pts, deps: CP-18, CB-07, F-10, PV-02, unplanned) *(draft)*
+- [ ] **CP-44** — Manage clients and sites as a knowledge admin (knowledge admin, Could, 8 pts, deps: CP-18, CP-28, CB-07, F-10, PV-02, unplanned) *(draft)*
   <details><summary>Goal / AC</summary>
 
-  Goal: see every client's sites and visits, rename clients, merge duplicates and approve corrections to shared sites, so client and site records stay correct and single, even where several engineers' work is involved. Picks up what CP-18 leaves to one accountable role.
+  Goal: see every client's sites and visits, rename clients, merge duplicates and approve corrections to shared sites, so client and site records stay correct and single, even where several engineers' work is involved. Picks up what CP-18 and CP-28 leave to one accountable role.
 
   Viewing
 
@@ -1099,14 +1112,22 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Goal also: regenerate an individual report section, with a prompt saying what to change, so a weak section can be improved without losing other review work. AC10-AC12 are GN-04's, merged here on 11 Oct 2026.
   </details>
 
-- [ ] **RV-03** — Discuss a specific draft passage (risk engineer, Could, 2 pts, deps: RV-01, Sprint 5)
+- [ ] **RV-03** — Comment on the report in the editor, as in Google Docs (risk engineer, Could, deps: RV-08, F-05, EX-01, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: leave comments on selected draft passages, so colleagues can resolve review questions in context.
+  Goal: comment on any part of the report in the document editor, reply to colleagues' comments and resolve them, so that questions about the report are settled beside the text they concern instead of over email. (Replaces "Discuss a specific draft passage", 5 Nov 2026; its three ACs are AC1 and AC5.)
 
-  1. Given I have selected a draft passage, when I submit a comment, then its discussion thread is anchored to that passage.
-  2. Given an unresolved discussion thread exists, when I mark it Resolved, then the thread's state becomes Resolved.
-  3. Given a resolved discussion thread exists, when I reopen it, then the thread's state becomes Unresolved.
+  1. Given edit view (RV-08) is open, when I select text and choose Comment from the toolbar or its keyboard shortcut, then a thread opens in the margin beside that text, and the text is highlighted.
+  2. Given a thread exists, when anyone who can open the report replies, then the reply appears under it with its author and time, oldest first.
+  3. Given I wrote a comment, when I edit or delete it, then the change is shown and an edited comment is marked as edited. Other people's comments can't be edited or deleted by me.
+  4. Removed 5 Nov 2026: no @mentions, and no notifications from comments. The numbers of the ACs after it are kept.
+  5. Given a thread is open, when I resolve it, then it leaves the margin and its highlight is removed. When I show resolved threads, I can reopen it.
+  6. Given the text a thread is on is edited, when the change is saved, then the thread stays on what remains. If the text is deleted entirely, the thread stays in the comments list, quoting the text it was on.
+  7. Given I am a knowledge admin, when I open the report, then I can comment and reply but not edit the text. The new comment permission is given to both roles in F-05's matrix.
+  8. Given the report has threads, when I open the comments list, then all threads are shown in report order, filterable by open or resolved. Selecting one scrolls to it. (Its "mentioning me" filter went with AC4.)
+  9. Given the report is exported (EX-01), when I open the PDF or Word file, then no comments or highlights appear in it. If threads are still open, the export screen shows how many, as a reminder that doesn't block export.
+
+  Built 5 Nov 2026 (DECISIONS 2026-11-05, "Comment threads are kept apart from the text, anchored by its words"). Threads are stored in `report_comment_threads`, never in the text, so a comment adds no version and a knowledge admin comments without changing anything. The shortcut is Ctrl+Alt+M (Cmd+Option+M on a Mac), as in Google Docs. "Anyone who can open the report" is its assigned engineer and every knowledge admin, as the work list has it. A thread can be on any text the editor saves; fixed headings and parts filled in elsewhere (tables, figures, photos) take none. Deleting a thread's first comment while others reply leaves it reading "Comment deleted"; a reply is removed. Where the window is too narrow for a margin beside the text (the page layout needs about 1,180 px for the editor), threads open in the comments list's place. A thread's text changed outside the editor (a finding edited or rejected in review, a redraft, a restore) is found again by its words, or listed as having lost its text. Threads are read again whenever the window regains focus, not on a timer, so polling never keeps an idle session signed in (F-07).
   </details>
 
 - [ ] **RV-04** — Check report completeness before export (risk engineer, Must, 5 pts, deps: RV-02, GN-02, EV-01, KB-02, Sprint 5)
@@ -1202,13 +1223,13 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a section order has been saved, when I export the report, then the export uses that order.
   </details>
 
-- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-18, GN-03, Sprint 4)
+- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-28, GN-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: switch the full edit view into a page layout that matches Marsh's existing reports, with the cover, contents page and page numbers in place, so that I can see and correct how the report reads on the page before I export it.
 
   1. Given the full edit view (RV-08) is open, when I switch to Page layout, then the report is shown as pages with the page size, margins, header and footer of Marsh's report template. It uses Marsh's fonts, or agreed substitutes where those can't be used. Switching back returns me to the continuous view at the same place.
-  2. Given the report is in page layout, when I view its first pages, then they are a cover and a details page laid out as Marsh's. They show the client, site name and site address from their records (CP-17, CP-18); the report reference, assessment type, site visit date and lead engineer from the assessment; and the Marsh logo once Marsh supplies the file, the text wordmark until then.
+  2. Given the report is in page layout, when I view its first pages, then they are a cover and a details page laid out as Marsh's. They show the client, site name and site address from their records (CP-17, CP-28); the report reference, assessment type, site visit date and lead engineer from the assessment; and the Marsh logo once Marsh supplies the file, the text wordmark until then.
   3. Given the cover is shown, when I try to type on it, then it is protected like RV-08's other protected sections. When a detail it shows changes on the assessment or site, the cover shows the new value.
   4. Given a cover field has no value, when the cover is shown, then it reads "Not entered", as Sections 4 and 5 do for missing figures (GN-03), and no value is filled in its place.
   5. Given the report has sections and sub-headings, when the contents page is shown, then it lists them in report order, to the heading depth Marsh's contents page uses, each with the page it starts on.
@@ -1368,13 +1389,22 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E10 — Export & Handover
 
-- [ ] **EX-01** — Export finished report to file (risk engineer, Must, 2 pts, deps: RV-04, RV-09, CP-04, Sprint 5)
+- [ ] **EX-01** — Export the report as PDF and Word files (risk engineer, Must, deps: RV-12, RV-04, F-05, GN-01, IN-04, KB-01, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: export the completed, reviewed report into Marsh's report template, so the report leaves the tool in the format the existing process expects.
+  Goal: export the finished report as a PDF or an editable Word document laid out like Marsh's existing reports, so that I can issue the PDF to the client and use the Word file for review rounds in Marsh's usual process. (Replaces "Export finished report to file", 4 Nov 2026.)
 
-  1. Given a completed, reviewed report, when I export it, then it matches Marsh's section structure and template.
-  2. Given a completed report, when I export it, then DOCX or PDF can be chosen, and structure and citations are preserved in either.
-  3. Given the engineer has selected and ordered appendix content, when the report is exported, then Appendix A site photos and Appendix B site map are included in that order.
-  4. Given outstanding review items remain, when I attempt to export, then export is only allowed once they are cleared or explicitly overridden.
+  1. Given RV-04's checks allow the report to be exported, when I choose PDF or Word on the Validation and export screen and export, then any pending edits are saved first. The file then downloads, named with the report reference and the export date.
+  2. Given my role lacks the export permission (F-05's matrix gives it to risk engineers only), when I open the report, then no export action is offered, and the export API returns 403.
+  3. Given a PDF export, when I open it, then it matches page layout (RV-12) page for page: the same cover, contents page, page breaks and page numbers. Its fonts are embedded so it looks the same on any computer.
+  4. Given a PDF export, when I select an entry on its contents page or in the reader's bookmarks, then it opens at that section.
+  5. Given a Word export, when I open it in Microsoft Word, then it opens without a repair prompt, and: headings use Word's heading styles; the contents page is a Word table of contents that updates; page numbers are Word page-number fields; tables are editable Word tables, not pictures.
+  6. Given I choose whether to include citations and the photo appendix, when the file is generated, then both choices apply the same way in PDF and Word. With citations, each marker becomes a numbered reference: a standard, by its title, edition, heading and page; an observation, by its location and capture date; a past Marsh report, by facility type and year only, never another client's name, site or reference. Without citations, no markers remain.
+  7. Given the report holds the Section 3 and 4 charts, Risk Assessment Matrix and Rating Legend (GN-12), the Section 5 tables (GN-03) and the Section 6 tables (GN-11), when it is exported, then each appears as it does in page layout. Charts appear as images, and Section 6 rank cells keep their colours.
+  8. Given Appendix A photos are stored as unaltered originals (CP-04), when the report is exported, then each photo appears whole at its original aspect ratio, in the order Appendix A shows them, at an agreed print resolution. The stored original is unchanged.
+  9. Given client details were masked before drafting (PV-02), when the report is exported, then the file shows the real names and no placeholder such as "Person 1" remains.
+  10. Given passages carry AI styling, review states, open flags or comment threads in the app, when the report is exported, then none of them appear in the file.
+  11. Given the file cannot be generated, or the report is demo sample data shown without the gateway, when I try to export, then the cause is shown, with a retry where one can help. No file is produced or simulated.
+
+  Built 4 Nov 2026 (DECISIONS 2026-11-04, "The export is the page layout, printed"). AC1: RV-04 is not built, so a check stands in for it: only a complete report is exported (DECISIONS 2026-11-05), with the Executive Summary drafted and current, an OFI accepted, Sections 4-12 written, Sections 4 and 5's figures entered, and every finding decided, none unsupported, out of date or citing a withdrawn source; RV-04 replaces `exportBlockers`. AC3: the PDF is printed from the page layout's own pages; Page layout now shows citation markers as the PDF prints them and Section 6's programs as Marsh's table, so the two match. With citations, References follow the report on pages of their own; without them, lines may rewrap where markers were. AC4: bookmarks name each section by its title. AC5: Word's contents reads "Section 7 Construction", as Word builds an entry from the heading, and Word refreshes it on opening (it may ask to update fields first). AC8: the agreed print resolution is 300 dpi of the printed size, never above the original's own. AC9: the gateway refuses a file whose text still holds a privacy placeholder, naming where. AC10: comment threads (RV-03) are kept apart from the text and the export's editor has none of them, so none reach the file; the Export tab reminds of any still open.
   </details>

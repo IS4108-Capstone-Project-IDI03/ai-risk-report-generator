@@ -128,6 +128,9 @@ export type AssessmentDto = {
     code: string
     name: string
     address: string | null
+    // Where it is and its block pins (CP-26), shared by every visit to it.
+    coordinates: { lat: number; lng: number } | null
+    pins: { name: string; lat: number; lng: number }[]
     jurisdiction: string
     facilityType: string
     // Removed from its client (CP-18): it takes no new visit.
@@ -146,9 +149,19 @@ export type ListedSite = Omit<ISite, 'client'> & {
 // Whether the engineer may correct an assessment's site (CP-18).
 export type Rights = ReturnType<Awaited<ReturnType<typeof changeRights>>>
 
-// Assigned assessments for engineers, all assessments for knowledge admins.
-// Two queries: matching assessments, then their capture sessions. `only`
-// narrows it further, e.g. to one reference.
+// Who can open an assessment and its report: its assigned engineer, and every
+// knowledge admin. The work list below lists the same assessments; comment
+// threads (RV-03) are read, written and @mentioned to by the same rule.
+export function opensAssessment(
+  user: { id: string; role: string },
+  engineer: Types.ObjectId | string | null | undefined,
+): boolean {
+  return user.role === 'knowledge_admin' || (!!engineer && String(engineer) === user.id)
+}
+
+// Assigned assessments for engineers, all assessments for knowledge admins
+// (opensAssessment). Two queries: matching assessments, then their capture
+// sessions. `only` narrows it further, e.g. to one reference.
 // ponytail: paginate once one engineer's work list outgrows one response.
 export async function listAssessments(
   user: SessionUser,
@@ -322,6 +335,10 @@ export function toDto(
       code: site.code,
       name: site.name,
       address: site.address ?? null,
+      coordinates: site.coordinates
+        ? { lat: site.coordinates.lat, lng: site.coordinates.lng }
+        : null,
+      pins: (site.blockPins ?? []).map(({ name, lat, lng }) => ({ name, lat, lng })),
       jurisdiction: site.jurisdiction,
       facilityType: site.facilityType,
       removed: !!site.removed,

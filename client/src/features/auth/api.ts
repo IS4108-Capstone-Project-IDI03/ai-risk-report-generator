@@ -11,6 +11,8 @@ export type Permission =
   | 'assessments:edit'
   | 'assessments:assign'
   | 'reports:generate'
+  | 'reports:export'
+  | 'reports:comment'
   | 'knowledge:view'
   | 'knowledge:manage'
   | 'users:manage'

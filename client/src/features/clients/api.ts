@@ -99,6 +99,16 @@ export async function correctSite(id: string, fields: SiteFields): Promise<void>
   await request<void>('PUT', sitePath(id), fields)
 }
 
+// A site's location and block pins (CP-26).
+type Point = { lat: number; lng: number }
+export type SiteMap = { coordinates: Point | null; pins: (Point & { name: string })[] }
+// One change to them, null to remove: the gateway takes one at a time, so
+// engineers pinning different blocks can't erase each other's pins.
+export type SiteMapChange = { coordinates: Point | null } | { block: string; point: Point | null }
+export async function changeSiteMap(id: string, change: SiteMapChange): Promise<void> {
+  await request<void>('PUT', `${sitePath(id)}/map`, change)
+}
+
 // Removes a site, and restores one, under a new name when its own was taken.
 export async function removeSite(id: string): Promise<void> {
   await request<void>('POST', `${sitePath(id)}/remove`)

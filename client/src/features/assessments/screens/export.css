@@ -1,0 +1,131 @@
+/* The Export tab (EX-01, screens/ReportExport.tsx): what blocks the export
+   beside the export's choices and the report's details. */
+.ex-wrap {
+  padding: 24px 28px 40px;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.ex-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 20px;
+  align-items: start;
+  max-width: 1080px;
+}
+.ex-main,
+.ex-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.ex-side {
+  position: sticky;
+  top: 0;
+}
+.ex-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ex-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ex-item:last-child {
+  border-bottom: 0;
+}
+.ex-item-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.ex-item-title {
+  color: var(--text-body);
+  font-size: 16px;
+}
+.ex-item-reason,
+.ex-muted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+.ex-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.ex-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ex-include {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+/* A label, as design system v2 sets one: 12 / 600. */
+.ex-label {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--graphite-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ex-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-sunken);
+}
+.ex-report {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 22px;
+}
+.ex-report dt {
+  color: var(--text-muted);
+}
+.ex-report dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ex-mono {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* Stacked below 1080px, as every workspace tab is. */
+@media (max-width: 1080px) {
+  .ex-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ex-side {
+    position: static;
+  }
+}
+@media (max-width: 760px) {
+  .ex-wrap {
+    padding: 16px;
+  }
+  .ex-item {
+    flex-wrap: wrap;
+  }
+}

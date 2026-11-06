@@ -86,8 +86,11 @@ export function reviewIdForPath(pathname: string): string | null {
 // Observations only need the workspace itself.
 const TAB_PERMISSIONS: Record<string, Permission> = {
   generate: 'reports:generate',
-  review: 'reports:generate',
-  export: 'reports:generate',
+  // Read by anyone who can comment on the report, a knowledge admin too;
+  // its decisions still take reports:generate (RV-03 AC7).
+  review: 'reports:comment',
+  // Exporting the finished report (EX-01 AC2).
+  export: 'reports:export',
 }
 
 // Where each role starts after signing in, or on opening the site root.

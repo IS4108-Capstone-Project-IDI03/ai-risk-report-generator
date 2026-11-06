@@ -1,4 +1,5 @@
 import { Schema, Types, model } from 'mongoose'
+import { coordinateFields, type ICoordinates } from './site.model'
 
 // Report progress once a report exists. Before that, an assessment's status is
 // derived from its capture session (see assessment.service.ts), not stored.
@@ -26,6 +27,8 @@ export interface ILocation {
   // Lowercased name, floor and building, so "staircase" on "level 2" of
   // "block a" is the same place. See locationKey.
   key: string
+  // Where the engineer saved it from (CP-26). Absent until they add it.
+  coordinates?: ICoordinates
 }
 
 export interface IAssessment {
@@ -132,6 +135,7 @@ const assessmentSchema = new Schema<IAssessment>(
         name: { type: String, required: true, trim: true, maxlength: 100 },
         floor: { type: String, trim: true, maxlength: 40 },
         key: { type: String, required: true },
+        coordinates: { type: coordinateFields, _id: false, default: undefined },
       },
     ],
     // Embedded for the same reason: a short list, always read with its assessment.

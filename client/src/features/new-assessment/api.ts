@@ -22,6 +22,7 @@ export type NewAssessments = {
     copyLocations?: boolean
     name?: string
     address?: string
+    coordinates?: { lat: number; lng: number }
     jurisdiction?: string
     facilityType?: string
   } & {

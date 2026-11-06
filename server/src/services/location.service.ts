@@ -3,6 +3,7 @@ import { isValidObjectId } from 'mongoose'
 import { AssessmentModel, type ILocation } from '../models/assessment.model'
 import { ObservationModel } from '../models/observation.model'
 import type { SessionUser } from './auth.service'
+import { addBlockPin, coordinatesSchema, moveBlockPin } from './client.service'
 import { NotAssignedError } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 
@@ -71,6 +72,8 @@ export const locationSchema = z
       .trim()
       .min(1, 'Name the location.')
       .max(100, 'The name must be 100 characters or fewer.'),
+    // Where it is (CP-26). null clears them; left out, an edit keeps them.
+    coordinates: coordinatesSchema.nullable().optional(),
   })
   .refine((l) => !l.floor || l.building, {
     message: 'Only a location in a building has a level.',
@@ -83,6 +86,7 @@ export type LocationDto = {
   building: string | null
   floor: string | null
   name: string
+  coordinates?: { lat: number; lng: number }
 }
 
 // The building is added only when there is one, so a location saved before
@@ -93,7 +97,13 @@ export function locationKey(name: string, floor?: string, building?: string) {
 }
 
 export function toLocationDto(l: ILocation): LocationDto {
-  return { id: String(l._id), building: l.building ?? null, floor: l.floor ?? null, name: l.name }
+  return {
+    id: String(l._id),
+    building: l.building ?? null,
+    floor: l.floor ?? null,
+    name: l.name,
+    ...(l.coordinates && { coordinates: l.coordinates }),
+  }
 }
 
 // Where an observation was made, as the report words it: most specific first,
@@ -130,24 +140,32 @@ export async function addLocation(
   details: LocationDetails,
   user: SessionUser,
 ): Promise<LocationDto> {
-  const listed = await AssessmentModel.findOne({ reference }, 'locations engineer').lean()
+  const listed = await AssessmentModel.findOne(
+    { reference },
+    'engineer site archivedAt locations',
+  ).lean()
   if (!listed) throw new AssessmentNotFoundError(reference)
   if (String(listed.engineer) !== user.id) {
     throw new NotAssignedError(
-      'Only the engineer assigned to this assessment can change its locations.',
+      details.coordinates
+        ? 'Only the engineer assigned to this assessment can save its coordinates.'
+        : 'Only the engineer assigned to this assessment can change its locations.',
     )
   }
-  const location = listedSpelling(listed.locations ?? [], details)
+  if (details.coordinates && listed.archivedAt) throw new AssessmentArchivedError(reference)
+  const { coordinates, ...location } = listedSpelling(listed.locations ?? [], details)
   const key = locationKey(location.name, location.floor, location.building)
   const assessment = await AssessmentModel.findOneAndUpdate(
     { _id: listed._id, 'locations.key': { $ne: key } },
-    { $push: { locations: { ...location, key } } },
+    { $push: { locations: { ...location, key, ...(coordinates && { coordinates }) } } },
     { returnDocument: 'after', projection: 'locations' },
   ).lean()
   if (!assessment) {
     if (await AssessmentModel.exists({ _id: listed._id })) throw new DuplicateLocationError()
     throw new AssessmentNotFoundError(reference)
   }
+  if (coordinates && location.building)
+    await addBlockPin(listed.site, location.building, coordinates)
   return toLocationDto(assessment.locations.at(-1)!)
 }
 
@@ -164,7 +182,7 @@ export async function editLocation(
 ): Promise<LocationDto> {
   const assessment = await AssessmentModel.findOne(
     { reference },
-    'engineer archivedAt locations',
+    'engineer site archivedAt locations',
   ).lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) {
@@ -180,12 +198,14 @@ export async function editLocation(
   const location = listedSpelling(others, details)
   const key = locationKey(location.name, location.floor, location.building)
   const at = 'locations.$[here]'
-  const set: Record<string, string> = { [`${at}.name`]: location.name, [`${at}.key`]: key }
+  const set: Record<string, unknown> = { [`${at}.name`]: location.name, [`${at}.key`]: key }
   const unset: Record<string, 1> = {}
   for (const field of ['building', 'floor'] as const) {
     if (location[field]) set[`${at}.${field}`] = location[field]
     else unset[`${at}.${field}`] = 1
   }
+  if (location.coordinates) set[`${at}.coordinates`] = location.coordinates
+  else if (location.coordinates === null) unset[`${at}.coordinates`] = 1
   const updated = await AssessmentModel.findOneAndUpdate(
     {
       _id: assessment._id,
@@ -199,7 +219,20 @@ export async function editLocation(
     },
   ).lean()
   const saved = updated?.locations?.find((l) => l._id.equals(current._id))
-  if (saved) return toLocationDto(saved)
+  if (saved) {
+    // Changed coordinates take the block's pin with them, so the Geolocation
+    // card agrees. Only changed ones: the form resends saved ones, and a rename
+    // must not bring back a pin the engineer removed from the map.
+    const { lat, lng } = location.coordinates ?? {}
+    const moved = lat !== current.coordinates?.lat || lng !== current.coordinates?.lng
+    if (location.coordinates && location.building) {
+      // Moved to another block with the same coordinates: that block gets a pin if it has none.
+      if (moved) await moveBlockPin(assessment.site, location.building, location.coordinates)
+      else if (location.building !== current.building)
+        await addBlockPin(assessment.site, location.building, location.coordinates)
+    }
+    return toLocationDto(saved)
+  }
   if (await AssessmentModel.exists({ _id: assessment._id, 'locations._id': current._id }))
     throw new DuplicateLocationError()
   throw new LocationNotFoundError()

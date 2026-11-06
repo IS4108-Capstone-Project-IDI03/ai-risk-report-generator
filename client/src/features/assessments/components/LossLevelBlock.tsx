@@ -165,9 +165,11 @@ export function LossLevelBlock({
                   )}
                 </td>
                 <td>
-                  {field(`Level ${meta.level} damage value ${i + 1}`, row.value, (value) =>
-                    setDamageRow(row.key, { value }),
-                  )}
+                  {canEdit
+                    ? field(`Level ${meta.level} damage value ${i + 1}`, row.value, (value) =>
+                        setDamageRow(row.key, { value }),
+                      )
+                    : amount(row.value)}
                 </td>
                 <td>
                   {field(

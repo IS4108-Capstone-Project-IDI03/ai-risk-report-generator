@@ -12,17 +12,23 @@ import type {
   SectionDocument,
 } from '../api'
 import { plainText } from '../documentContent'
+import { isProgramsSubsection } from './page/programs'
 
 const MARKS: DocumentMark[] = ['bold', 'italic', 'underline']
 
-// A paragraph or heading's inline content as saved.
+// A paragraph or heading's inline content as saved. Text split only by marks
+// that are not saved, such as a comment thread's (RV-03), is one run again,
+// so the saved text is the same with or without comments on it.
 export function inlineOf(node: PMNode): DocumentInline[] {
   const content: DocumentInline[] = []
   node.forEach((child) => {
     if (child.type.name === 'citation') content.push({ type: 'cite', id: child.attrs.id as string })
     else if (child.isText && child.text) {
       const marks = MARKS.filter((m) => child.marks.some((mark) => mark.type.name === m))
-      content.push({ type: 'text', text: child.text, ...(marks.length && { marks }) })
+      const last = content.at(-1)
+      if (last?.type === 'text' && (last.marks ?? []).join() === marks.join())
+        content[content.length - 1] = { ...last, text: last.text + child.text }
+      else content.push({ type: 'text', text: child.text, ...(marks.length && { marks }) })
     }
   })
   return content
@@ -106,9 +112,13 @@ export function toEditorJSON(sections: EditorSection[]): JSONContent {
                 { type: 'subsectionHeading', attrs: { label: sub.heading } },
                 ...(kinds[i] === 'table'
                   ? [{ type: 'lockedBlock', attrs: { kind: 'table', section: id } }]
-                  : blocks.length
-                    ? blocks
-                    : [EMPTY_PARAGRAPH]),
+                  : [
+                      // Marsh's programs table over the rows (page/programs.ts).
+                      ...(isProgramsSubsection(id, sub.heading)
+                        ? [{ type: 'lockedBlock', attrs: { kind: 'programs', section: id } }]
+                        : []),
+                      ...(blocks.length ? blocks : [EMPTY_PARAGRAPH]),
+                    ]),
               ],
             }
           }),

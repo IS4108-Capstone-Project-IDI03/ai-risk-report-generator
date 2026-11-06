@@ -2,6 +2,7 @@
 // components/AppendixPhotos.tsx. Calls the gateway's /appendix routes (api.ts).
 import { useEffect, useRef, useState } from 'react'
 import { GatewayError, getAppendix, saveAppendix, type AppendixList } from './api'
+import { registerPendingSave } from './pendingSaves'
 
 type Entry = { photoId: string; caption: string }
 
@@ -40,21 +41,30 @@ export function useAppendix(reference: string) {
     return () => controller.abort()
   }, [reference])
 
+  // Whether the last save in the queue went through, for an export waiting
+  // on it (EX-01 AC1).
+  const lastSaved = useRef<Promise<boolean>>(Promise.resolve(true))
+  useEffect(() => registerPendingSave(() => lastSaved.current), [])
+
   const save = (photos: Entry[]) => {
     const call = ++latest.current
     setError(null)
     setAppendix((a) => a && applied(a, photos))
-    queue.current = queue.current.then(() =>
+    const done = queue.current.then(() =>
       saveAppendix(reference, photos).then(
         (saved) => {
           if (call === latest.current) setAppendix(saved)
+          return true
         },
         (e: unknown) => {
           if (call === latest.current)
             setError(e instanceof GatewayError ? e.message : 'Appendix A was not saved.')
+          return false
         },
       ),
     )
+    queue.current = done
+    lastSaved.current = done
   }
 
   return { appendix, error, save }

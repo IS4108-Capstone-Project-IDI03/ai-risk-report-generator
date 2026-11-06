@@ -255,12 +255,12 @@ type left unchanged, so an assessment not yet migrated can still be edited) and 
 report due dates, with the same validation as creating one (AC11). The engineer, client and site are not editable: they stay as the
 assessment was created (CP-17 AC8). The site's details and its client's name
 change for all their assessments at once, through `/api/sites` and
-`/api/clients` (CP-18, below); a `site` sent here is ignored. A new site's
+`/api/clients` (CP-28, below); a `site` sent here is ignored. A new site's
 facility type must be one of the nine the forms offer (`FACILITY_TYPES`, as
 knowledge documents are labelled; 400, `site.facilityType`). A date left empty is cleared. Only the assigned engineer
 can edit (403 otherwise), and not once it is archived (409).
 
-### Managing a client and its sites (CP-18)
+### Managing a client and its sites (CP-18, CP-28)
 
 A site gains `formerNames` and `formerAddresses` (what it was called and where
 it was before a correction, absent until one), `edited: { at, by }` (its latest
@@ -284,8 +284,21 @@ changed until it is restored.
 | `POST /api/clients/:id/remove` | Removes all its listed sites as one batch (`removed.withClient`). 204, or 403, 404, 409 not all archived, finalised, or already removed |
 | `POST /api/clients/:id/restore` | Restores that batch, one site at a time: 200 `{ restored, nameTaken }`, naming any held back because another listed site now has its name. 403, 404, 409 none removed with it |
 | `PUT /api/sites/:id` | Corrects a site's `name`, `address`, `jurisdiction` and `facilityType`, validated as a new site's, for every assessment at it. A changed facility type must be one of `FACILITY_TYPES`; an older one unchanged is kept. 204, or 400 a name the client already has or a facility type off the list (`fields.name`, `fields.facilityType`), 403, 404, 409 finalised or removed |
+| `PUT /api/sites/:id/map` | One change (CP-26): `{ coordinates }`, or `{ block, point }`, either value `{ lat, lng }` or null to remove. One at a time, so engineers pinning different blocks can't erase each other's pins. Any engineer with an assessment there, since a pin changes no report. 204, or 400 naming the field, 403, 404, 409 removed |
+| `GET /api/sites/map-config` | The Google Maps browser key, `{ key }`, null when none is set. Any signed-in user (CP-26) |
 | `POST /api/sites/:id/remove` | Removes it. 204, or 403, 404, 409 not all archived, finalised, or already removed |
 | `POST /api/sites/:id/restore` | Restores it, renamed when JSON `name` is given. 204, or 400 when another listed site of the client has the name it would have (`fields.name`), 403, 404, 409 not removed |
+
+A site may have `coordinates` and `blockPins` (CP-26), shown on the Overview's
+Geolocation card. They sit on the site, not a visit, because buildings don't move:
+each pin's `key` is its block's lowercased name, so a later visit's "Block A" finds
+it. Blocks only, never levels or rooms. Neither field reaches a report or an AI call.
+A location may have its own `coordinates` (CP-26), saved by the engineer. The first
+saved in a block adds that block's pin if it has none, changing them moves it, and
+later visits copy them
+with the locations. They reach no report or AI call either. Sending them needs the
+assigned engineer; `coordinates: null` on `PATCH` clears them, and leaving it out
+keeps them.
 
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a
@@ -476,9 +489,11 @@ with the same list.
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
 | `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only) | yes | yes |
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
+| `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
+| `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -777,7 +792,7 @@ accepted, and from when it was accepted. Each document has:
 - `facts`: Sections 4 and 5 only (GN-03), the engineer's figures the draft was
   given, as sent to S4. The draft is out of date (`changeCounts.figures: 1`)
   once the figures no longer give the same text. Any draft is also out of
-  date (`changeCounts.scope: 1`, CP-18) once its site's jurisdiction or
+  date (`changeCounts.scope: 1`, CP-28) once its site's jurisdiction or
   facility type differs from the `metadata.jurisdiction` and
   `metadata.facility_type` it was drafted with; both counts are present only
   when set, so other drafts read as before.
@@ -974,6 +989,66 @@ is one; any other is the engineer's own text.
 section's `review` also has `editedInDocument`: true when it was changed or
 written in the document, so Edited by you shows even while another state
 (Needs review) comes first.
+
+## Report comment threads (RV-03)
+
+`report_comment_threads` holds one document per comment thread on a report,
+as in Google Docs: a thread on a passage of one section's text, with its
+comments oldest first. It is kept apart from the text on purpose: a comment
+never adds a version to `report_section_versions`, never changes a finding's
+review state, and the export (EX-01) never sees one. Written by
+`comment.service.ts`. Each thread has:
+
+- `assessment`.
+- `anchor` `{ sectionId, start, end, exact, prefix, suffix }`: where the
+  thread is in the section's text as the document editor saves it (each
+  paragraph, sub-heading and list item in order, one per line, a citation
+  marker as U+FFFC): `start` and `end` are offsets into that text, `exact` the
+  text between them (`end - start` characters, at most 10,000), `prefix` and
+  `suffix` up to 32 characters either side. The editor finds a thread at its
+  offsets, else by its words and the text around them, else between the text
+  either side when its words changed (`comments/anchor.ts`), and sends where
+  each thread now is after a save.
+- `detached`: true once the text it was on was deleted entirely (AC6). It stays
+  in the comments list, quoting `anchor.exact`, and is in no margin.
+- `status`: `open` or `resolved`; `resolved` `{ by, at }` while resolved.
+- `comments`: each `{ _id, body, by, at, editedAt, deletedAt }`. `body` is
+  plain text; `editedAt` is set when its author changes it (shown as
+  Edited). A deleted reply is removed; a deleted
+  first comment that others reply to keeps its place with `deletedAt` and no
+  words; a thread with no comment left is deleted.
+- `createdBy` `{ id, name }`, `createdAt`, `updatedAt`.
+- `metadata` with the five required fields: `source_type:
+  'report_comment_thread'`, `jurisdiction` and `facility_type` from the site,
+  `COPE_dimension` (the section draft's, else `all`) and `effective_date`
+  (when the thread was started).
+
+Indexes: `{ assessment: 1, createdAt: 1 }` for the list, and `{ assessment: 1,
+status: 1 }` for the export's count of open threads.
+
+Who can read and write threads is who can open the assessment, as the work
+list has it: its assigned engineer and every knowledge admin
+(`opensAssessment` in `assessment.service.ts`), with `reports:comment`. An
+archived assessment's threads are read, and take nothing new (409). A comment
+is changed or deleted only by its author (403). Comments send no
+notifications.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/comments` | `{ threads }`, oldest first, each `{ id, anchor, detached, status, resolved, comments, createdBy, createdAt, updatedAt }`, a comment `{ id, body, by, at, editedAt, deleted }`. |
+| `POST /api/assessments/:reference/comments` | `{ anchor, body }` (`body` up to 5,000 characters): starts a thread. 201 with `{ thread }`. |
+| `POST /api/assessments/:reference/comments/:threadId/replies` | `{ body }`: a reply, after the comments before it. 201 with `{ thread }`; 409 once a thread has 500 comments. |
+| `PATCH /api/assessments/:reference/comments/:threadId/comments/:commentId` | `{ body }`: the author's edit. 200 with `{ thread }`. |
+| `DELETE /api/assessments/:reference/comments/:threadId/comments/:commentId` | The author's delete. 200 with `{ thread }`, null once the thread has no comment left. |
+| `POST /api/assessments/:reference/comments/:threadId/resolve` and `…/reopen` | 200 with `{ thread }`. |
+| `PUT /api/assessments/:reference/comments/anchors` | `{ anchors: [{ id, anchor \| null }] }`: where the editor's last save left each thread; null detaches it. Needs `reports:generate` and the assigned engineer, as saving the text does. 200 with `{ updated }`. |
+
+All but the last need `reports:comment` and an assessment the caller can open
+(403 otherwise); 400 for an invalid body, naming each field; 404 for an
+unknown assessment, thread or comment; 409 once the assessment is archived.
+`GET /api/assessments/:reference/export` also returns `openThreads`, how many
+threads are still open, which the Export tab shows as a reminder that never
+blocks the export (AC9).
 
 ## Opportunities for Improvement (GN-05)
 

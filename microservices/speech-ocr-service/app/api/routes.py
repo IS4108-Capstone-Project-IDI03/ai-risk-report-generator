@@ -1,12 +1,20 @@
+import base64
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.privacy import PrivacyUnavailable
+from app.processors.chat_pdf import PdfRefused, extract_pages
+from app.processors.chat_photo import check_faces
 from app.processors.handwriting import HandwritingError, transcribe_page
-from app.processors.stt import TranscriptionError, transcribe
-from app.processors.vision import InterpretationError, describe_photo, interpret
+from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
+from app.processors.vision import (
+    InterpretationError,
+    describe_chat_photo,
+    describe_photo,
+    interpret,
+)
 
 router = APIRouter()
 
@@ -77,6 +85,26 @@ def transcribe_audio(request: S3KeyRequest) -> dict:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
+class ClipRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    audio_base64: str
+    # Its extension tells Whisper the format (webm, m4a...).
+    filename: str = "question.webm"
+
+
+@router.post("/transcribe-clip")
+def transcribe_audio_clip(request: ClipRequest) -> dict:
+    """A spoken chat question sent as bytes (CB-10): no S3 round trip, stored nowhere."""
+    try:
+        audio = base64.b64decode(request.audio_base64, validate=True)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="The audio is not valid base64.") from error
+    try:
+        return transcribe_clip(audio, request.filename)
+    except TranscriptionError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
 @router.post("/interpret")
 def interpret_observation(request: InterpretRequest) -> dict:
     # The gateway stores the proposal and shows `detail` to the engineer on failure.
@@ -89,6 +117,43 @@ def interpret_observation(request: InterpretRequest) -> dict:
             request.privacy.model_dump() if request.privacy else None,
         )
     except (InterpretationError, PrivacyUnavailable) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+class PdfRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    pdf_base64: str
+
+
+@router.post("/chat-pdf/extract")
+def chat_pdf_extract(request: PdfRequest) -> dict:
+    """The text of each page of a chat PDF, or why it cannot be used (CB-09)."""
+    try:
+        data = base64.b64decode(request.pdf_base64, validate=True)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="The PDF is not valid base64.") from error
+    try:
+        return extract_pages(data)
+    except PdfRefused as error:
+        # 422: the file is the problem, so the gateway shows this wording and does not retry.
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/chat-photo/faces")
+def chat_photo_faces(request: S3KeyRequest) -> dict:
+    """How many faces a chat photo has, and a blurred copy (CB-08)."""
+    try:
+        return check_faces(request.s3_key)
+    except (InterpretationError, PrivacyUnavailable) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.post("/chat-photo/describe")
+def chat_photo_describe(request: S3KeyRequest) -> dict:
+    """What a chat photo shows and what could not be made out (CB-08)."""
+    try:
+        return describe_chat_photo(request.s3_key)
+    except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
