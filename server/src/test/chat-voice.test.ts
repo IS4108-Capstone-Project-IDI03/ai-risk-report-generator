@@ -30,7 +30,9 @@ const send = (audio: Buffer, type = 'audio/webm') =>
 
 describe('ask by voice (CB-10)', () => {
   it('sends the clip straight to S5 and returns the transcript (AC1)', async () => {
-    const calls = s5Says(Response.json({ transcript: ' What sprinkler density for EH2? ', usage: [] }))
+    const calls = s5Says(
+      Response.json({ transcript: ' What sprinkler density for EH2? ', usage: [] }),
+    )
     const res = await send(Buffer.from('fake-audio'))
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ text: 'What sprinkler density for EH2?' })
