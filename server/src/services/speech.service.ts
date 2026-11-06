@@ -109,6 +109,19 @@ export async function transcribeWithSegments(
   return { transcript: body.transcript, segments }
 }
 
+// Asks S5 to transcribe a short clip sent as bytes: no S3 round trip, so a spoken chat question
+// (CB-10) comes back sooner and is stored nowhere. `extension` tells Whisper the format.
+export async function transcribeClip(audio: Buffer, extension: string): Promise<string> {
+  const body = await callS5<{ transcript: string; usage?: unknown }>(
+    '/transcribe-clip',
+    { audio_base64: audio.toString('base64'), filename: `question.${extension}` },
+    'The speech service could not be reached.',
+    (b) => typeof b.transcript === 'string',
+  )
+  await recordAiCalls(body.usage)
+  return body.transcript
+}
+
 // The text alone, for a voice note.
 export async function transcribe(s3Key: string, reportId?: string): Promise<string> {
   return (await transcribeWithSegments(s3Key, { reportId })).transcript
@@ -126,6 +139,51 @@ export async function describePhoto(s3Key: string, reportId?: string): Promise<s
   )
   await recordAiCalls(hyphenated(body.usage), { reportId })
   return body.description
+}
+
+// How many faces a stored chat photo has, and a base64 copy with them blurred (null when none)
+// (CB-08). S5 stores nothing. Throws a SpeechServiceError.
+export async function checkChatPhotoFaces(
+  s3Key: string,
+): Promise<{ faces: number; blurred: Buffer | null }> {
+  const body = await callS5<{ faces: number; blurred_base64: string | null }>(
+    '/chat-photo/faces',
+    { s3_key: s3Key },
+    'The photo service could not be reached.',
+    (b) => typeof b.faces === 'number',
+  )
+  return {
+    faces: body.faces,
+    blurred: body.blurred_base64 ? Buffer.from(body.blurred_base64, 'base64') : null,
+  }
+}
+
+// What a stored chat photo shows and what could not be made out (CB-08). Only the photo goes to
+// the vision model. S5 reports its usage as describe_photo; the gateway spells features with a hyphen.
+export async function describeChatPhoto(
+  s3Key: string,
+): Promise<{ description: string; unclear: string }> {
+  const body = await callS5<{ description: string; unclear?: string; usage?: unknown }>(
+    '/chat-photo/describe',
+    { s3_key: s3Key },
+    'The photo service could not be reached.',
+    (b) => typeof b.description === 'string',
+  )
+  await recordAiCalls(hyphenated(body.usage))
+  return { description: body.description, unclear: body.unclear ?? '' }
+}
+
+// The text of each page of a PDF attached to a chat (CB-09). S5 stores nothing. A file it refuses
+// (scanned, protected, too long) is a SpeechServiceError that is not retryable, with the reason.
+export async function extractChatPdf(
+  pdf: Buffer,
+): Promise<{ pages: { page: number; text: string }[]; skipped: number[] }> {
+  return callS5<{ pages: { page: number; text: string }[]; skipped: number[] }>(
+    '/chat-pdf/extract',
+    { pdf_base64: pdf.toString('base64') },
+    'The PDF service could not be reached.',
+    (b) => Array.isArray(b.pages),
+  )
 }
 
 // Usage items with `_` in their feature turned into `-`, the gateway's spelling.

@@ -1313,6 +1313,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pymupdf" },
     { name = "python-dotenv" },
     { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1321,7 +1322,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "black" },
-    { name = "pymupdf" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1338,7 +1338,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
-    { name = "pymupdf", marker = "extra == 'dev'", specifier = ">=1.24" },
+    { name = "pymupdf", specifier = ">=1.24" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "ruff", specifier = ">=0.16.9" },

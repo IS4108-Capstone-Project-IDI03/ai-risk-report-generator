@@ -192,6 +192,33 @@ describe('Source panel', () => {
     )
   })
 
+  it("names an attached PDF's page by its file, with no PDF tab (CB-09)", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      id: 'att:a1:3',
+      documentId: 'a1',
+      headings: ['Site survey.pdf'],
+      pageStart: 3,
+      pageEnd: 3,
+      boxes: [],
+    })
+    renderPanel(
+      cited({
+        source: {
+          label: 'P2',
+          documentId: 'a1',
+          passageId: 'att:a1:3',
+          pageStart: 3,
+          pageEnd: 3,
+          withdrawn: false,
+        },
+      }),
+    )
+    expect(await screen.findByRole('heading', { name: 'Site survey.pdf' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'PDF' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Document details loading')).not.toBeInTheDocument()
+  })
+
   it('labels a withdrawn edition (AC14)', () => {
     renderPanel(
       cited({ source: { label: 'P1', documentId: 'd2', pageStart: 40, withdrawn: true } }),
