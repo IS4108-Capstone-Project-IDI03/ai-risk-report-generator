@@ -1325,6 +1325,28 @@
 .answer-bar {
   flex-wrap: wrap;
 }
+.voice-input__meter {
+  display: inline-block;
+  vertical-align: middle;
+  width: 72px;
+  height: 4px;
+  margin-left: var(--space-4);
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--graphite-100);
+}
+.voice-input__meter i {
+  display: block;
+  height: 100%;
+  background: var(--graphite-600);
+  transform-origin: left;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-input__meter i {
+    transition: none;
+  }
+}
 .voice-input__panel {
   margin: var(--space-3) var(--space-5) 0;
 }

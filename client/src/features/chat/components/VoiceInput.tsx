@@ -27,10 +27,18 @@ const QUIET_MS = 1200
 const NO_SPEECH_MS = 8000
 const MAX_MS = 60_000
 const LOUD = 0.02
+// A clip that never rose above this has no sound in it (a muted or wrong microphone): it is not sent,
+// because Whisper would invent a sentence for it.
+const HEARD = 0.003
 
 // Calls `onQuiet` when the stream goes quiet (see above); returns a function that stops listening.
 // While `paused()` the clock stands still, so a pause never counts as silence.
-function watchQuiet(stream: MediaStream, onQuiet: () => void, paused: () => boolean) {
+function watchQuiet(
+  stream: MediaStream,
+  onQuiet: () => void,
+  paused: () => boolean,
+  onLevel: (level: number) => void,
+) {
   const context = new AudioContext()
   const analyser = context.createAnalyser()
   context.createMediaStreamSource(stream).connect(analyser)
@@ -45,6 +53,7 @@ function watchQuiet(stream: MediaStream, onQuiet: () => void, paused: () => bool
     }
     analyser.getFloatTimeDomainData(samples)
     const level = Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length)
+    onLevel(level)
     const now = Date.now()
     if (level > LOUD) lastLoud = now
     const quiet = lastLoud ? now - lastLoud > QUIET_MS : now - started > NO_SPEECH_MS
@@ -72,6 +81,9 @@ export function VoiceInput() {
   const [state, setState] = useState<'idle' | 'recording' | 'paused' | 'working'>('idle')
   const [note, setNote] = useState<Problem | null>(null)
   const [cog, setCog] = useState(false)
+  // How loud the microphone is now (for the meter) and how loud it got at all (for the check).
+  const [level, setLevel] = useState(0)
+  const peak = useRef(0)
   const recorder = useRef<MediaRecorder | null>(null)
   const [host, setHost] = useState<Element | null>(null)
   const [card, setCard] = useState<Element | null>(null)
@@ -109,7 +121,11 @@ export function VoiceInput() {
     if (blocked) return setNote(blocked)
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Asked for by name: some browsers leave gain control off, and a quiet microphone then
+      // records almost nothing.
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
     } catch (error) {
       return setNote(micProblem(error)!)
     }
@@ -120,12 +136,24 @@ export function VoiceInput() {
       stream,
       () => rec.state === 'recording' && rec.stop(),
       () => rec.state === 'paused',
+      (now) => {
+        peak.current = Math.max(peak.current, now)
+        setLevel(now)
+      },
     )
+    peak.current = 0
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
     rec.onstop = async () => {
       stopWatching()
       // Without this the browser keeps showing "recording" after the question is done.
       stream.getTracks().forEach((t) => t.stop())
+      if (peak.current < HEARD) {
+        setNote({
+          problem: 'No sound from your microphone',
+          fix: 'Check it is not muted, or pick another input in your browser.',
+        })
+        return setState('idle')
+      }
       setState('working')
       try {
         deliver(await transcribeQuestion(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })))
@@ -213,6 +241,19 @@ export function VoiceInput() {
             : state === 'paused'
               ? 'Paused'
               : 'Reading your question…'}
+          {live && (
+            // Shows the engineer at once whether the microphone is hearing them.
+            <span
+              className="voice-input__meter"
+              role="meter"
+              aria-label="Microphone level"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={Math.min(level * 4, 1)}
+            >
+              <i style={{ transform: `scaleX(${Math.min(level * 4, 1)})` }} />
+            </span>
+          )}
         </p>
       )
     )

@@ -1,11 +1,12 @@
 // The mic in the chat box (CB-10): Pause and Stop while recording, then the transcript in the box.
 // The recorder, microphone and gateway are fakes; OpenUI's chat state is a stub.
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VoiceInput } from './components/VoiceInput'
 import { saveSettings } from './speech'
 
+let heard = true
 const processMessage = vi.fn()
 vi.mock('@openuidev/react-headless', async (original) => ({
   ...(await original<object>()),
@@ -44,7 +45,11 @@ beforeEach(() => {
   vi.stubGlobal(
     'AudioContext',
     class {
-      createAnalyser = () => ({ fftSize: 4, getFloatTimeDomainData: () => {} })
+      createAnalyser = () => ({
+        fftSize: 4,
+        // A microphone that hears something, unless a test says otherwise.
+        getFloatTimeDomainData: (samples: Float32Array) => samples.fill(heard ? 0.1 : 0),
+      })
       createMediaStreamSource = () => ({ connect: () => {} })
       close = async () => {}
     },
@@ -55,6 +60,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} })
   saveSettings({ rate: 1, voiceURI: '', handsFree: false })
   processMessage.mockClear()
+  heard = true
   vi.stubGlobal('fetch', async () => Response.json({ text: 'What is the density for OH2?' }))
 })
 afterEach(() => {
@@ -62,10 +68,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+// The level is read every 100 ms; wait for one reading, as a real recording would have.
+const listened = () => act(() => new Promise((done) => setTimeout(done, 160)))
+
 describe('ask by voice (CB-10)', () => {
   it('shows Pause and Stop while recording, and Stop puts the transcript in the box (AC1)', async () => {
     render(<VoiceInput />)
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    await listened()
     fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
     await waitFor(() =>
       expect(document.querySelector('textarea')).toHaveValue('What is the density for OH2?'),
@@ -91,6 +101,7 @@ describe('ask by voice (CB-10)', () => {
     )
     render(<VoiceInput />)
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    await listened()
     fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
     expect(await screen.findByText('No speech was heard')).toBeInTheDocument()
   })
@@ -101,6 +112,7 @@ describe('ask by voice (CB-10)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Hands-free settings' }))
     // Switched on mid-recording: it counts when the recording ends.
     fireEvent.click(screen.getByRole('switch', { name: /Hands-free/ }))
+    await listened()
     fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
     await waitFor(() =>
       expect(processMessage).toHaveBeenCalledWith({
@@ -109,5 +121,25 @@ describe('ask by voice (CB-10)', () => {
       }),
     )
     expect(document.querySelector('textarea')).toHaveValue('')
+  })
+
+  it('does not send a clip with no sound in it, and says to check the microphone', async () => {
+    heard = false
+    const gateway = vi.fn(async () => Response.json({ text: 'never asked' }))
+    vi.stubGlobal('fetch', gateway)
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    await listened()
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
+    expect(await screen.findByText('No sound from your microphone')).toBeInTheDocument()
+    // Whisper would have invented "Thank you for watching." for it.
+    expect(gateway).not.toHaveBeenCalled()
+  })
+
+  it('shows a level meter while listening', async () => {
+    render(<VoiceInput />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
+    await listened()
+    expect(screen.getByRole('meter', { name: 'Microphone level' })).toBeInTheDocument()
   })
 })
