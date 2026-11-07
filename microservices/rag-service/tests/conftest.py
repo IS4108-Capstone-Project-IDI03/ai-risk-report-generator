@@ -35,6 +35,34 @@ def no_real_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", _guarded_connect)
 
 
+class StoredMappings(dict):
+    """Stands in for `knowledge_documents`: each document id's `privacyMapping` (PV-05).
+
+    Empty unless a test fills it in, and counts the reads, so a test can check one per search.
+    """
+
+    reads = 0
+
+    def find(self, query, projection=None):
+        self.reads += 1
+        wanted = {str(_id) for _id in query["_id"]["$in"]}
+        return [
+            {"_id": doc_id, "privacyMapping": mapping}
+            for doc_id, mapping in self.items()
+            if doc_id in wanted
+        ]
+
+
+@pytest.fixture(autouse=True)
+def stored_mappings(monkeypatch):
+    """No test reaches MongoDB; past-report mappings come from this in-memory stand-in."""
+    from app import past_reports
+
+    fake = StoredMappings()
+    monkeypatch.setattr(past_reports, "collection", lambda: fake)
+    return fake
+
+
 class FakePrivacy:
     """Stands in for privacy-service's POST /mask (PV-01's contract): swaps each known
     entity's names, a +65 number, an NRIC and the plate PU 104 J for typed placeholders,

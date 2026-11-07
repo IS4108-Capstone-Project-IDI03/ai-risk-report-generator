@@ -27,7 +27,7 @@ from bullmq import Worker
 from dotenv import load_dotenv
 from pymongo import MongoClient, ReturnDocument
 
-from app import usage
+from app import privacy, usage
 from app.matching import find_match
 from app.notifications import notify_ingestion, review_reason
 from app.pipeline import IngestionCancelledError, UnparsableDocumentError, run
@@ -49,6 +49,10 @@ TIMED_OUT = (
     "Reading this PDF took longer than the time limit, so nothing was indexed. "
     "Raise DOCLING_DOCUMENT_TIMEOUT on the server and upload it again."
 )
+PRIVACY_DOWN = (
+    "Client details could not be protected because the privacy service or the gateway did not "
+    "answer, so nothing was sent or indexed. Retry it later."
+)
 OCR_BUSY = (
     "The table reading service kept turning requests away, so nothing was indexed. "
     "Upload it again later, or lower OCR_CONCURRENCY on the server."
@@ -62,7 +66,14 @@ def finish_cancellation(collection, document_id: ObjectId, reporter: ProgressRep
         {"_id": document_id, "status": "processing"},
         {
             "$set": {"status": "cancelled", "cancelledAt": datetime.now(UTC)},
-            "$unset": {"cancelRequestedAt": "", "error": "", "result": "", "finishedAt": ""},
+            # Its passages are deleted, so its mapping (PV-05) goes too.
+            "$unset": {
+                "cancelRequestedAt": "",
+                "error": "",
+                "result": "",
+                "finishedAt": "",
+                "privacyMapping": "",
+            },
         },
         return_document=ReturnDocument.AFTER,
     )
@@ -216,7 +227,16 @@ def _ingest_document(document_id: str) -> None:
                 doc_id=document_id,
                 labels={**labels(doc), "status": "needs_review"},
                 reporter=reporter,
+                # The gateway decides whether to protect it (PV-05); a report is then redacted.
+                privacy=privacy.for_document(document_id),
             )
+        # A redacted report's mapping goes on its document before relabelling makes its
+        # passages searchable: rag reads them with it (PV-05). Never returned by any API, and
+        # the job records only whether it was protected and how much (Rule 8).
+        if summary.get("mapping"):
+            collection.update_one({"_id": _id}, {"$set": {"privacyMapping": summary["mapping"]}})
+        if summary.get("privacy"):
+            jobs().update_one({"documentId": _id}, {"$set": {"privacy": summary["privacy"]}})
         # 4. Look for a copy or another edition among stored documents, then give
         # the passages their final labels. An error here fails the document like
         # any other stage; without that it could go live with the wrong status.
@@ -254,11 +274,17 @@ def _ingest_document(document_id: str) -> None:
             reason = TIMED_OUT
         elif isinstance(error, OcrUnavailableError):
             reason = OCR_BUSY
+        elif isinstance(error, privacy.PrivacyUnavailable):
+            reason = PRIVACY_DOWN
         else:
             reason = SYSTEM_ERROR
         failed = collection.find_one_and_update(
             {"_id": _id},
-            {"$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)}},
+            {
+                "$set": {"status": "failed", "error": reason, "finishedAt": datetime.now(UTC)},
+                # Its passages were deleted above, so its mapping (PV-05) goes too.
+                "$unset": {"privacyMapping": ""},
+            },
             return_document=ReturnDocument.AFTER,
         )
         # Tell the gateway after the status is safely recorded; never let a

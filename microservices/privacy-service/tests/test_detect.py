@@ -18,7 +18,7 @@ def mask(text, detect=None, known=()):
         body["detect"] = detect
     response = client.post("/mask", json=body)
     assert response.status_code == 200, response.text
-    return response.json()
+    return {key: value for key, value in response.json().items() if key != "spans"}
 
 
 def test_without_detect_nothing_is_masked():

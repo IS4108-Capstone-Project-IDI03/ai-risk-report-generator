@@ -26,6 +26,7 @@ import {
   whyPdfCannotOpen,
   type LabelAnswer,
 } from './ingestion.service'
+import { ingestionPrivacy, type IngestionPrivacy } from './privacy.service'
 import * as storage from './storage.service'
 import { getObjectRangeStream } from './file-copy.service'
 import { toPdf } from './converter.service'
@@ -807,6 +808,17 @@ export class KnowledgeDocumentNotFoundError extends Error {
     super('The document was not found.')
     this.name = 'KnowledgeDocumentNotFoundError'
   }
+}
+
+// How the ingestion worker is to protect a document before it reads it (PV-05):
+// the gateway decides (the epic's Rule 1). Asked when ingestion runs, so a
+// retry masks the names known by then.
+export async function knowledgeDocumentPrivacy(id: string): Promise<IngestionPrivacy> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  if (!(await KnowledgeDocumentModel.exists({ _id: id }))) {
+    throw new KnowledgeDocumentNotFoundError()
+  }
+  return ingestionPrivacy()
 }
 
 // The unaltered original from S3 (AC4). `open` streams all of it, or one byte range so the

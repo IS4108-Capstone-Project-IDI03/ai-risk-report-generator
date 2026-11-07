@@ -1,0 +1,113 @@
+{
+  "never_a_person": {
+    "site-note abbreviations (rag-service/app/retrieval/site_abbreviations.json)": [
+      "spk",
+      "spks",
+      "srv",
+      "rm",
+      "rms",
+      "pens",
+      "cv",
+      "cyl",
+      "cyls",
+      "fa",
+      "fcc",
+      "bsmt",
+      "bsmts",
+      "svc",
+      "elec",
+      "rc",
+      "flr",
+      "flrs",
+      "thru"
+    ],
+    "equipment and systems": [
+      "hosereel",
+      "hosereels",
+      "hose",
+      "reel",
+      "reels",
+      "sprinkler",
+      "sprinklers",
+      "riser",
+      "risers",
+      "jockey",
+      "pump",
+      "pumps",
+      "deluge",
+      "drencher",
+      "hydrant",
+      "hydrants",
+      "extinguisher",
+      "extinguishers",
+      "alarm",
+      "alarms",
+      "detector",
+      "detectors",
+      "damper",
+      "dampers",
+      "valve",
+      "valves",
+      "cylinder",
+      "cylinders",
+      "genset",
+      "generator",
+      "transformer",
+      "switchboard"
+    ],
+    "brands, agents and standard bodies": [
+      "tyco",
+      "viking",
+      "reliable",
+      "kidde",
+      "ansul",
+      "victaulic",
+      "siemens",
+      "honeywell",
+      "notifier",
+      "hochiki",
+      "apollo",
+      "inergen",
+      "novec",
+      "fm-200",
+      "argonite",
+      "fm",
+      "nfpa",
+      "scdf",
+      "ul",
+      "vds"
+    ],
+    "report wording, read as people in a past report (PV-05)": [
+      "equivalencies",
+      "fire",
+      "monitoring",
+      "sprinkl"
+    ]
+  },
+  "never_a_person_patterns": {
+    "floor and basement codes, e.g. L23, B2, L10A (PV-05)": "[lb][0-9]{1,3}[a-z]?"
+  },
+  "never_masked": {
+    "Marsh": [
+      "marsh",
+      "marsh mclennan"
+    ],
+    "insurers and standards bodies": [
+      "fm global",
+      "fm",
+      "nfpa",
+      "scdf",
+      "ul",
+      "vds",
+      "lpcb",
+      "singapore civil defence force",
+      "munich re",
+      "swiss re"
+    ],
+    "Marsh McLennan businesses, in every report's boilerplate (PV-05)": [
+      "guy carpenter",
+      "mercer",
+      "oliver wyman"
+    ]
+  }
+}

@@ -2220,3 +2220,27 @@ Rejected in round 2:
 Known limits: a third person's Engineer column updates on their next visit, because their counts don't change; a visible list reloading on a colleague's change refreshes the session, as the Inbox's did; a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
 
 Stories: F-10, RV-11, F-05.
+
+## 2026-11-05 — Past reports are redacted before parsing; rag puts their words back from a mapping in MongoDB
+
+Chose:
+- (PV-05) With `PII_PROTECTION=required`, a past report's PDF is redacted before parsing, so parsing, chunking, the table and formula OCR crops, embedding and Chroma all read tags. Standards are public and are not redacted. The S3 original is unchanged.
+- The redactor rewrites each page that holds a detail: all its text is removed and drawn again in its order and place, with the tags in, in Liberation Sans (bold and italic kept) or a CJK font, each run squeezed to its old width. Docling orders a paragraph's text as it is drawn; drawing only the tags put them at the paragraph's end (found with real Docling). Liberation Sans is the font LibreOffice converts Word reports in, bundled with ingestion (SIL OFL 1.1): redrawn in Helvetica, Docling's layout model took a cover page's lines for pictures and dropped them (found in manual QA).
+- Labelling masks the first pages' text, not a redacted PDF: it sends only text, and this also covers scanned pages, whose text is read locally. The epic's design B had it run `redact_pdf` first.
+- The mapping (tag to detail) is saved on `knowledge_documents.privacyMapping`, `select: false`, never returned by any API. rag-service reads it from MongoDB on every search (one query), puts the real words back before rerank and masking, and adds the values to the request's known names, so another client's name is tagged again even when the assessment doesn't list it.
+- The worker asks the gateway how to protect each document (`GET /api/internal/knowledge-documents/:id/privacy`, service key), with chat's list of every client, site, address and active user. No `detect`: on a sample report it tagged 171 section headings and building terms as clients and sites.
+- What privacy-service never masks moved from code to `allow_list.json` (words, word patterns, whole names), mounted and read at startup like `detectors.json`, with the false positives found on a sample report added (floor codes, report wording, Marsh's businesses).
+- Reports already indexed are not re-ingested in PV-05; every document will be re-run later.
+
+Reason: past reports are stored in Chroma Cloud and read by several outside APIs at ingestion, and they name other clients and their people. Redacting the PDF once covers every downstream reader, including the OCR crops, which are pictures of the page.
+
+Rejected:
+- Masking only the chunk text after parsing: the OCR crops are images rendered from the PDF, and would still show names.
+- Keeping the mapping in Chroma metadata: Chroma Cloud is an outside service.
+- An internal gateway route that returns mappings to rag: a mapping would then travel over HTTP; a read-only MongoDB query keeps it in place.
+- Putting the protection settings in the queued job: names would sit in Redis, and a retry would reuse stale ones.
+- Keeping the redacted PDF: its passages in Chroma already show what was sent.
+
+Known limits: scanned pages and pictures' faces wait for PV-06. A PDF made in fonts other than Liberation Sans shows Liberation Sans on its redacted pages. A false positive in a mapping is masked in later requests too, so `allow_list.json` matters more. The IN-07 comparison shows tags. Redaction measured 0.75 to 1.2 s a page on a busy laptop, against a target under 1 s; measure on EC2.
+
+Stories: PV-05, PV-01, PV-02, PV-03, IN-05, IN-07.

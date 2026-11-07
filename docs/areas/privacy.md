@@ -20,7 +20,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Proposed figures for Sections 4 and 5 (GN-03) | **No** | (PV-02 follow-up) | `POST /figures/propose` sends observations and sections to the model unmasked. |
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | Yes | PV-04 | Faces in photos are blurred; the note, transcripts and location are masked. Item labels ("Note", a photo's file name) are not. |
 | Handwritten note transcription (CP-19, Gemini) | **No, by decision** | PV-04 | The page image must be read by the model, so it can't be masked. See Known gaps. |
-| Ingestion: labelling, OCR crops, embedding | **No** | PV-05/06 | Past reports in Chroma were indexed unredacted (open question G4). |
+| Ingestion of past reports: labelling, table and formula OCR, embedding, Chroma | Yes, for digital pages | PV-05 | Labelling reads masked page text; a past report's PDF is redacted before parsing. Scanned pages and the pictures in a report are not yet (PV-06). Reports ingested before PV-05 stay unredacted until every document is re-run. Standards are public and not redacted. See "Ingestion of past reports" below. |
 | Speech-to-text | **No** | PV-08 (deferred) | |
 
 ## How a protected request works
@@ -89,13 +89,26 @@ In rag-service (`app/client_intake/read.py`):
 2. The reading model and every Jev question see only masked text. Matching the client and sites to recorded ones is done after unmasking, in code, so no recorded name is sent anywhere to be compared.
 3. Each value's source quote is checked against the masked document (as the checklist checks citations). Then real names go back into every value and quote before anything leaves rag-service.
 
-**What `detect` adds** in privacy-service (`app/masker.py`, `app/allow_list.py`):
+**What `detect` adds** in privacy-service (`app/masker.py`, `allow_list.json`):
 - `CLIENT` masks spaCy's organisations as `[CLIENT_n]`, and `SITE` masks its facilities (buildings, plants, warehouses) as `[SITE_n]`. Known names still win where spans overlap.
-- **A never-mask list** (`NEVER_MASK`) keeps Marsh, Marsh McLennan, FM Global, NFPA, SCDF (and Singapore Civil Defence Force), UL, VdS, LPCB, Munich Re and Swiss Re readable, whatever the model says. They are never a client, and the reading needs them. Matching is on the whole name, in any case.
+- **A never-mask list** (`never_masked` in `allow_list.json`, see below) keeps Marsh, Marsh McLennan and its businesses, FM Global, NFPA, SCDF (and Singapore Civil Defence Force), UL, VdS, LPCB, Munich Re and Swiss Re readable, whatever the model says. They are never a client, and the reading needs them. Matching is on the whole name, in any case.
 - **Span tidying** (`_unlisted_parts`): spaCy's spans are loose. They run over line breaks into a form label ("Crest Tower Central\nAddress"), start with "the", or join names ("Marsh and FM Global"). Each detected span is cut per line, split at "and", a comma or "&" when one part is on the never-mask list, trimmed of spaces and a leading "the", and dropped when it is a label (ends in a colon) or only a company form ("Pte Ltd"). Without this, a placeholder would restore to the loose text, and Marsh would be masked with a client it was written next to.
 - Countries and cities are never masked, so the jurisdiction can still be read.
 
 **Fail closed (AC19).** If privacy-service is down, errors or passes the 60 s timeout, rag-service answers 503 and the gateway answers the engineer 503 with the reason ("Client details couldn't be protected…"). Nothing is sent to the model or Jev, and raw text is never the fallback. When protection is off (`privacy.enabled` false), documents are read unmasked, as every other flow.
+
+### Ingestion of past reports (PV-05)
+
+A past report names its client, the client's staff and their phone numbers. Its text leaves the system three ways at ingestion: labelling (OpenAI or Anthropic, and Jev), the table and formula crops read by the OCR model, and the passages embedded by Cohere and stored in Chroma Cloud. The gateway decides whether to protect a document, as for every flow, with `chatPrivacy`'s names: every client, site, address and active user, since a past report has no assessment. It sends no `detect`: on a sample report, detecting unlisted organisations and buildings tagged 171 section headings and building terms ("Opportunities for Improvement", "Reinforced Concrete", "Cooling Towers"), which would have left passages without their technical words.
+
+1. **Labelling** (at upload, `POST /label`). The gateway sends the PDF and `privacy` as a multipart form. Ingestion masks the first `LABEL_PAGES` pages in one `/mask` call before either model reads them, checks the answers against the masked text, and unmasks the details and their quoted evidence. If privacy-service is down, or the gateway can't read the names, no model is called and every detail is left Unconfirmed, as in a model outage: the upload still succeeds.
+2. **Redaction before parsing** (the worker, stage "Anonymising"). The worker asks the gateway how to protect the document (`GET /api/internal/knowledge-documents/:id/privacy`, behind the service key). With protection on, and a document that is not a standard, `app/pipeline/redactor.py` sends the whole PDF's text in one `/mask` call, then rewrites each page that holds a detail: all its text is removed and drawn again, in its order and place, with each detail replaced by its tag (`Mr [PERSON_1]'s`). Docling orders a paragraph's text as it is drawn, so drawing only the tags would put them at the paragraph's end. The page is drawn in Liberation Sans, the font LibreOffice converts Word reports in (bundled in `app/pipeline/fonts/`, SIL OFL 1.1; bold and italic kept), or a CJK font for characters it lacks, each run squeezed to its old width. Redrawn in Helvetica, Docling's layout model read a cover page's lines as pictures and dropped their text, and a line with a curly quote or a dash went to the CJK font, which is drawn letter-spaced: on a 19-page sample, Docling read 11% less text than from the original, against 0.2% in Liberation Sans; pictures and drawings are not touched. Parsing, chunking, the OCR crops (rendered from the PDF) and embedding then read the redacted copy, a temporary file. The S3 original is unchanged, and the viewer shows it.
+3. **The mapping** (`knowledge_documents.privacyMapping`, tag to the detail it replaced) is saved by the worker before relabelling makes the passages searchable, and removed if the run fails or is cancelled. It is personal data kept in our own MongoDB. The gateway never loads it (`select: false`) and no API returns it. The ingestion job records only `privacy: {enabled, masked_count}`.
+4. **Reading the passages back** (rag-service, `app/past_reports.py`). Every search puts a past report's real words back from its mapping (one MongoDB read per search), before rerank and masking. The values put back are added to the request's known names (`Session.know`), so drafting and chat tag them again in their own numbering, even another client's name that the assessment doesn't list. A stored `[PERSON_1]` is never read as the request's own. The citation panel shows the real words too. If the mappings can't be read, the request fails closed.
+
+**Fail closed.** If the gateway or privacy-service can't be reached at ingestion, the document fails with "Client details could not be protected because the privacy service or the gateway did not answer, so nothing was sent or indexed. Retry it later." Nothing is parsed or indexed.
+
+**Measured** on the three sample reports (43 to 60 pages) on a laptop with other apps using about half its CPU: redaction took 0.75 to 1.2 s a page, about half of it privacy-service's name model. The acceptance criterion is under 1 s a page; measure again on EC2, where nothing else competes.
 
 ## What is detected
 
@@ -123,11 +136,28 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 - **The file applies to every flow**, not only photo reading: drafting, chat and photo reading all use the same service. Turning `PERSON` off sends names nobody listed to Anthropic in drafts.
 - Switching `ADDRESS` off can bring back spaCy taking some street names for a person ("Lower Kent Ridge Rd" as `[PERSON_1]`), as before addresses were detected.
 
+### Words and names never masked (allow_list.json)
+
+`microservices/privacy-service/allow_list.json` lists what privacy-service deliberately leaves as written. Each list groups its entries under a heading that says why they are there:
+- `never_a_person`: words the name model takes for people ("Hosereel", "Equivalencies", the abbreviation "spk"). A name the model guessed is kept when every one of its words is listed here, in any case.
+- `never_a_person_patterns`: regular expressions for such words, each matched against one whole lower-case word. Shipped: floor and basement codes (`[lb][0-9]{1,3}[a-z]?`: L23, B2, L10A).
+- `never_masked`: whole names that are never a client detail, whatever found them: Marsh and its businesses (Guy Carpenter, Mercer, Oliver Wyman), insurers and standards bodies.
+
+Known names and the patterns for phone numbers, IDs and addresses are never checked against the file.
+
+**Why it matters more since PV-05.** A false positive in a past report becomes part of its mapping, and rag-service adds every mapped value to a request's known names. "L31" read as a person in one report would then be masked in an assessment's own notes too. Add a word here when a report, a draft or the eval shows the model masking it wrongly.
+
+**Changing it.** Edit the file and run `docker compose restart privacy-service` (Compose mounts it, as for `detectors.json`; no rebuild). It is read when the service starts: an unknown list, an entry that is not a list of words, or a pattern that does not compile stops the service with the reason. Without the file nothing is allowed, which masks more. `PRIVACY_ALLOW_LIST_FILE` points at another file. A changed list only affects text masked from then on: passages already stored keep the tags they were given at ingestion.
+
 ## Known gaps
 
-- **Other clients in past reports.** Known entities cover only the current assessment's client. A different client's company name or address in a stored past report is not detected, because organisation and location recognition is off. PV-05 redacts past reports at ingestion.
+- **Other clients in past reports** (PV-05). A past report is redacted against every recorded client, site, address and user, plus the patterns and the name model. A client that was never recorded, or a street address in an unusual format, can still be stored readable: organisation detection (`detect`) is off for ingestion.
+- **Past reports ingested before PV-05** were indexed unredacted and have no mapping. They read as before and are masked only by detection, until every document is re-run (planned). Retry only re-runs a failed or cancelled document.
+- **Scanned pages and pictures in past reports (PV-06).** A page with no text layer is not redacted, and a picture's faces are not blurred, before the OCR model reads them. Labelling masks scanned pages' text, because it is read locally first.
+- **A redacted page is redrawn in Liberation Sans.** Its words, order and places are kept, and pictures and drawings are untouched. A report converted by LibreOffice looks unchanged; a PDF made in other fonts (Calibri, Times) shows Liberation Sans on a redacted page, in Docling's page images and the OCR crops. Pages without a detail are not changed.
+- **The duplicate and edition comparison (IN-07) shows tags** for a redacted report: ingestion-service reads Chroma directly, without the mapping.
 - **Client intake: some names are still readable after masking (CP-23).** Recorded names are always masked (they are known entities). Names nobody recorded depend on spaCy and on patterns for building names ("<Name> Tower", "<Name> Hub", "Phase 2") and street addresses ("12 Kallang Road", "Jalan Seri Utama 2"), so an unusual name can slip through. Measured on the CP-23 eval's 24 synthetic packs (3 Nov 2026), after masking: 1 of 22 client names (a Thai "Co., Ltd" name), 0 of 31 new site names, 2 of 48 contact names (Malay and Thai names spaCy doesn't read as people) and 0 of 31 addresses were still readable in the text sent to the AI. The patterns over-mask a little (a heading or "Visit Lindenmoor Tower" masked as one name); each placeholder still restores to its text. The packs use invented names in the sample reports' shapes, so real documents may differ.
-- **Figure proposals and ingestion** are not protected yet (see the table above).
+- **Figure proposals** are not protected yet (see the table above).
 - **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes (PV-08). Unlike observation reading (PV-04), a site walk's photos are not blurred. Only the AI step that reads their text is protected.
 - **Handwritten pages (CP-19) go to the AI as photographed.** The model must read the page, so its text can't be masked first. This is accepted for now: the risk is mostly in the *combination* of details (a name with an NRIC and a phone number), and the main goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page. The transcript is masked later, like any text, whenever it feeds drafting or chat. A local handwriting model would close the gap.
 - **Photo reading: faces only.** Text in a photo (a name badge, a tag with a phone number) is not redacted, so Gemini reads it. The answer check keeps it out of what is saved, except a building name on its own ("University Hall"). Tesseract redaction was left out (1–3 s per photo). Faces turned well away from the camera, or under about 17 px in the photo, may not be detected.
@@ -139,6 +169,8 @@ Kept as they are: jurisdiction, facility type, COPE category, severity, standard
 
 ## Testing
 
+- ingestion-service `tests/test_leak.py` (PV-05): a generated report with a client, a person, a phone number and an NRIC goes through redaction, chunking and indexing with Cohere and Chroma recorded, and through labelling with the models recorded; none of the seeded details is sent. Run without protection, the same test sees every one, so the recorders are known to work. Its `-m e2e` variant runs real Docling and checks that the tags read where the details were. `tests/test_redactor.py` covers the redactor; privacy-service's `tests/test_allow_list.py` covers `allow_list.json`.
+- Labelling quality: `eval.labelling.run_eval` takes `--privacy` (see Eval results).
 - S5 `tests/test_leak.py` and `tests/test_vision_privacy.py` (PV-04): no seeded detail reaches Gemini in any text, every photo goes as privacy-service returned it, details Gemini adds to its answer are taken out (unless `check_answers` is off), and the reading fails closed. privacy-service's `tests/test_redact_image.py` runs the real detector on a public-domain portrait (`tests/fixtures/`).
 - Photo reading quality: `eval.interpret_photos` and `eval.suggest_categories` take `--privacy`.
 - `tests/test_leak.py` (Rule 10): replaces the Cohere, Anthropic and OpenAI SDK clients with recorders and runs each drafting flow, and chat on both providers, with seeded PII: a client name, "John Tan", `+65 9123 4567` and `S1234567D`. It asserts that none of them is sent.
@@ -174,7 +206,7 @@ Every judge is within the agreed margin (a drop of at most 0.2, G1).
 **How to read it:**
 - **The judge is noisy, so read the means, not single cases.** Marsh's own text, which is identical in both runs, moved by up to 0.4 per case between them (for example office-5-s4, 3.6 → 3.2; office-5-ofis, 3.85 → 4.1). The three flips from pass to fail (one sections case, two OFI cases) are within that noise.
 - **The case notes hold no PII,** because they come from redacted reports. Most masked details came from past-report passages.
-- **Two false positives in the notes:** spaCy read "L33-47 - site" and "alu spandrels w" as person names, so the model saw `[PERSON_1]` in their place. Adding such fragments to the privacy-service allow-list (`allow_list.py`) is a candidate follow-up.
+- **Two false positives in the notes:** spaCy read "L33-47 - site" and "alu spandrels w" as person names, so the model saw `[PERSON_1]` in their place. Such fragments can now be added to `allow_list.json` (PV-05).
 
 To run, from `microservices/rag-service`, with privacy-service running and `PRIVACY_SERVICE_URL=http://127.0.0.1:8004` set. On Windows, also set `PYTHONUTF8=1`, since the summary case file is UTF-8 and `read_text()` would otherwise use cp1252.
 
@@ -188,6 +220,26 @@ uv run --extra dev python -m eval.judge_summary --privacy
 ```
 
 Each result row records `privacy` (`null` for an off run), so the two runs can be told apart in `eval/results/*.jsonl`.
+
+### Labelling (PV-05), recorded 2026-11-05: partial
+
+`eval.labelling.run_eval --only office5-p1-20,mall2-p1-20,mixed1-p1-20,mall2-p25-28`, without and with `--privacy`. Only these four report cases could run: the other golden PDFs live in `.local-docs/golden/pdfs/`, which this machine didn't have, and the scanned NFPA cases' files here are empty. The masked run sends no known names (the eval has no client list), and the sample reports were redacted by hand already, so it measures what masking costs, not how real names are handled. Reports: `eval/labelling/results/2026-11-05-partial.md` and `2026-11-05-partial-privacy.md`.
+
+| Candidate | Fixed-list correct, off | On | Free-text correct, off | On |
+|---|---|---|---|---|
+| Jev | 75% | 75% | | |
+| OpenAI Decisions | 83% | 83% | | |
+| Haiku 4.5 | 83% | 75% | 88% | 88% |
+| Haiku 5.5 | 75% | 75% | 100% | 100% |
+| GPT-6 Luna | 92% | 92% | 100% | 100% |
+
+12 fixed-list and 8 free-text details. The one drop is a single detail: Haiku 4.5 read mall2-p1-20 as a mixed-use development with masking on, within the noise of four cases. OpenAI Decisions left one detail blank instead of guessing it wrong. Run the full golden set, both ways, where `.local-docs` is available:
+
+```
+cd microservices/ingestion-service
+uv run python -m eval.labelling.run_eval
+uv run python -m eval.labelling.run_eval --privacy   # privacy-service running; PRIVACY_SERVICE_URL=http://127.0.0.1:8004 on Windows
+```
 
 ### Chat (PV-03), recorded 2026-10-21: judging incomplete
 

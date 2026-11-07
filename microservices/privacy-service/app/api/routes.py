@@ -40,8 +40,8 @@ def health() -> dict:
 @router.post("/mask")
 def mask_texts(request: MaskRequest) -> dict:
     known = [KnownEntity(e.type, e.names) for e in request.known_entities]
-    texts, mapping = mask(request.texts, known, request.mapping, request.detect)
-    return {"texts": texts, "mapping": mapping}
+    texts, mapping, spans = mask(request.texts, known, request.mapping, request.detect)
+    return {"texts": texts, "mapping": mapping, "spans": spans}
 
 
 @router.post("/redact-image")

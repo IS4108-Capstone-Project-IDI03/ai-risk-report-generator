@@ -1,10 +1,15 @@
-"""In-memory stand-ins for Chroma and the `knowledge_documents` collection (IN-07 tests).
+"""In-memory stand-ins for Chroma and the `knowledge_documents` collection (IN-07 tests), and
+for privacy-service's /mask (PV-05).
 
 The Chroma fake does real cosine-distance maths over hand-made vectors, so the
 matching tests exercise the same threshold logic Chroma would, with no server
 and no embedding model.
 """
 
+import json
+import re
+
+import httpx
 import numpy as np
 from bson import ObjectId
 
@@ -89,3 +94,71 @@ def stored_doc(title="NFPA 13", edition="2022", **extra) -> dict:
         "metadata": {"source_type": "nfpa_standard"},
         **extra,
     }
+
+
+class FakePrivacy:
+    """Stands in for privacy-service's POST /mask, with the spans PV-05 added: swaps each known
+    entity's names, a +65 number and an NRIC for typed placeholders, numbered in reading order
+    and extending the mapping it is sent. `failure` makes it fail: an httpx exception to raise,
+    or a status code. `.requests` holds each request body."""
+
+    PATTERNS = {"PHONE": re.compile(r"\+65 \d{4} \d{4}"), "NRIC": re.compile(r"\bS\d{7}[A-Z]\b")}
+
+    def __init__(self):
+        self.requests: list[dict] = []
+        self.failure: Exception | int | None = None
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if isinstance(self.failure, Exception):
+            raise self.failure
+        if self.failure:
+            return httpx.Response(self.failure, json={"detail": "boom"})
+        body = json.loads(request.content)
+        self.requests.append(body)
+        mapping = dict(body.get("mapping") or {})
+        texts, spans = [], []
+        for text in body["texts"]:
+            found = self._found(text, body.get("known_entities") or [])
+            where = [
+                {"start": s, "end": e, "placeholder": self._placeholder(mapping, kind, value)}
+                for s, e, kind, value in found
+            ]
+            for span in reversed(where):
+                text = text[: span["start"]] + span["placeholder"] + text[span["end"] :]
+            texts.append(text)
+            spans.append(where)
+        return httpx.Response(200, json={"texts": texts, "mapping": mapping, "spans": spans})
+
+    def _found(self, text: str, known: list[dict]) -> list[tuple[int, int, str, str]]:
+        """(start, end, type, restores-to) for each detail, left to right, none overlapping."""
+        found = [
+            (m.start(), m.end(), entity["type"], entity["names"][0])
+            for entity in known
+            for name in entity["names"]
+            for m in re.finditer(self._name_pattern(name), text)
+        ]
+        found += [
+            (m.start(), m.end(), kind, m[0])
+            for kind, pattern in self.PATTERNS.items()
+            for m in pattern.finditer(text)
+        ]
+        kept = []
+        for span in found:  # known names first, so they win where spans overlap
+            if not any(span[0] < k[1] and k[0] < span[1] for k in kept):
+                kept.append(span)
+        return sorted(kept)
+
+    @staticmethod
+    def _name_pattern(name: str) -> str:
+        """Any spacing between a name's words, a line break too, as privacy-service matches."""
+        words = r"\s+".join(map(re.escape, name.split()))
+        return rf"(?<!\w){words}(?!\w)"
+
+    @staticmethod
+    def _placeholder(mapping: dict, kind: str, value: str) -> str:
+        for key, mapped in mapping.items():
+            if key.startswith(f"[{kind}_") and mapped == value:
+                return key
+        key = f"[{kind}_{1 + sum(k.startswith(f'[{kind}_') for k in mapping)}]"
+        mapping[key] = value
+        return key

@@ -9,6 +9,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from app.labelling import config, decide, models, pages
+from app.privacy import PrivacyUnavailable, session
 
 logger = logging.getLogger(__name__)
 
@@ -24,19 +25,14 @@ def _today() -> str:
     return datetime.datetime.now(_SINGAPORE).date().isoformat()
 
 
-def label_pdf(pdf: bytes) -> dict:
-    """Return {details, unconfirmed, usage} for a PDF; never raises for model problems."""
-    # 1. Read the first pages (OCR for scanned ones).
-    page_list = pages.read_pages(pdf)
-    wrapped = pages.wrap(page_list)
-    page_text = "\n".join(text for _, text in page_list)
+def _call_models(wrapped: str, classifier: str) -> tuple[dict, set, list[dict]]:
+    """Run the extractor and, unless switched off, the classifier at once.
 
-    # 2. Classifier (fixed-list) and LLM (all six) run at once.
-    classifier = config.classifier()
-    names = {"fixed": classifier if classifier != "none" else config.llm_model(),
-             "free": config.llm_model()}  # fmt: skip
-    usage: list[dict] = []
-    results, failed = {}, set()
+    Returns each call's answers by name, the names that failed, and the usage of those that
+    answered. A failed call is logged, not raised: without that, a model outage would block
+    uploads, and the details it would have given become Unconfirmed instead.
+    """
+    results, failed, usage = {}, set(), []
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = {"extract": pool.submit(models.extract_details, wrapped)}
         if classifier != "none":
@@ -46,10 +42,38 @@ def label_pdf(pdf: bytes) -> dict:
                 results[name], used = future.result()
                 usage.append(used)
             except Exception:
-                # Without this, a model outage would block uploads. The details it
-                # would have given become Unconfirmed instead (see below).
                 logger.exception("Labelling call %s failed", name)
                 failed.add(name)
+    return results, failed, usage
+
+
+def label_pdf(pdf: bytes, privacy: dict | None = None) -> dict:
+    """Return {details, unconfirmed, usage} for a PDF; never raises for model problems.
+
+    With `privacy` on (PV-05), the pages' client details are masked before any model reads them.
+    """
+    # 1. Read the first pages (OCR for scanned ones), masked in one call when protected.
+    page_list = pages.read_pages(pdf)
+    protection = session(privacy)
+    try:
+        masked = protection.mask([text for _, text in page_list])
+    except PrivacyUnavailable:
+        # Fail closed (Rule 3): no model reads the pages, and every detail they would have
+        # given becomes Unconfirmed, as in a model outage (below). The message holds no text.
+        logger.exception("Masking the pages failed; labelling without the models")
+        masked = None
+    page_list = [(number, text) for (number, _), text in zip(page_list, masked or [])]
+    wrapped = pages.wrap(page_list)
+    page_text = "\n".join(text for _, text in page_list)
+
+    # 2. Classifier (fixed-list) and LLM (all six) run at once.
+    classifier = config.classifier()
+    names = {"fixed": classifier if classifier != "none" else config.llm_model(),
+             "free": config.llm_model()}  # fmt: skip
+    if masked is None:
+        results, failed, usage = {}, {"extract", "classify"}, []
+    else:
+        results, failed, usage = _call_models(wrapped, classifier)
     if "extract" in failed:
         # Keep the classifier's fixed-list answers (None if it failed too). Only the
         # free-text details become Unconfirmed; without this, one LLM outage would
@@ -65,6 +89,12 @@ def label_pdf(pdf: bytes) -> dict:
 
     # 3. Apply the rules and return the contract shape.
     details = decide.decide(classified, extracted, page_text, names)
+    # Checked against the masked pages, as the models read them; returned in real words.
+    for detail in details.values():
+        if isinstance(detail.get("value"), str):
+            detail["value"] = protection.unmask(detail["value"])
+        if detail.get("evidence"):
+            detail["evidence"]["quote"] = protection.unmask(detail["evidence"]["quote"])
     # A standard's date is when the admin makes it current, not a printed date. A report
     # keeps its grounded date. Without this default, a dateless upload would need review.
     is_standard = details["source_type"]["value"] in config.STANDARDS

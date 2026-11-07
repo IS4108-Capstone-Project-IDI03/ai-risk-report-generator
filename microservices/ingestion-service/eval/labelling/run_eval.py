@@ -3,6 +3,10 @@
 Run by hand from microservices/ingestion-service (it costs money, under $1, and needs the
 keys in the root .env, so it is not in CI):
     uv run python -m eval.labelling.run_eval [--split tune|test|all] [--only id1,id2] [--no-cache]
+        [--privacy]
+--privacy masks client details before the models read the pages, as labelling does with
+protection on (PV-05), and unmasks the answers before scoring. It needs privacy-service on
+PRIVACY_SERVICE_URL (on Windows, http://127.0.0.1:8004). Compare its report with a run without.
 Use --split tune while tuning prompts; run the test split once, at the end.
 Calls app/labelling/ directly on PDF cuts (no upload). Scoring lives in scoring.py.
 Raw answers are cached in results/cache.json, so a rerun only calls what changed.
@@ -23,6 +27,7 @@ from pathlib import Path
 import pymupdf
 
 from app.labelling import config, models, pages, prompt
+from app.privacy import session
 from eval.labelling import scoring as sc
 
 HERE = Path(__file__).resolve().parent
@@ -148,6 +153,36 @@ def call_case(case: dict, wrapped: str, cache: dict) -> tuple[dict, float]:
                     cache["answers"][key] = result  # errors are not cached: they should be retried
                     spent += result["usage"]["cost_usd"]
     return out, spent
+
+
+def masked(wrapped: str):
+    """The pages as labelling sends them with protection on (PV-05), and the session that
+    unmasks the answers. The eval has no client list, so only details found by pattern or by
+    the name model are masked; the sample reports' clients were removed by hand already."""
+    protection = session({"enabled": True, "known_entities": []})
+    return protection.mask([wrapped])[0], protection
+
+
+def unmasked(results: dict, protection) -> dict:
+    """Copies of the candidates' results with every answer's value and quote in real words,
+    as label_pdf returns them; the cache keeps what the models said."""
+    out = {}
+    for cand, result in results.items():
+        answers = result.get("answers")
+        if answers:
+            answers = {
+                detail: {
+                    **answer,
+                    **{
+                        field: protection.unmask(answer[field])
+                        for field in ("value", "quote")
+                        if isinstance(answer.get(field), str)
+                    },
+                }
+                for detail, answer in answers.items()
+            }
+        out[cand] = {**result, "answers": answers}
+    return out
 
 
 # ── Report sections ──────────────────────────────────────────────────────
@@ -387,6 +422,7 @@ def main() -> None:
     ap.add_argument("--split", choices=["tune", "test", "all"], default="all")
     ap.add_argument("--only", help="comma-separated case ids")
     ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--privacy", action="store_true", help="mask client details first (PV-05)")
     args = ap.parse_args()
     started = time.monotonic()
 
@@ -400,7 +436,11 @@ def main() -> None:
     cache, raw, texts, spent = load_cache(not args.no_cache), {}, {}, 0.0
     for case in run:
         texts[case["id"]], wrapped = read_case(case, cache)
+        if args.privacy:
+            wrapped, protection = masked(wrapped)
         raw[case["id"]], cost = call_case(case, wrapped, cache)
+        if args.privacy:
+            raw[case["id"]] = unmasked(raw[case["id"]], protection)
         spent += cost
         print(f"done {case['id']}", file=sys.stderr)
         CACHE.parent.mkdir(exist_ok=True)
@@ -415,7 +455,8 @@ def main() -> None:
 
     md = [
         f"# Labelling evaluation ({date.today().isoformat()}"
-        + (", tune split only" if args.split == "tune" else "") + ")", "",
+        + (", tune split only" if args.split == "tune" else "")
+        + (", client details masked (PV-05)" if args.privacy else "") + ")", "",
         "- Prices (USD per 1M tokens, dated 2026-10-07; Haiku 5.5 2026-10-08): "
         + "; ".join(f"{k} {v[0]} in / {v[1]} out" for k, v in config.PRICES.items()),
         f"- LABEL_PAGES: {config.DEFAULT_PAGES} (OCR capped at the first {config.OCR_MAX_PAGES}); "
@@ -459,6 +500,7 @@ def main() -> None:
     text = "\n".join(md)
     print(text)
     suffix = "-tune" if args.split == "tune" else ("-partial" if only else "")
+    suffix += "-privacy" if args.privacy else ""
     (HERE / "results" / f"{date.today().isoformat()}{suffix}.md").write_text(text + "\n")
 
 

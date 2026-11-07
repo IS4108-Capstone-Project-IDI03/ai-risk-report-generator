@@ -210,7 +210,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: see each document's current ingestion stage, so active processing can be distinguished from completed content.
 
-  1. Given a document is processing, when I view ingestion status, then its current stage is shown as one of Uploaded, Parsing, OCR, Anonymising, Chunking, Indexing, Complete or Failed.
+  1. Given a document is processing, when I view ingestion status, then its current stage is shown as one of Uploaded, Anonymising (a protected past report, redacted before parsing, PV-05), Parsing, OCR, Chunking, Indexing, Complete or Failed.
   2. Given a document is processing, when I view ingestion status, then its elapsed processing time is displayed.
   3. Given processing moves to another stage, when I continue viewing status, then the displayed stage reflects that transition.
   4. Given a page was flagged during OCR or parsing, when I view that document's status, then the flag is shown against the document.
