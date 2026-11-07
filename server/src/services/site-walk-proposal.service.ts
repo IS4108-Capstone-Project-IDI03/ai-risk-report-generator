@@ -13,7 +13,7 @@ import type { SessionUser } from './auth.service'
 import type { JobContext } from './job-queue.service'
 import { locationSchema } from './location.service'
 import { notifyFailed, notifyReady } from './site-walk-notice.service'
-import { privacyFor } from './privacy.service'
+import { privacyFor, readingPrivacyFor } from './privacy.service'
 import { proposeSiteWalk, RagServiceError } from './rag.service'
 import {
   InvalidSiteWalkError,
@@ -191,14 +191,17 @@ export async function runProposal(walkId: string, context: JobContext) {
   // The site's name stands in as the building when the walk names levels but no building.
   const site = await SiteModel.findById(assessment.site, 'name').lean()
   try {
+    const photoPrivacy = await readingPrivacyFor(reportId)
     for (const photo of walk.photos) {
       if (photo.description !== undefined) continue
       // On the last try a photo that still can't be described is matched by its
       // time alone; without this, one bad photo would fail the whole walk.
-      const description = await describePhoto(photo.key, reportId).catch((error: unknown) => {
-        if (!context.isLastAttempt) throw error
-        return ''
-      })
+      const description = await describePhoto(photo.key, photoPrivacy, reportId).catch(
+        (error: unknown) => {
+          if (!context.isLastAttempt) throw error
+          return ''
+        },
+      )
       photo.description = description
       await SiteWalkModel.updateOne(
         { _id: walk._id, 'photos.photoId': photo.photoId },
