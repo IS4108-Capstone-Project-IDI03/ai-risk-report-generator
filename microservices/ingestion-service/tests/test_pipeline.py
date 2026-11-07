@@ -341,3 +341,28 @@ def test_only_documents_that_may_name_a_client_are_redacted(
     assert (parsed_from != [original]) is redacted
     assert summary["privacy"]["enabled"] is redacted
     assert bool(summary["mapping"]) is redacted
+
+
+@pytest.mark.parametrize(
+    ("source_type", "protected"), [("marsh_report", True), ("nfpa_standard", False)]
+)
+def test_a_redacted_reports_pictures_are_read_with_its_privacy_session(
+    monkeypatch, tmp_path, fake_privacy, source_type, protected
+):
+    # PV-06: the chunker blurs faces in picture crops with it; a standard's are left as they are.
+    sessions = []
+    _install_fakes(monkeypatch, _parsed(), [])
+    monkeypatch.setattr(pipeline, "parse", lambda path, **_: _parsed())
+
+    def chunk(_parsed, protection=None, **_):
+        sessions.append(protection)
+        return []
+
+    monkeypatch.setattr(pipeline, "chunk", chunk)
+
+    pipeline.run(
+        _report_pdf(tmp_path), labels={**LABELS, "source_type": source_type}, privacy=PRIVACY
+    )
+
+    [protection] = sessions
+    assert (protection is not None and protection.enabled) is protected

@@ -128,7 +128,7 @@ def run(
     labels = labels or {}
     protection = session(privacy)
     with tempfile.TemporaryDirectory() as tmp:
-        source, mapping = file_path, {}
+        source, mapping, redacted_with = file_path, {}, None
         # A standard is public; anything else (a report, or a type still Unconfirmed) is redacted.
         if protection.enabled and labels.get("source_type") not in STANDARDS:
             _check_cancelled(_reporter)
@@ -137,7 +137,10 @@ def run(
             # Same file name: the parser reports it as the document's name.
             source = str(Path(tmp) / Path(file_path).name)
             Path(source).write_bytes(redacted)
-        summary = _parse_to_index(this, source, file_path, page_range, doc_id, labels, _reporter)
+            redacted_with = protection
+        summary = _parse_to_index(
+            this, source, file_path, page_range, doc_id, labels, _reporter, redacted_with
+        )
     _reporter.finish()
 
     # Whether this document was protected: a standard is not, even with protection on.
@@ -146,10 +149,11 @@ def run(
 
 
 def _parse_to_index(
-    this, source: str, original: str, page_range, doc_id, labels: dict, reporter
+    this, source: str, original: str, page_range, doc_id, labels: dict, reporter, protection
 ) -> dict:
     """Parse, chunk, label and index `source`, the PDF to read: the original, or its redacted
-    copy. Returns the counts for `run`'s summary."""
+    copy. `protection` is the redacted copy's privacy session, else None. Returns the counts
+    for `run`'s summary."""
     _check_cancelled(reporter)
     reporter.start_stage("parsing")
     parsed = this.parse(source, page_range=page_range, reporter=reporter)
@@ -159,7 +163,10 @@ def _parse_to_index(
 
     reporter.start_stage("chunking")
     # The OCR crops are rendered from `source`, so a redacted report's crops are redacted too.
-    chunks = this.chunk(parsed, doc_path=source, doc_id=doc_id, reporter=reporter)
+    # With protection, faces in its picture crops are blurred before they are read (PV-06).
+    chunks = this.chunk(
+        parsed, doc_path=source, doc_id=doc_id, reporter=reporter, protection=protection
+    )
 
     # A report's sections are read once from its fonts (IN-05); other documents need none. The
     # original's fonts: reading them sends nothing anywhere, and gives only fixed section names.

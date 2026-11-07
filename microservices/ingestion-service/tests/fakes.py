@@ -1,11 +1,12 @@
 """In-memory stand-ins for Chroma and the `knowledge_documents` collection (IN-07 tests), and
-for privacy-service's /mask (PV-05).
+for privacy-service's /mask (PV-05) and /redact-image (PV-06).
 
 The Chroma fake does real cosine-distance maths over hand-made vectors, so the
 matching tests exercise the same threshold logic Chroma would, with no server
 and no embedding model.
 """
 
+import base64
 import json
 import re
 
@@ -100,13 +101,17 @@ class FakePrivacy:
     """Stands in for privacy-service's POST /mask, with the spans PV-05 added: swaps each known
     entity's names, a +65 number and an NRIC for typed placeholders, numbered in reading order
     and extending the mapping it is sent. `failure` makes it fail: an httpx exception to raise,
-    or a status code. `.requests` holds each request body."""
+    or a status code. `.requests` holds each request body.
+
+    POST /redact-image (PV-06) answers every image with `blurred` (bytes, as privacy-service's
+    JPEG of a photo with a face), or with the image unchanged when `blurred` is None."""
 
     PATTERNS = {"PHONE": re.compile(r"\+65 \d{4} \d{4}"), "NRIC": re.compile(r"\bS\d{7}[A-Z]\b")}
 
     def __init__(self):
         self.requests: list[dict] = []
         self.failure: Exception | int | None = None
+        self.blurred: bytes | None = None
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         if isinstance(self.failure, Exception):
@@ -115,6 +120,8 @@ class FakePrivacy:
             return httpx.Response(self.failure, json={"detail": "boom"})
         body = json.loads(request.content)
         self.requests.append(body)
+        if request.url.path == "/redact-image":
+            return self._redact_images(body["images"])
         mapping = dict(body.get("mapping") or {})
         texts, spans = [], []
         for text in body["texts"]:
@@ -128,6 +135,13 @@ class FakePrivacy:
             texts.append(text)
             spans.append(where)
         return httpx.Response(200, json={"texts": texts, "mapping": mapping, "spans": spans})
+
+    def _redact_images(self, images: list[str]) -> httpx.Response:
+        if self.blurred is None:
+            return httpx.Response(200, json={"images": images, "faces": [0] * len(images)})
+        blurred = base64.b64encode(self.blurred).decode("ascii")
+        faces = [1] * len(images)
+        return httpx.Response(200, json={"images": [blurred] * len(images), "faces": faces})
 
     def _found(self, text: str, known: list[dict]) -> list[tuple[int, int, str, str]]:
         """(start, end, type, restores-to) for each detail, left to right, none overlapping."""

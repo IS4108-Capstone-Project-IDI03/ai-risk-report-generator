@@ -84,7 +84,7 @@ def read_with_pymupdf(monkeypatch):
     def parse(path, page_range=None, reporter=None):
         return ParsedDocument(doc_name=Path(path).name, page_count=1)
 
-    def chunk(_parsed, doc_path=None, doc_id=None, reporter=None):
+    def chunk(_parsed, doc_path=None, doc_id=None, reporter=None, **_):
         with pymupdf.open(doc_path) as doc:
             pages = [" ".join(page.get_text(sort=True).split()) for page in doc]
         return [
