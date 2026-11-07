@@ -51,6 +51,7 @@ from app.pipeline.chunking_helper.picture_parser import parse_picture, worth_rea
 from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
+from app.privacy import Session
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -516,6 +517,7 @@ def _extract_table_chunk(
     headings: list[str] | None = None,
     caption: str = "",
     position: int | None = None,
+    protection: Session | None = None,
 ) -> list[dict] | None:
     """Extract a region's tables into index-ready chunks, or None.
 
@@ -554,6 +556,7 @@ def _extract_table_chunk(
             page=box["page"],
             file_path=doc_path,
             coord_origin=box.get("coord_origin", ""),
+            protection=protection,
         )
         if parsed and any(table.records for table in split_tables(parsed)):
             readings.append(parsed)
@@ -591,6 +594,7 @@ def _extract_table_chunk(
             meta=meta,
             headings=headings,
             position=position,
+            protection=protection,
         )
 
     if not tables:
@@ -642,6 +646,7 @@ def _extract_picture_chunk(
     meta,
     headings: list[str] | None = None,
     position: int | None = None,
+    protection: Session | None = None,
 ) -> list[dict]:
     """Describe a chunk's pictures as passages, one per picture.
 
@@ -678,6 +683,7 @@ def _extract_picture_chunk(
                 file_path=doc_path,
                 coord_origin=box.get("coord_origin", ""),
                 context=context,
+                protection=protection,
             )
             for box in picture["boxes"]
         ]
@@ -757,6 +763,7 @@ def chunk(
     doc_path: str | None = None,
     doc_id: str | None = None,
     reporter=None,
+    protection: Session | None = None,
 ) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
@@ -765,6 +772,8 @@ def chunk(
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
         reporter: an optional ProgressReporter (E2). Updates for each page.
+        protection: a redacted report's privacy session (PV-06): faces in its picture crops
+            are blurred before they are read.
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -825,6 +834,7 @@ def chunk(
                 meta=dl_chunk.meta,
                 headings=trail,
                 position=n,
+                protection=protection,
             )
 
             if _is_table_chunk(dl_chunk):
@@ -848,6 +858,7 @@ def chunk(
                         headings=trail,
                         caption=_table_caption(dl_chunk, doc),
                         position=n,
+                        protection=protection,
                     )
                     ocr_jobs.append((len(chunks), "table", job))
                     chunks.append(None)  # filled (or dropped) in pass 2

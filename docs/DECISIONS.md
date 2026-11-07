@@ -2257,3 +2257,24 @@ Rejected:
 - Raising the 100 MB upload limit for a long uncompressed WAV: it needs a change to EC2's nginx.
 
 Stories: CP-22.
+
+## 2026-11-07 — Scanned pages are redacted with RapidOCR; picture crops are blurred; passage text is masked again before embedding
+
+Chose:
+- (PV-06) With `PII_PROTECTION=required`, a past report's scanned pages are redacted before parsing too. A page with no text layer but an image is read with RapidOCR's word boxes; its words join the document's one `/mask` call; each detail's words are blanked in the page image (not only covered), padded by 15% of the word's height but never into a word that stays, and its tag is drawn in their place.
+- RapidOCR, not Tesseract as the epic planned: it is already installed (`docling[rapidocr]`, 3.9.2, with `return_word_box`), it is the engine Docling reads the redacted page with, and it needs no apt package or Windows binary.
+- Faces in picture and table crops are blurred in `parse_picture` and `parse_table`, not `recognise()` as the epic planned: `recognise()` also serves formulas, which need no blurring. Table crops are blurred too because, on a scanned page, a region Docling calls a table can take in a photo beside it (found on a real scan). privacy-service's `/redact-image` (PV-04) does the blurring; a blurred crop comes back as JPEG and is turned into PNG, which the OCR providers send.
+- The post-chunk `anonymise` stage is the safety net: a redacted report's passage text goes through `/mask` again, not escaped (its tags are its own), continuing the document's mapping, which is saved whole in `privacyMapping`.
+- Everything fails closed, as redaction does.
+
+Reason: PV-05 left a scanned page readable, sent picture and table crops with faces to the OCR model, and embedded whatever the OCR model read off a picture.
+
+Rejected:
+- Tesseract: an extra system package for word boxes RapidOCR already gives.
+- Covering a scanned word with a box only: the pixels stay in the image, and the OCR crops are cut from it.
+- Escaping the text at the safety net, as `Session.mask` does: the redaction's real `[PERSON_1]` would become a literal and never be restored.
+- Masking text inside pictures before the OCR call: it needs OCR of every crop first; the safety net catches what the model writes instead.
+
+Known limits: RapidOCR took 5 to 8 s on a dense scanned page on a laptop (the epic expected 1 to 2 s), and Docling reads the page again; measure on EC2. A full-page photo is read as a scanned page. A name RapidOCR misreads is not matched. Text inside a picture still reaches the OCR model.
+
+Stories: PV-06, PV-05, PV-04.

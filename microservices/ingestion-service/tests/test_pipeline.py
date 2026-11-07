@@ -14,8 +14,10 @@ import pytest
 
 from app import pipeline
 from app.pipeline import sections as report
+from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.parser import CapturedItem, ParsedDocument
+from app.privacy import PrivacyUnavailable
 
 
 def _parsed(tables=0, images=0) -> ParsedDocument:
@@ -53,7 +55,7 @@ def _install_fakes(monkeypatch, parsed, calls, *, chunks=None, sections=None):
         calls.append(("chunk", parsed_arg))
         return chunks
 
-    def fake_anonymise(chunk_list):
+    def fake_anonymise(chunk_list, protection=None):
         calls.append(("anonymise", chunk_list))
         return chunk_list
 
@@ -341,3 +343,66 @@ def test_only_documents_that_may_name_a_client_are_redacted(
     assert (parsed_from != [original]) is redacted
     assert summary["privacy"]["enabled"] is redacted
     assert bool(summary["mapping"]) is redacted
+
+
+@pytest.mark.parametrize(
+    ("source_type", "protected"), [("marsh_report", True), ("nfpa_standard", False)]
+)
+def test_a_redacted_reports_pictures_are_read_with_its_privacy_session(
+    monkeypatch, tmp_path, fake_privacy, source_type, protected
+):
+    # PV-06: the chunker blurs faces in picture crops with it; a standard's are left as they are.
+    sessions = []
+    _install_fakes(monkeypatch, _parsed(), [])
+    monkeypatch.setattr(pipeline, "parse", lambda path, **_: _parsed())
+
+    def chunk(_parsed, protection=None, **_):
+        sessions.append(protection)
+        return []
+
+    monkeypatch.setattr(pipeline, "chunk", chunk)
+
+    pipeline.run(
+        _report_pdf(tmp_path), labels={**LABELS, "source_type": source_type}, privacy=PRIVACY
+    )
+
+    [protection] = sessions
+    assert (protection is not None and protection.enabled) is protected
+
+
+def test_a_number_read_from_a_picture_is_masked_before_embedding(
+    monkeypatch, tmp_path, fake_privacy
+):
+    # PV-06's acceptance: the safety net catches what only the OCR model saw.
+    calls = []
+    picture = {
+        "id": "survey:picture:0",
+        "text": "[PERSON_1] beside a sign: Call +65 6123 4567.",
+        "metadata": {"doc_name": "survey.pdf"},
+    }
+    _install_fakes(monkeypatch, _parsed(), calls, chunks=[picture])
+    monkeypatch.setattr(pipeline, "anonymise", anonymise)  # the real one, privacy faked
+
+    summary = pipeline.run(_report_pdf(tmp_path), labels=LABELS, privacy=PRIVACY)
+
+    [indexed] = [c[1] for c in calls if c[0] == "index"]
+    assert [c["text"] for c in indexed] == ["[PERSON_1] beside a sign: Call [PHONE_1]."]
+    assert summary["mapping"] == {"[PERSON_1]": "John Tan", "[PHONE_1]": "+65 6123 4567"}
+
+
+def test_when_the_safety_net_cannot_mask_nothing_is_indexed(monkeypatch, tmp_path, fake_privacy):
+    # A guard, passing when first run: the safety net fails closed, as the redaction does.
+    calls = []
+    _install_fakes(monkeypatch, _parsed(), calls)
+    monkeypatch.setattr(pipeline, "anonymise", anonymise)
+
+    def chunk(_parsed, **_):
+        fake_privacy.failure = 503  # privacy-service goes down after the redaction
+        return [{"id": "survey:0", "text": "Call +65 6123 4567.", "metadata": {}}]
+
+    monkeypatch.setattr(pipeline, "chunk", chunk)
+
+    with pytest.raises(PrivacyUnavailable):
+        pipeline.run(_report_pdf(tmp_path), labels=LABELS, privacy=PRIVACY)
+
+    assert [c for c in calls if c[0] == "index"] == []

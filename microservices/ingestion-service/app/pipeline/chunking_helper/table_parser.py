@@ -16,6 +16,9 @@ Text-layer fallback: when every OCR answer was refused, cut off or invalid
 (OcrAnswerUnusable), the table's rows are read from the PDF text instead, one
 record per row without headings. A region with no text layer, or with fewer than
 `MIN_FALLBACK_ROWS` rows, stays unread.
+
+With protection on, faces in the crop are blurred first (PV-06): on a scanned page a "table"
+region can take in a photo beside it.
 """
 
 import logging
@@ -28,6 +31,7 @@ from app.pipeline.chunking_helper.ocr_model import recognise
 from app.pipeline.chunking_helper.page_cache import PDF_LOCK, load_document
 from app.pipeline.chunking_helper.table_text import TableText, render_tables
 from app.pipeline.errors import OcrAnswerUnusable
+from app.privacy import Session
 
 log = logging.getLogger(__name__)
 
@@ -91,11 +95,15 @@ def _read_text_layer(bbox, page: int, file_path: str, coord_origin: str) -> str 
     return render_tables([TableText(records=rows)])
 
 
-def parse_table(bbox, page: int, file_path: str, coord_origin: str = "") -> str | None:
+def parse_table(
+    bbox, page: int, file_path: str, coord_origin: str = "", protection: Session | None = None
+) -> str | None:
     """Crop one table region and return its record text, or None.
     Returns None when the region cannot be cropped (page out of range,
     degenerate rect) or when OCR returned nothing. The caller drops the table
-    rather than indexing an empty chunk.
+    rather than indexing an empty chunk. With `protection` on, faces in the crop
+    are blurred before it is sent; PrivacyUnavailable is raised, and nothing
+    sent, if that fails.
     """
     with PDF_LOCK:
         document = load_document(file_path)
@@ -107,6 +115,8 @@ def parse_table(bbox, page: int, file_path: str, coord_origin: str = "") -> str 
             clip=pymupdf.Rect(*convert_bbox(bbox, page_obj, coord_origin))
         )
 
+    if protection:
+        [image_png] = protection.redact_images([image_png])
     try:
         reading = recognise(image_png, task="table", raise_if_unusable=True)
     except OcrAnswerUnusable:

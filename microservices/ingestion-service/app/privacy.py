@@ -1,10 +1,14 @@
-"""Client details masked before ingestion sends a document's text anywhere (PV-05), through
-privacy-service. A copy of rag-service's and speech-ocr-service's client, as the epic allows."""
+"""Client details masked before ingestion sends a document's text anywhere (PV-05), and faces
+blurred in its picture crops (PV-06), through privacy-service. A copy of rag-service's and
+speech-ocr-service's client, as the epic allows."""
 
+import base64
 import os
 import re
 
+import cv2
 import httpx
+import numpy as np
 
 PRIVACY_SERVICE_URL = os.getenv("PRIVACY_SERVICE_URL", "http://localhost:8004")
 PRIVACY_TIMEOUT = float(os.getenv("PRIVACY_TIMEOUT", "10"))
@@ -33,6 +37,9 @@ _LITERAL = re.compile(r"\[?\bLITERAL_(\d+)\b\]?", re.IGNORECASE)
 _PLACEHOLDER_SHAPED = re.compile(
     rf"\[?\b({'|'.join((*TYPES, 'LITERAL'))})_(\d+)\b\]?", re.IGNORECASE
 )
+
+
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 class PrivacyUnavailable(Exception):
@@ -78,10 +85,26 @@ class Session:
             return list(texts)
         return self._mask([self.escape(t) for t in texts])["texts"]
 
+    def mask_tagged(self, texts: list[str]) -> list[str]:
+        """`texts`, read from a redacted copy, with any detail still in them masked, in one
+        /mask call (PV-06). Not escaped: their tags are this document's own, and keep their
+        meaning; new details continue its mapping."""
+        if not self.enabled:
+            return list(texts)
+        return self._mask(texts)["texts"]
+
     def mask_spans(self, texts: list[str]) -> list[list[dict]]:
         """Where each client detail in `texts` sits, `{start, end, placeholder}` per detail, in
         one /mask call. The caller escapes `texts` first (`escape`), keeping its offsets."""
         return self._mask(texts)["spans"]
+
+    def redact_images(self, images: list[bytes]) -> list[bytes]:
+        """`images` (PNG) with every face blurred, in one /redact-image call (PV-06)."""
+        if not self.enabled or not images:
+            return list(images)
+        encoded = [base64.b64encode(image).decode("ascii") for image in images]
+        body = self._post("/redact-image", {"images": encoded})
+        return [_png(base64.b64decode(image)) for image in body["images"]]
 
     def provenance(self) -> dict:
         """What the ingestion job records (Rule 8): never the mapping itself."""
@@ -104,19 +127,26 @@ class Session:
     def _mask(self, texts: list[str]) -> dict:
         """privacy-service's answer for `texts`. The mapping so far goes back, so one mapping
         covers the document (Rule 2)."""
+        body = self._post(
+            "/mask",
+            {
+                "texts": texts,
+                "known_entities": self.known_entities,
+                "mapping": self.mapping,
+                **({"detect": self.detect} if self.detect else {}),
+            },
+        )
+        self.mapping = body["mapping"]
+        return body
+
+    @staticmethod
+    def _post(path: str, payload: dict) -> dict:
+        """privacy-service's answer to one request."""
         # Fail closed (Rule 3): on any failure the document fails; raw text is never the fallback.
         # The message names no value from the document (Rule 5), in rag-service's wording.
         try:
             with _client() as client:
-                response = client.post(
-                    "/mask",
-                    json={
-                        "texts": texts,
-                        "known_entities": self.known_entities,
-                        "mapping": self.mapping,
-                        **({"detect": self.detect} if self.detect else {}),
-                    },
-                )
+                response = client.post(path, json=payload)
             response.raise_for_status()
         except httpx.TimeoutException as error:
             raise PrivacyUnavailable(
@@ -129,9 +159,16 @@ class Session:
                 "available, so nothing was sent or indexed. If this keeps happening, tell your "
                 "administrator."
             ) from error
-        body = response.json()
-        self.mapping = body["mapping"]
-        return body
+        return response.json()
+
+
+def _png(image: bytes) -> bytes:
+    """`image` as PNG: privacy-service answers a picture with a face as JPEG, and the OCR
+    providers send every crop as image/png."""
+    if image.startswith(_PNG_SIGNATURE):
+        return image
+    decoded = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    return cv2.imencode(".png", decoded)[1].tobytes()
 
 
 def for_document(document_id: str) -> dict:

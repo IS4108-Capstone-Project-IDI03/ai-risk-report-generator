@@ -2,11 +2,14 @@
 the OCR crops, embedding and storage all read tags. privacy-service is faked (`fake_privacy`);
 PDFs are built with pymupdf and read back as text."""
 
+from functools import cache
 from pathlib import Path
 
 import httpx
+import numpy as np
 import pymupdf
 import pytest
+from rapidocr import RapidOCR
 
 from app.pipeline import redactor
 from app.pipeline.redactor import redact_pdf
@@ -227,3 +230,105 @@ def test_a_word_drawn_in_two_pieces_reaches_mask_as_one_word(fake_privacy):
     redact_pdf(doc.tobytes(), session(PRIVACY))
 
     assert fake_privacy.requests[0]["texts"][0].split() == ["Sprinkler", "Test"]
+
+
+# --- PV-06: a scanned page (no text layer) is read with RapidOCR, and its details blanked.
+
+
+def scanned_pdf_of(*pages: list[str], size: float = 14, spacing: float = 40) -> bytes:
+    """A PDF whose pages are images of text only, as a scanner makes: no text layer. Lines
+    are `spacing` points apart, in `size` point text."""
+    doc = pymupdf.open()
+    for lines in pages:
+        with pymupdf.open() as source:
+            typed = source.new_page()
+            for n, line in enumerate(lines):
+                typed.insert_text((50, 100 + spacing * n), line, fontsize=size)
+            image = typed.get_pixmap(dpi=150)
+        doc.new_page().insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=image)
+    return doc.tobytes()
+
+
+@cache
+def _reader() -> RapidOCR:
+    return RapidOCR()
+
+
+def ocr_of(image: pymupdf.Pixmap) -> str:
+    """What RapidOCR reads in `image`, one space between words."""
+    pixels = np.frombuffer(image.samples, np.uint8).reshape(image.height, image.width, image.n)
+    return " ".join(" ".join(_reader()(pixels).txts or ()).split())
+
+
+def scanned_text_of(pdf: bytes) -> list[str]:
+    """Each page as RapidOCR reads it when rendered."""
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return [ocr_of(page.get_pixmap(dpi=200)) for page in doc]
+
+
+def test_a_name_on_a_scanned_page_is_replaced_by_its_tag(fake_privacy):
+    pdf = scanned_pdf_of(["Inspected by John Tan on 3 May."])
+
+    redacted, mapping = redact_pdf(pdf, session(PRIVACY))
+
+    [page] = scanned_text_of(redacted)
+    assert "John" not in page and "Tan" not in page
+    assert "PERSON_1" in page and page.startswith("Inspected by")
+    assert mapping == {"[PERSON_1]": "John Tan"}
+
+
+def test_a_name_on_a_scanned_page_is_gone_from_the_image_not_just_covered(fake_privacy):
+    # A guard, passing when first run, and seen failing with the image left as it was
+    # (PDF_REDACT_IMAGE_NONE): the white box alone hides the name, but its pixels stay.
+    pdf = scanned_pdf_of(["Inspected by John Tan on 3 May."])
+
+    redacted, _ = redact_pdf(pdf, session(PRIVACY))
+
+    with pymupdf.open(stream=redacted, filetype="pdf") as doc:
+        [(xref, *_)] = doc[0].get_images()
+        image = pymupdf.Pixmap(doc, xref)
+    assert "Inspected by" in ocr_of(image)
+    assert "John" not in ocr_of(image)
+
+
+def test_typed_and_scanned_pages_share_one_mask_call_and_one_numbering(fake_privacy):
+    # A guard, passing when first run: scanned pages' text joins the document's one call.
+    typed = pymupdf.open(stream=pdf_of(["Mary Lim met us."]), filetype="pdf")
+    typed.insert_pdf(pymupdf.open(stream=scanned_pdf_of(["John Tan and Mary Lim"]), filetype="pdf"))
+
+    redacted, mapping = redact_pdf(typed.tobytes(), session(PRIVACY))
+
+    assert text_of(redacted)[0] == "[PERSON_1] met us."
+    assert scanned_text_of(redacted)[1] == "[PERSON_2] and [PERSON_1]"
+    assert mapping == {"[PERSON_1]": "Mary Lim", "[PERSON_2]": "John Tan"}
+    assert len(fake_privacy.requests) == 1
+
+
+def image_streams(pdf: bytes) -> list[bytes]:
+    """Each page's image, decoded (saving may compress it)."""
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return [doc.xref_stream(xref) for page in doc for xref, *_ in page.get_images()]
+
+
+def test_a_scanned_page_without_a_detail_keeps_its_image_as_it_was(fake_privacy):
+    # A guard, passing when first run: only a page with a detail is blanked.
+    pdf = scanned_pdf_of(["The pump room was dry."])
+
+    redacted, mapping = redact_pdf(pdf, session(PRIVACY))
+
+    assert image_streams(redacted) == image_streams(pdf)
+    assert text_of(redacted) == [""]  # nothing drawn over it
+    assert mapping == {}
+
+
+def test_blanking_a_detail_in_small_tight_text_leaves_the_line_above_readable(fake_privacy):
+    # Found on a real scan (a diagram's notes): the padded box reached into the line above.
+    lines = ["Car porch can protrude", "John Tan into the road"]
+    pdf = scanned_pdf_of(lines, size=12, spacing=14)
+    assert scanned_text_of(pdf) == [" ".join(lines)]  # readable before
+
+    redacted, _ = redact_pdf(pdf, session(PRIVACY))
+
+    [page] = scanned_text_of(redacted)
+    assert page.startswith("Car porch can protrude")
+    assert "John" not in page and "Tan" not in page
