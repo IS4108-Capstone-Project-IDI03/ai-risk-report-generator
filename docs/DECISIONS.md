@@ -2261,13 +2261,13 @@ Stories: CP-22.
 ## 2026-11-07 — Scanned pages are redacted with RapidOCR; picture crops are blurred; passage text is masked again before embedding
 
 Chose:
-- (PV-06) With `PII_PROTECTION=required`, a past report's scanned pages are redacted before parsing too. A page with no text layer but an image is read with RapidOCR's word boxes; its words join the document's one `/mask` call; each detail's words are blanked in the page image (not only covered), padded by 15% of the word's height, and its tag is drawn in their place.
+- (PV-06) With `PII_PROTECTION=required`, a past report's scanned pages are redacted before parsing too. A page with no text layer but an image is read with RapidOCR's word boxes; its words join the document's one `/mask` call; each detail's words are blanked in the page image (not only covered), padded by 15% of the word's height but never into a word that stays, and its tag is drawn in their place.
 - RapidOCR, not Tesseract as the epic planned: it is already installed (`docling[rapidocr]`, 3.9.2, with `return_word_box`), it is the engine Docling reads the redacted page with, and it needs no apt package or Windows binary.
-- Faces in picture crops are blurred in `parse_picture`, not `recognise()` as the epic planned: every picture reading goes through it (a table read as pictures too), and `recognise()` serves tables and formulas, which would all need the session. privacy-service's `/redact-image` (PV-04) does the blurring; a blurred crop comes back as JPEG and is turned into PNG, which the OCR providers send.
+- Faces in picture and table crops are blurred in `parse_picture` and `parse_table`, not `recognise()` as the epic planned: `recognise()` also serves formulas, which need no blurring. Table crops are blurred too because, on a scanned page, a region Docling calls a table can take in a photo beside it (found on a real scan). privacy-service's `/redact-image` (PV-04) does the blurring; a blurred crop comes back as JPEG and is turned into PNG, which the OCR providers send.
 - The post-chunk `anonymise` stage is the safety net: a redacted report's passage text goes through `/mask` again, not escaped (its tags are its own), continuing the document's mapping, which is saved whole in `privacyMapping`.
 - Everything fails closed, as redaction does.
 
-Reason: PV-05 left a scanned page readable, sent picture crops with faces to the OCR model, and embedded whatever the OCR model read off a picture.
+Reason: PV-05 left a scanned page readable, sent picture and table crops with faces to the OCR model, and embedded whatever the OCR model read off a picture.
 
 Rejected:
 - Tesseract: an extra system package for word boxes RapidOCR already gives.
