@@ -123,7 +123,7 @@ def spy_parse_table(monkeypatch):
     """Record the arguments `_extract_table_chunk` forwards to the parser."""
     calls: list[dict] = []
 
-    def _parse_table(bbox, page, file_path, coord_origin=""):
+    def _parse_table(bbox, page, file_path, coord_origin="", protection=None):
         calls.append(
             {"bbox": bbox, "page": page, "file_path": file_path, "coord_origin": coord_origin}
         )
@@ -318,7 +318,7 @@ def test_chunk_removes_seen_bboxes_from_a_later_mixed_chunk(monkeypatch):
 def test_partially_decoded_table_keeps_the_readable_pages(monkeypatch):
     """One unreadable page must not discard the pages that did decode."""
 
-    def _parse_table(bbox, page, file_path, coord_origin=""):
+    def _parse_table(bbox, page, file_path, coord_origin="", protection=None):
         return "| table p4 |" if page == 4 else None
 
     monkeypatch.setattr(chunker, "parse_table", _parse_table)
@@ -340,7 +340,7 @@ def test_first_ten_page_table_of_contents_leaders_are_removed(monkeypatch):
     dl_chunk = _chunk(_table_item(_prov(3, 10, 300, 200, 100)))
     boxes = chunker._detect_bboxes(chunker.DocItemLabel.TABLE, dl_chunk)
 
-    def _parse_table(bbox, page, file_path, coord_origin=""):
+    def _parse_table(bbox, page, file_path, coord_origin="", protection=None):
         return (
             "Risk Overview ......... 5\n"
             "Fire-resistant - - - 12\n"
@@ -364,7 +364,7 @@ def test_eleventh_page_tables_keep_repeated_characters(monkeypatch):
     dl_chunk = _chunk(_table_item(_prov(11, 10, 300, 200, 100)))
     boxes = chunker._detect_bboxes(chunker.DocItemLabel.TABLE, dl_chunk)
 
-    def _parse_table(bbox, page, file_path, coord_origin=""):
+    def _parse_table(bbox, page, file_path, coord_origin="", protection=None):
         return "Appendix ......... 12"
 
     monkeypatch.setattr(chunker, "parse_table", _parse_table)

@@ -7,11 +7,14 @@ without a model or a network. A one-page PDF is generated per test.
 
 import logging
 
+import cv2
+import numpy as np
 import pymupdf
 import pytest
 
 from app.pipeline.chunking_helper import page_cache, table_parser
 from app.pipeline.errors import OcrAnswerUnusable
+from app.privacy import session
 
 PAGE_WIDTH = 300
 PAGE_HEIGHT = 400
@@ -204,3 +207,22 @@ def test_with_no_table_in_the_pdf_text_the_table_stays_unread(rows_pdf, monkeypa
 
     assert result is None
     assert "the table is left unread" in caplog.text
+
+
+# --- PV-06: a table crop can hold a photo (a scanned page's collage), so faces are blurred.
+
+
+def test_with_protection_the_ocr_model_reads_the_table_crop_with_faces_blurred(
+    pdf_path, fake_recognise, fake_privacy
+):
+    blurred = cv2.imencode(".jpg", np.full((20, 20, 3), (0, 0, 255), np.uint8))[1].tobytes()
+    fake_privacy.blurred = blurred
+
+    parse(pdf_path, protection=session({"enabled": True, "known_entities": []}))
+
+    [request] = fake_privacy.requests
+    assert len(request["images"]) == 1
+    [call] = fake_recognise
+    pixel = cv2.imdecode(np.frombuffer(call["image"], np.uint8), cv2.IMREAD_COLOR)[10, 10]
+    assert pixel[2] > 240 and pixel[0] < 15 and pixel[1] < 15  # the blurred copy (red)
+    assert call["image"].startswith(b"\x89PNG")

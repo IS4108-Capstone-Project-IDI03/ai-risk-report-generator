@@ -556,6 +556,7 @@ def _extract_table_chunk(
             page=box["page"],
             file_path=doc_path,
             coord_origin=box.get("coord_origin", ""),
+            protection=protection,
         )
         if parsed and any(table.records for table in split_tables(parsed)):
             readings.append(parsed)

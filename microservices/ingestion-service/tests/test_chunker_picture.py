@@ -348,3 +348,21 @@ def test_a_picture_whose_faces_cannot_be_blurred_fails_the_document(monkeypatch)
 
     with pytest.raises(PrivacyUnavailable):
         _chunk(doc, protection=session({"enabled": True, "known_entities": []}))
+
+
+def test_every_table_reading_gets_the_documents_privacy_session(monkeypatch):
+    # PV-06: a table crop on a scanned page can take in a photo, so its faces are blurred too.
+    sessions = []
+
+    def _parse_table(protection=None, **_):
+        sessions.append(protection)
+        return "Agent: FM-200; Qty: 2"
+
+    monkeypatch.setattr(chunker, "parse_table", _parse_table)
+    protection = session({"enabled": True, "known_entities": []})
+    doc = _document()
+    _table(doc, (10, 370, 290, 200))
+
+    _chunk(doc, protection=protection)
+
+    assert sessions == [protection]
