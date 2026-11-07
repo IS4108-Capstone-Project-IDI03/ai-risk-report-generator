@@ -375,6 +375,79 @@ export async function addPhoto(
   return dto(reference, walk._id)
 }
 
+// Puts a failed recording back to queued and queues it again with a fresh job
+// id. A recording in any other state is left as it is, so a double press of
+// Retry queues it once. Without the status match in the update, two presses
+// could queue it twice.
+export async function retryRecording(
+  reference: string,
+  walkId: string,
+  seq: number,
+  user: SessionUser,
+) {
+  const { walk } = await loadWalk(reference, walkId, user, true)
+  if (!walk.recordings.some((r) => r.seq === seq)) throw new SiteWalkNotFoundError()
+  const reset = await SiteWalkModel.updateOne(
+    {
+      _id: walk._id,
+      status: 'recording',
+      recordings: { $elemMatch: { seq, 'transcription.status': 'failed' } },
+    },
+    {
+      $set: { 'recordings.$.transcription.status': 'queued' },
+      $unset: { 'recordings.$.transcription.error': 1 },
+    },
+  )
+  if (reset.modifiedCount) await queueTranscription(walk._id, seq, true)
+  return dto(reference, walk._id)
+}
+
+// Removes one recording and the photos' link to it (they stay in the walk), then
+// its stored file. Already gone returns the walk as it is. A transcription job
+// still running for it ends quietly: its saves match nothing (see transcribeRecording).
+export async function removeRecording(
+  reference: string,
+  walkId: string,
+  seq: number,
+  user: SessionUser,
+) {
+  const { walk } = await loadWalk(reference, walkId, user, true)
+  const recording = walk.recordings.find((r) => r.seq === seq)
+  // Runs even if the recording never reached the server (a refused clip that was binned):
+  // a photo may still point at its seq, and the proposal check fails on a missing seq.
+  const removed = await SiteWalkModel.updateOne(
+    { _id: walk._id, status: 'recording' },
+    {
+      $pull: { recordings: { seq } },
+      $set: { 'photos.$[p].recordingSeq': null, 'photos.$[p].offsetSec': null },
+    },
+    { arrayFilters: [{ 'p.recordingSeq': seq }] },
+  )
+  if (!recording) return dto(reference, walk._id)
+  if (!removed.modifiedCount) throw new SiteWalkStateError(WHILE_RECORDING)
+  await storage.deleteObject(recording.key).catch(() => undefined)
+  return dto(reference, walk._id)
+}
+
+// Removes one photo and its stored file. Already gone returns the walk as it is.
+export async function removePhoto(
+  reference: string,
+  walkId: string,
+  photoId: string,
+  user: SessionUser,
+) {
+  const { walk } = await loadWalk(reference, walkId, user, true)
+  const photo = walk.photos.find((p) => p.photoId === photoId)
+  if (!photo) return toSiteWalkDto(reference, walk)
+  const removed = await SiteWalkModel.updateOne(
+    { _id: walk._id, status: 'recording' },
+    { $pull: { photos: { photoId } } },
+  )
+  if (!removed.modifiedCount) throw new SiteWalkStateError(WHILE_RECORDING)
+  await storage.deleteObject(photo.key).catch(() => undefined)
+  return dto(reference, walk._id)
+}
+
 // Parses the typed walk's body into its text.
 export const typedTextSchema = z.object({
   text: z
@@ -819,7 +892,7 @@ async function transcribeRecording(walkId: string, seq: number) {
 // Marks the recording failed with the reason, and the walk too once finished.
 async function markRecordingFailed(walkId: string, seq: number, error: unknown) {
   const reason = error instanceof Error ? error.message : 'Transcription failed.'
-  await SiteWalkModel.updateOne(
+  const marked = await SiteWalkModel.updateOne(
     { _id: walkId, 'recordings.seq': seq },
     {
       $set: {
@@ -828,6 +901,9 @@ async function markRecordingFailed(walkId: string, seq: number, error: unknown) 
       },
     },
   )
+  // Removed while its job ran. Without this the walk would fail, and the bell would ring,
+  // over a recording that no longer exists.
+  if (!marked.matchedCount) return
   const failed = await SiteWalkModel.updateOne(
     { _id: walkId, status: 'transcribing' },
     { status: 'failed', error: FAILED_RECORDING(seq, reason) },

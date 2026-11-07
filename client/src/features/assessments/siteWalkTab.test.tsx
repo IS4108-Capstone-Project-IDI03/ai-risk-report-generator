@@ -343,7 +343,10 @@ describe('An observation created from a site walk proposal', () => {
     await openObservations()
     const fromWalk = (await screen.findByText('Hose reel blocked by pallets.')).closest('button')!
     const byHand = screen.getByText('Exit sign out.').closest('button')!
-    expect(within(fromWalk).getByText('From site walk')).toBeInTheDocument()
+    // An icon-only mark (screen-reader label) on the category tile's corner, not a pill in the text.
+    const mark = within(fromWalk).getByText('From site walk')
+    expect(mark.closest('.ob-cat-flag')).not.toBeNull()
+    expect(mark.closest('.ob-row-text')).toBeNull()
     expect(within(byHand).queryByText('From site walk')).toBeNull()
 
     fireEvent.click(fromWalk)

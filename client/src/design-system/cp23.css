@@ -503,16 +503,13 @@
   min-width: 120px;
 }
 
-/* Toast: the icon shares the first text line's centre. One line (even with an action button
-   that makes the row taller): centred with it; with a description under it: at the top. */
+/* Toast: the icon is centred in the toast's height, one line or two (board 03 of the
+   Sprint 4 fixes). */
 .ds-toast-icon {
   align-self: center;
   align-items: center;
   height: 19px;
   margin-top: 0;
-}
-.ds-toast:has([data-description]) .ds-toast-icon {
-  align-self: flex-start;
 }
 /* Touch: 44 px to press (v2 "Phone"), with the toast's small look kept by invisible hit areas.
    Undo grows up and down only; its left and right are wide enough, and the close sits beside it. */

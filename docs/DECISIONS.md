@@ -2244,3 +2244,16 @@ Rejected:
 Known limits: scanned pages and pictures' faces wait for PV-06. A PDF made in fonts other than Liberation Sans shows Liberation Sans on its redacted pages. A false positive in a mapping is masked in later requests too, so `allow_list.json` matters more. The IN-07 comparison shows tags. Redaction measured 0.75 to 1.2 s a page on a busy laptop, against a target under 1 s; measure on EC2.
 
 Stories: PV-05, PV-01, PV-02, PV-03, IN-05, IN-07.
+
+## 2026-11-07 — Site walk uploads are converted on arrival, and removal waits on the device
+
+Chose: the gateway turns any accepted photo into a JPEG and any recording Whisper can't read into `.m4a` when it arrives, using `sharp`, `heic-convert` and `ffmpeg-static`. Removing a photo, recording or note hides it at once and deletes it after a 10 second Undo, or at once on Finish or on leaving the screen.
+
+Reason: everything stored stays in a format the viewer, photo reading and report export already handle, so nothing downstream changes. Waiting on the device needs no new stored state, and a removed item is never left half in a proposal; if the tab closes first, the item simply stays.
+
+Rejected:
+- Storing the original format and converting when read: every reader would need to handle it.
+- A `removed` flag on the walk: every reader of a walk's recordings and photos would have to check it.
+- Raising the 100 MB upload limit for a long uncompressed WAV: it needs a change to EC2's nginx.
+
+Stories: CP-22.

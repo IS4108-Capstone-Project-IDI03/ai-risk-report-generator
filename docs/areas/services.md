@@ -38,6 +38,22 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
   uses the description to match the photo to a finding.
 - S5 still writes nothing to MongoDB.
 
+### Site walk uploads (gateway, CP-22)
+
+Only `PUT .../site-walks/:id/photos/:photoId` and `.../recordings/:seq` take these formats, through
+`media-form.ts` and `media-convert.service.ts`. Every other upload route stays JPG and PNG.
+
+- Photos: JPG and PNG are stored byte for byte. HEIC, HEIF, WebP, AVIF, GIF, TIFF and BMP become a
+  JPEG, so everything stored stays JPG or PNG and nothing downstream changes. 20 MB limit.
+- Recordings: a format Whisper reads (WebM, Ogg, MP4, M4A, MP3, WAV, FLAC) up to 25 MB is stored byte
+  for byte. Anything else becomes mono AAC in `.m4a`. 100 MB limit before conversion, 25 MB after,
+  20 minutes long. The length comes from the file, not the client.
+- The bytes are untrusted: the format is read from them, never from the name or reported type. ffmpeg
+  runs without a shell, limited to audio demuxers and local files, and is killed after 120 s.
+- `POST .../recordings/:seq/retry` re-queues a failed recording, with no limit on tries.
+- `DELETE .../recordings/:seq` and `.../photos/:photoId` remove the item and its stored file while the
+  walk is recording. The client waits out a 10 s Undo before calling them, and Finish waits for them.
+
 ## Reading an observation (S5, CP-05, CP-21)
 
 An engineer can ask for any observation to be read. The model proposes, in

@@ -102,7 +102,16 @@ export function NewAssessment({
       </div>
       <div className="na-body">
         {formShown ? (
-          <NewAssessmentForm f={f} enter={mode === 'documents'} readNothing={readNothing} />
+          <NewAssessmentForm
+            f={f}
+            enter={mode === 'documents'}
+            readNothing={readNothing}
+            rejected={
+              intake.phase === 'ready'
+                ? intake.files.filter((x) => x.status === 'refused' || x.status === 'failed')
+                : []
+            }
+          />
         ) : intake.phase === 'idle' ? (
           <div className="na-start">
             <UploadArea onAdd={add} />

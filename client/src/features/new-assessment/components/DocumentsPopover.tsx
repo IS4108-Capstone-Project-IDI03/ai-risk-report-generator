@@ -57,7 +57,7 @@ export function DocumentsPopover({ f }: { f: NewAssessmentForm }) {
           <Icon name="paperclip" size={16} />
           <span className="na-docs-word">{'Documents'}</span>
           {!!docs.length && <span className="na-count">{docs.length}</span>}
-          <Icon name="chevron-down" size={16} />
+          <Icon name="chevron-down" size={16} className="na-docs-chev" />
         </button>
       }
     >

@@ -147,10 +147,6 @@
   cursor: default;
   opacity: 0.4;
 }
-/* Keeps its slot so the controls don't jump when recording starts. */
-.sw-control--idle {
-  visibility: hidden;
-}
 .sw-control--main .sw-control-icon,
 .sw-control--main:hover:not(:disabled) .sw-control-icon {
   width: 76px;
@@ -405,12 +401,6 @@
   margin: 0 0 8px;
   font-weight: 600;
 }
-.sw-photostrip button {
-  width: 88px;
-  height: 88px;
-  border-radius: 16px;
-  box-shadow: var(--sw-shadow-sm);
-}
 .sw-composer {
   padding: 14px;
   border-radius: 20px;
@@ -418,18 +408,32 @@
   box-shadow: var(--sw-shadow-sm);
 }
 
-/* Walk list: a card; the status icon sits on the right */
+/* Walk list: a card; each row's status is on its second line */
 .sw-list {
+  /* Without this the phone's scrolling column squeezes the card to nothing (overflow: hidden lets it shrink). */
+  flex-shrink: 0;
   border-radius: 20px;
   background: var(--graphite-0);
   box-shadow: var(--sw-shadow-sm);
   overflow: hidden;
 }
 .sw-status-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 2px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+.sw-status-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sw-status-word--failed {
+  color: var(--red-600);
+  font-weight: 600;
 }
 .sw-transcript {
   padding: 10px 12px;
@@ -438,37 +442,8 @@
   color: var(--text-primary);
   line-height: 1.5;
 }
-.sw-state {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--sw-fill);
-  color: var(--text-secondary);
-}
-.sw-state--done {
-  background: var(--status-low-bg);
-  color: var(--status-low-fg);
-}
-.sw-state--failed {
-  background: rgb(229 55 43 / 0.12);
-  color: var(--red-600);
-}
-.sw-state--device {
-  color: var(--marsh-navy);
-}
-.sw-state--sending > svg,
-.sw-state--transcribing > svg {
-  animation: sw-spin 1.2s linear infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .sw-record .sw-rec-dot,
-  .sw-state--sending > svg,
-  .sw-state--transcribing > svg {
+  .sw-record .sw-rec-dot {
     animation: none;
   }
   .sw-record,

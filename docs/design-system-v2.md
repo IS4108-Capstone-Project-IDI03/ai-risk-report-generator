@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.2
+# Risk Report Generator design system, v2.5
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -11,7 +11,7 @@ The look every new screen follows: calm, Apple-like screens, white cards on a pa
 
 Jesper builds and checks every screen with these agent skills. Install the same ones so your agent follows the same rules. Sources come from the local install records; where none is recorded it says so.
 
-**From `emilkowalski/skills`** (https://github.com/emilkowalski/skills)
+**From** `emilkowalski/skills` (https://github.com/emilkowalski/skills)
 
 - `apple-design`: the Apple feel (type, materials, springs, restraint). Used on every UI change.
 - `emil-design-eng`: judges polish and the small details that make a screen feel right.
@@ -25,13 +25,9 @@ Jesper builds and checks every screen with these agent skills. Install the same 
 - `animation-performance`: fixes janky or costly animation (blur, big areas).
 - `ask-sonner`: Sonner toast setup and styling, for the Toast component. Docs: https://sonner.emilkowal.ski
 
-**From `pbakaus/impeccable`** (https://github.com/pbakaus/impeccable)
+**From** `pbakaus/impeccable` (https://github.com/pbakaus/impeccable)
 
 - `impeccable`: build new UI, then audit, critique and polish it. Used on every frontend change.
-
-**From `Leonxlnx/taste-skill`** (https://github.com/Leonxlnx/taste-skill)
-
-- `design-taste-frontend` (optional): keeps pages from looking templated. Mostly for new public pages.
 
 **Other sources**
 
@@ -87,53 +83,53 @@ The point of this system is **consistency**. The same kind of information looks 
 
 Existing code tokens (`client/src/design-system/tokens/colors.css`) are reused; the two **new** ones are marked.
 
-| Role | Token | Value | Use |
-|---|---|---|---|
-| Navy | `--marsh-navy` | #000f47 | Primary buttons, page and card titles |
-| Marsh blue | `--report-navy` | #002c77 | Avatars, First survey tile text. Alternative button colour to try later |
-| Blue tint | `--ink-50` | #e9f2fe | Soft fills, jurisdiction chip, First survey tile |
-| Blue tint, strong | `--ink-100` | #d3e6fb | Counts, selected tag |
-| Blue text | `--ink-600` | #2c5488 | Jurisdiction chip text, Word file tile |
-| Page | `--graphite-50` | #f7f9fc | Behind every screen |
-| Fill | `--graphite-100` | #eef1f6 | Filter pills, search field, dividers inside tables, skeletons |
-| Border | `--graphite-200` | #e0e5ec | Cards and fields |
-| Text | `--graphite-900` | #1a1f26 | Body text, values |
-| Label | `--graphite-700` | #3d4550 | Field labels, table heads, status words |
-| Muted | `--graphite-600` | #545e6b | Secondary text, icon buttons, the fix part of an error |
-| Placeholder | `--graphite-400` | #a3aebb | Empty fields, waiting circles |
-| Red | `--red-600` / `--red-50` | #ad2e2d / #fdeae8 | Late dates, error words and their icon only. PDF tile |
-| Amber | `--amber-600` / `--amber-50` | #8f5f13 / #fdf1d8 | Due within 7 days, not-sure fields, Follow-up tile |
-| Green | `--green-600` | #2f7049 | Done tick, New badge text, success toast icon |
-| Green tint **(new)** | `--green-50` | #e6f4ea | New badge background |
-| Teal **(new)** | `--teal-600` / `--teal-50` | #016d9e / #dff4f8 | Facility chip, Resurvey tile |
-| Violet | `--violet-600` / `--violet-50` | #6258a3 / #eeecfb | Draft status, email file tile |
+| Role                 | Token                          | Value             | Use                                                                     |
+| -------------------- | ------------------------------ | ----------------- | ----------------------------------------------------------------------- |
+| Navy                 | `--marsh-navy`                 | #000f47           | Primary buttons, page and card titles                                   |
+| Marsh blue           | `--report-navy`                | #002c77           | Avatars, First survey tile text. Alternative button colour to try later |
+| Blue tint            | `--ink-50`                     | #e9f2fe           | Soft fills, jurisdiction chip, First survey tile                        |
+| Blue tint, strong    | `--ink-100`                    | #d3e6fb           | Counts, selected tag                                                    |
+| Blue text            | `--ink-600`                    | #2c5488           | Jurisdiction chip text, Word file tile                                  |
+| Page                 | `--graphite-50`                | #f7f9fc           | Behind every screen                                                     |
+| Fill                 | `--graphite-100`               | #eef1f6           | Filter pills, search field, dividers inside tables, skeletons           |
+| Border               | `--graphite-200`               | #e0e5ec           | Cards and fields                                                        |
+| Text                 | `--graphite-900`               | #1a1f26           | Body text, values                                                       |
+| Label                | `--graphite-700`               | #3d4550           | Field labels, table heads, status words                                 |
+| Muted                | `--graphite-600`               | #545e6b           | Secondary text, icon buttons, the fix part of an error                  |
+| Placeholder          | `--graphite-400`               | #a3aebb           | Empty fields, waiting circles                                           |
+| Red                  | `--red-600` / `--red-50`       | #ad2e2d / #fdeae8 | Late dates, error words and their icon only. PDF tile                   |
+| Amber                | `--amber-600` / `--amber-50`   | #8f5f13 / #fdf1d8 | Due within 7 days, not-sure fields, Follow-up tile                      |
+| Green                | `--green-600`                  | #2f7049           | Done tick, New badge text, success toast icon                           |
+| Green tint **(new)** | `--green-50`                   | #e6f4ea           | New badge background                                                    |
+| Teal **(new)**       | `--teal-600` / `--teal-50`     | #016d9e / #dff4f8 | Facility chip, Resurvey tile                                            |
+| Violet               | `--violet-600` / `--violet-50` | #6258a3 / #eeecfb | Draft status, email file tile                                           |
 
 The canvas drew green as #1f7a45; code uses the existing `--green-600` (#2f7049), which passes contrast.
 
 ## 4. Type
 
-| Style | Size / weight | Use |
-|---|---|---|
-| Page title | 28 / 700, `--marsh-navy`, -0.01em | Top bar title |
-| Card title | 16 / 700, `--marsh-navy` | Card and section headings |
-| Body | 14 / 400 | Rows, fields, text |
-| Label | 12 / 600, `--graphite-700` | Field labels, table heads, small group labels |
-| Eyebrow | 11 / 700, caps, +0.08em | Above the page title |
-| Small | 12–13 / 500 | Second lines (Client › Site), due-date lines, status words |
+| Style      | Size / weight                     | Use                                                        |
+| ---------- | --------------------------------- | ---------------------------------------------------------- |
+| Page title | 28 / 700, `--marsh-navy`, -0.01em | Top bar title                                              |
+| Card title | 16 / 700, `--marsh-navy`          | Card and section headings                                  |
+| Body       | 14 / 400                          | Rows, fields, text                                         |
+| Label      | 12 / 600, `--graphite-700`        | Field labels, table heads, small group labels              |
+| Eyebrow    | 11 / 700, caps, +0.08em           | Above the page title                                       |
+| Small      | 12–13 / 500                       | Second lines (Client › Site), due-date lines, status words |
 
 Numbers that line up (dates, counts, refs) use `font-variant-numeric: tabular-nums`.
 
 ## 5. Shape and size
 
-| Thing | Value |
-|---|---|
-| Cards | radius 16, 1 px `--graphite-200`, padding 16–20 |
-| Fields | 40 px high, radius 10 |
-| Buttons | 40 px high, radius 999. Create adds `box-shadow: 0 6px 16px rgba(0,15,71,.28)` |
-| Pills, chips, tags | radius 999; chips 24–26 px high |
-| Tiles (file, type, site) | 32 px, radius 9 |
-| Popovers, menus, toasts | radius 14, shadow `0 12px 32px rgba(0,15,71,.16)` + 1 px `--graphite-200` ring |
-| Tap target | 44 × 44 minimum |
+| Thing                    | Value                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| Cards                    | radius 16, 1 px `--graphite-200`, padding 16–20                                |
+| Fields                   | 40 px high, radius 10                                                          |
+| Buttons                  | 40 px high, radius 999. Create adds `box-shadow: 0 6px 16px rgba(0,15,71,.28)` |
+| Pills, chips, tags       | radius 999; chips 24–26 px high                                                |
+| Tiles (file, type, site) | 32 px, radius 9                                                                |
+| Popovers, menus, toasts  | radius 14, shadow `0 12px 32px rgba(0,15,71,.16)` + 1 px `--graphite-200` ring |
+| Tap target               | 44 × 44 minimum                                                                |
 
 New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover: 14px`, `--radius-field: 10px`, `--radius-tile: 9px`.
 
@@ -161,6 +157,10 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 - **Reading status cell** (files being processed): words first, then the indicator at the right edge. Working = status words in 13 px `--graphite-700` + a 16 px spinner; Waiting = "Waiting" in `--graphite-600` (the words need 4.5:1 contrast) + a 16 px hollow circle in `--graphite-400`; Done = 16 px green filled tick only. **Spinner, circle and tick are the same size and sit in the same pixel column.**
 - **Comment margin and thread card** (RV-03, NEW pattern): in the document editor, open threads sit in a 296 px margin right of the text, each card level with its passage (amber tint `--amber-50`, the chosen thread's `--amber-100` with an `--amber-500` underline); cards that would overlap move down, the chosen one stays level with its text. A folded card shows the first comment (avatar initials on `--ink-50`, name, time, three lines) and "N replies"; chosen, it unfolds with every comment, Edit (pencil) and Delete (red bin) on one's own only, a reply box and a round Resolve (tick) or Reopen (rotate-ccw) icon button. The comments list is a 380 px panel over the right of the editor (full width on phones), with Open / Resolved / All as a segmented control; where no margin fits, threads open there too.
 - **Failed row:** neutral row and tile; under the file name, a red alert icon + the short error in red 600, then the fix in grey ("Can't read .zip files. Add PDF, Word, Outlook (.msg) or .eml files."); one grey bin (or retry) icon on the right. Only the icon and the short error are red.
+- **Rejected pill** (`RejectedPopover`): beside Documents on the filled-in form, only when a file was refused or failed to read. A red `circle-x`, the navy word, a red count (`--red-50` fill, `--red-600` text). The popup is as wide as its longest message, so every message stays on one line (min 320, max 720); long file names are cut with "…" and never widen it. Tiles are neutral grey and there are no row actions. On a phone it is a sheet and messages wrap; the two pills share a row under the heading, 44 px tall, no chevrons.
+- **Photo tiles** (`PhotoStrip`): `repeat(auto-fill, minmax(72px, 1fr))`, gap 8, square, so a row always ends exactly at the card above it (5 at 460 px, 4 at 343 px). A dashed "Add photo" tile the same size always follows the last photo. Remove is a 28 px white circle with a red bin in the corner: on hover or focus on desktop, always on touch, with a 44 px tap area.
+- **Recording row** (`RecordingRow`): a state goes on the second line after the length, as words with a 14 px icon (`2:05 · Transcribing`); a finished one shows only its length. Failed is a red alert icon and red words, with a grey retry icon beside the red bin. On a phone the failed words read "Try again"; screen readers still hear "Couldn't transcribe".
+- **Site walk mark** (`ObservationBadge`): an observation from a walk has a 20 px round footprints mark on the bottom-right corner of its category tile, with the tooltip "From site walk", and no pill.
 - **Inbox row** (a mail list crossed with a checklist, not a table): one card of rows, each a tick circle, an icon tile, three lines of words (sender in grey, task in bold, detail in grey), the due date cell and the time. Every marker is centred to the row's height, and this goes for row icons in any list. Words keep a fixed column and never run under the dates; title and helper wrap to two lines each, then "…"; desktop text stops at 640 px. A failure's detail word and tile are red, and a document needing a look is amber. The bin appears on hover or focus in place of the time. Tabs are To do with a red count, and Done; their empty cards are the same height.
 - **Phone Inbox row:** the ring holds the type icon and ticks the item when tapped, as a 44 px target. Two lines of words, and the due date alone on the right, or nothing if there is no date. The bin shows on Done rows only.
 - **Thin popover header** (the bell): 40 px, with 28 px grey icon buttons for its actions, and no count text or close button. On a phone sheet: title 19 px, header 60 px, 44 px targets with 20 px icons.
@@ -173,7 +173,7 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 Use **Sonner** (`ask-sonner` skill), styled to this system and wrapped in our own `Toast` helper so callers don't depend on Sonner directly.
 
 - Sonner's default behaviour: stacked (newest in front, older ones peek behind and spread on hover), swipe to dismiss, pauses on hover and while the tab is hidden, a loading toast that turns into success or error (`toast.promise`).
-- Our styling: white card, radius 14, 1 px `--graphite-200`, the popover shadow, 14 px text with the title in `--graphite-900`; icon only coloured: green tick for success (our own `SuccessIcon`, the tick raised 0.4 units to its optical centre), red alert for errors; an icon-button close. The icon and the first text line share one centre line. The toast hugs its message, centred, up to 356 px; longer text wraps.
+- Our styling: white card, radius 14, 1 px `--graphite-200`, the popover shadow, 14 px text with the title in `--graphite-900`; icon only coloured: green tick for success (our own `SuccessIcon`, the tick raised 0.4 units to its optical centre), red alert for errors; an icon-button close. The icon is centred in the toast's height, on every toast. The toast hugs its message, centred, up to 356 px; longer text wraps.
 - Both toast paths (Sonner `toast.*` and the older `Toast` still used for archive and create) share the icon and the layout.
 - Actions are small buttons inside the toast: "Undo" after archive/delete, "View" after create. Errors don't auto-close.
 - Every confirmed action gets one (section 2).
@@ -184,39 +184,39 @@ Built with the `animate` skill, reviewed with `review-animations`. Motion only t
 
 Rules: 120 ms for hover and colour, 180 ms for things appearing, 240–260 ms for screens and bars; exits faster than entrances; only position, size and fade (plus one small shake for a repeated error); with reduced motion every motion becomes a fade; nothing moves under a list you are reading.
 
-| Where | What | Timing |
-|---|---|---|
-| Create with missing fields | Smooth scroll to the first missing field (stops 96 px under the top bar), focus it, border turns red, error line fades in and slides down 4 px. Pressing Create again while the error is still there: that field shakes once, 4 px | scroll 450 ms ease-in-out; border 120 ms; line 180 ms; shake 300 ms |
-| Reading progress bar | One bar for all files; grows with `scaleX`; a faint sweep while working; turns green when full | 400 ms ease-out per step |
-| Found so far | Each item replaces its grey placeholder: placeholder fades out, item fades in and rises 4 px; "+ N more" number crossfades | 120 ms / 180 ms ease-out |
-| Status words | Words crossfade as they rotate; spinner becomes the tick, drawn in | 120 ms; tick 260 ms |
-| A file that fails to read | Its short error fades in and slides down 3 px under the name, in place of the spinner | 180 ms ease-out |
-| Reading done → form | Bar turns green, page blurs (0 → 6 px) behind a small card "All 6 documents read · Preparing the form…"; after the pause the card and blur fade and the form cards fade-rise in, 40 ms apart, once (fill `backwards`, so a finished card never traps a popover under the next one) | 180–260 ms ease-out |
-| Adding or removing a site, assessment or contact | New block fades in, rising 6 px; a removed block fades out, then the space closes | add 180 ms; remove 120 ms |
-| Picking a site card | Card presses to 0.98, its navy border fades in, the tick pops from 80% | border 120 ms; tick 180 ms |
-| Segmented controls | The white thumb slides to the choice; interruptible | 180 ms ease-out |
-| Sticky Create bar | Rises from the bottom edge once the form is ready; Create swaps to a spinner in the same width | rise 260 ms; swap 120 ms |
-| Client page tabs | The new panel fades in, rising 4 px; the tab bar doesn't move | 180 ms ease-out |
-| Documents: the row that changed | Upload: fades in and holds a blue tint 1 s; retag: the tag crossfades; delete: the row fades out, then the table closes up | 180 ms; tint 1 s + 260 ms; delete 120 ms |
-| Reason box | Opens after the pointer rests 150 ms, fading in and growing from the button's corner; fades out when it leaves | in 150 ms; out 100 ms |
-| Switching Assessments and Clients | The sidebar highlight glides; the old page fades out, the new one fades in rising 6 px | out 100 ms; in 200 ms |
-| Going deeper (list → client page, → New Assessment) | The new screen slides in 16 px from the right as it fades in | in 240 ms; out 120 ms |
-| Going back | The earlier screen slides in 16 px from the left; filters and sort kept | in 240 ms; out 120 ms |
-| Sidebar | Highlight glides to the picked item; collapse eases | 260 ms |
-| Popovers and the date picker | Scale from 0.97 and fade, origin at the trigger; the calendar's month slides when changed | 180 ms in, 120 ms out |
-| Dialogs | Open: fade and scale from 0.97 with the backdrop fading in. Close (Cancel, ✕, Esc or after confirming): the card fades and scales to 0.98 with the backdrop. A save error slides in 4 px; a step change (Edit site → its scope check) crossfades | open 220 ms; close 150 ms; error 180 ms; step 160 ms |
-| Sheets (phone) | Rise from the bottom edge with the scrim fading in; leave the same way | 260 ms in; 200 ms out |
-| Centred card (date picker on phones) | Fades and scales from 0.96 | 220 ms in; 160 ms out |
-| Navigation drawer (phone) | Slides in from the left with the scrim fading in; leaves the same way | 260 ms in; 180 ms out |
-| Toasts | Come in from the edge they leave by | 260 ms in; 120 ms out |
-| Press feedback | Buttons scale to 0.97 while pressed (Back button 0.96) | 120 ms |
-| Hover | Background fades | 120 ms |
-| Ticking an Inbox row | Circle presses to 0.88 and fills, tick draws, pause, row fades and lifts 4 px, list closes up. Unticking is the mirror | fill 120 ms; tick 260 ms; pause 240 ms; row 180 ms |
-| Back to the Inbox after opening a row | The row is there ticked, then leaves as above, only when returning by Back | pause 240 ms; row 180 ms |
-| New item on an open Inbox | Row fades in rising 6 px and holds the blue "just changed" tint | 180 ms; tint 1 s + 260 ms |
-| A count rising (sidebar) | One pop to 1.2 and the number crossfades; the phone menu's dot pops | 260 ms; 120 ms |
-| Last To do item cleared | Tick draws, "All done" rises 4 px | 260 ms; 180 ms |
-| Move to Done (already-handled dialog) | Dialog fades out, then the row's usual tick plays. No toast: the tick is the confirmation | 150 ms, then as ticking |
+| Where                                               | What                                                                                                                                                                                                                                                                               | Timing                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Create with missing fields                          | Smooth scroll to the first missing field (stops 96 px under the top bar), focus it, border turns red, error line fades in and slides down 4 px. Pressing Create again while the error is still there: that field shakes once, 4 px                                                 | scroll 450 ms ease-in-out; border 120 ms; line 180 ms; shake 300 ms |
+| Reading progress bar                                | One bar for all files; grows with `scaleX`; a faint sweep while working; turns green when full                                                                                                                                                                                     | 400 ms ease-out per step                                            |
+| Found so far                                        | Each item replaces its grey placeholder: placeholder fades out, item fades in and rises 4 px; "+ N more" number crossfades                                                                                                                                                         | 120 ms / 180 ms ease-out                                            |
+| Status words                                        | Words crossfade as they rotate; spinner becomes the tick, drawn in                                                                                                                                                                                                                 | 120 ms; tick 260 ms                                                 |
+| A file that fails to read                           | Its short error fades in and slides down 3 px under the name, in place of the spinner                                                                                                                                                                                              | 180 ms ease-out                                                     |
+| Reading done → form                                 | Bar turns green, page blurs (0 → 6 px) behind a small card "All 6 documents read · Preparing the form…"; after the pause the card and blur fade and the form cards fade-rise in, 40 ms apart, once (fill `backwards`, so a finished card never traps a popover under the next one) | 180–260 ms ease-out                                                 |
+| Adding or removing a site, assessment or contact    | New block fades in, rising 6 px; a removed block fades out, then the space closes                                                                                                                                                                                                  | add 180 ms; remove 120 ms                                           |
+| Picking a site card                                 | Card presses to 0.98, its navy border fades in, the tick pops from 80%                                                                                                                                                                                                             | border 120 ms; tick 180 ms                                          |
+| Segmented controls                                  | The white thumb slides to the choice; interruptible                                                                                                                                                                                                                                | 180 ms ease-out                                                     |
+| Sticky Create bar                                   | Rises from the bottom edge once the form is ready; Create swaps to a spinner in the same width                                                                                                                                                                                     | rise 260 ms; swap 120 ms                                            |
+| Client page tabs                                    | The new panel fades in, rising 4 px; the tab bar doesn't move                                                                                                                                                                                                                      | 180 ms ease-out                                                     |
+| Documents: the row that changed                     | Upload: fades in and holds a blue tint 1 s; retag: the tag crossfades; delete: the row fades out, then the table closes up                                                                                                                                                         | 180 ms; tint 1 s + 260 ms; delete 120 ms                            |
+| Reason box                                          | Opens after the pointer rests 150 ms, fading in and growing from the button's corner; fades out when it leaves                                                                                                                                                                     | in 150 ms; out 100 ms                                               |
+| Switching Assessments and Clients                   | The sidebar highlight glides; the old page fades out, the new one fades in rising 6 px                                                                                                                                                                                             | out 100 ms; in 200 ms                                               |
+| Going deeper (list → client page, → New Assessment) | The new screen slides in 16 px from the right as it fades in                                                                                                                                                                                                                       | in 240 ms; out 120 ms                                               |
+| Going back                                          | The earlier screen slides in 16 px from the left; filters and sort kept                                                                                                                                                                                                            | in 240 ms; out 120 ms                                               |
+| Sidebar                                             | Highlight glides to the picked item; collapse eases                                                                                                                                                                                                                                | 260 ms                                                              |
+| Popovers and the date picker                        | Scale from 0.97 and fade, origin at the trigger; the calendar's month slides when changed                                                                                                                                                                                          | 180 ms in, 120 ms out                                               |
+| Dialogs                                             | Open: fade and scale from 0.97 with the backdrop fading in. Close (Cancel, ✕, Esc or after confirming): the card fades and scales to 0.98 with the backdrop. A save error slides in 4 px; a step change (Edit site → its scope check) crossfades                                   | open 220 ms; close 150 ms; error 180 ms; step 160 ms                |
+| Sheets (phone)                                      | Rise from the bottom edge with the scrim fading in; leave the same way                                                                                                                                                                                                             | 260 ms in; 200 ms out                                               |
+| Centred card (date picker on phones)                | Fades and scales from 0.96                                                                                                                                                                                                                                                         | 220 ms in; 160 ms out                                               |
+| Navigation drawer (phone)                           | Slides in from the left with the scrim fading in; leaves the same way                                                                                                                                                                                                              | 260 ms in; 180 ms out                                               |
+| Toasts                                              | Come in from the edge they leave by                                                                                                                                                                                                                                                | 260 ms in; 120 ms out                                               |
+| Press feedback                                      | Buttons scale to 0.97 while pressed (Back button 0.96)                                                                                                                                                                                                                             | 120 ms                                                              |
+| Hover                                               | Background fades                                                                                                                                                                                                                                                                   | 120 ms                                                              |
+| Ticking an Inbox row                                | Circle presses to 0.88 and fills, tick draws, pause, row fades and lifts 4 px, list closes up. Unticking is the mirror                                                                                                                                                             | fill 120 ms; tick 260 ms; pause 240 ms; row 180 ms                  |
+| Back to the Inbox after opening a row               | The row is there ticked, then leaves as above, only when returning by Back                                                                                                                                                                                                         | pause 240 ms; row 180 ms                                            |
+| New item on an open Inbox                           | Row fades in rising 6 px and holds the blue "just changed" tint                                                                                                                                                                                                                    | 180 ms; tint 1 s + 260 ms                                           |
+| A count rising (sidebar)                            | One pop to 1.2 and the number crossfades; the phone menu's dot pops                                                                                                                                                                                                                | 260 ms; 120 ms                                                      |
+| Last To do item cleared                             | Tick draws, "All done" rises 4 px                                                                                                                                                                                                                                                  | 260 ms; 180 ms                                                      |
+| Move to Done (already-handled dialog)               | Dialog fades out, then the row's usual tick plays. No toast: the tick is the confirmation                                                                                                                                                                                          | 150 ms, then as ticking                                             |
 
 Not animated: rows reordering on sort or filter, row hover actions and the rows themselves, opening filter and sort menus beyond their quick scale-in, staggering list rows on load, keyboard shortcuts, Report due cells.
 
@@ -234,6 +234,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.2 (5 Nov 2026): sidebar, phone drawer and phone top bar back to the original navy (`--surface-nav`); dropdown options keep their icons; sign out uses the sidebar's own hover; sidebar is navy, white and one light blue, 224 px wide so a role fits on one line. Phone lists run edge to edge with fixed due columns; the phone All view shows Client › Site under the reference. On tablets (768–1023 px) Rename and Remove are round icon buttons, and Sort drops to its icon only where a labelled pill would squeeze search under 96 px.
   - v2.3 (5 Nov 2026, RV-03): the comment margin, thread card and comments list (section 6), built without a board; to approve on the canvas.
   - v2.4 (6 Nov 2026, F-10 and RV-11): Inbox row and phone ring; row icons centred to the row; red Inbox count as the sidebar's one exception; thin popover header and bell number; already-handled dialog; role in the engineer picker; Inbox motions and the sound rules.
+  - v2.5 (7 Nov 2026, Sprint 4 fixes): a toast's icon is centred in its height; Rejected pill; photo tiles that fill the row; recording row with its state on the second line and a retry icon; site walk footprints mark.
 
 ## 10. When this file says nothing
 

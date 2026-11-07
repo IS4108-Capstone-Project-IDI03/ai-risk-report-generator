@@ -161,4 +161,60 @@ describe('pending uploads', () => {
     expect(await queue.flush('w1')).toEqual([])
     expect(store.items.size).toBe(1)
   })
+
+  it('drops a refused uploaded file and says so, but keeps a refused recorded clip', async () => {
+    const refused: string[] = []
+    const reject = async () => {
+      throw new GatewayError(415)
+    }
+    const store = fakeStore()
+    const queue = uploadQueue(store, reject, { onRefused: (i) => void refused.push(i.key) })
+    await queue.add({ ...recording(1), uploaded: true, name: 'a.mp3' } as PendingUpload)
+    await queue.add(recording(2))
+    expect(refused).toEqual([recordingKey('w1', 1)])
+    expect([...store.items.keys()]).toEqual([recordingKey('w1', 2)])
+  })
+
+  it('discards an item that has not been sent, so it is never sent', async () => {
+    const store = fakeStore()
+    const sent: string[] = []
+    const queue = uploadQueue(store, async (i) => void sent.push(i.key))
+    await store.put(recording(1))
+    await queue.discard(recordingKey('w1', 1))
+    await queue.flush('w1')
+    expect(sent).toEqual([])
+    expect(store.items.size).toBe(0)
+  })
+
+  it('discards an item that is mid-send: waits for the send, says it landed, and drops its result', async () => {
+    const store = fakeStore()
+    const sent: unknown[] = []
+    let finish: (v: unknown) => void = () => {}
+    let started: () => void = () => {}
+    const sendStarted = new Promise<void>((r) => (started = r))
+    const queue = uploadQueue(store, () => new Promise((r) => ((finish = r), started())), {
+      onSent: (r) => void sent.push(r),
+    })
+    const adding = queue.add(recording(1))
+    await sendStarted
+    let settled = false
+    const discarding = queue.discard(recordingKey('w1', 1)).then((landed) => {
+      settled = true
+      return landed
+    })
+    // The send is still running, so discard has not answered yet.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    finish({ id: 'walk' })
+    expect(await discarding).toBe(true)
+    await adding
+    expect(sent).toEqual([])
+    expect(store.items.size).toBe(0)
+  })
+
+  it('discard says false when no send is running', async () => {
+    const queue = uploadQueue(fakeStore(), async () => {})
+    expect(await queue.discard(recordingKey('w1', 1))).toBe(false)
+  })
 })

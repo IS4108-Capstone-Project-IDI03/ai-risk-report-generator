@@ -731,10 +731,25 @@
   box-shadow: inset 0 0 0 1px var(--ai-border);
   color: var(--ai-fg);
 }
-/* In a row it sits on its own line above the note. */
-.ob-row-text > .ob-badge {
+/* "From site walk" is icon only: a 20 px circle with a white ring. */
+.ob-badge[data-kind='walk'] {
+  justify-content: center;
+  gap: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  box-shadow: 0 0 0 2px var(--surface-card);
+}
+/* In a row it hangs 5 px outside the category tile's bottom-right corner. */
+.ob-cat-wrap {
+  position: relative;
+  display: grid;
+}
+.ob-cat-flag {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
   display: flex;
-  margin-bottom: 4px;
 }
 /* An empty cell: a quiet dash where a value would sit. */
 .ob-none {
