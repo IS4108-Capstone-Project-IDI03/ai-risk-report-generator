@@ -36,6 +36,7 @@ from app.generation.generator import (
     draft_summary,
     filed_under,
     generate,
+    quotable_text,
     ram_priority,
 )
 from app.guardrails.checker import check, check_citations
@@ -694,7 +695,7 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
     given = {f"C:{p['id']}": p for p in passages}
     for item in drafted:
         item["citations"] = [
-            {**c, "quote_found": quote_found(c["quote"], given[c["ref"]]["text"])}
+            {**c, "quote_found": quote_found(c["quote"], quotable_text(given[c["ref"]]))}
             for c in item["citations"]
             if c["ref"] in given
         ]

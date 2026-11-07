@@ -2,10 +2,13 @@
 the OCR crops, embedding and storage all read tags. privacy-service is faked (`fake_privacy`);
 PDFs are built with pymupdf and read back as text."""
 
+from pathlib import Path
+
 import httpx
 import pymupdf
 import pytest
 
+from app.pipeline import redactor
 from app.pipeline.redactor import redact_pdf
 from app.privacy import PrivacyUnavailable, session
 
@@ -150,7 +153,7 @@ def test_tags_sit_in_place_in_drawing_order_as_docling_reads(fake_privacy):
 
 def test_a_redrawn_page_keeps_its_headings_bold_and_any_script_readable(fake_privacy):
     # A guard: written with the redraw. Docling finds headings partly by weight, and a report
-    # may hold names in Chinese, which Helvetica cannot draw.
+    # may hold names in Chinese, which Liberation Sans cannot draw.
     doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((50, 80), "Fire Survey", fontname="hebo", fontsize=14)
@@ -168,6 +171,48 @@ def test_a_redrawn_page_keeps_its_headings_bold_and_any_script_readable(fake_pri
     heading = next(s for s in spans if s["text"].strip() == "Fire Survey")
     assert heading["flags"] & 16  # bold
     assert stream_text_of(redacted) == ["Fire Survey Shown by [PERSON_1]. 业主 陈先生"]
+
+
+LIBERATION = Path(redactor.__file__).parent / "fonts" / "LiberationSans-{}.ttf"
+
+
+def spans_of(pdf: bytes, page: int = 0) -> list[dict]:
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return [
+            s
+            for b in doc[page].get_text("dict")["blocks"]
+            for line in b.get("lines", [])
+            for s in line["spans"]
+            if s["text"].strip()
+        ]
+
+
+def test_a_redrawn_page_keeps_the_report_font_quotes_and_dashes_included(fake_privacy):
+    # LibreOffice converts Word reports in Liberation Sans. Redrawn in Helvetica, Docling's
+    # layout model read a cover page's lines as pictures and dropped them; and a line with a
+    # curly quote or a dash went to the CJK font, which pdfium draws letter-spaced off the page.
+    doc = pymupdf.open()
+    page = doc.new_page()
+    for n, (line, weight) in enumerate(
+        [
+            ("Fire Survey", "Bold"),
+            ("Shown by John Tan.", "Regular"),
+            ("Tan’s pump – room 2", "Regular"),
+        ]
+    ):
+        font = f"lib{weight}"
+        page.insert_text(
+            (50, 80 + 30 * n), line, fontname=font, fontfile=str(LIBERATION).format(weight)
+        )
+    tan = {"enabled": True, "known_entities": [{"type": "PERSON", "names": ["John Tan", "Tan"]}]}
+
+    redacted, _ = redact_pdf(doc.tobytes(), session(tan))
+
+    assert [(s["text"].strip(), s["font"]) for s in spans_of(redacted)] == [
+        ("Fire Survey", "LiberationSans-Bold"),
+        ("Shown by [PERSON_1].", "LiberationSans"),
+        ("[PERSON_1]’s pump – room 2", "LiberationSans"),
+    ]
 
 
 def test_a_word_drawn_in_two_pieces_reaches_mask_as_one_word(fake_privacy):

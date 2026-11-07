@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from app import config, usage
 from app import privacy as pii
 from app.chat.quotes import find_cites, quote_found
-from app.generation.generator import PLACEHOLDER_RULE, passage_headings
+from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quotable_text
 from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
@@ -567,7 +567,7 @@ def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[
                 "page_end": meta.get("page_end"),
                 "quote": quote,
                 # An invented label has no passage, so its quote can't be verified.
-                "verified": bool(p) and quote_found(quote, p["text"]),
+                "verified": bool(p) and quote_found(quote, quotable_text(p)),
                 "withdrawn": meta.get("status") == "withdrawn",
             }
         )

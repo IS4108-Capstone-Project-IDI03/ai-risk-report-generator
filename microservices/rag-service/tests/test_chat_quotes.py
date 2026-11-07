@@ -3,6 +3,7 @@
 import pytest
 
 from app.chat.quotes import find_cites, quote_found
+from app.generation.generator import quotable_text
 
 PROGRAM = (
     "root = Answer([s1, t1])\n"
@@ -55,3 +56,21 @@ def test_find_cites(program, expected):
 )
 def test_quote_found(quote, passage, expected):
     assert quote_found(quote, passage) is expected
+
+
+def test_only_the_words_a_model_is_shown_are_quotable():
+    # Guards, passing when first run: a quote is checked against the headings shown with the
+    # passage and its text, never the document's name (the app's label) nor a heading too long
+    # to be one, which the model is not shown (MAX_HEADING_CHARS).
+    long = "The loss example ran for pages " + "and pages " * 30
+    passage = {
+        "text": "The pump is tested weekly.",
+        "metadata": {"headings": ["Fire Pumps", long], "document_name": "NFPA 25 (2023)"},
+    }
+
+    shown = quotable_text(passage)
+
+    assert quote_found("Fire Pumps", shown) and quote_found("tested weekly", shown)
+    assert not quote_found("NFPA 25", shown)
+    assert not quote_found("The loss example", shown)
+    assert quotable_text({"text": "No metadata."}) == "No metadata."

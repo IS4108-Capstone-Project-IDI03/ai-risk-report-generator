@@ -8,22 +8,27 @@ the whole document goes to privacy-service's /mask in one call, which says where
 sits. On a page with a detail, all text is removed and every span is drawn again, in its order,
 at its place and size, with each tag where its detail was. Docling orders a paragraph's text as
 it is drawn, so a tag drawn after the rest of the page would be read at the paragraph's end.
-The spans are drawn in a standard font (Helvetica, or a CJK font where needed), squeezed to
-their old width; pictures and drawings are left as they are.
+The spans are drawn in Liberation Sans (or a CJK font where needed), squeezed to their old width;
+pictures and drawings are left as they are. LibreOffice converts Word reports in Liberation Sans,
+so a redrawn page looks as it did: redrawn in Helvetica, Docling's layout model read a cover
+page's lines as pictures and dropped their text.
 """
 
 from functools import cache
+from pathlib import Path
 
 import pymupdf
 
 from app.privacy import Session
 
-# Base-14 Helvetica by weight and slant, and a CJK font for text Helvetica cannot show.
+# Liberation Sans by weight and slant (SIL OFL 1.1, see fonts/LICENSE), and a CJK font for text it
+# cannot draw. Its subset embedded in a report has no character map, so it cannot be reused.
+_FONT_DIR = Path(__file__).parent / "fonts"
 _FONTS = {
-    (False, False): "helv",
-    (True, False): "hebo",
-    (False, True): "heit",
-    (True, True): "hebi",
+    (False, False): "Regular",
+    (True, False): "Bold",
+    (False, True): "Italic",
+    (True, True): "BoldItalic",
 }
 _CJK = "china-s"
 _BOLD, _ITALIC = 16, 2  # PyMuPDF span flags
@@ -106,32 +111,41 @@ def _redraw(page, pieces: list[dict], written: list[str]) -> None:
             _draw(page, piece["span"], text)
 
 
+def _file(style: str) -> str:
+    return str(_FONT_DIR / f"LiberationSans-{style}.ttf")
+
+
 @cache
-def _cjk() -> pymupdf.Font:
-    return pymupdf.Font(_CJK)
+def _font(style: str) -> pymupdf.Font:
+    """Built once: building a Font per span was most of the redaction's time."""
+    return pymupdf.Font(_CJK) if style == _CJK else pymupdf.Font(fontfile=_file(style))
+
+
+@cache
+def _draws(style: str) -> frozenset[int]:
+    """The characters a Liberation Sans style can draw: curly quotes and dashes included."""
+    return frozenset(_font(style).valid_codepoints())
 
 
 def _draw(page, span: dict, text: str) -> None:
     """`text` at the span's place, size and colour, squeezed to fit its old width."""
     flags = span["flags"]
-    name = (
-        _CJK
-        if any(ord(c) > 0xFF for c in text)
-        else _FONTS[(bool(flags & _BOLD), bool(flags & _ITALIC))]
-    )
-    # Helvetica's widths come from a built-in table, far quicker than measuring with a Font.
-    width = (
-        _cjk().text_length(text, fontsize=span["size"])
-        if name == _CJK
-        else pymupdf.get_text_length(text, name, span["size"])
-    )
+    style = _FONTS[(bool(flags & _BOLD), bool(flags & _ITALIC))]
+    if not {ord(c) for c in text} <= _draws(style):
+        style = _CJK
+    width = _font(style).text_length(text, fontsize=span["size"])
     box = pymupdf.Rect(span["bbox"])
     squeeze = min(1.0, box.width / width) if width else 1.0
     origin = pymupdf.Point(span["origin"])
+    font = (
+        {"fontname": _CJK}
+        if style == _CJK
+        else {"fontname": f"Liberation{style}", "fontfile": _file(style)}
+    )
     page.insert_text(
         origin,
         text,
-        fontname=name,
+        **font,
         fontsize=span["size"],
         color=pymupdf.sRGB_to_pdf(span["color"]),
         morph=(origin, pymupdf.Matrix(squeeze, 1)),

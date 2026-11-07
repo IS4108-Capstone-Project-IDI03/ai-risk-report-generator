@@ -188,6 +188,23 @@ def test_a_quote_with_placeholders_is_checked_on_real_text(fake, fake_privacy):
     assert citation["verified"] is True
 
 
+def test_a_quote_from_a_passages_headings_is_found(fake, fake_privacy):
+    # The model is shown each passage's headings. A past report's cover lines are headings only,
+    # so quoting them showed "Not found", though the words were restored and real on both sides.
+    fake["passages"] = [REPORT]
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("The report covers [CLIENT_1] Tower.", [c1])\n',
+        'c1 = Cite("P1", "[CLIENT_1] Tower")\n',
+    ]
+
+    events = ask("Which building is the Acme Holdings report about?")
+
+    [citation] = _result(events)["citations"]
+    assert citation["quote"] == "Acme Holdings Tower"
+    assert citation["verified"] is True
+
+
 def test_a_placeholder_the_engineer_types_comes_back_as_typed(fake, fake_privacy):
     fake["chunks"] = [
         "root = Answer([s1])\n",

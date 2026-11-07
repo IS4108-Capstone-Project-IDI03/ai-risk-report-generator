@@ -285,6 +285,16 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   the image. A table over about 1,400 characters is cut between rows into groups
   that each repeat the title; ids are `<id>:table:<n>[:t<j>][:g<k>]`. The GLM path
   still guesses the header and has no title.
+- **Formulas.** A chunk is read as a formula when Docling labels one of its items
+  FORMULA, or when a line of its text has `=` and at least two arithmetic steps
+  between numbers (`chunker._looks_like_equation`). The second catches equations
+  written as ordinary text, such as Word fractions, which Docling's layout model
+  does not label and whose text layer comes out flattened. The whole chunk is
+  cropped and its reading replaces the chunk's text; an empty reading keeps
+  Docling's. In a chunk with a picture, each text item that is an equation is
+  cropped on its own and replaced in the picture passage's prose, since a crop of
+  the whole chunk would take in the picture. Docling's formula enrichment stays off: it only decodes items already
+  labelled, so it finds nothing more.
 - **Unusable answers.** Claude's safety filter sometimes refuses a crop, at
   times partway through the JSON (FM-200 agent tables). `anthropic_ocr` validates the
   answer itself and asks once more; `gemini_ocr` does not ask again (temperature 0) and
@@ -691,7 +701,9 @@ of date and to regenerate it.
    Items for an unknown area or hazard are dropped. An item in a section of one
    subsection (6) is put under it when the model leaves it out.
 5. Code checks the result. A citation of a passage not given is dropped; each
-   quote is looked for in its passage (`quote_found`, as chat does). An item
+   quote is looked for in its passage, the headings shown with it and then its
+   text (`quote_found` over `quotable_text`, as chat does): a past report's
+   cover lines, for one, are headings only. An item
    left with no citation is flagged `uncited`. A configured hazard with no item
    gets the config's own item, with origin `hazard_list` (written by the team,
    so not shown as AI-generated) and flagged `uncited`. Items are placed after their
