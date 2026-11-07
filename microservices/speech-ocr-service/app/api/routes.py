@@ -167,11 +167,19 @@ def transcribe_handwriting(request: S3KeyRequest) -> dict:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
+# One site-walk photo, and whether to protect it as /interpret does (PV-08). Left out, S5
+# describes it as it did before PV-08.
+class DescribePhotoRequest(S3KeyRequest):
+    privacy: Privacy | None = None
+
+
 @router.post("/describe-photo")
-def describe_site_photo(request: S3KeyRequest) -> dict:
+def describe_site_photo(request: DescribePhotoRequest) -> dict:
     # One site photo (CP-22), described so it can be matched to a finding. As for /interpret,
     # the gateway shows `detail` to the engineer on failure.
     try:
-        return describe_photo(request.s3_key)
+        return describe_photo(
+            request.s3_key, request.privacy.model_dump() if request.privacy else None
+        )
     except InterpretationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error

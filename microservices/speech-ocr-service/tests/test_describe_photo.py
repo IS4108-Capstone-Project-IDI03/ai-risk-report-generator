@@ -1,5 +1,7 @@
-"""Tests for POST /describe-photo (CP-22), against fake S3 and Gemini clients. No network."""
+"""Tests for POST /describe-photo (CP-22), against fake S3 and Gemini clients. No network.
+PV-08's protection uses the in-process privacy-service (conftest `fake_privacy`)."""
 
+import base64
 import io
 import json
 from types import SimpleNamespace
@@ -65,8 +67,19 @@ def use_fakes(monkeypatch, s3, **reply):
     monkeypatch.setattr(vision, "genai", FakeGemini)
 
 
-def describe(key="photos/RPT-1/p.jpg"):
-    return client.post("/describe-photo", json={"s3_key": key})
+def describe(key="photos/RPT-1/p.jpg", privacy=None):
+    body = {"s3_key": key}
+    if privacy is not None:
+        body["privacy"] = privacy
+    return client.post("/describe-photo", json=body)
+
+
+PRIVACY = {"enabled": True, "known_entities": [{"type": "CLIENT", "names": ["Acme Holdings"]}]}
+
+
+def sent_image() -> Image.Image:
+    [image] = [part for part in FakeGemini.request["input"] if part["type"] == "image"]
+    return Image.open(io.BytesIO(base64.b64decode(image["data"])))
 
 
 def test_describes_a_photo_and_records_usage(monkeypatch):
@@ -128,6 +141,27 @@ def test_an_unsupported_provider_is_not_hardcoded_away(monkeypatch):
     monkeypatch.setattr(vision, "VISION_PROVIDER", "other")
 
     assert describe().status_code == 502
+
+
+def test_sends_the_photo_only_as_privacy_service_blurred_it(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3())
+
+    response = describe(privacy=PRIVACY)
+
+    assert response.status_code == 200, response.text
+    # The fake privacy-service blacks out every photo it is sent; the S3 photo is grey.
+    assert sent_image().convert("L").getextrema() == (0, 0)
+    assert fake_privacy.paths() == ["/redact-image"]
+
+
+def test_off_calls_no_privacy_service(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3())
+
+    assert describe(privacy={"enabled": False}).status_code == 200
+    assert describe().status_code == 200
+
+    assert fake_privacy.paths() == []
+    assert sent_image().convert("L").getextrema() != (0, 0)
 
 
 def test_requires_s3_key():
