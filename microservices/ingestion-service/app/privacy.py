@@ -85,6 +85,14 @@ class Session:
             return list(texts)
         return self._mask([self.escape(t) for t in texts])["texts"]
 
+    def mask_tagged(self, texts: list[str]) -> list[str]:
+        """`texts`, read from a redacted copy, with any detail still in them masked, in one
+        /mask call (PV-06). Not escaped: their tags are this document's own, and keep their
+        meaning; new details continue its mapping."""
+        if not self.enabled:
+            return list(texts)
+        return self._mask(texts)["texts"]
+
     def mask_spans(self, texts: list[str]) -> list[list[dict]]:
         """Where each client detail in `texts` sits, `{start, end, placeholder}` per detail, in
         one /mask call. The caller escapes `texts` first (`escape`), keeping its offsets."""

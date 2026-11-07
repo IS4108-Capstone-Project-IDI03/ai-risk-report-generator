@@ -128,12 +128,12 @@ def run(
     labels = labels or {}
     protection = session(privacy)
     with tempfile.TemporaryDirectory() as tmp:
-        source, mapping, redacted_with = file_path, {}, None
+        source, redacted_with = file_path, None
         # A standard is public; anything else (a report, or a type still Unconfirmed) is redacted.
         if protection.enabled and labels.get("source_type") not in STANDARDS:
             _check_cancelled(_reporter)
             _reporter.start_stage("anonymising")
-            redacted, mapping = redact_pdf(Path(file_path).read_bytes(), protection)
+            redacted, _ = redact_pdf(Path(file_path).read_bytes(), protection)
             # Same file name: the parser reports it as the document's name.
             source = str(Path(tmp) / Path(file_path).name)
             Path(source).write_bytes(redacted)
@@ -145,6 +145,9 @@ def run(
 
     # Whether this document was protected: a standard is not, even with protection on.
     privacy_record = {"enabled": source != file_path, "masked_count": len(protection.mapping)}
+    # The redaction's tags and the safety net's (PV-06); a literal too, so restoring the words
+    # puts it back as written.
+    mapping = {**protection.mapping, **protection.literals} if redacted_with else {}
     return {**summary, "privacy": privacy_record, "mapping": mapping}
 
 
@@ -173,9 +176,9 @@ def _parse_to_index(
     is_report = labels.get("source_type") == "marsh_report"
     sections = report.report_sections(original) if is_report else []
 
-    # Still a pass-through: the safety net on chunk text is PV-06's. The "anonymising" stage is
-    # now the redaction before parsing.
-    chunks = anonymise(chunks)
+    # The safety net (PV-06): a redacted report's chunk text is masked once more, for details
+    # the OCR model read out of pictures. The "anonymising" stage is the redaction before parsing.
+    chunks = anonymise(chunks, protection)
     for c in chunks:
         _check_cancelled(reporter)
         c["metadata"].update(labels)
