@@ -4,14 +4,19 @@ recorders, and the labelling models by adapters that keep what they were sent; t
 the indexer run for real. privacy-service's /mask is faked in-process (conftest `fake_privacy`).
 
 With protection off, the same run sends every seeded detail: that shows the recorders see them.
+
+PV-06 adds a scanned report, with real Docling: its scanned page, its photo crops and what the
+OCR model read off a photo all reach the outside world masked or blurred.
 """
 
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pymupdf
 import pytest
+from rapidocr import RapidOCR
 from starlette.testclient import TestClient
 
 from app import pipeline
@@ -19,6 +24,7 @@ from app.labelling import models
 from app.main import app
 from app.pipeline import embedder, indexer
 from app.pipeline import sections as report
+from app.pipeline.chunking_helper import picture_parser
 from app.pipeline.parser import ParsedDocument
 
 SEEDED = ["Acme Pte Ltd", "John Tan", "+65 9123 4567", "S1234567D"]
@@ -161,3 +167,65 @@ def test_docling_reads_the_tags_where_the_details_were(tmp_path, external, fake_
     assert leaked(external) == [], [p for p in external if leaked([p])]
     text = " ".join(external)
     assert "shown by [PERSON_1] (Tel: [PHONE_1])" in text
+
+
+# --- PV-06: a scanned page, a photo, and a number the OCR model read off the photo.
+
+SIGN = "+65 6123 4567"
+
+
+def scanned_report_pdf(tmp_path) -> Path:
+    """A scanned page (an image of the seeded lines, no text layer), then a typed page with a
+    photo, as a site survey's appendix has."""
+    doc = pymupdf.open()
+    with pymupdf.open() as source:
+        typed = source.new_page()
+        for n, line in enumerate(LINES):
+            typed.insert_text((50, 100 + 40 * n), line, fontsize=12)
+        scan = typed.get_pixmap(dpi=150)
+    doc.new_page().insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=scan)
+    page = doc.new_page()
+    page.insert_text((50, 80), "Appendix A Site photos", fontsize=16)
+    photo = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 300), False)
+    photo.clear_with(180)
+    photo.set_rect(pymupdf.IRect(120, 60, 280, 240), (200, 150, 120))  # a figure in the frame
+    page.insert_image(pymupdf.Rect(50, 120, 450, 420), pixmap=photo)
+    page.insert_text((50, 440), "Photo 1 Pump room entrance", fontsize=11)
+    path = tmp_path / "Scanned survey.pdf"
+    doc.save(path)
+    return path
+
+
+@pytest.mark.e2e
+@pytest.mark.model
+def test_no_seeded_detail_leaves_a_scanned_report(tmp_path, monkeypatch, external, fake_privacy):
+    # A guard, passing when first run: PV-06's three parts, with real Docling. The OCR model is
+    # faked: it records each crop and describes it with a number read off a sign.
+    crops: list[bytes] = []
+
+    def recognise(image_png, task, context=""):
+        crops.append(image_png)
+        return f"Image description (generated, photograph): A sign reading Call {SIGN}."
+
+    monkeypatch.setattr(picture_parser, "recognise", recognise)
+    try:
+        pipeline.run(str(scanned_report_pdf(tmp_path)), doc_id="d1", labels=LABELS, privacy=PRIVACY)
+    except Exception as exc:  # noqa: BLE001
+        if exc.__class__.__name__ in ("UnparsableDocumentError", "PrivacyUnavailable"):
+            raise
+        pytest.skip(f"Docling models unavailable in this environment: {exc}")
+
+    assert leaked(external) == [], [p for p in external if leaked([p])]
+    assert not any(SIGN in p for p in external)  # the safety net caught the sign
+    assert any("[PERSON_1]" in p for p in external)  # read off the scanned page's tags
+    # Every crop the OCR model saw went through /redact-image first.
+    blurred = [i for r in fake_privacy.requests for i in r.get("images", [])]
+    assert crops and len(blurred) == len(crops)
+    assert not any(leaked([ocr_of(crop)]) for crop in crops)
+
+
+def ocr_of(image_png: bytes) -> str:
+    """What RapidOCR reads in a crop."""
+    pixmap = pymupdf.Pixmap(image_png)
+    pixels = np.frombuffer(pixmap.samples, np.uint8).reshape(pixmap.height, pixmap.width, pixmap.n)
+    return " ".join(RapidOCR()(pixels).txts or ())
