@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from app import config, usage
 from app import privacy as pii
 from app.chat.quotes import find_cites, quote_found
-from app.generation.generator import PLACEHOLDER_RULE, passage_headings
+from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quotable_text
 from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
@@ -280,16 +280,20 @@ def _search(
     include_withdrawn: bool,
     rank_texts=None,
     top_n: int | None = None,
+    protection=None,
 ) -> list[dict]:
     """Return the passages for one search: its top 5, or for past reports one per report.
 
     A report search keeps the best passage of every report that clears the cut-off, so an
     answer about "past reports" can name all of them instead of the one that ranked first.
     `rank_texts` changes only what the reranker reads (see `retrieve`). `top_n` widens a
-    standards search (the retry after a decline).
+    standards search (the retry after a decline). `protection` learns the client details a
+    past report's mapping names (PV-05).
     """
     # Only when given, so searches without protection call retrieve exactly as before.
     masking = {"rank_texts": rank_texts} if rank_texts else {}
+    if protection is not None:
+        masking["protection"] = protection
     # A search limited to one named document wants its top passages, not one per report.
     if filters.get("source_type") != "marsh_report" or "doc_id" in filters:
         wider = {"top_n": top_n} if top_n else {}
@@ -336,17 +340,18 @@ def _gather(
     names: dict[str, str],
     rank_texts=None,
     top_n: int | None = None,
+    protection=None,
 ) -> list[dict]:
     """Return a plan's passages: one search's, or the best 3 of each when it has extras."""
     filters = search_filters(plan.filters, names)
     if not plan.extra_searches:
-        return _search(plan.query, filters, plan.include_withdrawn, rank_texts, top_n)
+        return _search(plan.query, filters, plan.include_withdrawn, rank_texts, top_n, protection)
     searches = [(plan.query, filters)] + [
         (x.query, search_filters(x.filters, names)) for x in plan.extra_searches
     ]
     merged, seen = [], set()
     for query, each in searches:
-        for p in _search(query, each, plan.include_withdrawn, rank_texts, top_n)[:3]:
+        for p in _search(query, each, plan.include_withdrawn, rank_texts, top_n, protection)[:3]:
             # Without this, a passage found by two searches would reach the model twice.
             if p["id"] not in seen:
                 seen.add(p["id"])
@@ -354,7 +359,9 @@ def _gather(
     return merged
 
 
-def search_passages(plan: Plan, names: dict[str, str] | None = None, rank_texts=None) -> list[dict]:
+def search_passages(
+    plan: Plan, names: dict[str, str] | None = None, rank_texts=None, protection=None
+) -> list[dict]:
     """Return a plan's passages: one search's, or the best 3 of each when it has extras.
 
     Plus the best few for the engineer's own words (see `_add_own_words`), which `_events` leaves
@@ -362,7 +369,8 @@ def search_passages(plan: Plan, names: dict[str, str] | None = None, rank_texts=
     cached copy of the same shape, so what is cached includes the own-words passages.
     """
     names = names or {}
-    return _add_own_words(_gather(plan, names, rank_texts), plan, names, rank_texts)
+    found = _gather(plan, names, rank_texts, protection=protection)
+    return _add_own_words(found, plan, names, rank_texts, protection=protection)
 
 
 def _add_own_words(
@@ -371,6 +379,7 @@ def _add_own_words(
     names: dict[str, str],
     rank_texts=None,
     top_n: int | None = None,
+    protection=None,
 ) -> list[dict]:
     """Return `found` plus the best few passages for the engineer's own words.
 
@@ -384,7 +393,8 @@ def _add_own_words(
         return found
     try:
         filters = search_filters(plan.filters, names)
-        own = _search(raw, filters, plan.include_withdrawn, rank_texts, top_n)[:OWN_WORDS_PASSAGES]
+        own = _search(raw, filters, plan.include_withdrawn, rank_texts, top_n, protection)
+        own = own[:OWN_WORDS_PASSAGES]
     except Exception:  # noqa: BLE001
         log.warning("Search of the engineer's own words failed; using the planner's", exc_info=True)
         return found
@@ -557,7 +567,7 @@ def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[
                 "page_end": meta.get("page_end"),
                 "quote": quote,
                 # An invented label has no passage, so its quote can't be verified.
-                "verified": bool(p) and quote_found(quote, p["text"]),
+                "verified": bool(p) and quote_found(quote, quotable_text(p)),
                 "withdrawn": meta.get("status") == "withdrawn",
             }
         )
@@ -707,7 +717,12 @@ def _events(
             yield _sse({"type": "TOOL_CALL_END", "toolCallId": call_id})
             # Stored past reports may name people, so Cohere's reranker reads them masked.
             # Passed only when protection is on, so search without it runs as before.
-            masking = {"rank_texts": protection.mask} if protection.enabled else {}
+            # It also learns the client details a past report's mapping names (PV-05).
+            masking = (
+                {"rank_texts": protection.mask, "protection": protection}
+                if protection.enabled
+                else {}
+            )
             # The engineer's own words are searched too (see `_add_own_words`). `history` is
             # already masked here, so those words reach Cohere masked, like the planner's query.
             _OWN_WORDS.set(history[-1]["content"])
@@ -780,12 +795,15 @@ def _events(
                             "up to %d passages (ref %s)",
                             best, RETRY_TOP_N, ref,
                         )  # fmt: skip
+                        rank_texts = masking.get("rank_texts")
+                        retry_protection = masking.get("protection")
                         wider = _add_own_words(
-                            _gather(plan, names, masking.get("rank_texts"), RETRY_TOP_N),
+                            _gather(plan, names, rank_texts, RETRY_TOP_N, retry_protection),
                             plan,
                             names,
-                            masking.get("rank_texts"),
+                            rank_texts,
                             RETRY_TOP_N,
+                            retry_protection,
                         )
                         passages = wider or passages
                         attempt = 1

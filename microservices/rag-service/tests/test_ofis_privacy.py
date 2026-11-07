@@ -70,7 +70,7 @@ def draft(monkeypatch, ofis=(), request=REQUEST):
     """Drafts through the route; returns the response and what Cohere and the model got."""
     sent = {"search": [], "rerank": [], "prompts": []}
 
-    def search(requests):
+    def search(requests, protection=None):
         sent["search"].extend(q for q, _, _ in requests)
         return [
             [PAST_OFI] if filters["source_type"] == "marsh_report" else [STANDARD]

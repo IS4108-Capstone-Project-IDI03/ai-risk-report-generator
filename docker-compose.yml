@@ -100,6 +100,9 @@ services:
       chroma:
         condition: service_started
         required: false
+      # Labelling masks a document's pages through it, and fails closed without it (PV-05).
+      privacy-service:
+        condition: service_started
 
   # Takes queued knowledge documents one at a time and runs the pipeline
   # (app/worker.py). Same image as ingestion-service, different command.
@@ -128,6 +131,9 @@ services:
       chroma:
         condition: service_started
         required: false
+      # A past report is redacted through it before parsing, and fails closed without it (PV-05).
+      privacy-service:
+        condition: service_started
 
   ingestion-test:
     build:
@@ -196,10 +202,12 @@ services:
     build: ./microservices/privacy-service
     ports:
       - "127.0.0.1:8004:8004"
-    # Which kinds of detail it looks for (PV-04). Mounted, so an edit applies on
+    # Which kinds of detail it looks for (PV-04), and the words and names it never
+    # masks (PV-05). Mounted, so an edit applies on
     # `docker compose restart privacy-service`, without a rebuild.
     volumes:
       - ./microservices/privacy-service/detectors.json:/app/detectors.json:ro
+      - ./microservices/privacy-service/allow_list.json:/app/allow_list.json:ro
 
   # Gotenberg (LibreOffice behind HTTP): turns Word, PowerPoint, RTF and ODT
   # uploads into PDFs. Its own container, since it opens untrusted files.

@@ -172,3 +172,22 @@ def _clear_converter_cache():
     from app.pipeline.parser import _converter
 
     _converter.cache_clear()
+
+
+@pytest.fixture
+def fake_privacy(monkeypatch):
+    """privacy-service's /mask, served in-process (PV-05); `.requests` holds each request body."""
+    import httpx
+    from fakes import FakePrivacy
+
+    from app import privacy
+
+    fake = FakePrivacy()
+    monkeypatch.setattr(
+        privacy,
+        "_client",
+        lambda: httpx.Client(
+            base_url="http://privacy.test", transport=httpx.MockTransport(fake.handler)
+        ),
+    )
+    return fake

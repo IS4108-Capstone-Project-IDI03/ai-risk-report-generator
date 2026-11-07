@@ -55,12 +55,18 @@ def item(area="hazards", hazard="rack_storage", subsection=None, text=None, cita
     )
 
 
-def generate(monkeypatch, items, facility_type="Distribution warehouse", standards=(NFPA13,)):
+def generate(
+    monkeypatch,
+    items,
+    facility_type="Distribution warehouse",
+    standards=(NFPA13,),
+    found=(RACKS, ROOF),
+):
     searches, prompts = [], []
 
     def search(requests):
         searches.extend(requests)
-        return [[RACKS, ROOF] for _ in requests]
+        return [list(found) for _ in requests]
 
     def complete(system, user, schema, effort):
         prompts.append((system, user, effort))
@@ -140,6 +146,19 @@ def test_a_warehouse_checklist_covers_its_hazards_with_cited_items(monkeypatch):
     assert provenance["checklist_version"] == CHECKLIST["version"]
     assert provenance["effort"] == prompts[0][2] == "medium"
     assert isinstance(body["usage"], list)
+
+
+def test_a_quote_from_a_passages_headings_is_found(monkeypatch):
+    # The model is shown each passage's headings with its text, so they are quotable too.
+    headed = {**RACKS, "metadata": {**RACKS["metadata"], "headings": ["Chapter 25 Racks"]}}
+    response, _, _ = generate(
+        monkeypatch,
+        [item(citations=[Citation(label="C1", quote="Chapter 25 Racks")])],
+        found=(headed, ROOF),
+    )
+
+    racks = next(i for i in response.json()["items"] if i["hazard"] == "rack_storage")
+    assert racks["citations"][0]["quote_found"] is True
 
 
 def test_warehouse_and_office_checklists_cover_only_their_own_hazards(monkeypatch):

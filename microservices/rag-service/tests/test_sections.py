@@ -61,7 +61,7 @@ OFF_SECTION_PRECEDENT = {
 
 
 def fake_search(calls):
-    def search(requests):
+    def search(requests, protection=None):
         calls.extend(requests)
         return [
             [PRECEDENT, OFF_SECTION_PRECEDENT]
@@ -73,7 +73,7 @@ def fake_search(calls):
     return search
 
 
-def nothing_found(requests):
+def nothing_found(requests, protection=None):
     return [[] for _ in requests]
 
 
@@ -278,7 +278,9 @@ def test_other_categories_are_backup_evidence(monkeypatch):
     queries, prompts = [], []
     monkeypatch.setattr(
         "app.orchestrator.orchestrator.search",
-        lambda requests: queries.extend(q for q, _, _ in requests) or nothing_found(requests),
+        lambda requests, protection=None: (
+            queries.extend(q for q, _, _ in requests) or nothing_found(requests)
+        ),
     )
     monkeypatch.setattr(
         "app.generation.generator.complete",
@@ -314,7 +316,9 @@ def test_an_observation_under_several_categories_is_own_evidence_in_each(monkeyp
     queries, prompts = [], []
     monkeypatch.setattr(
         "app.orchestrator.orchestrator.search",
-        lambda requests: queries.extend(q for q, _, _ in requests) or nothing_found(requests),
+        lambda requests, protection=None: (
+            queries.extend(q for q, _, _ in requests) or nothing_found(requests)
+        ),
     )
     monkeypatch.setattr("app.generation.generator.complete", fake_complete(prompts, []))
     body = {**REQUEST, "observations": [*REQUEST["observations"], both]}
@@ -335,7 +339,7 @@ def test_one_category_sent_as_a_string_reads_as_a_list_of_one():
 
 def test_standards_are_capped_keeping_each_observations_nearest(monkeypatch):
     # 14 observations at 2 passages each would be 28, more than the cap.
-    def search(requests):
+    def search(requests, protection=None):
         return [
             [
                 {"id": f"s{i}:{rank}", "text": f"passage s{i}:{rank}", "metadata": {}}
@@ -477,7 +481,7 @@ def test_short_labels_map_back_to_full_ids(monkeypatch):
 
 
 def test_off_topic_standard_passages_are_not_sent(monkeypatch):
-    def search(requests):
+    def search(requests, protection=None):
         near = {"id": "fm:near", "text": "Enclosure integrity.", "metadata": {}, "distance": 0.55}
         far = {"id": "fm:far", "text": "Liquid level charts.", "metadata": {}, "distance": 0.63}
         return [[near, far] for _ in requests]
@@ -534,7 +538,7 @@ def test_site_note_abbreviations_are_spelt_out_in_standard_queries():
     ]
 
 
-def many_passages(requests):
+def many_passages(requests, protection=None):
     # Two standard passages per observation, and six past-report passages under the
     # section heading.
     *observations, _ = requests

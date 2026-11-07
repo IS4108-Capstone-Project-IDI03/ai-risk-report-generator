@@ -94,13 +94,16 @@ class Recorder:
 
 
 class Collection:
+    def __init__(self, passages=PASSAGES):
+        self.passages = passages
+
     def count(self):
-        return len(PASSAGES)
+        return len(self.passages)
 
     def query(self, query_embeddings, where, **_):
         # As Chroma's filter does: past reports, or standards, by source_type.
         wanted = "marsh_report" in str(where)
-        hits = [p for p in PASSAGES if (p[2]["source_type"] == "marsh_report") == wanted]
+        hits = [p for p in self.passages if (p[2]["source_type"] == "marsh_report") == wanted]
         rows = range(len(query_embeddings))
         return {
             "ids": [[p[0] for p in hits] for _ in rows],
@@ -114,9 +117,9 @@ class Collection:
 def external(monkeypatch, fake_privacy):
     """Records what would reach Cohere and Anthropic; the model's reply names a placeholder."""
 
-    def with_reply(parsed):
+    def with_reply(parsed, passages=PASSAGES):
         recorder = Recorder(parsed)
-        chroma = SimpleNamespace(get_collection=lambda **_: Collection())
+        chroma = SimpleNamespace(get_collection=lambda **_: Collection(passages))
         monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
         monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
         monkeypatch.setattr(llm, "_anthropic_client", lambda: recorder)
@@ -201,6 +204,63 @@ def test_ofi_drafting_sends_no_seeded_detail(external):
     assert recorder.payloads
     assert leaked(recorder.payloads) == [], [p for p in recorder.payloads if leaked([p])]
     assert response.json()["ofis"][0]["title"] == "Brief John Tan on valve supervision"
+
+
+# PV-05: a past report stored with its own tags. Its mapping names a client and a person this
+# assessment doesn't list, so only the report's mapping says they are client details.
+REPORT = "6abb28ae16068a0793e9962a"
+OTHER_CLIENT = ["Northwind Pte Ltd", "Mary Lim"]
+TAGGED_REPORT = [
+    PASSAGES[0],
+    (
+        "r:9",
+        "As [PERSON_1] of [CLIENT_1] noted, the building is of fire-resistive construction.",
+        {
+            "source_type": "marsh_report",
+            "doc_id": REPORT,
+            "headings": ["Property Risk Evaluation Report", "Construction"],
+        },
+    ),
+    (
+        "r:40",
+        "Formalize impairment handling, as [PERSON_1] of [CLIENT_1] agreed.",
+        {
+            "source_type": "marsh_report",
+            "doc_id": REPORT,
+            "headings": ["Report", "Opportunities for Improvement", "Management Programs"],
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize("path", ["/sections/draft", "/ofis/draft"])
+def test_a_past_reports_own_client_and_people_reach_no_external_api(
+    external, stored_mappings, path
+):
+    stored_mappings[REPORT] = {"[PERSON_1]": "Mary Lim", "[CLIENT_1]": "Northwind Pte Ltd"}
+    reply = (
+        SectionDraft(
+            subsections=[
+                Subsection(
+                    heading="Construction Narrative",
+                    statements=[Statement(text="The riser is open.", citations=["O1"])],
+                )
+            ],
+            questions=[],
+        )
+        if path == "/sections/draft"
+        else OfiDraft(ofis=[])
+    )
+    recorder = external(reply, TAGGED_REPORT)
+    body = {"assessment": ASSESSMENT, "observations": [OBSERVATION], "privacy": PRIVACY}
+    if path == "/sections/draft":
+        body["section_id"] = "7"
+
+    response = client.post(path, json=body)
+
+    assert response.status_code == 200, response.text
+    sent = [p for p in recorder.payloads if any(name in p for name in OTHER_CLIENT)]
+    assert sent == []
 
 
 def test_summary_drafting_sends_no_seeded_detail(external):
@@ -313,4 +373,80 @@ def test_chat_sends_no_seeded_detail(external, monkeypatch, provider):
     assert "John Tan noted fire-resistive construction." in program
     result = next(e["value"] for e in events if e.get("name") == "chat_result")
     assert result["error"] is None
+    assert [c["verified"] for c in result["citations"]] == [True]
+
+
+def test_a_past_reports_tags_are_renumbered_not_read_as_this_assessments(external, stored_mappings):
+    # A guard, passing when first run: restoring before masking already renumbers them.
+    # The past report's [PERSON_1] is Mary Lim; this assessment's [PERSON_1] is John Tan.
+    stored_mappings[REPORT] = {"[PERSON_1]": "Mary Lim", "[CLIENT_1]": "Northwind Pte Ltd"}
+    recorder = external(
+        SectionDraft(
+            subsections=[
+                Subsection(
+                    heading="Construction Narrative",
+                    statements=[Statement(text="[PERSON_2] noted it.", citations=["O1", "P1"])],
+                )
+            ],
+            questions=[],
+        ),
+        TAGGED_REPORT,
+    )
+
+    response = client.post(
+        "/sections/draft",
+        json={
+            "section_id": "7",
+            "assessment": ASSESSMENT,
+            "observations": [OBSERVATION],
+            "privacy": PRIVACY,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    prompt = recorder.payloads[-1]
+    assert "As [PERSON_2] of [CLIENT_2] noted" in prompt
+    body = response.json()
+    assert body["subsections"][0]["statements"][0]["text"] == "Mary Lim noted it."
+    assert body["sources"]["P:r:9"]["text"].startswith("As Mary Lim of Northwind Pte Ltd noted")
+
+
+def test_chat_sends_no_name_from_a_past_reports_mapping(external, monkeypatch, stored_mappings):
+    stored_mappings[REPORT] = {"[PERSON_1]": "Mary Lim", "[CLIENT_1]": "Northwind Pte Ltd"}
+    recorder = ChatRecorder(
+        Plan(
+            kind="search",
+            query="who noted fire-resistive construction",
+            filters=Filters(source_type="marsh_report"),
+            reply="",
+        ),
+        [
+            "root = Answer([s1])\n",
+            's1 = Statement("[PERSON_2] noted fire-resistive construction.", [c1])\n',
+            'c1 = Cite("P1", "As [PERSON_2] of [CLIENT_1] noted")\n',
+        ],
+    )
+    external(None, TAGGED_REPORT)
+    monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
+    monkeypatch.setattr(llm, "_anthropic_client", lambda: recorder)
+    monkeypatch.setattr(llm, "_openai_client", lambda: recorder)
+
+    response = client.post(
+        "/chat",
+        json={
+            "messages": [{"role": "user", "content": "Who at John Tan's site noted it?"}],
+            "documents": [{"id": REPORT, "title": "Past survey"}],
+            "privacy": PRIVACY,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    sent = [p for p in recorder.payloads if any(name in p for name in OTHER_CLIENT)]
+    assert sent == []
+    events = [
+        json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")
+    ]
+    program = "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT")
+    assert "Mary Lim noted fire-resistive construction." in program
+    result = next(e["value"] for e in events if e.get("name") == "chat_result")
     assert [c["verified"] for c in result["citations"]] == [True]
