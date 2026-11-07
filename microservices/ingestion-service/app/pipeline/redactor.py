@@ -135,10 +135,9 @@ def _blank(page, pieces: list[dict], written: list[str]) -> None:
         previous = n
     if not boxes:
         return
+    kept = [piece["rect"] for piece, text in zip(pieces, written) if text == piece["text"]]
     for _, box, _ in boxes:
-        # OCR boxes sit tight on the letters, and left slivers of them; a word gap is wider.
-        pad = box.height * _SCAN_PADDING
-        page.add_redact_annot(box + (-pad, -pad, pad, pad), fill=(1, 1, 1))
+        page.add_redact_annot(_padded(box, kept), fill=(1, 1, 1))
     page.apply_redactions(
         images=pymupdf.PDF_REDACT_IMAGE_PIXELS, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE
     )
@@ -146,6 +145,26 @@ def _blank(page, pieces: list[dict], written: list[str]) -> None:
         text = " ".join(t for t in texts if t)
         if text:
             _draw_in(page, box, text)
+
+
+def _padded(box: pymupdf.Rect, kept: list[pymupdf.Rect]) -> pymupdf.Rect:
+    """`box` grown on every side, but never into a word that stays: OCR boxes sit tight on the
+    letters, and left slivers of them, while in small text set tight the padding reached the
+    line above ("porch" read as "norch")."""
+    pad = box.height * _SCAN_PADDING
+    padded = box + (-pad, -pad, pad, pad)
+    for word in kept:
+        if not padded.intersects(word):
+            continue
+        if word.y1 <= box.y0 + box.height / 2:  # above the box
+            padded.y0 = min(box.y0, max(padded.y0, word.y1))
+        elif word.y0 >= box.y1 - box.height / 2:  # below it
+            padded.y1 = max(box.y1, min(padded.y1, word.y0))
+        elif word.x1 <= box.x0 + 1:  # before it, on its line
+            padded.x0 = min(box.x0, max(padded.x0, word.x1))
+        elif word.x0 >= box.x1 - 1:  # after it
+            padded.x1 = max(box.x1, min(padded.x1, word.x0))
+    return padded
 
 
 def _draw_in(page, box: pymupdf.Rect, text: str) -> None:

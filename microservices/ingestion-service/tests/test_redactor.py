@@ -235,14 +235,15 @@ def test_a_word_drawn_in_two_pieces_reaches_mask_as_one_word(fake_privacy):
 # --- PV-06: a scanned page (no text layer) is read with RapidOCR, and its details blanked.
 
 
-def scanned_pdf_of(*pages: list[str]) -> bytes:
-    """A PDF whose pages are images of text only, as a scanner makes: no text layer."""
+def scanned_pdf_of(*pages: list[str], size: float = 14, spacing: float = 40) -> bytes:
+    """A PDF whose pages are images of text only, as a scanner makes: no text layer. Lines
+    are `spacing` points apart, in `size` point text."""
     doc = pymupdf.open()
     for lines in pages:
         with pymupdf.open() as source:
             typed = source.new_page()
             for n, line in enumerate(lines):
-                typed.insert_text((50, 100 + 40 * n), line, fontsize=14)
+                typed.insert_text((50, 100 + spacing * n), line, fontsize=size)
             image = typed.get_pixmap(dpi=150)
         doc.new_page().insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=image)
     return doc.tobytes()
@@ -318,3 +319,16 @@ def test_a_scanned_page_without_a_detail_keeps_its_image_as_it_was(fake_privacy)
     assert image_streams(redacted) == image_streams(pdf)
     assert text_of(redacted) == [""]  # nothing drawn over it
     assert mapping == {}
+
+
+def test_blanking_a_detail_in_small_tight_text_leaves_the_line_above_readable(fake_privacy):
+    # Found on a real scan (a diagram's notes): the padded box reached into the line above.
+    lines = ["Car porch can protrude", "John Tan into the road"]
+    pdf = scanned_pdf_of(lines, size=12, spacing=14)
+    assert scanned_text_of(pdf) == [" ".join(lines)]  # readable before
+
+    redacted, _ = redact_pdf(pdf, session(PRIVACY))
+
+    [page] = scanned_text_of(redacted)
+    assert page.startswith("Car porch can protrude")
+    assert "John" not in page and "Tan" not in page
