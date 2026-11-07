@@ -181,5 +181,5 @@ def describe_site_photo(request: DescribePhotoRequest) -> dict:
         return describe_photo(
             request.s3_key, request.privacy.model_dump() if request.privacy else None
         )
-    except InterpretationError as error:
+    except (InterpretationError, PrivacyUnavailable) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error

@@ -6,6 +6,7 @@ import io
 import json
 from types import SimpleNamespace
 
+import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -162,6 +163,20 @@ def test_off_calls_no_privacy_service(monkeypatch, fake_privacy):
 
     assert fake_privacy.paths() == []
     assert sent_image().convert("L").getextrema() != (0, 0)
+
+
+def test_fails_closed_when_privacy_service_cannot_blur(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3())
+    fake_privacy.failure = httpx.ConnectError("refused")
+
+    response = describe(privacy=PRIVACY)
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "Client details couldn't be protected because the privacy service isn't available, "
+        "so nothing was sent to the AI model. If this keeps happening, tell your administrator."
+    )
+    assert FakeGemini.request is None
 
 
 def test_requires_s3_key():
