@@ -76,6 +76,11 @@ def describe(key="photos/RPT-1/p.jpg", privacy=None):
 
 
 PRIVACY = {"enabled": True, "known_entities": [{"type": "CLIENT", "names": ["Acme Holdings"]}]}
+CHECKED = {**PRIVACY, "check_answers": True}
+
+
+def answering(description: str) -> dict:
+    return {"output_text": json.dumps({"description": description})}
 
 
 def sent_image() -> Image.Image:
@@ -177,6 +182,58 @@ def test_fails_closed_when_privacy_service_cannot_blur(monkeypatch, fake_privacy
         "so nothing was sent to the AI model. If this keeps happening, tell your administrator."
     )
     assert FakeGemini.request is None
+
+
+def test_removes_details_the_description_adds(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3(), **answering("A notice gives +65 8888 7777."))
+
+    response = describe(privacy=CHECKED)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["description"] == "A notice gives [phone number removed]."
+    assert fake_privacy.paths() == ["/redact-image", "/mask"]
+
+
+def test_keeps_a_known_name_the_description_adds(monkeypatch, fake_privacy):
+    # The client's name on a sign: known, so it stays, as in photo reading.
+    use_fakes(monkeypatch, FakeS3(), **answering("A sign reads Acme Holdings."))
+
+    response = describe(privacy=CHECKED)
+
+    assert response.json()["description"] == "A sign reads Acme Holdings."
+
+
+def test_fails_closed_when_the_description_cannot_be_checked(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3(), **answering("A notice gives +65 8888 7777."))
+    serve = fake_privacy.handler
+
+    def down_after_blur(request):
+        if fake_privacy.requests:
+            raise httpx.ConnectError("refused")
+        return serve(request)
+
+    fake_privacy.handler = down_after_blur
+
+    response = describe(privacy=CHECKED)
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "The AI's answer couldn't be checked for personal details because the privacy service "
+        "isn't available, so it wasn't saved. If this keeps happening, tell your administrator."
+    )
+
+
+def test_records_what_was_protected_never_the_values(monkeypatch, fake_privacy):
+    use_fakes(monkeypatch, FakeS3(), **answering("A notice gives +65 8888 7777."))
+
+    body = describe(privacy=CHECKED).json()
+
+    assert body["privacy"] == {
+        "enabled": True,
+        "masked_count": 0,
+        "faces_blurred": 1,
+        "removed_from_answer": 1,
+    }
 
 
 def test_requires_s3_key():
