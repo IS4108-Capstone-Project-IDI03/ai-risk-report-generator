@@ -12,12 +12,19 @@ The spans are drawn in Liberation Sans (or a CJK font where needed), squeezed to
 pictures and drawings are left as they are. LibreOffice converts Word reports in Liberation Sans,
 so a redrawn page looks as it did: redrawn in Helvetica, Docling's layout model read a cover
 page's lines as pictures and dropped their text.
+
+A scanned page has no text layer (PV-06). It is read with RapidOCR, the engine Docling reads it
+with too, which gives each word and its box; its text joins the same /mask call. Each detail's
+words are blanked in the page image itself, not only covered, and its tag is drawn in their
+place, so Docling's OCR reads the tag.
 """
 
 from functools import cache
 from pathlib import Path
 
+import numpy as np
 import pymupdf
+from rapidocr import RapidOCR
 
 from app.privacy import Session
 
@@ -32,16 +39,29 @@ _FONTS = {
 }
 _CJK = "china-s"
 _BOLD, _ITALIC = 16, 2  # PyMuPDF span flags
+# A scanned page is read at this resolution: 72 is too coarse for 10 pt text.
+_SCAN_DPI = 200
+# A scanned word's blanked box grows by this share of its height on every side.
+_SCAN_PADDING = 0.15
 
 
 def redact_pdf(pdf: bytes, protection: Session) -> tuple[bytes, dict[str, str]]:
     """The PDF with each client detail replaced by its tag, and tag -> the detail it replaced."""
     with pymupdf.open(stream=pdf, filetype="pdf") as doc:
         pages = [_page_text(page, protection.escape) for page in doc]
+        scanned = [
+            not text.strip() and bool(page.get_images()) for page, (text, _) in zip(doc, pages)
+        ]
+        pages = [
+            _scan_text(page, protection.escape) if scan else read
+            for page, read, scan in zip(doc, pages, scanned)
+        ]
         found = protection.mask_spans([text for text, _ in pages])
-        for page, (_, pieces), details in zip(doc, pages, found):
+        for page, (_, pieces), details, scan in zip(doc, pages, found, scanned):
             written = _with_tags(pieces, details)
-            if any(new != piece["span"]["text"] for piece, new in zip(pieces, written)):
+            if scan:
+                _blank(page, pieces, written)
+            elif any(new != piece["span"]["text"] for piece, new in zip(pieces, written)):
                 _redraw(page, pieces, written)
         # A literal goes in the mapping too, so putting the words back restores it as written.
         return doc.tobytes(garbage=3, deflate=True), {**protection.mapping, **protection.literals}
@@ -68,6 +88,80 @@ def _page_text(page, escape) -> tuple[str, list[dict]]:
                 text += written
                 pieces[-1]["end"] = len(text)
     return text, pieces
+
+
+@cache
+def _reader() -> RapidOCR:
+    """Built once: loading its models takes seconds."""
+    return RapidOCR()
+
+
+def _scan_text(page, escape) -> tuple[str, list[dict]]:
+    """A scanned page's text as RapidOCR reads it, a line per line, and its words, each with
+    its box on the page (`rect`), its line (`line`), and where its text sits in that text."""
+    image = page.get_pixmap(dpi=_SCAN_DPI)
+    pixels = np.frombuffer(image.samples, np.uint8).reshape(image.height, image.width, image.n)
+    lines = _reader()(pixels, return_word_box=True).word_results or ()
+    scale = 72 / _SCAN_DPI
+    text, pieces = "", []
+    for number, line in enumerate(lines):
+        if text:
+            text += "\n"
+        for n, (word, _score, corners) in enumerate(line):
+            if n:
+                text += " "
+            xs, ys = [x for x, _ in corners], [y for _, y in corners]
+            rect = pymupdf.Rect(min(xs), min(ys), max(xs), max(ys)) * scale
+            written = escape(word)
+            pieces.append({"rect": rect, "line": number, "start": len(text), "text": written})
+            text += written
+            pieces[-1]["end"] = len(text)
+    return text, pieces
+
+
+def _blank(page, pieces: list[dict], written: list[str]) -> None:
+    """Blank each changed word of a scanned page in its image, and draw its new text (a tag)
+    over the words it replaced: a name's words on one line share one box."""
+    boxes: list[tuple[int, pymupdf.Rect, list[str]]] = []
+    previous = None
+    for n, (piece, text) in enumerate(zip(pieces, written)):
+        if text == piece["text"]:
+            continue
+        if boxes and previous == n - 1 and boxes[-1][0] == piece["line"]:
+            boxes[-1][1].include_rect(piece["rect"])
+            boxes[-1][2].append(text)
+        else:
+            boxes.append((piece["line"], pymupdf.Rect(piece["rect"]), [text]))
+        previous = n
+    if not boxes:
+        return
+    for _, box, _ in boxes:
+        # OCR boxes sit tight on the letters, and left slivers of them; a word gap is wider.
+        pad = box.height * _SCAN_PADDING
+        page.add_redact_annot(box + (-pad, -pad, pad, pad), fill=(1, 1, 1))
+    page.apply_redactions(
+        images=pymupdf.PDF_REDACT_IMAGE_PIXELS, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE
+    )
+    for _, box, texts in boxes:
+        text = " ".join(t for t in texts if t)
+        if text:
+            _draw_in(page, box, text)
+
+
+def _draw_in(page, box: pymupdf.Rect, text: str) -> None:
+    """`text` in black across `box`, as tall as its words, squeezed to its width."""
+    size = box.height * 0.8
+    width = _font("Regular").text_length(text, fontsize=size)
+    squeeze = min(1.0, box.width / width) if width else 1.0
+    origin = pymupdf.Point(box.x0, box.y1 - box.height * 0.2)
+    page.insert_text(
+        origin,
+        text,
+        fontname="LiberationRegular",
+        fontfile=_file("Regular"),
+        fontsize=size,
+        morph=(origin, pymupdf.Matrix(squeeze, 1)),
+    )
 
 
 def _gap(before: dict, span: dict) -> bool:
