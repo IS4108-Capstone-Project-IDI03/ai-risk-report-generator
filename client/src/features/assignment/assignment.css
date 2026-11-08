@@ -1,0 +1,203 @@
+/* Assigning assessments (RV-11): the avatar, the Assigned engineer picker and the Reassign
+   dialog. Used by components/PersonAvatar, components/EngineerPicker and the Assessments
+   list's Engineer column. Tokens only (design-system-v2). */
+.person-avatar {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+  font: 700 11px/1 var(--font-sans);
+}
+
+/* The picker: label, a 40 px field-looking button, then one line under it. */
+.ap-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ap-star {
+  margin-left: 3px;
+  color: var(--action-danger);
+}
+.ap-anchor {
+  --ap-row: 40px;
+  width: 100%;
+}
+/* Must match .ob-menu-item's height (observations.css). */
+@media (pointer: coarse), (max-width: 559px) {
+  .ap-anchor {
+    --ap-row: 44px;
+  }
+}
+.ap-anchor > span {
+  width: 100%;
+}
+.ap-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--control-height-md);
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: 400 14px/1.3 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.ap-trigger[aria-expanded='true'],
+.ap-trigger:focus-visible {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ap-picker[data-error] .ap-trigger {
+  border-color: var(--action-danger);
+}
+.ap-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* A long name is cut; the role beside it keeps its width. */
+.ap-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Grey and on the right, as .ob-menu-trail in the list. */
+.ap-role {
+  flex: none;
+  margin-left: auto;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.ap-value[data-empty] {
+  color: var(--graphite-400);
+}
+/* The menu is as wide as its field, not the popover's 320 px floor. */
+.ap-anchor .ob-menu-surface {
+  min-width: 100% !important;
+  width: max-content;
+  max-width: min(calc(100vw - 32px), 360px);
+}
+/* A long list (v2): five rows show, the rest scroll under the Documents popover's fade. The
+   extra space at its foot lets the last row scroll clear of the fade. */
+.ap-anchor .ob-menu-surface .ob-menu:has(> :nth-child(6)) {
+  max-height: calc(5 * var(--ap-row) + 12px);
+  padding-bottom: 28px;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+}
+/* A long name is cut; without this it would push the role word out of the row. */
+.ap-anchor .ob-menu-item > span:nth-child(2),
+.ap-sheet .ob-menu-item > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-anchor .ob-menu-trail,
+.ap-sheet .ob-menu-trail {
+  flex: none;
+}
+/* Rows show the avatar at 28 px with the name and its role word at the right edge. */
+.ob-menu-item .person-avatar {
+  margin-right: 0;
+}
+@media (max-width: 767px) {
+  .ap-trigger {
+    height: 44px;
+    font-size: 16px; /* 16 px so a phone doesn't zoom the page */
+  }
+}
+
+/* The Reassign dialog's body: the problem callout, then the picker, 16 px apart. */
+.ap-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* In a dialog the list opens under the field, in the flow (board 13), not floating. */
+.ap-picker--inline .ap-anchor {
+  flex-wrap: wrap;
+}
+.ap-picker--inline .ap-anchor .ob-menu-surface {
+  position: static !important;
+  width: 100% !important;
+  margin-top: 6px;
+  transform: none !important;
+}
+
+/* The Reassign dialog stays inside a phone's safe areas, scrolling if its list is open. */
+.ds-dialog.ap-reassign {
+  max-height: calc(100svh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+/* The picker's phone sheet (board 09): a card floating over the screen's edge with a small
+   centred grey title, and Cancel on a card of its own. Rows are 52 px with thin lines. */
+.ap-sheet .ds-sheet {
+  inset: auto 8px 0;
+  padding: 0 0 calc(8px + env(safe-area-inset-bottom));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.ap-sheet .ds-sheet-grabber {
+  display: none;
+}
+.ap-sheet .ds-sheet-head {
+  flex: none;
+  justify-content: center;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 20px 20px 0 0;
+  background: var(--surface-card);
+}
+.ap-sheet .ds-sheet-head h2 {
+  flex: none;
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ap-sheet .ds-sheet-body {
+  padding: 0;
+  border-radius: 0 0 20px 20px;
+  background: var(--surface-card);
+}
+.ap-sheet .ob-menu {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+}
+.ap-sheet .ob-menu > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+.ap-sheet .ob-menu-item {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 0;
+  font-size: 16px;
+}
+.ap-sheet .ob-menu-item[aria-checked='true'] {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  font-weight: 400;
+}
+.ap-sheet .ds-sheet-cancel {
+  flex: none;
+  height: 52px;
+  border-radius: 20px;
+  background: var(--surface-card);
+  color: var(--marsh-navy);
+}

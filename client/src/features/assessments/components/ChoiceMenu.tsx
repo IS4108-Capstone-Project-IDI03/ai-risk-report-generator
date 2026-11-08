@@ -15,12 +15,16 @@ import { Icon, Popover } from '../../../design-system'
 import '../observations.css'
 
 // `group` puts a heading above the first choice of each run (e.g. a building).
+// `lead` replaces the icon with any element (the engineer picker's avatar), and `trail` is a
+// small grey word at the right edge (its role); a row with a trail shows no tick.
 export type Choice = {
   value: string
   label: string
   icon?: string
   color?: string
   group?: string
+  lead?: ReactNode
+  trail?: string
 }
 
 // Arrow keys move between choices (wrapping), Home/End jump to the ends, as a
@@ -46,6 +50,9 @@ export function ChoiceMenu({
   hint,
   align = 'left',
   className,
+  noSheet,
+  sheetCancel,
+  sheetClassName,
 }: {
   label: string
   trigger: (open: boolean, toggle: () => void) => ReactElement
@@ -56,6 +63,12 @@ export function ChoiceMenu({
   hint?: ReactNode
   align?: 'left' | 'right'
   className?: string
+  // Keeps the menu floating on a phone: a sheet would open behind a dialog's top layer.
+  noSheet?: boolean
+  // The phone sheet ends in a Cancel button (the engineer picker, board 09).
+  sheetCancel?: boolean
+  // A class on the phone sheet, for the engineer picker's own look (board 09).
+  sheetClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   // Choices without an icon keep its column when others have one, so labels line up.
@@ -66,6 +79,9 @@ export function ChoiceMenu({
   useLayoutEffect(() => {
     const ul = list.current
     if (!open || !ul) return
+    // The engineer picker's phone sheet sizes itself, up to 85% of the screen: capping to the room
+    // under the trigger would hide its last rows.
+    if (sheetCancel && ul.closest('.ds-sheet')) return
     ul.style.maxHeight = ''
     const room = window.innerHeight - ul.getBoundingClientRect().top - 12
     if (room < ul.offsetHeight) ul.style.maxHeight = `${Math.max(room, 132)}px`
@@ -76,7 +92,7 @@ export function ChoiceMenu({
       surface.style.left = 'auto'
       surface.style.right = '0'
     }
-  }, [open])
+  }, [open, sheetCancel])
   return (
     <Popover
       open={open}
@@ -86,6 +102,9 @@ export function ChoiceMenu({
       align={align}
       className={className}
       surfaceClassName="ob-menu-surface"
+      noSheet={noSheet}
+      sheetCancel={sheetCancel}
+      sheetClassName={sheetClassName}
     >
       <ul ref={list} className="ob-menu" role="menu" aria-label={label} onKeyDown={moveFocus}>
         {choices.map((c, i) => {
@@ -108,13 +127,15 @@ export function ChoiceMenu({
                     if (!multiple) setOpen(false)
                   }}
                 >
-                  {c.icon ? (
-                    <Icon name={c.icon} size={16} color={c.color} />
-                  ) : (
-                    <span style={hasIcons ? { width: 16 } : undefined} />
-                  )}
+                  {c.lead ??
+                    (c.icon ? (
+                      <Icon name={c.icon} size={16} color={c.color} />
+                    ) : (
+                      <span style={hasIcons ? { width: 16 } : undefined} />
+                    ))}
                   <span>{c.label}</span>
-                  {on && <Icon name="check" size={16} color="var(--marsh-navy)" />}
+                  {c.trail && <span className="ob-menu-trail">{c.trail}</span>}
+                  {on && !c.trail && <Icon name="check" size={16} color="var(--marsh-navy)" />}
                 </button>
               </li>
             </Fragment>

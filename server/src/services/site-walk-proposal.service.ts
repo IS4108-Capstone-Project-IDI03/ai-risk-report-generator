@@ -1,7 +1,7 @@
 // The site walk proposal (CP-22): checking one, saving the engineer's edits,
 // and making it in the background. Called by routes/site-walk.routes.ts (save)
 // and by the site-walk-proposal queue (make). Calls speech.service.ts (photo
-// descriptions), rag.service.ts (the reading) and notification.service.ts.
+// descriptions), rag.service.ts (the reading) and site-walk-notice.service.ts (the notifications).
 import { z } from 'zod'
 import { AssessmentModel } from '../models/assessment.model'
 import { COPE_DIMENSIONS, SEVERITIES } from '../models/observation.model'
@@ -12,7 +12,7 @@ import { onProposalJob } from './background-queues.service'
 import type { SessionUser } from './auth.service'
 import type { JobContext } from './job-queue.service'
 import { locationSchema } from './location.service'
-import { createNotification } from './notification.service'
+import { notifyFailed, notifyReady } from './site-walk-notice.service'
 import { privacyFor } from './privacy.service'
 import { proposeSiteWalk, RagServiceError } from './rag.service'
 import {
@@ -165,20 +165,6 @@ export async function saveProposal(
 
 onProposalJob((job, context) => runProposal(job.walkId, context))
 
-// Tells the engineer the walk is ready, then marks it notified. The notification
-// is keyed by the walk, so a resend after a crash between the two adds none.
-async function notifyReady(walk: StoredWalk) {
-  const assessment = await AssessmentModel.findById(walk.assessment, 'reference').lean()
-  await createNotification({
-    purpose: 'site_walk_ready',
-    targetRole: 'risk_engineer',
-    targetUserIds: [String(walk.engineerId)],
-    message: 'Your site walk proposal is ready to review.',
-    context: { reference: assessment!.reference, walkId: String(walk._id) },
-  })
-  await SiteWalkModel.updateOne({ _id: walk._id }, { notified: true })
-}
-
 // What the engineer is told when the reading ran out of retries.
 function failureReason(error: unknown): string {
   return error instanceof RagServiceError || error instanceof SpeechServiceError
@@ -270,9 +256,10 @@ export async function runProposal(walkId: string, context: JobContext) {
   } catch (error) {
     if (!context.isLastAttempt) throw error
     console.error('Site walk proposal failed:', error)
-    await SiteWalkModel.updateOne(
+    const failed = await SiteWalkModel.updateOne(
       { _id: walk._id, status: 'proposing' },
       { status: 'failed', error: failureReason(error) },
     )
+    if (failed.modifiedCount) await notifyFailed(walk._id)
   }
 }

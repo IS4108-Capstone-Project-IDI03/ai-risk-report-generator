@@ -1,5 +1,5 @@
 // One typed note in the walk list (CP-22 round 1): the text, cut short until
-// opened, with edit and remove. A note typed before notes existed is read only.
+// opened, with edit and a red remove bin (Undo is in useWalkRemovals). A note typed before notes existed is read only.
 // Used by components/WalkList.tsx.
 import { useState } from 'react'
 import { Icon } from '../../../design-system'
@@ -11,11 +11,14 @@ export function NoteRow({
   text,
   legacy,
   onSave,
+  onRemove,
 }: {
   text: string
   legacy?: boolean
   // Saves new text; blank removes the note. Says whether it worked.
   onSave: (text: string) => Promise<boolean>
+  // Hides the note with an Undo toast, then removes it.
+  onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
@@ -78,9 +81,10 @@ export function NoteRow({
           </button>
           <button
             type="button"
-            className="sw-button sw-icon-button"
+            className="sw-button sw-icon-button sw-button--danger"
             aria-label="Remove note"
-            onClick={() => void onSave('')}
+            title="Remove note"
+            onClick={onRemove}
           >
             <Icon name="trash-2" size={18} />
           </button>

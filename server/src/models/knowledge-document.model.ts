@@ -120,6 +120,9 @@ export interface IKnowledgeDocument {
   // Present only while the document is withdrawn (KB-01): when, and by whom.
   // `status` stays `complete`; reinstating removes this.
   withdrawn?: { at: Date; by: { id: string; name: string } }
+  // Who last corrected, decided on, retried or cancelled it, and when (F-10). Absent on
+  // older documents. The Inbox reads it to say who already handled an item.
+  handled?: { at: Date; by: { id: string; name: string } }
   // Times an admin has pressed Retry on a failed ingestion. Only ever bumped by
   // retryIngestion, so it counts human retries, not automatic worker re-runs.
   // Not shown anywhere; its sole use is to make each retry's ingestion
@@ -131,6 +134,11 @@ export interface IKnowledgeDocument {
   // Shared by every edition of one standard once an admin links them (IN-07
   // decisions); the id of the first document of the family. Written only by the gateway.
   editionFamily?: Types.ObjectId | null
+  // A redacted report's tags and the client details they replaced (PV-05), as
+  // { '[PERSON_1]': 'John Tan' }. Written only by the ingestion worker and read
+  // only by rag; `select: false`, so the gateway never loads it unless it asks
+  // by name, and no route can send it to the browser.
+  privacyMapping?: Record<string, string>
   createdAt: Date
   updatedAt: Date
 }
@@ -244,7 +252,20 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
         { _id: false },
       ),
     },
+    handled: {
+      type: new Schema(
+        {
+          at: { type: Date, required: true },
+          by: {
+            id: { type: String, required: true },
+            name: { type: String, required: true },
+          },
+        },
+        { _id: false },
+      ),
+    },
     retryCount: { type: Number, required: true, default: 0 },
+    privacyMapping: { type: Schema.Types.Mixed, select: false },
   },
   { timestamps: true, collection: 'knowledge_documents' },
 )

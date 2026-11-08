@@ -9,7 +9,7 @@ import { GatewayError, reportSessionEnded } from '../assessments/api'
 
 // A gateway call that returns no body (204). Mirrors the error and 401
 // handling in accounts/api's `request`, but does not parse a response body.
-async function send(path: string, init: RequestInit): Promise<void> {
+export async function send(path: string, init: RequestInit): Promise<void> {
   let response: Response
   try {
     response = await fetch(path, init)
@@ -35,26 +35,34 @@ export type NotificationPurpose =
   | 'assessment_status'
   | 'knowledge_gap_request'
   | 'site_walk_ready'
+  | 'site_walk_failed'
+  | 'assessment_assigned'
+  | 'assessment_moved'
 
 // One notification as the gateway sends it; matches NotificationDto in
 // server/src/services/notification.service.ts. `read` is this user's own state.
 export type Notification = {
   id: string
   purpose: NotificationPurpose
+  // Where it is shown: the bell, or the Inbox (F-10).
+  kind: 'bell' | 'inbox'
   message: string
   details: string | null
   context: Record<string, string> | null
   read: boolean
+  // Inbox only: Done for this user, because they opened it or ticked it.
+  done: boolean
   createdAt: string
 }
 
-// A page of notifications with the totals the dropdown needs: `total` to decide
-// whether to offer Load more, `unread` for the bell badge. Both cover the whole
-// visible set, not just this page.
+// A page of notifications with the totals the screens need: `total` to decide
+// whether to offer Load more, `unread` for the bell badge, `inboxTodo` for the
+// sidebar. All cover the whole visible set, not just this page.
 export type NotificationPage = {
   items: Notification[]
   total: number
   unread: number
+  inboxTodo: number
 }
 
 // Just the counts for the header badge, cheap enough to poll on a timer.
@@ -64,8 +72,15 @@ export function getNotificationCount(signal?: AbortSignal): Promise<Notification
   return request<NotificationCounts>('/api/notifications/count', { signal })
 }
 
-// Totals only, as the count route returns them.
-export type NotificationCounts = { total: number; unread: number }
+// Totals only, as the count route returns them. `total` and `unread` are the bell's; the times
+// say when the newest Inbox and bell items addressed to this person arrived (see chime.ts).
+export type NotificationCounts = {
+  total: number
+  unread: number
+  inboxTodo: number
+  newestInbox: string | null
+  newestBell: string | null
+}
 
 // One page, newest first. `limit` is clamped server-side; `offset` is how many
 // to skip. Matches GET /api/notifications.
@@ -73,8 +88,14 @@ export function listNotifications(
   limit: number,
   offset: number,
   signal?: AbortSignal,
+  view: { kind: 'bell' | 'inbox'; tab?: 'todo' | 'done' } = { kind: 'bell' },
 ): Promise<NotificationPage> {
-  const query = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    kind: view.kind,
+  })
+  if (view.tab) query.set('tab', view.tab)
   return request<NotificationPage>(`/api/notifications?${query}`, { signal })
 }
 
@@ -97,4 +118,19 @@ export function dismissAllNotifications(): Promise<void> {
 // Dismisses one notification for the signed-in user only. 204, no body.
 export function dismissNotification(id: string): Promise<void> {
   return send(`/api/notifications/${encodeURIComponent(id)}/dismiss`, { method: 'POST' })
+}
+
+// Ticks an Inbox item: Done for this user only. 204.
+export function markNotificationDone(id: string): Promise<void> {
+  return send(`/api/notifications/${encodeURIComponent(id)}/done`, { method: 'POST' })
+}
+
+// Unticks an Inbox item: back to To do for this user only. 204.
+export function unmarkNotificationDone(id: string): Promise<void> {
+  return send(`/api/notifications/${encodeURIComponent(id)}/done`, { method: 'DELETE' })
+}
+
+// Undoes a bin: the notification returns to this user's lists. 204.
+export function restoreNotification(id: string): Promise<void> {
+  return send(`/api/notifications/${encodeURIComponent(id)}/restore`, { method: 'POST' })
 }

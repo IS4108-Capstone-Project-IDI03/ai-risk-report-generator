@@ -4,6 +4,16 @@ import { afterEach, expect, it, vi } from 'vitest'
 import * as UI from './index'
 
 afterEach(cleanup)
+it('lets the browser close a dialog only when it has a way to close', () => {
+  // jsdom has no modal dialogs.
+  HTMLDialogElement.prototype.showModal = vi.fn()
+  HTMLDialogElement.prototype.close = vi.fn()
+  const { rerender } = render(<UI.Dialog title="Stuck" />)
+  expect(document.querySelector('dialog')).toHaveAttribute('closedby', 'none')
+  rerender(<UI.Dialog title="Closable" onClose={() => {}} />)
+  expect(document.querySelector('dialog')).not.toHaveAttribute('closedby')
+})
+
 it('renders every shared component and preserves the icon vocabulary', () => {
   render(
     <>

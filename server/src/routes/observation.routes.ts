@@ -192,13 +192,14 @@ router.post('/:id/restore', requirePermission('assessments:edit'), async (req, r
   }
 })
 
-// Starts a new transcription attempt for a failed recording (CP-03 AC7).
+// Starts a new transcription attempt for a failed recording (CP-03 AC7), for the
+// assessment's assigned engineer (RV-11: an admin holds assessments:edit too).
 router.post(
   '/:id/recordings/:recordingId/transcription/retry',
   requirePermission('assessments:edit'),
   async (req, res) => {
     try {
-      await retryTranscription(req.params.id, req.params.recordingId)
+      await retryTranscription(req.params.id, req.params.recordingId, res.locals.user!)
       res.status(202).end()
     } catch (error: unknown) {
       refuse(error, res)
@@ -207,13 +208,13 @@ router.post(
 )
 
 // Starts a new transcription attempt for a failed handwritten page (CP-19 AC11),
-// open to any risk engineer, as a recording's retry is.
+// for the assessment's assigned engineer, as a recording's retry is.
 router.post(
   '/:id/pages/:pageId/transcription/retry',
   requirePermission('assessments:edit'),
   async (req, res) => {
     try {
-      await retryPageTranscription(req.params.id, req.params.pageId)
+      await retryPageTranscription(req.params.id, req.params.pageId, res.locals.user!)
       res.status(202).end()
     } catch (error: unknown) {
       refuse(error, res)
@@ -239,7 +240,7 @@ router.post(
 // Reads the observation (CP-05, CP-21): both parts the first time, or with
 // `{ "part": "categories" | "description" }` that part again, whenever asked.
 // Saving never reads it, so this is the only way its notes and photos reach
-// the model. Open to any risk engineer, as a transcription retry is.
+// the model. For the assessment's assigned engineer, as a transcription retry is.
 router.post('/:id/interpretation', requirePermission('assessments:edit'), async (req, res) => {
   const part: unknown = req.body?.part
   if (part !== undefined && !READING_PARTS.includes(part as ReadingPart)) {
@@ -247,7 +248,7 @@ router.post('/:id/interpretation', requirePermission('assessments:edit'), async 
     return
   }
   try {
-    await readObservation(req.params.id, part as ReadingPart | undefined)
+    await readObservation(req.params.id, part as ReadingPart | undefined, res.locals.user!)
     res.status(202).end()
   } catch (error: unknown) {
     refuse(error, res)

@@ -3,6 +3,8 @@
 Model calls are faked (no network). Real models run only in the evaluation script.
 """
 
+import json
+
 import httpx
 import pymupdf
 import pytest
@@ -88,8 +90,14 @@ def fake(monkeypatch):
     return state
 
 
-def label(*texts):
-    response = client.post("/label", content=pdf_of(*texts))
+def post_label(pdf: bytes, privacy: dict | None = None):
+    """POST /label as the gateway sends it (PV-05): the PDF, and its privacy settings if any."""
+    data = {"privacy": json.dumps(privacy)} if privacy is not None else {}
+    return client.post("/label", files={"file": ("upload.pdf", pdf, "application/pdf")}, data=data)
+
+
+def label(*texts, privacy=None):
+    response = post_label(pdf_of(*texts), privacy)
     assert response.status_code == 200
     return response.json()
 
@@ -306,7 +314,7 @@ def test_classifier_none_uses_llm_for_fixed_list(fake, monkeypatch):
 
 
 def test_invalid_pdf_is_422():
-    assert client.post("/label", content=b"not a pdf").status_code == 422
+    assert post_label(b"not a pdf").status_code == 422
 
 
 # ---- adapters: request/response mapping with httpx.post faked ----
@@ -535,3 +543,47 @@ def test_openai_extract_schema_asks_for_issuing_body(monkeypatch):
 
     assert "issuing_body" in SCHEMA["required"]
     assert set(SCHEMA["properties"]) == set(SCHEMA["required"])
+
+
+# ---- PV-05: client details are masked before any labelling model sees the pages ----
+
+PRIVACY = {
+    "enabled": True,
+    "known_entities": [
+        {"type": "CLIENT", "names": ["Acme Pte Ltd"]},
+        {"type": "PERSON", "names": ["John Tan"]},
+    ],
+}
+REPORT = "Fire survey for Acme Pte Ltd, by John Tan (+65 9123 4567). Issued 5 March 2026."
+
+
+def test_with_protection_the_models_read_masked_pages(fake, fake_privacy):
+    label(REPORT, privacy=PRIVACY)
+
+    assert fake["sent"]  # both the classifier and the extractor
+    for sent in fake["sent"]:
+        assert "Fire survey for [CLIENT_1], by [PERSON_1] ([PHONE_1])" in sent
+        assert not any(value in sent for value in ("Acme", "John Tan", "9123"))
+
+
+def test_with_protection_details_and_their_evidence_come_back_in_real_words(fake, fake_privacy):
+    fake["answers"]["source_type"] = ans("marsh_report")
+    fake["answers"]["title"] = ans("Fire survey for [CLIENT_1]", quote="Fire survey for [CLIENT_1]")
+
+    title = label(REPORT, privacy=PRIVACY)["details"]["title"]
+
+    # Checked against the masked pages, as the model read them; returned in real words.
+    assert title["value"] == "Fire survey for Acme Pte Ltd"
+    assert title["evidence"] == {"page": 1, "quote": "Fire survey for Acme Pte Ltd"}
+
+
+def test_with_protection_and_no_privacy_service_no_model_reads_the_pages(fake, fake_privacy):
+    # Fail closed (Rule 3), as a model outage does: the upload goes on with every detail
+    # Unconfirmed, for the admin to fill in.
+    fake_privacy.failure = httpx.ConnectError("refused")
+
+    body = label(REPORT, privacy=PRIVACY)
+
+    assert fake["sent"] == []
+    assert len(body["unconfirmed"]) == 6  # effective_date falls back to the upload date
+    assert all(d["value"] is None for d in body["details"].values() if d["model"] != "default")

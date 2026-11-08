@@ -77,7 +77,7 @@ OTHER_PAST = {
 
 
 def fake_search(calls):
-    def search(requests):
+    def search(requests, protection=None):
         calls.extend(requests)
         return [
             [PAST_OFI, RAM_BOILERPLATE, OTHER_PAST]

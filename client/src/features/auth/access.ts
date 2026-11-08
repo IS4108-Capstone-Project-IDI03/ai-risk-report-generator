@@ -7,6 +7,7 @@ import type { UserRole } from '../accounts/api'
 import type { Permission, Session } from './api'
 
 export type Screen =
+  | 'inbox'
   | 'dashboard'
   | 'create'
   | 'field'
@@ -19,6 +20,7 @@ export type Screen =
   | 'client'
 
 export const SCREEN_PATHS: Record<Screen, string> = {
+  inbox: '/inbox',
   dashboard: '/assessments',
   create: '/assessments/new',
   field: '/site-observation',
@@ -34,6 +36,9 @@ export const SCREEN_PATHS: Record<Screen, string> = {
 }
 
 const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
+  // The Inbox (F-10) is for both roles, and 'assessments:view' is the one permission both
+  // hold. Which items a person sees is decided by the gateway, from their role and id.
+  inbox: 'assessments:view',
   dashboard: 'assessments:view',
   create: 'assessments:edit',
   field: 'assessments:edit',

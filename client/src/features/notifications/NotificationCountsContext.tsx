@@ -1,0 +1,95 @@
+// The one source of the notification counts (F-10): the bell's unread, the Inbox's To do
+// count and the sounds for brand new items. Mounted once above every screen (App.tsx),
+// because the bell is mounted again on each screen: counts and the sound's mark kept in
+// the bell would restart from the sign-in figures on every screen change and either miss a
+// chime or replay one. Read by NotificationBell, AssessmentApp (sidebar), the Inbox and the
+// Assessments list.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { getNotificationCount } from './api'
+import { chimeFor, chimeOnce, raiseSeen, startAudioUnlock, type Counts, type Seen } from './chime'
+import { CountsContext, type NotificationCountsApi } from './useNotificationCounts'
+
+// How often the counts are read: 10 seconds, so a change made in another window shows up while
+// you're still looking. The count route does not extend the session, so polling cannot keep an
+// idle tab signed in. Browsers slow a hidden tab's timer to about a minute.
+const POLL_MS = 10_000
+
+/** Polls the counts, plays a chime for a brand new item and shares them with everything below. */
+export function NotificationCountsProvider({
+  initial,
+  children,
+}: {
+  // The session's figures, so the badge and sidebar are right on first paint.
+  initial: Counts
+  children: ReactNode
+}) {
+  const [counts, setCounts] = useState(initial)
+  const [outsideChanges, setOutsideChanges] = useState(0)
+  const latest = useRef(initial)
+  // The newest item times seen. Null until the first poll, which only sets them (no sound on
+  // load). The times say when an item arrived, in any state, so opening, ticking, unticking or
+  // binning one can't move them: nothing you do to an old item makes it newer.
+  const seen = useRef<Seen | null>(null)
+  // Counted up by every change the person makes. A poll sent before one is dropped when it
+  // lands: its old figures would undo the change and then look like a rise.
+  const epoch = useRef(0)
+  const inFlight = useRef<AbortController | null>(null)
+
+  const change = useCallback<NotificationCountsApi['change']>((update) => {
+    epoch.current += 1
+    inFlight.current?.abort()
+    const next =
+      typeof update === 'function' ? update(latest.current) : { ...latest.current, ...update }
+    latest.current = next
+    setCounts(next)
+  }, [])
+
+  // One poller for the whole app. It keeps running while the tab is hidden, so a chime can
+  // arrive from a background tab (a hidden timer only slows down), and reads at once when
+  // the tab is shown again.
+  useEffect(() => {
+    const stopUnlock = startAudioUnlock()
+    const poll = () => {
+      inFlight.current?.abort()
+      const controller = new AbortController()
+      inFlight.current = controller
+      const sentAt = epoch.current
+      getNotificationCount(controller.signal).then(
+        (next) => {
+          if (controller.signal.aborted || sentAt !== epoch.current) return
+          const chime = chimeFor(seen.current, next)
+          seen.current = raiseSeen(seen.current, next)
+          const before = latest.current
+          latest.current = next
+          const moved =
+            next.total !== before.total ||
+            next.unread !== before.unread ||
+            next.inboxTodo !== before.inboxTodo ||
+            next.newestInbox !== before.newestInbox ||
+            next.newestBell !== before.newestBell
+          // Without this check every poll made a new object, and every screen below drew again.
+          if (moved) {
+            setCounts(next)
+            setOutsideChanges((n) => n + 1)
+          }
+          if (chime) chimeOnce(chime, next)
+        },
+        () => {
+          // A dropped poll just waits for the next one.
+        },
+      )
+    }
+    const timer = setInterval(poll, POLL_MS)
+    const onVisible = () => document.visibilityState === 'visible' && poll()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timer)
+      inFlight.current?.abort()
+      document.removeEventListener('visibilitychange', onVisible)
+      stopUnlock()
+    }
+  }, [])
+
+  const api = useMemo(() => ({ counts, change, outsideChanges }), [counts, change, outsideChanges])
+  return <CountsContext.Provider value={api}>{children}</CountsContext.Provider>
+}

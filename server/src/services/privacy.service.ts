@@ -113,3 +113,12 @@ export async function chatPrivacy(): Promise<Privacy> {
   if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }
   return { enabled: true, known_entities: await chatKnownEntities() }
 }
+
+// The `privacy` field sent with a knowledge document's labelling and ingestion
+// (PV-05). A past report has no assessment and may name any client, so it is
+// chat's list. No `detect` (CP-23): on a real report it tagged section headings
+// and building terms ("Opportunities for Improvement", "Reinforced Concrete") as
+// clients and sites, which would leave passages without their technical words.
+export type IngestionPrivacy = Privacy
+
+export const ingestionPrivacy = chatPrivacy

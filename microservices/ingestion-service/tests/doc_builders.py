@@ -68,6 +68,6 @@ def table(doc, box, page=1, caption=None):
     return doc.add_table(data=data, caption=caption_item, prov=prov(page, *box))
 
 
-def chunk_document(doc):
+def chunk_document(doc, protection=None):
     parsed = ParsedDocument(doc_name="report", docling_document=doc, page_count=len(doc.pages))
-    return chunker.chunk(parsed, doc_path=DOC_PATH, doc_id="report")
+    return chunker.chunk(parsed, doc_path=DOC_PATH, doc_id="report", protection=protection)

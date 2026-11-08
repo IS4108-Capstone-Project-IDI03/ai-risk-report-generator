@@ -53,9 +53,6 @@
 .ds-due-none {
   color: var(--graphite-600);
 }
-.ds-due-none {
-  color: var(--graphite-400);
-}
 
 /* Assessment type tile */
 .ds-type-tile {
@@ -307,6 +304,21 @@
 .ds-segmented button[aria-checked='true'] {
   color: var(--marsh-navy);
   font-weight: 600;
+}
+/* A count after an option's label (F-10 Inbox tabs, board 01): blue tint pill, navy number. */
+.ds-seg-count {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 /* The thumb behind the chosen option; slides 180 ms ease-out, retargeting if interrupted. */
 .ds-seg-thumb {

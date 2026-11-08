@@ -14,6 +14,8 @@ export type SegmentedOption<T extends string> = {
   disabled?: boolean
   // Text colour of this option, e.g. its assessment type's colour.
   color?: string
+  // A small count after the label (the Inbox's To do, F-10); none when undefined or 0.
+  count?: number
 }
 
 export type SegmentedControlProps<T extends string> = {
@@ -87,11 +89,13 @@ export function SegmentedControl<T extends string>({
           disabled={o.disabled}
           style={o.color ? { color: o.color } : undefined}
           title={o.label}
+          aria-label={o.count ? `${o.label}, ${o.count}` : undefined}
           onClick={() => onChange(o.value)}
           onKeyDown={(e) => onKeyDown(e, o.value)}
         >
           {o.icon ? <Icon name={o.icon} size={14} /> : null}
           {o.label}
+          {o.count ? <span className="ds-seg-count">{o.count > 99 ? '99+' : o.count}</span> : null}
         </button>
       ))}
     </div>

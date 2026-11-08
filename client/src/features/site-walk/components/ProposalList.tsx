@@ -82,7 +82,8 @@ export function DeletedProposalList({
   media: SiteWalk['media']
   filters: ProposalFilters
   onOpen: (ref: string) => void
-  onRestore: (ref: string) => void
+  // Left out for someone reading another engineer's walk (RV-11 AC2).
+  onRestore?: (ref: string) => void
 }) {
   const removed = (proposal.removed ?? []).filter((o) => matchesProposalFilters(o, filters, media))
   if (proposal.removed?.length && !removed.length)
@@ -107,13 +108,13 @@ export function DeletedProposalList({
     )
   return (
     <>
-      <ColumnHeads last="" />
+      {onRestore ? <ColumnHeads last="" /> : <ColumnHeads />}
       {removed.map((o) => (
         <ProposalRow
           key={o.ref}
           o={o}
           onOpen={() => onOpen(o.ref)}
-          onRestore={() => onRestore(o.ref)}
+          onRestore={onRestore && (() => onRestore(o.ref))}
         />
       ))}
     </>

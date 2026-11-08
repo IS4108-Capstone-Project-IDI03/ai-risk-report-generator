@@ -12,6 +12,7 @@ from chromadb.errors import NotFoundError
 from cohere.errors import GatewayTimeoutError, ServiceUnavailableError, TooManyRequestsError
 
 from app import usage
+from app.past_reports import with_real_words
 from app.retrieval.glossary import expand_query
 from app.retrieval_config import (
     CHROMA_MAX_QUERY_EMBEDDINGS,
@@ -108,6 +109,7 @@ def retrieve(
     top_n: int | None = 5,
     expand: bool = False,
     rank_texts: Callable[[list[str]], list[str]] | None = None,
+    protection=None,
 ) -> list[dict]:
     """Return the reranked passages for a query: `candidates` from Chroma, best `top_n` kept.
 
@@ -116,7 +118,9 @@ def retrieve(
     `expand` widens the best few hits to their table or neighbours (`widen`).
     Short forms in the query ("EH2") are spelled out before it is embedded and reranked.
     `rank_texts` changes only what the reranker reads, e.g. chat masking client details
-    (PV-03); the passages returned keep their stored text.
+    (PV-03); the passages returned keep their stored text. `protection` is the request's privacy
+    Session: past reports' values are added to what it masks (PV-05). Widening needs none: its
+    neighbours come from documents already restored here.
     """
     if not query.strip():
         raise ValueError("Query must not be blank")
@@ -150,15 +154,19 @@ def retrieve(
     )
     hits = rerank(
         query,
-        [
-            {"id": id_, "text": text, "metadata": metadata, "distance": distance}
-            for id_, text, metadata, distance in zip(
-                nearest["ids"][0],
-                nearest["documents"][0],
-                nearest["metadatas"][0],
-                nearest["distances"][0],
-            )
-        ],
+        # Before the reranker, so it (and `rank_texts`' masking) reads a past report's words.
+        with_real_words(
+            [
+                {"id": id_, "text": text, "metadata": metadata, "distance": distance}
+                for id_, text, metadata, distance in zip(
+                    nearest["ids"][0],
+                    nearest["documents"][0],
+                    nearest["metadatas"][0],
+                    nearest["distances"][0],
+                )
+            ],
+            protection,
+        ),
         top_n=top_n,
         rank_texts=rank_texts,
     )
@@ -198,11 +206,13 @@ def _around(hit: dict, collection, include_withdrawn: bool) -> list[dict]:
         where={"$and": [*where, {"status": {"$nin": hidden}}]},
         include=["documents", "metadatas"],
     )
-    others = [
-        {"id": id_, "text": text, "metadata": metadata}
-        for id_, text, metadata in zip(found["ids"], found["documents"], found["metadatas"])
-        if id_ != hit["id"]
-    ]
+    others = with_real_words(
+        [
+            {"id": id_, "text": text, "metadata": metadata}
+            for id_, text, metadata in zip(found["ids"], found["documents"], found["metadatas"])
+            if id_ != hit["id"]
+        ]
+    )
     others.sort(key=lambda p: (p["metadata"].get("position", 0), _group(p["id"])))
     return others
 
@@ -300,7 +310,7 @@ def rerank(
     ]
 
 
-def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
+def search(requests: list[tuple[str, dict, int]], protection=None) -> list[list[dict]]:
     """Run several searches with one Cohere call, for drafting a section.
 
     Each request is `(query, filters, k)` and gets its `k` nearest passages, nearest
@@ -308,6 +318,8 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
     share one Chroma query. A Cohere trial key allows 10 calls a minute, so one search
     per subsection with `retrieve()` (embed and rerank each) would hit the limit on a
     large section, so callers rerank the combined hits once with `rerank()` (GN-01 AC14).
+    `protection` is the request's privacy Session: past reports' values are added to what it
+    masks (PV-05, `past_reports.with_real_words`).
     """
     empty = [[] for _ in requests]
     if not requests:
@@ -358,4 +370,6 @@ def search(requests: list[tuple[str, dict, int]]) -> list[list[dict]]:
                     }
                     for n in range(len(found["ids"][row]))
                 ]
-    return results
+    # Past reports are stored with tags; every request's passages get their words back at once.
+    restored = iter(with_real_words([p for found in results for p in found], protection))
+    return [[next(restored) for _ in found] for found in results]

@@ -3,6 +3,8 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import type { ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 import { clientNameOf } from './client.service'
+import type { SessionUser } from './auth.service'
+import { NotAssignedError } from './assessment.service'
 
 export class AssessmentNotFoundError extends Error {
   constructor(reference: string) {
@@ -34,8 +36,13 @@ export type CaptureSessionResult = {
 // Returns the assessment's active capture session, creating one only when none
 // exists (CP-01 AC1/AC2). Idempotent, so the client calls it every time the
 // capture screen opens rather than tracking whether a session was started.
-// Assessments are addressed by their reference, the ID the client holds.
-export async function startCaptureSession(reference: string): Promise<CaptureSessionResult> {
+// Assessments are addressed by their reference, the ID the client holds. Only the
+// assigned engineer can: a knowledge admin reaches this route too (RV-11), and
+// without the check they could open capture on someone else's assessment.
+export async function startCaptureSession(
+  reference: string,
+  user: SessionUser,
+): Promise<CaptureSessionResult> {
   const assessment = await AssessmentModel.findOne({ reference })
     .populate<{ site: Pick<ISite, 'code' | 'name' | 'client'> | null }>({
       path: 'site',
@@ -44,6 +51,9 @@ export async function startCaptureSession(reference: string): Promise<CaptureSes
     })
     .lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
+  if (String(assessment.engineer) !== user.id) {
+    throw new NotAssignedError('Only the engineer assigned to this assessment can capture for it.')
+  }
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
 
   const active = { assessment: assessment._id, status: 'active' as const }

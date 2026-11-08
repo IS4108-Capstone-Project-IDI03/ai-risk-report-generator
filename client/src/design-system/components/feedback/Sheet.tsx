@@ -33,6 +33,8 @@ export type SheetProps = {
   subtitle?: string
   // ... and a Cancel button at the bottom in place of the close tick (board 23).
   cancel?: boolean
+  // A class on the sheet's root, for a screen's own look (the bell, the engineer picker).
+  className?: string
 }
 
 const EXIT_MS = 200
@@ -63,6 +65,7 @@ export function Sheet({
   centred,
   subtitle,
   cancel,
+  className,
 }: SheetProps) {
   const panel = useRef<HTMLDivElement>(null)
   // Keep it mounted for the exit motion; jsdom cannot animate, so it unmounts at once there.
@@ -116,7 +119,7 @@ export function Sheet({
   if (!open && !leaving) return null
   return createPortal(
     <div
-      className="ds-sheet-root"
+      className={className ? `ds-sheet-root ${className}` : 'ds-sheet-root'}
       data-state={open ? 'open' : 'closed'}
       data-centred={centred ? '' : undefined}
     >

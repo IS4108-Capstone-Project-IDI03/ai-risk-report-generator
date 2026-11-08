@@ -149,19 +149,26 @@ def mask(
     known: list[KnownEntity],
     mapping: dict[str, str] | None = None,
     detect: list[str] | None = None,
-) -> tuple[list[str], dict[str, str]]:
-    """Return the texts with each detail replaced, and placeholder -> the text it replaced."""
+) -> tuple[list[str], dict[str, str], list[list[dict]]]:
+    """Return the texts with each detail replaced, placeholder -> the text it replaced, and where
+    each detail sat: per text, its start and end in the input and its placeholder (PV-05)."""
     mapping = dict(mapping or {})
-    masked = []
+    masked, where = [], []
     for text in texts:
         # Right to left, so replacing one span leaves the earlier offsets valid. Placeholders are
         # allocated left to right, so they number in reading order.
         spans = _spans(text, known, detect or [])
         placeholders = [_placeholder(span, mapping) for span in spans]
+        where.append(
+            [
+                {"start": s.start, "end": s.end, "placeholder": p}
+                for s, p in zip(spans, placeholders)
+            ]
+        )
         for span, placeholder in reversed(list(zip(spans, placeholders))):
             text = text[: span.start] + placeholder + text[span.end :]
         masked.append(text)
-    return masked, mapping
+    return masked, mapping, where
 
 
 def _spans(text: str, known: list[KnownEntity], detect: list[str]) -> list[_Span]:
@@ -172,15 +179,16 @@ def _spans(text: str, known: list[KnownEntity], detect: list[str]) -> list[_Span
     """
     entities = [*TYPES, *(DETECT[kind] for kind in detect)]
     detected = _analyzer().analyze(text, language="en", entities=entities)
-    found = [
+    # Known names always count, even with no label before them: the caller listed them (PV-05).
+    known_spans = [
         _Span(m.start(), m.end(), entity.type, entity.names[0])
         for entity in known
         for name in entity.names
         for m in _name_pattern(name).finditer(text)
     ]
-    # Known names always count; other kinds only when detectors.json has them on.
+    # Other kinds count only when detectors.json has them on.
     on = detectors.enabled()
-    found += [
+    found = [
         _Span(m.start("v"), m.end("v"), type_, m["v"])
         for type_, pattern in PATTERNS.items()
         if type_ in on
@@ -205,7 +213,7 @@ def _spans(text: str, known: list[KnownEntity], detect: list[str]) -> list[_Span
         if r.entity_type in SPACY_TYPES
         for start, end in _unlisted_parts(text, r.start, r.end)
     ]
-    found = [span for span in found if _stands_as(span, text)]
+    found = known_spans + [span for span in found if _stands_as(span, text)]
     kept: list[_Span] = []
     for span in found:  # surest first, so it is kept over what it overlaps
         if not any(span.start < k.end and k.start < span.end for k in kept):
@@ -311,9 +319,12 @@ def _plate_checks(plate: str) -> bool:
 
 
 def _name_pattern(name: str) -> re.Pattern:
-    """The name as whole words, in any case and with any spacing between its words."""
+    """The name as whole words, in any case and with any spacing between its words.
+
+    Not `\\b`: it needs a letter or digit at each end, so "Acme Pte. Ltd." or "+65 9123 4567"
+    would never match."""
     words = r"\s+".join(re.escape(word) for word in name.split())
-    return re.compile(rf"\b{words}\b", re.IGNORECASE)
+    return re.compile(rf"(?<!\w){words}(?!\w)", re.IGNORECASE)
 
 
 def _placeholder(span: _Span, mapping: dict[str, str]) -> str:

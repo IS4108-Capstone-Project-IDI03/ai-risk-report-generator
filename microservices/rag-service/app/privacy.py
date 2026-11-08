@@ -79,7 +79,8 @@ class Session:
         # A client intake masks whole document packs, which take longer than a draft's notes.
         self.timeout = timeout or config.PRIVACY_TIMEOUT
         self.enabled = bool(privacy and privacy.get("enabled"))
-        self.known_entities = (privacy or {}).get("known_entities") or []
+        # A copy: `know` adds to it, and the caller's request must stay as sent.
+        self.known_entities = list((privacy or {}).get("known_entities") or [])
         # Extra kinds privacy-service should find on its own, e.g. company names (CP-23).
         self.detect = (privacy or {}).get("detect") or []
         self.mapping: dict[str, str] = {}
@@ -95,6 +96,14 @@ class Session:
             return key
 
         return _PLACEHOLDER_SHAPED.sub(swap, text)
+
+    def know(self, entities: list[dict]) -> None:
+        """Adds client details to look for from now on, e.g. those a past report's mapping names
+        (PV-05). This request's own known entities cover only its client, so another client's
+        name put back into a past report would otherwise reach the model."""
+        for entity in entities:
+            if entity not in self.known_entities:
+                self.known_entities.append(entity)
 
     def mask(self, texts: list[str]) -> list[str]:
         """`texts` with client details as typed placeholders, in one /mask call."""

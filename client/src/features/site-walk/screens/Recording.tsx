@@ -14,6 +14,7 @@ import { BackButton } from '../../assessments/components/BackButton'
 import { WalkNameDialog } from '../components/WalkNameDialog'
 import { WalkToast, type WalkToastState } from '../components/WalkToast'
 import { clock, mediaProblem } from '../recorder'
+import { acceptFiles, audioLength } from '../pickFiles'
 import { readDraft, writeDraft } from '../typedDraft'
 import { usePhone } from '../usePhone'
 import { useWalk } from '../useWalk'
@@ -109,6 +110,24 @@ export function SiteWalkRecording({
     w.addPhoto(photo, recordingSeq, offsetSec)
   }
 
+  // Picked photos are checked, then kept like camera shots, stamped with where they sit.
+  function pickPhotos(files: File[]) {
+    for (const file of acceptFiles(files, 'photo')) {
+      const { recordingSeq, offsetSec } = rec.stamp()
+      w.addPhoto(file, recordingSeq, offsetSec, file.name)
+    }
+  }
+
+  // Picked recordings are checked, then join the walk like a recorded one (AC8). The seq is
+  // claimed before reading the length, so the order picked is the order in the list.
+  async function pickRecordings(files: File[]) {
+    for (const file of acceptFiles(files, 'recording')) {
+      const seq = w.claimSeq()
+      const length = await audioLength(file)
+      void w.addRecording(seq, file, length, { uploaded: true, name: file.name })
+    }
+  }
+
   async function finish(name: string) {
     setBusy(true)
     // The recording running now is kept on the device first, so finish's flush sends it.
@@ -192,11 +211,22 @@ export function SiteWalkRecording({
             onResume={rec.resume}
             onSave={save}
             onCamera={() => void openCamera()}
+            onUpload={(files) => void pickRecordings(files)}
           />
-          <PhotoStrip server={w.serverPhotos} local={w.localPhotos} />
+          <PhotoStrip
+            server={w.serverPhotos}
+            local={w.localPhotos}
+            onAdd={pickPhotos}
+            onRemove={(id) => w.remove({ kind: 'photo', id })}
+          />
           <NoteComposer value={note} onChange={type} onAdd={() => void addNote()} />
         </div>
-        <WalkList items={w.items} onSaveNote={w.editNote} />
+        <WalkList
+          items={w.items}
+          onSaveNote={w.editNote}
+          onRetry={(seq) => void w.retry(seq)}
+          onRemove={(item) => w.remove({ kind: item.kind, seq: item.seq })}
+        />
       </div>
 
       <footer className="sw-finish">

@@ -13,12 +13,26 @@ import { NotificationModel } from '../models/notification.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { SiteModel } from '../models/site.model'
+import { UserModel } from '../models/user.model'
 import { proposalQueue, transcriptionQueue } from '../services/background-queues.service'
 import { drainInlineJobs, setInlineAttempts } from '../services/job-queue.service'
 import { signSession } from '../services/auth.service'
 import { SESSION_COOKIE } from '../middleware/auth.middleware'
-import { resumeInterruptedSiteWalks } from '../services/site-walk.service'
+import { resumeInterruptedSiteWalks, runWalkTranscription } from '../services/site-walk.service'
+import * as mediaConvert from '../services/media-convert.service'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
+import sharp from 'sharp'
+import { readFileSync } from 'fs'
+import {
+  aacAudio,
+  audioFile,
+  bmpImage,
+  aiffAudio,
+  mp3Audio,
+  silentAudio,
+  wavAudio,
+  webmAudio,
+} from './media-fixtures'
 import { useMemoryMongo } from './memory-mongo'
 
 const s3 = vi.hoisted(() => new Map<string, Buffer>())
@@ -50,7 +64,7 @@ const base = `/api/assessments/${REF}/site-walks`
 type Draft = { locations: Record<string, unknown>[]; observations: Record<string, unknown>[] }
 const BLOCK_A_BAY = new Types.ObjectId()
 
-const AUDIO = Buffer.from('fake webm audio')
+const AUDIO = webmAudio()
 const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('jpeg body')])
 
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
@@ -71,7 +85,9 @@ const json = (status: number, body: object) =>
 const heard = (text: string) =>
   json(200, { transcript: text, segments: [{ start: 0, end: 5, text }], usage: [] })
 
-beforeEach(() => {
+beforeEach(async () => {
+  // The notification looks the engineer's role up (F-10), so the account must exist.
+  await UserModel.create(actor)
   speech.mockImplementation(() => heard('We are at Block A, pallets in the fire lane.'))
   describe_.mockImplementation(() =>
     json(200, { description: 'Pallets stacked in an aisle.', usage: [] }),
@@ -220,6 +236,21 @@ describe('walk lifecycle', () => {
     })
   })
 
+  // RV-11: the walk follows the assessment, so the new engineer finishes the old one's
+  // recordings instead of starting a second walk beside it.
+  it('gives the new engineer the walk still recording after a reassignment', async () => {
+    await seed()
+    const first = await startWalk()
+    const next = { _id: new Types.ObjectId(), role: 'risk_engineer', name: 'New Engineer' }
+    await AssessmentModel.updateOne({ reference: REF }, { engineer: next._id })
+
+    const res = await signedInAs(app, next as never).post(base)
+
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe(first.id)
+    expect(await SiteWalkModel.countDocuments()).toBe(1)
+  })
+
   it('lets only the assigned engineer start a walk', async () => {
     await seed()
     const other = signedInAsRole(app, 'risk_engineer', 'Someone Else')
@@ -251,10 +282,12 @@ describe('walk lifecycle', () => {
     expect((await api.get(`${base}/${new Types.ObjectId()}`)).status).toBe(404)
   })
 
-  it("lists only the calling engineer's own walks", async () => {
+  // Walks follow the assessment, not the engineer who started them (RV-11): after a
+  // reassignment the new engineer carries on the walks already made.
+  it('lists the assessment’s walks, whoever started them, newest first', async () => {
     await seed()
     const mine = await startWalk()
-    await SiteWalkModel.create({
+    const theirs = await SiteWalkModel.create({
       assessment: (await AssessmentModel.findOne())!._id,
       engineerId: new Types.ObjectId(),
       status: 'ready',
@@ -266,7 +299,10 @@ describe('walk lifecycle', () => {
       },
     })
 
-    expect((await api.get(base)).body.map((w: { id: string }) => w.id)).toEqual([mine.id])
+    expect((await api.get(base)).body.map((w: { id: string }) => w.id)).toEqual([
+      String(theirs._id),
+      mine.id,
+    ])
   })
 
   it('refuses another engineer changing a walk but lets them read it', async () => {
@@ -496,7 +532,10 @@ describe('uploads', () => {
     const wrongType = await api
       .put(`${base}/${walk.id}/recordings/1`)
       .field('durationSec', '5')
-      .attach('recording', AUDIO, { filename: 'a.txt', contentType: 'text/plain' })
+      .attach('recording', Buffer.from('not audio'), {
+        filename: 'a.mp3',
+        contentType: 'audio/mpeg',
+      })
     const noDuration = await api
       .put(`${base}/${walk.id}/recordings/1`)
       .attach('recording', AUDIO, { filename: 'a.webm', contentType: 'audio/webm' })
@@ -644,10 +683,19 @@ describe('finishing and proposing', () => {
     })
     const note = await NotificationModel.findOne({ purpose: 'site_walk_ready' }).lean()
     expect(note).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'risk_engineer',
       targetUserIds: [String(actor._id)],
-      message: 'Your site walk proposal is ready to review.',
+      message: 'Review site walk: Tilbury DC',
     })
-    expect(note?.context).toMatchObject({ reference: REF, walkId: walk.id })
+    expect(note?.context).toMatchObject({
+      reference: REF,
+      walkId: walk.id,
+      client: 'Acme Logistics',
+      site: 'Tilbury DC',
+    })
+    // Made by the app, not a person, so no sender.
+    expect(note?.context).not.toHaveProperty('sender')
   })
 
   it('still notifies the engineer, once, when the notification write fails after the walk is ready', async () => {
@@ -1002,6 +1050,105 @@ describe('a queue that is down', () => {
     const notes = await NotificationModel.find({ purpose: 'site_walk_ready' }).lean()
     expect(notes).toHaveLength(1)
     expect(notes[0].context).toMatchObject({ reference: REF, walkId: walk.id })
+  })
+})
+
+describe('telling the engineer (F-10)', () => {
+  const admin = {
+    ...actor,
+    _id: new Types.ObjectId(),
+    staffId: 'TEST-9',
+    name: 'Sana Patel',
+    email: 'sana@example.com',
+    role: 'knowledge_admin' as const,
+  }
+  const notes = (purpose: 'site_walk_ready' | 'site_walk_failed') =>
+    NotificationModel.find({ purpose }).sort({ _id: 1 }).lean()
+
+  it('tells the assessment’s current engineer, by their current role, not the walk’s own engineer', async () => {
+    await seed()
+    await UserModel.create(admin)
+    await AssessmentModel.updateOne({ reference: REF }, { reportDueDate: new Date('2026-10-19') })
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    // The admin takes the assessment over while the walk is being read.
+    rag.mockImplementation(async () => {
+      await AssessmentModel.updateOne({ reference: REF }, { engineer: admin._id })
+      return json(200, proposalFromRag())
+    })
+
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'ready')
+
+    const [note] = await notes('site_walk_ready')
+    expect(note).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'knowledge_admin',
+      targetUserIds: [String(admin._id)],
+      context: { reportDue: '2026-10-19' },
+    })
+    // And the admin sees it in their Inbox.
+    const inbox = await signedInAs(app, admin).get('/api/notifications?kind=inbox')
+    expect(inbox.body.items.map((i: { message: string }) => i.message)).toEqual([
+      'Review site walk: Tilbury DC',
+    ])
+  })
+
+  it('tells them when the reading fails, and again when a retry fails again', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    setInlineAttempts(2)
+    rag.mockImplementation(() => json(502, { detail: 'The reading service is down.' }))
+
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+    await drainInlineJobs()
+
+    const [first] = await notes('site_walk_failed')
+    expect(first).toMatchObject({
+      kind: 'inbox',
+      targetRole: 'risk_engineer',
+      targetUserIds: [String(actor._id)],
+      message: 'Retry site walk: Tilbury DC',
+      details: 'The reading service is down.',
+      context: { reference: REF, walkId: walk.id, site: 'Tilbury DC' },
+    })
+
+    await api.post(`${base}/${walk.id}/retry`)
+    await reaches(walk.id, 'failed')
+    await drainInlineJobs()
+    expect(await notes('site_walk_failed')).toHaveLength(2)
+  })
+
+  it('tells them when a recording cannot be transcribed and the walk fails', async () => {
+    await seed()
+    const walk = await startWalk()
+    setInlineAttempts(2)
+    speech.mockImplementation(() => json(503, { detail: 'Busy.' }))
+
+    await upload(walk.id, 1)
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+
+    expect(await notes('site_walk_failed')).toHaveLength(1)
+  })
+
+  it('does not tell them of the failure again when the retry succeeds', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    setInlineAttempts(2)
+    rag.mockImplementation(() => json(502, { detail: 'Down.' }))
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'failed')
+
+    rag.mockImplementation(() => json(200, proposalFromRag()))
+    await api.post(`${base}/${walk.id}/retry`)
+    await reaches(walk.id, 'ready')
+
+    expect(await notes('site_walk_failed')).toHaveLength(1)
+    expect(await notes('site_walk_ready')).toHaveLength(1)
   })
 })
 
@@ -1812,5 +1959,446 @@ describe('media added to the proposal by hand', () => {
       status: 'transcribed',
       transcript: 'Hose reel three is missing.',
     })
+  })
+})
+
+// Photos and recordings of every format: what is stored, and what is refused
+// (Sprint 4 fixes, CP-22).
+describe('accepted formats', () => {
+  const blank = (w = 40, h = 20) =>
+    sharp({ create: { width: w, height: h, channels: 3, background: '#c33' } })
+  const putPhoto = (id: string, bytes: Buffer, name = 'p.jpg') =>
+    api
+      .put(`${base}/${id}/photos/${PHOTO}`)
+      .attach('photo', bytes, { filename: name, contentType: 'image/jpeg' })
+  const putRecording = (id: string, bytes: Buffer, durationSec = '0', name = 'r.mp3') =>
+    api
+      .put(`${base}/${id}/recordings/1`)
+      .field('durationSec', durationSec)
+      .attach('recording', bytes, { filename: name, contentType: 'audio/mpeg' })
+  const stored = async (id: string) => (await SiteWalkModel.findById(id).lean())!
+  const storedBytes = () => [...s3.values()]
+
+  async function walkId() {
+    await seed()
+    return (await startWalk()).id as string
+  }
+
+  it.each([
+    ['WebP', () => blank().webp().toBuffer()],
+    ['GIF', () => blank().gif().toBuffer()],
+    ['TIFF', () => blank().tiff().toBuffer()],
+    ['AVIF', () => blank().avif().toBuffer()],
+    ['HEIC', async () => readFileSync(`${__dirname}/fixtures/tiny.heic`)],
+    ['BMP', async () => bmpImage()],
+  ])('stores a %s photo as a JPEG', async (_name, make) => {
+    const id = await walkId()
+
+    const res = await putPhoto(id, await make(), 'photo.heic')
+
+    expect(res.status).toBe(200)
+    const [photo] = (await stored(id)).photos
+    expect(photo).toMatchObject({ contentType: 'image/jpeg' })
+    expect(photo.key.endsWith('.jpg')).toBe(true)
+    expect((await sharp(s3.get(photo.key)).metadata()).format).toBe('jpeg')
+  })
+
+  it('applies the EXIF rotation to a converted photo', async () => {
+    const id = await walkId()
+    const webp = await blank(40, 20).webp().withMetadata({ orientation: 6 }).toBuffer()
+
+    await putPhoto(id, webp)
+
+    const [photo] = (await stored(id)).photos
+    const { width, height, orientation } = await sharp(s3.get(photo.key)).metadata()
+    expect([width, height, orientation]).toEqual([20, 40, undefined])
+  })
+
+  it('stores a JPG and a PNG byte for byte', async () => {
+    const id = await walkId()
+    const png = await blank().png().toBuffer()
+
+    await putPhoto(id, JPG)
+    await api
+      .put(`${base}/${id}/photos/22222222-2222-4222-8222-222222222222`)
+      .attach('photo', png, { filename: 'p.png', contentType: 'image/png' })
+
+    expect(storedBytes().some((b) => b.equals(JPG))).toBe(true)
+    expect(storedBytes().some((b) => b.equals(png))).toBe(true)
+  })
+
+  it.each([
+    ['an SVG', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>')],
+    ['a PDF', Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n')],
+    ['a text file renamed .jpg', Buffer.from('just some words')],
+    ['a damaged WebP', Buffer.from('RIFF\x10\x00\x00\x00WEBPVP8 junk', 'latin1')],
+  ])('refuses %s and stores nothing', async (_name, bytes) => {
+    const id = await walkId()
+
+    const res = await putPhoto(id, bytes)
+
+    expect(res.status).toBe(415)
+    expect(res.body).toMatchObject({ code: 'wrong_type' })
+    expect((await stored(id)).photos).toEqual([])
+    expect(s3.size).toBe(0)
+  })
+
+  it('refuses a photo over 20 MB with too_large', async () => {
+    const id = await walkId()
+
+    const res = await putPhoto(id, Buffer.alloc(20 * 1024 * 1024 + 1, 1))
+
+    expect(res.status).toBe(413)
+    expect(res.body).toMatchObject({ code: 'too_large' })
+    expect(s3.size).toBe(0)
+  })
+
+  it.each([
+    ['MP3', mp3Audio, 'mp3'],
+    ['WAV', wavAudio, 'wav'],
+    ['WebM', webmAudio, 'webm'],
+  ])('stores %s audio unchanged and takes its length from the file', async (_n, make, ext) => {
+    const id = await walkId()
+    const audio = make()
+
+    const res = await putRecording(id, audio, '0', 'x.bin')
+
+    expect(res.status).toBe(200)
+    const [recording] = (await stored(id)).recordings
+    expect(recording.key.endsWith(`.${ext}`)).toBe(true)
+    expect(s3.get(recording.key)!.equals(audio)).toBe(true)
+    expect(recording.durationSec).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ['AAC', aacAudio],
+    ['AIFF', aiffAudio],
+  ])('converts %s to m4a', async (_n, make) => {
+    const id = await walkId()
+    const audio = make()
+
+    const res = await putRecording(id, audio, '0', 'x.m4a')
+
+    expect(res.status).toBe(200)
+    const [recording] = (await stored(id)).recordings
+    expect(recording).toMatchObject({ contentType: 'audio/x-m4a' })
+    expect(recording.key.endsWith('.m4a')).toBe(true)
+    expect(s3.get(recording.key)!.equals(audio)).toBe(false)
+  })
+
+  it('keeps the client length when the file has none', async () => {
+    const id = await walkId()
+    // A live WebM from a browser has no Duration; ffmpeg's matroska muxer
+    // writes none when told not to seek.
+    const noLength = audioFile('webm', ['-c:a', 'libopus', '-f', 'webm'], 3)
+    expect(noLength.length).toBeGreaterThan(0)
+
+    await putRecording(id, noLength, '7')
+
+    expect((await stored(id)).recordings[0].durationSec).toBeGreaterThanOrEqual(3)
+  })
+
+  it('refuses text renamed .mp3 and stores nothing', async () => {
+    const id = await walkId()
+
+    const res = await putRecording(id, Buffer.from('not audio at all'))
+
+    expect(res.status).toBe(415)
+    expect(res.body).toMatchObject({ code: 'wrong_type' })
+    expect(s3.size).toBe(0)
+  })
+
+  it('refuses a playlist that points at other files', async () => {
+    const id = await walkId()
+    const playlist = Buffer.from('#EXTM3U\n#EXTINF:1,\nfile:///etc/passwd\n#EXT-X-ENDLIST\n')
+    const concat = Buffer.from("ffconcat version 1.0\nfile '/etc/passwd'\n")
+
+    const res = await putRecording(id, playlist, '1', 'a.m3u8')
+    const res2 = await putRecording(id, concat, '1', 'a.mp3')
+
+    expect([res.status, res2.status]).toEqual([415, 415])
+    expect(s3.size).toBe(0)
+  })
+
+  it('refuses a recording over 20 minutes with too_long', async () => {
+    const id = await walkId()
+    const long = audioFile('webm', ['-c:a', 'libopus', '-b:a', '6k'], 21 * 60)
+
+    const res = await putRecording(id, long, '10', 'long.webm')
+
+    expect(res.status).toBe(413)
+    expect(res.body).toMatchObject({ code: 'too_long' })
+    expect(s3.size).toBe(0)
+  }, 30_000)
+
+  // 25 minutes of silence, made once per file (low bitrate keeps it small).
+  const long = {
+    mp3: undefined as Buffer | undefined,
+    webm: undefined as Buffer | undefined,
+  }
+  const longMp3 = () =>
+    (long.mp3 ??= silentAudio('mp3', ['-c:a', 'libmp3lame', '-b:a', '8k'], 25 * 60, {
+      tags: ['-metadata', 'title=Duration: 00:00:01.00'],
+    }))
+  const longWebm = () =>
+    (long.webm ??= silentAudio('webm', ['-c:a', 'libopus', '-b:a', '6k'], 25 * 60, {
+      toPipe: true,
+    }))
+
+  it('refuses a 25 minute MP3 whose title tag claims one second', async () => {
+    const id = await walkId()
+
+    const res = await putRecording(id, longMp3(), '1', 'long.mp3')
+
+    expect(res.status).toBe(413)
+    expect(res.body).toMatchObject({ code: 'too_long' })
+    expect(s3.size).toBe(0)
+  }, 60_000)
+
+  it('refuses a 25 minute WebM with no Duration, whatever length the client sends', async () => {
+    const id = await walkId()
+
+    const res = await putRecording(id, longWebm(), '5', 'long.webm')
+
+    expect(res.status).toBe(413)
+    expect(res.body).toMatchObject({ code: 'too_long' })
+    expect(s3.size).toBe(0)
+  }, 60_000)
+
+  it('stores a short WebM with no Duration at the measured length, not the client’s', async () => {
+    const id = await walkId()
+    const short = silentAudio('webm', ['-c:a', 'libopus', '-b:a', '6k'], 4, { toPipe: true })
+
+    const res = await putRecording(id, short, '500', 'short.webm')
+
+    expect(res.status).toBe(200)
+    const [recording] = (await stored(id)).recordings
+    expect(recording.durationSec).toBeGreaterThanOrEqual(3)
+    expect(recording.durationSec).toBeLessThanOrEqual(5)
+  })
+
+  it('stores an AVIF whose brand reads mif1 (the HEIC brand) as a JPEG', async () => {
+    const id = await walkId()
+    const avif = await blank().avif().toBuffer()
+    avif.write('mif1', 8, 'latin1')
+
+    const res = await putPhoto(id, avif)
+
+    expect(res.status).toBe(200)
+    const [photo] = (await stored(id)).photos
+    expect(photo).toMatchObject({ contentType: 'image/jpeg' })
+    expect((await sharp(s3.get(photo.key)).metadata()).format).toBe('jpeg')
+  })
+
+  it('answers 403, not 415, to an unassigned engineer sending bad bytes, and converts nothing', async () => {
+    const id = await walkId()
+    const other = signedInAsRole(app, 'risk_engineer', 'Someone Else')
+    const photoConvert = vi.spyOn(mediaConvert, 'toStoredPhoto')
+    const recordingConvert = vi.spyOn(mediaConvert, 'toStoredRecording')
+
+    const photo = await other
+      .put(`${base}/${id}/photos/${PHOTO}`)
+      .attach('photo', Buffer.from('not an image'), { filename: 'p.jpg' })
+    const recording = await other
+      .put(`${base}/${id}/recordings/1`)
+      .field('durationSec', '3')
+      .attach('recording', Buffer.from('not audio'), { filename: 'r.mp3' })
+
+    expect([photo.status, recording.status]).toEqual([403, 403])
+    expect(photoConvert).not.toHaveBeenCalled()
+    expect(recordingConvert).not.toHaveBeenCalled()
+  })
+
+  it('still refuses HEIC on the routes that take JPG and PNG only', async () => {
+    await seed()
+    await CaptureSessionModel.create({
+      assessment: (await AssessmentModel.findOne())!._id,
+      status: 'active',
+    })
+
+    const res = await api
+      .post(`/api/assessments/${REF}/observations`)
+      .field(
+        'details',
+        JSON.stringify({
+          copeDimensions: ['Protection'],
+          severity: 'high',
+          locationId: String(BLOCK_A_BAY),
+        }),
+      )
+      .attach('photo', readFileSync(`${__dirname}/fixtures/tiny.heic`), {
+        filename: 'p.jpg',
+        contentType: 'image/jpeg',
+      })
+
+    expect(res.status).toBe(415)
+  })
+})
+
+// Retrying and removing recordings and photos on a walk being recorded.
+describe('retrying and removing (Sprint 4 fixes)', () => {
+  async function walkWith() {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    await uploadPhoto(walk.id)
+    await drainInlineJobs()
+    return walk.id as string
+  }
+  const failRecording = (id: string) =>
+    SiteWalkModel.updateOne(
+      { _id: id },
+      {
+        $set: {
+          'recordings.0.transcription.status': 'failed',
+          'recordings.0.transcription.error': 'x',
+        },
+      },
+    )
+
+  it('retries a failed recording, and a second press does nothing', async () => {
+    const id = await walkWith()
+    await failRecording(id)
+    speech.mockClear()
+
+    const res = await api.post(`${base}/${id}/recordings/1/retry`)
+    await drainInlineJobs()
+    const again = await api.post(`${base}/${id}/recordings/1/retry`)
+    await drainInlineJobs()
+
+    expect(res.status).toBe(200)
+    expect(again.status).toBe(200)
+    expect(speech).toHaveBeenCalledTimes(1)
+    expect(again.body.recordings[0].transcription).toBe('transcribed')
+  })
+
+  it('leaves a recording that is not failed alone, and 404s an unknown one', async () => {
+    const id = await walkWith()
+    speech.mockClear()
+
+    const res = await api.post(`${base}/${id}/recordings/1/retry`)
+    const unknown = await api.post(`${base}/${id}/recordings/9/retry`)
+    await drainInlineJobs()
+
+    expect(res.status).toBe(200)
+    expect(unknown.status).toBe(404)
+    expect(speech).not.toHaveBeenCalled()
+  })
+
+  it('removes a recording with its file and unlinks its photos', async () => {
+    const id = await walkWith()
+    const key = (await SiteWalkModel.findById(id).lean())!.recordings[0].key
+
+    const res = await api.delete(`${base}/${id}/recordings/1`)
+    const twice = await api.delete(`${base}/${id}/recordings/1`)
+
+    expect(res.status).toBe(200)
+    expect(twice.status).toBe(200)
+    expect(res.body.recordings).toEqual([])
+    expect(res.body.photos).toEqual([
+      expect.objectContaining({ id: PHOTO, recordingSeq: null, offsetSec: null }),
+    ])
+    expect(s3.has(key)).toBe(false)
+  })
+
+  it('ends a transcription of a removed recording without error or leftovers', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    await api.delete(`${base}/${walk.id}/recordings/1`)
+    await drainInlineJobs()
+
+    const after = (await SiteWalkModel.findById(walk.id).lean())!
+    expect(after.recordings).toEqual([])
+    expect(after.status).toBe('recording')
+  })
+
+  it('removes a photo and its file; again is fine', async () => {
+    const id = await walkWith()
+    const key = (await SiteWalkModel.findById(id).lean())!.photos[0].key
+
+    const res = await api.delete(`${base}/${id}/photos/${PHOTO}`)
+    const twice = await api.delete(`${base}/${id}/photos/${PHOTO}`)
+
+    expect([res.status, twice.status]).toEqual([200, 200])
+    expect(res.body.photos).toEqual([])
+    expect(s3.has(key)).toBe(false)
+  })
+
+  it('refuses removing once the walk is finished, and keeps the file', async () => {
+    const id = await walkWith()
+    await api.post(`${base}/${id}/finish`).send({ name: 'Tower A walk' })
+
+    const rec = await api.delete(`${base}/${id}/recordings/1`)
+    const photo = await api.delete(`${base}/${id}/photos/${PHOTO}`)
+
+    expect([rec.status, photo.status]).toEqual([409, 409])
+    expect(s3.size).toBe(2)
+  })
+
+  it('leaves a removed photo and recording out of the proposal', async () => {
+    const id = await walkWith()
+    await upload(id, 3)
+    await api.delete(`${base}/${id}/photos/${PHOTO}`)
+    await api.delete(`${base}/${id}/recordings/1`)
+    const proposal = proposalFromRag()
+    proposal.observations[0].recording_seq = 3
+    rag.mockImplementation(() => json(200, proposal))
+
+    await api.post(`${base}/${id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(id, 'ready')
+
+    const sent = rag.mock.calls[0][0]
+    expect(sent.photos).toEqual([])
+    expect(sent.transcript.recordings.map((r) => r.seq)).toEqual([3])
+  })
+
+  it('clears the photo links to a recording that is not on the server, and returns the walk', async () => {
+    const id = await walkWith()
+    // The recording never arrived (or is long gone), but the photo still points at it.
+    await SiteWalkModel.updateOne({ _id: id }, { $pull: { recordings: { seq: 1 } } })
+
+    const res = await api.delete(`${base}/${id}/recordings/1`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.photos).toEqual([
+      expect.objectContaining({ id: PHOTO, recordingSeq: null, offsetSec: null }),
+    ])
+    const [photo] = (await SiteWalkModel.findById(id).lean())!.photos
+    expect([photo.recordingSeq, photo.offsetSec]).toEqual([null, null])
+  })
+
+  it('returns a finished walk for an absent recording, but still refuses a present one', async () => {
+    const id = await walkWith()
+    await api.post(`${base}/${id}/finish`).send({ name: 'Tower A walk' })
+
+    const absent = await api.delete(`${base}/${id}/recordings/9`)
+    const present = await api.delete(`${base}/${id}/recordings/1`)
+
+    expect(absent.status).toBe(200)
+    expect(absent.body.id).toBe(id)
+    expect(present.status).toBe(409)
+  })
+
+  it('keeps a walk transcribing, and tells nobody, when its recording is removed mid-job', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    await drainInlineJobs()
+    await SiteWalkModel.updateOne(
+      { _id: walk.id },
+      { status: 'transcribing', 'recordings.0.transcription.status': 'queued' },
+    )
+    // The recording is removed while the speech service is working, which then fails.
+    speech.mockImplementation(async () => {
+      await SiteWalkModel.updateOne({ _id: walk.id }, { $pull: { recordings: { seq: 1 } } })
+      return json(500, { detail: 'Down' })
+    })
+
+    await runWalkTranscription(walk.id, 1, { isLastAttempt: true } as never)
+
+    const after = (await SiteWalkModel.findById(walk.id).lean())!
+    expect(after.status).toBe('transcribing')
+    expect(await NotificationModel.countDocuments({ purpose: 'site_walk_failed' })).toBe(0)
   })
 })

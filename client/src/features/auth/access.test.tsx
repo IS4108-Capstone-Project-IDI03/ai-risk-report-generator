@@ -70,6 +70,15 @@ describe('Sign-in (F-04)', () => {
   })
 })
 
+describe('Inbox route (F-10)', () => {
+  it.each(['risk_engineer', 'knowledge_admin'] as const)('opens /inbox for a %s', async (role) => {
+    openAt('/inbox')
+    await signIn(role)
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/inbox')
+  })
+})
+
 describe('Route guard (F-05)', () => {
   it('opens each role at its own workspace', async () => {
     openAt('/')
@@ -109,31 +118,32 @@ describe('Route guard (F-05)', () => {
     expect(window.location.pathname).toBe('/assessments')
   })
 
-  it.each(['/assessments/new', '/site-observation'])(
-    'blocks a knowledge admin from %s',
-    async (path) => {
-      openAt(path)
-      await signIn('knowledge_admin')
+  // RV-11 reversed the F-05 decision that kept admins out of these screens: an admin has the
+  // engineer's screens and abilities, and is read-only only on other people's assessments.
+  it.each([
+    ['/assessments/new', 'New Assessment'],
+    ['/site-observation', 'New Observation'],
+  ])('lets a knowledge admin open %s', async (path, heading) => {
+    openAt(path)
+    await signIn('knowledge_admin')
 
-      expect(screen.getByRole('alert')).toHaveTextContent('You do not have access to this page')
-      expect(requested().some((url) => url.includes('/capture-session'))).toBe(false)
-    },
-  )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+  })
 
-  it('lets a knowledge admin read assessments without the controls that change them', async () => {
+  it('gives a knowledge admin the engineer’s Assessments screen, Clients and the report tabs', async () => {
     openAt('/assessments')
     await signIn('knowledge_admin')
 
     expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'New assessment' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New assessment' })).toBeInTheDocument()
+    expect(within(nav()).getByRole('button', { name: 'Clients' })).toBeInTheDocument()
     expect(within(nav()).getByRole('button', { name: 'User accounts' })).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent)
-    expect(tabs.some((name) => name?.startsWith('Overview'))).toBe(true)
-    expect(tabs.some((name) => name?.startsWith('Observations'))).toBe(true)
-    expect(tabs.some((name) => name?.startsWith('Generation'))).toBe(false)
-    expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
+    for (const name of ['Overview', 'Observations', 'Generation', 'Review', 'Export'])
+      expect(tabs.some((tab) => tab?.startsWith(name))).toBe(true)
   })
 
   it('follows the browser back button between screens', async () => {

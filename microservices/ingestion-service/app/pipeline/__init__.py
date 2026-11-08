@@ -2,7 +2,10 @@
 
 `run(file_path)` chains the stages for one document:
 
-    parse -> (tables/images branched aside) -> chunk -> anonymise -> index
+    [redact] -> parse -> (tables/images branched aside) -> chunk -> anonymise -> index
+
+A past report is redacted first when protection is on (PV-05): parsing, chunking, the OCR crops
+(rendered from the PDF), embedding and storage then all read tags instead of client details.
 
 and returns a summary. `index_chunks` embeds each chunk (Cohere) and upserts it
 to Chroma, so embedding happens inside the index step, not as a separate stage.
@@ -21,12 +24,17 @@ dependencies so a worker can call it exactly as a CLI does.
 """
 
 import sys
+import tempfile
+from pathlib import Path
 
+from app.labelling.config import STANDARDS
 from app.pipeline import sections as report
 from app.pipeline.anonymiser import anonymise
 from app.pipeline.errors import UnparsableDocumentError
 from app.pipeline.indexer import index_chunks
 from app.pipeline.progress import IngestionCancelledError, NoOpReporter
+from app.pipeline.redactor import redact_pdf
+from app.privacy import session
 
 __all__ = [
     "run",
@@ -68,6 +76,7 @@ def run(
     doc_id: str | None = None,
     labels: dict | None = None,
     reporter=None,
+    privacy: dict | None = None,
 ) -> dict:
     """Ingest one document end to end and return a summary.
 
@@ -88,6 +97,9 @@ def run(
             stage calls below need no guards. On failure, run() re-raises
             without calling finish(); the worker's except block records the
             failed stage.
+        privacy: the gateway's `{enabled, known_entities, detect?}` (the epic's Rule 1). When
+            enabled, a document that is not a standard is redacted before parsing (PV-05);
+            standards are public.
 
     Returns:
         A summary dict::
@@ -97,6 +109,8 @@ def run(
                 "chunks_indexed": int,
                 "tables_captured": int,
                 "images_captured": int,
+                "privacy": {"enabled": bool, "masked_count": int},
+                "mapping": dict,  # tag -> the detail it replaced; empty when not redacted
             }
 
     Raises:
@@ -111,25 +125,62 @@ def run(
     # A no-op sentinel so stage calls need no `if reporter:` guards.
     _reporter = reporter or NoOpReporter()
 
-    _check_cancelled(_reporter)
-    _reporter.start_stage("parsing")
-    parsed = this.parse(file_path, page_range=page_range, reporter=_reporter)
+    labels = labels or {}
+    protection = session(privacy)
+    with tempfile.TemporaryDirectory() as tmp:
+        source, redacted_with = file_path, None
+        # A standard is public; anything else (a report, or a type still Unconfirmed) is redacted.
+        if protection.enabled and labels.get("source_type") not in STANDARDS:
+            _check_cancelled(_reporter)
+            _reporter.start_stage("anonymising")
+            redacted, _ = redact_pdf(Path(file_path).read_bytes(), protection)
+            # Same file name: the parser reports it as the document's name.
+            source = str(Path(tmp) / Path(file_path).name)
+            Path(source).write_bytes(redacted)
+            redacted_with = protection
+        summary = _parse_to_index(
+            this, source, file_path, page_range, doc_id, labels, _reporter, redacted_with
+        )
+    _reporter.finish()
+
+    # Whether this document was protected: a standard is not, even with protection on.
+    privacy_record = {"enabled": source != file_path, "masked_count": len(protection.mapping)}
+    # The redaction's tags and the safety net's (PV-06); a literal too, so restoring the words
+    # puts it back as written.
+    mapping = {**protection.mapping, **protection.literals} if redacted_with else {}
+    return {**summary, "privacy": privacy_record, "mapping": mapping}
+
+
+def _parse_to_index(
+    this, source: str, original: str, page_range, doc_id, labels: dict, reporter, protection
+) -> dict:
+    """Parse, chunk, label and index `source`, the PDF to read: the original, or its redacted
+    copy. `protection` is the redacted copy's privacy session, else None. Returns the counts
+    for `run`'s summary."""
+    _check_cancelled(reporter)
+    reporter.start_stage("parsing")
+    parsed = this.parse(source, page_range=page_range, reporter=reporter)
 
     tables_captured = len(parsed.tables)
     images_captured = len(parsed.images)
 
-    _reporter.start_stage("chunking")
-    chunks = this.chunk(parsed, doc_path=file_path, doc_id=doc_id, reporter=_reporter)
+    reporter.start_stage("chunking")
+    # The OCR crops are rendered from `source`, so a redacted report's crops are redacted too.
+    # With protection, faces in its picture crops are blurred before they are read (PV-06).
+    chunks = this.chunk(
+        parsed, doc_path=source, doc_id=doc_id, reporter=reporter, protection=protection
+    )
 
-    # A report's sections are read once from its fonts (IN-05); other documents need none.
-    labels = labels or {}
+    # A report's sections are read once from its fonts (IN-05); other documents need none. The
+    # original's fonts: reading them sends nothing anywhere, and gives only fixed section names.
     is_report = labels.get("source_type") == "marsh_report"
-    sections = report.report_sections(file_path) if is_report else []
+    sections = report.report_sections(original) if is_report else []
 
-    _reporter.start_stage("anonymising")
-    chunks = anonymise(chunks)
+    # The safety net (PV-06): a redacted report's chunk text is masked once more, for details
+    # the OCR model read out of pictures. The "anonymising" stage is the redaction before parsing.
+    chunks = anonymise(chunks, protection)
     for c in chunks:
-        _check_cancelled(_reporter)
+        _check_cancelled(reporter)
         c["metadata"].update(labels)
         # The section is per passage (IN-05), from the pages it sits on.
         meta = c["metadata"]
@@ -137,13 +188,11 @@ def run(
             labels.get("source_type"), meta.get("page_start"), meta.get("page_end"), sections
         )
 
-    _reporter.start_stage("indexing")
-    _check_cancelled(_reporter)
+    reporter.start_stage("indexing")
+    _check_cancelled(reporter)
     chunks_indexed = (
-        index_chunks(chunks, reporter=_reporter, page_total=parsed.page_count) if chunks else 0
+        index_chunks(chunks, reporter=reporter, page_total=parsed.page_count) if chunks else 0
     )
-
-    _reporter.finish()
 
     return {
         "doc_name": parsed.doc_name,

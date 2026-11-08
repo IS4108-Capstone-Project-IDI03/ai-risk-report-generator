@@ -131,6 +131,7 @@
 }
 .at-head .at-meta > span,
 .at-head .at-foot > span,
+.at-engineer-head,
 .at-type,
 .at-date,
 .at-status,
@@ -192,6 +193,57 @@
 .at-type,
 .at-date {
   color: var(--graphite-900);
+}
+
+/* An admin's list (RV-11): an Engineer column after Survey date, centred, 148 px, a long name
+   wrapping to two lines; room for Reassign beside Archive. Engineers' lists have none. */
+.at-list[data-engineer] {
+  --at-cols: minmax(0, 1fr) 120px 120px 148px 164px 168px 88px;
+}
+.at-engineer {
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
+  justify-self: center;
+}
+.at-engineer-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* Reassign confirmed (spec, Motion): the Engineer cell crossfades over 120 ms and the row holds
+   the blue "just changed" tint for 1 s, fading over 260 ms (the Documents list's tint). */
+.at-row[data-changed] {
+  animation: at-tint 1260ms linear;
+}
+.at-engineer-name[data-changed] {
+  animation: at-fade var(--duration-fast) var(--ease-out);
+}
+@keyframes at-tint {
+  0%,
+  79% {
+    background: var(--ink-50);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@keyframes at-fade {
+  from {
+    opacity: 0;
+  }
+}
+/* Reduced motion: both are already only colour and fade, so they stay. !important to beat
+   index.css, which stops every animation it isn't told about. */
+@media (prefers-reduced-motion: reduce) {
+  .at-row[data-changed] {
+    animation: at-tint 1260ms linear !important;
+  }
+  .at-engineer-name[data-changed] {
+    animation: at-fade var(--duration-fast) var(--ease-out) !important;
+  }
 }
 
 /* Archive and the open chevron: only on hover or focus, always on touch. */
@@ -312,6 +364,61 @@
   }
 }
 
+/* ---- An admin's list (RV-11) has one more column, so from 1100 px down the card folds Type and
+   Survey date under the ID, as the tablet card does; the Engineer column stays. ---- */
+@container at (max-width: 1100px) {
+  .at-list[data-engineer] {
+    --at-cols: minmax(0, 1fr) 148px 140px 168px 88px;
+  }
+  .at-list[data-engineer] .at-head .at-meta {
+    display: none;
+  }
+  .at-list[data-engineer] .at-row {
+    grid-template-areas:
+      'main engineer status due actions'
+      'meta engineer status due actions';
+    row-gap: 2px;
+  }
+  .at-list[data-engineer] .at-assessment {
+    grid-area: main;
+  }
+  .at-list[data-engineer] .at-ref {
+    white-space: nowrap;
+  }
+  .at-list[data-engineer] .at-meta {
+    grid-area: meta;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+    padding-left: 44px;
+    color: var(--graphite-600);
+    font-size: 13px;
+  }
+  .at-list[data-engineer] .at-meta > span {
+    color: var(--graphite-600);
+  }
+  .at-list[data-engineer] .at-type,
+  .at-list[data-engineer] .at-date {
+    white-space: nowrap;
+  }
+  .at-list[data-engineer] .at-date::before {
+    content: '·';
+    margin-right: 6px;
+  }
+  .at-list[data-engineer] .at-engineer {
+    grid-area: engineer;
+  }
+  .at-list[data-engineer] .at-status {
+    grid-area: status;
+  }
+  .at-list[data-engineer] .at-due {
+    grid-area: due;
+  }
+  .at-list[data-engineer] .at-actions {
+    grid-area: actions;
+  }
+}
+
 /* ---- Tablet card: still a table (board 25): Assessment (with its type and survey date
    under the ID), Status and Report due. ---- */
 @container at (max-width: 860px) {
@@ -341,7 +448,8 @@
   .at-meta {
     grid-area: meta;
     display: flex;
-    gap: 6px;
+    flex-wrap: wrap; /* a narrow column drops the date to its own line, never mid-phrase */
+    gap: 0 6px;
     padding-left: 44px;
     color: var(--graphite-600);
     font-size: 13px;
@@ -352,6 +460,10 @@
   .at-date::before {
     content: '·';
     margin-right: 6px;
+  }
+  .at-type,
+  .at-date {
+    white-space: nowrap;
   }
   .at-status {
     grid-area: status;
@@ -404,6 +516,57 @@
   .at-actions button {
     width: 44px !important;
     height: 44px !important;
+  }
+  /* An admin's list: the engineer takes its own line under Type and Survey date, and the
+     actions column holds Reassign beside Archive. */
+  .at-list[data-engineer] {
+    --at-cols: minmax(0, 1fr) 124px 136px 112px;
+  }
+  .at-list[data-engineer] .at-head .at-engineer-head {
+    display: none;
+  }
+  .at-list[data-engineer] .at-row {
+    grid-template-areas:
+      'main status due actions'
+      'meta status due actions'
+      'engineer status due actions';
+  }
+  .at-list[data-engineer] .at-engineer {
+    text-align: left;
+    justify-self: start;
+    padding-left: 44px;
+    color: var(--graphite-600);
+    font-size: 13px;
+  }
+}
+
+/* A narrow card (sidebar open on a tablet) drops the date to its own line, where a "·" would
+   start the line. */
+@container at (min-width: 601px) and (max-width: 640px) {
+  .at-date::before,
+  .at-list[data-engineer] .at-date::before {
+    content: none;
+  }
+}
+
+/* Tablet rows (item 18): the tile floats on the row's middle line with the text lines beside it,
+   and the date sits at the right of its column, nearer the buttons and away from the status pill.
+   Not on a phone, whose grid holds the tile in its own column. */
+@container at (min-width: 601px) and (max-width: 860px) {
+  .at-row {
+    position: relative;
+  }
+  .at-assessment > :first-child {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .at-text {
+    padding-left: 44px; /* room for the floating tile (32 px + 12 px) */
+  }
+  .at-list .at-due {
+    justify-self: end;
   }
 }
 
@@ -554,14 +717,37 @@
   .at-add {
     opacity: 1;
   }
+  /* An admin's list: the engineer's name takes a third line under the status, and the actions
+     column stacks Reassign over Archive, 44 px each. */
+  .at-list[data-engineer] .at-row {
+    grid-template-areas:
+      'tile main due actions'
+      'tile status due actions'
+      'tile engineer due actions';
+  }
+  .at-list[data-engineer] .at-meta {
+    display: none; /* the phone's rows drop Type and Survey date */
+  }
+  .at-list[data-engineer] .at-engineer {
+    padding-left: 0;
+  }
+  /* It lines up with the group head's plus above it, off the screen's edge. */
+  .at-list[data-engineer] .at-row {
+    padding-right: 16px;
+  }
+  .at-list[data-engineer] .at-actions {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+  }
   /* All view: the first band holds tile, ID, due and Archive, all centred in it (the same
      x as By client). "Client › Site" then runs under the ID to the right gutter (two lines
      at most), then the pill. */
   .at-list:not([data-grouped]) .at-row {
     grid-template-areas:
       'tile main due actions'
-      '. sub sub sub'
-      '. status status status';
+      '. sub sub actions'
+      '. status status actions';
     grid-template-rows: 44px auto auto;
     row-gap: 4px;
     padding-top: 8px;
@@ -571,6 +757,14 @@
   .at-list:not([data-grouped]) .at-ref,
   .at-list:not([data-grouped]) .at-due {
     align-self: center;
+  }
+  .at-list[data-engineer]:not([data-grouped]) .at-row {
+    grid-template-areas:
+      'tile main due actions'
+      '. sub sub actions'
+      '. status status actions'
+      '. engineer engineer actions';
+    grid-template-rows: 44px auto auto auto;
   }
   .at-sub {
     grid-area: sub;

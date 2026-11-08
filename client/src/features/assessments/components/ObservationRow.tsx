@@ -16,11 +16,17 @@ export function ObservationRow({ o, onOpen }: { o: ObservationRowView; onOpen: (
       data-landing={o.isNew || undefined}
       onClick={onOpen}
     >
-      <CategoryMark cats={o.cats} />
+      {/* The site walk mark sits outside the tile's corner; the tile clips its own contents. */}
+      <span className="ob-cat-wrap">
+        <CategoryMark cats={o.cats} />
+        {o.fromSiteWalk && (
+          <span className="ob-cat-flag">
+            <ObservationBadge kind="walk" />
+          </span>
+        )}
+      </span>
       <span className="ob-row-text">
         {o.isNew && <span className="ob-sr">{'New. '}</span>}
-        {/* Saved from a site walk proposal (CP-22 round 3), as a badge (round 6). */}
-        {o.fromSiteWalk && <ObservationBadge kind="walk" />}
         {o.text}
       </span>
       {/* One category per line, so several never run past the column. */}

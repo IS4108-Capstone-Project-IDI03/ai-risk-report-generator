@@ -38,6 +38,22 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
   uses the description to match the photo to a finding.
 - S5 still writes nothing to MongoDB.
 
+### Site walk uploads (gateway, CP-22)
+
+Only `PUT .../site-walks/:id/photos/:photoId` and `.../recordings/:seq` take these formats, through
+`media-form.ts` and `media-convert.service.ts`. Every other upload route stays JPG and PNG.
+
+- Photos: JPG and PNG are stored byte for byte. HEIC, HEIF, WebP, AVIF, GIF, TIFF and BMP become a
+  JPEG, so everything stored stays JPG or PNG and nothing downstream changes. 20 MB limit.
+- Recordings: a format Whisper reads (WebM, Ogg, MP4, M4A, MP3, WAV, FLAC) up to 25 MB is stored byte
+  for byte. Anything else becomes mono AAC in `.m4a`. 100 MB limit before conversion, 25 MB after,
+  20 minutes long. The length comes from the file, not the client.
+- The bytes are untrusted: the format is read from them, never from the name or reported type. ffmpeg
+  runs without a shell, limited to audio demuxers and local files, and is killed after 120 s.
+- `POST .../recordings/:seq/retry` re-queues a failed recording, with no limit on tries.
+- `DELETE .../recordings/:seq` and `.../photos/:photoId` remove the item and its stored file while the
+  walk is recording. The client waits out a 10 s Undo before calling them, and Finish waits for them.
+
 ## Reading an observation (S5, CP-05, CP-21)
 
 An engineer can ask for any observation to be read. The model proposes, in
@@ -232,6 +248,10 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
    labels (KB-01; an Unconfirmed one is left out, and `status` is
    `needs_review` until the match step below has finished) and its own `section`
    (IN-05, the report section it sits in, `Not applicable` or `Undefined`).
+   With protection on, a past report is redacted before parsing (PV-05,
+   scanned pages included), its picture crops have faces blurred before the
+   OCR model reads them, and its passage text is masked once more before
+   embedding (PV-06); see docs/areas/privacy.md.
    Parsing converts the PDF in 10-page batches (`DOCLING_DOCUMENT_TIMEOUT`
    limits each batch), joins them, and then assigns heading levels in one pass
    over the whole document with the PDF's bookmarks and font styles, so a
@@ -245,7 +265,9 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
    for knowledge admins to the gateway (IN-10, `app/notifications.py`): "finished
    ingesting" or "failed", or, when the finished document needs review (IN-07),
    '"<title>" needs review.' with the list's reason as details and
-   `context.status: needs_review`, which the bell opens as the Review page. A job whose worker died mid-run is
+   `context.status: needs_review`, which the Inbox opens as the Review page (F-10:
+   the gateway files `failed` and `needs_review` in the Inbox and `complete` in the
+   bell, from `context.status`, so the worker does not change). A job whose worker died mid-run is
    redelivered by BullMQ and processed again.
    Whatever the outcome (complete, failed or cancelled), the worker then posts
    what the document's paid calls used to the gateway's
@@ -283,6 +305,16 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   the image. A table over about 1,400 characters is cut between rows into groups
   that each repeat the title; ids are `<id>:table:<n>[:t<j>][:g<k>]`. The GLM path
   still guesses the header and has no title.
+- **Formulas.** A chunk is read as a formula when Docling labels one of its items
+  FORMULA, or when a line of its text has `=` and at least two arithmetic steps
+  between numbers (`chunker._looks_like_equation`). The second catches equations
+  written as ordinary text, such as Word fractions, which Docling's layout model
+  does not label and whose text layer comes out flattened. The whole chunk is
+  cropped and its reading replaces the chunk's text; an empty reading keeps
+  Docling's. In a chunk with a picture, each text item that is an equation is
+  cropped on its own and replaced in the picture passage's prose, since a crop of
+  the whole chunk would take in the picture. Docling's formula enrichment stays off: it only decodes items already
+  labelled, so it finds nothing more.
 - **Unusable answers.** Claude's safety filter sometimes refuses a crop, at
   times partway through the JSON (FM-200 agent tables). `anthropic_ocr` validates the
   answer itself and asks once more; `gemini_ocr` does not ask again (temperature 0) and
@@ -689,7 +721,9 @@ of date and to regenerate it.
    Items for an unknown area or hazard are dropped. An item in a section of one
    subsection (6) is put under it when the model leaves it out.
 5. Code checks the result. A citation of a passage not given is dropped; each
-   quote is looked for in its passage (`quote_found`, as chat does). An item
+   quote is looked for in its passage, the headings shown with it and then its
+   text (`quote_found` over `quotable_text`, as chat does): a past report's
+   cover lines, for one, are headings only. An item
    left with no citation is flagged `uncited`. A configured hazard with no item
    gets the config's own item, with origin `hazard_list` (written by the team,
    so not shown as AI-generated) and flagged `uncited`. Items are placed after their
@@ -1165,3 +1199,30 @@ A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`
   - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
 - **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../RUNNING.md) §5.
 
+
+## Who is told what (F-10, RV-11)
+
+Every notification goes through `createNotification` in the gateway's
+`notification.service.ts`, which sets its `kind` (Inbox or bell) from one lookup;
+see `docs/areas/database.md`, "Inbox and bell". The producers:
+
+| Producer | Purpose | Goes to |
+|---|---|---|
+| Ingestion worker, via `POST /api/internal/notifications` | `ingestion_status` | Inbox when failed or needs review, bell when finished |
+| `knowledge-gap.service.ts`, a new request | `knowledge_gap_request` | Inbox, all admins |
+| `knowledge-gap.service.ts`, filled or dismissed | `knowledge_gap_request` | bell, the asker |
+| `assessment-assign.service.ts`, an assessment created for or moved to another engineer | `assessment_assigned` | Inbox, that engineer |
+| `assessment-assign.service.ts`, an assessment moved away | `assessment_moved` | bell, the previous engineer |
+| `site-walk-notice.service.ts`, proposal ready | `site_walk_ready` | Inbox, the assessment's current engineer |
+| `site-walk-notice.service.ts`, walk failed | `site_walk_failed` | Inbox, the assessment's current engineer |
+
+Rules every producer follows: address a person by their current role, looked up
+(`audienceOf`), never a role written into the code; never tell people about their
+own action (an admin assigning to themselves, or moving work away from
+themselves, makes no notification for them); and never let a failed notification
+fail the action that already saved (they log and carry on, except the site walk
+"ready" one, which throws so the queue sends it again).
+
+A site walk fails in three places (the reading runs out of retries, a recording
+cannot be transcribed, the job cannot be queued); each tells the engineer once
+per attempt. An attempt is the walk's `retries` count, which Retry increments.

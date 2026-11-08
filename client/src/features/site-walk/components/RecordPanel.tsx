@@ -1,7 +1,9 @@
 // The Speak side of the Recording screen (CP-22 AC2): the clock, the one-minute
 // warning, why recording stopped by itself, and the controls (Camera,
-// Start/Pause/Resume, Save recording). Used by screens/Recording.tsx.
+// Start/Pause/Resume, and Upload recording or Save recording). Used by screens/Recording.tsx.
+import { useRef } from 'react'
 import { Icon } from '../../../design-system'
+import { RECORDING_ACCEPT } from '../uploadTypes'
 import { CAP_SEC, clock } from '../recorder'
 import type { Phase, StopNotice } from '../useWalkRecorder'
 
@@ -17,6 +19,7 @@ export function RecordPanel({
   onResume,
   onSave,
   onCamera,
+  onUpload,
 }: {
   phase: Phase
   elapsed: number
@@ -28,8 +31,10 @@ export function RecordPanel({
   onResume: () => void
   onSave: () => void
   onCamera: () => void
+  onUpload: (files: File[]) => void
 }) {
   const running = phase !== 'idle'
+  const picker = useRef<HTMLInputElement>(null)
   return (
     <section
       className={
@@ -104,18 +109,35 @@ export function RecordPanel({
             {phase === 'recording' ? 'Pause' : 'Resume'}
           </button>
         )}
-        {/* Hidden while idle but keeps its slot, so the controls don't jump. */}
-        <button
-          type="button"
-          className={running ? 'sw-control' : 'sw-control sw-control--idle'}
-          disabled={!running}
-          onClick={onSave}
-        >
-          <span className="sw-control-icon">
-            <Icon name="check" size={22} />
-          </span>
-          Save recording
-        </button>
+        {/* The third slot: Upload recording while idle, Save recording while recording. */}
+        {running ? (
+          <button type="button" className="sw-control" onClick={onSave}>
+            <span className="sw-control-icon">
+              <Icon name="check" size={22} />
+            </span>
+            Save recording
+          </button>
+        ) : (
+          <button type="button" className="sw-control" onClick={() => picker.current?.click()}>
+            <span className="sw-control-icon">
+              <Icon name="upload" size={22} />
+            </span>
+            Upload recording
+          </button>
+        )}
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          multiple
+          accept={RECORDING_ACCEPT}
+          aria-label="Choose recordings"
+          onChange={(e) => {
+            onUpload([...(e.target.files ?? [])])
+            // Cleared so picking the same file again still fires.
+            e.target.value = ''
+          }}
+        />
       </div>
     </section>
   )

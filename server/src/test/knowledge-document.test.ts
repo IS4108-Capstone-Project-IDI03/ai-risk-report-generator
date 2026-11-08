@@ -2,8 +2,10 @@ import { createHash, randomUUID } from 'crypto'
 import { Readable } from 'stream'
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { config } from '../config'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
+import { ClientModel } from '../models/client.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import {
@@ -82,9 +84,13 @@ afterEach(() => {
   inspect.mockReset()
   labelling.mockReset()
   converting.mockReset()
+  config.piiProtection = 'off'
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
+
+// Who presses retry or cancel in the service-level tests below (F-10).
+const BY = { id: 'u-sana', name: 'Sana Patel' }
 
 const PDF = Buffer.from('%PDF-1.7\nfake but well-formed enough\n%%EOF')
 // A Word file starts as a ZIP whose entries sit under word/.
@@ -149,6 +155,12 @@ function labelAnswer(details: Record<string, string>) {
 // tests that store several documents need different bytes for each.
 let pdfCount = 0
 const freshPdf = () => Buffer.concat([PDF, Buffer.from(`\n% copy ${++pdfCount}`)])
+
+// What the last upload sent /label (PV-05): a form holding the PDF and the privacy settings.
+const formSentToLabel = () => labelling.mock.calls.at(-1)![1]!.body as FormData
+const fileSentToLabel = async () =>
+  Buffer.from(await (formSentToLabel().get('file') as Blob).arrayBuffer())
+const privacySentToLabel = () => JSON.parse(formSentToLabel().get('privacy') as string)
 
 // Uploads with only the file name; /label answers with `details`.
 function upload(
@@ -362,7 +374,45 @@ describe('POST /api/knowledge-documents', () => {
     const bodySentTo = (calls: [string?, RequestInit?][], path: string) =>
       Buffer.from(calls.find(([url]) => String(url).endsWith(path))![1]!.body as Uint8Array)
     expect(bodySentTo(inspect.mock.calls, '/inspect')).toEqual(CONVERTED_PDF)
-    expect(bodySentTo(labelling.mock.calls, '/label')).toEqual(CONVERTED_PDF)
+    expect(await fileSentToLabel()).toEqual(CONVERTED_PDF)
+  })
+
+  // PV-05: labelling reads the pages with client details masked. A past report has no
+  // assessment, so every known client, site, address and person is listed.
+  it('sends /label the PDF and the privacy settings when protection is on', async () => {
+    config.piiProtection = 'required'
+    await ClientModel.create({ name: 'Acme Pte Ltd', key: 'acme pte ltd' })
+    const pdf = freshPdf()
+
+    await upload(pdf, REPORT)
+
+    expect(await fileSentToLabel()).toEqual(pdf)
+    const privacy = privacySentToLabel()
+    expect(privacy.enabled).toBe(true)
+    // No detection of unlisted names: on a real report it tagged headings and building terms.
+    expect(privacy).not.toHaveProperty('detect')
+    expect(privacy.known_entities).toContainEqual({ type: 'CLIENT', names: ['Acme Pte Ltd'] })
+  })
+
+  it('leaves the details Unconfirmed, without calling /label, when the names to mask cannot be read', async () => {
+    // A guard: the names are read inside labelling's own failure handling.
+    config.piiProtection = 'required'
+    vi.setSystemTime(new Date('2026-10-06T21:00:00Z')) // past the names another test read
+    vi.spyOn(ClientModel, 'find').mockImplementationOnce(() => {
+      throw new Error('database unavailable')
+    })
+
+    const response = await upload(freshPdf(), REPORT)
+
+    expect(response.status).toBe(201)
+    expect(labelling).not.toHaveBeenCalled()
+    expect(response.body.unconfirmed).toContain('sourceType')
+  })
+
+  it('tells /label protection is off when it is', async () => {
+    await upload(freshPdf(), REPORT)
+
+    expect(privacySentToLabel()).toEqual({ enabled: false, known_entities: [] })
   })
 
   it.each([
@@ -844,6 +894,46 @@ async function stored(details: Record<string, string>, state: object = { status:
   await KnowledgeDocumentModel.updateOne({ _id: body.id }, { finishedAt: new Date(), ...state })
   return body.id as string
 }
+
+describe('GET /api/knowledge-documents/:id (F-10)', () => {
+  it('returns the one document, with no handled record while nobody has handled it', async () => {
+    const id = await stored(REPORT)
+
+    const response = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+
+    expect(response.body).toMatchObject({ id, title: REPORT.title, handled: null })
+  })
+
+  it('returns who handled it, and when', async () => {
+    const id = await stored(REPORT)
+    const at = new Date('2026-10-01T00:00:00Z')
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { handled: { at, by: BY } })
+
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+
+    expect(body.handled).toEqual({ at: at.toISOString(), by: BY })
+  })
+
+  it('answers 404 for an unknown or malformed id, and does not capture /ingested', async () => {
+    await api.get('/api/knowledge-documents/6abb28ae16068a0793e99999').expect(404)
+    await api.get('/api/knowledge-documents/not-an-id').expect(404)
+    await api.get('/api/knowledge-documents/ingested').expect(200)
+  })
+
+  it('records who corrected a document, and when', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 4 }))
+
+    await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...REPORT, jurisdiction: 'SG', fileName: undefined })
+      .expect(200)
+
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.handled).toMatchObject({ by: { name: 'Test User' } })
+    expect(new Date(body.handled.at).getTime()).toBe(Date.now())
+  })
+})
 
 describe('GET /api/knowledge-documents/ingested', () => {
   it('lists every active document, however old, by title, and nothing still ingesting or failed', async () => {
@@ -1496,7 +1586,7 @@ describe('retryIngestion', () => {
   it('flips a failed document back to queued, clearing the failure fields', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     const doc = await stored()
     expect(doc!.status).toBe('queued')
@@ -1505,10 +1595,30 @@ describe('retryIngestion', () => {
     expect(doc!.result).toBeUndefined()
   })
 
+  it('records who retried it, and puts the earlier record back if re-queueing fails', async () => {
+    const earlier = { at: new Date('2026-01-01'), by: { id: 'u1', name: 'Omar Khan' } }
+    await seed({ handled: earlier })
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
+    expect((await stored())!.handled).toMatchObject({ by: { name: 'Omar Khan' } })
+
+    await retryIngestion(DOC_ID, BY)
+    expect((await stored())!.handled).toMatchObject({ at: new Date(), by: BY })
+  })
+
+  it('leaves handled absent again if the first retry fails to re-queue', async () => {
+    await seed()
+    requeued.mockRejectedValueOnce(new Error('queue down'))
+
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
+
+    expect((await stored())!.handled).toBeUndefined()
+  })
+
   it('increments the retry counter on each retry', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
     expect((await stored())!.retryCount).toBe(1)
 
     // Fail it again, then retry a second time: the counter keeps climbing.
@@ -1516,7 +1626,7 @@ describe('retryIngestion', () => {
       { _id: DOC_ID },
       { $set: { status: 'failed', error: 'again', finishedAt: new Date() } },
     )
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
     expect((await stored())!.retryCount).toBe(2)
   })
 
@@ -1529,7 +1639,7 @@ describe('retryIngestion', () => {
       cancelRequestedAt: undefined,
     })
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     const doc = await stored()
     expect(doc!.status).toBe('queued')
@@ -1541,7 +1651,7 @@ describe('retryIngestion', () => {
   it('re-queues the document', async () => {
     await seed()
 
-    await retryIngestion(DOC_ID)
+    await retryIngestion(DOC_ID, BY)
 
     expect(requeued).toHaveBeenCalledWith(DOC_ID, 1)
   })
@@ -1549,7 +1659,9 @@ describe('retryIngestion', () => {
   it('refuses a document that is not failed, leaving it and its counter untouched', async () => {
     await seed({ status: 'complete', error: undefined, finishedAt: undefined })
 
-    await expect(retryIngestion(DOC_ID)).rejects.toBeInstanceOf(KnowledgeDocumentWrongStateError)
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toBeInstanceOf(
+      KnowledgeDocumentWrongStateError,
+    )
 
     const doc = await stored()
     expect(doc!.status).toBe('complete')
@@ -1558,13 +1670,15 @@ describe('retryIngestion', () => {
   })
 
   it('rejects an unknown id', async () => {
-    await expect(retryIngestion('6abb28ae16068a0793e99999')).rejects.toBeInstanceOf(
+    await expect(retryIngestion('6abb28ae16068a0793e99999', BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentNotFoundError,
     )
   })
 
   it('rejects a malformed id without reaching the database', async () => {
-    await expect(retryIngestion('not-an-id')).rejects.toBeInstanceOf(KnowledgeDocumentNotFoundError)
+    await expect(retryIngestion('not-an-id', BY)).rejects.toBeInstanceOf(
+      KnowledgeDocumentNotFoundError,
+    )
   })
 
   it('refuses with 409 when the same file was uploaded again after it failed', async () => {
@@ -1588,7 +1702,7 @@ describe('retryIngestion', () => {
       },
     })
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow(
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow(
       'An identical file is already in the knowledge base.',
     )
     expect((await stored())!.status).toBe('failed')
@@ -1599,7 +1713,7 @@ describe('retryIngestion', () => {
     await seed()
     requeued.mockRejectedValueOnce(new Error('queue down'))
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
 
     const doc = await stored()
     // Back to failed, with a re-queue-specific reason, and the counter undone.
@@ -1617,7 +1731,7 @@ describe('retryIngestion', () => {
     })
     requeued.mockRejectedValueOnce(new Error('queue down'))
 
-    await expect(retryIngestion(DOC_ID)).rejects.toThrow()
+    await expect(retryIngestion(DOC_ID, BY)).rejects.toThrow()
 
     const doc = await stored()
     expect(doc!.status).toBe('cancelled')
@@ -1654,7 +1768,7 @@ describe('cancelIngestion', () => {
   it('cancels a queued document and removes its queue job', async () => {
     await seed()
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1662,10 +1776,26 @@ describe('cancelIngestion', () => {
     expect(removed).toHaveBeenCalledWith(CANCEL_ID, 0)
   })
 
+  it('records who cancelled a queued or a processing document', async () => {
+    await seed()
+    await cancelIngestion(CANCEL_ID, BY)
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.handled).toMatchObject({
+      at: new Date(),
+      by: BY,
+    })
+
+    await KnowledgeDocumentModel.deleteOne({ _id: CANCEL_ID })
+    await seed({ status: 'processing' })
+    await cancelIngestion(CANCEL_ID, BY)
+    expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.handled).toMatchObject({
+      by: BY,
+    })
+  })
+
   it('cancels a processing document immediately for cooperative cleanup', async () => {
     await seed({ status: 'processing' })
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1677,7 +1807,7 @@ describe('cancelIngestion', () => {
   it('does not change an already terminal document', async () => {
     await seed({ status: 'complete' })
 
-    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+    await expect(cancelIngestion(CANCEL_ID, BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentWrongStateError,
     )
 
@@ -1690,7 +1820,7 @@ describe('cancelIngestion', () => {
     removed.mockRejectedValueOnce(new Error('queue down'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+    await expect(cancelIngestion(CANCEL_ID, BY)).resolves.toBeUndefined()
 
     expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
     expect(error).toHaveBeenCalled()
@@ -1726,7 +1856,7 @@ describe('cancelIngestion', () => {
   it('cancels a queued document and removes its queue job', async () => {
     await seed()
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1737,7 +1867,7 @@ describe('cancelIngestion', () => {
   it('marks a processing document for cooperative cancellation', async () => {
     await seed({ status: 'processing' })
 
-    await cancelIngestion(CANCEL_ID)
+    await cancelIngestion(CANCEL_ID, BY)
 
     const doc = await KnowledgeDocumentModel.findById(CANCEL_ID).lean()
     expect(doc!.status).toBe('cancelled')
@@ -1749,7 +1879,7 @@ describe('cancelIngestion', () => {
   it('does not change an already terminal document', async () => {
     await seed({ status: 'complete' })
 
-    await expect(cancelIngestion(CANCEL_ID)).rejects.toBeInstanceOf(
+    await expect(cancelIngestion(CANCEL_ID, BY)).rejects.toBeInstanceOf(
       KnowledgeDocumentWrongStateError,
     )
 
@@ -1762,7 +1892,7 @@ describe('cancelIngestion', () => {
     removed.mockRejectedValueOnce(new Error('queue down'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await expect(cancelIngestion(CANCEL_ID)).resolves.toBeUndefined()
+    await expect(cancelIngestion(CANCEL_ID, BY)).resolves.toBeUndefined()
 
     expect((await KnowledgeDocumentModel.findById(CANCEL_ID).lean())!.status).toBe('cancelled')
     expect(error).toHaveBeenCalled()
@@ -1930,5 +2060,36 @@ describe('buildKnowledgeDocumentIndex', () => {
     error.mockRestore()
     await KnowledgeDocumentModel.deleteMany({})
     await KnowledgeDocumentModel.syncIndexes()
+  })
+})
+
+// PV-05 acceptance: a redacted report's mapping (tag -> client detail) is saved
+// on its document, and no API returns it to the browser.
+describe('a knowledge document privacy mapping', () => {
+  it('is in no response that returns the document', async () => {
+    // A guard: the DTO lists its fields, and the model never loads the mapping.
+    const id = await stored(REPORT)
+    await KnowledgeDocumentModel.collection.updateOne(
+      { _id: new Types.ObjectId(id) },
+      { $set: { privacyMapping: { '[PERSON_1]': 'John Tan' } } },
+    )
+
+    const responses = [
+      await api.get('/api/knowledge-documents'),
+      await api.get('/api/knowledge-documents/ingested'),
+      await api.put(`/api/knowledge-documents/${id}`).send({
+        title: REPORT.title,
+        effectiveDate: REPORT.effectiveDate,
+        sourceType: REPORT.sourceType,
+        jurisdiction: 'SG',
+        facilityType: 'Data centre',
+      }),
+    ]
+
+    for (const response of responses) {
+      expect(response.status).toBe(200)
+      expect(JSON.stringify(response.body)).toContain(id)
+      expect(JSON.stringify(response.body)).not.toMatch(/John Tan|privacyMapping/)
+    }
   })
 })

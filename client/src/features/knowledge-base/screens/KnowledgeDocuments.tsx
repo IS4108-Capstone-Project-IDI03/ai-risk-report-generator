@@ -77,11 +77,14 @@ type Editing = { document: KnowledgeDocument; version?: DocumentVersion }
 
 /** Returns the Documents tab: every document in groups, with filters and details. */
 export function KnowledgeDocuments({
+  focused,
   notify,
   onAdd,
   onNeedReview,
   onReview,
 }: {
+  // The document a notification opened (F-10), marked once and scrolled into view.
+  focused?: string | null
   notify: (message: string) => void
   onAdd: () => void
   // Reports how many documents need review, for the Documents tab's count.
@@ -113,6 +116,11 @@ export function KnowledgeDocuments({
     // Leaving the screen cancels the request in flight.
     return () => controller.abort()
   }, [attempt])
+
+  useEffect(() => {
+    if (documents && focused)
+      window.document.getElementById(`document-${focused}`)?.scrollIntoView({ block: 'center' })
+  }, [documents, focused])
 
   const needReview = (documents ?? []).filter(needsReview)
   // Loads and saves both change the list, so the tab's count follows it.
@@ -300,6 +308,7 @@ export function KnowledgeDocuments({
                   group={group}
                   documents={rows}
                   openId={openId}
+                  focused={focused}
                   onToggle={toggle}
                   onEdit={(document) => setEditing({ document })}
                   onHistory={setHistoryOf}

@@ -2192,3 +2192,89 @@ Rejected:
 Reason: at 22 ACs and 13 points, CP-18 held two jobs, seeing and clearing away a client's sites and correcting their details, which can be planned and accepted separately.
 
 Stories: CP-18, CP-28, RV-12, CP-44.
+
+## 2026-11-05 — Admins hold the engineer's powers, and may assign assessments; the Inbox holds what needs a person
+
+Chose:
+- (F-10, RV-11) `knowledge_admin` gains `assessments:edit` and `reports:generate`, and a new `assessments:assign` belongs to `knowledge_admin` only. An admin can do everything an engineer can under Assessments and Clients, including Generation, Review and Export, on the same screens. `reports:export` (EX-01, 4 Nov) belongs to `knowledge_admin` too, for the same reason; only the assigned engineer can export.
+- This reverses the 30 Sep F-05 decision that rejected a wildcard admin and kept admins read-only on assessments. The "only the assigned engineer can change it" checks stay, so an admin changes only assessments assigned to them and reads the rest. Routes that had no such check because only engineers could reach them (starting capture, adding and removing locations, retrying a transcription, reading an observation, filing and deleting client documents) now have one.
+- An admin chooses the engineer when creating an assessment (required, any active account including themselves), and can reassign one later (`POST /api/assessments/:reference/reassign`; archived ones are refused). Engineers still get themselves. Observations, drafts and costs follow the assessment. After a reassignment the new engineer carries on its observations, locations and site walks, and the old one is refused.
+- The Inbox holds what stalls work if the person ignores it; the bell holds updates. Inbox items stay in the `notifications` collection with a `kind` set at creation from one lookup in the notification service, so the ingestion worker does not change. To do and Done are worked out per person, not stored.
+
+Reason: nobody on the team could state the motivation for the F-05 limit, and an admin should not be able to do less than an engineer; a person can only hand work over if an admin can do it. A second collection for the Inbox would rebuild audiences, per-user state, polling and the worker's route.
+
+Rejected:
+- A second collection for Inbox items.
+- A stored status for each item: it differs per person for the items shared by all admins.
+- Closing a shared item automatically when it is filled: Jesper chose not to track whether work was done, so Omar still sees a request Sana filled in To do until he opens or bins it.
+- Engineers choosing another engineer, or asking for a handover in the app.
+
+- Round 2 (6 Nov, replaced by round 3): tick and untick change the item for everyone, open and bin change only your list. Counts are checked every 10 seconds, and any change reloads the open Inbox or Assessments list. A sound plays only for an item newer than anything this person has seen, compared by the newest item's time from the count route, so an item coming back by an untick stays silent.
+
+- Round 3 (6 Nov): tick and untick are personal too, so every Inbox action changes only your own list. `markDone` adds you to `readBy` and `unmarkDone` removes only you; `doneAt`, `doneBy` and the DTO's `shared` are gone. Reason: a tick that moved an item for everyone hid work from an admin who had not seen it, and "Done" should mean done by me. A shared item therefore stays in the other admins' To do until each presses it. Pressing a request or document row first reads that item (`GET /api/knowledge-gaps/:id`, `GET /api/knowledge-documents/:id`) to tell if someone already handled it; knowledge documents record who last handled them in `handled`, written by correct, decide, retry and cancel.
+
+Rejected in round 2:
+- Server push (SSE): instant, but a new endpoint, Redis signals, an nginx rule on EC2 and reconnect handling, for a list of 0 to 20 items. It can be added later without changing the screens.
+- Webhooks: a browser has no address a server can call.
+
+Known limits: a third person's Engineer column updates on their next visit, because their counts don't change; a visible list reloading on a colleague's change refreshes the session, as the Inbox's did; a notification's `reportDue` is a snapshot from creation; an Inbox item expires with the rest after 90 days, though the thing it points at still exists.
+
+Stories: F-10, RV-11, F-05.
+
+## 2026-11-05 — Past reports are redacted before parsing; rag puts their words back from a mapping in MongoDB
+
+Chose:
+- (PV-05) With `PII_PROTECTION=required`, a past report's PDF is redacted before parsing, so parsing, chunking, the table and formula OCR crops, embedding and Chroma all read tags. Standards are public and are not redacted. The S3 original is unchanged.
+- The redactor rewrites each page that holds a detail: all its text is removed and drawn again in its order and place, with the tags in, in Liberation Sans (bold and italic kept) or a CJK font, each run squeezed to its old width. Docling orders a paragraph's text as it is drawn; drawing only the tags put them at the paragraph's end (found with real Docling). Liberation Sans is the font LibreOffice converts Word reports in, bundled with ingestion (SIL OFL 1.1): redrawn in Helvetica, Docling's layout model took a cover page's lines for pictures and dropped them (found in manual QA).
+- Labelling masks the first pages' text, not a redacted PDF: it sends only text, and this also covers scanned pages, whose text is read locally. The epic's design B had it run `redact_pdf` first.
+- The mapping (tag to detail) is saved on `knowledge_documents.privacyMapping`, `select: false`, never returned by any API. rag-service reads it from MongoDB on every search (one query), puts the real words back before rerank and masking, and adds the values to the request's known names, so another client's name is tagged again even when the assessment doesn't list it.
+- The worker asks the gateway how to protect each document (`GET /api/internal/knowledge-documents/:id/privacy`, service key), with chat's list of every client, site, address and active user. No `detect`: on a sample report it tagged 171 section headings and building terms as clients and sites.
+- What privacy-service never masks moved from code to `allow_list.json` (words, word patterns, whole names), mounted and read at startup like `detectors.json`, with the false positives found on a sample report added (floor codes, report wording, Marsh's businesses).
+- Reports already indexed are not re-ingested in PV-05; every document will be re-run later.
+
+Reason: past reports are stored in Chroma Cloud and read by several outside APIs at ingestion, and they name other clients and their people. Redacting the PDF once covers every downstream reader, including the OCR crops, which are pictures of the page.
+
+Rejected:
+- Masking only the chunk text after parsing: the OCR crops are images rendered from the PDF, and would still show names.
+- Keeping the mapping in Chroma metadata: Chroma Cloud is an outside service.
+- An internal gateway route that returns mappings to rag: a mapping would then travel over HTTP; a read-only MongoDB query keeps it in place.
+- Putting the protection settings in the queued job: names would sit in Redis, and a retry would reuse stale ones.
+- Keeping the redacted PDF: its passages in Chroma already show what was sent.
+
+Known limits: scanned pages and pictures' faces wait for PV-06. A PDF made in fonts other than Liberation Sans shows Liberation Sans on its redacted pages. A false positive in a mapping is masked in later requests too, so `allow_list.json` matters more. The IN-07 comparison shows tags. Redaction measured 0.75 to 1.2 s a page on a busy laptop, against a target under 1 s; measure on EC2.
+
+Stories: PV-05, PV-01, PV-02, PV-03, IN-05, IN-07.
+
+## 2026-11-07 — Site walk uploads are converted on arrival, and removal waits on the device
+
+Chose: the gateway turns any accepted photo into a JPEG and any recording Whisper can't read into `.m4a` when it arrives, using `sharp`, `heic-convert` and `ffmpeg-static`. Removing a photo, recording or note hides it at once and deletes it after a 10 second Undo, or at once on Finish or on leaving the screen.
+
+Reason: everything stored stays in a format the viewer, photo reading and report export already handle, so nothing downstream changes. Waiting on the device needs no new stored state, and a removed item is never left half in a proposal; if the tab closes first, the item simply stays.
+
+Rejected:
+- Storing the original format and converting when read: every reader would need to handle it.
+- A `removed` flag on the walk: every reader of a walk's recordings and photos would have to check it.
+- Raising the 100 MB upload limit for a long uncompressed WAV: it needs a change to EC2's nginx.
+
+Stories: CP-22.
+
+## 2026-11-07 — Scanned pages are redacted with RapidOCR; picture crops are blurred; passage text is masked again before embedding
+
+Chose:
+- (PV-06) With `PII_PROTECTION=required`, a past report's scanned pages are redacted before parsing too. A page with no text layer but an image is read with RapidOCR's word boxes; its words join the document's one `/mask` call; each detail's words are blanked in the page image (not only covered), padded by 15% of the word's height but never into a word that stays, and its tag is drawn in their place.
+- RapidOCR, not Tesseract as the epic planned: it is already installed (`docling[rapidocr]`, 3.9.2, with `return_word_box`), it is the engine Docling reads the redacted page with, and it needs no apt package or Windows binary.
+- Faces in picture and table crops are blurred in `parse_picture` and `parse_table`, not `recognise()` as the epic planned: `recognise()` also serves formulas, which need no blurring. Table crops are blurred too because, on a scanned page, a region Docling calls a table can take in a photo beside it (found on a real scan). privacy-service's `/redact-image` (PV-04) does the blurring; a blurred crop comes back as JPEG and is turned into PNG, which the OCR providers send.
+- The post-chunk `anonymise` stage is the safety net: a redacted report's passage text goes through `/mask` again, not escaped (its tags are its own), continuing the document's mapping, which is saved whole in `privacyMapping`.
+- Everything fails closed, as redaction does.
+
+Reason: PV-05 left a scanned page readable, sent picture and table crops with faces to the OCR model, and embedded whatever the OCR model read off a picture.
+
+Rejected:
+- Tesseract: an extra system package for word boxes RapidOCR already gives.
+- Covering a scanned word with a box only: the pixels stay in the image, and the OCR crops are cut from it.
+- Escaping the text at the safety net, as `Session.mask` does: the redaction's real `[PERSON_1]` would become a literal and never be restored.
+- Masking text inside pictures before the OCR call: it needs OCR of every crop first; the safety net catches what the model writes instead.
+
+Known limits: RapidOCR took 5 to 8 s on a dense scanned page on a laptop (the epic expected 1 to 2 s), and Docling reads the page again; measure on EC2. A full-page photo is read as a scanned page. A name RapidOCR misreads is not matched. Text inside a picture still reaches the OCR model.
+
+Stories: PV-06, PV-05, PV-04.

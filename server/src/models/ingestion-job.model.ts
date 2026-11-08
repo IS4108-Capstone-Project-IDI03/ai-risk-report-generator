@@ -1,8 +1,9 @@
 import { Schema, Types, model } from 'mongoose'
 
 export const INGESTION_STAGES = [
-  'parsing',
+  // Redaction before parsing, only for a protected report (PV-05).
   'anonymising',
+  'parsing',
   'chunking',
   'indexing',
   'complete',
@@ -41,6 +42,9 @@ export interface IIngestionJob {
   // the worker on failure, so the stage need not be inferred from stageLog.
   // Absent on a running or complete job.
   failedStage?: IngestionStage
+  // Whether the document was redacted and how many details (PV-05, the epic's
+  // Rule 8). Never the mapping. Written by the worker when the run finishes.
+  privacy?: { enabled: boolean; masked_count: number }
   // Set on every write by the worker; not managed by Mongoose timestamps.
   updatedAt: Date
 }
@@ -66,6 +70,15 @@ const ingestionJobSchema = new Schema<IIngestionJob>(
     currentStageStartedAt: { type: Date, required: true },
     startedAt: { type: Date, required: true },
     failedStage: { type: String, enum: INGESTION_STAGES },
+    privacy: {
+      type: new Schema(
+        {
+          enabled: { type: Boolean, required: true },
+          masked_count: { type: Number, required: true },
+        },
+        { _id: false },
+      ),
+    },
     updatedAt: { type: Date, required: true },
   },
   // No `timestamps: true`: the worker controls `updatedAt` explicitly.

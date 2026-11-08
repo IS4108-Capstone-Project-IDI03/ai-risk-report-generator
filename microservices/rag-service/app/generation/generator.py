@@ -171,6 +171,13 @@ def passage_headings(meta: dict) -> list[str]:
     return [h for h in meta.get("headings") or [] if len(h) <= MAX_HEADING_CHARS]
 
 
+def quotable_text(passage: dict) -> str:
+    """The passage's words a model is shown, for its quote checks: the headings, then the text.
+    A past report's cover lines, for one, are headings only. The document's name is the app's
+    label, not the document's words, so it is not quotable."""
+    return "\n".join([*passage_headings(passage.get("metadata") or {}), passage["text"]])
+
+
 def _chunk_block(label: str, chunk: dict) -> str:
     meta = chunk.get("metadata") or {}
     where = " > ".join(passage_headings(meta))

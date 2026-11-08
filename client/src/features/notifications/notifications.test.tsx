@@ -1,12 +1,25 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NotificationBell } from './NotificationBell'
+import { NotificationBell, type NotificationBellProps } from './NotificationBell'
+import { NotificationCountsProvider } from './NotificationCountsContext'
 import type { Notification, NotificationPage } from './api'
 import { knowledgeTab } from '../knowledge-base/openTab'
 import { toneFor } from './components/notificationTone'
 
 afterEach(cleanup)
+
+// The bell on its shared counts, as App.tsx mounts it.
+function Bell({
+  counts,
+  ...props
+}: NotificationBellProps & { counts: { total: number; unread: number } }) {
+  return (
+    <NotificationCountsProvider initial={{ inboxTodo: 0, ...counts }}>
+      <NotificationBell {...props} />
+    </NotificationCountsProvider>
+  )
+}
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(
@@ -24,10 +37,12 @@ function makeItems(count: number, startAt = 1): Notification[] {
     return {
       id: `n${n}`,
       purpose: 'ingestion_status' as const,
+      kind: 'bell' as const,
       message: `Document ${n} failed to ingest.`,
       details: null,
       context: null,
       read: false,
+      done: false,
       createdAt: '2026-04-11T09:22:00.000Z',
     }
   })
@@ -50,6 +65,7 @@ function stubGateway(all: Notification[], unread = all.length) {
         items: all.slice(offset, offset + limit),
         total: all.length,
         unread,
+        inboxTodo: 0,
       }
       return json(page)
     }
@@ -71,21 +87,21 @@ beforeEach(() => {
 describe('NotificationBell', () => {
   it('shows the unread count from the session on the bell', () => {
     stubGateway(makeItems(3))
-    render(<NotificationBell counts={{ total: 3, unread: 3 }} />)
+    render(<Bell counts={{ total: 3, unread: 3 }} />)
     expect(screen.getByRole('button', { name: 'Notifications, 3 unread' })).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
   it('shows no count when nothing is unread', () => {
     stubGateway([], 0)
-    render(<NotificationBell counts={{ total: 0, unread: 0 }} />)
+    render(<Bell counts={{ total: 0, unread: 0 }} />)
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
   it('opens the dropdown and loads the first page', async () => {
     stubGateway(makeItems(3))
-    render(<NotificationBell counts={{ total: 3, unread: 3 }} pageSize={5} />)
+    render(<Bell counts={{ total: 3, unread: 3 }} pageSize={5} />)
 
     open()
 
@@ -95,14 +111,14 @@ describe('NotificationBell', () => {
 
   it('renders exactly pageSize rows, and a different pageSize changes that', async () => {
     stubGateway(makeItems(10))
-    const { unmount } = render(<NotificationBell counts={{ total: 10, unread: 10 }} pageSize={3} />)
+    const { unmount } = render(<Bell counts={{ total: 10, unread: 10 }} pageSize={3} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
     unmount()
 
     stubGateway(makeItems(10))
-    render(<NotificationBell counts={{ total: 10, unread: 10 }} pageSize={5} />)
+    render(<Bell counts={{ total: 10, unread: 10 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
@@ -110,7 +126,7 @@ describe('NotificationBell', () => {
 
   it('offers Load more while fewer than the total are loaded, and appends the next page', async () => {
     stubGateway(makeItems(5))
-    render(<NotificationBell counts={{ total: 5, unread: 5 }} pageSize={2} />)
+    render(<Bell counts={{ total: 5, unread: 5 }} pageSize={2} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
@@ -125,7 +141,7 @@ describe('NotificationBell', () => {
 
   it('hides Load more once every notification is loaded', async () => {
     stubGateway(makeItems(2))
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
@@ -133,7 +149,7 @@ describe('NotificationBell', () => {
 
   it('marks one read, dropping the unread count but keeping the row', async () => {
     stubGateway(makeItems(2))
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -148,7 +164,7 @@ describe('NotificationBell', () => {
 
   it('marks all read: badge clears, rows stay', async () => {
     stubGateway(makeItems(3))
-    render(<NotificationBell counts={{ total: 3, unread: 3 }} pageSize={5} />)
+    render(<Bell counts={{ total: 3, unread: 3 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -164,7 +180,7 @@ describe('NotificationBell', () => {
     stubGateway(makeItems(2), 0)
     const items = makeItems(2).map((n) => ({ ...n, read: true }))
     stubGateway(items, 0)
-    render(<NotificationBell counts={{ total: 2, unread: 0 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 0 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
     expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument()
@@ -172,7 +188,7 @@ describe('NotificationBell', () => {
 
   it('dismisses all: empties the list and hides Load more', async () => {
     stubGateway(makeItems(5))
-    render(<NotificationBell counts={{ total: 5, unread: 5 }} pageSize={2} />)
+    render(<Bell counts={{ total: 5, unread: 5 }} pageSize={2} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -184,7 +200,7 @@ describe('NotificationBell', () => {
 
   it('dismisses one row: removes it, drops the counts, and calls the gateway', async () => {
     const fetchMock = stubGateway(makeItems(2))
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -200,7 +216,7 @@ describe('NotificationBell', () => {
   it('does not lower the unread count when a read row is dismissed', async () => {
     const items = makeItems(2).map((n, i) => ({ ...n, read: i === 0 }))
     stubGateway(items, 1)
-    render(<NotificationBell counts={{ total: 2, unread: 1 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 1 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -214,7 +230,7 @@ describe('NotificationBell', () => {
 
   it('pulses the badge only when the count rises after the first load', async () => {
     stubGateway(makeItems(1), 1)
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
     expect(document.querySelector('.notif-bell--ring')).toBeNull()
     // The count is polled into the hook, not the prop, so drive it with the poll.
     vi.stubGlobal(
@@ -230,26 +246,48 @@ describe('NotificationBell', () => {
 
   it('expands a long message in place', async () => {
     const items = makeItems(1)
-    items[0].details = 'Processing stopped on a system error. Upload the document again.'
+    items[0].details = 'Processing stopped on a system error.\nUpload the document again.'
     stubGateway(items)
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} pageSize={5} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
-    expect(
-      screen.queryByText('Processing stopped on a system error. Upload the document again.'),
-    ).not.toBeInTheDocument()
+    // Collapsed, one line (board 11): the first line of the details beside the time.
+    expect(screen.getByText(/· Processing stopped on a system error\.$/)).toBeInTheDocument()
+    expect(screen.queryByText(/Upload the document again/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
 
-    expect(
-      screen.getByText('Processing stopped on a system error. Upload the document again.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Upload the document again/)).toBeInTheDocument()
+  })
+
+  it('offers no Show more when the one line says it all', async () => {
+    const items = makeItems(1)
+    items[0].details = 'Already covered by FM 8-1'
+    stubGateway(items)
+    render(<Bell counts={{ total: 1, unread: 1 }} pageSize={5} />)
+    open()
+    expect(await screen.findByText(/· Already covered by FM 8-1$/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+  })
+
+  it('says who moved an assessment away, as drawn on board 11', async () => {
+    stubGateway([
+      {
+        ...makeItems(1)[0],
+        purpose: 'assessment_moved',
+        message: 'RPT-2026-0002 moved to Jordan Lee',
+        context: { reference: 'RPT-2026-0002', sender: 'Sana Patel' },
+      },
+    ])
+    render(<Bell counts={{ total: 1, unread: 1 }} pageSize={5} />)
+    open()
+    expect(await screen.findByText(/· Sana Patel reassigned it$/)).toBeInTheDocument()
   })
 
   it('shows an error with a next step when the gateway fails, without blanking', async () => {
     const fetchMock = vi.fn(() => Promise.reject(new TypeError('network down')))
     vi.stubGlobal('fetch', fetchMock)
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
 
     open()
 
@@ -259,14 +297,14 @@ describe('NotificationBell', () => {
 
   it('shows an empty state when there are no notifications', async () => {
     stubGateway([], 0)
-    render(<NotificationBell counts={{ total: 0, unread: 0 }} pageSize={5} />)
+    render(<Bell counts={{ total: 0, unread: 0 }} pageSize={5} />)
     open()
     expect(await screen.findByText('No notifications')).toBeInTheDocument()
   })
 
   it('closes on Escape', async () => {
     stubGateway(makeItems(2))
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
@@ -275,15 +313,14 @@ describe('NotificationBell', () => {
     expect(screen.queryByText('Document 1 failed to ingest.')).not.toBeInTheDocument()
   })
 
-  it('closes from the popover close button', async () => {
+  // F-10 restyle (board 11): Esc, a press outside or the phone sheet closes it, so there is no ×.
+  it('has no close button', async () => {
     stubGateway(makeItems(1))
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} pageSize={5} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} pageSize={5} />)
     open()
     await screen.findByText('Document 1 failed to ingest.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close notifications' }))
-
-    expect(screen.queryByRole('dialog', { name: 'Notifications' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close notifications' })).not.toBeInTheDocument()
   })
 
   it('updates the badge from the count poll without a reload', async () => {
@@ -291,7 +328,7 @@ describe('NotificationBell', () => {
     try {
       // Start with nothing unread, then the gateway reports two.
       stubGateway(makeItems(2), 2)
-      render(<NotificationBell counts={{ total: 0, unread: 0 }} pageSize={5} />)
+      render(<Bell counts={{ total: 0, unread: 0 }} pageSize={5} />)
       expect(screen.queryByText('2')).not.toBeInTheDocument()
 
       // One poll interval later, the badge reflects the gateway's count — the
@@ -320,7 +357,7 @@ describe('NotificationBell — needs review', () => {
     stubGateway([item])
     const followed = vi.fn()
     window.addEventListener('popstate', followed)
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
 
     open()
     fireEvent.click(await screen.findByRole('button', { name: '"NFPA 13" needs review.' }))
@@ -345,7 +382,7 @@ describe('NotificationBell — knowledge requests', () => {
     ],
   ])('opens the right screen for "%s"', async (message, context, path, tab) => {
     stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
 
     open()
     fireEvent.click(await screen.findByRole('button', { name: message }))
@@ -361,7 +398,7 @@ describe('NotificationBell — knowledge requests', () => {
 describe('NotificationBell — knowledge requests', () => {
   const click = async (context: Record<string, string>, message: string) => {
     stubGateway([{ ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, context }])
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
     open()
     fireEvent.click(await screen.findByRole('button', { name: message }))
   }
@@ -393,7 +430,7 @@ describe('NotificationBell — knowledge request details', () => {
     stubGateway([
       { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
     ])
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
 
@@ -410,7 +447,7 @@ describe('NotificationBell — knowledge request details', () => {
     stubGateway([
       { ...makeItems(1)[0], purpose: 'knowledge_gap_request', message, details: 'x', context },
     ])
-    render(<NotificationBell counts={{ total: 1, unread: 1 }} />)
+    render(<Bell counts={{ total: 1, unread: 1 }} />)
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
 
@@ -435,7 +472,7 @@ describe('NotificationBell — icons and header', () => {
   it('shows a different glyph for each purpose', async () => {
     const purposes = ['ingestion_status', 'transcription_status', 'knowledge_gap_request'] as const
     stubGateway(purposes.map((purpose, i) => ({ ...makeItems(1, i + 1)[0], purpose })))
-    render(<NotificationBell counts={{ total: 3, unread: 3 }} />)
+    render(<Bell counts={{ total: 3, unread: 3 }} />)
     open()
     await screen.findAllByRole('listitem')
     const srcs = [...document.querySelectorAll('.notif-icon')].map((el) =>
@@ -444,15 +481,17 @@ describe('NotificationBell — icons and header', () => {
     expect(new Set(srcs).size).toBe(3)
   })
 
-  it('keeps the title, count and three buttons in the header', async () => {
+  // F-10 restyle (board 11): a thin header with the title and two buttons; no "N unread" text.
+  it('keeps the title and two buttons in the header, with no count text', async () => {
     stubGateway(makeItems(2))
-    render(<NotificationBell counts={{ total: 2, unread: 2 }} />)
+    render(<Bell counts={{ total: 2, unread: 2 }} />)
     open()
     const header = (await screen.findByRole('heading', { name: 'Notifications' })).closest(
       'header',
     )!
-    expect(within(header).getByText('2 unread')).toBeInTheDocument()
-    for (const name of ['Mark all as read', 'Dismiss all', 'Close notifications'])
+    expect(within(header).queryByText('2 unread')).not.toBeInTheDocument()
+    for (const name of ['Mark all as read', 'Dismiss all'])
       expect(within(header).getByRole('button', { name })).toBeInTheDocument()
+    expect(within(header).getAllByRole('button')).toHaveLength(2)
   })
 })

@@ -15,6 +15,7 @@ from doc_builders import table as _table
 from docling_core.types.doc import DocItemLabel
 
 from app.pipeline import chunker
+from app.privacy import PrivacyUnavailable, session
 
 PUMP_ROOM = "Image description (generated, photograph): A pump room with two pumps."
 
@@ -24,8 +25,10 @@ def reader(monkeypatch):
     """Fake picture reader: records each call and answers with a canned description."""
     calls: list[dict] = []
 
-    def _parse_picture(bbox, page, file_path, coord_origin="", context=""):
-        calls.append({"bbox": list(bbox), "page": page, "context": context})
+    def _parse_picture(bbox, page, file_path, coord_origin="", context="", protection=None):
+        calls.append(
+            {"bbox": list(bbox), "page": page, "context": context, "protection": protection}
+        )
         return PUMP_ROOM
 
     monkeypatch.setattr(chunker, "parse_picture", _parse_picture)
@@ -260,3 +263,106 @@ def test_a_table_unreadable_on_one_of_its_pages_is_not_read_as_a_picture(reader,
 
     assert passage["text"] == "Agent: FM-200; Qty: 2"
     assert reader == []
+
+
+SWITCH_ROOM = "Switch Room: C = 100 x 68.1 x 0.1376751 = 7.20% (68.1 x 0.1376751) + 120.8"
+SWITCH_ROOM_LATEX = (
+    r"Switch Room: $C = \frac{100 \times 68.1 \times 0.1376751}"
+    r"{(68.1 \times 0.1376751) + 120.8} = 7.20\%$"
+)
+
+
+def test_an_equation_beside_a_picture_is_read_as_a_formula(reader, monkeypatch):
+    # FM-200 page 2: Word fractions Docling took for text, in a chunk with a figure.
+    formula_calls: list[dict] = []
+
+    def _parse_formula(bbox, page, file_path, coord_origin=""):
+        formula_calls.append({"bbox": list(bbox), "page": page})
+        return SWITCH_ROOM_LATEX
+
+    monkeypatch.setattr(chunker, "parse_formula_bbox", _parse_formula)
+    doc = _document()
+    doc.add_text(DocItemLabel.TEXT, "Concentrations at 21 °C.", prov=_prov(1, 10, 385, 200, 375))
+    doc.add_text(DocItemLabel.TEXT, SWITCH_ROOM, prov=_prov(1, 10, 370, 200, 355))
+    _picture(doc, (50, 340, 250, 200), caption="Figure 28 Example Nozzle Location")
+
+    [passage] = _chunk(doc)
+
+    # Only the equation's own box is read, and only its text is replaced.
+    assert formula_calls == [{"bbox": [10.0, 370.0, 200.0, 355.0], "page": 1}]
+    assert passage["text"] == (
+        "Concentrations at 21 °C.\n\n"
+        f"{SWITCH_ROOM_LATEX}\n\n"
+        f"Figure 28 Example Nozzle Location\n{PUMP_ROOM}"
+    )
+
+
+def test_an_equation_beside_a_picture_keeps_its_text_when_nothing_decodes(reader, monkeypatch):
+    monkeypatch.setattr(chunker, "parse_formula_bbox", lambda **kwargs: None)
+    doc = _document()
+    doc.add_text(DocItemLabel.TEXT, SWITCH_ROOM, prov=_prov(1, 10, 370, 200, 355))
+    _picture(doc, (50, 340, 250, 200), caption="Figure 28 Example Nozzle Location")
+
+    [passage] = _chunk(doc)
+
+    assert passage["text"].startswith(f"{SWITCH_ROOM}\n\n")
+
+
+def test_an_equation_after_the_second_of_two_pictures_is_read_as_a_formula(reader, monkeypatch):
+    # FM-200 page 2 holds Figures 28 and 45; the 27 °C equations follow the second.
+    monkeypatch.setattr(chunker, "parse_formula_bbox", lambda **kwargs: SWITCH_ROOM_LATEX)
+    doc = _document()
+    _picture(doc, (50, 380, 250, 300), caption="Figure 28 Example Nozzle Location")
+    _picture(doc, (50, 290, 250, 210), caption="Figure 45 Example Nozzle Location")
+    doc.add_text(DocItemLabel.TEXT, SWITCH_ROOM, prov=_prov(1, 10, 200, 200, 185))
+
+    passages = _chunk(doc)
+
+    assert [p["id"] for p in passages] == ["report:picture:0:g0", "report:picture:0:g1"]
+    assert passages[1]["text"].endswith(f"\n\n{SWITCH_ROOM_LATEX}")
+
+
+def test_every_picture_reading_gets_the_documents_privacy_session(reader, monkeypatch):
+    # PV-06: the reader blurs faces with it, a table read as a picture included.
+    monkeypatch.setattr(chunker, "parse_table", lambda **kwargs: None)
+    protection = session({"enabled": True, "known_entities": []})
+    doc = _document()
+    _picture(doc, (50, 370, 250, 220), caption="Photo 1 Riser")
+    _table(doc, (10, 200, 290, 90))
+
+    _chunk(doc, protection=protection)
+
+    assert len(reader) == 2
+    assert all(call["protection"] is protection for call in reader)
+
+
+def test_a_picture_whose_faces_cannot_be_blurred_fails_the_document(monkeypatch):
+    # A guard, passing when first run: the OCR pool re-raises, so a crop is never dropped
+    # quietly and the document fails closed (PV-06, Rule 3).
+    def _parse_picture(**_):
+        raise PrivacyUnavailable("down")
+
+    monkeypatch.setattr(chunker, "parse_picture", _parse_picture)
+    doc = _document()
+    _picture(doc, (50, 370, 250, 220), caption="Photo 1 Riser")
+
+    with pytest.raises(PrivacyUnavailable):
+        _chunk(doc, protection=session({"enabled": True, "known_entities": []}))
+
+
+def test_every_table_reading_gets_the_documents_privacy_session(monkeypatch):
+    # PV-06: a table crop on a scanned page can take in a photo, so its faces are blurred too.
+    sessions = []
+
+    def _parse_table(protection=None, **_):
+        sessions.append(protection)
+        return "Agent: FM-200; Qty: 2"
+
+    monkeypatch.setattr(chunker, "parse_table", _parse_table)
+    protection = session({"enabled": True, "known_entities": []})
+    doc = _document()
+    _table(doc, (10, 370, 290, 200))
+
+    _chunk(doc, protection=protection)
+
+    assert sessions == [protection]

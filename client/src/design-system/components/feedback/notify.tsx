@@ -10,10 +10,13 @@ export type ToastOptions = {
   action?: ToastAction
   // Second, grey line (errors: the fix).
   description?: string
+  // Milliseconds before it closes itself (success toasts only; errors stay).
+  duration?: number
 }
 
 const wrap = (o: ToastOptions = {}) => ({
   description: o.description,
+  duration: o.duration,
   action: o.action ? { label: o.action.label, onClick: o.action.onClick } : undefined,
 })
 
@@ -39,6 +42,8 @@ export function Toaster() {
       position="bottom-center"
       closeButton
       visibleToasts={3}
+      // Clear of a phone's home bar (16 px is Sonner's own offset there).
+      mobileOffset={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }}
       icons={{
         success: <SuccessIcon />,
         error: <Icon name="circle-alert" size={18} color="var(--red-600)" />,

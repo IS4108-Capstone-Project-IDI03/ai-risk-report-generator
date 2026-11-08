@@ -28,6 +28,10 @@ export type PopoverProps = {
   noSheet?: boolean
   // The phone sheet is a centred card instead of a bottom sheet (date picker).
   sheetCentred?: boolean
+  // The phone sheet ends in a Cancel button in place of the close tick (RV-11 picker).
+  sheetCancel?: boolean
+  // A class on the phone sheet's root, for a feature's own look (it is portalled to the body).
+  sheetClassName?: string
 }
 
 // A small floating surface anchored to a trigger. It owns the overlay
@@ -48,6 +52,8 @@ export function Popover({
   style,
   noSheet = false,
   sheetCentred = false,
+  sheetCancel = false,
+  sheetClassName,
 }: PopoverProps) {
   const asSheet = useIsPhone() && !noSheet
   const anchor = useRef<HTMLDivElement>(null)
@@ -198,6 +204,8 @@ export function Popover({
           onClose={() => onOpenChange(false)}
           title={ariaLabel ?? ''}
           centred={sheetCentred}
+          cancel={sheetCancel}
+          className={sheetClassName}
         >
           {children}
         </Sheet>

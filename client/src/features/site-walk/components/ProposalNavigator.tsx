@@ -29,12 +29,13 @@ export function ProposalNavigator({
   title: string
   phone: boolean
   onPick: (ref: string) => void
-  onAdd: () => void
+  // Add and the location actions are left out for someone reading another engineer's walk.
+  onAdd?: () => void
   // The proposal's own photos, pages and deleted observations.
   onPhotos: () => void
   onScans: () => void
   onDeleted: () => void
-  actions: LocationActions
+  actions?: LocationActions
 }) {
   const [open, setOpen] = useState(false)
   // The sheet closes first on a phone, so what opens is not under it.
@@ -44,7 +45,7 @@ export function ProposalNavigator({
   }
   const foot = (
     <NavFoot
-      onAddLocation={close(onAdd)}
+      onAddLocation={onAdd && close(onAdd)}
       onPhotos={close(onPhotos)}
       onScans={close(onScans)}
       deletedCount={proposal.removed?.length ?? 0}
@@ -86,11 +87,13 @@ export function ProposalNavigator({
               onPick(ref)
               setOpen(false)
             }}
-            actions={{
-              rename: (ref) => (setOpen(false), actions.rename(ref)),
-              useExisting: (ref) => (setOpen(false), actions.useExisting(ref)),
-              remove: (ref) => (setOpen(false), actions.remove(ref)),
-            }}
+            actions={
+              actions && {
+                rename: (ref) => (setOpen(false), actions.rename(ref)),
+                useExisting: (ref) => (setOpen(false), actions.useExisting(ref)),
+                remove: (ref) => (setOpen(false), actions.remove(ref)),
+              }
+            }
           />
         </nav>
         {foot}

@@ -120,6 +120,10 @@ export interface ISiteWalk {
   error?: string
   // false from `ready` until its notification is sent; restarts send it then.
   notified?: boolean
+  // How many times the engineer pressed Retry. Nothing else tells one failure
+  // of a walk from the next, and a retry that fails again must tell them again
+  // (site-walk-notice.service.ts). Absent until the first retry.
+  retries?: number
   // What Create all made, kept so a repeat creates nothing twice: the ids are
   // chosen before anything is created, and filled in as each is.
   created?: {
@@ -197,6 +201,7 @@ const siteWalkSchema = new Schema<ISiteWalk>(
     proposal: { type: Schema.Types.Mixed, default: null },
     error: String,
     notified: Boolean,
+    retries: Number,
     created: { type: Schema.Types.Mixed },
     metadata: {
       source_type: { type: String, enum: ['site_walk'], required: true },

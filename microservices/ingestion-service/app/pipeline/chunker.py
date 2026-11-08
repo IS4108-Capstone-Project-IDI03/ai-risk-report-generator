@@ -51,6 +51,7 @@ from app.pipeline.chunking_helper.picture_parser import parse_picture, worth_rea
 from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
+from app.privacy import Session
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -87,6 +88,25 @@ def _has_formula_chunk(dl_chunk) -> bool:
 
     has_formula = any(item.label == DocItemLabel.FORMULA for item in dl_chunk.meta.doc_items)
     return has_formula
+
+
+# A number followed by an arithmetic operator and another number. A hyphen counts
+# only with spaces round it, so ranges ("3-5") and dates are not arithmetic.
+_ARITHMETIC_STEP = re.compile(r"\d+(?:[.,]\d+)*%?(?=(?:\s*[x×*/÷+−]\s*|\s+-\s+)\(?\s*\d)")
+
+
+def _looks_like_equation(text: str) -> bool:
+    """True if a line of the chunk's text reads as a flattened equation.
+
+    Docling's layout model labels typeset equations FORMULA, but not one written as
+    ordinary text, such as a Word fraction with the numerator over a rule. Its text
+    layer comes out flattened ("C = 100 x 68.1 x 0.1376751 = 7.20% (68.1 x 0.1376751)
+    + 120.8"). A line with "=" and at least two arithmetic steps between numbers is
+    read as one, so the chunk goes to formula OCR like a labelled one.
+    """
+    return any(
+        "=" in line and len(_ARITHMETIC_STEP.findall(line)) >= 2 for line in text.splitlines()
+    )
 
 
 def _detect_bboxes(item_label: DocItemLabel | None, dl_chunk, doc=None) -> list[dict]:
@@ -299,6 +319,10 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
 
     pictures: list[dict] = []
     before: list[str] = []
+    # An equation in the prose is read from its own boxes in pass 2: this
+    # chunk skips the formula path, and a crop of all its text would take
+    # in the picture too.
+    equations: list[dict] = []
     for item in items:
         if item.self_ref in kept:
             picture = resolved[item.self_ref]
@@ -309,12 +333,15 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
                     "caption": " ".join(caption.split()),
                     "before": [] if pictures else before,
                     "after": [],
+                    "equations": equations,
                 }
             )
             continue
         text = (getattr(resolved[item.self_ref], "text", "") or "").strip()
         if text and item.self_ref not in caption_refs:
             (pictures[-1]["after"] if pictures else before).append(text)
+            if item.label == DocItemLabel.FORMULA or _looks_like_equation(text):
+                equations.append({"text": text, "boxes": _picture_boxes(item)})
     return pictures
 
 
@@ -490,6 +517,7 @@ def _extract_table_chunk(
     headings: list[str] | None = None,
     caption: str = "",
     position: int | None = None,
+    protection: Session | None = None,
 ) -> list[dict] | None:
     """Extract a region's tables into index-ready chunks, or None.
 
@@ -528,6 +556,7 @@ def _extract_table_chunk(
             page=box["page"],
             file_path=doc_path,
             coord_origin=box.get("coord_origin", ""),
+            protection=protection,
         )
         if parsed and any(table.records for table in split_tables(parsed)):
             readings.append(parsed)
@@ -565,6 +594,7 @@ def _extract_table_chunk(
             meta=meta,
             headings=headings,
             position=position,
+            protection=protection,
         )
 
     if not tables:
@@ -616,15 +646,35 @@ def _extract_picture_chunk(
     meta,
     headings: list[str] | None = None,
     position: int | None = None,
+    protection: Session | None = None,
 ) -> list[dict]:
     """Describe a chunk's pictures as passages, one per picture.
 
     Runs as one pass-2 OCR job (see `chunk`). Each passage leads with the
     picture's caption, then its description, and carries the picture's own
-    boxes in `bbox`/`bbox_pages`, so it can be cut out of the PDF again.
+    boxes in `bbox`/`bbox_pages`, so it can be cut out of the PDF again. An
+    equation in the prose is replaced by its formula reading, if it has one.
     """
+    # Pictures of one chunk share its equations; each is read once, and only
+    # while its prose is still here (beside a table, the table keeps it).
+    prose = {line for picture in pictures for line in picture["before"] + picture["after"]}
+    equations = {
+        equation["text"]: equation
+        for picture in pictures
+        for equation in picture.get("equations", [])
+        if equation["text"] in prose
+    }
+    formula_readings = {
+        text: _extract_formula_chunk(equation["boxes"], doc_path)
+        for text, equation in equations.items()
+    }
     passages: list[dict] = []
     for index, picture in enumerate(pictures):
+        picture = {
+            **picture,
+            "before": [formula_readings.get(line) or line for line in picture["before"]],
+            "after": [formula_readings.get(line) or line for line in picture["after"]],
+        }
         context = _picture_context(headings, picture["caption"])
         readings = [
             parse_picture(
@@ -633,6 +683,7 @@ def _extract_picture_chunk(
                 file_path=doc_path,
                 coord_origin=box.get("coord_origin", ""),
                 context=context,
+                protection=protection,
             )
             for box in picture["boxes"]
         ]
@@ -712,6 +763,7 @@ def chunk(
     doc_path: str | None = None,
     doc_id: str | None = None,
     reporter=None,
+    protection: Session | None = None,
 ) -> list[dict]:
     """Chunk a parsed document into index-ready chunk dicts.
 
@@ -720,6 +772,8 @@ def chunk(
         doc_id: stable identifier for the source document; defaults to the
             document name. Used to build unique chunk ids (``f"{doc_id}:{n}"``).
         reporter: an optional ProgressReporter (E2). Updates for each page.
+        protection: a redacted report's privacy session (PV-06): faces in its picture crops
+            are blurred before they are read.
 
     Returns:
         A list of ``{"id", "text", "metadata"}`` dicts ready for `index_chunks`.
@@ -780,6 +834,7 @@ def chunk(
                 meta=dl_chunk.meta,
                 headings=trail,
                 position=n,
+                protection=protection,
             )
 
             if _is_table_chunk(dl_chunk):
@@ -803,6 +858,7 @@ def chunk(
                         headings=trail,
                         caption=_table_caption(dl_chunk, doc),
                         position=n,
+                        protection=protection,
                     )
                     ocr_jobs.append((len(chunks), "table", job))
                     chunks.append(None)  # filled (or dropped) in pass 2
@@ -825,10 +881,11 @@ def chunk(
                 continue
 
             chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
-            if _has_formula_chunk(dl_chunk):
+            if _has_formula_chunk(dl_chunk) or _looks_like_equation(text):
                 # With formula enrichment OFF, formula text gets replaced with
-                #  <!-- formula-not-decoded -->; pass 2 re-reads the region and
-                # keeps Docling's text if nothing decodes.
+                #  <!-- formula-not-decoded -->, and an equation Docling took for
+                # text comes out flattened; pass 2 re-reads the region and keeps
+                # Docling's text if nothing decodes.
                 job = partial(_extract_formula_chunk, chunk_bboxes, str(doc_path))
                 ocr_jobs.append((len(chunks), "formula", job))
             elif _is_first_pages(chunk_bboxes):

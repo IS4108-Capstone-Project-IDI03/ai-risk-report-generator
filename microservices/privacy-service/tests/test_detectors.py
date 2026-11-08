@@ -28,7 +28,7 @@ def switches(monkeypatch, tmp_path):
 def mask(texts, known=()):
     response = client.post("/mask", json={"texts": texts, "known_entities": list(known)})
     assert response.status_code == 200, response.text
-    return response.json()
+    return {key: value for key, value in response.json().items() if key != "spans"}
 
 
 def test_a_kind_switched_off_is_left_as_written(switches):

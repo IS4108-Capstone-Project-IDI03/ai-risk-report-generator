@@ -1,9 +1,10 @@
+import json
 from typing import Annotated, Literal
 
 import pymupdf
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
@@ -106,17 +107,20 @@ async def inspect(request: Request) -> dict:
 
 
 @router.post("/label")
-async def label(request: Request) -> dict:
+async def label(
+    file: Annotated[UploadFile, File()], privacy: Annotated[str | None, Form()] = None
+) -> dict:
     """Read a PDF's details (type, title, edition, date, country, facility) with models.
 
     Returns each detail's value, confidence and evidence, the Unconfirmed list and
     per-call usage (IN-05). Called by the gateway (server/src/services/ingestion.service.ts)
-    during upload; saves nothing. Model problems give a 200 with everything Unconfirmed.
+    during upload, with the PDF and its privacy settings (`{enabled, known_entities, detect?}`
+    as JSON, PV-05); saves nothing. Model problems give a 200 with everything Unconfirmed.
     """
-    body = await request.body()
+    body = await file.read()
     open_pdf(body)
     # In a thread: OCR and model calls would block the event loop.
-    return await run_in_threadpool(label_pdf, body)
+    return await run_in_threadpool(label_pdf, body, json.loads(privacy) if privacy else None)
 
 
 @router.post("/index")

@@ -33,6 +33,8 @@ export type NewAssessments = {
       siteVisitEndDate?: string
       reportDueDate?: string
       siteContacts?: { name: string; role?: string }[]
+      // Only an admin names one (RV-11); the gateway ignores it for anyone else.
+      engineerId?: string
     }[]
   })[]
 }

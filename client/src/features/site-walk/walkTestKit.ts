@@ -31,7 +31,11 @@ export const gw: {
   walk: SiteWalk
   calls: { method: string; url: string; body?: BodyInit | null }[]
   offline: boolean
-} = { walk: {} as SiteWalk, calls: [], offline: false }
+  // Makes every recording and photo upload answer with this refusal.
+  refuse: { status: number; code?: string } | null
+  // Makes every delete fail, as a dropped connection would.
+  failDeletes: boolean
+} = { walk: {} as SiteWalk, calls: [], offline: false, refuse: null, failDeletes: false }
 // Resets the walk and installs the fake gateway routes.
 export function mockGateway() {
   gw.walk = {
@@ -48,12 +52,24 @@ export function mockGateway() {
   }
   gw.calls = []
   gw.offline = false
+  gw.refuse = null
+  gw.failDeletes = false
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET'
     gw.calls.push({ method, url, body: init.body })
     if (gw.offline) return Promise.reject(new TypeError('Failed to fetch'))
     const rec = /recordings\/(\d+)$/.exec(url)
     const walk = gw.walk
+    if (gw.refuse && method === 'PUT' && /(recordings|photos)\//.test(url))
+      return json(gw.refuse.status, { error: 'Refused', code: gw.refuse.code })
+    if (method === 'DELETE' && gw.failDeletes) return json(500, { error: 'Down' })
+    if (method === 'DELETE' && rec)
+      walk.recordings = walk.recordings.filter((r) => r.seq !== +rec[1])
+    const retry = /recordings\/(\d+)\/retry$/.exec(url)
+    if (retry && method === 'POST')
+      walk.recordings.forEach((r) => {
+        if (r.seq === +retry[1] && r.transcription === 'failed') r.transcription = 'queued'
+      })
     if (rec && method === 'PUT') {
       const seq = Number(rec[1])
       const durationSec = Number((init.body as FormData).get('durationSec'))
@@ -66,6 +82,7 @@ export function mockGateway() {
       })
     }
     const photo = /photos\/([\w-]+)$/.exec(url)
+    if (method === 'DELETE' && photo) walk.photos = walk.photos.filter((p) => p.id !== photo[1])
     if (photo && method === 'PUT') {
       const form = init.body as FormData
       const at = form.get('offsetSec')

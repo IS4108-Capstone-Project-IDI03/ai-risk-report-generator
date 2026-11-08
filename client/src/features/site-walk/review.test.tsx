@@ -625,6 +625,59 @@ describe('site walk review', () => {
   })
 })
 
+// RV-11 AC2: an admin can read someone else's walk and change nothing.
+describe('a proposal someone else holds', () => {
+  async function openReadOnly() {
+    render(
+      <SiteWalkReview
+        reference={REF}
+        walkId="w1"
+        readOnly
+        onClose={() => {}}
+        onCreated={() => {}}
+        notify={notify}
+      />,
+    )
+    await screen.findByRole('navigation', { name: 'Locations' })
+  }
+
+  it('reads the proposal with no way to change it', async () => {
+    await openReadOnly()
+    expect(row('Extinguisher missing')).toBeInTheDocument()
+    for (const name of ['Create all', 'Rename proposal', 'Add manually', 'Add location'])
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    fireEvent.click(place('Chiller room'))
+    expect(screen.queryByRole('button', { name: /^Rename Chiller/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Delete Chiller/ })).not.toBeInTheDocument()
+  })
+
+  it('opens an observation to read, with no Delete and no editable note', async () => {
+    await openReadOnly()
+    openObservation('Extinguisher missing')
+    expect(await screen.findByText('Extinguisher missing.')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete observation' })).not.toBeInTheDocument()
+  })
+
+  it('offers no Retry on a failed walk', async () => {
+    vi.stubGlobal('fetch', (url: string) =>
+      url.endsWith('/locations') ? json(200, []) : json(200, walkOf('failed')),
+    )
+    render(
+      <SiteWalkReview
+        reference={REF}
+        walkId="w1"
+        readOnly
+        onClose={() => {}}
+        onCreated={() => {}}
+        notify={notify}
+      />,
+    )
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+})
+
 describe('site walks for the banner', () => {
   it('polls while a walk is being read, and stops once it is ready', async () => {
     walks = [walkOf('transcribing')]

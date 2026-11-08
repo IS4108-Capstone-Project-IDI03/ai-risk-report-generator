@@ -202,7 +202,73 @@
   position: relative;
 }
 
+/* The Inbox's red count (F-10, board 01): the bell badge's red, at the item's right edge. */
+.ds-sidenav-count {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--red-600);
+  color: var(--text-inverse);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ds-sidenav-count > span {
+  display: block;
+}
+/* On the collapsed rail and the phone menu a dot says "something waits" without a number. */
+.ds-sidenav-dot,
+.ds-phonebar-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red-600);
+  box-shadow: 0 0 0 2px var(--surface-nav);
+}
+.ds-phonebar-button {
+  position: relative;
+}
+.ds-phonebar-dot {
+  top: 8px;
+  right: 6px;
+}
+/* One pop to 1.2 per rise, 260 ms; the number crossfades in 120 ms (spec "Motion"). */
+.ds-sidenav-count[data-pop],
+.ds-sidenav-dot[data-pop],
+.ds-phonebar-dot[data-pop] {
+  animation: dsCountPop var(--duration-slow) var(--ease-out);
+}
+.ds-sidenav-count > span[data-fade] {
+  animation: dsCountFade var(--duration-fast) var(--ease-out);
+}
+@keyframes dsCountPop {
+  50% {
+    transform: scale(1.2);
+  }
+}
+@keyframes dsCountFade {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* The pop becomes a fade; the number already fades. !important to beat index.css, which
+     stops every animation it isn't told about. */
+  .ds-sidenav-count[data-pop],
+  .ds-sidenav-dot[data-pop],
+  .ds-phonebar-dot[data-pop],
+  .ds-sidenav-count > span[data-fade] {
+    animation: dsCountFade var(--duration-fast) var(--ease-out) !important;
+  }
   /* The slide becomes a fade; NavDrawer.tsx unmounts when it ends. */
   .ds-navdrawer {
     transition: opacity var(--duration-fast) var(--ease-out) !important;

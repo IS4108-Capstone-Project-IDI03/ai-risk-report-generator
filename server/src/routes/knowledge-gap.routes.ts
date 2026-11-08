@@ -13,6 +13,7 @@ import {
   GapRequestClosedError,
   GapRequestInvalidError,
   GapRequestNotFoundError,
+  getRequest,
   listOpenRequests,
 } from '../services/knowledge-gap.service'
 import { fieldErrors } from './field-errors'
@@ -52,6 +53,15 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
 // The admin's open requests, newest first.
 router.get('/', requirePermission('knowledge:manage'), async (_req, res) => {
   res.json({ requests: await listOpenRequests() })
+})
+
+// One request, open or closed, with who closed it (F-10). Answers: 200 · 404 unknown.
+router.get('/:id', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    res.json(await getRequest(req.params.id))
+  } catch (error) {
+    answerError(error, res)
+  }
 })
 
 // Answers: 200 filled · 400 bad body or unknown document · 404 unknown · 409 already closed.

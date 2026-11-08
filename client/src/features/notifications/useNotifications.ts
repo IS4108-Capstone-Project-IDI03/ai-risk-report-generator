@@ -1,28 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   dismissAllNotifications,
   dismissNotification,
-  getNotificationCount,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   type Notification,
   type NotificationPage,
 } from './api'
-
-export type NotificationCounts = { total: number; unread: number }
-
-// How often the badge is refreshed from the gateway while the tab is visible.
-// Chosen so a finished job surfaces within a reasonable wait without hammering
-// the gateway; the count route does not extend the session, so this does not
-// keep an idle tab signed in.
-const POLL_MS = 30_000
+import { useNotificationCounts } from './useNotificationCounts'
 
 export type UseNotifications = {
   items: Notification[]
-  // Total and unread across the whole visible set, not just what is loaded.
-  // Seeded from the session so the badge is right before the list is opened,
-  // then replaced by each page the gateway returns.
+  // The bell's total and unread across the whole visible set, not just what is
+  // loaded. They live in NotificationCountsContext (one poller for the app); each
+  // page the gateway returns corrects them.
   total: number
   unread: number
   loading: boolean
@@ -42,31 +34,34 @@ export type UseNotifications = {
 }
 
 // State and gateway calls for the header dropdown. `pageSize` is how many rows
-// a page holds (a component concern, so it is passed in). `initial` seeds the
-// counts from the session so the bell badge is correct on first paint.
-export function useNotifications(pageSize: number, initial: NotificationCounts): UseNotifications {
+// a page holds (a component concern, so it is passed in).
+export function useNotifications(pageSize: number): UseNotifications {
   const [items, setItems] = useState<Notification[]>([])
-  const [total, setTotal] = useState(initial.total)
-  const [unread, setUnread] = useState(initial.unread)
+  const {
+    counts: { total, unread },
+    change,
+  } = useNotificationCounts()
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   // Abort an in-flight list request if another starts or the panel closes.
   const inFlight = useRef<AbortController | null>(null)
 
-  const apply = useCallback((page: NotificationPage, append: boolean) => {
-    // Skips rows already shown: a Load more sent before a dismiss reached the
-    // server would otherwise repeat the last row.
-    setItems((current) =>
-      append
-        ? [...current, ...page.items.filter((n) => !current.some((c) => c.id === n.id))]
-        : page.items,
-    )
-    setTotal(page.total)
-    setUnread(page.unread)
-    setLoaded(true)
-    setFailed(false)
-  }, [])
+  const apply = useCallback(
+    (page: NotificationPage, append: boolean) => {
+      // Skips rows already shown: a Load more sent before a dismiss reached the
+      // server would otherwise repeat the last row.
+      setItems((current) =>
+        append
+          ? [...current, ...page.items.filter((n) => !current.some((c) => c.id === n.id))]
+          : page.items,
+      )
+      change({ total: page.total, unread: page.unread, inboxTodo: page.inboxTodo })
+      setLoaded(true)
+      setFailed(false)
+    },
+    [change],
+  )
 
   const fetchPage = useCallback(
     (offset: number, append: boolean) => {
@@ -74,7 +69,7 @@ export function useNotifications(pageSize: number, initial: NotificationCounts):
       const controller = new AbortController()
       inFlight.current = controller
       setLoading(true)
-      listNotifications(pageSize, offset, controller.signal).then(
+      listNotifications(pageSize, offset, controller.signal, { kind: 'bell' }).then(
         (page) => {
           if (controller.signal.aborted) return
           apply(page, append)
@@ -96,92 +91,54 @@ export function useNotifications(pageSize: number, initial: NotificationCounts):
 
   // Mark one read: reflect it locally and drop the unread count, then tell the
   // gateway. The list keeps the row (read, not removed).
-  const markRead = useCallback((id: string) => {
-    setItems((current) => current.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n)))
-    setUnread((current) => Math.max(0, current - 1))
-    markNotificationRead(id).catch(() => {
-      // The badge self-corrects on the next open; nothing to undo here.
-    })
-  }, [])
+  const markRead = useCallback(
+    (id: string) => {
+      setItems((current) => current.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n)))
+      change((c) => ({ ...c, unread: Math.max(0, c.unread - 1) }))
+      // Failed: the count goes back, or the next poll would read your own action as someone
+      // else's change. The row corrects itself on the next open.
+      markNotificationRead(id).catch(() => change((c) => ({ ...c, unread: c.unread + 1 })))
+    },
+    [change],
+  )
 
   const markAllRead = useCallback(() => {
     setItems((current) => current.map((n) => (n.read ? n : { ...n, read: true })))
-    setUnread(0)
-    markAllNotificationsRead().catch(() => {})
-  }, [])
+    change({ unread: 0 })
+    markAllNotificationsRead().catch(() => change((c) => ({ ...c, unread: c.unread + unread })))
+  }, [change, unread])
 
   // Dismiss one: drop the row now and adjust the counts, then tell the gateway.
-  // A failed call is ignored; the next open or poll puts the row back.
+  // A failed call puts the counts back (no false outside change); the next open puts the row back.
   const dismiss = useCallback(
     (id: string) => {
       const row = items.find((n) => n.id === id)
       if (!row) return
       setItems((current) => current.filter((n) => n.id !== id))
-      setTotal((current) => Math.max(0, current - 1))
-      if (!row.read) setUnread((current) => Math.max(0, current - 1))
-      dismissNotification(id).catch(() => {})
+      change((c) => ({
+        ...c,
+        total: Math.max(0, c.total - 1),
+        unread: row.read ? c.unread : Math.max(0, c.unread - 1),
+      }))
+      dismissNotification(id).catch(() =>
+        change((c) => ({
+          ...c,
+          total: c.total + 1,
+          unread: row.read ? c.unread : c.unread + 1,
+        })),
+      )
     },
-    [items],
+    [items, change],
   )
 
   // Dismiss all: empty the list and zero the counts, then tell the gateway.
   const dismissAll = useCallback(() => {
     setItems([])
-    setTotal(0)
-    setUnread(0)
-    dismissAllNotifications().catch(() => {})
-  }, [])
-
-  // Poll the counts on a timer so the badge updates on its own when a job
-  // finishes, without the user reloading. Only the counts are refreshed, never
-  // the open list (which would fight what the user is reading). Polling pauses
-  // while the tab is hidden, and resumes — with an immediate refresh — when it
-  // becomes visible again, so a backgrounded tab is quiet. A failed poll is
-  // ignored; the next one corrects the badge.
-  useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | undefined
-    let controller: AbortController | undefined
-
-    const refresh = () => {
-      controller?.abort()
-      controller = new AbortController()
-      getNotificationCount(controller.signal).then(
-        (counts) => {
-          setTotal(counts.total)
-          setUnread(counts.unread)
-        },
-        () => {
-          // Ignore: a dropped poll just means the badge waits for the next one.
-        },
-      )
-    }
-
-    const start = () => {
-      if (timer) return
-      timer = setInterval(refresh, POLL_MS)
-    }
-    const stop = () => {
-      clearInterval(timer)
-      timer = undefined
-      controller?.abort()
-    }
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refresh()
-        start()
-      } else {
-        stop()
-      }
-    }
-
-    if (document.visibilityState === 'visible') start()
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      stop()
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [])
+    change({ total: 0, unread: 0 })
+    dismissAllNotifications().catch(() =>
+      change((c) => ({ ...c, total: c.total + total, unread: c.unread + unread })),
+    )
+  }, [change, total, unread])
 
   return {
     items,

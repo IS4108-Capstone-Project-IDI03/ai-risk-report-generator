@@ -5,11 +5,14 @@ chunker passes each one's own bbox here. The region is cropped like a table or
 formula (shared `page_cache` handle, `PDF_LOCK`) and sent to the OCR layer's
 "picture" task with its context (heading trail and caption), so the model knows
 what it is looking at. The description that comes back is labelled as generated.
+With protection on, faces in the crop are blurred first (PV-06): every picture reading,
+a table read as pictures too, comes through here.
 """
 
 from app.pipeline.chunking_helper.image_crop import crop_png
 from app.pipeline.chunking_helper.ocr_model import recognise
 from app.pipeline.chunking_helper.page_cache import PDF_LOCK, load_document
+from app.privacy import Session
 
 # A picture shorter than this on either side (PDF points; 72 = 1 inch) is a logo,
 # icon or divider: skipped before any paid reading.
@@ -23,7 +26,12 @@ def worth_reading(bbox) -> bool:
 
 
 def parse_picture(
-    bbox, page: int, file_path: str, coord_origin: str = "", context: str = ""
+    bbox,
+    page: int,
+    file_path: str,
+    coord_origin: str = "",
+    context: str = "",
+    protection: Session | None = None,
 ) -> str | None:
     """Crop one picture region and return its description, or None.
 
@@ -33,6 +41,8 @@ def parse_picture(
         file_path: path to the source PDF.
         coord_origin: Docling's coord_origin for the bbox.
         context: where the picture sits (heading trail, caption), sent to the model.
+        protection: the document's privacy session; when on, faces are blurred before the
+            crop is sent. Raises PrivacyUnavailable, and sends nothing, if that fails.
 
     Returns None when the region cannot be cropped or nothing was read (GLM, or
     the provider gave up), and for a picture under `MIN_PICTURE_POINTS` on a
@@ -46,5 +56,7 @@ def parse_picture(
         image_png = crop_png(document, bbox, page, coord_origin=coord_origin)
     if image_png is None:
         return None
+    if protection:
+        [image_png] = protection.redact_images([image_png])
 
     return recognise(image_png, task="picture", context=context)

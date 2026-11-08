@@ -47,3 +47,20 @@ describe('knowledge_documents model', () => {
     ).rejects.toThrow(/validation/i)
   })
 })
+
+// PV-05: the ingestion worker saves a redacted report's mapping (tag -> the
+// client detail it replaced) on the document; rag reads it. The gateway never
+// loads it, so no route can send it to the browser by mistake.
+describe('a knowledge document privacy mapping', () => {
+  it('is left out of every read unless asked for by name', async () => {
+    const { insertedId } = await KnowledgeDocumentModel.collection.insertOne({
+      ...validDocument(),
+      privacyMapping: { '[PERSON_1]': 'John Tan' },
+    })
+
+    const read = await KnowledgeDocumentModel.findById(insertedId).lean()
+
+    expect(read).not.toBeNull()
+    expect(read).not.toHaveProperty('privacyMapping')
+  })
+})

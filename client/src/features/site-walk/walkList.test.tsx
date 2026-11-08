@@ -94,8 +94,12 @@ describe('typed notes in the walk', () => {
     expect(screen.getByText('New text.')).toBeInTheDocument()
     expect(JSON.parse(String(puts(/notes\/1$/)[0].body))).toEqual({ text: 'New text.' })
 
+    // Removing hides the note at once; after the 10 s to Undo it is removed on the server.
     fireEvent.click(screen.getByRole('button', { name: 'Remove note' }))
     await waitFor(() => expect(screen.queryByText('New text.')).not.toBeInTheDocument())
+    expect(puts(/notes\/1$/)).toHaveLength(1)
+    await tick(10_000)
+    await waitFor(() => expect(puts(/notes\/1$/)).toHaveLength(2))
     expect(JSON.parse(String(puts(/notes\/1$/)[1].body))).toEqual({ text: '' })
   })
 
@@ -140,16 +144,17 @@ describe('the walk list', () => {
     const rows = within(list).getAllByRole('listitem')
     expect(rows).toHaveLength(3)
     expect(rows[0]).toHaveTextContent("“We're now at Block A, level…”")
-    expect(within(rows[0]).getByRole('img', { name: 'Transcribed' })).toBeInTheDocument()
+    // A transcribed recording shows only its length.
+    expect(rows[0]).toHaveTextContent(/4:12$/)
     expect(rows[1]).toHaveTextContent('Sprinkler heads are painted over.')
     expect(rows[2]).toHaveTextContent('Recording · 1:15')
-    expect(within(rows[2]).getByRole('img', { name: 'Transcribing' })).toBeInTheDocument()
+    expect(rows[2]).toHaveTextContent(/1:15·Transcribing/)
   })
 
-  it('shows a failed transcription as a labelled cross icon', async () => {
+  it('shows a failed transcription as a red word on the second line', async () => {
     gw.walk.recordings = [rec(1, { transcription: 'failed' })]
     open()
-    expect(await screen.findByRole('img', { name: 'Couldn’t transcribe' })).toBeInTheDocument()
+    expect(await screen.findByText('Couldn’t transcribe')).toBeInTheDocument()
   })
 
   it('expands the transcript and plays the audio of a finished recording', async () => {
@@ -167,7 +172,7 @@ describe('the walk list', () => {
   it('refreshes the walk while a recording is transcribing, then stops', async () => {
     gw.walk.recordings = [rec(1, { transcription: 'transcribing' })]
     open()
-    await screen.findByRole('img', { name: 'Transcribing' })
+    await screen.findByText('Transcribing')
     const reads = () => gw.calls.filter((c) => c.method === 'GET' && c.url.endsWith('/w1')).length
 
     gw.walk.recordings = [rec(1, { transcript: 'Now at the loading bay of Block A today.' })]
@@ -200,9 +205,11 @@ describe('the photo strip', () => {
     )
   })
 
-  it('shows nothing when the walk has no photos yet', async () => {
+  it('shows the Photos section with only Add photo when the walk has no photos yet', async () => {
     open()
     await screen.findByRole('button', { name: 'Start recording' })
-    expect(screen.queryByText(/^Photos/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Photos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add photo' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open photo/ })).not.toBeInTheDocument()
   })
 })

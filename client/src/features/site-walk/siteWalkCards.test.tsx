@@ -295,6 +295,31 @@ describe('the Site Walk Proposals list', () => {
     )
   })
 
+  // RV-11 AC2: someone else's walks can be read, with nothing to record, retry or delete.
+  it("reads someone else's walks with no record, retry or delete", () => {
+    const onOpen = vi.fn()
+    render(
+      <SiteWalks
+        walks={[
+          walk({ id: 'w1', proposal: { locations: [], observations: obs(1) } }),
+          walk({ id: 'w2', status: 'failed', error: 'Could not read it' }),
+          walk({ id: 'w3', status: 'recording' }),
+        ]}
+        waiting={0}
+        onBack={() => {}}
+        onOpen={onOpen}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Record site walk' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Delete/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Review/ }))
+    expect(onOpen).toHaveBeenCalledTimes(1)
+    fireEvent.click(tabs().getByRole('button', { name: /In progress/ }))
+    expect(screen.queryByRole('button', { name: /^Retry/ })).not.toBeInTheDocument()
+    // A walk still recording opens the recorder, which is the holder's alone.
+    expect(screen.queryByRole('button', { name: /^Continue/ })).not.toBeInTheDocument()
+  })
+
   it('has an empty state that offers Record site walk', () => {
     show([])
     const empty = screen.getByText('No site walk proposals yet').parentElement!.parentElement!

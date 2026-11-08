@@ -637,12 +637,25 @@ describe('Changing a client and its sites (CP-18)', () => {
   })
 })
 
-describe('Client page access (CP-18)', () => {
-  it('is for risk engineers only', async () => {
-    gateway({ page: page() })
+describe('Client page access (CP-18, RV-11)', () => {
+  // RV-11 reversed F-05: a knowledge admin opens the page like an engineer, and changes
+  // nothing where they hold no assessment, the gateway having said so (allowed: false).
+  it('opens for a knowledge admin, read-only where they hold no assessment at the client', async () => {
+    const NONE = "You don't have an assessment at this client, so it can't be changed."
+    gateway({ page: page({ rename: refused(NONE), remove: refused(NONE) }) })
     window.history.replaceState(null, '', '/clients/c1')
     render(<App />)
     await signIn('knowledge_admin')
-    expect(await screen.findByRole('heading', { name: 'Access restricted' })).toBeInTheDocument()
+
+    expect(await screen.findByRole('heading', { name: 'NUS', level: 1 })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Access restricted' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rename client' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Remove client' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
   })
 })

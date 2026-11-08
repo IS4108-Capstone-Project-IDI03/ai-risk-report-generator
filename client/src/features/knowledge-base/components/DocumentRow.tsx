@@ -14,6 +14,7 @@ import { ReviewBadge } from './ReviewBadge'
 export function DocumentRow({
   document: d,
   open,
+  focused = false,
   onToggle,
   onEdit,
   onHistory,
@@ -23,6 +24,8 @@ export function DocumentRow({
 }: {
   document: KnowledgeDocument
   open: boolean
+  // The document a notification opened (F-10): marked once, as a request is.
+  focused?: boolean
   onToggle: () => void
   onEdit: () => void
   onHistory: () => void
@@ -34,6 +37,8 @@ export function DocumentRow({
   return (
     <>
       <tr
+        id={`document-${d.id}`}
+        data-focused={focused || undefined}
         className={open ? 'kb-doc-row is-open' : 'kb-doc-row'}
         onClick={(e) => {
           if (!(e.target as HTMLElement).closest('a, button')) onToggle()

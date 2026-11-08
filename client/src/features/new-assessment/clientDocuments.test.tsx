@@ -548,3 +548,57 @@ describe('New Assessment from client documents (CP-23)', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Client' })).toBeInTheDocument()
   })
 })
+
+describe('The Rejected pill on the filled-in form (Sprint 4 fixes, AC23-AC27)', () => {
+  const failedLease = {
+    ...READ,
+    files: [
+      { ...file('f1', 'Request.eml'), status: 'read' },
+      { ...file('f2', 'Lease.pdf'), status: 'failed', reason: 'Lease.pdf is damaged.' },
+    ],
+  }
+
+  it('lists each refused or failed file under a Rejected pill, with no actions or full stops', async () => {
+    await readAll(failedLease)
+    const pill = screen.getByRole('button', { name: 'Rejected · 2' })
+    // The pill sits before Documents.
+    expect(pill.compareDocumentPosition(screen.getByRole('button', { name: /^Documents/ }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    fireEvent.click(pill)
+
+    expect(screen.getByRole('heading', { name: 'Rejected' })).toBeInTheDocument()
+    const list = within(screen.getByRole('list', { name: 'Rejected documents' }))
+    expect(list.getAllByRole('listitem')).toHaveLength(2)
+    expect(list.getByText('photo.jpg')).toBeInTheDocument()
+    expect(list.getByText("Can't read .jpg files")).toBeInTheDocument()
+    expect(list.getByText(/^Add PDF, Word, Outlook \(\.msg\) or \.eml files$/)).toBeInTheDocument()
+    expect(list.getByText('Lease.pdf')).toBeInTheDocument()
+    expect(list.getByText('File is damaged')).toBeInTheDocument()
+    expect(list.getByText(/^Save it again and re-add it$/)).toBeInTheDocument()
+    // No remove or retry.
+    expect(list.queryByRole('button')).toBeNull()
+    // Every tile is the neutral grey one, even for a PDF.
+    for (const tile of document.querySelectorAll('.na-rejected-list .ds-file-tile'))
+      expect(tile).toHaveAttribute('data-kind', 'unknown')
+  })
+
+  it('opens from the keyboard and closes on Escape', async () => {
+    await readAll(failedLease)
+    const pill = screen.getByRole('button', { name: 'Rejected · 2' })
+    pill.focus()
+    expect(pill).toHaveFocus()
+    fireEvent.click(pill) // Enter on a button is a click
+    expect(screen.getByRole('list', { name: 'Rejected documents' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(screen.queryByRole('list', { name: 'Rejected documents' })).toBeNull()
+  })
+
+  it('has no pill on a form filled in by hand', async () => {
+    gateway({ 'GET /api/clients': () => json(200, []) })
+    render(<NewAssessment mode="form" start={{}} onCreated={vi.fn()} onLeave={vi.fn()} />)
+    await wait()
+    expect(screen.getByRole('button', { name: /^Documents/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Rejected/ })).toBeNull()
+  })
+})

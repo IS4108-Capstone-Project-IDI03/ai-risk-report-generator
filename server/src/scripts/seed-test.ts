@@ -48,6 +48,16 @@ const SAMPLE_USERS: SampleUser[] = [
     jobTitle: 'Consultant · Natural hazards',
     office: 'MY',
   },
+  // A second knowledge admin, so the Inbox's shared items and reassignment can
+  // be tried with two real admins (F-10, RV-11). Same dev password as the rest.
+  {
+    staffId: 'MRE-0005',
+    name: 'Omar Khan',
+    email: 'omar.khan@example.com',
+    role: 'knowledge_admin',
+    jobTitle: 'Consultant · Fire protection',
+    office: 'SG',
+  },
 ]
 
 async function seedAndVerify(): Promise<void> {

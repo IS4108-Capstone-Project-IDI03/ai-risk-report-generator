@@ -9,6 +9,7 @@ import {
   correctKnowledgeDocument,
   cancelIngestion,
   documentDetailsSchema,
+  getKnowledgeDocument,
   getKnowledgeDocumentFile,
   byteRange,
   KnowledgeDocumentWrongStateError,
@@ -47,6 +48,16 @@ router.get('/', requirePermission('knowledge:view'), async (_req, res) => {
 // The knowledge base: every ingested document, active or withdrawn, by title (KB-01).
 router.get('/ingested', requirePermission('knowledge:view'), async (_req, res) => {
   res.json(await listIngestedDocuments())
+})
+
+// One document, as the list shows it (F-10). Answers: 200 · 404 unknown. After
+// /ingested, or that would be read as an id.
+router.get('/:id', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json(await getKnowledgeDocument(req.params.id))
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
 })
 
 // Uploads one knowledge document (IN-01, IN-05). The body is the file itself: a
@@ -151,7 +162,8 @@ router.post('/:id/reinstate', requirePermission('knowledge:manage'), async (req,
 // and performs cleanup before marking the document cancelled.
 router.post('/:id/cancel', requirePermission('knowledge:manage'), async (req, res) => {
   try {
-    await cancelIngestion(req.params.id)
+    const { id, name } = res.locals.user!
+    await cancelIngestion(req.params.id, { id, name })
     res.status(202).end()
   } catch (error: unknown) {
     answerStateChange(error, res)
@@ -164,7 +176,8 @@ router.post('/:id/cancel', requirePermission('knowledge:manage'), async (req, re
 // state changes above.
 router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res) => {
   try {
-    await retryIngestion(req.params.id)
+    const { id, name } = res.locals.user!
+    await retryIngestion(req.params.id, { id, name })
     res.status(202).end()
   } catch (error: unknown) {
     answerStateChange(error, res)

@@ -51,6 +51,7 @@ export function ProposalPage({
   onRestore,
   onStep,
   onView,
+  readOnly = false,
 }: {
   proposal: Proposal
   observation: ProposedObservation
@@ -65,6 +66,8 @@ export function ProposalPage({
   onRestore: () => void
   onStep: (ref: string) => void
   onView: (photo: ViewedPhoto) => void
+  // Someone else's proposal (RV-11 AC2): every word shows, nothing can be changed.
+  readOnly?: boolean
 }) {
   const [edited, setEdited] = useState(false)
   // a. Its list's order (No location yet first, then each location; the
@@ -81,7 +84,7 @@ export function ProposalPage({
   // b. The tab's tags and note, filled from the proposed observation; their
   // saves become edits of the proposal.
   const tags: TagsView = {
-    canChange: !deleted,
+    canChange: !deleted && !readOnly,
     cats: o.copeDimension ? [o.copeDimension] : [],
     catLabel: o.copeDimension ?? 'Choose a category',
     sev: o.severity ?? '',
@@ -162,7 +165,7 @@ export function ProposalPage({
           <span className="ob-saved" role="status">
             {edited && SAVE_TEXT[saveState] && <span key={saveState}>{SAVE_TEXT[saveState]}</span>}
           </span>
-          {deleted ? (
+          {readOnly ? null : deleted ? (
             <button type="button" className="ob-button ob-button--primary" onClick={onRestore}>
               <Icon name="rotate-ccw" size={16} />
               Restore
@@ -184,7 +187,9 @@ export function ProposalPage({
       {deleted && (
         <p className="ob-line" style={{ margin: '0 0 12px' }}>
           <Icon name="info" size={14} />
-          <span>Deleted. Create all skips it unless you restore it.</span>
+          <span>
+            {readOnly ? 'Deleted.' : 'Deleted. Create all skips it unless you restore it.'}
+          </span>
         </p>
       )}
       {saveState === 'failed' && !!problem && (
@@ -204,7 +209,13 @@ export function ProposalPage({
             save={save}
             stamps={null}
           />
-          <ObservationNote key={o.ref} live note={o.note} canChange={!deleted} save={save} />
+          <ObservationNote
+            key={o.ref}
+            live
+            note={o.note}
+            canChange={!deleted && !readOnly}
+            save={save}
+          />
           {(clip || voices.length > 0) && (
             <section className="ob-card ob-section" aria-label="Recordings">
               <h3 className="ob-section-head">

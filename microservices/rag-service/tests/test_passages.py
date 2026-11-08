@@ -83,3 +83,16 @@ def test_withdrawn_passage_still_opens(monkeypatch):
     assert client.get("/passages/p1").status_code == 200
     # No status filter: a withdrawn edition's citation (CB-01 AC14) must still open.
     assert "where" not in chroma.get_collection.return_value.get.call_args.kwargs
+
+
+def test_a_past_report_passage_opens_in_real_words(monkeypatch, stored_mappings):
+    # PV-05: past reports are stored with tags; the panel shows what the answer quoted.
+    report = "6abb28ae16068a0793e9962a"
+    stored_mappings[report] = {"[PERSON_1]": "John Tan", "[CLIENT_1]": "Acme Pte Ltd"}
+    meta = {"doc_id": report, "headings": ["[CLIENT_1] survey"]}
+    fake_chroma(monkeypatch, ["p1"], ["[PERSON_1] inspected the pump."], [meta])
+    body = client.get("/passages/p1").json()
+    assert (body["text"], body["headings"]) == (
+        "John Tan inspected the pump.",
+        ["Acme Pte Ltd survey"],
+    )

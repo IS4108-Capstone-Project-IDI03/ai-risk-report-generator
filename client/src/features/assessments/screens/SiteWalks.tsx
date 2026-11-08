@@ -38,11 +38,12 @@ export function SiteWalks({
   // Files kept on this device until the engineer is online again.
   waiting: number
   onBack: () => void
-  onRecord: () => void
+  // These three are left out for someone reading another engineer's walks (RV-11 AC2).
+  onRecord?: () => void
   onOpen: (walk: SiteWalk) => void
-  onRetry: (walkId: string) => void
+  onRetry?: (walkId: string) => void
   // Deletes the walk on the gateway; rejects with why it could not.
-  onDelete: (walkId: string) => Promise<void>
+  onDelete?: (walkId: string) => Promise<void>
 }) {
   const [picked, setPicked] = useState<WalkTab | null>(null)
   const [deleting, setDeleting] = useState<{
@@ -59,7 +60,7 @@ export function SiteWalks({
 
   // b. Delete, once confirmed; the dialog stays open with the reason if refused.
   function confirmDelete() {
-    if (!deleting) return
+    if (!deleting || !onDelete) return
     setDeleting({ ...deleting, busy: true, problem: null })
     onDelete(deleting.walk.id).then(
       () => setDeleting(null),
@@ -76,7 +77,7 @@ export function SiteWalks({
   }
 
   // The same button as on the Observations toolbar, so one action looks one way.
-  const record = (
+  const record = onRecord && (
     <button type="button" className="ob-button ob-button--primary" onClick={onRecord}>
       <Icon name="mic" size={16} />
       Record site walk
@@ -95,7 +96,9 @@ export function SiteWalks({
         <EmptyState
           icon="mic"
           title="No site walk proposals yet"
-          description="Record a site walk and the AI proposes observations from it."
+          description={
+            onRecord ? 'Record a site walk and the AI proposes observations from it.' : undefined
+          }
           action={record}
         />
       ) : (
@@ -114,9 +117,12 @@ export function SiteWalks({
                   <WalkRow
                     key={w.id}
                     walk={w}
-                    onOpen={() => onOpen(w)}
-                    onRetry={() => onRetry(w.id)}
-                    onDelete={() => setDeleting({ walk: w, busy: false, problem: null })}
+                    // A walk still recording opens the recorder, which is its holder's alone.
+                    onOpen={onRecord || w.status !== 'recording' ? () => onOpen(w) : undefined}
+                    onRetry={onRetry && (() => onRetry(w.id))}
+                    onDelete={
+                      onDelete && (() => setDeleting({ walk: w, busy: false, problem: null }))
+                    }
                   />
                 ))}
               </ul>

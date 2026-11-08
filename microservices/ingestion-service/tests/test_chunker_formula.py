@@ -61,6 +61,46 @@ def test_has_formula_chunk_false_without_formula_label():
     assert chunker._has_formula_chunk(_chunk(item)) is False
 
 
+# --- _looks_like_equation -----------------------------------------------------
+
+# FM-200 design concentrations: Word fractions Docling read as plain text.
+FLATTENED_FRACTIONS = """The minimum enclosure concentrations can be calculated based on \
+the actual container fill (21 °C minimum design temperature).
+Switch Room: C = 100 x 68.1 x 0.1376751 = 7.20% (68.1 x 0.1376751) + 120.8
+Computer C = Room:
+100 x 303.9 x 0.1376751 = 7.22% (303.9 x 0.1376751) + 537.6"""
+
+
+def test_flattened_fraction_looks_like_equation():
+    assert chunker._looks_like_equation(FLATTENED_FRACTIONS) is True
+
+
+def test_inline_arithmetic_with_unicode_operators_looks_like_equation():
+    assert chunker._looks_like_equation("Q = 2.5 × 40 ÷ 2 = 50 L/min; V = 12 × 8 × 3") is True
+
+
+def test_prose_does_not_look_like_equation():
+    text = (
+        "Hose stream allowance shall be 950 L/min for 60 minutes (see 20.15.2.6).\n"
+        "Sprinklers on pages 3-5 were installed on 2026-11-06."
+    )
+    assert chunker._looks_like_equation(text) is False
+
+
+def test_single_assignment_does_not_look_like_equation():
+    # One value, or one step, is a stated result rather than an equation.
+    assert chunker._looks_like_equation("Design concentration C = 7.20%") is False
+    assert chunker._looks_like_equation("Area = 12 x 8 m") is False
+
+
+def test_arithmetic_without_equals_does_not_look_like_equation():
+    assert chunker._looks_like_equation("Timber 50 x 100 x 3000 mm stacked") is False
+
+
+def test_hyphenated_ranges_are_not_arithmetic():
+    assert chunker._looks_like_equation("Rating = 2-4 hours, spacing 3-5 m") is False
+
+
 # --- _chunk_bbox: per-page split + union --------------------------------------
 
 
@@ -170,3 +210,49 @@ def test_chunk_replaces_formula_placeholder_and_keeps_bbox_metadata(monkeypatch)
             },
         }
     ]
+
+
+def _run_text_chunk(monkeypatch, text, decoded):
+    """Chunk one TEXT-labelled chunk, with formula OCR answering `decoded`."""
+    item = _item(_prov(5, 40, 380, 160, 340))
+    item.label = chunker.DocItemLabel.TEXT
+    dl_chunk = SimpleNamespace(text=text, meta=SimpleNamespace(doc_items=[item], headings=[]))
+    doc = SimpleNamespace(iterate_items=lambda with_groups=False: [])
+    calls: list[list[dict]] = []
+
+    def fake_extract(boxes, path):
+        calls.append(boxes)
+        return decoded
+
+    fake_chunker = SimpleNamespace(chunk=lambda dl_doc: [dl_chunk])
+    monkeypatch.setattr(chunker, "_chunker", lambda: fake_chunker)
+    monkeypatch.setattr(chunker, "_extract_formula_chunk", fake_extract)
+    monkeypatch.setattr(chunker, "close_document", lambda: None)
+    result = chunker.chunk(
+        ParsedDocument(doc_name="manual.pdf", docling_document=doc),
+        doc_path="manual.pdf",
+        doc_id="fm200",
+    )
+    return result, calls
+
+
+def test_unlabelled_flattened_equation_is_read_as_formula(monkeypatch):
+    latex = r"C = \frac{100 \times 68.1 \times 0.1376751}{(68.1 \times 0.1376751) + 120.8} = 7.20\%"
+    result, calls = _run_text_chunk(monkeypatch, FLATTENED_FRACTIONS, latex)
+
+    assert len(calls) == 1
+    assert result[0]["text"] == latex
+
+
+def test_flattened_equation_keeps_docling_text_when_nothing_decodes(monkeypatch):
+    result, calls = _run_text_chunk(monkeypatch, FLATTENED_FRACTIONS, "")
+
+    assert len(calls) == 1
+    assert result[0]["text"] == FLATTENED_FRACTIONS
+
+
+def test_plain_text_chunk_is_not_sent_to_formula_ocr(monkeypatch):
+    result, calls = _run_text_chunk(monkeypatch, "Hose stream allowance is 950 L/min.", "unused")
+
+    assert calls == []
+    assert result[0]["text"] == "Hose stream allowance is 950 L/min."

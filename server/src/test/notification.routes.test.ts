@@ -106,7 +106,7 @@ describe('GET /api/notifications/count', () => {
 
     const res = await admin.get('/api/notifications/count').expect(200)
 
-    expect(res.body).toEqual({ total: 3, unread: 3 })
+    expect(res.body).toMatchObject({ total: 3, unread: 3, inboxTodo: 0 })
   })
 
   it('reflects a read, so the poller can track the badge', async () => {
@@ -115,7 +115,7 @@ describe('GET /api/notifications/count', () => {
     await admin.patch(`/api/notifications/${created.id}/read`).expect(204)
 
     const res = await admin.get('/api/notifications/count').expect(200)
-    expect(res.body).toEqual({ total: 1, unread: 0 })
+    expect(res.body).toMatchObject({ total: 1, unread: 0, inboxTodo: 0 })
   })
 
   it('does not return the list, only the counts', async () => {

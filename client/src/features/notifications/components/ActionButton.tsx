@@ -1,4 +1,5 @@
-// A 32px icon button (16px glyph) with a design-system tooltip. CB-07 UI polish (notifications).
+// A 32px icon button (16px glyph) with a design-system tooltip, or 28px with a 14px glyph
+// for the bell's thin header (F-10, board 11). CB-07 UI polish (notifications).
 // Used by NotificationList's header and NotificationRow's actions.
 import { IconButton, Tooltip } from '../../../design-system'
 
@@ -12,21 +13,24 @@ export function ActionButton({
   label,
   onClick,
   placement = 'bottom',
+  box = 32,
 }: {
   icon: string
   label: string
   onClick: () => void
   placement?: string
+  box?: 28 | 32
 }) {
   return (
     <Tooltip label={label} placement={placement} style={{ display: 'flex' }}>
       <IconButton
         icon={icon}
         label={label}
-        size="md"
+        size={box === 28 ? 'sm' : 'md'}
         onClick={onClick}
         title={undefined}
-        style={{ width: 32, height: 32 }}
+        className="notif-action"
+        style={{ width: box, height: box }}
       />
     </Tooltip>
   )
