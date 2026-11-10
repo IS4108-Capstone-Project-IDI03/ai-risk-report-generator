@@ -128,12 +128,17 @@ export async function transcribe(s3Key: string, reportId?: string): Promise<stri
 }
 
 // Asks S5 for one or two plain sentences on what a site photo shows (CP-22).
-// Only the photo is sent. S5 reports its usage as describe_photo; the gateway
-// spells features with a hyphen.
-export async function describePhoto(s3Key: string, reportId?: string): Promise<string> {
+// Only the photo is sent. `privacy` says whether S5 blurs faces first and
+// checks the description, as for interpret (PV-08). S5 reports its usage as
+// describe_photo; the gateway spells features with a hyphen.
+export async function describePhoto(
+  s3Key: string,
+  privacy: ReadingPrivacy,
+  reportId?: string,
+): Promise<string> {
   const body = await callS5<{ description: string; usage?: unknown }>(
     '/describe-photo',
-    { s3_key: s3Key },
+    { s3_key: s3Key, privacy },
     'The photo service could not be reached.',
     (b) => typeof b.description === 'string',
   )

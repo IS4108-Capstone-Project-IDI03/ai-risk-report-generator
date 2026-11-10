@@ -12,7 +12,7 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | OFI drafting (Section 3) | Yes | PV-02 | As for sections; accepted OFI titles are masked too. |
 | Executive Summary (Section 2) | Yes | PV-02 | The saved section text is masked. |
 | Knowledge-base chat | Yes | PV-03 | The conversation, context (the engineer's remembered facts, CB-05, travel as context), document names, passages, Cohere queries and rerank documents are masked; the answer streams back with real names. |
-| Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The photo itself and the audio are not (speech-to-text and photo description, rows below). |
+| Site walk proposal (CP-22) | Yes | CP-22 | The transcript, existing location names and photo descriptions are masked before the walk-reading model and Jev. The audio is not (speech-to-text, below); the photos are described with faces blurred (PV-08, below). |
 | Photo on a chat question (CB-08, Gemini) | Faces: always checked, the engineer chooses | CB-08 | privacy-service finds faces when the photo is attached; the engineer blurs them (the default) or sends the photo as is. If the check cannot run, the photo is not kept or sent. Only the photo goes to the vision model; its description joins the question's context and is masked with the rest of the question (PV-03). Text printed on a photo cannot be masked. |
 | Client intake: reading a client's documents (CP-23) | Yes | CP-23 | Every document's name and text is masked before the reading model and Jev, including a client or site not yet recorded. See "Client intake" below. The files themselves are stored in S3 and never sent. |
 | Pre-survey checklist (CP-30) | Not needed | CP-30 | Only the facility type, country and standard ids are sent; S4's request has no field for client text. |
@@ -21,7 +21,8 @@ Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) b
 | Observation reading: photos, and since CP-21 any observation's text (Gemini) | Yes | PV-04 | Faces in photos are blurred; the note, transcripts and location are masked. Item labels ("Note", a photo's file name) are not. |
 | Handwritten note transcription (CP-19, Gemini) | **No, by decision** | PV-04 | The page image must be read by the model, so it can't be masked. See Known gaps. |
 | Ingestion of past reports: labelling, table, formula and picture OCR, embedding, Chroma | Yes | PV-05, PV-06 | Labelling reads masked page text; a past report's PDF is redacted before parsing, scanned pages included (PV-06). Faces in picture and table crops are blurred before the OCR model reads them, and passage text is masked once more before embedding. Text inside a picture still reaches the OCR model (Known gaps). Reports ingested before PV-05 stay unredacted until every document is re-run. Standards are public and not redacted. See "Ingestion of past reports" below. |
-| Speech-to-text | **No** | PV-08 (deferred) | |
+| Speech-to-text (Whisper) | **No, by decision** | | The audio can't be masked. Every transcript is masked before drafting, chat and site-walk reading. See Known gaps. |
+| Site walk photo description (CP-22, Gemini) | Yes | PV-08 | Faces are blurred before the model, and the description is checked like observation reading's answer before it is saved. Text printed on a photo still reaches the model. See "Site walk proposal" below. |
 
 ## How a protected request works
 
@@ -57,6 +58,12 @@ If privacy-service fails, chat answers "Sorry, the chat couldn't answer: Client 
 ### Site walk proposal (CP-22)
 
 The gateway's `site-walk-proposal` worker sends the walk to rag-service's `POST /site-walks/propose` with `privacy` from `privacyFor`, like drafting.
+
+Before that, each photo is described by S5's `POST /describe-photo` with `privacy` from `readingPrivacyFor`, as for observation reading (PV-08):
+1. **One `/redact-image` call** blurs the photo's faces; only the blurred copy goes to the vision model. The S3 original is unchanged and the blurred copy is not kept.
+2. **With `PII_CHECK_ANSWERS`**, one `/mask` call checks the description: a name or number the model read off the photo becomes its kind ("[phone number removed]"), a known client, site or person stays. Nothing goes in masked, since only the photo is sent.
+3. If either call fails, S5 answers 502 and nothing is described. The walk treats it like any description failure: retried, then on the last try the photo is matched by its time alone. The raw photo is never sent as a fallback.
+4. S5 returns `privacy` provenance (counts only); the gateway doesn't store it, since a walk photo has no provenance field.
 
 In rag-service (`app/site_walk/propose.py`):
 1. **One `/mask` call** covers every transcript segment (or the typed walk), each existing location's building, level and name, and each photo's description.
@@ -170,7 +177,8 @@ Known names and the patterns for phone numbers, IDs and addresses are never chec
 - **The duplicate and edition comparison (IN-07) shows tags** for a redacted report: ingestion-service reads Chroma directly, without the mapping.
 - **Client intake: some names are still readable after masking (CP-23).** Recorded names are always masked (they are known entities). Names nobody recorded depend on spaCy and on patterns for building names ("<Name> Tower", "<Name> Hub", "Phase 2") and street addresses ("12 Kallang Road", "Jalan Seri Utama 2"), so an unusual name can slip through. Measured on the CP-23 eval's 24 synthetic packs (3 Nov 2026), after masking: 1 of 22 client names (a Thai "Co., Ltd" name), 0 of 31 new site names, 2 of 48 contact names (Malay and Thai names spaCy doesn't read as people) and 0 of 31 addresses were still readable in the text sent to the AI. The patterns over-mask a little (a heading or "Visit Lindenmoor Tower" masked as one name); each placeholder still restores to its text. The packs use invented names in the sample reports' shapes, so real documents may differ.
 - **Figure proposals** are not protected yet (see the table above).
-- **Site walks:** the audio (Whisper) and the photos (`/describe-photo`) go out unmasked, as for voice notes (PV-08). Unlike observation reading (PV-04), a site walk's photos are not blurred. Only the AI step that reads their text is protected.
+- **Speech-to-text goes out as recorded, by decision.** Voice notes and site-walk audio go to OpenAI Whisper unmasked; audio can't be masked. Like handwritten pages, the transcript is masked whenever it feeds drafting, chat or a site-walk reading, so no raw speech reaches those models. A local Whisper (faster-whisper) would close the gap, at about 5 to 20 times the API's time on a CPU-only instance.
+- **Site-walk photos: faces only (PV-08).** As in observation reading, text printed in a photo (a badge, a notice) reaches the vision model; the answer check keeps it out of the saved description when `PII_CHECK_ANSWERS` is on. Descriptions saved before PV-08 are not re-checked.
 - **Handwritten pages (CP-19) go to the AI as photographed.** The model must read the page, so its text can't be masked first. This is accepted for now: the risk is mostly in the *combination* of details (a name with an NRIC and a phone number), and the main goal is not to store PII in the database. Scan mode asks the engineer to leave names, phone numbers and ID numbers off the page. The transcript is masked later, like any text, whenever it feeds drafting or chat. A local handwriting model would close the gap.
 - **Photo reading: faces only.** Text in a photo (a name badge, a tag with a phone number) is not redacted, so Gemini reads it. The answer check keeps it out of what is saved, except a building name on its own ("University Hall"). Tesseract redaction was left out (1–3 s per photo). Faces turned well away from the camera, or under about 17 px in the photo, may not be detected.
 - **Photo labels are not masked.** A photo's label is its file name, which the proposal cites. A file named after a person would reach Gemini.

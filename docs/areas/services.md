@@ -32,10 +32,13 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
   recording) beside `transcript`. It takes only `s3_key`: no vocabulary
   hint is sent, because client text must not reach an external AI unmasked and
   speech-to-text is not masked.
-- `POST /describe-photo` `{ s3_key }` returns `{ description, usage }`: one or two
+- `POST /describe-photo` `{ s3_key, privacy? }` returns `{ description, usage, privacy }`: one or two
   plain sentences of what one site-walk photo shows, from `VISION_PROVIDER` /
   `VISION_MODEL`. Only the photo is sent, no client text. The proposal step
-  uses the description to match the photo to a finding.
+  uses the description to match the photo to a finding. With `privacy` on, faces are
+  blurred first and, with `check_answers`, the description is checked, as for `/interpret`
+  (PV-08, see [privacy](privacy.md)); if privacy-service fails it answers 502. Left out, the
+  photo is described as before.
 - S5 still writes nothing to MongoDB.
 
 ### Site walk uploads (gateway, CP-22)

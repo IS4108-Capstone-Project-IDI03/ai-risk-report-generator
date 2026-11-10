@@ -783,6 +783,21 @@ describe('finishing and proposing', () => {
     expect((await api.post(`${base}/${walk.id}/retry`)).status).toBe(409)
   })
 
+  it('sends each photo to be described with the reading privacy (PV-08)', async () => {
+    await seed()
+    const walk = await startWalk()
+    await upload(walk.id, 1)
+    await uploadPhoto(walk.id)
+
+    await api.post(`${base}/${walk.id}/finish`).send({ name: 'Tower A walk' })
+    await reaches(walk.id, 'ready')
+
+    expect(describe_.mock.calls[0][0]).toEqual({
+      s3_key: expect.any(String),
+      privacy: { enabled: false, known_entities: [], check_answers: false },
+    })
+  })
+
   it('still proposes when a photo cannot be described, matching it by time alone', async () => {
     await seed()
     const walk = await startWalk()

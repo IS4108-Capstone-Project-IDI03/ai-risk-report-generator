@@ -449,8 +449,10 @@ def _describe_gemini(
 _DESCRIBERS = {"gemini": _describe_gemini}
 
 
-def describe_photo(s3_key: str) -> dict:
-    """{description, usage} for one stored photo, by the VISION_PROVIDER."""
+def describe_photo(s3_key: str, privacy: dict | None = None) -> dict:
+    """{description, usage, privacy} for one stored photo, by the VISION_PROVIDER. With `privacy`
+    on, faces are blurred before the model sees it and, with `check_answers`, details it read off
+    the photo are taken out of the description, as in photo reading (PV-08)."""
     describer = _DESCRIBERS.get(VISION_PROVIDER)
     if describer is None:
         raise InterpretationError(
@@ -458,8 +460,12 @@ def describe_photo(s3_key: str) -> dict:
             "is not supported."
         )
     image = _prepare(_read(boto3.client("s3", region_name=AWS_REGION), s3_key))
+    session = protection.session(privacy)
+    [image] = session.redact_images([image])
     answer, usage = describer(image)
-    return {"description": answer.description, "usage": [usage]}
+    # Only the photo was sent, so whatever the check finds was read off it.
+    [description] = session.check_answer([answer.description])
+    return {"description": description, "usage": [usage], "privacy": session.provenance()}
 
 
 def describe_chat_photo(s3_key: str) -> dict:
