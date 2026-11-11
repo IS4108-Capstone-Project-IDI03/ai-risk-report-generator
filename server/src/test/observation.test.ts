@@ -2137,7 +2137,7 @@ describe('adding and removing recordings and photos (CP-08)', () => {
     expect((await addMedia(id, [{ audio: Buffer.from('') }])).status).toBe(400)
     const nothing = await api.post(`/api/observations/${id}/media`).field('note', 'Not media.')
     expect(nothing.status).toBe(400)
-    expect(nothing.body.error).toBe('Add a recording or a photo to the observation.')
+    expect(nothing.body.error).toBe('Add a recording, a photo or a page to the observation.')
 
     expect(s3.size).toBe(0)
     const [o] = await listed()
@@ -2737,17 +2737,260 @@ describe('handwritten pages (CP-19)', () => {
     expect(o).toMatchObject({ note: null, photos: [], pages: [{ type: 'Scan' }] })
   })
 
-  it('refuses pages added to a saved observation, which comes with managing them (CP-20)', async () => {
-    await assessmentWithSession()
-    const { id } = (await note()).body
+  describe('managing saved pages (CP-20)', () => {
+    const by = { id: String(actor._id), name: 'Alex Rowe' }
+    const addPages = (id: unknown, images: Buffer[], as = api) => {
+      const req = as.post(`/api/observations/${id}/media`)
+      images.forEach((image, i) =>
+        req.attach('page', image, {
+          filename: `IMG_08${10 + i}.${image === PNG ? 'png' : 'jpg'}`,
+          contentType: image === PNG ? 'image/png' : 'image/jpeg',
+        }),
+      )
+      return req
+    }
+    const correctPage = (id: unknown, pageId: unknown, text: unknown, as = api) =>
+      as.put(`/api/observations/${id}/pages/${pageId}/transcript`).send({ text })
+    const removePage = (id: unknown, pageId: unknown, as = api) =>
+      as.delete(`/api/observations/${id}/pages/${pageId}`)
+    const restorePage = (id: unknown, pageId: unknown, as = api) =>
+      as.post(`/api/observations/${id}/pages/${pageId}/restore`)
+    // What the observation's reading was given, the last time it was read.
+    const lastRead = () => vision.mock.lastCall![0].texts
 
-    const response = await api
-      .post(`/api/observations/${id}/media`)
-      .attach('page', JPG, { filename: 'p.jpg', contentType: 'image/jpeg' })
+    it('adds pages to a saved observation, each stored, marked as added and transcribed', async () => {
+      // A fresh answer per page: a response body can be read only once.
+      handwriting.mockImplementation(() => s5(200, read('Sprinkler valve shut')))
+      await assessmentWithSession()
+      const { id } = (await note()).body
 
-    expect(response.status).toBe(400)
-    expect(response.body.error).toBe('Pages can only be added when the observation is captured.')
-    expect(s3.size).toBe(0)
+      const response = await addPages(id, [JPG, PNG])
+
+      expect(response.status).toBe(200)
+      expect(response.body).toMatchObject({
+        pages: [
+          { name: 'IMG_0810.jpg', added: { by }, transcription: { status: 'transcribing' } },
+          { name: 'IMG_0811.png', added: { by }, transcription: { status: 'transcribing' } },
+        ],
+        removedPages: [],
+        edited: { by },
+      })
+      const stored = await pagesSettled(id)
+      const [first, second] = stored.pages!
+      expect(first.key).toBe(`pages/RPT-2026-0411/${id}/${first._id}.jpg`)
+      expect(second.key).toBe(`pages/RPT-2026-0411/${id}/${second._id}.png`)
+      expect(s3.get(first.key)).toEqual(JPG)
+      expect(s3.get(second.key)).toEqual(PNG)
+      // Each page added is transcribed on its own, as at capture.
+      expect(handwriting).toHaveBeenCalledTimes(2)
+      const [o] = await listed()
+      expect(o.pages.map((p: { transcription: object }) => p.transcription)).toEqual([
+        expect.objectContaining({ status: 'transcribed', transcript: 'Sprinkler valve shut' }),
+        expect.objectContaining({ status: 'transcribed', transcript: 'Sprinkler valve shut' }),
+      ])
+    })
+
+    it('refuses a page capture would refuse, adding nothing', async () => {
+      await assessmentWithSession()
+      const { id } = (await note()).body
+
+      const heic = await api
+        .post(`/api/observations/${id}/media`)
+        .attach('page', JPG, { filename: 'a.jpg', contentType: 'image/jpeg' })
+        .attach('page', HEIC, { filename: 'b.jpg', contentType: 'image/jpeg' })
+      expect(heic.status).toBe(415)
+      expect(s3.size).toBe(0)
+      const [o] = await listed()
+      expect(o).toMatchObject({ pages: [], edited: null })
+      expect(handwriting).not.toHaveBeenCalled()
+    })
+
+    it("corrects a page's text, keeping the model's, and reading uses the correction", async () => {
+      handwriting.mockReturnValue(s5(200, read('Sprinkler valve sht', [[16, 19]])))
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }])).body
+      const [page] = (await pagesSettled(id)).pages!
+
+      const response = await correctPage(id, page._id, 'Sprinkler valve shut')
+
+      expect(response.status).toBe(200)
+      expect(response.body.pages[0].transcription).toMatchObject({
+        // The model's words, and what it was unsure of, stay as evidence.
+        transcript: 'Sprinkler valve sht',
+        uncertain: [[16, 19]],
+        correction: { text: 'Sprinkler valve shut', by },
+      })
+      expect(response.body.edited).toMatchObject({ by })
+
+      expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+      await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+      expect(lastRead()).toEqual([{ label: page.name, kind: 'page', text: 'Sprinkler valve shut' }])
+
+      // Writing the model's words back removes the correction.
+      const back = await correctPage(id, page._id, 'Sprinkler valve sht')
+      expect(back.body.pages[0].transcription.correction).toBeNull()
+    })
+
+    it('corrects only a finished page, with text, for the assigned engineer', async () => {
+      handwriting.mockImplementation(({ s3_key }) =>
+        s3_key.endsWith('.png')
+          ? s5(502, { detail: 'The page could not be transcribed: timeout.' })
+          : s5(200, read('')),
+      )
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+      const [empty, failed] = (await pagesSettled(id)).pages!
+
+      const blank = await correctPage(id, empty._id, '   ')
+      expect(blank.status).toBe(400)
+      expect(blank.body.fields.text).toBe('Write the corrected transcript.')
+      const notDone = await correctPage(id, failed._id, 'x')
+      expect(notDone.status).toBe(409)
+      expect(notDone.body.error).toBe('Only a finished transcription can be corrected.')
+      expect((await correctPage(id, new Types.ObjectId(), 'x')).status).toBe(404)
+      const otherEngineer = signedInAsRole(app, 'risk_engineer', 'Jide Okafor')
+      expect((await correctPage(id, empty._id, 'x', otherEngineer)).status).toBe(403)
+
+      // A page the model found no handwriting on can still be written by hand.
+      const written = await correctPage(id, empty._id, 'Hydrant H2 blocked')
+      expect(written.status).toBe(200)
+      expect(written.body.pages[0].transcription).toMatchObject({
+        transcript: '',
+        correction: { text: 'Hydrant H2 blocked' },
+      })
+    })
+
+    it('drops the correction when the page is transcribed again', async () => {
+      handwriting.mockReturnValue(s5(200, read('FHR 7 bor')))
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }])).body
+      const [page] = (await pagesSettled(id)).pages!
+      await correctPage(id, page._id, 'FHR 7 bar')
+
+      handwriting.mockReturnValue(s5(200, read('FHR 7 bar.')))
+      const again = await api.post(`/api/observations/${id}/pages/${page._id}/retranscribe`)
+
+      expect(again.status).toBe(200)
+      expect(again.body.pages[0].transcription).toMatchObject({
+        status: 'transcribing',
+        transcript: null,
+        correction: null,
+      })
+      await pagesSettled(id)
+      const [o] = await listed()
+      expect(o.pages[0].transcription).toMatchObject({
+        transcript: 'FHR 7 bar.',
+        correction: null,
+      })
+    })
+
+    it('removes a page, leaving it out of reading, and restores it', async () => {
+      handwriting.mockImplementation(({ s3_key }) =>
+        s5(200, read(s3_key.endsWith('.png') ? 'Second page' : 'First page')),
+      )
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+      const [first, second] = (await pagesSettled(id)).pages!
+
+      const removed = await removePage(id, second._id)
+
+      expect(removed.status).toBe(200)
+      expect(removed.body).toMatchObject({
+        pages: [{ id: String(first._id) }],
+        removedPages: [{ id: String(second._id), removed: { by } }],
+        edited: { by },
+      })
+      // Kept, file and all: a soft removal.
+      expect(s3.get(second.key)).toEqual(PNG)
+      expect((await removePage(id, second._id)).body.error).toBe('This page is already removed.')
+
+      // A removed page is not read, corrected or transcribed again until restored.
+      expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+      await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+      expect(lastRead()).toEqual([{ label: first.name, kind: 'page', text: 'First page' }])
+      const correcting = await correctPage(id, second._id, 'x')
+      expect(correcting.status).toBe(409)
+      expect(correcting.body.error).toBe(
+        'This page is removed. Restore it before correcting its text.',
+      )
+      const again = await api.post(`/api/observations/${id}/pages/${second._id}/retranscribe`)
+      expect(again.status).toBe(409)
+      expect(again.body.error).toBe(
+        'This page is removed. Restore it before transcribing it again.',
+      )
+
+      const restored = await restorePage(id, second._id)
+      expect(restored.status).toBe(200)
+      expect(restored.body).toMatchObject({
+        pages: [{ id: String(first._id) }, { id: String(second._id) }],
+        removedPages: [],
+      })
+      expect((await restorePage(id, second._id)).body.error).toBe('This page is not removed.')
+    })
+
+    it('does not retry a removed page until it is restored', async () => {
+      handwriting.mockReturnValue(
+        s5(502, { detail: 'The page could not be transcribed: timeout.' }),
+      )
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }], { note: 'Riser room.' })).body
+      const [page] = (await pagesSettled(id)).pages!
+      await removePage(id, page._id)
+
+      const retry = await api.post(`/api/observations/${id}/pages/${page._id}/transcription/retry`)
+
+      expect(retry.status).toBe(409)
+      expect(retry.body.error).toBe('This page is removed. Restore it before retrying it.')
+      expect(handwriting).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps something captured: the last page, or the note once pages are removed', async () => {
+      handwriting.mockImplementation(() => s5(200, read('x')))
+      await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }, { image: PNG }])).body
+      const [first, second] = (await pagesSettled(id)).pages!
+
+      expect((await removePage(id, first._id)).status).toBe(200)
+      const last = await removePage(id, second._id)
+      expect(last.status).toBe(409)
+      expect(last.body.error).toBe(
+        'An observation needs a note, a recording, a photo or a page, so this page can’t be removed. Add what replaces it first.',
+      )
+
+      // With a note, the last page can go; then the note can't, as the
+      // removed pages no longer count as captured.
+      expect((await api.patch(`/api/observations/${id}`).send({ note: 'Riser.' })).status).toBe(200)
+      expect((await removePage(id, second._id)).status).toBe(200)
+      const noNote = await api.patch(`/api/observations/${id}`).send({ note: null })
+      expect(noNote.status).toBe(400)
+    })
+
+    it('lets only the assigned engineer change pages, and not once deleted or archived', async () => {
+      handwriting.mockReturnValue(s5(200, read('x')))
+      const assessment = await assessmentWithSession()
+      const { id } = (await savePages([{ image: JPG }], { note: 'Riser room.' })).body
+      const [page] = (await pagesSettled(id)).pages!
+
+      const otherEngineer = signedInAsRole(app, 'risk_engineer', 'Jide Okafor')
+      const admin = signedInAsRole(app, 'knowledge_admin', 'Sana Patel')
+      for (const as of [otherEngineer, admin]) {
+        expect((await addPages(id, [JPG], as)).status).toBe(403)
+        expect((await removePage(id, page._id, as)).status).toBe(403)
+        expect((await correctPage(id, page._id, 'y', as)).status).toBe(403)
+      }
+
+      expect((await api.delete(`/api/observations/${id}`)).status).toBe(200)
+      expect((await addPages(id, [JPG])).status).toBe(409)
+      expect((await removePage(id, page._id)).status).toBe(409)
+      expect((await correctPage(id, page._id, 'y')).status).toBe(409)
+      expect((await api.post(`/api/observations/${id}/restore`)).status).toBe(200)
+
+      await AssessmentModel.updateOne({ _id: assessment._id }, { archivedAt: new Date() })
+      expect((await addPages(id, [JPG])).status).toBe(409)
+      expect((await removePage(id, page._id)).status).toBe(409)
+      expect((await correctPage(id, page._id, 'y')).status).toBe(409)
+      expect(s3.size).toBe(1)
+    })
   })
 
   it('lists an observation saved before pages existed with none', async () => {

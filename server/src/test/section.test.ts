@@ -691,6 +691,45 @@ describe('handwritten pages as drafting evidence (CP-19)', () => {
     )
     expect((await sections()).changeCounts).toEqual({ added: 1, changed: 0, removed: 0 })
   })
+
+  it("drafts from a page's correction, and counts a correction or removal as a change (CP-20)", async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    await observation(ids, 'Construction', { note: 'Riser room.' })
+    const scanned = await page(ids, 'transcribed', 'Sprinkler valve sht')
+    const corrected = {
+      text: 'Sprinkler valve shut',
+      at: new Date(),
+      by: { id: 'u1', name: 'Alex Rowe' },
+    }
+    await ObservationModel.updateOne(
+      { _id: scanned._id },
+      { 'pages.0.transcription.correction': corrected },
+    )
+
+    expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
+    const given = drafts.mock.calls[0][0].observations
+    expect(given.find((o: { id: string }) => o.id === String(scanned._id)).handwriting).toEqual([
+      'Sprinkler valve shut',
+    ])
+    expect((await sections()).changesSinceDraft).toBe(0)
+
+    // Corrected again after the draft: the draft is out of date.
+    await ObservationModel.updateOne(
+      { _id: scanned._id },
+      { 'pages.0.transcription.correction.text': 'Sprinkler valve shut, chained' },
+    )
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 1, removed: 0 })
+
+    // Removed, the page gives the draft nothing, and the observation, with no
+    // other text, is no longer usable evidence.
+    await ObservationModel.updateOne(
+      { _id: scanned._id },
+      { 'pages.0.removed': { at: new Date(), by: { id: 'u1', name: 'Alex Rowe' } } },
+    )
+    expect((await sections()).usableObservations).toBe(1)
+    expect((await sections()).changeCounts).toEqual({ added: 0, changed: 0, removed: 1 })
+  })
 })
 
 describe('PII protection for drafting (PV-02)', () => {
