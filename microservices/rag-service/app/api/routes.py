@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.assistant.coverage import check_coverage
+from app.assistant.wording import word_messages
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
 from app.client_intake.read import read_client_intake
@@ -509,3 +511,84 @@ def passage(passage_id: str) -> dict:
     if found is None:
         raise HTTPException(status_code=404, detail="Passage not found.")
     return found
+
+
+# MarshBot's coverage check (AS-06): the checklist and the observations, to find the items
+# nothing covers and the observations too thin for their section. Uncategorised observations
+# (no COPE_dimension) are left out by the gateway, as for drafting.
+class CoverageItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    area: str
+    text: str
+
+
+class CoverageSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: str
+    title: str
+    cope_dimensions: list[str]
+
+
+class AssistantCoverageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    assessment: Assessment
+    checklist: list[CoverageItem]
+    observations: list[Observation] = []
+    sections: list[CoverageSection]
+    privacy: Privacy | None = None
+
+
+@router.post("/assistant/coverage")
+def assistant_coverage(request: AssistantCoverageRequest) -> dict:
+    """Find the checklist items no observation covers and the observations too thin (AS-06)."""
+    try:
+        return check_coverage(request, privacy=_privacy(request))
+    # 503, not 502: the gateway can tell client details couldn't be protected.
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# MarshBot's wording (AS-06): the rules' messages and the items they point at. `parts` are
+# the gateway's MessagePart objects (server/src/services/assistant/types.ts), passed through.
+class WordingViewer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    first_name: str
+    role: Literal["engineer", "admin"]
+
+
+class WordingMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    text: str
+    parts: list[dict] = []
+
+
+class WordingItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    title: str
+    detail: str | None = None
+    kind: str
+    weight: Literal["fix_now", "gap", "reminder", "info"]
+
+
+class AssistantWordingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    viewer: WordingViewer
+    messages: list[WordingMessage]
+    items: list[WordingItem] = []
+    privacy: Privacy | None = None
+
+
+@router.post("/assistant/wording")
+def assistant_wording(request: AssistantWordingRequest) -> dict:
+    """Reword MarshBot's messages as OpenUI programs that point at items by id (AS-06)."""
+    try:
+        return word_messages(request, privacy=_privacy(request))
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
