@@ -1978,13 +1978,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const isMine = !!targetRow?.persisted && targetRow.engineerId === session.user.id
     // An admin's list holds everyone's assessments (RV-11), and they change only their own:
     // someone else's saved assessment is read-only here, as the gateway makes it.
-    const readOnlyHere = !!targetRow?.persisted && !isMine
+    // So is one opened by link that is missing from the work list, which holds
+    // only the engineer's own, once the gateway has sent its observations: it
+    // is another engineer's, not a sample to change in this browser.
+    const readOnlyHere = targetRow?.persisted ? !isMine : !targetRow && captured.synced
     const canCapture = !!targetRow && targetRow.status !== STATUS_LABEL.archived && !readOnlyHere
     // Changing an observation takes the assessment's assigned engineer, and
     // not once it is archived (CP-08 AC17). The gateway decides; the browser
     // hides the actions once the work list shows they'd be refused, for the
     // sample observations too, which change in this browser only.
-    const canChangeObs = canEdit && (!targetRow?.persisted || (isMine && canCapture))
+    const canChangeObs =
+      canEdit && !readOnlyHere && (!targetRow?.persisted || (isMine && canCapture))
     // An observation's handwritten pages as shown (CP-19): where each stands
     // when there is no text, Retry after a failure (only for the assigned
     // engineer, as a recording's), and Transcribe again once one is finished (only
