@@ -1399,6 +1399,79 @@ describe('Site photographs (CP-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to All Photos' }))
     expect(screen.getByRole('group', { name: 'Site photographs' })).toBeInTheDocument()
   })
+
+  it('opens the AI description of a photo’s observation, saying which photos it describes', async () => {
+    const LATER = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    listed = [
+      // Described before IMG_0470.jpg was added (CP-12's line on All Photos).
+      { ...INTERPRETED, photos: [...INTERPRETED.photos, LATER] },
+      photographed('o7', UNREAD, { status: 'interpreting' }),
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const view = screen.getByRole('group', { name: 'Site photographs' })
+    // A row by everything it says, as both observations have an IMG_0460.jpg.
+    const rowOf = (...texts: string[]) =>
+      within(view)
+        .getAllByRole('listitem')
+        .find((li) => texts.every((t) => li.textContent?.includes(t)))!
+    const first = rowOf(PROPOSAL, 'IMG_0460.jpg')
+    const later = rowOf(PROPOSAL, 'IMG_0470.jpg')
+    const unread = rowOf(UNREAD)
+
+    // Each row names its photo; the text stays closed until asked for.
+    expect(first).toHaveTextContent('IMG_0460.jpg')
+    expect(within(view).queryByText(PROPOSED)).not.toBeInTheDocument()
+    // Nothing written yet, nothing to open.
+    expect(within(unread).queryByRole('button', { name: /^Description/ })).toBeNull()
+
+    const toggle = within(first).getByRole('button', { name: 'Description of IMG_0460.jpg' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(first).getByText(PROPOSED)).toBeInTheDocument()
+    expect(first).toHaveTextContent('Describes this photo.')
+    // Opening the text does not open the observation.
+    expect(screen.getByRole('group', { name: 'Site photographs' })).toBeInTheDocument()
+
+    fireEvent.click(within(later).getByRole('button', { name: 'Description of IMG_0470.jpg' }))
+    expect(later).toHaveTextContent('Written before this photo was added.')
+
+    fireEvent.click(toggle)
+    expect(within(first).queryByText(PROPOSED)).not.toBeInTheDocument()
+  })
+
+  it('says how many other photos a description covers, and when it is out of date', async () => {
+    const SECOND = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    listed = [
+      {
+        ...INTERPRETED,
+        photos: [...INTERPRETED.photos, SECOND],
+        interpretation: {
+          ...INTERPRETED.interpretation!,
+          photos: described({ photoIds: ['p1', 'p2'], outOfDate: true }),
+        },
+      },
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const first = within(screen.getByRole('group', { name: 'Site photographs' }))
+      .getAllByRole('listitem')
+      .find((li) => li.textContent?.includes('IMG_0460.jpg'))!
+    fireEvent.click(within(first).getByRole('button', { name: 'Description of IMG_0460.jpg' }))
+
+    expect(first).toHaveTextContent('Describes this photo and 1 other. Its evidence changed since.')
+  })
 })
 
 describe('The Observations tab header and selected location (CP-22 round 3)', () => {
