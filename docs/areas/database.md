@@ -589,28 +589,30 @@ restored, and its location can't be removed while it is saved there, so a
 restored one keeps its location. A draft that was given an observation since
 deleted, or uncategorised, counts it in `changesSinceDraft`.
 
-Recordings and photos can be added to a saved observation, and removed from it
-(CP-08). `POST /api/observations/:id/media` takes them as capture does, stores
-each in S3 under the observation's folder, marks it `added: { at, by }`, and
-starts each recording's transcription; no photo is read until an engineer
-asks. It needs no capture session. Removing is a soft removal, like deleting:
-the recording or photo gets `removed: { at, by }`, present only while removed,
-and nothing is deleted, in MongoDB or S3. Restoring removes `removed`. A
-removal must leave a note, a recording or a photo (409 otherwise); the update
-matches on that, so two removals at once can't leave nothing. The API lists
-only kept ones under `recordings` and `photos`, and removed ones under
-`removedRecordings` and `removedPhotos`, so everything that reads the former
-leaves removed ones out without asking: drafting, the section evidence counts,
-the wait for transcriptions before drafting, the Photos tab and the photo
-appendix (EX-01). Removing or restoring a transcribed recording, or adding one
-once it is transcribed, changes the transcripts a draft was given, so it
-counts in `changesSinceDraft`; photos are not drafting evidence, so they don't.
-A removed recording's transcript can't be corrected, nor a failed one retried,
+Recordings, photos and handwritten pages can be added to a saved observation,
+and removed from it (CP-08, CP-20). `POST /api/observations/:id/media` takes
+them as capture does, stores each in S3 under the observation's folder, marks
+it `added: { at, by }`, and starts each recording's and page's transcription;
+no photo is read until an engineer asks. It needs no capture session.
+Removing is a soft removal, like deleting: the recording, photo or page gets
+`removed: { at, by }`, present only while removed, and nothing is deleted, in
+MongoDB or S3. Restoring removes `removed`. A removal must leave a note, a
+recording, a photo or a page (409 otherwise); the update matches on that, so
+two removals at once can't leave nothing. The API lists only kept ones under
+`recordings`, `photos` and `pages`, and removed ones under
+`removedRecordings`, `removedPhotos` and `removedPages`, so everything that
+reads the former leaves removed ones out without asking: drafting, the section
+evidence counts, the wait for transcriptions before drafting, the Photos tab,
+the Scans view and the photo appendix (EX-01). Removing or restoring a
+transcribed recording or page, or adding one once it is transcribed, changes
+the text a draft was given, so it counts in `changesSinceDraft`; photos are
+not drafting evidence, so they don't. A removed recording's or page's text
+can't be corrected, nor a failed one retried, nor a page transcribed again,
 until it is restored.
 
 Only the assessment's assigned engineer can change, delete or restore its
-observations, or add, remove and restore their recordings and photos (403
-otherwise), and not once the assessment is archived (409), as for its other
+observations, or add, remove and restore their recordings, photos and pages
+(403 otherwise), and not once the assessment is archived (409), as for its other
 details (RV-10). Capturing observations, retrying a failed transcription and
 reading photos are for the assigned engineer only too (RV-11).
 
@@ -727,36 +729,51 @@ Saving starts one attempt per page; a retry adds one only while the page has
 `failed`, matched atomically, and a gateway restart marks a running attempt
 failed. A `transcribed` page can be transcribed again (CP-20) when its text looks
 misread: as that replaces evidence, only the assessment's assigned engineer can
-ask, not once the assessment is archived or the observation deleted. It clears
-`transcript`, `uncertain` and `provenance` as the new attempt starts, so the
-page reads as a new transcription, and sets `edited`; a draft that used the
-old text keeps its own copy and shows as out of date. A page is not a site photo: the Photos tab, the photo appendix and
+ask, not once the assessment is archived, the observation deleted or the page
+removed. It clears `transcript`, `uncertain`, `provenance` and any
+`correction` as the new attempt starts, so the page reads as a new
+transcription, and sets `edited`; a draft that used the old text keeps its own
+copy and shows as out of date. The browser asks before transcribing a
+corrected page again, as the correction goes.
+
+A finished page's text can be corrected (CP-20), as a recording's transcript
+is (CP-08): `transcription.correction` holds `{ text, at, by }`, and
+`transcript` and `uncertain` stay as the model wrote them, as evidence of what
+it read. Drafting (`handwritingOf`) and the AI proposal (`readingItems`) use
+the correction. Writing the model's words back removes it. A page the model
+found no handwriting on (`transcript: ''`) can be corrected too, so the engineer
+can write what it missed. Only a `transcribed` page not removed can be
+corrected; one still transcribing, failed or removed is refused (409). The
+uncertain marks count positions in `transcript`, so they are shown on the
+model's text only, not on the correction. Pages added after saving carry
+`added: { at, by }`, and a removed one `removed: { at, by }` (see above).
+
+A page is not a site photo: the Photos tab, the photo appendix and
 photo reading read `photos` only. A transcribed page with text is drafting
 evidence (see report sections' `evidence`), and drafting waits while any page
-is transcribing. A page counts as something captured, so the note, a
-recording or a photo can be removed while one stays. Pages are captured with
-the observation only: adding, correcting, removing and restoring them is
-CP-20, so `POST /api/observations/:id/media` refuses `page` parts (400).
+not removed is transcribing. A page not removed counts as something captured,
+so the note, a recording or a photo can be removed while one stays.
 Observations saved before CP-19 have no `pages` field, which reads treat as
 none.
 
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/media` | Adds recordings and photos (CP-08): multipart `recording` and `photo` parts, checked as at capture, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
-| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId` | Removes one, a soft removal (CP-08). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
-| `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
+| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
+| `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore`, `POST /api/observations/:id/pages/:pageId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
 | `POST /api/observations/:id/interpretation` | Reads the observation (CP-05, CP-21): its note, transcripts and kept photos, for proposed categories and, with photos, a description and hazard type. With no body, both parts in one call; with `{ "part": "categories" }` or `{ "part": "description" }`, that part again, replacing it, at any time. Saving never reads it. 202, or 400 (an unknown `part`) / 404 (unknown observation) / 409 (for the categories: a recording or page still transcribing, or nothing to read; for the description: no photos; or deleted, or the part already being read) |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
-| `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed) |
-| `POST /api/observations/:id/pages/:pageId/retranscribe` | Transcribes a `transcribed` page again (CP-20), clearing its text as the attempt starts; the assigned engineer only. 200 with the observation, or 403 / 404 / 409 (failed: retry it instead; already transcribing; deleted; archived) |
+| `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed, or removed) |
+| `PUT /api/observations/:id/pages/:pageId/transcript` | Corrects a handwritten page's finished text (CP-20), keeping what the model wrote: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
+| `POST /api/observations/:id/pages/:pageId/retranscribe` | Transcribes a `transcribed` page again (CP-20), clearing its text and any correction as the attempt starts; the assigned engineer only. 200 with the observation, or 403 / 404 / 409 (failed: retry it instead; already transcribing; removed; deleted; archived) |
 | `GET /api/observations/:id/pages/:pageId/image` | Streams the original photo of a handwritten page from S3, cacheable as a photo is; 404 for an unknown observation or page |
 
 ## Report sections (GN-01)

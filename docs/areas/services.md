@@ -201,12 +201,24 @@ is (CP-03), and becomes drafting evidence.
    and counted, "No handwriting was found on this page." for an empty one, or
    the failure with Retry transcription. A finished page offers Transcribe
    again (CP-20) to the assessment’s assigned engineer (`POST
-   /api/observations/:id/pages/:pageId/retranscribe`), which clears its text
-   and runs steps 2-4 once more. The Scans view, opened from the Observations
+   /api/observations/:id/pages/:pageId/retranscribe`), which clears its text,
+   and any correction, and runs steps 2-4 once more; for a corrected page the
+   browser asks first. The Scans view, opened from the Observations
    tab's Scans box beside Photos, lists every page of the assessment's
    observations not deleted the same way, each with Go to observation.
-   Drafting uses the text as transcribed; the uncertain marks are for the
-   engineer and are not sent to S4.
+   Drafting uses the text as transcribed, or as the engineer corrected it; the
+   uncertain marks are for the engineer and are not sent to S4.
+6. The assigned engineer manages a saved observation's pages (CP-20) as
+   CP-08 manages its recordings and photos: Edit text corrects a finished
+   page (`PUT …/pages/:pageId/transcript`, the model's text kept beside the
+   correction, which is shown as the engineer's, with the transcription and
+   its uncertain marks folded away under "As transcribed"); Add media adds
+   pages, each transcribed through steps 2-4; Remove sets the page aside
+   (`DELETE …/pages/:pageId`) and Removed media restores it (`POST
+   …/pages/:pageId/restore`). A page kept by the demo without a capture
+   session is never transcribed: its text can be written by hand, and pages
+   added, removed and restored, in that browser only. No S5 change: pages
+   added later go through the same `POST /transcribe-handwriting`.
 
 Measuring it: `microservices/speech-ocr-service/eval/transcribe_handwriting.py`
 reads each `<id>.jpg|png` and `<id>.txt` pair in `eval/cases/handwriting/` (see
