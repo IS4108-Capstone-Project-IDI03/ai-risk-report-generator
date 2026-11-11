@@ -1291,3 +1291,71 @@ fail the action that already saved (they log and carry on, except the site walk
 A site walk fails in three places (the reading runs out of retries, a recording
 cannot be transcribed, the job cannot be queued); each tells the engineer once
 per attempt. An attempt is the walk's `retries` count, which Retry increments.
+
+## Assessment assistant (MarshBot, AS-06)
+
+MarshBot is the Overview tab: it tells the engineer the assessment's stage, the
+one next step and what to fix, with a link or button for each. It never takes
+typed input; its buttons send short pre-filled replies. It sends nothing to the
+bell or the Inbox.
+
+**Stage.** `Assessment.stage` is one of Setup, Prepare, Capture, Ready for
+generation, Generate, Review, Ready to export, Exported, with `stageDates` for
+when each was entered. It only moves forward: each re-check stores the furthest
+stage the data proves (`services/assistant/stage.ts`), never an earlier one.
+Archived stays separate (`archivedAt`), and the derived `status` used before
+AS-06 is unchanged. `npm run migrate:stages` works the stage out once for
+assessments made before AS-06.
+
+**Re-check.** `recheckAssessment(reference)` (`recheck.service.ts`) loads the
+assessment's data once, advances the stage, runs every check in
+`services/assistant/checks/` (one file per item kind), builds the messages and
+saves one brief per assessment (`assistant_briefs`). It runs:
+- after any 2xx non-GET under `/api/assessments/:reference/**`,
+  `/api/observations/:id/**` or a client document route
+  (`middleware/assistant-recheck.middleware.ts`);
+- when background work finishes: transcriptions, handwritten pages, photo
+  reading, site walk proposals (`queueAssessmentCheck` in those services);
+- once a day for date-based items (`scheduleDailyAssessmentChecks`, 00:05
+  Singapore).
+Changes within 2 seconds are checked together (BullMQ job id
+`as-check-<ref>-<window>`).
+
+**Push.** After saving, the re-check calls `publishBriefChanged`
+(`services/assistant/bus.ts`). The open Overview listens on
+`GET /api/assessments/:reference/assistant/events` (server-sent events, auth
+without refreshing the session cookie, a ping every 25 s, closed when the
+session expires so the browser reconnects with a fresh cookie) and refetches
+the brief. No polling. The channel is in-process: a gateway running as several
+instances would need Redis pub/sub instead.
+
+**API.** Under `/api/assessments/:reference/assistant`: `GET` the brief,
+`POST /replies` (a quick reply, e.g. another visit with its date, which moves
+`siteVisitEndDate`), `POST /dismissals` (hidden until the item changes; Fix now
+items can't be dismissed), `POST /activity` (the browser's engaged time and
+content seen per place, sent with `sendBeacon`). Each row of
+`GET /api/assessments` carries its `stage` and, for the engineer's own
+assessments, a `priority` with its Focus rank (`rankedFocus` in
+`focus.service.ts`: overdue, then Fix now, then least time to spare); the
+Focus list is those rows in rank order. Client page visits carry the same.
+An admin, or anyone who isn't the assigned engineer, sees the stage and
+progress only, never the engineer's activity.
+
+**AI.** Two rag-service routes, both masked through privacy-service and failing
+closed (503 when privacy-service is down):
+- `POST /assistant/coverage` finds checklist items no observation covers and
+  observations too thin for their section. It runs when the Overview opens and
+  the evidence changed, at most every 5 minutes, from the first checklist and
+  observation until Review. Model `ASSISTANT_COVERAGE_MODEL`.
+- `POST /assistant/wording` rewords the rule-written messages as OpenUI Lang
+  programs, referring to items by id only. The gateway drops a program that
+  names an unknown id or a number the rules didn't write, and the Overview then
+  shows the plain rule-written text. Model `ASSISTANT_WORDING_MODEL`.
+The prompt file `app/assistant/marshbot_components.txt` is generated from the
+client's MarshBot library (`client/src/features/marshbot/library.test.ts`,
+`UPDATE_PROMPT=1`). MarshBot uses `@openuidev/react-lang` 1.1.0 under the npm
+alias `openui-lang-v1`; the knowledge chatbot stays on 0.4.1.
+
+**Numbers.** Server thresholds are in `services/assistant/settings.ts`, Focus's
+work-left days in `focus.service.ts`, and the browser's pacing and activity
+numbers in `client/src/features/marshbot/settings.ts`.
