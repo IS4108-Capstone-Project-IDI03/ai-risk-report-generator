@@ -4,6 +4,7 @@ import { ClientModel } from '../models/client.model'
 import { SiteModel } from '../models/site.model'
 import type { SessionUser } from './auth.service'
 import { listAssessments, type AssessmentDto, type AssessmentStatus } from './assessment.service'
+import type { Priority, Stage } from './assistant/types'
 import {
   ClientSiteError,
   clientRights,
@@ -23,6 +24,9 @@ export type ClientVisitDto = {
   surveyType: string
   reportDueDate: string | null
   status: AssessmentStatus
+  // MarshBot's stage and the Focus priority (AS-06), as the work list has them.
+  stage: Stage
+  priority: Priority | null
 }
 
 export type ClientPageSiteDto = {
@@ -116,6 +120,8 @@ export async function getClientPage(id: string, user: SessionUser): Promise<Clie
             surveyType: a.surveyType,
             reportDueDate: a.reportDueDate,
             status: a.status,
+            stage: a.stage,
+            priority: a.priority,
           })),
       })),
     ),

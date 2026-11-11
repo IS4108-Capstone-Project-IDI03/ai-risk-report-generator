@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isValidObjectId, Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
+import { ClientDocumentModel } from '../models/client-document.model'
 import { ClientModel } from '../models/client.model'
 import type { IStamp } from '../models/observation.model'
 import { SiteModel, type ICoordinates, type ISite } from '../models/site.model'
@@ -148,6 +149,24 @@ export async function listClients(userId: string): Promise<ClientDto[]> {
       { id: String(c._id), name: c.name, division: c.division ?? null, sites: n, rename, remove },
     ]
   })
+}
+
+/** Returns the references of the client's assessments not archived (AS-06's re-check). */
+export async function openReferencesOfClient(clientId: string): Promise<string[]> {
+  if (!isValidObjectId(clientId)) return []
+  const sites = await SiteModel.find({ client: clientId }, '_id').lean()
+  const open = await AssessmentModel.find(
+    { site: { $in: sites.map((s) => s._id) }, archivedAt: { $exists: false } },
+    'reference',
+  ).lean()
+  return open.map((a) => a.reference)
+}
+
+/** Returns the references of the open assessments of the client a document belongs to. */
+export async function openReferencesOfClientDocument(id: string): Promise<string[]> {
+  if (!isValidObjectId(id)) return []
+  const document = await ClientDocumentModel.findById(id, 'client').lean()
+  return document ? openReferencesOfClient(String(document.client)) : []
 }
 
 // A site's latest visit not archived: the one a new assessment there copies
