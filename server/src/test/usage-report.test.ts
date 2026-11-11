@@ -95,6 +95,9 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'site-walk',
       // Reading client documents (CP-23).
       'client-intake',
+      // MarshBot's coverage check and wording (AS-06).
+      'assistant-coverage',
+      'assistant-wording',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })
@@ -228,8 +231,8 @@ describe('GET /api/usage/export.csv (AC4)', () => {
     expect(lines[0]).toBe(
       'feature,calls,estimated_cost_usd,calls_without_cost,estimated_calls,input_tokens,output_tokens,cache_read_tokens,search_units,audio_seconds,avg_ms,p50_ms,p95_ms,max_ms',
     )
-    // A header, then every feature (handwriting among them, CP-19; the checklist, CP-30; photo description and site walk, CP-22; client intake, CP-23).
-    expect(lines).toHaveLength(14)
+    // A header, then every feature (handwriting among them, CP-19; the checklist, CP-30; photo description and site walk, CP-22; client intake, CP-23; MarshBot's two, AS-06).
+    expect(lines).toHaveLength(16)
     expect(lines[1]).toMatch(/^draft-section,1,0\.5,/)
   })
 

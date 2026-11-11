@@ -7,7 +7,7 @@
 // Called by routes/assessment.routes.ts.
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
-import { AssessmentModel } from '../models/assessment.model'
+import { AssessmentModel, type IAssessment } from '../models/assessment.model'
 import type { ISite } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { NotAssignedError } from './assessment.service'
@@ -18,9 +18,9 @@ import { buildDocx } from './export-docx'
 import type { ExportDetails } from './export-model'
 import { printPdf, readReport, textsOf, withExportPage } from './export-render.service'
 import { listOfis } from './ofi.service'
-import { getReviewWorkspace } from './review.service'
+import { getReviewWorkspace, type ReviewWorkspaceDto } from './review.service'
 import { figureFacts } from './section.service'
-import { getSummary } from './summary.service'
+import { getSummary, type SummaryDto } from './summary.service'
 
 // The export pages are one HTML document with the photos inside it at print
 // resolution; this is well above a long report with its full appendix.
@@ -93,6 +93,21 @@ export async function exportBlockers(reference: string): Promise<ExportBlocker[]
     listOfis(reference),
     AssessmentModel.findOne({ reference }, 'riskQuality lossEstimates').lean(),
   ])
+  return blockersFrom({ workspace, summary, ofis, assessment })
+}
+
+/** Returns the export blockers from data already loaded (MarshBot's re-check reads it once). */
+export function blockersFrom({
+  workspace,
+  summary,
+  ofis,
+  assessment,
+}: {
+  workspace: ReviewWorkspaceDto
+  summary: SummaryDto
+  ofis: Awaited<ReturnType<typeof listOfis>>
+  assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> | null
+}): ExportBlocker[] {
   const out: ExportBlocker[] = []
   const add = (sectionId: string, title: string, where: ExportBlocker['where'], reason: string) =>
     out.push({ sectionId, title, where, reason })

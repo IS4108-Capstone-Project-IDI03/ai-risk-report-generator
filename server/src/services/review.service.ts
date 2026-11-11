@@ -24,6 +24,7 @@ import {
   toDraftDto,
   type ChangeCounts,
   type Draft,
+  type LoadedSection,
   type SectionDraftDto,
 } from './section.service'
 import { captureTimes } from './observation.service'
@@ -387,9 +388,13 @@ const addCounts = (a: FindingCounts, b: FindingCounts): FindingCounts => ({
 })
 
 // Sections 7-12 for reviewing, in template order.
-export async function getReviewWorkspace(reference: string): Promise<ReviewWorkspaceDto> {
+// `loaded` is the sections when the caller has already read them (MarshBot's re-check).
+export async function getReviewWorkspace(
+  reference: string,
+  loaded?: LoadedSection[],
+): Promise<ReviewWorkspaceDto> {
   const asOf = new Date()
-  const loaded = await loadSections(reference)
+  loaded ??= await loadSections(reference)
   const drafts = loaded.flatMap(({ latest, replacement }) =>
     [latest, replacement].filter((d): d is Draft => d !== null),
   )

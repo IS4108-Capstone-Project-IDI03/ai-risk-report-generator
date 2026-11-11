@@ -22,6 +22,9 @@ export const AI_FEATURES = [
   'site-walk',
   // Reading a client's documents into the New assessment form (CP-23), in rag-service.
   'client-intake',
+  // MarshBot (AS-06) in rag-service: the coverage check and the messages' wording.
+  'assistant-coverage',
+  'assistant-wording',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',
