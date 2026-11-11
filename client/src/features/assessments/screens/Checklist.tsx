@@ -19,6 +19,7 @@ import { caption, card, country, heading, muted } from '../checklistChecks'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
 import { formatDay } from '../format'
 import { plural } from '../reviewDisplay'
+import { useActivity } from '../../marshbot/useActivity'
 import { useChecklist } from '../useChecklist'
 
 // "NFPA 13 · 2025" from what the knowledge base knows of a standard.
@@ -138,13 +139,18 @@ export function Checklist({
   canGenerate,
   answering,
   onViewObservation,
+  area,
 }: {
   reference: string
   canGenerate: boolean
   answering: ChecklistAnswering | null
   onViewObservation: (observationId: string) => void
+  // An area's title to scroll to once the checklist is in, from a MarshBot link (AS-06).
+  area?: string
 }) {
   const { view, setView, sections, loadError, reload } = useChecklist(reference)
+  // AS-06: the assigned engineer's time here and which items they saw (an admin's is not counted).
+  useActivity(reference, 'checklist', canGenerate, true)
   // The engineer's own ticks, for the checklist shown when they were made; a new
   // checklist starts again from the standards it used (leftOut).
   const [ticks, setTicks] = useState<{ checklist: string | null; unticked: Set<string> } | null>(
@@ -371,6 +377,7 @@ export function Checklist({
             reload={reload}
             answering={answering}
             customising={canGenerate}
+            openArea={area}
             highlight={regenerated?.replacing}
             regenerateHint={
               canGenerate

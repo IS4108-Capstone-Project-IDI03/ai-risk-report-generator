@@ -1,0 +1,895 @@
+/* MarshBot Overview (AS-06 boards 01 to 07, 11, 12): the rail, the conversation, bubbles and the
+   Details panel. Message widgets are in parts.css. Values from the canvas sources (r2.css, r4.css)
+   on design-system v2 tokens; motion from board 12. */
+@import './parts.css';
+
+/* Page split: the rail on the left, the conversation on the right; both fill the height. */
+/* The page fills the workspace's scroll area; the conversation scrolls on its own so the rail
+   stays put beside it. */
+.mb {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--graphite-50);
+  font-family: var(--font-sans);
+}
+.mb-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px 32px;
+  color: var(--graphite-600);
+  font-size: 14px;
+}
+.mb-failed p {
+  margin: 0;
+}
+
+/* --- Rail --- */
+.mb-rail {
+  width: 300px;
+  flex: none;
+  min-height: 0;
+  overflow-y: auto;
+  /* Scrolling to its end doesn't carry on into the page behind. */
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 14px 14px;
+  background: var(--surface-card);
+  border-right: 1px solid var(--graphite-200);
+}
+.mb-bot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 6px 12px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.mb-bot b {
+  display: block;
+  font-size: 17px;
+  line-height: 22px;
+  color: var(--marsh-navy);
+}
+.mb-bot small {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+}
+.mb-face {
+  width: 76px;
+  height: 76px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--graphite-0) 0,
+    var(--ink-50) 62%,
+    var(--ink-100) 100%
+  );
+}
+.mb-face--sm {
+  width: 52px;
+  height: 52px;
+}
+.mb-face-svg {
+  width: 84%;
+  height: 84%;
+}
+.mb-face-mood {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.mb-face-mood[data-on] {
+  opacity: 1;
+}
+.mb-face-light {
+  transition: fill var(--duration-base) var(--ease-out);
+}
+/* The idle blink: the eyes squash for 140 ms. */
+.mb-face-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 70ms ease-out;
+}
+.mb-face-svg[data-blink] .mb-face-eyes {
+  transform: scaleY(0.12);
+}
+
+/* Stages: each takes an equal share of the height; the line runs through the dots. */
+.mb-stages {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-stage {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+/* The grey line, and over it the green one, which grows down as a stage moves on. */
+.mb-stage::before,
+.mb-stage::after {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--graphite-200);
+}
+.mb-stage::after {
+  background: var(--green-600);
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform var(--duration-slow) var(--ease-in-out);
+}
+.mb-stage:first-child::before,
+.mb-stage:first-child::after {
+  top: 50%;
+}
+.mb-stage:last-child::before,
+.mb-stage:last-child::after {
+  bottom: 50%;
+}
+.mb-stage[data-state='done']::after {
+  transform: scaleY(1);
+}
+.mb-stage[data-state='now']::after {
+  transform: scaleY(0.5);
+}
+.mb-stage[data-state='now']:first-child::after {
+  transform: scaleY(0);
+}
+.mb-stage-band {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+.mb-stage[data-state='now'] .mb-stage-band {
+  background: var(--ink-50);
+}
+.mb-stage-dot {
+  grid-row: 1 / span 2;
+  justify-self: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  border: 2px solid var(--graphite-300);
+  color: transparent;
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    border-width var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+.mb-stage[data-state='done'] .mb-stage-dot {
+  background: var(--green-600);
+  border-color: var(--green-600);
+  color: var(--text-inverse);
+}
+.mb-stage[data-state='now'] .mb-stage-dot {
+  border: 6px solid var(--marsh-navy);
+}
+.mb-stage-name {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+.mb-stage[data-state='done'] .mb-stage-name {
+  color: var(--graphite-900);
+}
+.mb-stage[data-state='now'] .mb-stage-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.mb-stage-date {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+  animation: mb-fade var(--duration-fast) var(--ease-out);
+}
+.mb-stage-date b {
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mb-stage-date[data-tone='soon'],
+.mb-stage-date[data-tone='soon'] b {
+  color: var(--amber-600);
+}
+.mb-stage-date[data-tone='late'],
+.mb-stage-date[data-tone='late'] b {
+  color: var(--red-600);
+}
+/* A date that just changed holds the "just changed" blue tint for 1 s, then fades (board 12). */
+.mb-stage-date[data-changed] {
+  animation:
+    mb-fade var(--duration-fast) var(--ease-out),
+    mb-tint 1260ms linear;
+}
+
+/* Client card: a real button that opens Details. */
+.mb-client {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 14px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.05);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.mb-client .client-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.mb-client-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-client-name {
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--graphite-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-client-ref {
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-client-chev {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--graphite-600);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-client:hover {
+    background: var(--graphite-50);
+    box-shadow: 0 6px 16px rgb(0 15 71 / 0.1);
+  }
+  .mb-client:hover .mb-client-chev {
+    background: var(--graphite-100);
+    color: var(--marsh-navy);
+  }
+}
+.mb-client:active {
+  transform: scale(0.98);
+}
+
+/* --- Conversation --- */
+.mb-convo {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 20px 40px 40px 32px;
+}
+/* Focus lands here only when a dismissed row had no neighbour (ActionRow); no ring for that. */
+.mb .mb-convo:focus {
+  outline: none;
+}
+/* The reading column: the board's 800 px, wider for an admin's lanes. */
+.mb-thread {
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mb[data-admin] .mb-thread {
+  max-width: 1000px;
+}
+/* A wide screen: the column grows a little and centres, so the right half isn't left empty,
+   while a line of text stays readable. */
+@media (min-width: 1600px) {
+  .mb-thread {
+    max-width: 920px;
+    margin-inline: auto;
+  }
+  .mb[data-admin] .mb-thread {
+    max-width: 1100px;
+  }
+}
+.mb-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mb-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.mb-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--graphite-600);
+}
+.mb-when {
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+.mb-bubble {
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 4px 18px 18px 18px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
+  font-size: 14.5px;
+  line-height: 21px;
+  color: var(--graphite-900);
+  overflow-wrap: anywhere;
+  animation: mb-rise var(--duration-base) var(--ease-out);
+}
+.mb-bubble[data-big] {
+  padding: 14px 18px;
+  font-size: 16px;
+  line-height: 24px;
+}
+.mb-bubble[data-tone='success'] {
+  background: color-mix(in srgb, var(--green-50) 60%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
+}
+.mb-bubble[data-tone='question'] {
+  background: var(--ink-50);
+  border-color: var(--ink-100);
+}
+.mb-say {
+  margin: 0;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+.mb-say + .mb-say,
+* + div > .mb-say {
+  margin-top: 8px;
+}
+.mb-say strong {
+  font-weight: 650;
+}
+/* Each word fades in over 240 ms as it is revealed, like the chatbot's letters (chat.css .chat-ch). */
+.mb-word {
+  animation: mb-fade 240ms ease-out both;
+}
+
+/* The engineer's answer on the right; a pressed reply rises 8 px into place. */
+.mb-me-wrap {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: min(420px, 85%);
+  animation: mb-rise-8 var(--duration-base) var(--ease-out);
+}
+.mb-me {
+  padding: 10px 16px;
+  border-radius: 18px 4px 18px 18px;
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+  font-size: 14.5px;
+  line-height: 21px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.mb-me-when {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+
+/* Typing dots: each pulses over 1.2 s, 0.2 s apart. */
+.mb-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 12px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 4px 18px 18px 18px;
+  background: var(--surface-card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--graphite-600);
+  animation: mb-fade var(--duration-base) var(--ease-out);
+}
+.mb-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.mb-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--graphite-400);
+  animation: mb-dot 1.2s ease-in-out infinite;
+}
+.mb-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.mb-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* All caught up: one quiet line, no empty card. */
+.mb-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--graphite-700);
+  animation: mb-rise var(--duration-base) var(--ease-out);
+}
+.mb-done-tick {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.mb-seeall {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--marsh-navy);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-seeall:hover {
+    background: var(--graphite-200);
+  }
+}
+/* A quiet text link with a chevron (Details' See all, board 06). */
+.mb-textlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-textlink:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.mb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Phone (board 11): a stage bar on top, bubbles full width --- */
+.mb-phonebar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .mb {
+    flex-direction: column;
+    height: auto;
+  }
+  .mb-convo {
+    overflow: visible;
+  }
+  .mb-phonebar {
+    display: flex;
+    position: relative;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 76px;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--graphite-200);
+    background: var(--surface-card);
+    font: inherit;
+    text-align: left;
+    color: var(--graphite-600);
+    cursor: pointer;
+  }
+  .mb-convo {
+    padding: 12px;
+  }
+  .mb-thread {
+    gap: 10px;
+  }
+  .mb-bubble[data-big] {
+    font-size: 14.5px;
+    line-height: 21px;
+    padding: 12px 16px;
+  }
+}
+.mb-phonebar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-phonebar-stage {
+  font-size: 13px;
+  color: var(--graphite-600);
+}
+.mb-phonebar-stage b {
+  color: var(--marsh-navy);
+}
+.mb-phonebar-segs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.mb-phonebar-segs i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--graphite-200);
+}
+.mb-phonebar-segs i[data-state='done'] {
+  background: var(--green-600);
+}
+.mb-phonebar-segs i[data-state='now'] {
+  background: var(--marsh-navy);
+}
+.mb-phonebar-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-phonebar-dates span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mb-phonebar-dates [data-tone='soon'] {
+  color: var(--amber-600);
+}
+.mb-phonebar-dates [data-tone='late'] {
+  color: var(--red-600);
+}
+
+/* --- Details panel (board 06): from the right over a dimmed page --- */
+.mb-panel-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.mb-panel-dialog::backdrop {
+  background: rgb(10 20 50 / 0.18);
+  animation: mb-fade var(--duration-slow) var(--ease-out);
+}
+.mb-panel-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  box-shadow:
+    -12px 0 32px rgb(0 15 71 / 0.12),
+    -1px 0 0 var(--graphite-200);
+  animation: mb-slide-in var(--duration-slow) var(--ease-out);
+}
+.mb-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+}
+.mb-panel-head h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 25px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+.mb-panel-head > span {
+  display: flex;
+  gap: 6px;
+}
+.mb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 24px;
+}
+.mb-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.mb-details-client {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mb-details-client .client-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+.mb-details-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+  overflow-wrap: anywhere;
+}
+.mb-details-ref {
+  font-size: 13px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+.mb-labelrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  margin-bottom: 4px;
+}
+.mb-labelrow .mb-label {
+  margin: 0;
+}
+.mb-value {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--graphite-900);
+}
+.mb-value-sub {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+}
+.mb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.mb-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px 12px;
+}
+.mb-people {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--graphite-900);
+  min-width: 0;
+}
+.mb-muted {
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.mb-docs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-docs li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.mb-docs li + li {
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-doc-name {
+  font-size: 14px;
+  line-height: 19px;
+  color: var(--graphite-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Motion (board 12); reduced motion keeps fades only --- */
+@keyframes mb-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes mb-rise-8 {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes mb-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes mb-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes mb-tint {
+  0%,
+  79% {
+    background-color: var(--ink-50);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+/* One focus ring for every MarshBot control, keyboard only (design system v2). */
+.mb :focus-visible,
+.mb-panel-dialog :focus-visible,
+.mb-details-sheet :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* The phone bar runs edge to edge, so its ring sits inside it. */
+.mb .mb-phonebar:focus-visible {
+  outline-offset: -2px;
+}
+/* Small controls get a 44 px tap area on a phone or touch screen without growing: an invisible
+   box centred on them (design system v2 tap target). */
+@media (max-width: 767px), (pointer: coarse) {
+  .mb-hit {
+    position: relative;
+  }
+  .mb-hit::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-bubble,
+  .mb-me-wrap,
+  .mb-done,
+  .mb-panel-sheet {
+    animation-name: mb-fade;
+  }
+  .mb-word {
+    animation: none;
+  }
+  .mb-stage::after,
+  .mb-stage-band,
+  .mb-stage-dot {
+    transition: none;
+  }
+  .mb-client:active {
+    transform: none;
+  }
+}
+/* The client's name in Details, a link to the client's page. */
+.mb-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
