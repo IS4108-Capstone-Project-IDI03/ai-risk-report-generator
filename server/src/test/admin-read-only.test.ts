@@ -216,6 +216,19 @@ const CHANGES: [name: string, call: Call][] = [
     'mark a checklist item',
     (u) => u.put(`${a}/checklist/items/${DRAFT}/mark`).send({ mark: null }),
   ],
+  [
+    'add a checklist item',
+    (u) =>
+      u
+        .post(`${a}/checklist/items`)
+        .send({ area: '7', text: 'Check the cladding.', COPE_dimension: ['Construction'] }),
+  ],
+  [
+    'edit a checklist item',
+    (u) => u.patch(`${a}/checklist/items/${DRAFT}`).send({ text: 'New wording.' }),
+  ],
+  ['remove a checklist item', (u) => u.post(`${a}/checklist/items/${DRAFT}/remove`)],
+  ['restore a checklist item', (u) => u.post(`${a}/checklist/items/${DRAFT}/restore`)],
   ['start a site walk', (u) => u.post(`${a}/site-walks`)],
   [
     'type into a site walk',

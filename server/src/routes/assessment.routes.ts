@@ -73,13 +73,25 @@ import {
 } from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
 import {
+  addChecklistItem,
+  addChecklistItemSchema,
+  ChecklistChangeError,
   checklistMarkSchema,
   ChecklistItemNotFoundError,
+  checklistPdf,
+  editChecklistItem,
+  editChecklistItemSchema,
   generateChecklist,
   generateChecklistSchema,
   getChecklist,
+  InvalidChecklistItemError,
   ItemCheckedError,
   markChecklistItem,
+  NoChecklistError,
+  passageSearchSchema,
+  removeChecklistItem,
+  restoreChecklistItem,
+  searchChecklistPassages,
   UnknownStandardError,
 } from '../services/checklist.service'
 import { FiguresEnteredError, proposeFigures } from '../services/figure-proposal.service'
@@ -1160,18 +1172,150 @@ router.put(
         ),
       )
     } catch (error: unknown) {
-      if (error instanceof AssessmentNotFoundError || error instanceof ChecklistItemNotFoundError) {
-        res.status(404).json({ error: error.message })
-      } else if (error instanceof NotAssignedError) {
-        res.status(403).json({ error: error.message })
-      } else if (error instanceof AssessmentArchivedError || error instanceof ItemCheckedError) {
-        res.status(409).json({ error: error.message })
-      } else {
-        throw error
-      }
+      checklistFailure(error, res)
     }
   },
 )
+
+// The answer for a refused change to the checklist (CP-31, CP-32): 404 for an
+// unknown assessment, item or checklist; 403 for anyone but the assigned
+// engineer; 409 once archived, or for a change the checklist's rules refuse;
+// 400 for an item or reference that doesn't fit it; 503 when S4 failed.
+function checklistFailure(error: unknown, res: Response) {
+  if (
+    error instanceof AssessmentNotFoundError ||
+    error instanceof ChecklistItemNotFoundError ||
+    error instanceof NoChecklistError
+  ) {
+    res.status(404).json({ error: error.message })
+  } else if (error instanceof NotAssignedError) {
+    res.status(403).json({ error: error.message })
+  } else if (
+    error instanceof AssessmentArchivedError ||
+    error instanceof ItemCheckedError ||
+    error instanceof ChecklistChangeError
+  ) {
+    res.status(409).json({ error: error.message })
+  } else if (error instanceof InvalidChecklistItemError) {
+    res.status(400).json({ error: error.message })
+  } else if (error instanceof RagServiceError) {
+    res.status(503).json({ error: error.message })
+  } else {
+    throw error
+  }
+}
+
+// Adds the engineer's own item to the latest checklist (CP-32 AC1): 201 with
+// the same body as the GET, and the new item's `itemId`.
+router.post(
+  '/:reference/checklist/items',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = addChecklistItemSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'The item is incomplete.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res
+        .status(201)
+        .json(await addChecklistItem(req.params.reference, res.locals.user!, parsed.data))
+    } catch (error: unknown) {
+      checklistFailure(error, res)
+    }
+  },
+)
+
+// Edits an item's wording, categories or references (CP-32 AC1-2): 200 with
+// the same body as the GET.
+router.patch(
+  '/:reference/checklist/items/:itemId',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = editChecklistItemSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'The change is invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(
+        await editChecklistItem(
+          req.params.reference,
+          req.params.itemId,
+          res.locals.user!,
+          parsed.data,
+        ),
+      )
+    } catch (error: unknown) {
+      checklistFailure(error, res)
+    }
+  },
+)
+
+// Removes an item, or restores a removed one (CP-32 AC1, AC3): 200 with the
+// same body as the GET.
+router.post(
+  '/:reference/checklist/items/:itemId/remove',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      res.json(await removeChecklistItem(req.params.reference, req.params.itemId, res.locals.user!))
+    } catch (error: unknown) {
+      checklistFailure(error, res)
+    }
+  },
+)
+router.post(
+  '/:reference/checklist/items/:itemId/restore',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      res.json(
+        await restoreChecklistItem(req.params.reference, req.params.itemId, res.locals.user!),
+      )
+    } catch (error: unknown) {
+      checklistFailure(error, res)
+    }
+  },
+)
+
+// The passages to choose an item's reference from (CP-32 AC2), `?q=` the
+// words to look for: `{ results }`, best first. Read-only and free.
+router.get(
+  '/:reference/checklist/passages',
+  requirePermission('assessments:view'),
+  async (req, res) => {
+    const parsed = passageSearchSchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Type the words to look for.' })
+      return
+    }
+    try {
+      res.json(await searchChecklistPassages(req.params.reference, parsed.data.q))
+    } catch (error: unknown) {
+      checklistFailure(error, res)
+    }
+  },
+)
+
+// The latest checklist as a PDF to take on site (CP-32 AC4-5), named with the
+// reference and the day: "RPT-2026-0517 checklist 2026-11-11.pdf". 404 before
+// a checklist is generated; 503 when the file could not be made, to retry.
+router.get('/:reference/checklist/pdf', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    const { file, fileName } = await checklistPdf(req.params.reference)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', attachment(fileName))
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(file)
+  } catch (error: unknown) {
+    if (error instanceof RendererUnavailableError || error instanceof RenderFailedError) {
+      res.status(503).json({ error: error.message })
+    } else {
+      checklistFailure(error, res)
+    }
+  }
+})
 
 // What is left to finish before the report can be exported (EX-01 AC1): it
 // goes out only once complete, written and reviewed. 200 with `blockers`,

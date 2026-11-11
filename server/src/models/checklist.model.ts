@@ -2,14 +2,19 @@ import { Schema, Types, model } from 'mongoose'
 
 // One generated pre-survey checklist for an assessment (CP-30). Each generation
 // is a new document and the latest is shown, so regenerating never loses one
-// (CP-32 compares against it). Written by checklist.service; see
-// docs/areas/database.md.
+// (CP-32 keeps the engineer's changes from it). Written by checklist.service;
+// see docs/areas/database.md.
 
 // Where an item came from: the report template; the model, from a standard
 // ('standard') or for a configured hazard ('hazard'); or the hazard list's own
-// item when the model wrote none for it ('hazard_list'). Only 'standard' and
-// 'hazard' are AI-written (AC8). CP-32 adds 'manual' and CP-33 'recommended'.
-export const ITEM_ORIGINS = ['template', 'standard', 'hazard', 'hazard_list'] as const
+// item when the model wrote none for it ('hazard_list'); or the engineer, who
+// added it ('manual', CP-32). Only 'standard' and 'hazard' are AI-written
+// (AC8). CP-33 adds 'recommended'.
+export const ITEM_ORIGINS = ['template', 'standard', 'hazard', 'hazard_list', 'manual'] as const
+export type ItemOrigin = (typeof ITEM_ORIGINS)[number]
+// Removed by the engineer (CP-32): kept, so it can be restored and stays
+// removed when the checklist is generated again.
+export const ITEM_STATUSES = ['active', 'removed'] as const
 // 'uncited': the item rests on no passage, e.g. a hazard whose standards the
 // knowledge base doesn't hold (AC7).
 export const ITEM_FLAGS = ['uncited'] as const
@@ -23,6 +28,19 @@ export interface IChecklistMark {
   mark: CheckMark
   at: Date
   by: { id: string; name: string }
+}
+
+// Who changed an item, and when (CP-32).
+export interface IChecklistChange {
+  at: Date
+  by: { id: string; name: string }
+}
+
+// An item the engineer edited (CP-32 AC1-2): when, and the item as generated,
+// which a later generation is matched against, so the engineer's wording and
+// references are kept on the item that comes back (AC3).
+export interface IChecklistEdit extends IChecklistChange {
+  was: { text: string; COPE_dimension: string[]; citations: IChecklistCitation[] }
 }
 
 export interface IChecklistCitation {
@@ -39,7 +57,7 @@ export interface IChecklistItem {
   // A report section ('7') or 'hazards'.
   area: string
   subsection: string | null
-  origin: (typeof ITEM_ORIGINS)[number]
+  origin: ItemOrigin
   hazard: string | null
   text: string
   // The template subsection's fields, e.g. Power's Site Feed.
@@ -47,10 +65,14 @@ export interface IChecklistItem {
   COPE_dimension: string[]
   citations: IChecklistCitation[]
   flags: (typeof ITEM_FLAGS)[number][]
-  // Left empty by CP-30 so later stories need no migration: CP-32 removes items
-  // and CP-33 suggests them; CP-34 pre-fills a value.
-  status: 'active'
+  // Kept by CP-30 so later stories need no migration: CP-32 removes items, and
+  // CP-33 suggests them; CP-34 pre-fills a value.
+  status: (typeof ITEM_STATUSES)[number]
   prefill: null
+  // The engineer's changes (CP-32): an edit, with the item as generated, and
+  // when it was removed; null for none. An added item's `edited` is null.
+  edited: IChecklistEdit | null
+  removed: IChecklistChange | null
   // Not seen or Not applicable (CP-31 AC4), else null.
   check: IChecklistMark | null
   // The same item in earlier checklists of the assessment, newest first, so an
@@ -111,6 +133,11 @@ const citationSchema = new Schema<IChecklistCitation>(
   { _id: false },
 )
 
+const changeBy = {
+  id: { type: String, required: true },
+  name: { type: String, required: true },
+}
+
 const itemSchema = new Schema<IChecklistItem>({
   area: { type: String, required: true },
   subsection: { type: String, default: null },
@@ -121,8 +148,30 @@ const itemSchema = new Schema<IChecklistItem>({
   COPE_dimension: { type: [String], default: [] },
   citations: { type: [citationSchema], default: [] },
   flags: { type: [String], enum: ITEM_FLAGS, default: [] },
-  status: { type: String, enum: ['active'], default: 'active' },
+  status: { type: String, enum: ITEM_STATUSES, default: 'active' },
   prefill: { type: Schema.Types.Mixed, default: null },
+  edited: {
+    type: new Schema<IChecklistEdit>(
+      {
+        at: { type: Date, required: true },
+        by: changeBy,
+        was: {
+          text: { type: String, required: true },
+          COPE_dimension: { type: [String], default: [] },
+          citations: { type: [citationSchema], default: [] },
+        },
+      },
+      { _id: false },
+    ),
+    default: null,
+  },
+  removed: {
+    type: new Schema<IChecklistChange>(
+      { at: { type: Date, required: true }, by: changeBy },
+      { _id: false },
+    ),
+    default: null,
+  },
   check: {
     type: new Schema<IChecklistMark>(
       {
