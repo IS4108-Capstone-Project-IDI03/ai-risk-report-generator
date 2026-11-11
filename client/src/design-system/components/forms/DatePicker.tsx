@@ -57,7 +57,8 @@ function maskTyped(raw: string): string {
 }
 
 /** Returns a calendar for the month of `focus`; Monday first, six weeks, days before min disabled. */
-function Calendar({
+// Exported for MarshBot's "I need another visit" (AS-06 board 04), which opens it straight from a button.
+export function Calendar({
   value,
   min,
   onPick,
@@ -67,7 +68,8 @@ function Calendar({
   value: string
   min?: string
   onPick: (iso: string) => void
-  onClear: () => void
+  // Left out for a calendar with no Today and Clear footer (MarshBot's another-visit pick, AS-06).
+  onClear?: () => void
   // False when opened by a click on the text: focus stays there so typing still works.
   focusDay: boolean
 }) {
@@ -155,14 +157,16 @@ function Calendar({
           )
         })}
       </div>
-      <div className="ds-cal-foot">
-        <button type="button" disabled={!!min && today < min} onClick={() => onPick(today)}>
-          Today
-        </button>
-        <button type="button" onClick={onClear}>
-          Clear
-        </button>
-      </div>
+      {onClear && (
+        <div className="ds-cal-foot">
+          <button type="button" disabled={!!min && today < min} onClick={() => onPick(today)}>
+            Today
+          </button>
+          <button type="button" onClick={onClear}>
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   )
 }

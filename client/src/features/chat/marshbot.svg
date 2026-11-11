@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- MarshBot's mark (CB-01): Lucide's "bot" in white on a Marsh navy tile, ink-blue eyes. -->
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#22406c"/>
-      <stop offset="1" stop-color="#000f47"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="16" fill="url(#tile)"/>
-  <g transform="translate(14 14) scale(1.5)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 8V4H8"/>
-    <rect width="16" height="12" x="4" y="8" rx="2"/>
-    <path d="M2 14h2"/>
-    <path d="M20 14h2"/>
-    <path d="M15 13v2" stroke="#8fb0d6"/>
-    <path d="M9 13v2" stroke="#8fb0d6"/>
+  <!-- MarshBot's mark (AS-06 board 16): the Visor robot's idle face on a Marsh navy tile. Must
+       match the idle face in client/src/features/marshbot/components/MarshBotFace.tsx. -->
+  <rect width="64" height="64" rx="16" fill="#000f47"/>
+  <g transform="translate(7 6) scale(0.4167)">
+    <line x1="60" y1="13" x2="60" y2="26" stroke="#2a4a9e" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="60" cy="10" r="6" fill="#8fd3ff"/>
+    <rect x="12" y="47" width="12" height="22" rx="6" fill="#2a4a9e"/>
+    <rect x="96" y="47" width="12" height="22" rx="6" fill="#2a4a9e"/>
+    <rect x="20" y="24" width="80" height="64" rx="24" fill="#0b2a78"/>
+    <rect x="28" y="29" width="34" height="6" rx="3" fill="#fff" opacity=".14"/>
+    <rect x="30" y="39" width="60" height="34" rx="17" fill="#06123f"/>
+    <rect x="43" y="48" width="9" height="15" rx="4.5" fill="#8fd3ff"/>
+    <rect x="68" y="48" width="9" height="15" rx="4.5" fill="#8fd3ff"/>
+    <rect x="38" y="91" width="44" height="18" rx="9" fill="#06123f"/>
+    <circle cx="60" cy="100" r="3.5" fill="#8fd3ff"/>
   </g>
 </svg>

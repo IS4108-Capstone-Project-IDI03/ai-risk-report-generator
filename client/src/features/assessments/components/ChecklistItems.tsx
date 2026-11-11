@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   AddRow,
@@ -287,6 +287,8 @@ function ItemRow({
   return (
     <li
       aria-label={itemTitle(item)}
+      // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
+      data-activity-key={item.id}
       style={{
         padding: `var(--space-5) var(--space-6) var(--space-5) ${indent ? 'var(--space-9)' : 'var(--space-6)'}`,
         borderTop: '1px solid var(--border-subtle)',
@@ -431,7 +433,11 @@ function ItemRow({
 // items answered when it was first shown are folded under Answered, so the
 // ones left come first; an item answered meanwhile stays where it is, so
 // nothing moves under the engineer's thumb.
+// The element id of a report section's card, for MarshBot links that scroll to it (AS-06).
+const checklistAreaId = (areaId: string) => 'checklist-area-' + areaId
+
 function Group({
+  id,
   title,
   note,
   items,
@@ -440,6 +446,7 @@ function Group({
   onAdd,
   children,
 }: {
+  id?: string
   title: string
   note?: ReactNode
   // Every item the card shows, answered or not.
@@ -454,7 +461,8 @@ function Group({
   const written = items.some((i) => i.origin === 'standard' || i.origin === 'hazard')
   const { checked } = areaProgress(items)
   return (
-    <section aria-label={title} style={card}>
+    // A link scrolls a card to the top with room above it (AS-06).
+    <section id={id} aria-label={title} style={{ ...card, scrollMarginTop: 'var(--space-5)' }}>
       <div
         style={{
           display: 'flex',
@@ -576,6 +584,7 @@ export function ChecklistItems({
   regenerateHint,
   onViewObservation,
   customising = false,
+  openArea,
 }: {
   reference: string
   view: ChecklistView & { checklist: Checklist }
@@ -591,6 +600,8 @@ export function ChecklistItems({
   // On the tab, for the assigned engineer: add, edit, remove and restore items
   // (CP-32). Not on site, where the checklist is answered.
   customising?: boolean
+  // A report section's title to open on, from a MarshBot link (AS-06).
+  openArea?: string
 }) {
   // Removed items (CP-32) are left out of everything but their own list.
   const checklist = {
@@ -600,8 +611,22 @@ export function ChecklistItems({
   const removedItems = view.checklist.items.filter((i) => i.status === 'removed')
   // Answered when first shown; the parent keys this by checklist, so a new one starts again.
   const [folded] = useState(() => new Set(checklist.items.filter((i) => i.check).map((i) => i.id)))
-  const [part, setPart] = useState(checklist.hazards.length ? 'risks' : 'sections')
-  const [allChosen, setAllChosen] = useState(readAllSections)
+  // A MarshBot link opens the report sections on its area, showing it even when no standard
+  // adds to it, then scrolls to it.
+  const target = checklist.areas.find((a) => a.title === openArea)?.id
+  const [part, setPart] = useState(target || !checklist.hazards.length ? 'sections' : 'risks')
+  const [allChosen, setAllChosen] = useState(
+    () =>
+      readAllSections() ||
+      (!!target &&
+        !checklist.items.some(
+          (i) => i.area === target && (i.origin === 'standard' || i.origin === 'manual'),
+        )),
+  )
+  useEffect(() => {
+    if (target)
+      document.getElementById(checklistAreaId(target))?.scrollIntoView?.({ block: 'start' })
+  }, [target])
   // With no standard in scope no section adds anything, so all are shown.
   const noStandards = checklist.standards.length === 0
   const all = allChosen || noStandards
@@ -1047,6 +1072,7 @@ function SectionsPart({
         return (
           <Group
             key={area.id}
+            id={checklistAreaId(area.id)}
             title={`${area.id}. ${area.title}`}
             items={items}
             need={draftingNeed(area.id, sections)}

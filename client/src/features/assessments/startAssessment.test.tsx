@@ -342,8 +342,8 @@ describe('Create assessment (CP-01)', () => {
     expect(
       screen.getByRole('heading', { name: 'Jurong Distribution Hub' }).parentElement,
     ).not.toHaveTextContent('RPT-2026-0001')
-    // The overview shows this assessment's own record, not the demo's samples.
-    expect(screen.getByRole('group', { name: 'Capture' })).toBeInTheDocument()
+    // The overview is this assessment's own (MarshBot, AS-06), not the demo's samples.
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
     expect(screen.queryByText('Tilbury survey 2023')).not.toBeInTheDocument()
     expect(screen.queryByText('Sections drafted')).not.toBeInTheDocument()
 
@@ -741,17 +741,22 @@ describe('Work list (RV-10)', () => {
     expect(results()).toHaveTextContent('6 assessments')
   })
 
-  it('filters by status and searches by site and client', async () => {
-    listReply = () => respond(200, LIST)
+  it('filters by stage and searches by site and client', async () => {
+    // The gateway sends each row's stage (AS-06); the filter matches on it.
+    listReply = () =>
+      respond(
+        200,
+        LIST.map((r) => ({ ...r, stage: r.status === 'under_review' ? 'review' : 'capture' })),
+      )
     mockGateway()
     await openApp()
     await screen.findByRole('button', { name: /^Jurong Distribution Hub/ })
 
-    choose('Status', 'Under review')
+    choose('Stage', 'Review')
     expect(results()).toHaveTextContent('1 assessment')
     expect(screen.queryByRole('button', { name: /^Jurong/ })).not.toBeInTheDocument()
 
-    choose('Status: Under review', 'Any status')
+    choose('Stage: Review', 'Any stage')
     search('jurong')
     expect(results()).toHaveTextContent('1 assessment')
     search('harbourside foods')
@@ -893,9 +898,17 @@ describe('Work list by client (CP-17)', () => {
     client: client[1],
     site: at,
     status,
+    stage: STAGE_OF[status],
     siteVisitDate,
     reportDueDate,
   })
+  // The stage the gateway sends with each status in these fixtures (AS-06).
+  const STAGE_OF: Record<string, string> = {
+    capturing: 'capture',
+    finalised: 'exported',
+    under_review: 'review',
+    not_started: 'setup',
+  }
   const NORTHGATE: [string, string] = ['n1', 'Northgate Logistics']
   const LIST = [
     visit('RPT-2026-0411', NORTHGATE, TILBURY, 'capturing', '2026-04-11', '2026-05-30'),
@@ -1015,10 +1028,10 @@ describe('Work list by client (CP-17)', () => {
       'RPT-2025-0414',
     ])
 
-    choose('Status', 'Finalised')
+    choose('Stage', 'Exported')
     expect(groups()).toEqual(['Northgate Logistics, Tilbury Distribution Centre'])
 
-    choose('Status: Finalised', 'Any status')
+    choose('Stage: Exported', 'Any stage')
     fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
       target: { value: 'leeds' },
     })
@@ -1026,7 +1039,7 @@ describe('Work list by client (CP-17)', () => {
     expect(groups()).toHaveLength(1)
   })
 
-  it('lists archived assessments under the Status filter, hidden otherwise', async () => {
+  it('lists archived assessments under the Stage filter, hidden otherwise', async () => {
     await grouped()
 
     // Search, the three pills, By client | All, Sort and New assessment (CP-23 boards 03, 04).
@@ -1037,7 +1050,7 @@ describe('Work list by client (CP-17)', () => {
     )
     expect(controls).toEqual([
       'Search assessments',
-      'Status',
+      'Stage',
       'Report due',
       'Type',
       'Sort assessments: Survey date, latest first',
@@ -1047,8 +1060,8 @@ describe('Work list by client (CP-17)', () => {
     ])
     expect(screen.queryByRole('button', { name: /RPT-2026-0300/ })).not.toBeInTheDocument()
 
-    // Archived is a Status choice; it shows the archived rows and nothing else.
-    choose('Status', 'Archived')
+    // Archived is a Stage choice; it shows the archived rows and nothing else.
+    choose('Stage', 'Archived')
     expect(refsIn(document.body)).toEqual(['RPT-2026-0300'])
     // Still grouped, so a client whose assessments are all archived can be opened.
     expect(groups()).toEqual(['Northgate Logistics, Dublin Warehouse 4'])
@@ -1056,7 +1069,7 @@ describe('Work list by client (CP-17)', () => {
     // An archived row is opened, not archived again.
     expect(screen.queryByRole('button', { name: 'Archive RPT-2026-0300' })).not.toBeInTheDocument()
 
-    choose('Status: Archived', 'Any status')
+    choose('Stage: Archived', 'Any stage')
     expect(screen.queryByRole('button', { name: /RPT-2026-0300/ })).not.toBeInTheDocument()
   })
 
@@ -1201,6 +1214,7 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
         site: { ...CREATED.site, name: `Deadline ${names[i]}` },
         reportDueDate: due,
         status: i === 4 ? 'finalised' : 'capturing',
+        stage: i === 4 ? 'exported' : 'capture',
       })),
     )
   mockGateway()
@@ -1222,7 +1236,7 @@ it('shows report deadlines, excludes today and finalised work from overdue, and 
   choose(/^Sort assessments/, 'Report due, earliest first')
   // The finalised one (4) goes last: nothing is left to chase.
   expect(order()).toEqual([3, 2, 1, 0, 4].map((i) => `RPT-DEADLINE-${i}`))
-  choose('Status', 'Capturing')
+  choose('Stage', 'Capture')
   fireEvent.change(screen.getByPlaceholderText('Search site, client or report ID'), {
     target: { value: 'Deadline' },
   })
@@ -1264,11 +1278,11 @@ it('archives my assessment from its workspace, then shows it only under Archived
     '/api/assessments/RPT-2026-0001/archive',
     expect.anything(),
   )
-  // Hidden from the work list, listed under the Status filter's Archived (CP-23).
+  // Hidden from the work list, listed under the Stage filter's Archived (CP-23).
   await screen.findByText('0 assessments')
   expect(screen.queryByRole('button', { name: /Jurong Distribution Hub/ })).not.toBeInTheDocument()
-  choose('Status', 'Archived')
-  expect(screen.getByRole('button', { name: 'Status: Archived' })).toBeInTheDocument()
+  choose('Stage', 'Archived')
+  expect(screen.getByRole('button', { name: 'Stage: Archived' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /Jurong Distribution Hub/ }))
 
   // An archived workspace offers neither capture nor another archive.
@@ -1346,7 +1360,14 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
   expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
 })
 
-it('edits my assessment details over its Overview, keeping its engineer (RV-10 AC10, AC11)', async () => {
+// The assessment's Details panel (AS-06 board 06), opened from the header: its site, record and
+// Edit details, which the old Overview cards held.
+const openDetails = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+  return screen.getByRole('dialog', { name: 'Details' })
+}
+
+it('edits my assessment details from its Details panel, keeping its engineer (RV-10 AC10, AC11)', async () => {
   let record = { ...CREATED }
   const saves: { body: Record<string, unknown>; reply: Response }[] = []
   const rejection = new Response(
@@ -1371,26 +1392,23 @@ it('edits my assessment details over its Overview, keeping its engineer (RV-10 A
     (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
   )!
   fireEvent.click(row)
-  // The Site card shows the site's address and jurisdiction; the record, this
-  // visit's own details (CP-18).
-  const siteCard = screen.getByRole('region', { name: 'Site' })
-  expect(within(siteCard).getByText('Address')).toBeInTheDocument()
-  expect(within(siteCard).getByText('Not recorded')).toBeInTheDocument()
+  // Details shows the site and its jurisdiction, and this visit's own details (CP-18).
+  const panel = openDetails()
+  const siteCard = within(panel).getByRole('region', { name: 'Site' })
   expect(within(siteCard).getByText('Malaysia')).toBeInTheDocument()
-  const recordCard = () => screen.getByRole('region', { name: 'Assessment record' })
-  expect(within(recordCard()).getByText('Property risk survey')).toBeInTheDocument()
+  expect(within(panel).getByText('First survey')).toBeInTheDocument()
 
-  // Cancel closes it over the Overview, changing nothing.
-  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+  // Cancel closes it over the panel, changing nothing.
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit details' }))
   fireEvent.click(
     within(screen.getByRole('dialog', { name: 'Edit details' })).getByRole('button', {
       name: 'Cancel',
     }),
   )
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Edit details' })).not.toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
 
-  fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit details' }))
   // Only this visit's own details, from the saved ones: the site and client
   // change for all their assessments elsewhere (CP-18), and the engineer stays.
   const dialog = screen.getByRole('dialog', { name: 'Edit details' })
@@ -1415,14 +1433,16 @@ it('edits my assessment details over its Overview, keeping its engineer (RV-10 A
     siteVisitDate: '2026-04-21',
     reportDueDate: '2026-05-02',
   })
-  // The Overview shows the saved details (AC10).
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  // Details shows the saved details (AC10).
+  expect(screen.queryByRole('dialog', { name: 'Edit details' })).not.toBeInTheDocument()
   await vi.waitFor(() =>
-    expect(within(recordCard()).getByText('Follow-up visit')).toBeInTheDocument(),
+    expect(
+      within(screen.getByRole('dialog', { name: 'Details' })).getByText('Follow-up'),
+    ).toBeInTheDocument(),
   )
 })
 
-it('corrects the site from the Overview for every assessment at it, asking first about its scope (CP-18)', async () => {
+it('corrects the site from Details for every assessment at it, asking first about its scope (CP-18)', async () => {
   let record = {
     ...CREATED,
     clientId: 'c1',
@@ -1447,9 +1467,10 @@ it('corrects the site from the Overview for every assessment at it, asking first
     (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
   )!
   fireEvent.click(row)
-  // Edit site is on the Overview's Site card, not in Edit details.
+  // Edit site is by the site in Details, not in Edit details.
+  const panel = openDetails()
   fireEvent.click(
-    within(screen.getByRole('region', { name: 'Site' })).getByRole('button', {
+    within(within(panel).getByRole('region', { name: 'Site' })).getByRole('button', {
       name: 'Edit site',
     }),
   )
@@ -1475,11 +1496,11 @@ it('corrects the site from the Overview for every assessment at it, asking first
       facilityType: 'Cold store',
     },
   ])
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  // The Site card shows the change.
+  expect(screen.queryByRole('dialog', { name: /^Edit/ })).not.toBeInTheDocument()
+  // Details shows the change.
   await vi.waitFor(() =>
     expect(
-      within(screen.getByRole('region', { name: 'Site' })).getByText('Cold store'),
+      within(within(panel).getByRole('region', { name: 'Site' })).getByText('Cold store'),
     ).toBeInTheDocument(),
   )
 })
@@ -1518,13 +1539,14 @@ it('says why a colleague’s site can’t be changed, and opens the client’s p
       (b) => b.getAttribute('data-id') === 'RPT-2026-0001',
     )!
     fireEvent.click(row)
-    const siteCard = screen.getByRole('region', { name: 'Site' })
+    const panel = openDetails()
+    const siteCard = within(panel).getByRole('region', { name: 'Site' })
     expect(within(siteCard).queryByRole('button', { name: 'Edit site' })).not.toBeInTheDocument()
     expect(within(siteCard).getByText(OTHERS)).toBeInTheDocument()
     // Edit details is still the engineer's.
-    expect(screen.getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
 
-    fireEvent.click(within(siteCard).getByRole('button', { name: 'Straits Logistics' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Straits Logistics' }))
     expect(
       await screen.findByRole('heading', { name: 'Straits Logistics', level: 1 }),
     ).toBeInTheDocument()
@@ -1592,12 +1614,12 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
 
   it('reads someone else’s assessment on every tab, with no control that changes it', async () => {
     await open(ALEX)
-    // The same record as the engineer's.
-    expect(screen.getByText('Address')).toBeInTheDocument()
-    expect(screen.getByText('Malaysia')).toBeInTheDocument()
-    expect(screen.getByText('Alex Rowe')).toBeInTheDocument()
-    // Overview: nothing to edit or archive.
+    // Details: the same record as the engineer's, with nothing to edit or archive.
+    const panel = openDetails()
+    expect(within(panel).getByText('Malaysia')).toBeInTheDocument()
+    expect(within(panel).getByText('Alex Rowe')).toBeInTheDocument()
     for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(false)
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     // The report tabs are there to read.
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
     for (const name of ['Checklist', 'Generation', 'Review', 'Export'])
@@ -1621,7 +1643,9 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
 
   it('does everything an engineer does on their own', async () => {
     await open(SANA)
+    const panel = openDetails()
     for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(true)
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     tab(/^Checklist/)
     expect(await screen.findByRole('button', { name: 'Generate checklist' })).toBeInTheDocument()
     tab(/^Observations/)
@@ -1645,207 +1669,4 @@ it('offers no capture when none of my assessments is capturing, not even the dem
   expect(
     screen.queryByRole('button', { name: 'Tilbury Distribution Centre' }),
   ).not.toBeInTheDocument()
-})
-
-describe('Overview', () => {
-  // A local calendar day, days from today, as the gateway stores due dates.
-  const inDays = (days: number) => {
-    const day = new Date()
-    day.setDate(day.getDate() + days)
-    return day.toLocaleDateString('en-CA')
-  }
-  const draft = { id: 'd1', sectionId: '7', subsections: [] }
-  const SECTIONS = [
-    {
-      id: '7',
-      title: 'Construction',
-      minObservations: 1,
-      usableObservations: 2,
-      latestDraft: draft,
-      changesSinceDraft: 0,
-    },
-    {
-      id: '8',
-      title: 'Occupancy',
-      minObservations: 1,
-      usableObservations: 1,
-      latestDraft: draft,
-      changesSinceDraft: 2,
-    },
-    {
-      id: '9',
-      title: 'Fire Protection',
-      minObservations: 3,
-      usableObservations: 1,
-      latestDraft: null,
-      changesSinceDraft: 0,
-    },
-    {
-      id: '10',
-      title: 'Natural Hazards',
-      minObservations: 1,
-      usableObservations: 1,
-      latestDraft: null,
-      changesSinceDraft: 0,
-    },
-  ].map((s) => ({ copeDimensions: [], changeCounts: { added: 0, changed: 0, removed: 0 }, ...s }))
-  const review = (id: string, state: string, unsupportedStatements = 0, changesSinceDraft = 0) => ({
-    id,
-    draft: state === 'not_drafted' ? null : draft,
-    review: { state, unsupportedStatements, withdrawnSources: 0, changesSinceDraft },
-  })
-  const REVIEW = {
-    sections: [
-      review('7', 'ai_draft'),
-      review('8', 'needs_review', 3, 2),
-      review('9', 'not_drafted'),
-      review('10', 'not_drafted'),
-    ],
-  }
-
-  async function openOverview(fields: object = {}) {
-    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-      // Opening capture starts its session.
-      init?.method === 'POST'
-        ? respond(201)
-        : respond(
-            200,
-            url === '/api/assessments'
-              ? [{ ...CREATED, status: 'capturing', reportDueDate: inDays(5), ...fields }]
-              : url.endsWith('/sections')
-                ? SECTIONS
-                : url.endsWith('/review')
-                  ? REVIEW
-                  : [],
-          ),
-    )
-    await openApp()
-    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-  }
-  const box = (label: string) => screen.getByRole('group', { name: label })
-
-  it('follows the report from capture to its due date, with each section’s state', async () => {
-    await openOverview()
-
-    expect(box('Capture')).toHaveTextContent('0observations')
-    expect(box('Capture')).toHaveTextContent('None captured yet')
-    // Over Marsh's 12 sections: Section 1 (always ready) and the two drafted here.
-    expect(await screen.findByText('3/12')).toBeInTheDocument()
-    expect(box('Drafting')).toHaveTextContent('sections drafted')
-    expect(box('Drafting')).toHaveTextContent('1 out of date')
-    expect(await screen.findByText('1/2')).toBeInTheDocument()
-    expect(box('Review')).toHaveTextContent('drafts flagged')
-    expect(box('Review')).toHaveTextContent('3 statements to check · 1 out of date')
-    expect(box('Report due')).toHaveTextContent('5days left')
-
-    const sections = screen.getByText('Report sections').parentElement!
-    expect(
-      within(sections).getByRole('button', { name: /^Section 7, Construction: Drafted/ }),
-    ).toBeInTheDocument()
-    expect(
-      within(sections).getByRole('button', { name: /^Section 8, Occupancy: Out of date/ }),
-    ).toBeInTheDocument()
-    expect(
-      within(sections).getByRole('button', {
-        name: /^Section 9, Fire Protection: 1 of 3 observations/,
-      }),
-    ).toBeInTheDocument()
-    expect(
-      within(sections).getByRole('button', {
-        name: /^Section 10, Natural Hazards: Ready to draft/,
-      }),
-    ).toBeInTheDocument()
-
-    // The capture box opens the observations it counts; capturing is the
-    // Observations tab's Add manually button.
-    fireEvent.click(screen.getByRole('button', { name: /^Capture, 0, observations/ }))
-    expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
-    expect(await screen.findByRole('heading', { name: 'New Observation' })).toBeInTheDocument()
-  })
-
-  it('opens Generation from the drafting box', async () => {
-    await openOverview()
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: /^Drafting, 3\/12, sections drafted, 1 out of date\. Open Generation$/,
-      }),
-    )
-    expect(screen.getByRole('tab', { name: /Generation/ })).toHaveAttribute('aria-selected', 'true')
-  })
-
-  it('says when the report is overdue, and offers capture before any is captured', async () => {
-    await openOverview({ status: 'not_started', reportDueDate: inDays(-2) })
-    expect(box('Report due')).toHaveTextContent('2days overdue')
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
-  })
-
-  it('says when no due date is set', async () => {
-    await openOverview({ reportDueDate: null })
-    expect(box('Report due')).toHaveTextContent('no due date set')
-  })
-
-  it('counts the observations saved on the server, as the report sections do', async () => {
-    vi.stubGlobal('fetch', (url: string) =>
-      respond(
-        200,
-        url === '/api/assessments'
-          ? [{ ...CREATED, status: 'capturing' }]
-          : url.startsWith('/api/assessments/RPT-2026-0001/observations')
-            ? [CREATED_NOTE, { ...CREATED_NOTE, id: '6ab3a1e0e45cf009e4507804' }]
-            : [],
-      ),
-    )
-    await openApp()
-    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-    expect(await within(box('Capture')).findByText('2')).toBeInTheDocument()
-    expect(box('Capture')).toHaveTextContent('observations')
-  })
-
-  it('leaves the demo’s browser-only samples out of the count once it is on the server', async () => {
-    const TILBURY = {
-      ...CREATED,
-      reference: 'RPT-2026-0411',
-      status: 'capturing',
-      site: { ...CREATED.site, name: 'Tilbury Distribution Centre' },
-    }
-    vi.stubGlobal('fetch', (url: string) =>
-      respond(200, url === '/api/assessments' ? [TILBURY] : []),
-    )
-    await openApp()
-    // Grouped by client, the sample rows give way to the saved record's group.
-    fireEvent.click(
-      within(await screen.findByRole('region', { name: /^Straits Logistics/ })).getByRole(
-        'button',
-        {
-          name: /^Tilbury Distribution Centre/,
-        },
-      ),
-    )
-    // The samples still list on the Observations tab, but the server has none.
-    expect(box('Capture')).toHaveTextContent('0observations')
-  })
-
-  it('says when the drafting service cannot be reached, keeping the rest', async () => {
-    vi.stubGlobal('fetch', (url: string) =>
-      url === '/api/assessments'
-        ? respond(200, [{ ...CREATED, status: 'capturing' }])
-        : url.endsWith('/sections') || url.endsWith('/review')
-          ? respond(503, { error: 'S4 unreachable' })
-          : respond(200, []),
-    )
-    await openApp()
-    fireEvent.click(await screen.findByRole('button', { name: /^Jurong Distribution Hub/ }))
-
-    expect(
-      await screen.findByText('The report sections can’t be loaded right now.'),
-    ).toBeInTheDocument()
-    expect(box('Drafting')).toHaveTextContent('unavailable')
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
-  })
 })

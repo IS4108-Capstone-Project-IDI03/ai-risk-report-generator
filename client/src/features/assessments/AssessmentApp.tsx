@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   Button,
   Dialog,
@@ -21,6 +21,7 @@ import { guardLeave } from './leaveGuard'
 import { ScreenMotion } from './ScreenMotion'
 import { AssessmentActions } from './components/AssessmentActions'
 import { siteWalkReview } from '../site-walk/openReview'
+import { DetailsPanel } from '../marshbot/components/DetailsPanel'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { NewAssessment } from '../new-assessment/screens/NewAssessment'
@@ -40,6 +41,7 @@ import { Scans } from './screens/Scans'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
+import type { ItemLink } from '../marshbot/types'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
 // brings the chart library, which every other screen can skip.
@@ -67,6 +69,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     ),
   }))
   const captureOnPhone = v.isField && v.phone && !v.routeBlocked
+  // The assessment's Details panel (AS-06 board 06), from the header or MarshBot's client card.
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const openDetails = v.liveRecord ? () => setDetailsOpen(true) : undefined
+  // A MarshBot link's place in the tab it opened (a checklist area, a report section), kept
+  // while that tab stays open so it opens there; leaving the tab forgets it.
+  const [goTo, setGoTo] = useState<ItemLink | null>(null)
+  if (goTo && v.tab !== goTo.tab) setGoTo(null)
   // Going somewhere else asks first while the document editor has unsaved
   // changes (RV-08 AC14); choosing where you already are does not.
   const leave = (staying: boolean, go: () => void) => (staying ? go() : guardLeave(go))
@@ -273,6 +282,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             capture for history asks first (RV-08). */}
                             <AssessmentActions
                               onHistory={() => guardLeave(v.showVersionHistory)}
+                              onDetails={openDetails}
                               onArchive={v.canArchive ? v.openArchive : undefined}
                             />
                           </>
@@ -394,7 +404,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isOverview && <Overview v={v} />}
+                    {v.isOverview && (
+                      <Overview v={v} openDetails={() => setDetailsOpen(true)} goTo={setGoTo} />
+                    )}
 
                     {v.isChecklist &&
                       (v.liveReference ? (
@@ -403,6 +415,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           canGenerate={v.canDraftSections}
                           answering={v.checklistTabAnswering}
                           onViewObservation={v.showObservation}
+                          area={goTo?.params?.area}
                         />
                       ) : (
                         <div style={{ padding: '24px' }}>
@@ -445,6 +458,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           panelStyle={v.reviewEvidenceStyle}
                           onGenerate={() => v.setTab('generate')}
                           historyRequest={v.reviewHistory}
+                          openSection={goTo?.params?.section}
                         />
                       ) : (
                         <Review v={v} />
@@ -508,6 +522,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             onClose={v.closeArchive}
             width={440}
           ></Dialog>
+          {v.isAssessment && (
+            <DetailsPanel v={v} open={detailsOpen} onClose={() => setDetailsOpen(false)} />
+          )}
           {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}
           <Toaster />
           {!!v.toast && (

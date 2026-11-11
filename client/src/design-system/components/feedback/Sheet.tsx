@@ -35,6 +35,8 @@ export type SheetProps = {
   cancel?: boolean
   // A class on the sheet's root, for a screen's own look (the bell, the engineer picker).
   className?: string
+  // Content mode: a control beside the title, before the close tick (MarshBot's Edit details).
+  headerAction?: ReactNode
 }
 
 const EXIT_MS = 200
@@ -66,6 +68,7 @@ export function Sheet({
   subtitle,
   cancel,
   className,
+  headerAction,
 }: SheetProps) {
   const panel = useRef<HTMLDivElement>(null)
   // Keep it mounted for the exit motion; jsdom cannot animate, so it unmounts at once there.
@@ -128,6 +131,7 @@ export function Sheet({
         <span className="ds-sheet-grabber" aria-hidden="true" />
         <div className="ds-sheet-head">
           <h2>{title}</h2>
+          {headerAction}
           {actions || cancel ? null : (
             <IconButton
               icon="check"
