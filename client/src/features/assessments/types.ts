@@ -54,13 +54,16 @@ export type Observation = {
     // As sent to the AI with protection on (PV-04).
     redaction?: SavedPhoto['redaction']
   }[]
-  // Recordings and photos removed from it, to restore (CP-08).
+  // Recordings, photos and handwritten pages removed from it, to restore
+  // (CP-08, CP-20). A page removed in the demo keeps itself here, so restoring
+  // it brings back any text written for it.
   removedMedia?: {
     kind: MediaKind
     id: string
     name: string
     url: string | null
     removed: Stamp
+    page?: ObservationPage
   }[]
   detail: string
   audio?: string
@@ -136,19 +139,28 @@ export type Observation = {
   }[]
   // Its photographed pages of handwritten notes (CP-19). A page kept in this
   // browser by the demo has no status: it is never transcribed.
-  pages?: {
-    id: string
-    name: string
-    // The original photo of the page.
-    url: string
-    status: TranscriptionStatus | null
-    // The handwriting word for word, '' when the page has none, or null while
-    // there is no transcript.
-    transcript: string | null
-    // The words the model was unsure of, as [start, end) in transcript.
-    uncertain: [number, number][]
-    error: string | null
-  }[]
+  pages?: ObservationPage[]
+}
+// A photographed page of handwritten notes on an observation (CP-19, CP-20).
+export type ObservationPage = {
+  id: string
+  name: string
+  // The original photo of the page.
+  url: string
+  status: TranscriptionStatus | null
+  // Its text: the engineer's correction where there is one (CP-20), else the
+  // handwriting word for word, '' when the page has none, or null while there
+  // is no transcript.
+  transcript: string | null
+  // What the model wrote, kept beside a correction (CP-20); null when the
+  // page is not corrected, or was written in the demo with no transcription.
+  original: string | null
+  // The words the model was unsure of, as [start, end) in what it wrote.
+  uncertain: [number, number][]
+  error: string | null
+  // Who corrected its text, and who added it after saving (CP-20).
+  correction: Stamp | null
+  added: Stamp | null
 }
 export type GenerationSection = {
   id: string
@@ -307,12 +319,14 @@ export type WorkflowState = {
   // while capture or the Observations tab shows.
   obsReturn: { locationId: string; ids: string[]; local: number } | null
   // The observation being changed on the Observations tab, by row key: a
-  // recording's transcript, its deletion, adding recordings and photos, or
-  // removing one of them (CP-08).
+  // recording's transcript, its deletion, adding recordings, photos and pages,
+  // or removing one of them (CP-08); a page's text, or transcribing a
+  // corrected page again (CP-20).
   obsDialog: {
-    kind: 'transcript' | 'delete' | 'addMedia' | 'removeMedia'
+    kind: 'transcript' | 'delete' | 'addMedia' | 'removeMedia' | 'pageText' | 'retranscribe'
     key: string
     recordingId?: string
+    pageId?: string
     media?: { kind: MediaKind; id: string; name: string }
   } | null
   archiveOpen: boolean

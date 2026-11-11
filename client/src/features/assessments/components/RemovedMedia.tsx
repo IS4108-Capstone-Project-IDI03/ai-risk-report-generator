@@ -1,7 +1,7 @@
-// Recordings and photos removed from an observation (CP-08), folded away on
-// its page, each with who removed it and Restore. Rendered by
-// screens/ObservationPage.tsx.
-import { Icon } from '../../../design-system'
+// Recordings, photos and handwritten pages removed from an observation
+// (CP-08, CP-20), folded away on its page, each with who removed it and
+// Restore. A photo or page opens to view. Rendered by screens/ObservationPage.tsx.
+import { Icon, IconRegistry } from '../../../design-system'
 import type { ObservationRowView } from '../useObservationsView'
 
 type Removed = ObservationRowView['removedMedia'][number]
@@ -23,11 +23,17 @@ export function RemovedMedia({
           <li key={m.id} className="ob-item">
             <div className="ob-item-head">
               <Icon
-                name={m.kind === 'recordings' ? 'mic' : 'image'}
+                name={
+                  m.kind === 'recordings'
+                    ? 'mic'
+                    : m.kind === 'pages'
+                      ? IconRegistry.evidence.handwriting
+                      : 'image'
+                }
                 size={15}
                 color="var(--text-muted)"
               />
-              {m.kind === 'photos' && m.url ? (
+              {m.kind !== 'recordings' && m.url ? (
                 <button
                   type="button"
                   className="ob-button ob-button--small"
