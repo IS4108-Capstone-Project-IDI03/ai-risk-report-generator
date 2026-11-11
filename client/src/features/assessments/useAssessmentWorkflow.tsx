@@ -27,7 +27,13 @@ import {
   type SiteLocation,
   type Stamp,
 } from './api'
-import { formatDay as formatDate, formatDayYearTime, STATUS_LABEL } from './format'
+import {
+  formatDay as formatDate,
+  formatDayYearTime,
+  rowStage,
+  STAGE_LABEL,
+  STATUS_LABEL,
+} from './format'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
@@ -84,6 +90,8 @@ import { useCaptureSession } from './useCaptureSession'
 import type { Cope, Severity } from '../site-walk/api'
 import { siteWalkReview } from '../site-walk/openReview'
 import { reportAssessmentMissing } from './openAssessment'
+import { useActivity } from '../marshbot/useActivity'
+import type { Priority } from '../marshbot/types'
 import {
   addCapturedObservation,
   proposalCapture,
@@ -210,6 +218,8 @@ function toRow(a: Assessment): AssessmentRow {
     engineerId: a.engineer?.id ?? null,
     record: a,
     status: STATUS_LABEL[a.status],
+    stage: a.stage,
+    priority: a.priority,
     sev: 'low',
     open: 0,
     persisted: true,
@@ -1035,6 +1045,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       </div>
     )
   }
+  // AS-06: the assigned engineer's time on the open workspace tab (an admin's is not counted).
+  useActivity(
+    state.screen === 'assessment' ? state.captureTarget.reference : null,
+    'tab:' + state.tab,
+    serverRows?.find((r) => r.id === state.captureTarget.reference)?.engineerId === session.user.id,
+  )
   function renderVals() {
     const s = state
     const sc = s.screen,
@@ -2120,7 +2136,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (isArchived(r) !== showArchived) return false
-        if (!showArchived && fStatus !== 'All statuses' && r.status !== fStatus) return false
+        if (!showArchived && fStatus !== 'All statuses' && rowStage(r) !== fStatus) return false
         if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         if (s.fVisitType && r.type !== s.fVisitType) return false
         return true
@@ -2201,8 +2217,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       })
     // A client's page (CP-18), opened from the Clients list, the work list or
     // an assessment.
-    const openClient = (id: string) =>
-      setState({ screen: 'client', clientPage: id, clientDialog: null, toast: null })
+    const openClient = (id: string, tab: WorkflowState['clientTab'] = null) =>
+      setState({
+        screen: 'client',
+        clientPage: id,
+        clientDialog: null,
+        clientTab: tab,
+        toast: null,
+      })
     // A client page's occasional actions (CP-18), behind the header's ⋯:
     // each disabled, with its reason, when it isn't the engineer's to take.
     // A removed client has none; its page offers Restore instead.
@@ -2248,6 +2270,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: string
           sites: Map<string, { name: string; removed: boolean; jurisdiction: string }>
           visits: FactVisit[]
+          priorities: Priority[]
         }
       >()
       for (const r of rows) {
@@ -2258,6 +2281,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: a.client,
           sites: new Map(),
           visits: [] as FactVisit[],
+          priorities: [] as Priority[],
         }
         byId.set(a.clientId, c)
         c.sites.set(a.site.id, {
@@ -2265,6 +2289,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           removed: a.site.removed,
           jurisdiction: a.site.jurisdiction,
         })
+        if (r.priority) c.priorities.push(r.priority)
         c.visits.push({
           site: a.site.name,
           surveyDate: a.siteVisitDate,
@@ -2286,6 +2311,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             // Its listed sites' jurisdictions, each once (the Clients table's column).
             jurisdictions: [...new Set(sites.filter((x) => !x.removed).map((x) => x.jurisdiction))],
             facts: clientFacts(c.visits),
+            // The reasons its assessments are urgent (AS-06); the Clients table marks the first.
+            priorities: c.priorities,
             // Found by its name or one of its sites'.
             search: [c.name, ...sites.map((x) => x.name)].join(' ').toLowerCase(),
             open: () => openClient(c.id),
@@ -3087,6 +3114,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         menu: clientMenuModel,
         onNewAssessment: clientNewAssessment,
         onClients: () => setState({ screen: 'clients', clientDialog: null, toast: null }),
+        startTab: s.clientTab ?? undefined,
         // A visit as the work list shows it: its status, dates and countdown.
         visit: (reference: string) => {
           const r = rows.find((x) => x.id === reference)
@@ -3163,12 +3191,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 openRow.persisted && openRow.record?.clientId && canOpen('client', session)
                   ? () => openClient(openRow.record!.clientId!)
                   : undefined,
+              // AS-06: Details' See all, the same page on its Documents tab.
+              documents:
+                openRow.persisted && openRow.record?.clientId && canOpen('client', session)
+                  ? () => openClient(openRow.record!.clientId!, 'documents')
+                  : undefined,
             },
           ]
         : [{ label: 'Name', value: s.captureTarget.site }]) as {
         label: string
         value: string
         open?: () => void
+        documents?: () => void
       }[],
       // Its Assessment record card: this assessment's own details.
       ovRecordFacts: openRow
@@ -3506,9 +3540,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           q: e.target.value,
         }),
       // The filter pills (CP-23): '' is no filter.
-      statusFilter: fStatus === 'All statuses' ? '' : fStatus,
-      setStatusFilter: (value: string) => setState({ fStatus: value || 'All statuses' }),
-      statusOptions: Object.values(STATUS_LABEL),
+      stageFilter: fStatus === 'All statuses' ? '' : fStatus,
+      setStageFilter: (value: string) => setState({ fStatus: value || 'All statuses' }),
+      // The stages, then Archived (AS-06 AC 2).
+      stageOptions: [...Object.values(STAGE_LABEL), STATUS_LABEL.archived],
+      // Focus (AS-06 AC 12): the rows the gateway gave a priority (only the engineer's own),
+      // in its rank order. Built from the list itself, so it never lags or pops in after it.
+      focus: rows
+        .flatMap((r) =>
+          r.priority
+            ? [
+                {
+                  reference: r.id,
+                  site: r.site,
+                  client: r.client,
+                  reportDueDate: r.reportDueDate ?? null,
+                  priority: r.priority,
+                },
+              ]
+            : [],
+        )
+        .sort((a, b) => a.priority.rank - b.priority.rank),
       visitType: s.fVisitType,
       setVisitType: (value: string) => setState({ fVisitType: value }),
       // The visit types the engineer's assessments have, the standard ones first.

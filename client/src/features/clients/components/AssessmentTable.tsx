@@ -1,8 +1,10 @@
 // A client's assessments as a table (CP-23, boards 06 and 08): type tile and
-// reference, Type, Survey date, Status, Report due and a chevron that opens the
+// reference (with its priority mark, AS-06), Type, Survey date, Stage, Report due and a chevron that opens the
 // assessment. Called by SiteCard (one site) and screens/OpenWorkTab (all sites,
 // with a Site column). Rows open the assessment through onOpen.
 import { AssessmentTypeTile, ReportDue, StatusPill } from '../../../design-system'
+import { PriorityMark } from '../../marshbot/PriorityMark'
+import { visitStage } from '../../assessments/format'
 import type { ClientVisit } from '../api'
 import { assessmentType, day } from '../formatClient'
 import { RowAction } from './RowAction'
@@ -38,7 +40,7 @@ export function AssessmentTable({
           {showSite && <th scope="col">{'Site'}</th>}
           <th scope="col">{'Type'}</th>
           <th scope="col">{'Survey date'}</th>
-          <th scope="col">{'Status'}</th>
+          <th scope="col">{'Stage'}</th>
           <th scope="col">{'Report due'}</th>
           <th scope="col">
             <span className="cl-sr">{'Actions'}</span>
@@ -59,6 +61,8 @@ export function AssessmentTable({
                 <div className="cl-flex">
                   <AssessmentTypeTile type={type} size={32} />
                   <span className="cl-line-1">{visit.reference}</span>
+                  {/* Hover names the reason; the row's Open button says it to a screen reader. */}
+                  {!!visit.priority && <PriorityMark priorities={[visit.priority]} inside />}
                 </div>
               </td>
               {showSite && (
@@ -72,8 +76,8 @@ export function AssessmentTable({
               <td data-label="Survey date" className="cl-num-text">
                 {day(visit.siteVisitDate)}
               </td>
-              <td data-label="Status">
-                <StatusPill status={visit.status} />
+              <td data-label="Stage">
+                <StatusPill status={visitStage(visit)} />
               </td>
               <td data-label="Report due">
                 <ReportDue date={visit.reportDueDate} plain={settled} />
@@ -82,7 +86,9 @@ export function AssessmentTable({
                 <span className="cl-row-actions cl-row-actions--always">
                   <RowAction
                     icon="chevron-right"
-                    label={`Open ${visit.reference}`}
+                    label={[`Open ${visit.reference}`, visit.priority?.text]
+                      .filter(Boolean)
+                      .join(', ')}
                     tooltip="Open assessment"
                     onClick={() => onOpen(visit.reference, site)}
                   />

@@ -1,9 +1,10 @@
-// The client page's Sites tab (CP-18, CP-23 board 06): search and a Status
+// The client page's Sites tab (CP-18, CP-23 board 06): search and a Stage
 // filter, then a card per site with the engineer's assessments there. Called by
 // ClientRecord. Row actions go back to ClientRecord, which owns the dialogs.
 import { useState } from 'react'
 import { Button, EmptyState, IconRegistry, SearchField, statusLook } from '../../../design-system'
-import { STATUS_LABEL } from '../../assessments/format'
+import { STAGE_LABEL, STATUS_LABEL, visitStage } from '../../assessments/format'
+import type { Stage } from '../../marshbot/types'
 import type { ClientPage as Page, ClientPageSite } from '../api'
 import { FilterMenu } from '../components/FilterMenu'
 import { SiteCard } from '../components/SiteCard'
@@ -41,7 +42,7 @@ export function SitesTab({
         ? v.status === 'archived'
         : view === 'removed'
           ? true
-          : v.status !== 'archived' && (!status || v.status === status),
+          : v.status !== 'archived' && (!status || visitStage(v) === status),
     )
   const shown = (view === 'removed' ? removed : listed).filter(
     (s) =>
@@ -51,11 +52,13 @@ export function SitesTab({
   )
   const statusChoices = [
     ...new Set(
-      listed.flatMap((s) => s.visits.filter((v) => v.status !== 'archived').map((v) => v.status)),
+      listed.flatMap((s) => s.visits.filter((v) => v.status !== 'archived').map(visitStage)),
     ),
   ].map((value) => {
     const { icon, fg } = statusLook(value)
-    return { value, label: STATUS_LABEL[value], icon, color: fg }
+    // A stage key or (with no stage) a status key.
+    const label = STAGE_LABEL[value as Stage] ?? STATUS_LABEL[value as keyof typeof STATUS_LABEL]
+    return { value, label, icon, color: fg }
   })
 
   return (
@@ -68,7 +71,7 @@ export function SitesTab({
           onChange={(e) => setQ(e.target.value)}
         />
         {view === 'sites' && (
-          <FilterMenu name="Status" choices={statusChoices} value={status} onChange={setStatus} />
+          <FilterMenu name="Stage" choices={statusChoices} value={status} onChange={setStatus} />
         )}
         {(view !== 'sites' || archivedVisits > 0) && (
           <Button

@@ -1,4 +1,4 @@
-// The Assessments card's toolbar (CP-23, boards 03 and 04): search, the Status /
+// The Assessments card's toolbar (CP-23, boards 03 and 04): search, the Stage /
 // Report due / Type pills, the By client | All toggle, Sort and New assessment.
 // Used by screens/Dashboard; the filtering itself is in useAssessmentWorkflow.tsx.
 import {
@@ -77,14 +77,14 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
         {/* Own wrapper so a tablet can scroll the filters while Sort stays in view. */}
         <div className="at-filters">
           <Filter
-            name="Status"
-            // Each status wears the icon and colour of its pill, so the two read as one thing.
-            choices={v.statusOptions.map((value) => {
+            name="Stage"
+            // Each stage wears the icon and colour of its pill, so the two read as one thing.
+            choices={v.stageOptions.map((value) => {
               const { icon, fg } = statusLook(value)
               return { value, label: value, icon, color: fg }
             })}
-            value={v.statusFilter}
-            onChoose={v.setStatusFilter}
+            value={v.stageFilter}
+            onChoose={v.setStageFilter}
           />
           <Filter
             name="Report due"

@@ -42,6 +42,7 @@ import {
 } from '../documentContent'
 import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
+import { useActivity } from '../../marshbot/useActivity'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
@@ -124,6 +125,7 @@ export function ReviewWorkspace({
   panelStyle,
   onGenerate,
   historyRequest = 0,
+  openSection,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -144,6 +146,8 @@ export function ReviewWorkspace({
   // Counts each time Version history is chosen from the assessment's ⋯ menu
   // (RV-06); a new count opens the version history. 0 for none.
   historyRequest?: number
+  // The part to open on, from a MarshBot link (AS-06), e.g. '9'; the first drafted when left out.
+  openSection?: string
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis } = useOfis(reference)
@@ -153,7 +157,7 @@ export function ReviewWorkspace({
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
   const accepted = Array.isArray(ofis?.accepted) ? ofis.accepted : []
   const waiting = Array.isArray(ofis?.suggestions) ? ofis.suggestions.length : 0
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(openSection ?? null)
   const [focus, setFocus] = useState<ReviewFocus>(NOTHING)
   const [view, setView] = useState<DraftView>('saved')
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
@@ -181,6 +185,12 @@ export function ReviewWorkspace({
   // The document opens to edit for the assigned engineer, and read only, to
   // comment on, for anyone else who can comment (RV-03 AC7).
   const canOpenDocument = canReview || canComment
+  // AS-06 (AC 10): the assigned engineer opening Review, and their time on the section shown
+  // and which findings they saw. An admin who only reads is not counted.
+  // `sections` can be missing while a workspace is still loading; without `?.` Review would crash.
+  const shownId = selected ?? workspace?.sections?.find((s) => s.draft)?.id ?? null
+  useActivity(reference, 'review', canReview)
+  useActivity(reference, 'section:' + shownId, canReview && !!shownId && !documentAt, true)
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the

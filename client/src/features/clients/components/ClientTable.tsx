@@ -5,6 +5,8 @@
 // card with one More button that opens a Sheet (clients.css).
 import { useState } from 'react'
 import { Badge, Chip, Icon, IconButton, ReportDue, Sheet, useIsPhone } from '../../../design-system'
+import { PriorityMark } from '../../marshbot/PriorityMark'
+import type { Priority } from '../../marshbot/types'
 import type { Allowed } from '../api'
 import type { ClientFacts } from '../clientFacts'
 import { country } from '../formatClient'
@@ -20,6 +22,8 @@ export type ClientRow = {
   sites: number
   jurisdictions: string[]
   facts: ClientFacts
+  // Why its assessments are urgent (AS-06); the most urgent shows as a mark beside the name.
+  priorities: Priority[]
   open: () => void
   newAssessment: () => void
   rename: () => void
@@ -128,7 +132,9 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                 <button
                   type="button"
                   className="cl-open"
-                  aria-label={`Open ${c.name}`}
+                  aria-label={[`Open ${c.name}`, ...new Set(c.priorities.map((p) => p.text))].join(
+                    ', ',
+                  )}
                   onClick={c.open}
                 >
                   <ClientAvatar name={c.name} small />
@@ -138,6 +144,8 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                         {c.name}
                       </span>
                       {c.removed && <Badge tone="neutral">{'Removed'}</Badge>}
+                      {/* Hover names every reason; the button's name already says them. */}
+                      {!c.removed && <PriorityMark priorities={c.priorities} inside />}
                     </span>
                     {c.division && (
                       <span className="cl-line-2 cl-ellip" dir="auto" title={c.division}>

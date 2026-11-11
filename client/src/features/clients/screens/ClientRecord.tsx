@@ -41,8 +41,9 @@ export function ClientRecord({
   onNewAssessment,
   onOpen,
   onChanged,
+  startTab,
 }: ClientRecordProps & { page: Page; onClients: () => void; bell?: ReactNode }) {
-  const [tab, setTab] = useState<TabId>('open')
+  const [tab, setTab] = useState<TabId>(startTab ?? 'open')
   const [open, setOpen] = useState<Open | null>(null)
   const [busy, setBusy] = useState(false)
   const [details, setDetails] = useState(false)

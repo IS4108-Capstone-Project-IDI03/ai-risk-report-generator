@@ -151,7 +151,7 @@ describe('Assessments list following outside changes', () => {
     await openList()
     await screen.findByText('RPT-2026-0001')
     await poll()
-    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stage' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Archived' }))
     expect(rowOf('RPT-2026-0001')).toBeNull()
 
