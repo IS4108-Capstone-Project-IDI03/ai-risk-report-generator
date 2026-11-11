@@ -743,7 +743,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
   </details>
 
-- [ ] **CP-20** — Manage scanned pages (risk engineer, deps: CP-19, CP-08)
+- [ ] **CP-20** — Manage scanned pages (risk engineer, Must, 5 pts, deps: CP-19, CP-08, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: fix and change the handwritten pages of a saved observation, as CP-08 does for its recordings and photos, so drafting works from pages that are read correctly and up to date.
@@ -751,8 +751,33 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Transcribing again (built 2026-10-19)
 
   1. Given a transcribed page, when the assessment's assigned engineer asks for it to be transcribed again, then a new attempt starts on the same page and its text is replaced once it finishes.
+  2. Given a page whose text I corrected, when I ask for it to be transcribed again, then I am asked first, and once I confirm, my correction goes with the old text.
 
-  Still to write, from the CP-19 split: correcting a page's text (the transcription kept as evidence, drafting using the correction); adding pages to a saved observation; removing and restoring a page; who made each change and when; changes by the assigned engineer only, not once archived; a failed save keeping the engineer's correction.
+  Correcting a page's text
+
+  3. Given a transcribed page, when I correct its text and save, then drafting and the AI proposal use my text, and what the model wrote is kept beside it as evidence.
+  4. Given a corrected page, when I view it, then my text is shown as mine, with who corrected it and when, and the transcription, with its uncertain words marked, is folded away beneath it.
+  5. Given a page still being transcribed, failed, or removed, when I try to correct it, then it is refused.
+
+  Adding pages
+
+  6. Given a saved observation, when I photograph or choose pages and add them, then each is stored as raw evidence, marked with who added it and when, and transcribed on its own; one that is not a JPG or PNG is refused, and nothing is added.
+
+  Removing and restoring
+
+  7. Given I remove a page and confirm, then it is kept but left out of the observation, the Scans view, the AI proposal and drafting, and I can restore it from Removed media.
+  8. Given a change would leave an observation with no note, recording, photo or page, when I save it, then it is refused.
+  9. Given a removed page, when I try to correct, retry or transcribe it again, then it is refused until it is restored.
+
+  Drafts
+
+  10. Given a draft used a page's text, when that text is corrected, transcribed again, or the page removed or restored, then the draft keeps the version it used and is marked out of date.
+
+  Permissions and failures
+
+  11. Given I am not the assigned engineer, the assessment is archived, or the observation is deleted, when I try to change its pages, then the change is refused.
+  12. Given a save fails, when the error is shown, then my text or list of pages is kept so I can try again.
+  13. Given a sample observation without a capture session, when I add, remove or restore a page, or write a page's text, then it changes in this browser only, and says so.
   </details>
 
 - [ ] **CP-21** — Suggest COPE categories from all of an observation's evidence (risk engineer, Should, 5 pts, deps: CP-05, CP-08, CP-19, Sprint 4)

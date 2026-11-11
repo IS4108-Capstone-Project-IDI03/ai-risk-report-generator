@@ -13,6 +13,7 @@ import {
   saveObservation,
   updateObservation,
   correctTranscript,
+  correctPageText,
   deleteObservation,
   restoreObservation,
   addObservationMedia,
@@ -63,6 +64,7 @@ import type {
   NameCheck,
   Observation,
   ObservationFilters,
+  ObservationPage,
   PhotoFile,
   VoiceClip,
   WorkflowState,
@@ -226,9 +228,22 @@ const PAGE_TEXT = {
   blank: 'No handwriting was found on this page.',
   demo: 'No capture session, so this page stays in this browser and is not transcribed.',
 }
-const pageNote = (p: NonNullable<Observation['pages']>[number]) =>
+// What a recording, photo or page is called in what the page says (CP-08, CP-20).
+const MEDIA_NOUN = { recordings: 'Recording', photos: 'Photo', pages: 'Page' } as const
+// How many things an observation holds: its note, recordings, photos and
+// pages. One of them can be removed only while another stays (CP-08, CP-20).
+const capturedCount = (o: Observation) =>
+  (o.detail?.trim() ? 1 : 0) +
+  (o.audio ? 1 : 0) +
+  (o.recordings?.length ?? 0) +
+  o.media.length +
+  (o.pages?.length ?? 0)
+// A page written for in the demo (CP-20) shows that text instead.
+const pageNote = (p: ObservationPage) =>
   p.status === null
-    ? PAGE_TEXT.demo
+    ? p.correction
+      ? null
+      : PAGE_TEXT.demo
     : p.status === 'transcribing'
       ? PAGE_TEXT.transcribing
       : p.status === 'transcribed' && !p.transcript?.trim()
@@ -325,6 +340,38 @@ const demoRecording = (id: string, name: string, url: string, added: Stamp | nul
   audioUrl: url,
   added,
 })
+// A page kept in this browser by the demo (CP-19): never transcribed, so it
+// has no status, and holds only the text an engineer writes for it (CP-20).
+const demoPage = (id: string, name: string, url: string, added: Stamp | null) => ({
+  id,
+  name,
+  url,
+  status: null,
+  transcript: null,
+  original: null,
+  uncertain: [],
+  error: null,
+  correction: null,
+  added,
+})
+// A handwritten page as the gateway sends it (CP-19), shown by the text that
+// counts: the engineer's correction where there is one (CP-20), with what
+// the model wrote kept beside it.
+const toPage = (p: NonNullable<SavedObservation['pages']>[number]): ObservationPage => {
+  const { status, transcript, uncertain, error, correction } = p.transcription
+  return {
+    id: p.id,
+    name: p.name,
+    url: p.url,
+    status,
+    transcript: correction?.text ?? transcript,
+    original: correction ? transcript : null,
+    uncertain,
+    error,
+    correction: correction ? { at: correction.at, by: correction.by } : null,
+    added: p.added ?? null,
+  }
+}
 function toEntry(o: SavedObservation): Observation {
   const recordings = o.recordings.map((r) => {
     const { status, transcript, correction, error } = r.transcription
@@ -346,15 +393,8 @@ function toEntry(o: SavedObservation): Observation {
     }
   })
   // Each handwritten page (CP-19), with its transcript and uncertain words.
-  const pages = (o.pages ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    url: p.url,
-    status: p.transcription.status,
-    transcript: p.transcription.transcript,
-    uncertain: p.transcription.uncertain,
-    error: p.transcription.error,
-  }))
+  const pages = (o.pages ?? []).map(toPage)
+  const removedPages = o.removedPages ?? []
   const statuses = [...recordings, ...pages].map((r) => r.status)
   // Where both parts of its proposal stand (CP-21).
   const reading = [o.interpretation?.status, o.interpretation?.photos?.status]
@@ -438,6 +478,14 @@ function toEntry(o: SavedObservation): Observation {
         url: p.url,
         removed: p.removed,
       })),
+      // And removed handwritten pages (CP-20).
+      ...removedPages.map((p) => ({
+        kind: 'pages' as const,
+        id: p.id,
+        name: p.name,
+        url: p.url,
+        removed: p.removed,
+      })),
     ],
     detail: o.note ?? '',
     attached: [
@@ -480,12 +528,13 @@ function toEntry(o: SavedObservation): Observation {
       readFrom: o.interpretation.items.map((item) => {
         const removed =
           o.removedPhotos.some((p) => p.id === item.id) ||
-          o.removedRecordings.some((r) => r.id === item.id)
+          o.removedRecordings.some((r) => r.id === item.id) ||
+          removedPages.some((p) => p.id === item.id)
         const image =
           item.kind === 'photo'
             ? [...photos, ...o.removedPhotos].find((p) => p.id === item.id)?.url
             : item.kind === 'page'
-              ? o.pages?.find((p) => p.id === item.id)?.url
+              ? [...(o.pages ?? []), ...removedPages].find((p) => p.id === item.id)?.url
               : null
         return {
           ...item,
@@ -1354,6 +1403,56 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setState({ obsDialog: null })
       toast('Transcript corrected. Report drafting uses your wording.')
     }
+    // Saves a handwritten page's corrected text (CP-20). The gateway keeps
+    // what the model wrote beside it, and drafting uses the correction. A
+    // demo page, never transcribed, keeps the text written for it in this
+    // browser.
+    async function savePageText(text: string) {
+      const page = dialogRow?.o.pages?.find((p) => p.id === s.obsDialog?.pageId)
+      if (!dialogRow || !page) return
+      if (text === (page.transcript ?? '')) return setState({ obsDialog: null })
+      const { o, key } = dialogRow
+      if (!o.id) {
+        const correction = stampNow()
+        setState({
+          ...changeLocal(key, (x) => ({
+            ...x,
+            pages: x.pages?.map((p) =>
+              p.id === page.id ? { ...p, transcript: text, correction } : p,
+            ),
+            edited: correction,
+          })),
+          obsDialog: null,
+        })
+        return toast('Page text saved in this demo only.')
+      }
+      let saved
+      try {
+        saved = await correctPageText(o.id, page.id, text)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      setState({ obsDialog: null })
+      toast('Page text corrected. Report drafting uses your wording.')
+    }
+    // Transcribes a corrected page again once the engineer confirms (CP-20):
+    // the correction goes with the old text. Throws the reason it failed, so
+    // the dialog shows it.
+    async function confirmTranscribeAgain() {
+      const pageId = s.obsDialog?.pageId
+      if (!dialogRow?.o.id || !pageId) return
+      let saved
+      try {
+        saved = await retranscribePage(dialogRow.o.id, pageId)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      captured.reload()
+      setState({ obsDialog: null })
+      toast('Transcribing the page again. Your corrected text was replaced.')
+    }
     // Deletes the observation once confirmed (AC12), a soft delete that Show
     // deleted can undo. Drafting leaves it out from then on (AC13).
     async function confirmDelete() {
@@ -1393,19 +1492,22 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setState({ obsOpen: null })
       toast('Observation restored. Report drafting uses it again.')
     }
-    // Adds the recordings and photos listed in the Add media dialog (CP-08):
-    // through the gateway for a saved observation, which stores and transcribes
-    // them, or in this demo for a sample one. Throws the reason a save failed,
-    // so the dialog keeps the list for another try.
-    async function addMedia(clips: VoiceClip[], photos: PhotoFile[]) {
+    // Adds the recordings, photos and handwritten pages listed in the Add
+    // media dialog (CP-08, CP-20): through the gateway for a saved
+    // observation, which stores and transcribes them, or in this demo for a
+    // sample one. Throws the reason a save failed, so the dialog keeps the
+    // list for another try.
+    async function addMedia(clips: VoiceClip[], photos: PhotoFile[], pages: PhotoFile[] = []) {
       if (!dialogRow) return
       const { o, key } = dialogRow
       const what = [
         clips.length ? plural(clips.length, 'recording') : '',
         photos.length ? plural(photos.length, 'photo') : '',
+        pages.length ? plural(pages.length, 'page') : '',
       ]
         .filter(Boolean)
-        .join(' and ')
+        .join(', ')
+        .replace(/, ([^,]*)$/, ' and $1')
       if (!o.id) {
         const added = stampNow()
         setState({
@@ -1418,6 +1520,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             recordings: [
               ...(x.recordings ?? []),
               ...clips.map((c) => demoRecording('local-' + c.id, c.name, c.url, added)),
+            ],
+            pages: [
+              ...(x.pages ?? []),
+              ...pages.map((p) => demoPage('local-page-' + p.id, p.name, p.url, added)),
             ],
             // What it holds changed since it was read (CP-21).
             interpretation: x.interpretation
@@ -1435,25 +1541,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           o.id,
           clips.map((c) => ({ name: c.name, audio: c.audio })),
           photos.map((p) => ({ name: p.name, image: p.image })),
+          pages.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
         throw new Error(refusal(error), { cause: error })
       }
       captured.replace(saved)
       // Re-reading the list keeps it refreshing until the transcriptions finish.
-      if (clips.length) captured.reload()
+      if (clips.length || pages.length) captured.reload()
       // The gateway now serves them; the previews in this browser are done.
-      for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
+      for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
       setState({ obsDialog: null })
-      toast(
-        'Added ' +
-          what +
-          '.' +
-          (clips.length ? ' Transcribing ' + plural(clips.length, 'recording') + ' now.' : ''),
-      )
+      const transcribing = [
+        clips.length ? plural(clips.length, 'recording') : '',
+        pages.length ? plural(pages.length, 'page') : '',
+      ]
+        .filter(Boolean)
+        .join(' and ')
+      toast('Added ' + what + '.' + (transcribing ? ' Transcribing ' + transcribing + ' now.' : ''))
     }
-    // Moves a sample observation's recording or photo out of, or back into,
-    // its evidence, in this demo only (CP-08).
+    // Moves a sample observation's recording, photo or page out of, or back
+    // into, its evidence, in this demo only (CP-08, CP-20).
     function moveLocal(x: Observation, item: { kind: MediaKind; id: string; name: string }) {
       const removed = x.removedMedia?.find((m) => m.id === item.id)
       if (removed)
@@ -1462,42 +1570,53 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           removedMedia: x.removedMedia!.filter((m) => m !== removed),
           ...(item.kind === 'photos'
             ? { media: [...x.media, { id: removed.id, name: removed.name, url: removed.url }] }
-            : {
-                recordings: [
-                  ...(x.recordings ?? []),
-                  demoRecording(removed.id, removed.name, removed.url ?? '', null),
-                ],
-              }),
+            : item.kind === 'pages'
+              ? {
+                  pages: [
+                    ...(x.pages ?? []),
+                    removed.page ?? demoPage(removed.id, removed.name, removed.url ?? '', null),
+                  ],
+                }
+              : {
+                  recordings: [
+                    ...(x.recordings ?? []),
+                    demoRecording(removed.id, removed.name, removed.url ?? '', null),
+                  ],
+                }),
           edited: stampNow(),
         }
       const photo = x.media.find((m) => (m.id ?? m.name) === item.id)
       const recording = x.recordings?.find((r) => r.id === item.id)
+      const page = x.pages?.find((p) => p.id === item.id)
       return {
         ...x,
         media: x.media.filter((m) => m !== photo),
         recordings: x.recordings?.filter((r) => r !== recording),
+        pages: x.pages?.filter((p) => p !== page),
         removedMedia: [
           ...(x.removedMedia ?? []),
           {
             ...item,
-            url: photo?.url ?? recording?.audioUrl ?? null,
+            url: photo?.url ?? recording?.audioUrl ?? page?.url ?? null,
             removed: stampNow(),
+            ...(page && { page }),
           },
         ],
         interpretation:
-          (photo || recording) && x.interpretation
+          (photo || recording || page) && x.interpretation
             ? { ...x.interpretation, outOfDate: true }
             : x.interpretation,
         edited: stampNow(),
       }
     }
-    // Removes the recording or photo in the Remove dialog (CP-08), a soft
-    // removal: the gateway keeps it to restore, and drafting stops using it.
+    // Removes the recording, photo or page in the Remove dialog (CP-08,
+    // CP-20), a soft removal: the gateway keeps it to restore, and drafting
+    // stops using it.
     async function confirmRemoveMedia() {
       const item = s.obsDialog?.media
       if (!dialogRow || !item) return
       const { o, key } = dialogRow
-      const noun = item.kind === 'recordings' ? 'Recording' : 'Photo'
+      const noun = MEDIA_NOUN[item.kind]
       if (!o.id) {
         setState({ ...changeLocal(key, (x) => moveLocal(x, item)), obsDialog: null })
         return toast(noun + ' removed in this demo only. Restore it under Removed media.')
@@ -1513,19 +1632,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       toast(
         noun +
           ' removed. ' +
-          (item.kind === 'recordings'
-            ? 'Report drafting no longer uses its transcript. '
-            : 'It leaves the Photos tab. ') +
+          {
+            recordings: 'Report drafting no longer uses its transcript. ',
+            photos: 'It leaves the Photos tab. ',
+            pages: 'Report drafting no longer uses its text. ',
+          }[item.kind] +
           'Restore it under Removed media.',
       )
     }
-    // Restores a removed recording or photo to the observation (CP-08).
+    // Restores a removed recording, photo or page to the observation (CP-08, CP-20).
     async function restoreItem(
       key: string,
       o: Observation,
       item: { kind: MediaKind; id: string; name: string },
     ) {
-      const noun = item.kind === 'recordings' ? 'Recording' : 'Photo'
+      const noun = MEDIA_NOUN[item.kind]
       if (!o.id) {
         setState(changeLocal(key, (x) => moveLocal(x, item)))
         return toast(noun + ' restored in this demo only.')
@@ -1540,7 +1661,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       toast(
         noun +
           ' restored.' +
-          (item.kind === 'recordings' ? ' Report drafting uses its transcript again.' : ''),
+          {
+            recordings: ' Report drafting uses its transcript again.',
+            photos: '',
+            pages: ' Report drafting uses its text again.',
+          }[item.kind],
       )
     }
     // Adds the location the picker's form describes and captures in it
@@ -1864,24 +1989,48 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // when there is no text, Retry after a failure (only for the assigned
     // engineer, as a recording's), and Transcribe again once one is finished (only
     // for whoever may change the observation, as it replaces evidence; CP-20).
-    const pageViews = (o: Observation): PageView[] =>
-      (o.pages ?? []).map((p) => ({
+    // Whoever may change it can also correct a finished page's text, write a
+    // demo page's, and remove a page while something else stays (CP-20).
+    // Transcribing a corrected page again asks first, as it drops the correction.
+    const pageViews = (o: Observation, key: string): PageView[] => {
+      const changing = canChangeObs && !o.deleted
+      return (o.pages ?? []).map((p) => ({
         ...p,
         note: pageNote(p),
         retry:
           canEdit && !readOnlyHere && !o.deleted && o.id ? () => void retryPage(o.id!, p.id) : null,
         again:
-          canChangeObs && !o.deleted && o.id && p.status === 'transcribed'
-            ? () => void transcribeAgain(o.id!, p.id)
+          changing && o.id && p.status === 'transcribed'
+            ? p.correction
+              ? () => setState({ obsDialog: { kind: 'retranscribe', key, pageId: p.id } })
+              : () => void transcribeAgain(o.id!, p.id)
             : null,
+        correct:
+          changing && (o.id ? p.status === 'transcribed' : p.status === null)
+            ? () => setState({ obsDialog: { kind: 'pageText', key, pageId: p.id } })
+            : null,
+        remove:
+          changing && capturedCount(o) > 1
+            ? () =>
+                setState({
+                  obsDialog: {
+                    kind: 'removeMedia',
+                    key,
+                    media: { kind: 'pages', id: p.id, name: p.name },
+                  },
+                })
+            : null,
+        correctedLabel: p.correction ? 'Corrected by ' + stampLabel(p.correction) : null,
+        addedLabel: p.added ? 'Added by ' + stampLabel(p.added) : null,
       }))
+    }
     // The assessment's handwritten pages (CP-19), gathered as the photo
     // collection gathers its photos: every page of an observation not deleted,
     // newest first, each with the observation it belongs to.
     const scanCollection = allRows
       .filter(({ o }) => !o.deleted)
       .flatMap(({ o, key }) =>
-        pageViews(o).map((page) => ({
+        pageViews(o, key).map((page) => ({
           key: key + '/' + page.id,
           page,
           where: placeOf(o),
@@ -2441,14 +2590,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Recordings and photos can be added by whoever may change it, and
       // removed while something else stays captured (CP-08).
       const changing = canChange && !o.deleted
-      const held =
-        (o.detail?.trim() ? 1 : 0) +
-        (o.audio ? 1 : 0) +
-        (o.recordings?.length ?? 0) +
-        o.media.length +
-        (o.pages?.length ?? 0)
       const removing = (kind: MediaKind, id: string, name: string) =>
-        changing && held > 1
+        changing && capturedCount(o) > 1
           ? () => setState({ obsDialog: { kind: 'removeMedia', key, media: { kind, id, name } } })
           : null
       // Saved on the visit to capture just left (CP-16).
@@ -2556,7 +2699,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         })),
         // Each handwritten page with its original, and its transcript or where
         // its transcription stands (CP-19 AC8-AC11).
-        pages: pageViews(o),
+        pages: pageViews(o, key),
         // A saved observation's recordings carry their own text below its note.
         detail: o.recordings ? o.detail : o.detail || o.text,
         hasAudio: !!o.audio,
@@ -3163,7 +3306,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               key: s.obsDialog.key,
               summary: dialogRow.o.text,
               recording: dialogRow.o.recordings?.find((r) => r.id === s.obsDialog!.recordingId),
-              // The recording or photo to remove (CP-08).
+              // The handwritten page whose text is corrected, or which is
+              // transcribed again (CP-20).
+              page: dialogRow.o.pages?.find((p) => p.id === s.obsDialog!.pageId),
+              // The recording, photo or page to remove (CP-08, CP-20).
               media: s.obsDialog.media,
               // What the Add media dialog adds to (CP-08): where it was
               // captured, whether the gateway holds it, and the number its
@@ -3178,6 +3324,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           : null,
       closeObsDialog: () => setState({ obsDialog: null }),
       saveTranscript,
+      savePageText,
+      confirmTranscribeAgain,
       confirmDelete,
       addMedia,
       confirmRemoveMedia,
@@ -3927,15 +4075,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           // Its photos are read only when the engineer asks (CP-05).
           media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
           // Kept in this browser too, and never transcribed without a session.
-          pages: s.fPages.map((p) => ({
-            id: 'local-page-' + p.id,
-            name: p.name,
-            url: p.url,
-            status: null,
-            transcript: null,
-            uncertain: [],
-            error: null,
-          })),
+          pages: s.fPages.map((p) => demoPage('local-page-' + p.id, p.name, p.url, null)),
           detail: text,
         }
         const reference = s.captureTarget.reference

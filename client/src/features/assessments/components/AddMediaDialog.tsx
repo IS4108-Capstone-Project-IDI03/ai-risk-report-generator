@@ -1,10 +1,11 @@
-// Adds recordings and photos to an observation already saved (CP-08), from
-// the Observations tab. Recorded or uploaded audio, and photos taken or
-// chosen, wait in a Ready to add list until Add to observation saves them
-// together. A failed save keeps the list and says why (AC18). Opened by
-// screens/Observations.tsx; the save is addMedia in useAssessmentWorkflow.tsx.
+// Adds recordings, photos and handwritten pages to an observation already
+// saved (CP-08, CP-20), from the Observations tab. Recorded or uploaded audio,
+// and photos and pages taken or chosen, wait in a Ready to add list until Add
+// to observation saves them together. A failed save keeps the list and says
+// why (AC18). Opened by screens/Observations.tsx; the save is addMedia in
+// useAssessmentWorkflow.tsx.
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Callout, Dialog } from '../../../design-system'
+import { Callout, Dialog, IconRegistry } from '../../../design-system'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from '../media'
 import type { PhotoFile, VoiceClip } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -24,6 +25,8 @@ const heading = {
 export function AddMediaDialog({ v, dialog }: Props) {
   const [clips, setClips] = useState<VoiceClip[]>([])
   const [photos, setPhotos] = useState<PhotoFile[]>([])
+  // Photographed pages of handwritten notes (CP-20), transcribed once added.
+  const [pages, setPages] = useState<PhotoFile[]>([])
   const [recording, setRecording] = useState(false)
   // Why a microphone or a chosen file could not be used.
   const [problem, setProblem] = useState<{ title: string; message: string } | null>(null)
@@ -70,30 +73,42 @@ export function AddMediaDialog({ v, dialog }: Props) {
       })),
     ])
   }
-  const addPhotos = (event: ChangeEvent<HTMLInputElement>) => {
-    const { photos: chosen, refused } = choosePhotos([...(event.target.files ?? [])])
-    event.target.value = ''
-    setProblem(refused.length ? { title: 'Not added', message: unsupportedPhotos(refused) } : null)
-    setPhotos((list) => [
-      ...list,
-      ...chosen.map((file) => {
-        const id = ++files.current
-        return { id, name: file.name || 'Photo ' + id, image: file, url: URL.createObjectURL(file) }
-      }),
-    ])
-  }
-  // Takes one off the list; clips and photos share one numbering.
+  // Photos and pages are checked alike: JPG or PNG only.
+  const chooseImages =
+    (set: typeof setPhotos, noun: 'Photo' | 'Page') => (event: ChangeEvent<HTMLInputElement>) => {
+      const { photos: chosen, refused } = choosePhotos([...(event.target.files ?? [])])
+      event.target.value = ''
+      setProblem(
+        refused.length ? { title: 'Not added', message: unsupportedPhotos(refused) } : null,
+      )
+      set((list) => [
+        ...list,
+        ...chosen.map((file) => {
+          const id = ++files.current
+          return {
+            id,
+            name: file.name || noun + ' ' + id,
+            image: file,
+            url: URL.createObjectURL(file),
+          }
+        }),
+      ])
+    }
+  const addPhotos = chooseImages(setPhotos, 'Photo')
+  const addPages = chooseImages(setPages, 'Page')
+  // Takes one off the list; clips, photos and pages share one numbering.
   const drop = (file: VoiceClip | PhotoFile) => {
     URL.revokeObjectURL(file.url)
     setClips((list) => list.filter((c) => c.id !== file.id))
     setPhotos((list) => list.filter((p) => p.id !== file.id))
+    setPages((list) => list.filter((p) => p.id !== file.id))
   }
   const cancel = () => {
     if (recorder.current?.state === 'recording') recorder.current.stop()
-    for (const file of [...clips, ...photos]) URL.revokeObjectURL(file.url)
+    for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
     v.closeObsDialog()
   }
-  const listed = clips.length + photos.length
+  const listed = clips.length + photos.length + pages.length
 
   return (
     <Dialog
@@ -122,7 +137,7 @@ export function AddMediaDialog({ v, dialog }: Props) {
             type="button"
             className="cap-btn cap-btn--primary"
             disabled={busy || !listed || recording}
-            onClick={() => run(() => v.addMedia(clips, photos))}
+            onClick={() => run(() => v.addMedia(clips, photos, pages))}
           >
             {'Add to observation'}
           </button>
@@ -160,6 +175,18 @@ export function AddMediaDialog({ v, dialog }: Props) {
         >
           <p style={heading}>{'Photos'}</p>
           <PhotoPickers onChange={addPhotos} busy={busy} />
+        </section>
+        <section
+          aria-label="Handwritten pages"
+          style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+        >
+          <p style={heading}>{'Handwritten pages'}</p>
+          <PhotoPickers
+            onChange={addPages}
+            busy={busy}
+            takeLabel="Photograph a page"
+            chooseLabel="Choose pages"
+          />
         </section>
         {!!problem && (
           <div role="alert">
@@ -204,6 +231,16 @@ export function AddMediaDialog({ v, dialog }: Props) {
                   label={'Remove ' + photo.name}
                   disabled={busy}
                   onClick={() => drop(photo)}
+                />
+              </ReadyItem>
+            ))}
+            {pages.map((page) => (
+              <ReadyItem key={page.id} icon={IconRegistry.evidence.handwriting} title={page.name}>
+                <PhotoThumb url={page.url} />
+                <RemoveButton
+                  label={'Remove ' + page.name}
+                  disabled={busy}
+                  onClick={() => drop(page)}
                 />
               </ReadyItem>
             ))}

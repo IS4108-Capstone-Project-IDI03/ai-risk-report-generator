@@ -122,7 +122,12 @@ export type SavedPage = {
     attempts: number
     // The model that wrote it.
     model: string | null
+    // The engineer's correction, which drafting uses (CP-20); absent from a
+    // gateway before CP-20.
+    correction?: (Stamp & { text: string }) | null
   }
+  // Who added it after the observation was saved (CP-20).
+  added?: Stamp | null
 }
 // What the model proposes from an observation (CP-05, CP-21), for the
 // engineer to review. Nothing reads it until an engineer asks; the reading
@@ -217,9 +222,11 @@ export type SavedObservation = {
   // Its handwritten pages (CP-19); the gateway always sends them, but older
   // stand-ins for a saved observation have none.
   pages?: SavedPage[]
-  // Removed ones, kept to restore (CP-08).
+  // Removed ones, kept to restore (CP-08, CP-20). Older stand-ins have no
+  // removed pages.
   removedRecordings: (SavedRecording & { removed: Stamp })[]
   removedPhotos: (SavedPhoto & { removed: Stamp })[]
+  removedPages?: (SavedPage & { removed: Stamp })[]
   // null until an engineer asks for its photos to be read (CP-05), and while
   // no photo is left.
   interpretation: SavedInterpretation | null
@@ -476,6 +483,22 @@ export async function correctTranscript(
   ).data
 }
 
+// Corrects a handwritten page's finished transcription, keeping what the
+// model wrote (CP-20).
+export async function correctPageText(
+  id: string,
+  pageId: string,
+  text: string,
+): Promise<SavedObservation> {
+  return (
+    await request<SavedObservation>(
+      'PUT',
+      `${observationPath(id)}/pages/${encodeURIComponent(pageId)}/transcript`,
+      { text },
+    )
+  ).data
+}
+
 // Deletes an observation, a soft delete it can be restored from (CP-08).
 export async function deleteObservation(id: string): Promise<SavedObservation> {
   return (await request<SavedObservation>('DELETE', observationPath(id))).data
@@ -485,23 +508,25 @@ export async function restoreObservation(id: string): Promise<SavedObservation> 
   return (await request<SavedObservation>('POST', `${observationPath(id)}/restore`)).data
 }
 
-// Adds recordings and photos to a saved observation (CP-08). The server
-// stores each file and starts each recording's transcription; it reads no
-// photo until asked.
+// Adds recordings, photos and handwritten pages to a saved observation
+// (CP-08, CP-20). The server stores each file and starts each recording's and
+// page's transcription; it reads no photo until asked.
 export async function addObservationMedia(
   id: string,
   recordings: { name: string; audio: Blob }[],
   photos: { name: string; image: Blob }[],
+  pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   for (const r of recordings) form.append('recording', r.audio, r.name)
   for (const p of photos) form.append('photo', p.image, p.name)
+  for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
 }
 
-// Removes a recording or photo from an observation, a soft removal it can be
-// restored from (CP-08), and restores one.
-export type MediaKind = 'recordings' | 'photos'
+// Removes a recording, photo or handwritten page from an observation, a soft
+// removal it can be restored from (CP-08, CP-20), and restores one.
+export type MediaKind = 'recordings' | 'photos' | 'pages'
 const mediaPath = (id: string, kind: MediaKind, itemId: string) =>
   `${observationPath(id)}/${kind}/${encodeURIComponent(itemId)}`
 export async function removeMedia(

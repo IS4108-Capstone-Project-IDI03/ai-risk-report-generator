@@ -105,7 +105,8 @@ function mockGateway() {
       }))
       return Promise.resolve(new Response(null, { status: 202 }))
     }
-    // Transcribing a finished page again clears its text as the attempt starts.
+    // Transcribing a finished page again clears its text, and any correction,
+    // as the attempt starts (CP-20).
     if (url.endsWith('/retranscribe') && init.method === 'POST') {
       againRequests.push(url)
       listed = listed.map((item) => ({
@@ -117,13 +118,87 @@ function mockGateway() {
             status: 'transcribing',
             transcript: null,
             uncertain: [],
+            correction: null,
           },
         })),
       }))
       return json(200, listed[0])
     }
+    // Managing a saved observation's pages (CP-20).
+    const pageRoute =
+      /^\/api\/observations\/o1\/(media|pages\/([^/]+)(\/transcript|\/restore)?)$/.exec(url)
+    if (pageRoute) return pageChange(init, pageRoute[1], pageRoute[2], pageRoute[3])
     return Promise.reject(new TypeError('Failed to fetch'))
   })
+}
+// What the gateway does with a change to o1's pages (CP-20), unless the next
+// change is to be refused.
+const BY = { id: 'u1', name: 'Alex Rowe' }
+const AT = '2026-09-29T10:00:00.000Z'
+let refuseNext: Promise<Response> | null = null
+const pageChanges: { method: string; path: string; body: unknown }[] = []
+function pageChange(init: RequestInit, path: string, pageId?: string, action?: string) {
+  const method = init.method ?? 'GET'
+  const form = init.body instanceof FormData ? init.body : null
+  const body = form
+    ? { pages: (form.getAll('page') as File[]).map((file) => file.name) }
+    : init.body
+      ? JSON.parse(String(init.body))
+      : undefined
+  pageChanges.push({ method, path, body })
+  if (refuseNext) {
+    const refused = refuseNext
+    refuseNext = null
+    return refused
+  }
+  const o = listed[0]
+  const pages = o.pages ?? []
+  const removedPages = o.removedPages ?? []
+  let next: SavedObservation
+  if (path === 'media')
+    next = {
+      ...o,
+      pages: [
+        ...pages,
+        ...(form!.getAll('page') as File[]).map((file, i) => ({
+          ...page('added' + i),
+          name: file.name,
+          added: { at: AT, by: BY },
+        })),
+      ],
+    }
+  else if (action === '/transcript')
+    next = {
+      ...o,
+      pages: pages.map((p) =>
+        p.id === pageId
+          ? {
+              ...p,
+              transcription: {
+                ...p.transcription,
+                correction: { text: (body as { text: string }).text, at: AT, by: BY },
+              },
+            }
+          : p,
+      ),
+    }
+  else if (action === '/restore')
+    next = {
+      ...o,
+      pages: [...pages, ...removedPages.filter((p) => p.id === pageId)],
+      removedPages: removedPages.filter((p) => p.id !== pageId),
+    }
+  else
+    next = {
+      ...o,
+      pages: pages.filter((p) => p.id !== pageId),
+      removedPages: [
+        ...removedPages,
+        ...pages.filter((p) => p.id === pageId).map((p) => ({ ...p, removed: { at: AT, by: BY } })),
+      ],
+    }
+  listed = [{ ...next, edited: { at: AT, by: BY } }, ...listed.slice(1)]
+  return json(200, listed[0])
 }
 function echo(sent: Sent) {
   const saved = observation({
@@ -185,6 +260,8 @@ beforeEach(() => {
   saves.length = 0
   retries.length = 0
   againRequests.length = 0
+  pageChanges.length = 0
+  refuseNext = null
   saveReply = echo
   mockGateway()
 })
@@ -447,6 +524,208 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Transcribe again' })).not.toBeInTheDocument()
   })
+})
+
+describe('Managing saved pages (CP-20)', () => {
+  const READINGS = 'Pump room readings.'
+  const transcribed = (transcript: string, fields: Partial<SavedPage['transcription']> = {}) =>
+    page('pg1', { status: 'transcribed', transcript, ...fields })
+  async function openWith(pages: SavedPage[], note: string | null = READINGS) {
+    listed = [observation({ note, pages })]
+    await openObservations()
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(note ?? 'FHR') }))
+  }
+  const pageEntry = () => screen.getByRole('region', { name: 'Page 1' })
+
+  it('corrects a page’s text, shown as the engineer’s with what was transcribed kept beneath', async () => {
+    await openWith([transcribed('FHR 7 bor')])
+
+    click('Edit text of Page 1')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit page text' })
+    // The page is shown to check the text against.
+    expect(within(dialog).getByRole('img', { name: 'Photo of Page 1' })).toBeInTheDocument()
+    const text = within(dialog).getByLabelText('Page text')
+    expect(text).toHaveValue('FHR 7 bor')
+    fireEvent.change(text, { target: { value: 'FHR 7 bar' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(
+      await screen.findByText('Page text corrected. Report drafting uses your wording.'),
+    ).toBeInTheDocument()
+    expect(pageChanges).toEqual([
+      { method: 'PUT', path: 'pages/pg1/transcript', body: { text: 'FHR 7 bar' } },
+    ])
+    const entry = pageEntry()
+    expect(within(entry).getByText('FHR 7 bar')).toBeInTheDocument()
+    expect(within(entry).getByText(/^Corrected by Alex Rowe · /)).toBeInTheDocument()
+    // What the model wrote, folded away beneath.
+    const original = within(entry).getByText('As transcribed').closest('details')!
+    expect(original).toHaveTextContent('FHR 7 bor')
+  })
+
+  it('keeps the typed text and says why when a correction is refused', async () => {
+    refuseNext = json(409, { error: 'This page changed while saving. Try again.' })
+    await openWith([transcribed('FHR 7 bor')])
+    click('Edit text of Page 1')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit page text' })
+    fireEvent.change(within(dialog).getByLabelText('Page text'), { target: { value: 'FHR 7 bar' } })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'This page changed while saving. Try again.',
+    )
+    expect(within(dialog).getByLabelText('Page text')).toHaveValue('FHR 7 bar')
+  })
+
+  it('offers no text to correct while a page is transcribing or after it failed', async () => {
+    listed = [
+      observation({
+        note: READINGS,
+        pages: [
+          page('pg1'),
+          { ...page('pg2', { status: 'failed', error: 'Timed out.' }), name: 'Page 2' },
+        ],
+      }),
+    ]
+    await openObservations()
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(READINGS) }))
+
+    expect(screen.queryByRole('button', { name: /^Edit text of/ })).not.toBeInTheDocument()
+  })
+
+  it('asks before transcribing a corrected page again, as the correction goes', async () => {
+    await openWith([
+      transcribed('FHR 7 bor', { correction: { text: 'FHR 7 bar', at: AT, by: BY } }),
+    ])
+
+    click('Transcribe again')
+    const dialog = await screen.findByRole('dialog', { name: 'Transcribe this page again?' })
+    expect(dialog).toHaveTextContent('Your corrected text is replaced by the new transcription')
+    expect(againRequests).toEqual([])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Transcribe again' }))
+
+    await vi.waitFor(() =>
+      expect(againRequests).toEqual(['/api/observations/o1/pages/pg1/retranscribe']),
+    )
+    expect(await screen.findByText('Transcribing the page…')).toBeInTheDocument()
+    expect(screen.queryByText(/^Corrected by/)).not.toBeInTheDocument()
+  })
+
+  it('removes a page once confirmed, and restores it from Removed media', async () => {
+    await openWith([transcribed('FHR 7 bar')])
+
+    click('Remove Page 1')
+    const confirm = await screen.findByRole('dialog', { name: 'Remove this page?' })
+    expect(confirm).toHaveTextContent('The report stops using its text.')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove page' }))
+
+    expect(
+      await screen.findByText(
+        'Page removed. Report drafting no longer uses its text. Restore it under Removed media.',
+      ),
+    ).toBeInTheDocument()
+    expect(pageChanges).toEqual([{ method: 'DELETE', path: 'pages/pg1', body: undefined }])
+    expect(screen.queryByRole('region', { name: 'Page 1' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Removed media (1)'))
+    click('Restore Page 1')
+    expect(
+      await screen.findByText('Page restored. Report drafting uses its text again.'),
+    ).toBeInTheDocument()
+    expect(pageEntry()).toHaveTextContent('FHR 7 bar')
+  })
+
+  it('offers no Remove for a page that is all the observation holds', async () => {
+    listed = [observation({ pages: [transcribed('FHR 7 bar')] })]
+    await openObservations()
+    fireEvent.click(await screen.findByRole('button', { name: /FHR 7 bar/ }))
+
+    expect(screen.getByRole('button', { name: 'Edit text of Page 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Page 1' })).not.toBeInTheDocument()
+  })
+
+  it('adds pages to a saved observation through Add media, each transcribed', async () => {
+    await openWith([], READINGS)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
+
+    fireEvent.change(within(dialog).getByLabelText('Choose pages'), {
+      target: { files: [photo('IMG_0810.jpg'), photo('notes.heic', 'image/heic')] },
+    })
+    // Refused here, as in Scan mode.
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('notes.heic isn’t a JPG or PNG.')
+    expect(within(dialog).getByRole('region', { name: 'Ready to add' })).toHaveTextContent(
+      'IMG_0810.jpg',
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
+
+    expect(await screen.findByText('Added 1 page. Transcribing 1 page now.')).toBeInTheDocument()
+    expect(pageChanges).toEqual([
+      { method: 'POST', path: 'media', body: { pages: ['IMG_0810.jpg'] } },
+    ])
+    const added = screen.getByRole('region', { name: 'IMG_0810.jpg' })
+    expect(within(added).getByText('Transcribing the page…')).toBeInTheDocument()
+    expect(within(added).getByText(/^Added by Alex Rowe · /)).toBeInTheDocument()
+  })
+
+  it('writes, adds, removes and restores pages of an observation in this demo only', async () => {
+    const sent: string[] = []
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (init.method && init.method !== 'GET') sent.push(url)
+      return Promise.reject(new TypeError('Failed to fetch'))
+    })
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    addManually()
+    await screen.findByText('Showing sample data')
+    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
+    )
+    scanMode()
+    choosePages(photo())
+    grade('Low')
+    save()
+    await screen.findByText(/saved in this demo only/)
+    click('View')
+
+    // A demo page is never transcribed, so its text can be written by hand.
+    click('Edit text of IMG_0710.jpg')
+    const write = await screen.findByRole('dialog', { name: 'Edit page text' })
+    fireEvent.change(within(write).getByLabelText('Page text'), {
+      target: { value: 'Hydrant H2 blocked' },
+    })
+    fireEvent.click(within(write).getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Page text saved in this demo only.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'IMG_0710.jpg' })).toHaveTextContent(
+      'Hydrant H2 blocked',
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
+    fireEvent.change(within(dialog).getByLabelText('Choose pages'), {
+      target: { files: [photo('IMG_0811.jpg')] },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
+    expect(await screen.findByText('Added 1 page in this demo only.')).toBeInTheDocument()
+
+    // With a second page, the first can go, and comes back with its text.
+    click('Remove IMG_0710.jpg')
+    const confirm = await screen.findByRole('dialog', { name: 'Remove this page?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove page' }))
+    expect(
+      await screen.findByText('Page removed in this demo only. Restore it under Removed media.'),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Removed media (1)'))
+    click('Restore IMG_0710.jpg')
+    expect(await screen.findByText('Page restored in this demo only.')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'IMG_0710.jpg' })).toHaveTextContent(
+      'Hydrant H2 blocked',
+    )
+    // Only the attempt to start a capture session; nothing went anywhere.
+    expect(sent).toEqual([CAPTURE_URL])
+  }, 15000)
 })
 
 describe('The Scans view (CP-19)', () => {

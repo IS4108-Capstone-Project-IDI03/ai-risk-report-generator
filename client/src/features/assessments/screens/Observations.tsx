@@ -19,7 +19,13 @@ import { AddMediaDialog } from '../components/AddMediaDialog'
 import { LocationForm, RemoveLocationDialog } from '../components/LocationSheet'
 import { LocationNavigator } from '../components/LocationNavigator'
 import { openWalks } from '../openWalks'
-import { DeleteDialog, RemoveMediaDialog, TranscriptDialog } from '../components/ObservationDialogs'
+import {
+  DeleteDialog,
+  PageTextDialog,
+  RemoveMediaDialog,
+  TranscribeAgainDialog,
+  TranscriptDialog,
+} from '../components/ObservationDialogs'
 import { ObservationFilters } from '../components/ObservationFilters'
 import { ObservationList } from '../components/ObservationList'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
@@ -310,6 +316,16 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
       {v.obsDialog?.kind === 'transcript' && !!v.obsDialog.recording && (
         <TranscriptDialog
           key={v.obsDialog.key + v.obsDialog.recording.id}
+          v={v}
+          dialog={v.obsDialog}
+        />
+      )}
+      {v.obsDialog?.kind === 'pageText' && !!v.obsDialog.page && (
+        <PageTextDialog key={v.obsDialog.key + v.obsDialog.page.id} v={v} dialog={v.obsDialog} />
+      )}
+      {v.obsDialog?.kind === 'retranscribe' && !!v.obsDialog.page && (
+        <TranscribeAgainDialog
+          key={v.obsDialog.key + v.obsDialog.page.id}
           v={v}
           dialog={v.obsDialog}
         />

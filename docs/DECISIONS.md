@@ -2278,3 +2278,25 @@ Rejected:
 Known limits: RapidOCR took 5 to 8 s on a dense scanned page on a laptop (the epic expected 1 to 2 s), and Docling reads the page again; measure on EC2. A full-page photo is read as a scanned page. A name RapidOCR misreads is not matched. Text inside a picture still reaches the OCR model.
 
 Stories: PV-06, PV-05, PV-04.
+
+## 2026-11-11 — Saved handwritten pages are managed as recordings are: corrected beside the model's text, added later, removed softly
+
+Chose:
+- (CP-20) A finished page's text is corrected as a recording's transcript is (CP-08): `transcription.correction { text, at, by }` beside the model's `transcript`, which stays as evidence of what was read; drafting and the AI proposal use the correction, and writing the model's words back removes it. One route and service function (`correctTranscript`, now taking `'recordings' | 'pages'`) serves both.
+- A page the model found no handwriting on can be corrected too, so the engineer can write what it missed.
+- The uncertain marks stay on the model's text only. They are `[start, end)` positions in `transcript`, so they no longer fit once the text is edited; the corrected page shows the engineer's text plainly, as theirs (no AI rule), with the transcription and its marks folded away under "As transcribed".
+- Transcribing a corrected page again drops the correction with the old text, after the browser asks. Asking for a new reading means wanting the model's; keeping the correction would leave Transcribe again appearing to do nothing.
+- Pages are added through the same `POST /:id/media` as recordings and photos, marked `added`, and transcribed as at capture. Removing and restoring a page is the same soft removal (`removed { at, by }`), over the same routes (`MEDIA_KINDS`). Everything that counted every page now counts kept pages: what stays captured, what a reading reads, and what drafting waits for.
+- A removed page can't be corrected, retried or transcribed again until it is restored, as for a recording.
+- In the demo (no capture session), a page can be added, removed and restored, and its text written by hand, in that browser only, as CP-08's sample changes are; a removed demo page keeps itself in `removedMedia`, so restoring it brings back its text.
+
+Reason: CP-19 left pages fixed once saved, so a misread word, a forgotten page or a wrong page meant a new observation or living with it, and the uncertain marks it shows were meant for the engineer to act on. Reusing CP-08's model keeps one way to change evidence for engineers and for the code.
+
+Rejected:
+- Moving the uncertain marks onto the corrected text: tracking each word through arbitrary edits is unreliable, and a mark on the wrong word misleads.
+- Keeping the correction when a page is transcribed again, or refusing to transcribe a corrected page: the first makes the action look broken, the second adds a step for no gain.
+- Hiding the new actions on sample observations: the demo is used to show the product without a gateway.
+
+Known limits: page transcription still runs in the gateway's memory, not on the BullMQ queue recordings use (CP-22), so a restart marks a running page failed, to retry; pages added later make that a little more likely. Pages still go to the model as photographed (see privacy.md). The browser asks before transcribing a corrected page again, but the gateway does not: a direct API call drops the correction without asking.
+
+Stories: CP-20, CP-19, CP-08, CP-21.

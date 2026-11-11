@@ -82,15 +82,19 @@ them. The proposal shows on the observation for the engineer to use as its
 note or category through Edit (CP-05). Scan mode photographs pages of
 handwritten notes: each is transcribed by S5 once saved, like a recording, and
 the Observations tab shows its text with the uncertain words underlined, beside
-the original page, with Transcribe again (CP-20) for its assigned engineer when the
-text looks misread; the Scans box beside Photos opens every page of the
-assessment (CP-19). An
+the original page; the Scans box beside Photos opens every page of the
+assessment (CP-19). Its assigned engineer manages a saved observation's pages
+as its recordings (CP-20): Edit text corrects a finished page, keeping what
+the model wrote beside it and drafting from the correction; Transcribe again
+reads a misread page once more, asking first when its text was corrected, as
+the correction goes; Add media adds pages, each transcribed; and Remove sets
+one aside, restored from Removed media. An
 observation may be left uncategorised. On the
 Observations tab (CP-08), each row shows the observation's type, category,
 location, severity, status and capture time, and the list filters by any of
 them. An expanded observation offers Edit (its tags and note, saved together), Add media
-(recordings and photos, recorded, uploaded, taken or chosen), Remove on each
-recording and photo while something else stays (restored from Removed media),
+(recordings, photos and handwritten pages, recorded, uploaded, taken or chosen), Remove on each
+recording, photo and page while something else stays (restored from Removed media),
 Correct transcript (for a finished one, keeping what Whisper wrote) and Delete;
 Show deleted lists deleted ones to restore. A photo reading of photos since
 added or removed shows as out of date, with Read again. These go through the gateway for a saved observation,

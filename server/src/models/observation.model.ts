@@ -85,7 +85,15 @@ export interface IPage {
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
     // What wrote the transcript, set when it is saved.
     provenance?: { provider: string; model: string; promptVersion: string }
+    // The engineer's correction of `transcript` (CP-20), as for a recording's
+    // (CP-08): `transcript` stays as the model wrote it, as evidence of what it
+    // read, and drafting uses this. Transcribing the page again drops it.
+    correction?: IStamp & { text: string }
   }
+  // As for a recording (CP-20): who added it after the observation was saved,
+  // and its removal, a soft one that keeps the photo in S3.
+  added?: IStamp
+  removed?: IStamp
 }
 
 // A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
@@ -348,7 +356,12 @@ const pageSchema = new Schema<IPage>({
         { _id: false },
       ),
     },
+    correction: {
+      type: new Schema({ text: { type: String, required: true }, ...stampFields }, { _id: false }),
+    },
   },
+  added: { type: stampSchema },
+  removed: { type: stampSchema },
 })
 
 const photoSchema = new Schema<IPhoto>({
