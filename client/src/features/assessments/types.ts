@@ -100,6 +100,9 @@ export type Observation = {
       error: string | null
       model: string | null
       outOfDate: boolean
+      // The photos it describes, when known (a sample one's are not): All
+      // Photos says which of them each describes.
+      photoIds?: string[]
     } | null
     categories: ProposedCategory[]
     error: string | null
@@ -134,6 +137,8 @@ export type Observation = {
     correction: Stamp | null
     error: string | null
     audioUrl: string
+    // A site walk clip's part of the walk, in seconds (CP-22); plays only that part (CP-12).
+    clip?: { start: number; end: number } | null
     // Who added it after the observation was saved (CP-08).
     added: Stamp | null
   }[]
@@ -301,7 +306,7 @@ export type WorkflowState = {
   // The expanded row on the Observations tab, by its key.
   obsOpen?: string | null
   // Where an open observation came from when not the list: Back returns there.
-  obsFrom?: 'photos' | 'scans' | null
+  obsFrom?: 'photos' | 'scans' | 'recordings' | null
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).

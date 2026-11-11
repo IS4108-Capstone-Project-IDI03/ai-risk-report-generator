@@ -58,9 +58,11 @@ export function ObservationPage({
       ? 'All Photos'
       : v.obsFrom === 'scans'
         ? 'All Handwritten Pages'
-        : o.deleted
-          ? 'Deleted observations'
-          : 'Observations'
+        : v.obsFrom === 'recordings'
+          ? 'All Recordings'
+          : o.deleted
+            ? 'Deleted observations'
+            : 'Observations'
   const hasRecordings = o.recordings.length > 0 || o.hasAudio
   // Suggest categories lives in the category menu: the first reading, or a new one.
   const proposal = o.proposal
