@@ -20,6 +20,7 @@
     "migrate:visit-types": "ts-node --transpile-only src/scripts/migrate-visit-types.ts",
     "migrate:prices": "ts-node --transpile-only src/scripts/reprice-ai-calls.ts",
     "migrate:cost-parts": "ts-node --transpile-only src/scripts/backfill-cost-parts.ts",
+    "migrate:stages": "ts-node --transpile-only src/scripts/migrate-stages.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

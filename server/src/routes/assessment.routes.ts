@@ -142,6 +142,7 @@ import {
 } from '../services/export.service'
 import { RenderFailedError, RendererUnavailableError } from '../services/export-render.service'
 import { openThreadCount } from '../services/comment.service'
+import { pdfPageCount, recordExport } from '../services/assistant/brief.service'
 import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { requirePermission } from '../middleware/auth.middleware'
@@ -1370,6 +1371,13 @@ router.post('/:reference/export', requirePermission('reports:export'), async (re
     res.setHeader('Content-Disposition', attachment(fileName))
     res.setHeader('Cache-Control', 'no-store')
     res.send(file)
+    // MarshBot's Exported stage and file message (AS-06); not awaited, so a
+    // failure there never touches the file already sent.
+    recordExport(
+      req.params.reference,
+      fileName,
+      parsed.data.format === 'pdf' ? pdfPageCount(file) : null,
+    ).catch((error) => console.error('Recording the export for MarshBot failed:', error))
   } catch (error: unknown) {
     if (error instanceof AssessmentNotFoundError) {
       res.status(404).json({ error: error.message })

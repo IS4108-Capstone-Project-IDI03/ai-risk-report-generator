@@ -474,3 +474,51 @@ export async function readClientIntake(
   })
   return { result: camelKeys(result) as Record<string, unknown>, usage }
 }
+
+// What the coverage check sends back (rag-service POST /assistant/coverage, AS-06
+// AC 7): the checklist items no observation covers, and observations too thin
+// for their section. Must match routes.py's AssistantCoverageRequest.
+export type AssistantCoverageBody = {
+  assessment: { reference: string; jurisdiction: string; facility_type: string }
+  checklist: { id: string; area: string; text: string }[]
+  // Categorised observations only: the route requires at least one category.
+  observations: unknown[]
+  sections: { section_id: string; title: string; cope_dimensions: string[] }[]
+  privacy: unknown
+}
+export type AssistantCoverageResult = {
+  uncovered: string[]
+  thin: { observation_id: string; section_id: string; reason: string }[]
+  usage?: unknown
+}
+
+/** Returns the coverage check's findings and usage. Throws RagServiceError (503 privacy down, 502 model failed). */
+export async function requestAssistantCoverage(
+  body: AssistantCoverageBody,
+): Promise<AssistantCoverageResult> {
+  return callRag<AssistantCoverageResult>('/assistant/coverage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// MarshBot's messages for the wording AI (rag-service POST /assistant/wording,
+// AS-06): it rewords each as an OpenUI Lang program, referring to items by id.
+export type AssistantWordingBody = {
+  viewer: { first_name: string; role: 'engineer' | 'admin' }
+  messages: { id: string; text: string; parts: unknown[] }[]
+  items: { id: string; title: string; detail: string | null; kind: string; weight: string }[]
+  privacy: unknown
+}
+
+/** Returns the programs by message id (a message rag-service rejected has none) and usage. Throws RagServiceError. */
+export async function requestAssistantWording(
+  body: AssistantWordingBody,
+): Promise<{ programs: Record<string, string>; usage?: unknown }> {
+  return callRag('/assistant/wording', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

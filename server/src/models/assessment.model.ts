@@ -1,5 +1,6 @@
 import { Schema, Types, model } from 'mongoose'
 import { coordinateFields, type ICoordinates } from './site.model'
+import { STAGES, type Stage } from '../services/assistant/types'
 
 // Report progress once a report exists. Before that, an assessment's status is
 // derived from its capture session (see assessment.service.ts), not stored.
@@ -83,6 +84,21 @@ export interface IAssessment {
     // As riskQuality.proposal: the model's per-level figures, never used to compute.
     proposal?: unknown
   }
+  // MarshBot's stage (AS-06): only ever moves forward, set by
+  // services/assistant/recheck.service.ts. Separate from the derived `status`.
+  stage?: Stage
+  // When each reached stage was entered; skipped stages share one date.
+  stageDates?: Partial<Record<Stage, Date>>
+  // The latest successful export (EX-01), for the Exported stage and its file message.
+  exportedAt?: Date
+  exportFile?: { fileName: string; pages: number | null }
+  // The engineer told MarshBot nothing more is coming from the client (AS-06 AC 4).
+  setupConfirmedAt?: Date
+  // The engineer told MarshBot capture is done (AS-06 AC 5).
+  readyToGenerateAt?: Date
+  // When the engineer asked for another site visit (AS-06 AC 5): while set, the
+  // assessment stays in Capture and capture gaps stay quiet.
+  anotherVisit?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -160,6 +176,13 @@ const assessmentSchema = new Schema<IAssessment>(
       updatedBy: Schema.Types.ObjectId,
       proposal: Schema.Types.Mixed,
     },
+    stage: { type: String, enum: STAGES, default: 'setup' },
+    stageDates: Object.fromEntries(STAGES.map((s) => [s, Date])),
+    exportedAt: Date,
+    exportFile: { fileName: String, pages: Number },
+    setupConfirmedAt: Date,
+    readyToGenerateAt: Date,
+    anotherVisit: Date,
   },
   {
     timestamps: true,
