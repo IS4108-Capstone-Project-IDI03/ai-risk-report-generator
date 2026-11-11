@@ -975,6 +975,53 @@ describe('Who can change an observation (CP-08 AC17)', () => {
       cleanup()
     }
   })
+
+  it('offers no changes on another engineer’s assessment opened by link (CP-20)', async () => {
+    // Not on this engineer's work list, which holds only their own.
+    workList = []
+    listed = [
+      observation({
+        id: 'o1',
+        note: NOTE,
+        pages: [
+          {
+            id: 'pg1',
+            name: 'Page 1',
+            contentType: 'image/jpeg',
+            size: 1200,
+            url: '/api/observations/o1/pages/pg1/image',
+            transcription: {
+              status: 'transcribed',
+              transcript: 'FHR 7 bar',
+              uncertain: [],
+              error: null,
+              attempts: 1,
+              model: 'gemini-3.8-flash',
+            },
+          },
+        ],
+      }),
+    ]
+    window.history.replaceState(null, '', `/assessment?ref=${REF}&tab=observations`)
+    render(<App />)
+    await signIn()
+
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(NOTE.slice(0, 20)) }))
+
+    // Readable, as the gateway allows, but nothing offers a change it would refuse.
+    expect(screen.getByRole('region', { name: 'Page 1' })).toHaveTextContent('FHR 7 bar')
+    for (const name of [
+      'Delete observation',
+      'Add media',
+      'Edit text of Page 1',
+      'Remove Page 1',
+      'Transcribe again',
+      'Get AI proposal',
+    ])
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
+    expect(calls).toEqual([])
+  })
 }, 15000)
 
 describe('Adding and removing recordings and photos (CP-08)', () => {
