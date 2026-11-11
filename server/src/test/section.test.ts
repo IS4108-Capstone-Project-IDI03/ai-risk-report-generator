@@ -708,8 +708,8 @@ describe('handwritten pages as drafting evidence (CP-19)', () => {
     )
 
     expect((await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)).status).toBe(201)
-    const given = drafts.mock.calls[0][0].observations
-    expect(given.find((o: { id: string }) => o.id === String(scanned._id)).handwriting).toEqual([
+    const given = drafts.mock.calls[0][0].observations as { id: string; handwriting?: string[] }[]
+    expect(given.find((o) => o.id === String(scanned._id))?.handwriting).toEqual([
       'Sprinkler valve shut',
     ])
     expect((await sections()).changesSinceDraft).toBe(0)

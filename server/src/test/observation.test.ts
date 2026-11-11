@@ -2755,8 +2755,9 @@ describe('handwritten pages (CP-19)', () => {
       as.delete(`/api/observations/${id}/pages/${pageId}`)
     const restorePage = (id: unknown, pageId: unknown, as = api) =>
       as.post(`/api/observations/${id}/pages/${pageId}/restore`)
-    // What the observation's reading was given, the last time it was read.
-    const lastRead = () => vision.mock.lastCall![0].texts
+    // The texts the observation's reading was given, the last time it was read.
+    const lastRead = (texts: object[]) =>
+      expect(vision).toHaveBeenLastCalledWith(expect.objectContaining({ texts }))
 
     it('adds pages to a saved observation, each stored, marked as added and transcribed', async () => {
       // A fresh answer per page: a response body can be read only once.
@@ -2824,7 +2825,7 @@ describe('handwritten pages (CP-19)', () => {
 
       expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
       await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
-      expect(lastRead()).toEqual([{ label: page.name, kind: 'page', text: 'Sprinkler valve shut' }])
+      lastRead([{ label: page.name, kind: 'page', text: 'Sprinkler valve shut' }])
 
       // Writing the model's words back removes the correction.
       const back = await correctPage(id, page._id, 'Sprinkler valve sht')
@@ -2907,7 +2908,7 @@ describe('handwritten pages (CP-19)', () => {
       // A removed page is not read, corrected or transcribed again until restored.
       expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
       await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
-      expect(lastRead()).toEqual([{ label: first.name, kind: 'page', text: 'First page' }])
+      lastRead([{ label: first.name, kind: 'page', text: 'First page' }])
       const correcting = await correctPage(id, second._id, 'x')
       expect(correcting.status).toBe(409)
       expect(correcting.body.error).toBe(
