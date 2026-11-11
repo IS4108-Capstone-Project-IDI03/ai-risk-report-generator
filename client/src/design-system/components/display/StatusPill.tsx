@@ -38,6 +38,45 @@ const STATUSES: Record<
     fg: 'var(--green-600)',
     bg: 'var(--green-50)',
   },
+  // An assessment's stage (AS-06): the Assessments list's pill. Quiet tints, one family.
+  setup: {
+    label: 'Setup',
+    icon: 'settings-2',
+    fg: 'var(--graphite-700)',
+    bg: 'var(--graphite-100)',
+  },
+  prepare: {
+    label: 'Prepare',
+    icon: 'list-checks',
+    fg: 'var(--graphite-700)',
+    bg: 'var(--graphite-100)',
+  },
+  capture: { label: 'Capture', icon: 'mic', fg: 'var(--ink-600)', bg: 'var(--ink-50)' },
+  ready_for_generation: {
+    label: 'Ready for generation',
+    icon: 'zap',
+    fg: 'var(--teal-600)',
+    bg: 'var(--teal-50)',
+  },
+  generate: {
+    label: 'Generate',
+    icon: 'sparkles',
+    fg: 'var(--violet-600)',
+    bg: 'var(--violet-50)',
+  },
+  review: { label: 'Review', icon: 'user-search', fg: 'var(--amber-600)', bg: 'var(--amber-50)' },
+  ready_to_export: {
+    label: 'Ready to export',
+    icon: 'file-check',
+    fg: 'var(--green-600)',
+    bg: 'var(--green-50)',
+  },
+  exported: {
+    label: 'Exported',
+    icon: 'circle-check',
+    fg: 'var(--graphite-0)',
+    bg: 'var(--green-600)',
+  },
   archived: {
     label: 'Archived',
     icon: 'archive',

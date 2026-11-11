@@ -1,7 +1,8 @@
 // The Assessments page, the engineer's work list (RV-10, CP-17; rebuilt CP-23
 // boards 03 and 04): top bar, then one card of toolbar, table and footer, by
-// client and site or one flat list. Rendered by AssessmentApp. Calls WorkToolbar,
-// ClientGroup and WorkRow; the list's data is from useAssessmentWorkflow.tsx.
+// client and site or one flat list, with the Focus button beside the bell (AS-06). Rendered
+// by AssessmentApp. Calls WorkToolbar, ClientGroup, WorkRow and FocusButton; the list's data
+// is from useAssessmentWorkflow.tsx.
 import { useState } from 'react'
 import {
   Button,
@@ -14,6 +15,7 @@ import {
 } from '../../../design-system'
 import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
+import { FocusButton } from '../../marshbot/focus/FocusButton'
 import { useReloadOnOutsideChange } from '../../notifications/useNotificationCounts'
 import { ClientGroup } from '../components/ClientGroup'
 import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
@@ -64,11 +66,14 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         }
         bell={bell}
         action={
-          compact && v.canEdit ? (
-            <span className="at-topnew">
-              <NewAssessmentButton onStart={v.goCreate} />
-            </span>
-          ) : undefined
+          <>
+            <FocusButton items={v.focus} onOpen={v.onRow} />
+            {compact && v.canEdit && (
+              <span className="at-topnew">
+                <NewAssessmentButton onStart={v.goCreate} />
+              </span>
+            )}
+          </>
         }
       />
       <div className="at-content">
@@ -96,7 +101,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </span>
               {!!assign && <span className="at-engineer-head">{'Engineer'}</span>}
               <span className="at-foot">
-                <span>{'Status'}</span>
+                <span>{'Stage'}</span>
                 <Head arrow={sorted(1) ? 'up' : undefined}>{'Report due'}</Head>
               </span>
               <span />

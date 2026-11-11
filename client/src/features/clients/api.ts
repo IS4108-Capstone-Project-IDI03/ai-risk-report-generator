@@ -1,5 +1,6 @@
 // Gateway (S2) calls for managing a client and its sites (CP-18).
 import { GatewayError, request, type Allowed, type AssessmentStatus } from '../assessments/api'
+import type { Priority, Stage } from '../marshbot/types'
 
 export type { Allowed }
 
@@ -14,6 +15,9 @@ export type ClientVisit = {
   surveyType: string
   reportDueDate: string | null
   status: AssessmentStatus
+  // AS-06: where it stands and why it is urgent; absent from older answers.
+  stage?: Stage
+  priority?: Priority | null
 }
 
 export type ClientPageSite = {

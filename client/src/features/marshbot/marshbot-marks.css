@@ -1,0 +1,26 @@
+/* The priority mark (AS-06, boards 08 and 10): a 24 px round tint with a 14 px icon.
+   Red tint for overdue and fix now, the ink tint for short on time; never solid. */
+.mb-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.mb-mark[data-reason='short_on_time'] {
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.mb-mark:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* A client's tooltip lists each reason on its own line. */
+.mb-mark-reasons {
+  display: grid;
+  gap: 2px;
+}

@@ -20,6 +20,7 @@ import {
 } from '../new-assessment/components/NewAssessmentButton'
 import { useCompact } from '../assessments/useCompact'
 import { listClientInfo, type ClientListInfo } from './api'
+import type { Priority } from '../marshbot/types'
 import { dueState, type ClientFacts, type DueState } from './clientFacts'
 import { RemoveDialog, RenameClientDialog } from './ClientDialogs'
 import { ClientTable } from './components/ClientTable'
@@ -39,6 +40,8 @@ export type ClientListItem = {
   // The jurisdiction codes of its listed sites, each once.
   jurisdictions: string[]
   facts: ClientFacts
+  // Why its assessments are urgent (AS-06); the table marks the most urgent.
+  priorities: Priority[]
   // Its name and its sites' names, lower case.
   search: string
   open: () => void

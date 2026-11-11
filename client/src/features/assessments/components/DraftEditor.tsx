@@ -94,6 +94,8 @@ function Finding({
     <div
       role="group"
       aria-label={`Finding ${claim.number}`}
+      // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
+      data-activity-key={claim.key}
       className={'rv-finding' + (review.state === 'pending' ? ' is-pending' : '')}
     >
       <p
@@ -515,8 +517,12 @@ export function DraftEditor({
             {draft.questions.length > 0 && (
               <Callout tone="info" title="Questions for the engineer">
                 <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                  {draft.questions.map((q) => (
-                    <li key={q}>{q}</li>
+                  {draft.questions.map((q, n) => (
+                    // AS-06: counted as seen once it stays on screen (marshbot/useActivity);
+                    // must match server/src/services/assistant/checks/unseen-questions.ts.
+                    <li key={q} data-activity-key={`question:${draft.id}:${n}`}>
+                      {q}
+                    </li>
                   ))}
                 </ul>
               </Callout>

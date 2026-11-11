@@ -368,7 +368,7 @@ describe('Opening a client (CP-18)', () => {
       target: { value: '' },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stage' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Capturing' }))
     expect(
       screen

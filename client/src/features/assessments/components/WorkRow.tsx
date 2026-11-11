@@ -1,6 +1,6 @@
 // One assessment on the Assessments list (CP-23, boards 03 and 04): type tile,
-// reference, Type, Survey date, Status, Report due, and on hover Archive and an
-// open chevron. A table row wide, a stacked card on a phone (assessment-list.css).
+// reference (with its priority mark, AS-06), Type, Survey date, Stage, Report due, and on
+// hover Archive and an open chevron. A table row wide, a stacked card on a phone (assessment-list.css).
 // Used by screens/Dashboard and ClientGroup. Calls the design system's kit.
 import {
   AssessmentTypeTile,
@@ -10,7 +10,8 @@ import {
   StatusPill,
   Tooltip,
 } from '../../../design-system'
-import { STATUS_LABEL } from '../format'
+import { PriorityMark } from '../../marshbot/PriorityMark'
+import { rowStage, STATUS_LABEL } from '../format'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { typeName } from '../workList'
 
@@ -45,17 +46,29 @@ export function WorkRow({
       <span className="at-assessment">
         <AssessmentTypeTile type={type} />
         <span className="at-text">
-          <button
-            type="button"
-            className="at-ref"
-            data-id={r.id}
-            // The site leads, so a screen reader hears which site the row is for.
-            aria-label={[r.site, r.id, type, r.date, r.status, 'report due ' + r.dueDate]
-              .filter(Boolean)
-              .join(', ')}
-          >
-            {r.id}
-          </button>
+          <span className="at-refline">
+            <button
+              type="button"
+              className="at-ref"
+              data-id={r.id}
+              // The site leads, so a screen reader hears which site the row is for; then why it
+              // is urgent, which the mark inside shows on hover (one tab stop, as on Clients).
+              aria-label={[
+                r.site,
+                r.id,
+                type,
+                r.date,
+                rowStage(r),
+                'report due ' + r.dueDate,
+                r.priority?.text,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              {r.id}
+              {!!r.priority && <PriorityMark priorities={[r.priority]} inside />}
+            </button>
+          </span>
           {!grouped && (
             <span className="at-sub" title={r.client + ' › ' + r.site}>
               {r.client + ' › ' + r.site}
@@ -77,7 +90,7 @@ export function WorkRow({
       )}
       <span className="at-foot">
         <span className="at-status">
-          <StatusPill status={r.status} />
+          <StatusPill status={rowStage(r)} />
         </span>
         <span className="at-due">
           <ReportDue date={r.reportDueDate} plain={finished} />

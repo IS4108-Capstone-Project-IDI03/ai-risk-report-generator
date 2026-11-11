@@ -218,7 +218,7 @@ describe('Reassign (RV-11)', () => {
   it('greys the icon for an archived assessment and says why instead of opening (AC9)', async () => {
     serve()
     await openList('knowledge_admin')
-    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stage' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Archived' }))
     const icon = await screen.findByRole('button', { name: 'Reassign RPT-2026-0002' })
 

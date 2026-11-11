@@ -166,7 +166,7 @@
   width: 220px;
 }
 .cl-col-status {
-  width: 136px;
+  width: 184px;
 }
 .cl-col-due {
   width: 168px;
@@ -204,7 +204,7 @@
   width: 104px;
 }
 .cl-assess[data-site] .cl-col-status {
-  width: 128px;
+  width: 160px;
 }
 .cl-assess[data-site] .cl-col-actions-1 {
   width: 44px;
@@ -559,4 +559,20 @@
   left: auto;
   right: 0;
   text-align: left;
+}
+
+/* The priority mark's tooltip (AS-06) opens above the name, so line 1 must not clip it; the name
+   itself still ends in an ellipsis (.cl-ellip). */
+.cl-clients .cl-line-1 {
+  overflow: visible;
+}
+
+/* A stage's name can be long ("Ready for generation"): the pill wraps in its column (AS-06). */
+.cl-assess .ds-pill {
+  height: auto;
+  min-height: 26px;
+  max-width: 100%;
+  padding-block: 4px;
+  line-height: 1.2;
+  white-space: normal;
 }
