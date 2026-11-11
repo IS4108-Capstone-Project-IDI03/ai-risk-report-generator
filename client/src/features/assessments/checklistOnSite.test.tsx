@@ -40,6 +40,9 @@ const item = (fields: Partial<ChecklistItem>): ChecklistItem => ({
   COPE_dimension: ['Construction'],
   citations: [],
   flags: [],
+  status: 'active',
+  edited: null,
+  removed: null,
   check: null,
   ...fields,
 })

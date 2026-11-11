@@ -791,17 +791,24 @@ export type ChecklistItem = {
   // A report section ('7') or 'hazards'.
   area: string
   subsection: string | null
-  // Only 'standard' and 'hazard' are written by the model (AC8).
-  origin: 'template' | 'standard' | 'hazard' | 'hazard_list'
+  // Only 'standard' and 'hazard' are written by the model (AC8); 'manual' is
+  // the engineer's own (CP-32).
+  origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'manual'
   hazard: string | null
   text: string
   fields: string[]
   COPE_dimension: string[]
-  citations: { ref: string; quote: string; quoteFound: boolean }[]
+  citations: ChecklistCitation[]
   flags: 'uncited'[]
+  // Removed by the engineer (CP-32): kept to restore, left out everywhere else.
+  status: 'active' | 'removed'
+  // Who edited or removed it, and when (CP-32); null for none.
+  edited: { at: string; by: string } | null
+  removed: { at: string; by: string } | null
   // Where it stands on site (CP-31); null while unchecked.
   check: ItemCheck | null
 }
+export type ChecklistCitation = { ref: string; quote: string; quoteFound: boolean }
 // Confirmed and Differs come from the observation that checks the item;
 // Not seen and Not applicable are marks with no observation.
 export type CheckResult = 'confirmed' | 'differs' | 'not_seen' | 'not_applicable'
@@ -846,8 +853,14 @@ export type ChecklistView = {
   checklist: Checklist | null
   // After regenerating (CP-31): how many of the earlier checklist's answers
   // were kept, the text of each item whose answer was not, and the ids of the
-  // new items that may replace those: new, in the same section or risk.
-  carryOver?: { kept: number; dropped: string[]; mayReplace: string[] }
+  // new items that may replace those: new, in the same section or risk; and
+  // how many of the engineer's changes were kept (CP-32).
+  carryOver?: {
+    kept: number
+    dropped: string[]
+    mayReplace: string[]
+    changes?: { edited: number; added: number; removed: number }
+  }
 }
 
 const checklistPath = (reference: string) =>
@@ -872,6 +885,85 @@ export async function markChecklistItem(
 ) {
   const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}/mark`
   return (await request<ChecklistView>('PUT', path, { mark })).data
+}
+
+// An item the engineer adds (CP-32): under a report section, optionally one
+// of its subsections, or under a priority risk ('hazards' with its id).
+export type NewChecklistItem = {
+  area: string
+  subsection: string | null
+  hazard: string | null
+  text: string
+  COPE_dimension: string[]
+}
+
+// Adds the engineer's own item; returns the checklist and the new item's id.
+export async function addChecklistItem(reference: string, item: NewChecklistItem) {
+  const path = `${checklistPath(reference)}/items`
+  return (await request<ChecklistView & { itemId: string }>('POST', path, item)).data
+}
+
+// Edits an item's wording, categories or references (CP-32). Each reference
+// is a passage with the words it rests on; no words takes its first sentence.
+export async function editChecklistItem(
+  reference: string,
+  itemId: string,
+  change: {
+    text?: string
+    COPE_dimension?: string[]
+    citations?: { ref: string; quote: string }[]
+  },
+) {
+  const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}`
+  return (await request<ChecklistView>('PATCH', path, change)).data
+}
+
+// Removes an item, or puts a removed one back (CP-32).
+export async function removeChecklistItem(reference: string, itemId: string, restore = false) {
+  const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}/${restore ? 'restore' : 'remove'}`
+  return (await request<ChecklistView>('POST', path)).data
+}
+
+// A passage found for an item's reference (CP-32): its document, text and pages.
+export type FoundPassage = {
+  ref: string
+  documentId: string | null
+  text: string
+  headings: string[]
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+// The passages of the checklist's standards that best match the words.
+export async function searchChecklistPassages(
+  reference: string,
+  query: string,
+  signal?: AbortSignal,
+) {
+  const path = `${checklistPath(reference)}/passages?q=${encodeURIComponent(query)}`
+  return (await request<{ results: FoundPassage[] }>('GET', path, undefined, signal)).data.results
+}
+
+// The checklist as a PDF to take on site (CP-32), and its name.
+export async function downloadChecklistPdf(
+  reference: string,
+): Promise<{ file: Blob; fileName: string }> {
+  let response: Response
+  try {
+    response = await fetch(`${checklistPath(reference)}/pdf`)
+  } catch {
+    throw new GatewayError(null)
+  }
+  if (response.status === 502 || response.status === 504) throw new GatewayError(null)
+  if (response.status === 401) reportSessionEnded()
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new GatewayError(response.status, problem.error)
+  }
+  return {
+    file: await response.blob(),
+    fileName: fileNameOf(response.headers.get('Content-Disposition'), `${reference} checklist.pdf`),
+  }
 }
 
 // Drafts one section from the assessment's observations; the gateway saves it.

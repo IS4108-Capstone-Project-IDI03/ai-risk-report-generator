@@ -18,6 +18,7 @@ from app.orchestrator.orchestrator import (
     run,
 )
 from app.privacy import PrivacyUnavailable
+from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
 from app.site_walk.propose import propose_site_walk
 
@@ -484,6 +485,21 @@ def chat(request: ChatRequest) -> StreamingResponse:
         attachments=attachments,
     )
     return StreamingResponse(events, media_type="text/event-stream")
+
+
+# A search for a checklist item's reference (CP-32 AC2): the words to look for, in the
+# standards the checklist was generated from.
+class SearchPassagesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: Query
+    document_ids: Annotated[list[str], Field(min_length=1, max_length=50)]
+    limit: Annotated[int, Field(ge=1, le=30)] = 10
+
+
+@router.post("/passages/search")
+def passage_search(request: SearchPassagesRequest) -> dict:
+    """Return the documents' passages that best match the words, best first (CP-32)."""
+    return {"results": search_passages(request.query, request.document_ids, request.limit)}
 
 
 @router.get("/passages/{passage_id}")

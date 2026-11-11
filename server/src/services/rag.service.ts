@@ -66,6 +66,42 @@ export function getPassage(id: string): Promise<object> {
   return callRag(`/passages/${encodeURIComponent(id)}`)
 }
 
+// One passage as S4 gives it: its document, text, headings and pages.
+export type FoundPassage = {
+  id: string
+  documentId: string | null
+  text: string
+  headings: string[]
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+// The passage for a checklist item's reference (CP-32 AC2), or null when S4
+// doesn't know it. Throws RagServiceError when S4 fails.
+export async function findPassage(id: string): Promise<FoundPassage | null> {
+  try {
+    return await callRag<FoundPassage>(`/passages/${encodeURIComponent(id)}`)
+  } catch (error: unknown) {
+    if (error instanceof RagServiceError && error.status === 404) return null
+    throw error
+  }
+}
+
+// The documents' passages that best match the words, best first (CP-32 AC2):
+// a keyword search in S4, with no paid call, so nothing is masked or recorded.
+export async function searchPassages(
+  query: string,
+  documentIds: string[],
+  limit = 10,
+): Promise<FoundPassage[]> {
+  const found = await callRag<{ results: FoundPassage[] }>('/passages/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, document_ids: documentIds, limit }),
+  })
+  return found.results
+}
+
 /**
  * S4's event stream for one chat request (CB-01), for the chat route to pass
  * on. Its final `usage` event is recorded for `userId` and removed (EV-03).

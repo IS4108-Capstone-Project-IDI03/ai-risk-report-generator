@@ -761,6 +761,56 @@ comes from the gateway (`npm run export:checklist-cases -- <file>`), since the
 passages in Chroma carry no standard numbers; it holds one database's document
 ids, so it is not committed.
 
+### Customising the checklist (CP-32)
+
+On the Checklist tab the assigned engineer customises the latest checklist;
+nothing changes in the sheet opened from capture, where the checklist is only
+answered. Each item has a pencil (Edit item) and a red bin (Remove item); each
+card ends with a dashed **Add item** row. The template's subsections, a
+priority risk's last item and an item an observation answers keep a greyed bin
+with the reason (mark the first two Not applicable instead; delete the
+observation first). Removing shows a toast with Undo; removed items are listed,
+folded, under **Removed items (n)** at the end, each with Restore. An edited
+item is tagged Edited and loses its AI rule; an added one is tagged Added.
+
+The editor (`components/ChecklistItemEditor.tsx`) holds what to check, the
+COPE categories (one or more) and the references. Adding asks where: a
+priority risk, or a report section and optionally one of its template
+subsections. **Add reference** searches the checklist's standards, starting
+from the item's own words, and opens a passage to read; the engineer may
+select the words the item rests on, else its first sentence is quoted. The
+gateway fetches a newly chosen passage from S4 (`GET /passages/{id}`), refuses
+one outside the checklist's standards or no longer applying to the site, looks
+for the quote in it as S4 does (`quoteFound`) and keeps the passage in the
+checklist's `sources`, so the reference reads the same later and offline.
+
+**Passage search.** S4's `POST /passages/search` (`app/retrieval/keyword_search.py`)
+takes `{ query, document_ids, limit }` and ranks the documents' searchable
+passages by BM25 over the words they share with the query (lower case, stop
+words dropped, a plural "s" dropped, clause numbers such as `8.3.1` kept whole;
+headings count). It reads Chroma only, paging past Chroma Cloud's 300-result
+cap, and keeps each document's passages for 10 minutes (24 documents at most),
+so the next search is instant. No paid call is made and the query never leaves
+the service, so nothing is masked or recorded. Withdrawn and unconfirmed
+passages are left out, as in every search. The gateway's `GET
+.../checklist/passages?q=` searches the latest checklist's standards that still
+apply to the site (12 results).
+
+**PDF.** `GET .../checklist/pdf` (anyone who can view the assessment) builds the
+page from the saved checklist (`checklist-pdf.ts`), never from the browser, and
+prints it with the export's Chromium (`export-render.service`: scripts off,
+every request refused). A4, with the reference and page number in every page's
+margin. It has the assessment's details and the standards used, then every
+item still on the checklist in the tab's order (priority risks, then each
+section with its template subsections and their items beneath), numbered. Each
+item has its categories; each reference its standard's title, edition, page and
+quoted words (flagged when not word for word); then its answer (result, who,
+where, when) or four boxes to tick and two lines to write on. AI-written items
+are tagged, as are edited and added ones. Nothing in it is fetched, so it reads
+the same offline. Named `<reference> checklist <YYYY-MM-DD>.pdf`
+(`REPORT_TIME_ZONE`). CP-34 adds each item's pre-filled value where the
+reference lines are.
+
 ## Site walk proposal (S4, CP-22)
 
 `POST /site-walks/propose` (`app/site_walk/propose.py`) turns a finished site

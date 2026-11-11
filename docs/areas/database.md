@@ -1218,8 +1218,8 @@ again.
 ## Pre-survey checklists (CP-30)
 
 `checklists` holds one document per generated checklist. Generating again adds
-a document and the latest is shown; earlier ones are kept (CP-32 will compare
-against them to keep the engineer's edits). Each document has:
+a document and the latest is shown; earlier ones are kept (CP-32 carries the
+engineer's changes over from the latest). Each document has:
 
 - `assessment`, and `facilityType` and `jurisdiction`: the site's when it was
   generated.
@@ -1227,18 +1227,28 @@ against them to keep the engineer's edits). Each document has:
   (`id`, `title`, `sourceType`, `standardNumber`, `edition`), as they were then.
 - `items`, in report order, each with its own `_id` for later stories to refer to:
   `area` (a section, `'6'` to `'12'`, or `'hazards'`), `subsection`, `origin`
-  (`template`; `standard` or `hazard`, written by the model; or `hazard_list`,
-  the hazard list's own item when the model wrote none), `hazard` (the configured hazard's id),
+  (`template`; `standard` or `hazard`, written by the model; `hazard_list`,
+  the hazard list's own item when the model wrote none; or `manual`, added by
+  the engineer, CP-32), `hazard` (the configured hazard's id),
   `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
   list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
-  (`uncited`: it rests on no passage). `status` (`active`) and `prefill`
-  (`null`) are kept for CP-32 and CP-34. `check` is a mark made on site
+  (`uncited`: it rests on no passage; never on a template or `manual` item).
+  `status`: `active`, or `removed` by the engineer (CP-32), kept so it can be
+  restored and stays removed when generated again. `prefill` (`null`) is kept
+  for CP-34. `edited` (CP-32): `{ at, by: { id, name }, was: { text,
+  COPE_dimension, citations } }` once the engineer edits a generated item,
+  `was` being the item as generated, which the next generation is matched
+  against; else `null` (an engineer's own item is never `edited`). `removed`:
+  `{ at, by: { id, name } }` while removed, else `null`. `check` is a mark made on site
   without an observation (CP-31): `{ mark: 'not_seen' | 'not_applicable', at,
   by: { id, name } }`, else `null`. `carried` lists the `_id`s of the same item
   in earlier checklists of the assessment, newest first (see below).
 - `areas` (`id`, `title`) and `hazards` (`id`, `name`, `standards` it is
   checked against, `inScope`: those that were in scope).
 - `sources`: the cited passages by `C:` ID, with their text and Chroma labels.
+  A passage the engineer chose (CP-32) has `text`, `doc_id`, `headings`,
+  `page_start` and `page_end`; a regenerated checklist keeps the passages its
+  carried-over references cite.
 - `provenance`: `provider`, `model` (`null` when no standard was in scope, so
   no model was called), `effort`, `prompt_version`, `checklist_version` (of
   `checklist.json`), `template_version` and `generated_at`.
@@ -1251,7 +1261,12 @@ against them to keep the engineer's edits). Each document has:
 | --- | --- |
 | `GET /api/assessments/:reference/checklist` | `{ scope, standards, checklist }`: the site's facility type and country, the standards that apply to it now (each with `uploadedAt`), and the latest checklist or `null`. Anyone who can view the assessment. 404. |
 | `POST /api/assessments/:reference/checklist` | `{ standardIds }`: generates from those standards and saves it as the latest (`reports:generate`, assigned engineer only). 201 with the same body as the GET, plus `carryOver: { kept, dropped, mayReplace }` (CP-31): how many answers were kept, the text of each item whose answer was not, and the ids of the new items that may replace those (unmatched, in the same section or risk; none for a first checklist); 400 (a standard that doesn't apply), 403, 404, 409 (archived), 503 (S4 failed, with the reason). |
-| `PUT /api/assessments/:reference/checklist/items/:itemId/mark` | `{ mark }`: `not_seen`, `not_applicable`, or `null` to clear it, on an item of the latest checklist (CP-31 AC4; `assessments:edit`, assigned engineer only). No observation is saved and no capture session is needed. 200 with the same body as the GET; 400, 403, 404 (not on the latest checklist), 409 (archived, or an observation checks the item). |
+| `PUT /api/assessments/:reference/checklist/items/:itemId/mark` | `{ mark }`: `not_seen`, `not_applicable`, or `null` to clear it, on an item of the latest checklist (CP-31 AC4; `assessments:edit`, assigned engineer only). No observation is saved and no capture session is needed. 200 with the same body as the GET; 400, 403, 404 (not on the latest checklist), 409 (archived, an observation checks the item, or it is removed). |
+| `POST /api/assessments/:reference/checklist/items` | `{ area, subsection?, hazard?, text, COPE_dimension }`: adds the engineer's own item (`origin: 'manual'`) after its place's items (CP-32; `assessments:edit`, assigned engineer only). `area` is a section of the checklist, `subsection` one of its template subsections or null; or `'hazards'` with a configured `hazard`. `COPE_dimension` one or more, stored in C-O-P-E order. 201 with the same body as the GET plus `itemId`; 400 (doesn't fit), 403, 404 (no checklist), 409 (archived). |
+| `PATCH /api/assessments/:reference/checklist/items/:itemId` | Any of `{ text, COPE_dimension, citations }` (CP-32 AC1-2). `citations` replaces the references: each `{ ref: 'C:<id>', quote }`, an empty quote taking the passage's first sentence. A generated item records `edited`. 200 with the same body as the GET; 400 (a passage not in the checklist's standards, no longer applying, or unknown), 403, 404, 409 (archived, or removed), 503 (S4 failed). |
+| `POST /api/assessments/:reference/checklist/items/:itemId/remove`, `/restore` | Removes an item (`status: 'removed'`) or puts it back (CP-32). A template item, a priority risk's last item and an item an observation answers are refused (409, saying what to do instead). 200 with the same body as the GET; 403, 404, 409 (archived). |
+| `GET /api/assessments/:reference/checklist/passages?q=` | `{ results: [{ ref, documentId, text, headings, pageStart, pageEnd }] }`: S4's keyword search of the latest checklist's standards that still apply to the site, best first (CP-32 AC2). Anyone who can view the assessment. 400 (no words), 404, 503. |
+| `GET /api/assessments/:reference/checklist/pdf` | The latest checklist as an A4 PDF to take on site (CP-32 AC4-5), `<reference> checklist <YYYY-MM-DD>.pdf`. Anyone who can view the assessment. 404 (no checklist), 503 (Chromium missing or failed). |
 
 A standard applies when it is an FM, NFPA or local standard labelled with the
 site's facility type and country, or `all`, has finished ingesting, and is not
@@ -1290,6 +1305,20 @@ no match stays answered on the earlier checklist only; its observation stays
 an ordinary observation, `carryOver.dropped` names it, so the engineer knows
 to answer it again, and `carryOver.mayReplace` lists the unmatched new items
 in its section or risk.
+
+### Customising (CP-32)
+
+Regenerating also carries the engineer's changes over (AC3). An edited item is
+matched as it was generated (`edited.was`), by the same rules as answers; the
+new item that matches takes the engineer's wording, categories and references,
+and its `edited.was` becomes the new generated item, for the next time. A new
+item matching a removed one comes in removed. The engineer's own items, and
+edited items no new item matches, are copied as they are, after the new items,
+with `carried` and their mark, so their answers stay too. Removed items no new
+item matches are dropped. If every item of a priority risk would come in
+removed, the first is restored, so each risk keeps one. The response's
+`carryOver.changes` counts the `{ edited, added, removed }` items kept.
+A removed item can't be marked or answered (409) until restored.
 
 ## Knowledge documents (IN-01, KB-01, IN-07)
 

@@ -798,6 +798,12 @@ async function checklistLink(
       'This item is no longer on the checklist, which was regenerated. Remove the link to the checklist item to save the observation on its own, or reopen the checklist.',
     )
   }
+  // Removed by the engineer (CP-32): restored first, it can be answered again.
+  if (item.status === 'removed') {
+    throw new ChecklistItemError(
+      'This item was removed from the checklist. Restore it on the Checklist tab, or remove the link to save the observation on its own.',
+    )
+  }
   const checked = await ObservationModel.exists({
     assessment,
     'checklistItem.item': { $in: [item._id, ...(item.carried ?? [])] },

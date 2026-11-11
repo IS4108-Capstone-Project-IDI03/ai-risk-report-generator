@@ -505,10 +505,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   8. Given I am not the assigned engineer, or the assessment is archived, when I check an item, then it is refused.
   </details>
 
-- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 3 pts, deps: CP-30 (CP-31 for the download), Sprint 5)
+- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 3→5 pts, deps: CP-30 (CP-31 for the download), Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: customise the generated checklist, so my site visit checklist reflects the planned inspection. Replaces CP-12.
+
+  Built on `feat/xuren-cp-32-customise-checklist`. Re-estimated from 3 to 5 points: choosing a reference needs a passage search, and the download is an A4 PDF. A report template subsection, and a priority risk's last item, can't be removed: they are marked Not applicable instead (decided 11 Nov 2026; see `docs/DECISIONS.md`).
 
   1. Given a generated checklist, when I add, edit or remove an item, then the saved checklist reflects that change.
   2. Given an existing item, when I change its standard reference by choosing a passage from the standards in scope, then the saved item uses that reference.

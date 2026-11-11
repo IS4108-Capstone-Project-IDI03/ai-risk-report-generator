@@ -1,6 +1,20 @@
 import { useState } from 'react'
-import { Button, Callout, Checkbox, Dialog, EmptyState } from '../../../design-system'
-import { generateChecklist, GatewayError, type ChecklistView, type ScopeStandard } from '../api'
+import {
+  Button,
+  Callout,
+  Checkbox,
+  Dialog,
+  EmptyState,
+  IconButton,
+  toast,
+} from '../../../design-system'
+import {
+  downloadChecklistPdf,
+  generateChecklist,
+  GatewayError,
+  type ChecklistView,
+  type ScopeStandard,
+} from '../api'
 import { caption, card, country, heading, muted } from '../checklistChecks'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
 import { formatDay } from '../format'
@@ -29,19 +43,49 @@ function leftOut(view: ChecklistView): Set<string> {
   )
 }
 
-// What regenerating an answered checklist did to its answers (CP-31), until
-// dismissed: that they were all kept; or how many were not, with the items as
-// they were worded, folded away, since the new items that may replace them
-// are highlighted in the checklist below. Nothing is said of a checklist that
-// had no answers.
+// Hands the browser the file to save.
+function download(file: Blob, fileName: string) {
+  const url = URL.createObjectURL(file)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+type Changes = { edited: number; added: number; removed: number }
+
+// "Your 2 edited, 1 added and 1 removed items are kept.", or null for none (CP-32).
+function changesKept({ edited, added, removed }: Changes) {
+  const parts = [
+    edited && `${edited} edited`,
+    added && `${added} added`,
+    removed && `${removed} removed`,
+  ].filter(Boolean) as string[]
+  if (!parts.length) return null
+  const total = edited + added + removed
+  const list =
+    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
+  return `Your ${list} ${total === 1 ? 'item is' : 'items are'} kept.`
+}
+
+// What regenerating an answered or customised checklist did to its answers
+// (CP-31) and the engineer's changes (CP-32), until dismissed: that they were
+// all kept; or how many answers were not, with the items as they were worded,
+// folded away, since the new items that may replace them are highlighted in
+// the checklist below. Nothing is said of a checklist with neither.
 function Regenerated({
   lost,
   replacing,
+  changes,
   onDismiss,
 }: {
   lost: string[]
   // How many new items may replace them, highlighted below.
   replacing: number
+  changes: Changes | null
   onDismiss: () => void
 }) {
   const dismiss = (
@@ -49,10 +93,11 @@ function Regenerated({
       Dismiss
     </Button>
   )
+  const kept = changes && changesKept(changes)
   if (lost.length === 0) {
     return (
       <Callout tone="success" title="Checklist regenerated">
-        All your answers are kept.
+        {[kept, 'All your answers are kept.'].filter(Boolean).join(' ')}
         <div style={{ marginTop: 'var(--space-3)' }}>{dismiss}</div>
       </Callout>
     )
@@ -69,7 +114,7 @@ function Regenerated({
     >
       {one ? 'This item was' : 'These items were'} reworded, so{' '}
       {one ? 'its answer' : 'their answers'} did not carry over. {highlighted}What you recorded is
-      still in Observations.
+      still in Observations.{kept && ` ${kept}`}
       {/* For an item removed rather than reworded, which nothing below shows. */}
       <details style={{ margin: 'var(--space-3) 0' }}>
         <summary style={{ cursor: 'pointer' }}>Show the earlier wording ({lost.length})</summary>
@@ -111,9 +156,12 @@ export function Checklist({
   // the answers, the items whose answers were not kept, and highlights the new
   // items that may replace them, until dismissed; null when nothing is to be said.
   const [asking, setAsking] = useState(false)
-  const [regenerated, setRegenerated] = useState<{ lost: string[]; replacing: Set<string> } | null>(
-    null,
-  )
+  const [regenerated, setRegenerated] = useState<{
+    lost: string[]
+    replacing: Set<string>
+    changes: Changes | null
+  } | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   if (loadError) {
     return (
@@ -132,6 +180,9 @@ export function Checklist({
   const setUnticked = (next: Set<string>) => setTicks({ checklist: shownId, unticked: next })
   const chosen = view.standards.filter((s) => !unticked.has(s.id))
   const answered = view.checklist?.items.filter((i) => i.check) ?? []
+  // The engineer's own changes (CP-32), kept when it is generated again.
+  const customised =
+    view.checklist?.items.some((i) => i.origin === 'manual' || i.edited || i.removed) ?? false
   const generate = async () => {
     setAsking(false)
     setRunning(true)
@@ -143,10 +194,11 @@ export function Checklist({
         chosen.map((s) => s.id),
       )
       setView(generated)
-      if (answered.length) {
+      if (answered.length || customised) {
         setRegenerated({
           lost: generated.carryOver?.dropped ?? [],
           replacing: new Set(generated.carryOver?.mayReplace ?? []),
+          changes: generated.carryOver?.changes ?? null,
         })
       }
     } catch (failure: unknown) {
@@ -160,6 +212,21 @@ export function Checklist({
     }
   }
   const generated = view.checklist && new Date(view.checklist.provenance.generated_at)
+  // The PDF to take on site (CP-32), for anyone who can open the assessment.
+  const downloadPdf = async () => {
+    setDownloading(true)
+    try {
+      const { file, fileName } = await downloadChecklistPdf(reference)
+      download(file, fileName)
+      toast.success(`Downloaded ${fileName}`)
+    } catch (failure: unknown) {
+      toast.error("Couldn't download the checklist", {
+        description: failure instanceof GatewayError ? failure.message : 'Try again.',
+      })
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div
@@ -181,23 +248,35 @@ export function Checklist({
         }}
       >
         <h2 style={{ ...heading, fontSize: '20px', flex: '1 1 360px' }}>Pre-survey checklist</h2>
-        {canGenerate && (
-          <Button
-            variant={view.checklist ? 'secondary' : 'primary'}
-            iconLeft="sparkles"
-            loading={running}
-            disabled={running}
-            onClick={() => (answered.length ? setAsking(true) : void generate())}
-          >
-            {view.checklist ? 'Regenerate checklist' : 'Generate checklist'}
-          </Button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          {view.checklist && (
+            <IconButton
+              icon="download"
+              label="Download checklist PDF"
+              tooltip="Download PDF"
+              variant="outline"
+              disabled={downloading}
+              onClick={() => void downloadPdf()}
+            />
+          )}
+          {canGenerate && (
+            <Button
+              variant={view.checklist ? 'secondary' : 'primary'}
+              iconLeft="sparkles"
+              loading={running}
+              disabled={running}
+              onClick={() => (answered.length || customised ? setAsking(true) : void generate())}
+            >
+              {view.checklist ? 'Regenerate checklist' : 'Generate checklist'}
+            </Button>
+          )}
+        </div>
       </div>
       {running && <p style={muted}>Generating the checklist. This takes about half a minute.</p>}
       {asking && (
         <Dialog
           title="Regenerate the checklist?"
-          description="Your answers stay with the items that come back. If an AI-written item is reworded, you'll be shown which ones to answer again. Nothing is removed from Observations."
+          description="Your answers stay with the items that come back. Your edited, added and removed items are kept too. If an AI-written item is reworded, you'll be shown which ones to answer again. Nothing is removed from Observations."
           onClose={() => setAsking(false)}
           footer={
             <>
@@ -215,6 +294,7 @@ export function Checklist({
         <Regenerated
           lost={regenerated.lost}
           replacing={regenerated.replacing.size}
+          changes={regenerated.changes}
           onDismiss={() => setRegenerated(null)}
         />
       )}
@@ -290,6 +370,7 @@ export function Checklist({
             setView={setView}
             reload={reload}
             answering={answering}
+            customising={canGenerate}
             highlight={regenerated?.replacing}
             regenerateHint={
               canGenerate
