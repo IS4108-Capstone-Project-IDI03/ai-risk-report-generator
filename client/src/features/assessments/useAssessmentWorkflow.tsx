@@ -389,6 +389,7 @@ function toEntry(o: SavedObservation): Observation {
       error,
       // A site walk clip plays only its part of the walk (a media fragment).
       audioUrl: r.clip ? r.url + '#t=' + r.clip.start + ',' + r.clip.end : r.url,
+      clip: r.clip ? { start: r.clip.start, end: r.clip.end } : null,
       added: r.added,
     }
   })
@@ -517,6 +518,7 @@ function toEntry(o: SavedObservation): Observation {
         error: o.interpretation.photos.error,
         model: o.interpretation.photos.model,
         outOfDate: o.interpretation.photos.outOfDate,
+        photoIds: o.interpretation.photos.photoIds,
       },
       categories: o.interpretation.categories,
       error: o.interpretation.error,
@@ -1074,11 +1076,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // belongs to. The report's photo appendix (EX-01) is to draw on it.
     const photoCollection = allRows
       .filter(({ o }) => !o.deleted)
-      .flatMap(({ o, key }) =>
-        o.media.map((photo, i) => ({
+      .flatMap(({ o, key }) => {
+        // The AI's description of the observation's photos (CP-05, CP-21),
+        // once written: one for all of them, so each row says which it covers.
+        const described = o.interpretation?.photos
+        const reading =
+          described?.status === 'interpreted' && described.description ? described : null
+        const idOf = (m: (typeof o.media)[number]) => m.id ?? m.name
+        const covered = (m: (typeof o.media)[number]) =>
+          !reading?.photoIds || reading.photoIds.includes(idOf(m))
+        return o.media.map((photo, i) => ({
           key: key + '/' + i,
           name: photo.name,
           url: photo.url,
+          description: reading && {
+            text: reading.description!,
+            outOfDate: reading.outOfDate,
+            // Whether it describes this photo, and how many others it describes.
+            thisOne: covered(photo),
+            others: o.media.filter((m) => m !== photo && covered(m)).length,
+          },
           where: placeOf(o),
           path: pathOf(o),
           cat: categoryLabel(o.cats),
@@ -1093,8 +1110,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               obsShowDeleted: false,
               of: NO_FILTERS,
             }),
-        })),
-      )
+        }))
+      })
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
     // The Location filter offers where the listed observations are, and the
@@ -2048,6 +2065,41 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               tab: 'observations',
               obsOpen: key,
               obsFrom: 'scans',
+              obsShowDeleted: false,
+              of: NO_FILTERS,
+            }),
+        })),
+      )
+    // The assessment's recordings (CP-12), gathered as the photo collection
+    // gathers its photos: every recording kept on an observation not deleted,
+    // newest first. A failed one can be retried here, except in someone else's
+    // assessment (RV-11) or the demo, where the gateway has nothing to retry.
+    const recordingCollection = allRows
+      .filter(({ o }) => !o.deleted)
+      .flatMap(({ o, key }) =>
+        (o.recordings ?? []).map((r) => ({
+          key: key + '/' + r.id,
+          name: r.name,
+          audioUrl: r.audioUrl,
+          clip: r.clip ?? null,
+          status: r.status,
+          // Its transcript as corrected, once there is one.
+          transcript: r.status === 'transcribed' ? r.text : null,
+          retry:
+            r.status === 'failed' && !readOnlyHere && o.id
+              ? () => void retryVoice(o.id!, r.id)
+              : null,
+          where: placeOf(o),
+          path: pathOf(o),
+          cat: categoryLabel(o.cats),
+          cats: o.cats,
+          text: o.text,
+          time: o.time,
+          openObservation: () =>
+            setState({
+              tab: 'observations',
+              obsOpen: key,
+              obsFrom: 'recordings',
               obsShowDeleted: false,
               of: NO_FILTERS,
             }),
@@ -3128,13 +3180,20 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // tab stays selected while they show.
       isPhotos: isAssessment && s.tab === 'photos',
       isScans: isAssessment && s.tab === 'scans',
+      // Every recording (CP-12), a view of the Observations tab like the two above.
+      isRecordings: isAssessment && s.tab === 'recordings',
       // Capture is part of the Observations tab, which stays highlighted.
-      tabValue: sc === 'field' || s.tab === 'photos' || s.tab === 'scans' ? 'observations' : s.tab,
+      tabValue:
+        sc === 'field' || s.tab === 'photos' || s.tab === 'scans' || s.tab === 'recordings'
+          ? 'observations'
+          : s.tab,
       goPhotos: () => setState({ tab: 'photos' }),
       goScans: () => setState({ tab: 'scans' }),
+      goRecordings: () => setState({ tab: 'recordings' }),
       goObservations: () => setState({ tab: 'observations' }),
       photoCollection,
       scanCollection,
+      recordingCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
@@ -3263,7 +3322,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // `step` is the page's arrows, which stay on the same way in; from the list it starts afresh.
       openObs: (key: string, step = false) =>
         setState({ obsOpen: key, ...(!step && { obsFrom: null }) }),
-      // Back from an observation's page: to All Photos or All Handwritten Pages if it came from there.
+      // Back from an observation's page: to All Photos, All Handwritten Pages
+      // or All Recordings (CP-12) if it came from there.
       closeObs: () =>
         setState(s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null }),
       obsFrom: s.obsFrom ?? null,

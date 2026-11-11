@@ -352,7 +352,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   1. Given an active session, when a JPG or PNG photograph is saved, then the original image is stored as raw evidence.
   2. Given a saved photograph, when its photo observation is opened, then the original image is linked to that observation.
-  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.)
+  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.) (Added 11 Nov 2026 with CP-12, no points: each row names its photo and, once the observation's photos are described, opens that description under it, saying which of the photos it describes and whether they changed since.)
   4. Given an unsupported file type, when photo upload is attempted, then the file is rejected with a format message.
   5. Given a photo capture is created, when it is saved, then the capture is tagged with the engineer's id.
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
@@ -440,6 +440,27 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   2. Given an annotated image with entered caption, when Save is selected, then the caption is stored with the annotation.
   3. Given a saved annotated image, when it is displayed in any annotated-photo view, then its caption appears beneath it.
   4. Given a saved annotation, when the raw photo is opened, then the original image remains unchanged.
+  </details>
+
+- [ ] **CP-12** — See every recording of an assessment (risk engineer, Could, 3 pts, deps: CP-03, CP-08, CP-22, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see and play every voice recording of an assessment in one place, as All Photos and All Handwritten Pages show theirs, so I can find a recording without knowing which observation holds it, and catch one that failed to transcribe.
+
+  1. Given saved recordings, when I open All recordings from the location navigator, then every recording kept on an observation not deleted is listed, newest first, with its observation, location and category, and the Observations tab stays selected.
+  2. Given a removed recording, or a recording of a deleted observation, when All Recordings is opened, then it is not listed.
+  3. Given a recording still transcribing, or one that failed, when it is listed, then its row says so under its name.
+  4. Given a failed recording on my assessment, when I select Retry, then a new transcription attempt starts for it.
+  5. Given someone else's assessment, when a failed recording is listed, then it can be played but offers no Retry.
+  6. Given a listed recording, when I select its play tile, then it plays in place and any other recording stops; when I select it again, it pauses.
+  7. Given a recording playing or paused, when I drag its seek bar, tap along it or press the arrow keys, then it moves to that point (the arrows by five seconds), and its time shows as played / length.
+  8. Given a recording playing, when I select its speed, then it plays at 1×, 1.5× or 2× in turn, and the next recording I play keeps that speed.
+  9. Given a site walk clip, when it is played, then only its own part of the walk plays, its seek bar runs from the clip's start to its end, and it stops at the clip's end.
+  10. Given a listed recording, when I select anywhere else on its row, then its observation opens, and Back returns to All Recordings.
+  11. Given no recordings, when All Recordings is opened, then it says there are none yet.
+  12. Given a transcribed recording, when I select Transcript, then its transcript, as corrected, opens under the row, and selecting it again closes it; when I play the recording, its transcript opens by itself.
+
+  Not in this story: correcting or removing a recording (on its observation's page, CP-08); a site walk proposal's recordings (its walk list already holds them); a length column (recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted against no story (CP-04 AC3, CP-19 AC17).
   </details>
 
 - [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
@@ -762,7 +783,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Scans view (added 2026-10-19; like the photo collection, CP-04 AC3)
 
-  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation.
+  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation. (Added 11 Nov 2026 with CP-12, no points: each row names its page, says while it is transcribing or failed, with Retry, and opens its transcript under it as the observation's page shows it.)
 
   Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
   </details>

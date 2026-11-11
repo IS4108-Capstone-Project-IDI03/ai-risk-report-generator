@@ -203,9 +203,11 @@ is (CP-03), and becomes drafting evidence.
    again (CP-20) to the assessment’s assigned engineer (`POST
    /api/observations/:id/pages/:pageId/retranscribe`), which clears its text,
    and any correction, and runs steps 2-4 once more; for a corrected page the
-   browser asks first. The Scans view, opened from the Observations
-   tab's Scans box beside Photos, lists every page of the assessment's
-   observations not deleted the same way, each with Go to observation.
+   browser asks first. All Handwritten Pages, opened from the location
+   navigator beside All Photos and All Recordings (CP-12), lists every page
+   of the assessment's observations not deleted, each with its state, Retry,
+   and its transcript to open, shown the same way; its text opens the
+   observation.
    Drafting uses the text as transcribed, or as the engineer corrected it; the
    uncertain marks are for the engineer and are not sent to S4.
 6. The assigned engineer manages a saved observation's pages (CP-20) as

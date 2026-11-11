@@ -37,6 +37,7 @@ import { ReportExport } from './screens/ReportExport'
 import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
+import { Recordings } from './screens/Recordings'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
@@ -419,6 +420,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                     {v.isPhotos && <Photos v={v} />}
 
                     {v.isScans && <Scans v={v} />}
+
+                    {v.isRecordings && <Recordings v={v} />}
 
                     {v.isGenerate &&
                       (v.liveReference ? (

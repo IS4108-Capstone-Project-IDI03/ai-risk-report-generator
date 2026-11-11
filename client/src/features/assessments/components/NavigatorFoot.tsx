@@ -1,5 +1,6 @@
 // The tinted buttons at the foot of the location navigator (CP-22): add a
-// location, every photo, every handwritten page and the deleted observations.
+// location, every photo, every handwritten page, every recording (CP-12) and
+// the deleted observations.
 // Rendered by LocationNavigator.tsx.
 import { Icon } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -29,18 +30,21 @@ function NavFootRow({
   )
 }
 
-// The four rows. Shared with a site walk proposal's navigator (round 5), where
-// they open the proposal's own photos, pages and deleted observations.
+// The rows. Shared with a site walk proposal's navigator (round 5), where
+// they open the proposal's own photos, pages and deleted observations; it has
+// no recordings row, as its walk list already holds the walk's recordings.
 export function NavFoot({
   onAddLocation,
   onPhotos,
   onScans,
+  onRecordings,
   deletedCount,
   onDeleted,
 }: {
   onAddLocation?: () => void
   onPhotos: () => void
   onScans: () => void
+  onRecordings?: () => void
   deletedCount: number
   onDeleted: () => void
 }) {
@@ -52,6 +56,7 @@ export function NavFoot({
       {/* Every photo and every handwritten page (CP-04, CP-19). */}
       <NavFootRow icon="image" label="All photos" onClick={onPhotos} />
       <NavFootRow icon="scan-text" label="All handwritten pages" onClick={onScans} />
+      {!!onRecordings && <NavFootRow icon="mic" label="All recordings" onClick={onRecordings} />}
       {/* The deleted ones, always reachable here, with how many there are. */}
       <NavFootRow
         icon="trash-2"
@@ -68,6 +73,7 @@ export function NavigatorFoot({ v }: { v: AssessmentWorkflow }) {
       onAddLocation={v.obsAddLocation ?? undefined}
       onPhotos={v.goPhotos}
       onScans={v.goScans}
+      onRecordings={v.goRecordings}
       deletedCount={v.obsDeletedCount}
       onDeleted={() => v.setObsShowDeleted(true)}
     />

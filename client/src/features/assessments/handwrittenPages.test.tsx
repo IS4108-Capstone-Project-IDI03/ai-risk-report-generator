@@ -790,6 +790,56 @@ describe('The Scans view (CP-19)', () => {
     expect(screen.getByRole('group', { name: 'Handwritten pages' })).toBeInTheDocument()
   })
 
+  it('says where each page stands and opens its transcript as the observation shows it', async () => {
+    listed = [
+      observation({
+        note: 'Pump room readings.',
+        pages: [
+          page('pg1', { status: 'transcribed', transcript: 'FHR 7 bar', uncertain: [[4, 5]] }),
+          { ...page('pg2', { status: 'failed', error: 'Timed out.' }), name: 'Page 2' },
+          { ...page('pg3'), name: 'Page 3' },
+          {
+            ...page('pg4', {
+              status: 'transcribed',
+              transcript: 'Hydrnt',
+              correction: { text: 'Hydrant H2 seized.', at: AT, by: BY },
+            }),
+            name: 'Page 4',
+          },
+          { ...page('pg5', { status: 'transcribed', transcript: '' }), name: 'Page 5' },
+        ],
+      }),
+    ]
+    await openObservations()
+    await screen.findByRole('button', { name: /Pump room readings\./ })
+    fireEvent.click(screen.getByRole('button', { name: 'All handwritten pages' }))
+    const view = screen.getByRole('group', { name: 'Handwritten pages' })
+    const row = (name: string) =>
+      within(view)
+        .getAllByRole('listitem')
+        .find((li) => within(li).queryByText(name, { selector: '.ob-pt-name' }))!
+    expect(screen.getByText('5 pages')).toBeInTheDocument()
+
+    // Still transcribing, or failed with Retry: no text to open yet.
+    expect(row('Page 3')).toHaveTextContent('Transcribing')
+    expect(within(row('Page 3')).queryByRole('button', { name: /^Transcript/ })).toBeNull()
+    expect(row('Page 2')).toHaveTextContent('Couldn’t transcribe')
+    fireEvent.click(within(row('Page 2')).getByRole('button', { name: 'Retry' }))
+    await vi.waitFor(() => expect(retries).toHaveLength(1))
+    expect(retries[0]).toMatch(/\/pages\/pg2\/transcription\/retry$/)
+
+    // The model's reading, its unsure word marked.
+    fireEvent.click(within(row('Page 1')).getByRole('button', { name: 'Transcript of Page 1' }))
+    expect(row('Page 1')).toHaveTextContent('FHR 7 (unsure) bar')
+    expect(row('Page 1')).toHaveTextContent('1 word unsure. Check it against the page.')
+    // A corrected page shows the engineer's text plainly; a blank one says so.
+    fireEvent.click(within(row('Page 4')).getByRole('button', { name: 'Transcript of Page 4' }))
+    expect(row('Page 4')).toHaveTextContent('Hydrant H2 seized.')
+    expect(row('Page 4')).not.toHaveTextContent('Hydrnt')
+    fireEvent.click(within(row('Page 5')).getByRole('button', { name: 'Transcript of Page 5' }))
+    expect(row('Page 5')).toHaveTextContent('No handwriting was found on this page.')
+  })
+
   it('says when there are no pages yet', async () => {
     listed = [observation({ note: 'Typed note only.' })]
     await openObservations()

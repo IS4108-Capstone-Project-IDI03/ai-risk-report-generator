@@ -1281,3 +1281,222 @@ span.ob-pt-thumb {
     display: none;
   }
 }
+
+/* All Recordings (CP-12): the photo table's rows, with a play tile for the
+   thumbnail and the recording's name, state and player under the text. */
+.ob-pt-play {
+  position: relative;
+  z-index: 1;
+  color: var(--marsh-navy);
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ob-ease),
+    transform 120ms var(--ob-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-pt-play:hover {
+    background: var(--ob-selected);
+  }
+}
+.ob-pt-play:active {
+  transform: scale(0.96);
+}
+.ob-pt-play:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.ob-pt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ob-pt-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.ob-pt-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ob-pt-state--failed {
+  color: var(--red-600);
+  font-weight: 600;
+}
+.ob-pt-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* "Transcript ⌄" / "Description ⌄": a quiet text button at the line's end. */
+.ob-pt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 13px/1 var(--ob-font);
+  cursor: pointer;
+  transition: background-color 120ms var(--ob-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-pt-toggle:hover {
+    background: var(--ob-fill);
+  }
+}
+.ob-pt-toggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+@media (pointer: coarse), (max-width: 639px) {
+  .ob-pt-toggle {
+    min-height: 44px;
+  }
+}
+/* The opened text: selectable, so it sits above the row's link. */
+.ob-pt-detail {
+  margin-top: 6px;
+  cursor: auto;
+  user-select: text;
+}
+.ob-pt-detail .ob-transcript {
+  margin: 0;
+}
+.ob-pt-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+/* The AI's words behind its rule, as a page's transcript is (PageTranscript). */
+.ob-pt-ai {
+  max-width: 68ch;
+  margin: 6px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--ai-border);
+  color: var(--text-body);
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-pt-toggle {
+    transition: none;
+  }
+}
+/* Controls inside the row sit above its stretched link, so they act, not open. */
+.ob-pt-above {
+  position: relative;
+  z-index: 1;
+}
+.ob-pt-seek {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.ob-seek {
+  --seek: 0%;
+  flex: 1 1 auto;
+  min-width: 80px;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+.ob-seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--marsh-navy) var(--seek), var(--ob-line) var(--seek));
+}
+.ob-seek::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ob-line);
+}
+.ob-seek::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--marsh-navy);
+}
+.ob-seek::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--marsh-navy);
+  appearance: none;
+}
+.ob-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--marsh-navy);
+}
+.ob-seek:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.ob-seek-time {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ob-seek-speed {
+  flex: none;
+  min-width: 40px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ob-fill);
+  color: var(--marsh-navy);
+  font: 600 12px/1 var(--ob-font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-seek-speed:hover {
+    background: var(--ob-selected);
+  }
+}
+.ob-seek-speed:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-pt-play {
+    transition: none;
+  }
+  .ob-pt-play:active {
+    transform: none;
+  }
+}
+/* A phone: the tile stays square; the bar and speed get 44px to aim at. */
+@media (pointer: coarse), (max-width: 639px) {
+  .ob-seek {
+    height: 44px;
+  }
+  .ob-seek-speed {
+    min-width: 44px;
+    height: 44px;
+  }
+}

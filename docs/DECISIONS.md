@@ -2350,3 +2350,29 @@ Known limits: the content rules are checked with patterns (first person, "should
 
 Stories: AS-01, GN-01, CP-30, EV-03, PV-02.
 
+
+## 2026-11-11 — All Recordings lists recordings as All Photos lists photos, with one player in the browser; all three views open each item's text
+
+Chose:
+- (CP-12) All Recordings is a third view of the Observations tab, beside All Photos and All Handwritten Pages, opened from the location navigator's foot. It uses their table (`PhotoTable`: observation, location, category; a tap on the row opens the observation; Back returns to the view), with a play tile where the thumbnail is. It is built in the browser from the observations already loaded: no new route or field.
+- One hidden `<audio>` for the whole list (`useRecordingPlayer`), so only one recording plays at a time. The playing or paused row shows a seek bar (a range input: drag, tap, arrow keys by five seconds, Home and End), its time, and a 1× / 1.5× / 2× speed, kept from one recording to the next for the visit.
+- A site walk clip plays from the walk's file. The player keeps the clip's start and end itself rather than relying on the url's `#t=` fragment, so the bar runs from 0:00 to the clip's length, seeking stays inside the clip, and playback stops at its end. The client's recording view now carries `clip` for this.
+- The row shows the observation's text, as All Photos does, with the recording's name and its state (Transcribing, or Couldn't transcribe with Retry) under it, which tells an observation's recordings apart. Retry is offered only where the observation page offers it: not in someone else's assessment (RV-11) or the demo.
+- Removed recordings and deleted observations' recordings are left out, as All Photos leaves out theirs; they are restored from the observation and the Deleted observations list.
+- A site walk proposal's navigator has no recordings row: its walk list already lists the walk's recordings, with their own player.
+- Each row of the three views has the item's own line under the observation's text: its name, its transcription's state with Retry (recordings and pages), and a Transcript or Description toggle that opens its text under the row, closed to start with. A recording's transcript also opens when it plays, to read along. The text looks as on the observation's page: a recording's transcript plainly, as corrected; a page's reading behind the AI rule with its unsure words marked, or the engineer's correction plainly; a photo's description behind the AI rule. All Photos and All Handwritten Pages gained this with CP-12 but count against no story (noted on CP-04 AC3 and CP-19 AC17); a site walk proposal's views are unchanged.
+- A photo's description is the observation's, one for all its photos (CP-21), so each photo's row says whether it describes this photo and how many others, or that it was written before this photo was added, and "Its evidence changed since." when out of date, as the observation's page says. The client's photo reading now carries `photoIds` for this.
+- This reverses CP-19's choice to keep page transcripts off the Scans view ("tiles only"): with the text closed by default the list stays as compact, and reading a page or recording no longer means opening each observation.
+
+Reason: recordings were the one kind of evidence only reachable one observation at a time, so finding "where I said the valve was chained" or a failed transcription meant opening each observation. Matching the other two views keeps one way to browse evidence, and giving all three the same line keeps them alike.
+
+Rejected:
+- The browser's own `<audio controls>` in each row: about 300px wide, different in every browser, and breaks the table's columns.
+- A length column: observation recordings store no length, and reading it from every file would download them all; the length shows once a recording plays.
+- A search box over transcripts: the photo and scan views have none, and the three should match.
+- Correcting or removing a recording here: that stays on the observation's page, so there is one place to change evidence. The same goes for a page's text, and for describing photos again.
+- Text that follows along with playback, a sentence lit as it is spoken: it needs Whisper's timestamps, which S5 doesn't return outside its eval, and a corrected transcript would lose them.
+
+Known limits: a recording made in the browser (webm from MediaRecorder) has no length in its header. The player seeks past its end to make the browser work it out, then starts at 0:00; if the browser still can't tell within three seconds, only the time played shows, without a bar. The speed is not remembered between visits.
+
+Stories: CP-12, CP-03, CP-04, CP-08, CP-19, CP-21, CP-22, RV-11.
