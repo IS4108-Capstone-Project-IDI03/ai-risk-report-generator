@@ -1,0 +1,169 @@
+{
+ "id": "thin-05",
+ "split": "tune",
+ "kind": "thin",
+ "source": "office5 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c02",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c03",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c04",
+   "area": "9",
+   "text": "Fire Alarm Details",
+   "key": "9/Fire Alarm Details"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Where alarms are monitored, and how quickly they are acted on",
+   "key": "9/Fire Alarm Monitoring"
+  },
+  {
+   "id": "c06",
+   "area": "9",
+   "text": "Manual Firefighting Features",
+   "key": "9/Manual Firefighting Features"
+  },
+  {
+   "id": "c07",
+   "area": "9",
+   "text": "Water sources, tanks and mains feeding the fire protection",
+   "key": "9/Water Supply Details"
+  },
+  {
+   "id": "c08",
+   "area": "10",
+   "text": "Boundary Exposures",
+   "key": "10/Boundary Exposures"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-22",
+   "COPE_dimension": "Exposure",
+   "note": "construction site to the S across the road - 2 tower cranes, hot works on going. approx 40 m from our facade",
+   "severity": "moderate",
+   "location": "Site boundary"
+  },
+  {
+   "id": "off5-7",
+   "COPE_dimension": "Construction",
+   "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair",
+   "severity": "moderate",
+   "location": "Tenant floors"
+  },
+  {
+   "id": "off5-14",
+   "COPE_dimension": "Protection",
+   "note": "addressable fire alarm, monitored 24/7 by FCC on L1, direct link to SCDF. hose reels + extinguishers every floor, wet riser",
+   "severity": "low",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "off5-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "few spk heads recessed more than 50% into ceiling at B3 service corridor",
+   "severity": "high",
+   "location": "B3 service corridor"
+  },
+  {
+   "id": "off5-11",
+   "COPE_dimension": "Protection",
+   "note": "wet pipe sprinklers throughout incl car park, OH1 office / OH2 carpark. sprinkler tanks B3 2 x 300 m3. jockey + duty elec + standby diesel pump",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "brief-5",
+   "COPE_dimension": [
+    "Occupancy"
+   ],
+   "note": "diesel day tank 1000 L, bunded, 80% full",
+   "severity": "low",
+   "location": "Roof genset"
+  },
+  {
+   "id": "thin-5-1",
+   "COPE_dimension": [
+    "Occupancy"
+   ],
+   "note": "generator ok",
+   "severity": "low",
+   "location": "Plant room"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-5-1"
+  ]
+ }
+}

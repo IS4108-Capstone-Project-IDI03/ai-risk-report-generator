@@ -1,0 +1,142 @@
+{
+ "id": "thin-06",
+ "split": "check",
+ "kind": "thin",
+ "source": "mall2 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+   "key": "7/Construction Narrative"
+  },
+  {
+   "id": "c04",
+   "area": "7",
+   "text": "Combustible roof or wall panels, insulation and linings, and where they are",
+   "key": "7/Details on Combustible Construction"
+  },
+  {
+   "id": "c05",
+   "area": "8",
+   "text": "How waste and effluent are collected, stored and treated, and where combustible waste builds up",
+   "key": "8/Waste and effluent treatment"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "note": "hot work permit form reviewed - no fire watch requirement during or after hot work",
+   "severity": "moderate",
+   "location": "Management office"
+  },
+  {
+   "id": "mall2-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "loading bay cardboard waste removed daily, area clear at time of visit",
+   "severity": "moderate",
+   "location": "Basement 2 loading bay"
+  },
+  {
+   "id": "mall2-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "no formal FP system impairment programme. isolations approved by tech service team only, no impairment permit",
+   "severity": "moderate",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "mall2-3",
+   "COPE_dimension": "Construction",
+   "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen",
+   "severity": "low",
+   "location": "Facade"
+  },
+  {
+   "id": "mall2-6",
+   "COPE_dimension": "Construction",
+   "note": "4hr roller shutters at all MRT entrances + links to nbr malls. residences access separated from retail by brick wall - site team not sure if fire rated",
+   "severity": "moderate",
+   "location": "Connections"
+  },
+  {
+   "id": "thin-6-1",
+   "COPE_dimension": [
+    "Occupancy"
+   ],
+   "note": "kitchen - tbc",
+   "severity": "low",
+   "location": "Kitchen"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-6-1"
+  ]
+ }
+}

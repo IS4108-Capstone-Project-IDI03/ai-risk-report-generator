@@ -1,0 +1,190 @@
+{
+ "id": "thin-02",
+ "split": "tune",
+ "kind": "thin",
+ "source": "office5 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Each boiler's type, fuel and pressure, where it sits and how it is separated, and its combustion safeguards and inspection records",
+   "key": "8/Boilers"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c05",
+   "area": "8",
+   "text": "Refrigeration plant and its refrigerant, chillers, and cooling towers with their construction and whether combustible fill is protected",
+   "key": "8/Refrigeration / Chillers / Cooling towers"
+  },
+  {
+   "id": "c06",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  },
+  {
+   "id": "c07",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c08",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c09",
+   "area": "9",
+   "text": "Fire Alarm Details",
+   "key": "9/Fire Alarm Details"
+  },
+  {
+   "id": "c10",
+   "area": "9",
+   "text": "Where alarms are monitored, and how quickly they are acted on",
+   "key": "9/Fire Alarm Monitoring"
+  },
+  {
+   "id": "c11",
+   "area": "9",
+   "text": "Manual Firefighting Features",
+   "key": "9/Manual Firefighting Features"
+  },
+  {
+   "id": "c12",
+   "area": "9",
+   "text": "Water sources, tanks and mains feeding the fire protection",
+   "key": "9/Water Supply Details"
+  },
+  {
+   "id": "c13",
+   "area": "hazards",
+   "text": "Check server and comms rooms: separation, detection and suppression",
+   "key": "hazard:server_rooms"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-14",
+   "COPE_dimension": "Protection",
+   "note": "addressable fire alarm, monitored 24/7 by FCC on L1, direct link to SCDF. hose reels + extinguishers every floor, wet riser",
+   "severity": "low",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "off5-11",
+   "COPE_dimension": "Protection",
+   "note": "wet pipe sprinklers throughout incl car park, OH1 office / OH2 carpark. sprinkler tanks B3 2 x 300 m3. jockey + duty elec + standby diesel pump",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "thin-2-1",
+   "COPE_dimension": [
+    "Construction"
+   ],
+   "note": "roof - see photos",
+   "severity": "low",
+   "location": "Roof"
+  },
+  {
+   "id": "off5-9",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-5",
+   "COPE_dimension": "Construction",
+   "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed",
+   "severity": "low",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "off5-10",
+   "COPE_dimension": "Occupancy",
+   "note": "3 x water cooled chillers B3, cooling towers on roof. 22 kV incomer from SP, 2 x transformers B1. no boilers. no hazardous storage apart from genset diesel",
+   "severity": "low",
+   "location": "Basement 3 plant room"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-2-1"
+  ]
+ }
+}

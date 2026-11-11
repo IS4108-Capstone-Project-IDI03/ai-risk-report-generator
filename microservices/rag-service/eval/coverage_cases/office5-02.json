@@ -1,0 +1,183 @@
+{
+ "id": "office5-02",
+ "split": "tune",
+ "kind": "coverage",
+ "source": "office5 report notes, areas 11, 6, hazards",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "11",
+   "text": "Access Monitored",
+   "key": "11/Access Monitored"
+  },
+  {
+   "id": "c03",
+   "area": "11",
+   "text": "CCTV coverage, recording and who monitors it",
+   "key": "11/CCTV"
+  },
+  {
+   "id": "c04",
+   "area": "11",
+   "text": "Intruder Detection",
+   "key": "11/Intruder Detection"
+  },
+  {
+   "id": "c05",
+   "area": "11",
+   "text": "Security Staff / Guards",
+   "key": "11/Security Staff / Guards"
+  },
+  {
+   "id": "c06",
+   "area": "11",
+   "text": "Site Perimeter",
+   "key": "11/Site Perimeter"
+  },
+  {
+   "id": "c07",
+   "area": "hazards",
+   "text": "Check server and comms rooms: separation, detection and suppression",
+   "key": "hazard:server_rooms"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-9",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-13",
+   "COPE_dimension": "Protection",
+   "note": "FM-200 in server room, last discharge/room integrity test 2023 - over due. no VESDA, only point smoke detectors",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-19",
+   "COPE_dimension": "Protection",
+   "note": "loading bay manned 7am-10pm, after hours shutter locked + intruder alarm. carpark barrier + LPR",
+   "severity": "low",
+   "location": "Loading bay"
+  },
+  {
+   "id": "off5-20",
+   "COPE_dimension": [
+    "Occupancy",
+    "Exposure"
+   ],
+   "note": "multi-tenant office, ~4000 occupants. building ERP exists, reviewed 2025, fire drill twice a yr. no BCP for the building itself - left to tenants. server room tenant has own DR site",
+   "severity": "moderate",
+   "location": "Whole building"
+  },
+  {
+   "id": "off5-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant fit-out works on L30 under hot work permit, fire watch posted, extinguisher at hand",
+   "severity": "moderate",
+   "location": "Office floors"
+  }
+ ],
+ "removed_observations": [
+  "off5-18"
+ ],
+ "links": {
+  "off5-9": [
+   "c07"
+  ],
+  "off5-13": [
+   "c07"
+  ],
+  "off5-19": [
+   "c04",
+   "c06",
+   "c02"
+  ],
+  "off5-20": [
+   "c01"
+  ],
+  "off5-ok-2": [
+   "c01"
+  ],
+  "off5-18": [
+   "c03",
+   "c05",
+   "c02"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c03",
+   "c05"
+  ],
+  "thin": []
+ },
+ "label_fixes": [
+  {
+   "observation": "off5-19",
+   "item": "c02",
+   "key": "11/Access Monitored",
+   "was_gold_uncovered": true,
+   "reason": "The note records monitored access points: a manned loading bay and a car park barrier with licence plate recognition."
+  }
+ ]
+}

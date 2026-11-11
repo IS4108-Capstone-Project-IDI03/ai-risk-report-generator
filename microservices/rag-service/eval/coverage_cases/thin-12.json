@@ -1,0 +1,148 @@
+{
+ "id": "thin-12",
+ "split": "test",
+ "kind": "thin",
+ "source": "mixed1 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-MIXED-1",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c06",
+   "area": "9",
+   "text": "Gaseous, foam or other special systems, and what they protect",
+   "key": "9/Special Extinguishing Systems"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mix1-1",
+   "COPE_dimension": "Protection",
+   "note": "wet spk thruout office tower, CP52:2004. OH2 B3-L10, OH1 L10-roof. pumps in B1 + L32 pump rms",
+   "severity": "low",
+   "location": "Office tower"
+  },
+  {
+   "id": "mix1-6",
+   "COPE_dimension": "Protection",
+   "note": "6 auto water monitors on podium roofs, IR/UV detection, 32m radius, 5 L/s @ 600 Pa",
+   "severity": "low",
+   "location": "Open podium"
+  },
+  {
+   "id": "mix1-ofi-3",
+   "COPE_dimension": "Occupancy",
+   "note": "diesel genset day tank at P04 under 25%. tank topped up manually, no level check procedure",
+   "severity": "moderate",
+   "location": "Generator set P04"
+  },
+  {
+   "id": "mix1-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "FCC reported 1451 FA isolations in total. no proper tracking of isolations",
+   "severity": "high",
+   "location": "FCC room"
+  },
+  {
+   "id": "mix1-3",
+   "COPE_dimension": "Protection",
+   "note": "FM200 in L3 IT srv rm + B1 srv rm. B1 one cross-zoned smoke dets in rm + ceiling void, nozzles in rm + void. FM team maintains",
+   "severity": "low",
+   "location": "IT server rooms"
+  },
+  {
+   "id": "thin-12-1",
+   "COPE_dimension": [
+    "Exposure"
+   ],
+   "note": "flood - probably fine",
+   "severity": "low",
+   "location": "Site boundary"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-12-1"
+  ]
+ }
+}
