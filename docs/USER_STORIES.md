@@ -505,19 +505,41 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   8. Given I am not the assigned engineer, or the assessment is archived, when I check an item, then it is refused.
   </details>
 
-- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 3→5 pts, deps: CP-30 (CP-31 for the download), Sprint 5)
+- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 5 pts, deps: CP-30, CP-31, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: customise the generated checklist, so my site visit checklist reflects the planned inspection. Replaces CP-12.
+  Goal: add, edit and remove the items of a generated checklist, change their references, and take a copy on site, so my site visit checklist reflects the planned inspection.
 
-  Built on `feat/xuren-cp-32-customise-checklist`. Re-estimated from 3 to 5 points: choosing a reference needs a passage search, and the download is an A4 PDF. A report template subsection, and a priority risk's last item, can't be removed: they are marked Not applicable instead (decided 11 Nov 2026; see `docs/DECISIONS.md`).
+  Adding and editing
 
-  1. Given a generated checklist, when I add, edit or remove an item, then the saved checklist reflects that change.
-  2. Given an existing item, when I change its standard reference by choosing a passage from the standards in scope, then the saved item uses that reference.
-  3. Given I have customised a checklist, when I generate it again, then items I added or edited are kept and items I removed stay removed.
-  4. Given a saved checklist, when I download a field-use copy, then every saved item is included with whether it has been checked.
-  5. Given a downloaded copy, when it is opened without a network connection, then each saved reference's title, edition, page and quoted words are in it.
-  6. Given I am not the assigned engineer, or the assessment is archived, when I change the checklist, then it is refused.
+  1. Given a generated checklist, when I add an item under a priority risk, or a report section and optionally one of its subsections, with what to check and at least one COPE category, then it is saved there, marked Added.
+  2. Given an item, when I edit what it checks or its categories and save, then the saved checklist shows my change, marked Edited.
+
+  Removing and restoring
+
+  3. Given an item, when I remove it, then it is left out of the checklist, its progress and the download, and I can undo it from the toast or restore it from Removed items.
+  4. Given a report template subsection, a priority risk's last item, or an item an observation answers, when I try to remove it, then it is refused with the reason: mark the first two Not applicable, or delete the observation first.
+  5. Given a removed item, when I try to edit, mark or answer it, then it is refused until it is restored.
+
+  References
+
+  6. Given an item, when I change its reference by choosing a passage from the standards in scope, found by searching them from the item's own words, then the saved item uses that passage and the words I selected, or its first sentence if I selected none.
+  7. Given words I chose that are not in the passage, when the reference is saved, then it is marked as not word for word.
+  8. Given a passage from a standard outside the checklist, or one that no longer applies to the site, when I choose it, then it is refused.
+
+  Generating again
+
+  9. Given I have customised a checklist, when I generate it again, then items I added or edited are kept, with their answers, items I removed stay removed, and I am told how many of each were kept.
+  10. Given every item of a priority risk would come back removed, when the checklist is generated again, then the first is restored, so each risk keeps one item.
+
+  Field copy
+
+  11. Given a saved checklist, when I download a field-use copy, then an A4 PDF holds every item still on it with whether it has been checked, and boxes to tick and lines to write on for those that have not.
+  12. Given a downloaded copy, when it is opened without a network connection, then each saved reference's title, edition, page and quoted words are in it.
+
+  Permissions
+
+  13. Given I am not the assigned engineer, or the assessment is archived, when I change the checklist, then it is refused; anyone who can view the assessment can download the copy.
   </details>
 
 - [ ] **CP-33** — Recommend checklist items (risk engineer, Could, 3 pts, deps: CP-30, Sprint 5)
