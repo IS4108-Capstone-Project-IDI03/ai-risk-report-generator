@@ -31,3 +31,10 @@ export function formatDayYearTime(date: Date) {
 export function formatDay(date: Date) {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
+
+// `14:02`, a time of day in local time; with its day (`11 Apr 14:02`) when not today.
+export function formatTimeOfDay(date: Date, now = new Date()) {
+  return date.toDateString() === now.toDateString()
+    ? `${pad(date.getHours())}:${pad(date.getMinutes())}`
+    : formatDayTime(date)
+}

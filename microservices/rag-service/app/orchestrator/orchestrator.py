@@ -6,15 +6,19 @@ this is the one place that defines pipeline order, so a single run can
 always be traced end to end (needed by the eval harness).
 """
 
+import contextvars
 import json
 import logging
 import re
+import time
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 from app import config, usage
 from app import privacy as pii
 from app.chat.quotes import quote_found
+from app.generation import ask as asking
 from app.generation.checklist import (
     CHECKLIST,
     CHECKLIST_PROMPT_VERSION,
@@ -39,6 +43,7 @@ from app.generation.generator import (
     quotable_text,
     ram_priority,
 )
+from app.generation.llm import GenerationFailed, stream_text
 from app.guardrails.checker import check, check_citations
 from app.retrieval.retriever import rerank, retrieve, search
 
@@ -768,3 +773,288 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             "generated_at": datetime.now(UTC).isoformat(),
         },
     }
+
+
+# ---- Asking about one assessment (AS-01) ---------------------------------------------------
+# Kept for the answer after one rerank of every candidate: enough to answer, few enough that the
+# prompt stays small. Candidates per search come from Chroma's nearest.
+ASK_CANDIDATES = 20
+ASK_OBSERVATIONS = 8
+ASK_STANDARDS = 6
+ASK_REPORTS = 4
+# Rerank reads every observation; Cohere takes up to 1,000 documents a call.
+ASK_MAX_OBSERVATIONS = 200
+# If rerank fails, the observations go in capture order, so this many keep the prompt small.
+ASK_UNRANKED_OBSERVATIONS = 20
+
+
+def _lines(chunks: Iterator[str]) -> Iterator[str]:
+    """The streamed text as whole lines, so each is checked before it is shown (AC4)."""
+    pending = ""
+    for chunk in chunks:
+        pending += chunk
+        *done, pending = pending.split("\n")
+        yield from (line for line in done if line.strip())
+    if pending.strip():
+        yield pending
+
+
+def _ask_cause(error: Exception, step: str) -> str:
+    """Why an answer stopped, in words for the engineer (AC8): never a stack trace or a value."""
+    if isinstance(error, pii.PrivacyUnavailable):
+        return "client details could not be masked, so nothing was sent to the model"
+    if isinstance(error, NotImplementedError):
+        return "the model provider set in LLM_PROVIDER is not supported"
+    if isinstance(error, GenerationFailed):
+        message = str(error)
+        if "could not be reached" in message:
+            return "the model provider did not respond"
+        if "returned an error" in message:
+            return "the model provider returned an error"
+        if "declined" in message:
+            return "the model declined to answer"
+        if "cut off" in message:
+            return "the answer was cut off before it was complete"
+        return message.rstrip(".").lower() or "the model gave no answer"
+    if step == "retrieve":
+        return "the evidence search did not respond"
+    return "the answer could not be finished"
+
+
+def _ask_source(found: tuple[str, object]) -> dict:
+    """A cited source as stored, for the evidence panel: the observation as it was sent, or a
+    passage's text and Chroma labels (the real words, never the masked copy)."""
+    kind, item = found
+    if kind == "observation":
+        return item.model_dump()
+    return {"text": item["text"], **(item.get("metadata") or {})}
+
+
+def _candidate(o) -> dict:
+    """An observation as rerank reads it, under its citation ID."""
+    text = " ".join(filter(None, [*o.recorded(), o.location]))
+    return {"id": f"O:{o.id}", "text": " ".join(text.split()), "metadata": {}}
+
+
+def ask(
+    question: str,
+    assessment,
+    observations,
+    standard_ids: list[str],
+    names: dict[str, str] | None = None,
+    privacy: dict | None = None,
+) -> Iterator[dict]:
+    """Answer one question about an assessment (AS-01): retrieve -> assemble -> generate ->
+    guardrail, as events for the review workspace's Ask tab, ending with one `result` event that
+    holds the answer, its sources, its usage and the run's trace (AC6).
+
+    Retrieval is limited to three sources (AC3): the assessment's `observations`; the passages
+    of `standard_ids` (the standards selected on it, as the gateway read them from
+    `knowledge_documents`), through a Chroma `doc_id` filter; and past reports on sites of the
+    same jurisdiction and facility type (`all` matches any). `names` maps a document id to the
+    name the prompt shows. With `privacy` on, Cohere and the model see client details masked.
+    """
+    paid_calls = usage.start()
+    names = names or {}
+    protection = pii.session(privacy)
+    timings: dict[str, int] = {}
+    step, clock = "retrieve", time.perf_counter()
+
+    def finished(name: str) -> None:
+        nonlocal clock
+        now = time.perf_counter()
+        timings[name] = int((now - clock) * 1000)
+        clock = now
+
+    statements: list[dict] = []
+    missing: list[str] = []
+    dropped: list[dict] = []
+    sources: dict[str, dict] = {}
+    retrieved = {"observations": [], "standards": [], "reports": []}
+    reranked, model, error = False, None, None
+    usable = [o for o in observations if o.recorded()][:ASK_MAX_OBSERVATIONS]
+    yield {"type": "step", "step": "retrieve"}
+    try:
+        # 1. Retrieve. One /mask call covers the question, the observations and the documents'
+        # names (a past report's title can name its client), so one mapping covers the answer.
+        ids = sorted(names)
+        masked_obs, [masked_question, *masked_names] = _mask_evidence(
+            protection, usable, [question, *(names[i] for i in ids)]
+        )
+        shown_names = dict(zip(ids, masked_names, strict=True))
+        query = spell_out(masked_question)[:1000]
+        site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
+        requests = [(query, {**site, "source_type": "marsh_report"}, ASK_CANDIDATES)]
+        if standard_ids:
+            requests.insert(0, (query, {"doc_id": list(standard_ids)}, ASK_CANDIDATES))
+        *standard_hits, report_hits = search(requests, protection)
+        standard_hits = standard_hits[0] if standard_hits else []
+        # Standards are public; observations and past reports are masked for Cohere's rerank.
+        stored = {p["id"]: p for p in report_hits}
+        masked_reports = {p["id"]: p for p in _mask_passages(protection, report_hits)}
+        by_ref = {f"O:{o.id}": (o, m) for o, m in zip(usable, masked_obs, strict=True)}
+        candidates = (
+            [_candidate(m) for m in masked_obs] + standard_hits + list(masked_reports.values())
+        )
+        kinds = {c["id"]: "observation" for c in candidates[: len(masked_obs)]}
+        kinds |= {p["id"]: "standard" for p in standard_hits}
+        kinds |= {p["id"]: "report" for p in report_hits}
+        try:
+            ranked = rerank(query, candidates) if candidates else []
+            ranked = [c for c in ranked if c.get("relevance_score", 0) >= config.ASK_MIN_RELEVANCE]
+            reranked = True
+        except Exception:
+            log.warning("Rerank failed for a question; using vector order", exc_info=True)
+            ranked = (
+                [_candidate(m) for m in masked_obs[:ASK_UNRANKED_OBSERVATIONS]]
+                + standard_hits
+                + list(masked_reports.values())
+            )
+
+        def top(kind: str, n: int) -> list[dict]:
+            return [c for c in ranked if kinds.get(c["id"]) == kind][:n]
+
+        kept_obs = [by_ref[c["id"]] for c in top("observation", ASK_OBSERVATIONS)]
+        kept_standards = top("standard", ASK_STANDARDS)
+        kept_reports = [masked_reports[c["id"]] for c in top("report", ASK_REPORTS)]
+        retrieved = {
+            "observations": [o.id for o, _ in kept_obs],
+            "standards": [p["id"] for p in kept_standards],
+            "reports": [p["id"] for p in kept_reports],
+        }
+        finished("retrieve")
+
+        # 2. Assemble. The prompt reads the masked copies; the checks read the real ones.
+        step = "assemble"
+        labels = asking.label_evidence(
+            [o for o, _ in kept_obs], kept_standards, [stored[p["id"]] for p in kept_reports]
+        )
+        by_label = {ref: (kind, item) for ref, kind, item in labels.values()}
+        found = {k: len(v) for k, v in retrieved.items()}
+        if not any(found.values()):
+            # Nothing in scope relates to the question: say what is missing, ask no model (AC4).
+            line = asking.nothing_found(assessment, len(usable), len(standard_ids))
+            missing.append(line)
+            finished("assemble")
+            yield {"type": "missing", "text": line}
+        else:
+            user = asking.user_message(
+                masked_question,
+                assessment,
+                [m for _, m in kept_obs],
+                kept_standards,
+                kept_reports,
+                shown_names,
+            )
+            finished("assemble")
+
+            # 3. Generate, streamed line by line. 4. Guardrail each line before it is shown.
+            step = "generate"
+            yield {"type": "step", "step": "generate", "found": found}
+            written = stream_text(
+                asking.SYSTEM,
+                [{"role": "user", "content": user}],
+                provider=config.LLM_PROVIDER,
+                model=config.ASK_MODEL,
+                effort=config.ASK_EFFORT,
+                feature="ask",
+            )
+            for line in _lines(written):
+                # Real values back before any check compares text (PV-02 Rule 4).
+                real, unknown = protection.unmask(line)
+                text, cites, is_missing = asking.parse_line(real)
+                if unknown:
+                    dropped.append({"text": text, "reason": "placeholder"})
+                elif is_missing:
+                    problem = asking.content_problem(text)
+                    if problem or not text:
+                        dropped.append({"text": text, "reason": problem or "empty"})
+                        continue
+                    missing.append(text)
+                    yield {"type": "missing", "text": text}
+                elif text or cites:
+                    statement, why = asking.check_statement(text, cites, labels)
+                    if statement is None:
+                        dropped.append({"text": text, "reason": why})
+                        continue
+                    statements.append(statement)
+                    # Its sources go with it, so a citation opens while the answer is
+                    # still being written, and stays openable if the answer stops (AC2).
+                    shown = {
+                        c["ref"]: _ask_source(by_label[c["ref"]])
+                        for c in statement["citations"]
+                        if c["ref"] not in sources
+                    }
+                    sources |= shown
+                    yield {"type": "statement", **statement, "sources": shown}
+            model = config.ASK_MODEL
+            finished("generate")
+            if not statements and not missing:
+                missing.append(asking.NO_SUPPORTED_ANSWER)
+                yield {"type": "missing", "text": asking.NO_SUPPORTED_ANSWER}
+    except Exception as failure:  # noqa: BLE001
+        # The answer so far is kept; the engineer is told why it stopped and when (AC8).
+        if isinstance(failure, GenerationFailed | pii.PrivacyUnavailable | NotImplementedError):
+            log.error("Assessment question failed at %s: %s", step, failure)
+        else:
+            log.exception("Assessment question failed at %s", step)
+        error = {
+            "step": step,
+            "cause": _ask_cause(failure, step),
+            "at": datetime.now(UTC).isoformat(),
+        }
+        finished(step)
+    unverified = sum(not c["verified"] for s in statements for c in s["citations"])
+    yield {
+        "type": "result",
+        "value": {
+            "statements": statements,
+            "missing": missing,
+            "sources": sources,
+            "confidence": asking.confidence(statements, len(dropped), missing),
+            "declined": not statements and error is None,
+            "error": error,
+            "usage": paid_calls,
+            # One trace per answer for the evaluation harness (AC6): what was searched, what
+            # the model was given and what the checks did, never the masked text or mapping.
+            "trace": {
+                "story": "AS-01",
+                "pipeline": ["retrieve", "assemble", "generate", "guardrail"],
+                "provider": config.LLM_PROVIDER,
+                "model": model,
+                "effort": config.ASK_EFFORT,
+                "prompt_version": asking.PROMPT_VERSION,
+                "scope": {
+                    "jurisdiction": assessment.jurisdiction,
+                    "facility_type": assessment.facility_type,
+                    "standard_ids": list(standard_ids),
+                    "observations": len(usable),
+                },
+                "retrieved": retrieved,
+                "reranked": reranked,
+                "guardrail": {
+                    "passed": not dropped and not unverified,
+                    "kept": len(statements),
+                    "dropped": dropped,
+                    "unverified_citations": unverified,
+                },
+                "timings_ms": timings,
+                "privacy": protection.provenance(),
+                "generated_at": datetime.now(UTC).isoformat(),
+            },
+        },
+    }
+
+
+def ask_events(*args, **kwargs) -> Iterator[str]:
+    """`ask`'s events as server-sent events. Starlette runs each step of a stream in a fresh
+    copy of the context, so every step runs in one context to keep the usage list (app/usage.py)
+    alive throughout, as chat does (app/chat/answer.py)."""
+    steps = ask(*args, **kwargs)
+    context = contextvars.copy_context()
+    while True:
+        try:
+            event = context.run(next, steps)
+        except StopIteration:
+            return
+        yield f"data: {json.dumps(event)}\n\n"

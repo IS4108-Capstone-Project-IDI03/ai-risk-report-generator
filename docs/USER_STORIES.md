@@ -1302,6 +1302,23 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a report has been assigned to me, when I open my work list, then that report appears.
   </details>
 
+- [ ] **AS-01** — Ask a question about this assessment (risk engineer, AI and Machine Learning, 8 pts, deps: GN-01, RV-01, CP-30, EV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer reviewing a draft, ask questions about the assessment and get cited answers from its observations, selected standards and past reports, so that I don't have to search the evidence by hand.
+
+  1. An Ask tab sits in the review workspace's right inspector, beside the evidence panel. It stacks below 1080px and opens as a bottom sheet (`ds-dialog-sheet`) below 760px. It is keyboard-operable, with accessible names.
+  2. Answers stream in violet AI chrome. Every claim cites an observation, a standard clause or a past-report page through `EvidenceCitation`. Selecting a citation highlights that source in the evidence panel.
+  3. Retrieval is limited to three sources: the assessment's observations; the standards selected on the assessment, via a Chroma `doc_id` filter built from `knowledge_documents`; past reports matching the assessment's jurisdiction and facility type (`all` matches any).
+  4. When nothing in scope supports an answer, the response states what evidence is missing. It never gives an uncited answer.
+  5. Answers follow the content rules: the system is "it", never "I"; it states facts and never recommends; confidence is High/Medium/Low, never a percentage; no emoji.
+  6. Each answer follows the existing pipeline rules: text sent to Cohere and the LLM is masked as in draft generation; the provider comes from `LLM_PROVIDER`; the answer runs through the S4 orchestrator (retrieve → assemble → generate → guardrail) and leaves one trace for the EV harness.
+  7. A new `reports:ask` permission is given to both roles. A request without a session gets 401; one without the permission gets 403. Without the gateway, the tab explains that it is unavailable.
+  8. A failure states its cause and time, then the next step, e.g. "Answer stopped at 14:02: the model provider did not respond. Ask again." Each question is one streamed request with no polling, so the F-07 idle logout still applies.
+
+  Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
+  </details>
+
 ## E8 — Evaluation Harness
 
 - [ ] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 4)

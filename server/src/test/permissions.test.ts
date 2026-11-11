@@ -49,6 +49,8 @@ const ROUTES: [method: Method, url: string, permission: Permission][] = [
   ['get', '/api/assessments/RPT-2026-0411/comments', 'reports:comment'],
   ['post', '/api/assessments/RPT-2026-0411/comments', 'reports:comment'],
   ['put', '/api/assessments/RPT-2026-0411/comments/anchors', 'reports:generate'],
+  ['get', '/api/assessments/RPT-2026-0411/ask', 'reports:ask'],
+  ['post', '/api/assessments/RPT-2026-0411/ask', 'reports:ask'],
   ['get', '/api/knowledge-documents', 'knowledge:view'],
   ['post', '/api/knowledge-documents', 'knowledge:manage'],
   ['get', `/api/knowledge-documents/${ID}/file`, 'knowledge:view'],

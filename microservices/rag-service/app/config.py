@@ -17,6 +17,15 @@ LLM_EFFORT = os.getenv("LLM_EFFORT", "high")
 # less thinking than drafting needs. Same provider and model as drafting.
 CHECKLIST_EFFORT = os.getenv("CHECKLIST_EFFORT", "medium")
 
+# Asking about one assessment in the review workspace (AS-01). Same provider as drafting
+# (LLM_PROVIDER), as the answer drafts from the same evidence. Low effort: an answer is a few
+# cited sentences from evidence already chosen, and the engineer waits for it.
+ASK_MODEL = os.getenv("ASK_MODEL", LLM_MODEL)
+ASK_EFFORT = os.getenv("ASK_EFFORT", "low")
+# Below this rerank relevance score a candidate is left out of the answer's evidence, and
+# with none left no model is asked. ponytail: a first guess, as CHAT_MIN_RELEVANCE was.
+ASK_MIN_RELEVANCE = float(os.getenv("ASK_MIN_RELEVANCE", "0.1"))
+
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
 # The defaults are the CB-01 model comparison's winner (docs/DECISIONS.md, 2026-10-15).
 CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")

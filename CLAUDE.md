@@ -56,6 +56,11 @@
   which is never saved (`inlineOf` merges the runs it splits) and is not in
   the export's editor. Don't add it to `documentExtensions`. See
   docs/areas/database.md, "Report comment threads".
+- An Ask answer (AS-01) reaches the browser only line by line after
+  `ask.check_statement` (rag-service `orchestrator.ask`): never stream the
+  model's words straight to the client, or an uncited or first-person line
+  could show (AC4, AC5). See docs/areas/services.md, "Asking about an
+  assessment".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export

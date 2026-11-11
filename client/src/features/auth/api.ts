@@ -13,6 +13,7 @@ export type Permission =
   | 'reports:generate'
   | 'reports:export'
   | 'reports:comment'
+  | 'reports:ask'
   | 'knowledge:view'
   | 'knowledge:manage'
   | 'users:manage'

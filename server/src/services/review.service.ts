@@ -230,7 +230,7 @@ function documentIdOf(citation: string, passage: SavedPassage): string | null {
 
 const pageOf = (value: unknown) => (typeof value === 'number' ? value : null)
 
-function toPassage(
+export function toPassage(
   citation: string,
   saved: unknown,
   documents: Map<string, KnowledgeDocumentDto>,

@@ -15,6 +15,7 @@ import {
   type ReviewFocus,
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
+import { ReviewInspector, type InspectorAsk } from './ReviewInspector'
 
 // How a source listed below the viewer looks while it is open above.
 const OPEN_STYLE = {
@@ -45,7 +46,7 @@ function ViewerHead({
 // A cited passage exactly as the draft was given it (AC7), with its page
 // (AC8) and its document's title, edition, effective date and any
 // withdrawal (AC9-AC12).
-function PassageView({
+export function PassageView({
   passage,
   number,
   onClose,
@@ -146,14 +147,17 @@ function PassageView({
 }
 
 // A field observation quoted exactly as the draft was given it.
-function ObservationView({
+export function ObservationView({
   observation: o,
   number,
   onClose,
+  note = 'As captured when this section was drafted.',
 }: {
   observation: FieldObservation
   number: number | undefined
   onClose: () => void
+  // Where the text shown comes from.
+  note?: string
 }) {
   return (
     <>
@@ -196,7 +200,7 @@ function ObservationView({
           </blockquote>
         </div>
       ))}
-      <p className="rv-viewer-note">As captured when this section was drafted.</p>
+      <p className="rv-viewer-note">{note}</p>
     </>
   )
 }
@@ -236,7 +240,9 @@ function ObservationText({
 // draft cites, the original field observations (AC3), and every claim with
 // its citations (AC4). Rejected findings are out of the draft (RV-02), so
 // what only they cite is not listed. `children`, e.g. the review history,
-// comes last.
+// comes last. With `ask`, the panel is the evidence tab of the inspector,
+// beside the Ask tab (AS-01); `asked` holds the sources answers cite, so one
+// selected there opens here even when the draft does not cite it.
 export function SourcePanel({
   savedObservations = [],
   section,
@@ -247,6 +253,8 @@ export function SourcePanel({
   onShowClaim,
   style,
   children,
+  ask,
+  asked,
 }: {
   savedObservations?: SavedObservation[]
   section: ReviewSection
@@ -257,6 +265,8 @@ export function SourcePanel({
   onShowClaim: (claim: string) => void
   style: React.CSSProperties
   children?: React.ReactNode
+  ask?: InspectorAsk
+  asked?: { passages: SourcePassage[]; observations: FieldObservation[] }
 }) {
   const viewer = useRef<HTMLElement>(null)
   const open = focus.citation
@@ -281,13 +291,18 @@ export function SourcePanel({
   const unsupported = claims.filter((c) => !c.supported).length
   const close = () => onCite(null, focus.statement)
 
-  const passage = open ? section.sources[open] : undefined
-  const observation = open?.startsWith('O:')
+  const passage = open
+    ? (section.sources[open] ?? asked?.passages.find((p) => p.id === open))
+    : undefined
+  const drafted = open?.startsWith('O:')
     ? section.observations.find((o) => o.id === open.slice(2))
     : undefined
+  const observation =
+    drafted ??
+    (open?.startsWith('O:') ? asked?.observations.find((o) => o.id === open.slice(2)) : undefined)
 
   return (
-    <aside aria-label="Source panel" className="om-scroll" style={style}>
+    <ReviewInspector label="Source panel" style={style} ask={ask}>
       <div className="rv-panel-section">
         {!open ? (
           <div className="rv-viewer is-empty">
@@ -306,12 +321,24 @@ export function SourcePanel({
             aria-label={passage ? 'Source passage' : observation ? 'Field observation' : 'Citation'}
           >
             {passage ? (
-              <PassageView passage={passage} number={numbers.get(open)} onClose={close} />
+              <>
+                <PassageView passage={passage} number={numbers.get(open)} onClose={close} />
+                {!section.sources[open] && (
+                  <p className="rv-viewer-note">
+                    Cited in an answer on the Ask tab. This draft does not cite it.
+                  </p>
+                )}
+              </>
             ) : observation ? (
               <ObservationView
                 observation={observation}
                 number={numbers.get(open)}
                 onClose={close}
+                note={
+                  drafted
+                    ? undefined
+                    : 'As sent with the question on the Ask tab. This draft does not cite it.'
+                }
               />
             ) : (
               <>
@@ -480,6 +507,6 @@ export function SourcePanel({
         )}
       </section>
       {children}
-    </aside>
+    </ReviewInspector>
   )
 }

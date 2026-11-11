@@ -95,6 +95,8 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'site-walk',
       // Reading client documents (CP-23).
       'client-intake',
+      // Asking about an assessment (AS-01).
+      'ask',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })

@@ -11,6 +11,7 @@ from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
 from app.orchestrator.orchestrator import (
+    ask_events,
     draft,
     draft_checklist_for,
     draft_ofis_for,
@@ -500,6 +501,49 @@ class SearchPassagesRequest(BaseModel):
 def passage_search(request: SearchPassagesRequest) -> dict:
     """Return the documents' passages that best match the words, best first (CP-32)."""
     return {"results": search_passages(request.query, request.document_ids, request.limit)}
+
+
+# An observation as the Ask tab sends it (AS-01): any of the assessment's, categorised or not,
+# since a question is not about one section's categories. Uncategorised is null (CP-02).
+class AskObservation(Observation):
+    COPE_dimension: list[str] | None = None
+
+
+# A knowledge document's name for the prompt, sent by the gateway (never by the browser).
+class AskDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+
+
+Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: Question
+    assessment: Assessment
+    observations: list[AskObservation] = []
+    # The standards selected on the assessment, as the gateway read them from
+    # knowledge_documents (AC3): only their passages are searched.
+    standard_ids: list[str] = []
+    documents: list[AskDocument] = []
+    privacy: Privacy | None = None
+
+
+@router.post("/assessments/ask")
+def ask_assessment(request: AskRequest) -> StreamingResponse:
+    """Stream one cited answer to a question about an assessment (AS-01), through the
+    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
+    events = ask_events(
+        request.question,
+        request.assessment,
+        request.observations,
+        request.standard_ids,
+        {d.id: d.name for d in request.documents},
+        privacy=_privacy(request),
+    )
+    return StreamingResponse(events, media_type="text/event-stream")
 
 
 @router.get("/passages/{passage_id}")

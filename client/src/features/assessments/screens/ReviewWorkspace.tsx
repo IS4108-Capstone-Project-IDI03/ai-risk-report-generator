@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
 import {
   bulkAccept,
@@ -30,7 +30,13 @@ import type { Stamp } from '../comments/api'
 import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
 import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
-import { SourcePanel } from '../components/SourcePanel'
+import { ObservationView, PassageView, SourcePanel } from '../components/SourcePanel'
+import {
+  ReviewInspector,
+  type InspectorAsk,
+  type InspectorTab,
+} from '../components/ReviewInspector'
+import { useAsk } from '../ask/useAsk'
 import { VersionHistory } from '../components/VersionHistory'
 import { WrittenBlocks } from '../components/WrittenBlocks'
 import {
@@ -124,6 +130,7 @@ export function ReviewWorkspace({
   panelStyle,
   onGenerate,
   historyRequest = 0,
+  canAsk = false,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -144,6 +151,9 @@ export function ReviewWorkspace({
   // Counts each time Version history is chosen from the assessment's ⋯ menu
   // (RV-06); a new count opens the version history. 0 for none.
   historyRequest?: number
+  // May ask questions about the assessment in the inspector's Ask tab (AS-01):
+  // anyone who can open it with `reports:ask`.
+  canAsk?: boolean
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis } = useOfis(reference)
@@ -181,6 +191,18 @@ export function ReviewWorkspace({
   // The document opens to edit for the assigned engineer, and read only, to
   // comment on, for anyone else who can comment (RV-03 AC7).
   const canOpenDocument = canReview || canComment
+  // The Ask tab (AS-01), kept here so an answer keeps streaming from section to section.
+  const ask = useAsk(reference, canAsk)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('evidence')
+  const [askSheet, setAskSheet] = useState(false)
+  // The source last opened from an answer, for the parts with no draft (1, 2, 3, A).
+  const [askedRef, setAskedRef] = useState<string | null>(null)
+  // Brings a source opened from an answer into view, also when the panel sits
+  // below the draft (tablet) or the sheet just closed (phone).
+  useEffect(() => {
+    if (askedRef)
+      document.querySelector('[data-asked-viewer]')?.scrollIntoView?.({ block: 'nearest' })
+  }, [askedRef])
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the
@@ -281,6 +303,7 @@ export function ReviewWorkspace({
   const select = (id: string) => {
     setSelected(id)
     setFocus(NOTHING)
+    setAskedRef(null)
     setView('saved')
     setProblem(null)
     setRestored(null)
@@ -291,6 +314,59 @@ export function ReviewWorkspace({
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
+  // Every source an answer cites, so the evidence panel can open one (AS-01 AC2).
+  const asked = {
+    passages: ask.items.flatMap((item) => item.passages),
+    observations: ask.items.flatMap((item) => item.observations),
+  }
+  // Selecting an answer's citation shows its source in the evidence panel,
+  // marked there as open (AC2); on a phone the sheet closes to show it.
+  const inspector = (current: string | null): InspectorAsk | undefined =>
+    canAsk
+      ? {
+          ask,
+          current,
+          onCite: (ref) => {
+            setInspectorTab('evidence')
+            setAskSheet(false)
+            setAskedRef(ref)
+            setFocus({ citation: ref, statement: null })
+          },
+          tab: inspectorTab,
+          onTab: setInspectorTab,
+          sheetOpen: askSheet,
+          onSheet: setAskSheet,
+        }
+      : undefined
+  // A source opened from an answer, in a part with no draft to cite it.
+  const askedViewer = () => {
+    if (!askedRef) return null
+    const passage = asked.passages.find((p) => p.id === askedRef)
+    const observation = askedRef.startsWith('O:')
+      ? asked.observations.find((o) => o.id === askedRef.slice(2))
+      : undefined
+    if (!passage && !observation) return null
+    return (
+      <div className="rv-panel-section">
+        <article
+          className="rv-viewer"
+          data-asked-viewer=""
+          aria-label={passage ? 'Source passage' : 'Field observation'}
+        >
+          {passage ? (
+            <PassageView passage={passage} number={undefined} onClose={() => setAskedRef(null)} />
+          ) : (
+            <ObservationView
+              observation={observation!}
+              number={undefined}
+              onClose={() => setAskedRef(null)}
+              note="As sent with the question on the Ask tab."
+            />
+          )}
+        </article>
+      </div>
+    )
+  }
   const previous = sections[index - 1]
   const next = sections[index + 1]
   // The part the rail marks as open.
@@ -425,13 +501,14 @@ export function ReviewWorkspace({
         {body}
         {(id === '1' || id === 'A') && writtenIn(id)}
       </ReportPart>
-      <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
+      <ReviewInspector label={`${title} notes`} style={panelStyle} ask={inspector(askedRef)}>
+        {askedViewer()}
         <div className="rv-panel-section">
           <div className="rv-viewer is-empty">
             <p className="rv-muted">{note}</p>
           </div>
         </div>
-      </aside>
+      </ReviewInspector>
     </div>
   )
   if (selected === '1')
@@ -557,7 +634,8 @@ export function ReviewWorkspace({
             {writtenIn('3')}
           </div>
         </section>
-        <aside aria-label="Section 3 suggestions" className="om-scroll" style={panelStyle}>
+        <ReviewInspector label="Section 3 suggestions" style={panelStyle} ask={inspector(askedRef)}>
+          {askedViewer()}
           <div className="rv-panel-section">
             <div className="rv-viewer is-empty">
               <p className="rv-muted">
@@ -574,7 +652,7 @@ export function ReviewWorkspace({
               </div>
             </div>
           </div>
-        </aside>
+        </ReviewInspector>
       </div>
     )
   }
@@ -738,6 +816,8 @@ export function ReviewWorkspace({
         onCite={cite}
         onShowClaim={(claim) => setFocus((f) => ({ ...f, statement: claim }))}
         style={panelStyle}
+        ask={inspector(focus.citation)}
+        asked={asked}
       >
         <ReviewHistory
           entries={saved.history}

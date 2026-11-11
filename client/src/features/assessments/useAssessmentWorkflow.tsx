@@ -2811,6 +2811,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         targetRow.status !== STATUS_LABEL.archived &&
         (isMine || session.user.role === 'knowledge_admin') &&
         can('reports:comment', session),
+      // Anyone who can open the assessment asks about it (AS-01 AC7): its assigned
+      // engineer or a knowledge admin, archived or not, since asking changes nothing.
+      canAsk:
+        !!targetRow?.persisted &&
+        (isMine || session.user.role === 'knowledge_admin') &&
+        can('reports:ask', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
       isAdmin: session.user.role === 'knowledge_admin',
