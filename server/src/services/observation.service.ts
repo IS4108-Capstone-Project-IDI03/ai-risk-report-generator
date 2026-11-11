@@ -30,6 +30,7 @@ import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-sess
 import { locationText, toLocationDto, type LocationDto } from './location.service'
 import { onTranscriptionJob, transcriptionQueue } from './background-queues.service'
 import { retryJobId, type JobContext } from './job-queue.service'
+import { queueAssessmentCheck } from './assistant/check-queue.service'
 import { duplicateKeyField } from './mongo-errors'
 import { readingPrivacyFor } from './privacy.service'
 import {
@@ -1187,6 +1188,15 @@ export async function correctTranscript(
   return toDto(updated, locations)
 }
 
+/** Returns the observation's assessment reference as a one-item list, or [] (AS-06's re-check). */
+export async function assessmentReferencesOfObservation(id: string): Promise<string[]> {
+  if (!isValidObjectId(id)) return []
+  const observation = await ObservationModel.findById(id, 'assessment').lean()
+  const assessment =
+    observation && (await AssessmentModel.findById(observation.assessment, 'reference').lean())
+  return assessment ? [assessment.reference] : []
+}
+
 // Deletes an observation (CP-08 AC12), a soft delete: it is marked with who
 // deleted it and when, and nothing it holds is removed, its recordings in S3
 // included. Lists and drafting leave it out from then on. Matching on
@@ -1383,6 +1393,8 @@ export async function runTranscription(
     { _id: id, 'recordings._id': recordingId },
     { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
   )
+  // MarshBot (AS-06) ticks off or raises the recording's item.
+  if (reportId) queueAssessmentCheck(reportId)
 }
 
 // Starts a new attempt for the same handwritten page (CP-19 AC11), as for a
@@ -1530,6 +1542,7 @@ export async function runPageTranscription(id: string, pageId: string): Promise<
     { _id: id, 'pages._id': pageId },
     { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
   ).catch((error) => console.error('Saving page transcription failed:', error))
+  if (reportId) queueAssessmentCheck(reportId)
 }
 
 // After a restart: a voice note still Transcribing goes back on the queue
@@ -1811,6 +1824,7 @@ export async function runInterpretation(
   await ObservationModel.updateOne({ _id: id }, { $set: outcome }).catch((error) =>
     console.error('Saving interpretation failed:', error),
   )
+  if (assessment) queueAssessmentCheck(assessment.reference)
 }
 
 // Each photo as the model saw it, when protection blurred a face in it (PV-04):

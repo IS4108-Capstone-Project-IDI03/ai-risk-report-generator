@@ -84,7 +84,8 @@ export function defineQueue<T extends object>(
   }
 
   return {
-    async add(jobId: string, data: T): Promise<void> {
+    // `delayMs` holds the job back, e.g. to gather a burst under one id (AS-06).
+    async add(jobId: string, data: T, delayMs = 0): Promise<void> {
       if (inline()) {
         const job = runInline(definition, data).finally(() => running.delete(job))
         running.add(job)
@@ -96,6 +97,7 @@ export function defineQueue<T extends object>(
       await Promise.race([
         queueOf().add(name, data, {
           jobId,
+          delay: delayMs,
           attempts: options.attempts,
           backoff: { type: 'exponential', delay: options.backoffMs },
           removeOnComplete: true,

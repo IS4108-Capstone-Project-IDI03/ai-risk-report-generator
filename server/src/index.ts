@@ -17,6 +17,10 @@ import siteWalkRoutes from './routes/site-walk.routes'
 import commentRoutes from './routes/comment.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
+import assistantRoutes from './routes/assistant.routes'
+import assistantEventRoutes from './routes/assistant-events.routes'
+import { assistantRecheck } from './middleware/assistant-recheck.middleware'
+import { scheduleDailyAssessmentChecks } from './services/assistant/check-queue.service'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
 import { startWorkers } from './services/job-queue.service'
 import { resumeInterruptedSiteWalks } from './services/site-walk.service'
@@ -54,6 +58,8 @@ const exportBody = express.json({ limit: '64mb' })
 app.use((req, res, next) => (exportRequest.test(req.path) ? exportBody(req, res, next) : next()))
 app.use(express.json())
 app.use(cookieParser())
+// MarshBot (AS-06): any successful change to an assessment queues a re-check of its brief.
+app.use(assistantRecheck)
 
 // Public: health checks and sign-in itself.
 app.use('/api/health', healthRoutes)
@@ -64,6 +70,16 @@ app.use('/api/auth', authRoutes)
 app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
 // Comment threads on the report (RV-03).
 app.use('/api/assessments/:reference/comments', requireAuth, commentRoutes)
+// MarshBot's event stream (AS-06) checks the session without refreshing it, so
+// an open Overview can't keep an idle session alive (F-07). Before the
+// assistant router, so this path matches first.
+app.use('/api/assessments/:reference/assistant/events', requireAuthNoRefresh, assistantEventRoutes)
+// Reading the brief doesn't refresh the session either: an open Overview refetches it on every push.
+app.use(
+  '/api/assessments/:reference/assistant',
+  (req, res, next) => (req.method === 'GET' ? requireAuthNoRefresh : requireAuth)(req, res, next),
+  assistantRoutes,
+)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
@@ -97,6 +113,9 @@ async function start() {
   // Not awaited: Redis being slow must not hold up the gateway starting.
   scheduleIntakeCleanup().catch((error: unknown) =>
     console.error('Scheduling the client intake cleanup failed:', error),
+  )
+  scheduleDailyAssessmentChecks().catch((error: unknown) =>
+    console.error('Scheduling the daily assessment checks failed:', error),
   )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()
