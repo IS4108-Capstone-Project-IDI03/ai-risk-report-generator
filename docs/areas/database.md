@@ -604,7 +604,7 @@ two removals at once can't leave nothing. The API lists only kept ones under
 `removedRecordings`, `removedPhotos` and `removedPages`, so everything that
 reads the former leaves removed ones out without asking: drafting, the section
 evidence counts, the wait for transcriptions before drafting, the Photos tab,
-the Scans view and the photo appendix (EX-01). Removing or restoring a
+the Scans view, All Recordings (CP-12) and the photo appendix (EX-01). Removing or restoring a
 transcribed recording or page, or adding one once it is transcribed, changes
 the text a draft was given, so it counts in `changesSinceDraft`; photos are
 not drafting evidence, so they don't. A removed recording's or page's text
