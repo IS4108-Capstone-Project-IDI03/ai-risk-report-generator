@@ -1,9 +1,22 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Badge, Button, Callout, Icon, Switch, Tabs, Tag } from '../../../design-system'
+import {
+  AddRow,
+  Badge,
+  Button,
+  Callout,
+  Icon,
+  IconButton,
+  Switch,
+  Tabs,
+  Tag,
+  toast,
+  type Reason,
+} from '../../../design-system'
 import {
   GatewayError,
   markChecklistItem,
+  removeChecklistItem,
   saveObservation,
   startCaptureSession,
   type Checklist,
@@ -30,6 +43,7 @@ import {
 } from '../checklistChecks'
 import { formatDayYearTime } from '../format'
 import { AnswerDialog, type Answer, type AnswerPlace } from './ChecklistAnswer'
+import { ChecklistItemEditor, type ItemPlace } from './ChecklistItemEditor'
 import { MoreMenu } from './MoreMenu'
 
 // One checklist, shown in two places (CP-31): the assessment's Checklist tab
@@ -37,7 +51,9 @@ import { MoreMenu } from './MoreMenu'
 // answers: the facility's priority risks and the report sections on two tabs,
 // each section by subsection, the relevant sections or all of them, and each
 // item with its citations and its answer or the buttons to give one. Only
-// where an answer's observation is saved differs (AnswerPlace).
+// where an answer's observation is saved differs (AnswerPlace). On the tab,
+// the assigned engineer also customises it (CP-32): adds, edits, removes and
+// restores items. Removed items are left out of everything but their own list.
 
 // A subsection's name over its items: small capitals, so it reads as a label.
 const eyebrow = {
@@ -244,6 +260,7 @@ function ItemRow({
   indent = false,
   fresh = false,
   answer,
+  actions,
 }: {
   item: ChecklistItem
   checklist: Checklist
@@ -255,10 +272,12 @@ function ItemRow({
   // so it may replace that answer: tinted and tagged to answer again.
   fresh?: boolean
   answer: ReactNode
+  // Edit and remove, for the engineer customising the checklist (CP-32).
+  actions?: ReactNode
 }) {
   // Only the model's items are AI-written (CP-30 AC8); the template's and the
-  // hazard list's own are the team's.
-  const written = item.origin === 'standard' || item.origin === 'hazard'
+  // hazard list's own are the team's, and an edited item is the engineer's.
+  const written = (item.origin === 'standard' || item.origin === 'hazard') && !item.edited
   // Citations of one page of one standard share a chip; opened, it shows each quote.
   const pages = groupCitations(item.citations, checklist)
   const [open, setOpen] = useState<string | null>(null)
@@ -276,21 +295,31 @@ function ItemRow({
         background: fresh ? 'var(--diff-added-bg)' : undefined,
       }}
     >
-      <p
-        style={{
-          margin: 0,
-          fontSize: 'var(--text-body-size)',
-          lineHeight: '22px',
-          fontWeight: item.origin === 'template' ? 600 : 400,
-        }}
-      >
-        {fresh && (
-          <Badge tone="info" style={{ marginRight: 'var(--space-3)' }}>
-            Answer again?
-          </Badge>
-        )}
-        {itemTitle(item)}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+        <p
+          style={{
+            flex: '1 1 auto',
+            margin: 0,
+            fontSize: 'var(--text-body-size)',
+            lineHeight: '22px',
+            fontWeight: item.origin === 'template' ? 600 : 400,
+          }}
+        >
+          {fresh && (
+            <Badge tone="info" style={{ marginRight: 'var(--space-3)' }}>
+              Answer again?
+            </Badge>
+          )}
+          {itemTitle(item)}
+          {/* The engineer's own changes, kept when the checklist is generated again. */}
+          {(item.origin === 'manual' || item.edited) && (
+            <Badge tone="neutral" style={{ marginLeft: 'var(--space-3)' }}>
+              {item.origin === 'manual' ? 'Added' : 'Edited'}
+            </Badge>
+          )}
+        </p>
+        {actions}
+      </div>
       {detail && <p style={{ ...muted, marginTop: 'var(--space-2)' }}>{detail}</p>}
       {general && (
         <p
@@ -408,6 +437,7 @@ function Group({
   items,
   need,
   answered,
+  onAdd,
   children,
 }: {
   title: string
@@ -416,6 +446,8 @@ function Group({
   items: ChecklistItem[]
   need: number | null
   answered: ReactNode[]
+  // Adds the engineer's own item here (CP-32).
+  onAdd?: () => void
   children: ReactNode
 }) {
   const [unfolded, setUnfolded] = useState(false)
@@ -481,6 +513,16 @@ function Group({
           {unfolded && <ul style={list}>{answered}</ul>}
         </>
       )}
+      {onAdd && (
+        <div
+          style={{
+            padding: 'var(--space-4) var(--space-6)',
+            borderTop: '1px solid var(--border-subtle)',
+          }}
+        >
+          <AddRow onClick={onAdd}>Add item</AddRow>
+        </div>
+      )}
     </section>
   )
 }
@@ -533,6 +575,7 @@ export function ChecklistItems({
   highlight,
   regenerateHint,
   onViewObservation,
+  customising = false,
 }: {
   reference: string
   view: ChecklistView & { checklist: Checklist }
@@ -545,8 +588,16 @@ export function ChecklistItems({
   // What to do about an out-of-date checklist, from where it is shown.
   regenerateHint: string
   onViewObservation: (observationId: string) => void
+  // On the tab, for the assigned engineer: add, edit, remove and restore items
+  // (CP-32). Not on site, where the checklist is answered.
+  customising?: boolean
 }) {
-  const { checklist } = view
+  // Removed items (CP-32) are left out of everything but their own list.
+  const checklist = {
+    ...view.checklist,
+    items: view.checklist.items.filter((i) => i.status !== 'removed'),
+  }
+  const removedItems = view.checklist.items.filter((i) => i.status === 'removed')
   // Answered when first shown; the parent keys this by checklist, so a new one starts again.
   const [folded] = useState(() => new Set(checklist.items.filter((i) => i.check).map((i) => i.id)))
   const [part, setPart] = useState(checklist.hazards.length ? 'risks' : 'sections')
@@ -616,21 +667,108 @@ export function ChecklistItems({
       onView={onViewObservation}
     />
   )
+
+  // Customising (CP-32): the item being added or edited, and removing and
+  // restoring, each confirmed by a toast; a removal can be undone from it.
+  const [editing, setEditing] = useState<{ item: ChecklistItem | null; place: ItemPlace } | null>(
+    null,
+  )
+  const restore = async (item: ChecklistItem) => {
+    try {
+      setView(await removeChecklistItem(reference, item.id, true))
+      toast.success('Item restored')
+    } catch (failed: unknown) {
+      toast.error("Couldn't restore the item", {
+        description: failed instanceof GatewayError ? failed.message : 'Try again.',
+      })
+    }
+  }
+  const remove = async (item: ChecklistItem) => {
+    setBusy(item.id)
+    setError(null)
+    try {
+      setView(await removeChecklistItem(reference, item.id))
+      toast.success('Item removed', {
+        action: { label: 'Undo', onClick: () => void restore(item) },
+      })
+    } catch (failed: unknown) {
+      setError(
+        failed instanceof GatewayError
+          ? failed.message
+          : 'The item could not be removed. Try again.',
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+  // Why an item can't be removed: the checklist promises a report template
+  // subsection and an item for each priority risk (CP-30 AC3-4), and an
+  // answered item's observation would be hidden.
+  const keptBecause = (item: ChecklistItem): Reason | undefined => {
+    if (item.origin === 'template')
+      return {
+        title: "Can't remove",
+        text: 'The report has this subsection. Mark it Not applicable instead.',
+      }
+    if (item.hazard && !checklist.items.some((i) => i.hazard === item.hazard && i.id !== item.id))
+      return {
+        title: "Can't remove",
+        text: 'Each priority risk keeps one item. Mark it Not applicable instead.',
+      }
+    if (item.check?.observation)
+      return {
+        title: "Can't remove yet",
+        text: 'An observation answers this item. Delete it in Observations first.',
+      }
+    return undefined
+  }
+  const actions = (item: ChecklistItem) =>
+    customising ? (
+      <div style={{ display: 'flex', gap: 'var(--space-1)', margin: '-5px -6px 0 0' }}>
+        <IconButton
+          icon="pencil"
+          size="sm"
+          label={`Edit item ${itemTitle(item)}`}
+          tooltip="Edit item"
+          onClick={() =>
+            setEditing({
+              item,
+              place: { area: item.area, subsection: item.subsection, hazard: item.hazard },
+            })
+          }
+        />
+        <IconButton
+          icon="trash-2"
+          size="sm"
+          label={`Remove item ${itemTitle(item)}`}
+          tooltip="Remove item"
+          disabled={busy === item.id}
+          disabledReason={keptBecause(item)}
+          style={{ color: 'var(--red-600)' }}
+          onClick={() => void remove(item)}
+        />
+      </div>
+    ) : undefined
+  const addTo = (place: ItemPlace) =>
+    customising ? () => setEditing({ item: null, place }) : undefined
+
   const itemRow = (item: ChecklistItem, extra: { general?: string; indent?: boolean } = {}) => (
     <ItemRow
       key={item.id}
       item={item}
       checklist={checklist}
       answer={answer(item)}
+      actions={actions(item)}
       fresh={!!highlight?.has(item.id)}
       {...extra}
     />
   )
 
-  // What each tab shows: the risks' items, and the sections' as the switch is set.
+  // What each tab shows: the risks' items, and the sections' as the switch is
+  // set: the standards' items and the engineer's own, and the template's in all.
   const riskItems = checklist.items.filter((i) => i.area === 'hazards')
   const shownInSection = (i: ChecklistItem) =>
-    i.origin === 'standard' || (all && i.origin === 'template')
+    i.origin === 'standard' || i.origin === 'manual' || (all && i.origin === 'template')
   const sectionItems = checklist.items.filter((i) => i.area !== 'hazards' && shownInSection(i))
   // A tab's answered items, and any to check after a regenerate lost answers.
   const count = (items: ChecklistItem[]) => {
@@ -702,6 +840,7 @@ export function ChecklistItems({
                 answered={items
                   .filter((i) => folded.has(i.id))
                   .map((i) => itemRow(i, { general: general(i) }))}
+                onAdd={addTo({ area: 'hazards', subsection: null, hazard: hazard.id })}
               >
                 <ul style={list}>
                   {items
@@ -724,6 +863,66 @@ export function ChecklistItems({
           shown={shownInSection}
           folded={folded}
           itemRow={itemRow}
+          onAdd={(area) => addTo({ area, subsection: null, hazard: null })}
+        />
+      )}
+
+      {removedItems.length > 0 && (
+        // Removed items (CP-32), to restore: removed, they stay removed when
+        // the checklist is generated again.
+        <details aria-label="Removed items" style={card}>
+          <summary
+            style={{
+              cursor: 'pointer',
+              padding: 'var(--space-5) var(--space-6)',
+              fontSize: 'var(--text-small-size)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Removed items ({removedItems.length})
+          </summary>
+          <ul style={list}>
+            {removedItems.map((item) => (
+              <li
+                key={item.id}
+                aria-label={itemTitle(item)}
+                style={{ ...row, display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}
+              >
+                <div style={{ flex: '1 1 auto' }}>
+                  <p style={{ margin: 0, fontSize: 'var(--text-body-size)' }}>{itemTitle(item)}</p>
+                  {item.removed && (
+                    <p style={{ ...caption, marginTop: 'var(--space-1)' }}>
+                      Removed by {item.removed.by} · {formatDayYearTime(new Date(item.removed.at))}
+                    </p>
+                  )}
+                </div>
+                {customising && (
+                  <IconButton
+                    icon="rotate-ccw"
+                    size="sm"
+                    label={`Restore item ${itemTitle(item)}`}
+                    tooltip="Restore item"
+                    onClick={() => void restore(item)}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {editing && (
+        <ChecklistItemEditor
+          reference={reference}
+          checklist={view.checklist}
+          item={editing.item}
+          place={editing.place}
+          onClose={() => setEditing(null)}
+          onSaved={(next, message) => {
+            setView(next)
+            setEditing(null)
+            toast.success(message)
+          }}
         />
       )}
 
@@ -758,6 +957,7 @@ function SectionsPart({
   shown,
   folded,
   itemRow,
+  onAdd,
 }: {
   checklist: Checklist
   sections: ReportSection[] | null
@@ -767,6 +967,8 @@ function SectionsPart({
   shown: (item: ChecklistItem) => boolean
   folded: Set<string>
   itemRow: (item: ChecklistItem, extra?: { indent?: boolean }) => ReactNode
+  // Adding the engineer's own item to a section (CP-32), when customising.
+  onAdd: (area: string) => (() => void) | undefined
 }) {
   // The view the switch is on reads as chosen; the other, muted.
   const side = (chosen: boolean) =>
@@ -778,8 +980,11 @@ function SectionsPart({
   const label = (text: string) => (
     <p style={{ ...eyebrow, ...row, background: 'var(--surface-sunken)' }}>{text}</p>
   )
+  // What a section adds to the template: the standards' items and the engineer's own.
   const addedTo = (areaId: string) =>
-    checklist.items.filter((i) => i.area === areaId && i.origin === 'standard')
+    checklist.items.filter(
+      (i) => i.area === areaId && (i.origin === 'standard' || i.origin === 'manual'),
+    )
   const empty = checklist.areas.filter((area) => addedTo(area.id).length === 0)
   return (
     <>
@@ -846,6 +1051,7 @@ function SectionsPart({
             items={items}
             need={draftingNeed(area.id, sections)}
             answered={items.filter((i) => !open(i)).map((i) => itemRow(i))}
+            onAdd={onAdd(area.id)}
           >
             {added.length === 0 && (
               <p style={{ ...muted, ...row }}>Nothing specific in the selected standards.</p>
