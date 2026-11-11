@@ -13,6 +13,8 @@ import { nextInSequence } from './sequence.service'
 import type { ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 import { changeRights, clientNameOf, restoreSiteOf, type Allowed } from './client.service'
+import { rankedFocus } from './assistant/focus.service'
+import type { Priority, Stage } from './assistant/types'
 
 export const required = (label: string) =>
   z
@@ -119,6 +121,11 @@ export type AssessmentDto = {
   siteContacts: { name: string; role: string | null }[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
+  // MarshBot's stage (AS-06), separate from `status`; 'setup' until
+  // `npm run migrate:stages` has given an older assessment its stage.
+  stage: Stage
+  // Why it needs its engineer most (AS-06 Focus), only on the caller's own; else null.
+  priority: Priority | null
   // When its latest capture session started; null before capture starts. The
   // dashboard continues the engineer's most recently started capture.
   captureStartedAt: Date | null
@@ -159,6 +166,15 @@ export function opensAssessment(
   return user.role === 'knowledge_admin' || (!!engineer && String(engineer) === user.id)
 }
 
+/** Returns whether the user may open the assessment, or null when there is no such assessment. */
+export async function canOpenAssessment(
+  reference: string,
+  user: { id: string; role: string },
+): Promise<boolean | null> {
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer').lean()
+  return assessment && opensAssessment(user, assessment.engineer)
+}
+
 // Assigned assessments for engineers, all assessments for knowledge admins
 // (opensAssessment). Two queries: matching assessments, then their capture
 // sessions. `only` narrows it further, e.g. to one reference.
@@ -175,7 +191,7 @@ export async function listAssessments(
     .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')
     .lean()
-  const [sessions, rights] = await Promise.all([
+  const [sessions, rights, focus] = await Promise.all([
     CaptureSessionModel.find({ assessment: { $in: assessments.map((a) => a._id) } })
       .sort({ createdAt: 1 })
       .lean(),
@@ -183,7 +199,9 @@ export async function listAssessments(
       assessments.map((a) => a.site),
       user.id,
     ),
+    rankedFocus(user.id),
   ])
+  const priorities = new Map(focus.map((f) => [f.reference, f.priority]))
   // Later sessions overwrite earlier ones, so each assessment keeps its latest.
   const latest = new Map(sessions.map((s) => [String(s.assessment), s]))
   return assessments.map((a) => {
@@ -191,7 +209,10 @@ export async function listAssessments(
     const status = a.archivedAt
       ? 'archived'
       : (a.reportStatus ?? (session ? CAPTURE_STATUS[session.status] : 'not_started'))
-    return toDto(a, a.site, a.engineer, rights(a.site), status, session?.createdAt ?? null)
+    return {
+      ...toDto(a, a.site, a.engineer, rights(a.site), status, session?.createdAt ?? null),
+      priority: priorities.get(a.reference) ?? null,
+    }
   })
 }
 
@@ -328,6 +349,8 @@ export function toDto(
     })),
     engineer: engineer ? { id: String(engineer._id), name: engineer.name } : null,
     status,
+    stage: assessment.stage ?? 'setup',
+    priority: null,
     captureStartedAt,
     createdAt: assessment.createdAt,
     site: {
