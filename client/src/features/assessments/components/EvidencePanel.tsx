@@ -1,9 +1,32 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { EvidenceCitation, Icon } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { ReviewInspector, type InspectorTab } from './ReviewInspector'
+
+// Why the sample assessment's Ask tab cannot answer (AS-01 AC7).
+const SAMPLE_UNAVAILABLE =
+  "Answers are searched through the gateway, from a saved assessment's observations, standards " +
+  'and past reports. This sample assessment runs without the gateway, so it cannot be asked about.'
+
 export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
+  const [tab, setTab] = useState<InspectorTab>('evidence')
+  const [sheet, setSheet] = useState(false)
   return (
-    <div className="om-scroll" style={v.reviewEvidenceStyle}>
+    <ReviewInspector
+      label="Evidence panel"
+      style={v.reviewEvidenceStyle}
+      ask={{
+        ask: null,
+        unavailable: SAMPLE_UNAVAILABLE,
+        current: null,
+        // No answers, so no citation to open.
+        onCite: () => {},
+        tab,
+        onTab: setTab,
+        sheetOpen: sheet,
+        onSheet: setSheet,
+      }}
+    >
       {!!v.hasSelOpenItems && (
         <>
           <div
@@ -280,6 +303,6 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
           </Fragment>
         ))}
       </div>
-    </div>
+    </ReviewInspector>
   )
 }

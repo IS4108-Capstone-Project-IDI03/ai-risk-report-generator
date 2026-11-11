@@ -22,6 +22,9 @@ export const AI_FEATURES = [
   'site-walk',
   // Reading a client's documents into the New assessment form (CP-23), in rag-service.
   'client-intake',
+  // A question asked about an assessment in the review workspace (AS-01): its model call.
+  // Its Cohere searches are `retrieval`, as drafting's are.
+  'ask',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

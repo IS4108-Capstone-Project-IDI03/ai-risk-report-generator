@@ -1093,6 +1093,101 @@ Regenerate:
    and then accept (it becomes the saved draft, every finding pending) or
    discard (nothing else changes).
 
+## Asking about an assessment (S4, AS-01)
+
+The review workspace's right inspector has two tabs, Evidence and Ask
+(`client/src/features/assessments/components/ReviewInspector.tsx`). Ask
+(`ask/AskPanel.tsx`, `ask/useAsk.ts`) answers an engineer's question from the
+assessment's own evidence, with citations.
+
+1. The tab reads `GET /api/assessments/:reference/ask` once when the
+   workspace opens: the user's own earlier questions and answers on the
+   assessment (oldest first, at most 100) and the scope a new one searches.
+2. A question is one `POST /api/assessments/:reference/ask` with
+   `{ question }` (1 to 1,000 characters). Its answer streams back as
+   server-sent events on that request: `question` (the saved id), `step`
+   (`retrieve`, then `generate`), each checked `statement` with the sources
+   it cites (so a citation opens while the answer is still written, and after
+   it stops), any `missing` line, then `result` with the saved answer. The tab never polls, so the
+   F-07 idle sign-out still applies.
+3. The gateway (`assessment-ask.service.ts`) checks `reports:ask` and that
+   the user can open the assessment (its assigned engineer or a knowledge
+   admin), counts the question against the chat's limits (10 a minute, 200
+   a day, $2 a day, shared with CB-01; over one it answers 429 with the
+   cause, time and next step), and saves the question before asking S4.
+4. It builds S4's request (`POST /assessments/ask`) itself, never from the
+   browser:
+   - `observations`: every observation not deleted with something recorded
+     (note, finished transcript or transcribed page), categorised or not
+     (`COPE_dimension` null), oldest first.
+   - `standard_ids`: the standards selected on the assessment, read from
+     `knowledge_documents`: the latest checklist's (CP-30), or, before any
+     checklist, every standard that applies to the site
+     (`listApplicableStandards`). Only those finished, not withdrawn and with
+     no Unconfirmed details are kept, so one withdrawn since the checklist is
+     no longer searched.
+   - `documents`: the name the prompt gives each of those standards and each
+     past report matching the site's jurisdiction and facility type.
+   - `privacy`: as drafting (`privacyFor`, PV-02).
+5. S4's orchestrator (`orchestrator.ask`, prompt and checks in
+   `app/generation/ask.py`) runs one pipeline:
+   - **retrieve**: one `/mask` call for the question, observations and
+     document names; one batched Cohere embed of the question, searching
+     the standards' passages through a Chroma `doc_id` filter and past
+     reports (`marsh_report`) filtered to the site's jurisdiction and
+     facility type (`all` matches either), 20 candidates each; then one
+     Cohere rerank of the observations, standards and (masked) past reports
+     together, keeping at most 8 observations, 6 standard passages and 4
+     past-report passages scoring at least `ASK_MIN_RELEVANCE` (0.1). If
+     rerank fails, vector order is used (the first 20 observations).
+   - **assemble**: the evidence labelled `O1`, `C1`, `P1`. With nothing
+     kept, no model is asked and the answer is one Missing line naming what
+     was searched.
+   - **generate**: `llm.stream_text` with `LLM_PROVIDER`, `ASK_MODEL`
+     (default `LLM_MODEL`) and `ASK_EFFORT` (default `low`), feature `ask`.
+     The model writes one statement per line with its citations after it
+     (`[O2]`, `[C1 "exact words"]`), or a `Missing:` line.
+   - **guardrail**, on each line before it is sent: real values back; a
+     citation counts only if it names a label the model was given, and its
+     quote is looked for in that passage or observation (`verified`). A line
+     with no citation is not shown, nor one in the first person, one that
+     recommends, or one that gives a percentage; emoji are removed. If no
+     line survives, the answer says no statement could be supported.
+6. S4's `result` holds the statements, missing lines, the cited sources (a
+   passage's text and Chroma labels, or the observation as sent), the
+   confidence, any error (`step`, `cause`, `at`), the usage list and the
+   run's trace. Confidence is worked out in code, never asked of the model:
+   High when every quote was found, nothing was left out or missing and some
+   statement rests on an observation or standard; Low when a line was left
+   out, most statements have a quote not found, or only past reports support
+   it; Medium otherwise.
+7. The gateway records the usage for the report (`ai_calls`: `ask` for the
+   model call, `retrieval` for Cohere), adds its cost to the user's daily
+   chat spend, saves the answer and trace in `assessment_questions` (see
+   [database](database.md#assessment-questions-as-01)), and sends the
+   browser the saved answer, its passages with their documents' details now
+   (as RV-01), without the usage or trace.
+
+Selecting a citation or a source in an answer switches the inspector to
+Evidence and opens it there; a source the draft also cites is marked open in
+its list. On parts with no draft (Sections 1-3, Appendix A) the source opens
+above the part's note.
+
+Failures state their cause and time, then the next step (AC8): "Answer
+stopped at 14:02: the model provider did not respond. Ask again." What was
+answered before a failure stays. Causes: `the answer service could not be
+reached` (gateway to S4), `the evidence search did not respond`, `client
+details could not be masked, so nothing was sent to the model`, `the model
+provider did not respond`, `the model provider returned an error`, `the
+model declined to answer`, `the answer was cut off before it was complete`,
+and for a request refused over the limits `more than 10 questions were asked
+in a minute` (Ask again in a minute) or `today's question limit was reached`
+(Ask again tomorrow). An engineer who leaves while it is written stops it;
+it is saved as `stopped`.
+
+Without the gateway the tab says it is unavailable: on the sample assessment
+always, and on a saved one when the gateway cannot be reached.
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word

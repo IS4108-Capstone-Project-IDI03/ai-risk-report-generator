@@ -232,6 +232,15 @@ async function latestStored(assessment: Types.ObjectId) {
   return ChecklistModel.findOne({ assessment }).sort({ createdAt: -1, _id: -1 }).lean<Checklist>()
 }
 
+// The standards the engineer kept in scope on the assessment's latest
+// checklist (AC2), by knowledge document id, or null before the first is
+// generated. The Ask tab (AS-01) searches them as the assessment's selected
+// standards.
+export async function selectedStandardIds(assessment: Types.ObjectId): Promise<string[] | null> {
+  const found = await latestStored(assessment)
+  return found ? found.standards.map((s) => s.id) : null
+}
+
 async function latest(assessment: Types.ObjectId) {
   const found = await latestStored(assessment)
   return found ? toDto(found, await itemChecks(found)) : null

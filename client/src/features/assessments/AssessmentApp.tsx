@@ -445,6 +445,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           panelStyle={v.reviewEvidenceStyle}
                           onGenerate={() => v.setTab('generate')}
                           historyRequest={v.reviewHistory}
+                          canAsk={v.canAsk}
                         />
                       ) : (
                         <Review v={v} />

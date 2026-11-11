@@ -128,6 +128,35 @@ export async function openChatStream(
   return response.body.pipeThrough(recordingChatUsage(userId))
 }
 
+/**
+ * S4's event stream for one question about an assessment (AS-01): its steps,
+ * each checked statement, any missing evidence, then one `result` event. The
+ * caller reads the result (usage, trace) before passing anything on.
+ */
+export async function openAskStream(
+  body: unknown,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  let response: Response
+  try {
+    response = await fetch(`${config.ragServiceUrl}/assessments/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    })
+  } catch {
+    throw new RagServiceError('the answer service could not be reached')
+  }
+  if (!response.ok || !response.body) {
+    throw new RagServiceError(
+      `the answer service failed with status ${response.status}`,
+      response.status,
+    )
+  }
+  return response.body
+}
+
 // The AG-UI event S4 ends a chat answer with: the answer's paid calls.
 const isUsageEvent = (block: string) => {
   if (!block.startsWith('data: ')) return null

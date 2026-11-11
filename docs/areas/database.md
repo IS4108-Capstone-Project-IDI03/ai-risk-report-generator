@@ -494,6 +494,7 @@ with the same list.
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
+| `reports:ask` | `GET` and `POST /api/assessments/:reference/ask` (AS-01): asking about an assessment in the review workspace's Ask tab and reading one's own earlier answers; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -1066,6 +1067,35 @@ unknown assessment, thread or comment; 409 once the assessment is archived.
 `GET /api/assessments/:reference/export` also returns `openThreads`, how many
 threads are still open, which the Export tab shows as a reminder that never
 blocks the export (AC9).
+
+## Assessment questions (AS-01)
+
+`assessment_questions` (`server/src/models/assessment-question.model.ts`)
+holds the questions asked in the review workspace's Ask tab, one document
+per question with its answer. They are the asker's own conversation about
+that assessment: only they read them back (`GET /api/assessments/:reference/ask`,
+oldest first). Each holds the trace of the run that answered it, for the
+evaluation harness.
+
+| Field | Meaning |
+|---|---|
+| `assessment`, `userId` | the assessment, and who asked |
+| `question` | as asked, at most 1,000 characters |
+| `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified }] }`: `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source |
+| `missing` | what evidence the answer says is missing (AC4) |
+| `sources` | the cited sources as S4 returned them, by `ref`: a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
+| `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
+| `error` | `{ step, cause, at }` when it stopped, else `null` |
+| `trace` | the run (AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+| `metadata` | the five required fields: `source_type: 'assessment_question'`, the site's `jurisdiction` and `facility_type`, `COPE_dimension: 'all'` (a question covers the whole assessment) and `effective_date` (when asked) |
+
+- The question is saved before S4 is asked, so it is kept even if the
+  answer fails; the answer, sources, confidence, error and trace are written
+  once the stream ends.
+- Its paid calls go to `ai_calls` with the assessment's `reportId`
+  (feature `ask`, and `retrieval` for Cohere).
+- Index `{ assessment, userId, createdAt }`.
 
 ## Opportunities for Improvement (GN-05)
 
@@ -1706,7 +1736,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk`, `client-intake` or `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) |
 | `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |

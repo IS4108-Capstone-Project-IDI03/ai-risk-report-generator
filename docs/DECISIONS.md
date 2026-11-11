@@ -2327,3 +2327,26 @@ Rejected:
 Known limits: a removed or edited model-written item that comes back resting on different passages, or under another section, is not matched: an edited one is kept beside the new one, a removed one comes back. The keyword search finds the words given, not their synonyms ("sprinkler" finds "sprinklers" but not "automatic suppression"); its cache holds a re-ingested standard's old passages for up to 10 minutes. On a phone, selecting words in a passage is fiddly; the first sentence is quoted without one. Answers written on the PDF are entered in the app by hand.
 
 Stories: CP-32, CP-30, CP-31, CP-34.
+
+## 2026-11-09 — Asking about an assessment runs through the orchestrator, checks each line before it is shown, and is saved with its trace
+
+Chose:
+- (AS-01) A question asked in the review workspace's Ask tab runs as `orchestrator.ask` in S4: retrieve, assemble, generate, guardrail, in one function, so one run leaves one trace (the 2026-09-07 orchestration decision). The trace is saved with the answer in `assessment_questions`; the paid calls go to `ai_calls` for the report (EV-03).
+- Its own small flow, not CB-01's chat: no planner step and no history. Each question stands alone, so one question costs one embed, one rerank and one model call. The model is `ASK_MODEL` on `LLM_PROVIDER` (default `LLM_MODEL`, effort low), as AC6 asks, not `CHAT_PROVIDER`.
+- The model writes one statement per line with its citations after it (`[O2]`, `[C1 "exact words"]`), or a `Missing:` line. S4 holds each line until it ends, checks it (labels it was given, quotes found, the content rules), and only then sends it; a line that fails is never shown and the trace records why. So an uncited statement never reaches the screen (AC4), at the cost of answers arriving a sentence at a time rather than word by word.
+- The standards selected on the assessment are its latest checklist's (CP-30), or, before any checklist, every standard that applies to the site, then filtered through `knowledge_documents` (finished, not withdrawn, no Unconfirmed details). Chroma searches them by `doc_id`. Past reports are filtered by the site's jurisdiction and facility type (`all` matches either), unlike GN-01, which filters past reports by country only.
+- Every observation not deleted is evidence, uncategorised ones included: a question is not about one section's categories. Observations are not in Chroma, so the one rerank call ranks them with the passages.
+- Confidence (High, Medium, Low) is worked out in code from the checks, never asked of the model, and shown with the design system's `ConfidenceIndicator`.
+- Questions are saved per user and assessment, so the tab shows one's earlier answers again; others never see them. Questions count against the chat's limits (CB-01), so one user's daily spend stays capped across both.
+- The answer box uses AI violet (`--ai-*`), as AC2 asks, although design system v2 says new screens carry no AI tint: answers are machine-written and provisional until their sources are checked.
+
+Rejected:
+- Reusing CB-01's chat pipeline: it answers from the knowledge base, not one assessment's observations, plans with a second model, and uses `CHAT_PROVIDER`.
+- Streaming the model's words as they come: a line could be shown before its check fails.
+- Asking the model for its confidence: it gives no measure the platform can stand behind (CP-05 said the same of photo readings).
+- A new standards field on the assessment: the checklist already records the standards the engineer keeps in scope.
+
+Known limits: the content rules are checked with patterns (first person, "should"-style advice to someone, percentages of certainty); a recommendation worded otherwise is left to the prompt. `ASK_MIN_RELEVANCE` (0.1) is a first guess; no AS-01 eval set exists yet, so the saved traces are the material for one.
+
+Stories: AS-01, GN-01, CP-30, EV-03, PV-02.
+
