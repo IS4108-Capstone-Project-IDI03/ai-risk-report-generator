@@ -11,6 +11,7 @@ import { recordAiCalls } from './ai-usage.service'
 import { onProposalJob } from './background-queues.service'
 import type { SessionUser } from './auth.service'
 import type { JobContext } from './job-queue.service'
+import { queueAssessmentCheck } from './assistant/check-queue.service'
 import { locationSchema } from './location.service'
 import { notifyFailed, notifyReady } from './site-walk-notice.service'
 import { privacyFor, readingPrivacyFor } from './privacy.service'
@@ -265,4 +266,6 @@ export async function runProposal(walkId: string, context: JobContext) {
     )
     if (failed.modifiedCount) await notifyFailed(walk._id)
   }
+  // MarshBot (AS-06): the walk is now ready to review, or failed.
+  queueAssessmentCheck(reportId)
 }

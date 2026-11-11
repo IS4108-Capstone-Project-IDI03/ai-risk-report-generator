@@ -22,6 +22,7 @@ import { NotAssignedError } from './assessment.service'
 import { onTranscriptionJob, proposalQueue, transcriptionQueue } from './background-queues.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { retryJobId, type JobContext } from './job-queue.service'
+import { queueAssessmentCheckById } from './assistant/check-queue.service'
 import { isDuplicateKeyError } from './mongo-errors'
 import { audioExtension, photoFormat } from './observation.service'
 import {
@@ -830,6 +831,7 @@ export async function runMediaTranscription(walkId: string, mediaId: string, con
     const reason = error instanceof Error ? error.message : 'Transcription failed.'
     await setMediaTranscription(walkId, mediaId, { status: 'failed', error: reason })
   }
+  queueAssessmentCheckById(walk.assessment)
 }
 
 // The walk's error line: which recording failed and the reason the engineer can act on.
@@ -859,6 +861,9 @@ export async function runWalkTranscription(walkId: string, seq: number, context:
     if (!refused && !context.isLastAttempt) throw error
     await markRecordingFailed(walkId, seq, error)
   }
+  // MarshBot (AS-06) shows the walk's new state; the walk is read again since this function never loaded it.
+  const walk = await SiteWalkModel.findById(walkId, 'assessment').lean()
+  if (walk) queueAssessmentCheckById(walk.assessment)
 }
 
 // One try at transcribing a walk recording; throws whatever goes wrong. A
