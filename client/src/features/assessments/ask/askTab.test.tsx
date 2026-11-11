@@ -158,7 +158,7 @@ const sse = (...events: object[]) =>
 type Asked = { question: string }
 function gateway({
   earlier = [] as AskAnswer[],
-  answer = (_: Asked) => sse(),
+  answer = (() => sse()) as (asked: Asked) => Promise<Response>,
   list = () => json(200, { scope: SCOPE, questions: earlier }),
 } = {}) {
   const asked: Asked[] = []

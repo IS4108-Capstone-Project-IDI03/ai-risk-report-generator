@@ -312,7 +312,7 @@ export function AskPanel({
       ) : (
         <ol ref={thread} className="ask-thread" aria-label="Questions and answers">
           {ask.items.map((item) => (
-            <li key={item.id} className="ask-item">
+            <li key={item.key} className="ask-item">
               <p className="ask-question">
                 <span className="ask-sr-only">Question: </span>
                 {item.question}

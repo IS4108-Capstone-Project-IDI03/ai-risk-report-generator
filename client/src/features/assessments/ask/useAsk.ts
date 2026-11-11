@@ -14,6 +14,9 @@ export type ShownFailure = { cause: string; at: string; next: string }
 
 // One question in the tab: as saved, or as it is being answered.
 export type AskItem = AskAnswer & {
+  // Stays the same while the item is on screen: its saved id once known, or
+  // the temporary one it was asked under, so its row is never remounted.
+  key: string
   // The step being run while it is answered: searching, then writing.
   step: 'retrieve' | 'generate' | null
   failure: ShownFailure | null
@@ -39,9 +42,10 @@ function refusal(error: GatewayError): [cause: string, next: string] {
   ]
 }
 
-function shown(answer: AskAnswer): AskItem {
+function shown(answer: AskAnswer, key = answer.id): AskItem {
   return {
     ...answer,
+    key,
     step: null,
     failure: answer.error ? { cause: answer.error.cause, at: answer.error.at, next: NEXT } : null,
   }
@@ -66,7 +70,7 @@ export function useAsk(reference: string, enabled: boolean) {
     listQuestions(reference, controller.signal).then(
       (list) => {
         setScope(list.scope)
-        setItems(list.questions.map(shown))
+        setItems(list.questions.map((answer) => shown(answer)))
         setState('ready')
       },
       (error: unknown) => {
@@ -96,16 +100,14 @@ export function useAsk(reference: string, enabled: boolean) {
       const controller = new AbortController()
       running.current = controller
       setBusy(true)
-      let key = `pending-${Date.now()}`
-      // The key as it is now: React runs the updater later, after `key` may have changed.
-      const update = (change: (item: AskItem) => AskItem) => {
-        const at = key
-        setItems((list) => list.map((item) => (item.id === at ? change(item) : item)))
-      }
+      const key = `pending-${Date.now()}`
+      const update = (change: (item: AskItem) => AskItem) =>
+        setItems((list) => list.map((item) => (item.key === key ? change(item) : item)))
       setItems((list) => [
         ...list,
         {
           id: key,
+          key,
           question,
           askedAt: new Date().toISOString(),
           status: 'answering',
@@ -131,7 +133,6 @@ export function useAsk(reference: string, enabled: boolean) {
         if (event.type === 'question') {
           const id = event.id
           update((item) => ({ ...item, id, askedAt: event.askedAt }))
-          key = id
         } else if (event.type === 'step') {
           const step = event.step === 'generate' ? 'generate' : 'retrieve'
           update((item) => ({ ...item, step }))
@@ -147,7 +148,7 @@ export function useAsk(reference: string, enabled: boolean) {
           update((item) => ({ ...item, missing: [...item.missing, event.text] }))
         } else if (event.type === 'result') {
           finished = true
-          update(() => shown(event.answer))
+          update(() => shown(event.answer, key))
         }
       }
       try {

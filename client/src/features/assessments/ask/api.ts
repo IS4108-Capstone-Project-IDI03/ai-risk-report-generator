@@ -72,13 +72,15 @@ export type AskEvent =
 // A question refused before it was answered (429 over the limits), with its
 // cause, time and next step (AC8).
 export class AskRefusedError extends Error {
-  constructor(
-    readonly reason: string,
-    readonly at: string,
-    readonly next: string,
-  ) {
+  readonly reason: string
+  readonly at: string
+  readonly next: string
+  constructor(reason: string, at: string, next: string) {
     super(reason)
     this.name = 'AskRefusedError'
+    this.reason = reason
+    this.at = at
+    this.next = next
   }
 }
 

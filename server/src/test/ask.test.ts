@@ -126,7 +126,7 @@ async function seedAssessment() {
     locations: [{ _id: BAY_3, name: 'Bay 3', floor: 'Ground', key: 'bay 3|ground' }],
   })
   const session = await CaptureSessionModel.create({ assessment: assessment._id })
-  const observation = (cope: CopeDimension[] | null, note: string, deleted = false) =>
+  const observation = (cope: CopeDimension[] | null, note: string) =>
     ObservationModel.create({
       assessment: assessment._id,
       session: session._id,
@@ -135,7 +135,6 @@ async function seedAssessment() {
       recordings: [],
       severity: 'high',
       location: BAY_3,
-      ...(deleted && { deleted: { at: new Date(), by: { id: 'x', name: 'x' } } }),
       metadata: {
         source_type: 'observation',
         jurisdiction: 'SG',
@@ -146,14 +145,18 @@ async function seedAssessment() {
     })
   const valve = await observation(['Protection'], 'B1 sprinkler control valve found shut.')
   const lights = await observation(null, 'Lobby lights flicker.')
-  await observation(['Protection'], 'A deleted note.', true)
+  const gone = await observation(['Protection'], 'A deleted note.')
+  await ObservationModel.updateOne(
+    { _id: gone._id },
+    { deleted: { at: new Date(), by: { id: 'x', name: 'x' } } },
+  )
   return { assessment, valve, lights }
 }
 
 // A finished knowledge document.
 const knowledge = (
   title: string,
-  sourceType: string,
+  sourceType: 'fm_standard' | 'nfpa_standard' | 'marsh_report',
   over: { jurisdiction?: string; facilityType?: string; withdrawn?: boolean } = {},
 ) =>
   KnowledgeDocumentModel.create({
