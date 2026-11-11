@@ -80,3 +80,12 @@ CLIENT_INTAKE_CUTOFFS = {
 # than a Not sure.
 CLIENT_INTAKE_MATCH = 0.80
 CLIENT_INTAKE_MATCH_MAYBE = 0.65
+
+# MarshBot (AS-06). The coverage check finds checklist items no observation covers and
+# observations too thin for their section; the wording call rewords the rules' messages as
+# OpenUI. Both run on LLM_PROVIDER; the AS-06 eval picks the models.
+ASSISTANT_COVERAGE_MODEL = os.getenv("ASSISTANT_COVERAGE_MODEL", "claude-sonnet-5-5")
+# High, not medium: at medium Sonnet called a third of covered items uncovered (AS-06 eval, 11 Nov).
+ASSISTANT_COVERAGE_EFFORT = os.getenv("ASSISTANT_COVERAGE_EFFORT", "high")
+ASSISTANT_WORDING_MODEL = os.getenv("ASSISTANT_WORDING_MODEL", "claude-sonnet-5-5")
+ASSISTANT_WORDING_EFFORT = os.getenv("ASSISTANT_WORDING_EFFORT", "low")
