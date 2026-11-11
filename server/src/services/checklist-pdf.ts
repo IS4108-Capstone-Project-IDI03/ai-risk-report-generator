@@ -109,9 +109,7 @@ function referenceName(checklist: ChecklistDto, source: Source | undefined) {
 
 function references(checklist: ChecklistDto, item: Item) {
   if (!item.citations.length) {
-    return item.flags.includes('uncited')
-      ? '<p class="meta">No standard cited.</p>'
-      : ''
+    return item.flags.includes('uncited') ? '<p class="meta">No standard cited.</p>' : ''
   }
   const sources = checklist.sources as Record<string, Source>
   const rows = item.citations.map(
