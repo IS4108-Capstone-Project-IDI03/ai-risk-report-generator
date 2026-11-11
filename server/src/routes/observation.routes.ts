@@ -10,6 +10,7 @@ import {
   getPhotoImage,
   getRedactedPhotoImage,
   getRecordingAudio,
+  MEDIA_KINDS,
   NotRetryableError,
   observationChangesSchema,
   ObservationNotFoundError,
@@ -113,10 +114,40 @@ router.put(
   },
 )
 
-// Adds recordings and photos to a saved observation (CP-08), as a multipart
-// form of `recording` and `photo` parts checked as capture checks them. Each
-// recording is transcribed; no photo is read until an engineer asks. Needs no
-// capture session, only the assessment's assigned engineer.
+// Corrects a handwritten page's finished transcription (CP-20), keeping what
+// the model wrote, as a recording's transcript is corrected.
+router.put(
+  '/:id/pages/:pageId/transcript',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = transcriptCorrectionSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'The page’s text is invalid.', fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(
+        await correctTranscript(
+          req.params.id,
+          req.params.pageId,
+          parsed.data.text,
+          res.locals.user!,
+          'pages',
+        ),
+      )
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Adds recordings, photos and handwritten pages to a saved observation (CP-08,
+// CP-20), as a multipart form of `recording`, `photo` and `page` parts checked
+// as capture checks them. Each recording and page is transcribed; no photo is
+// read until an engineer asks. Needs no capture session, only the assessment's
+// assigned engineer.
 router.post(
   '/:id/media',
   requirePermission('assessments:edit'),
@@ -124,7 +155,7 @@ router.post(
   async (req, res) => {
     const form = await readForm(req)
     if (!form) {
-      res.status(400).json({ error: 'Send the recordings and photos as a multipart form.' })
+      res.status(400).json({ error: 'Send the recordings, photos and pages as a multipart form.' })
       return
     }
     const media = await mediaParts(form)
@@ -132,27 +163,30 @@ router.post(
       res.status(media.status).json({ error: media.error })
       return
     }
-    // ponytail: handwritten pages are captured with the observation for now;
-    // adding them to a saved one comes with managing them (CP-20).
-    if (media.pages.length) {
-      res.status(400).json({ error: 'Pages can only be added when the observation is captured.' })
-      return
-    }
-    if (!media.recordings.length && !media.photos.length) {
-      res.status(400).json({ error: 'Add a recording or a photo to the observation.' })
+    if (!media.recordings.length && !media.photos.length && !media.pages.length) {
+      res.status(400).json({ error: 'Add a recording, a photo or a page to the observation.' })
       return
     }
     try {
-      res.json(await addMedia(req.params.id, media.recordings, media.photos, res.locals.user!))
+      res.json(
+        await addMedia(
+          req.params.id,
+          media.recordings,
+          media.photos,
+          res.locals.user!,
+          media.pages,
+        ),
+      )
     } catch (error: unknown) {
       refuse(error, res)
     }
   },
 )
 
-// Removes a recording or photo (CP-08), a soft removal: it stays in S3, is no
-// longer evidence, and can be restored. 200 with the observation.
-for (const kind of ['recordings', 'photos'] as const) {
+// Removes a recording, photo or handwritten page (CP-08, CP-20), a soft
+// removal: it stays in S3, is no longer evidence, and can be restored. 200
+// with the observation.
+for (const kind of MEDIA_KINDS) {
   router.delete(`/:id/${kind}/:itemId`, requirePermission('assessments:edit'), async (req, res) => {
     try {
       res.json(await removeMedia(req.params.id, kind, req.params.itemId, res.locals.user!))

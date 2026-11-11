@@ -126,13 +126,13 @@ function transcriptsOf(o: ObservationDto): string[] {
   })
 }
 // The same for handwritten pages (CP-19): a finished transcript with text in
-// it. A page with no handwriting gives the draft nothing.
+// it, as the engineer corrected it if they did (CP-20). A page with no
+// handwriting gives the draft nothing. Removed pages are not in `pages`.
 function handwritingOf(o: ObservationDto): string[] {
-  return o.pages.flatMap((p) =>
-    p.transcription.status === 'transcribed' && p.transcription.transcript?.trim()
-      ? [p.transcription.transcript]
-      : [],
-  )
+  return o.pages.flatMap((p) => {
+    const text = p.transcription.correction?.text ?? p.transcription.transcript
+    return p.transcription.status === 'transcribed' && text?.trim() ? [text] : []
+  })
 }
 function isUsable(o: ObservationDto): boolean {
   return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0 || handwritingOf(o).length > 0
