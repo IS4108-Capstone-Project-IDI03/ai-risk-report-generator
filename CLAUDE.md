@@ -60,6 +60,14 @@
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export
   page may fetch a URL. See docs/areas/services.md, "Report export".
+- An assessment's `stage` (AS-06) only moves forward and is set only by the
+  MarshBot re-check (`advanceStage` in `services/assistant/stage.ts`); don't
+  write it anywhere else. A
+  change under `/api/assessments/:reference/**` re-checks it by itself
+  (`assistant-recheck.middleware.ts`); background work that finishes outside a
+  request calls `queueAssessmentCheck`. MarshBot pushes to the open Overview
+  (server-sent events): never add polling for it. See docs/areas/services.md,
+  "Assessment assistant (MarshBot)".
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.
