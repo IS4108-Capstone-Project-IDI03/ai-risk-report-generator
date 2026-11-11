@@ -1,0 +1,231 @@
+{
+ "id": "office-a332-06",
+ "split": "test",
+ "kind": "coverage",
+ "source": "office-a332 report notes, areas 6, 8",
+ "assessment": {
+  "reference": "EVAL-S6-OFFICE",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  }
+ ],
+ "observations": [
+  {
+   "id": "a332-1",
+   "COPE_dimension": "Construction",
+   "note": "bldg in good condition. structural inspection every 5 yrs by PE civil, report to BCA",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "a332-3",
+   "COPE_dimension": "Occupancy",
+   "note": "lifts, chillers, AHUs maintained by contractors per manufacturer recommendation",
+   "severity": "low",
+   "location": "Plant rooms"
+  },
+  {
+   "id": "a332-4",
+   "COPE_dimension": "Protection",
+   "note": "FP impairments managed with an isolation form only. no formal impairment programme",
+   "severity": "moderate",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "a332-5",
+   "COPE_dimension": "Protection",
+   "note": "service contract w 3rd party for FP equipment. annual dry riser servicing, monthly fire pump service + test run, monthly wet riser pumps, monthly smoke detector testing (100% every 5 yrs), monthly FA servicing, quarterly VESDA, quarterly water monitors. servicing report needs improving",
+   "severity": "low",
+   "location": "Fire pump room"
+  },
+  {
+   "id": "a332-6",
+   "COPE_dimension": "Occupancy",
+   "note": "underground bulk diesel tank tops up day tanks of 3 gensets. day tanks bunded, leak detection to FCC. diesel piping in 2hr containment. licensed under SCDF petroleum & flammable materials licence",
+   "severity": "low",
+   "location": "Basement 3"
+  },
+  {
+   "id": "a332-7",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good in areas inspected",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "a332-8",
+   "COPE_dimension": "Protection",
+   "note": "hot work permit system w checklist - 11m combustible clearance, fire watch during and after hot work",
+   "severity": "low",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "a332-9",
+   "COPE_dimension": "Occupancy",
+   "note": "MOC involves the different stakeholders, risk assessment conducted",
+   "severity": "low",
+   "location": "Management office"
+  },
+  {
+   "id": "a332-10",
+   "COPE_dimension": "Protection",
+   "note": "ERP for fire, bomb threat, pandemic. 6-man ERT (site mgmt controller, site incident controller, 4 ERT from maint + security) both shifts. min 2 fire drills a year",
+   "severity": "low",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "a332-11",
+   "COPE_dimension": "Occupancy",
+   "note": "facility technicians do daily morning inspections",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "a332-12",
+   "COPE_dimension": "Occupancy",
+   "note": "smoking prohibited on site, well enforced - no cigarette butts seen anywhere",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "a332-13",
+   "COPE_dimension": "Occupancy",
+   "note": "all contractors go through site-specific induction before any work",
+   "severity": "low",
+   "location": "Management office"
+  },
+  {
+   "id": "a332-14",
+   "COPE_dimension": "Exposure",
+   "note": "BCP established at corporate level",
+   "severity": "low",
+   "location": "Management office"
+  }
+ ],
+ "removed_observations": [
+  "a332-2"
+ ],
+ "links": {
+  "a332-1": [
+   "c01"
+  ],
+  "a332-3": [
+   "c01"
+  ],
+  "a332-4": [
+   "c01"
+  ],
+  "a332-5": [
+   "c01"
+  ],
+  "a332-6": [
+   "c03",
+   "c02"
+  ],
+  "a332-7": [
+   "c01"
+  ],
+  "a332-8": [
+   "c01"
+  ],
+  "a332-9": [
+   "c01"
+  ],
+  "a332-10": [
+   "c01"
+  ],
+  "a332-11": [
+   "c01"
+  ],
+  "a332-12": [
+   "c01"
+  ],
+  "a332-13": [
+   "c01"
+  ],
+  "a332-14": [
+   "c01"
+  ],
+  "a332-2": [
+   "c01",
+   "c04",
+   "c02"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c04"
+  ],
+  "thin": []
+ }
+}

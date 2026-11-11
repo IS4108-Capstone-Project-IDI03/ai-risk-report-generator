@@ -1,0 +1,312 @@
+{
+ "id": "office5-10",
+ "split": "tune",
+ "kind": "coverage",
+ "source": "office5 report notes, areas 7, 9, hazards",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+   "key": "7/Construction Narrative"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Each building's construction class, floor area, storeys and year built",
+   "key": "7/Construction Table"
+  },
+  {
+   "id": "c04",
+   "area": "7",
+   "text": "Combustible roof or wall panels, insulation and linings, and where they are",
+   "key": "7/Details on Combustible Construction"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c06",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c07",
+   "area": "9",
+   "text": "Fire Alarm Details",
+   "key": "9/Fire Alarm Details"
+  },
+  {
+   "id": "c08",
+   "area": "9",
+   "text": "Where alarms are monitored, and how quickly they are acted on",
+   "key": "9/Fire Alarm Monitoring"
+  },
+  {
+   "id": "c09",
+   "area": "9",
+   "text": "Manual Firefighting Features",
+   "key": "9/Manual Firefighting Features"
+  },
+  {
+   "id": "c10",
+   "area": "9",
+   "text": "The latest pump flow test results",
+   "key": "9/Pump Flow Test Data"
+  },
+  {
+   "id": "c11",
+   "area": "9",
+   "text": "Gaseous, foam or other special systems, and what they protect",
+   "key": "9/Special Extinguishing Systems"
+  },
+  {
+   "id": "c12",
+   "area": "9",
+   "text": "Water sources, tanks and mains feeding the fire protection",
+   "key": "9/Water Supply Details"
+  },
+  {
+   "id": "c13",
+   "area": "hazards",
+   "text": "Check server and comms rooms: separation, detection and suppression",
+   "key": "hazard:server_rooms"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-3",
+   "COPE_dimension": "Construction",
+   "note": "office partitions drywall - gypsum, alu studs, rockwool infill",
+   "severity": "low",
+   "location": "Office floors"
+  },
+  {
+   "id": "off5-4",
+   "COPE_dimension": "Construction",
+   "note": "link to next bldg at B2 carpark, 2hr fire shutter. link not used, shutter perm shut",
+   "severity": "low",
+   "location": "Basement 2 car park"
+  },
+  {
+   "id": "off5-5",
+   "COPE_dimension": "Construction",
+   "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed",
+   "severity": "low",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "off5-6",
+   "COPE_dimension": "Construction",
+   "note": "telecom risers triple vol, fire stopped every 3 flrs - the ones we saw ok. riser doors 1hr",
+   "severity": "low",
+   "location": "Risers"
+  },
+  {
+   "id": "off5-7",
+   "COPE_dimension": "Construction",
+   "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair",
+   "severity": "moderate",
+   "location": "Tenant floors"
+  },
+  {
+   "id": "off5-11",
+   "COPE_dimension": "Protection",
+   "note": "wet pipe sprinklers throughout incl car park, OH1 office / OH2 carpark. sprinkler tanks B3 2 x 300 m3. jockey + duty elec + standby diesel pump",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "off5-12",
+   "COPE_dimension": "Protection",
+   "note": "few sprinkler heads recessed >50% into ceiling at B3 service corridor - obstructs spray pattern. FM said ceiling was lowered last yr",
+   "severity": "high",
+   "location": "B3 service corridor"
+  },
+  {
+   "id": "off5-14",
+   "COPE_dimension": "Protection",
+   "note": "addressable fire alarm, monitored 24/7 by FCC on L1, direct link to SCDF. hose reels + extinguishers every floor, wet riser",
+   "severity": "low",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "off5-15",
+   "COPE_dimension": "Protection",
+   "note": "weekly pump churn test logs ok but last annual flow test record not available. diesel pump fuel tank 3/4 full",
+   "severity": "moderate",
+   "location": "Fire pump room"
+  },
+  {
+   "id": "off5-ofi-1",
+   "COPE_dimension": "Protection",
+   "note": "fire door sequencer at B2 service lift corridor not working. fire door inspection not in maintenance schedule",
+   "severity": "high",
+   "location": "B2 service lift corridor"
+  },
+  {
+   "id": "off5-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "few spk heads recessed more than 50% into ceiling at B3 service corridor",
+   "severity": "high",
+   "location": "B3 service corridor"
+  },
+  {
+   "id": "off5-ok-1",
+   "COPE_dimension": "Protection",
+   "note": "FA panel normal, no isolations, monitored by central station",
+   "severity": "moderate",
+   "location": "Level 1 fire command centre"
+  }
+ ],
+ "removed_observations": [
+  "off5-1",
+  "off5-13",
+  "off5-2",
+  "off5-9"
+ ],
+ "links": {
+  "off5-3": [
+   "c02",
+   "c04"
+  ],
+  "off5-4": [
+   "c01"
+  ],
+  "off5-5": [
+   "c01"
+  ],
+  "off5-6": [
+   "c01"
+  ],
+  "off5-7": [
+   "c01"
+  ],
+  "off5-11": [
+   "c05",
+   "c12",
+   "c06"
+  ],
+  "off5-12": [
+   "c05"
+  ],
+  "off5-14": [
+   "c08",
+   "c07",
+   "c09"
+  ],
+  "off5-15": [
+   "c10",
+   "c06"
+  ],
+  "off5-ofi-1": [
+   "c01"
+  ],
+  "off5-ofi-2": [
+   "c05"
+  ],
+  "off5-ok-1": [
+   "c08",
+   "c07"
+  ],
+  "off5-1": [
+   "c02",
+   "c03"
+  ],
+  "off5-13": [
+   "c11",
+   "c13"
+  ],
+  "off5-2": [
+   "c02",
+   "c04"
+  ],
+  "off5-9": [
+   "c13"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c03",
+   "c11",
+   "c13"
+  ],
+  "thin": []
+ },
+ "label_fixes": [
+  {
+   "observation": "off5-ok-1",
+   "item": "c07",
+   "key": "9/Fire Alarm Details",
+   "was_gold_uncovered": false,
+   "reason": "The note records the fire alarm panel's state (normal, no isolations) and its monitoring, which is fire alarm detail."
+  },
+  {
+   "observation": "off5-3",
+   "item": "c04",
+   "key": "7/Details on Combustible Construction",
+   "was_gold_uncovered": true,
+   "reason": "The note records the partition linings and insulation (gypsum drywall, rockwool infill), so it says whether linings and insulation are combustible."
+  }
+ ]
+}

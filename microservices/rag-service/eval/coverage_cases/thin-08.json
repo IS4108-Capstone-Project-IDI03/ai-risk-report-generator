@@ -1,0 +1,136 @@
+{
+ "id": "thin-08",
+ "split": "check",
+ "kind": "thin",
+ "source": "mall2 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Each building's construction class, floor area, storeys and year built",
+   "key": "7/Construction Table"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "How waste and effluent are collected, stored and treated, and where combustible waste builds up",
+   "key": "8/Waste and effluent treatment"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "loading bay cardboard waste removed daily, area clear at time of visit",
+   "severity": "moderate",
+   "location": "Basement 2 loading bay"
+  },
+  {
+   "id": "thin-8-1",
+   "COPE_dimension": [
+    "Protection"
+   ],
+   "note": "sprinklers fine",
+   "severity": "low",
+   "location": "Retail area"
+  },
+  {
+   "id": "mall2-s4-9",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good most areas seen",
+   "severity": "low",
+   "location": "Retail + back of house"
+  },
+  {
+   "id": "mall2-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "note": "hot work permit form reviewed - no fire watch requirement during or after hot work",
+   "severity": "moderate",
+   "location": "Management office"
+  },
+  {
+   "id": "mall2-7",
+   "COPE_dimension": "Construction",
+   "note": "HT/LT sw rms + tx rms - 2hr rated doors",
+   "severity": "low",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "mall2-1",
+   "COPE_dimension": "Construction",
+   "note": "mall opened 2009. bsmt link to MRT + links to nbr malls. site 21,731m2, GFA 125,621m2, NLA 58,340m2. residences ~35,000m2 GFA",
+   "severity": "low",
+   "location": "Whole site"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-8-1"
+  ]
+ }
+}

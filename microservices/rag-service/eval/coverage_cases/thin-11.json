@@ -1,0 +1,151 @@
+{
+ "id": "thin-11",
+ "split": "test",
+ "kind": "thin",
+ "source": "mixed1 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-MIXED-1",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c02",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c03",
+   "area": "9",
+   "text": "Manual Firefighting Features",
+   "key": "9/Manual Firefighting Features"
+  },
+  {
+   "id": "c04",
+   "area": "9",
+   "text": "The latest pump flow test results",
+   "key": "9/Pump Flow Test Data"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Gaseous, foam or other special systems, and what they protect",
+   "key": "9/Special Extinguishing Systems"
+  }
+ ],
+ "observations": [
+  {
+   "id": "thin-11-1",
+   "COPE_dimension": [
+    "Protection"
+   ],
+   "note": "valves - to check",
+   "severity": "low",
+   "location": "Basement"
+  },
+  {
+   "id": "mix1-ofi-4",
+   "COPE_dimension": "Protection",
+   "note": "hosereel firewater supply valves not locked open",
+   "severity": "moderate",
+   "location": "L43 hosereel pump room"
+  },
+  {
+   "id": "mix1-1",
+   "COPE_dimension": "Protection",
+   "note": "wet spk thruout office tower, CP52:2004. OH2 B3-L10, OH1 L10-roof. pumps in B1 + L32 pump rms",
+   "severity": "low",
+   "location": "Office tower"
+  },
+  {
+   "id": "mix1-2",
+   "COPE_dimension": "Protection",
+   "note": "no spk in residences L23-31, L33-47 - site says local code doesnt need it. sky gardens L22, L32 are spk. elec rms, lift shafts, risers not spk",
+   "severity": "moderate",
+   "location": "Residences L23-L47"
+  },
+  {
+   "id": "mix1-ok-1",
+   "COPE_dimension": "Protection",
+   "note": "weekly churn test records up to date, last annual flow test Mar 25 satisfactory",
+   "severity": "moderate",
+   "location": "Basement 1 fire pump room"
+  },
+  {
+   "id": "brief-11",
+   "COPE_dimension": [
+    "Occupancy"
+   ],
+   "note": "no storage in room, door signed, floor clear",
+   "severity": "low",
+   "location": "LV switch room"
+  },
+  {
+   "id": "mix1-3",
+   "COPE_dimension": "Protection",
+   "note": "FM200 in L3 IT srv rm + B1 srv rm. B1 one cross-zoned smoke dets in rm + ceiling void, nozzles in rm + void. FM team maintains",
+   "severity": "low",
+   "location": "IT server rooms"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-11-1"
+  ]
+ }
+}

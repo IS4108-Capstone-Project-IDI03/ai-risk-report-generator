@@ -1,0 +1,139 @@
+{
+ "id": "mixed1-03",
+ "split": "test",
+ "kind": "coverage",
+ "source": "mixed1 report notes, areas 6, 8",
+ "assessment": {
+  "reference": "EVAL-MIXED-1",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "hazards",
+   "text": "Check restaurant kitchens, grease ducts and hood suppression",
+   "key": "hazard:cooking"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mix1-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "note": "hot work checklist - combustibles clearance only 3m. no fire watch during or after hot work",
+   "severity": "high",
+   "location": "Permit-to-work system"
+  },
+  {
+   "id": "mix1-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "FCC reported 1451 FA isolations in total. no proper tracking of isolations",
+   "severity": "high",
+   "location": "FCC room"
+  },
+  {
+   "id": "mix1-ofi-3",
+   "COPE_dimension": "Occupancy",
+   "note": "diesel genset day tank at P04 under 25%. tank topped up manually, no level check procedure",
+   "severity": "moderate",
+   "location": "Generator set P04"
+  },
+  {
+   "id": "mix1-ofi-5",
+   "COPE_dimension": "Occupancy",
+   "note": "tables, tools, cardboard boxes stored in L22M LV switch rm and MDF rm",
+   "severity": "moderate",
+   "location": "L22M LV switch room and MDF room"
+  }
+ ],
+ "removed_observations": [
+  "mix1-5"
+ ],
+ "links": {
+  "mix1-ofi-1": [
+   "c01"
+  ],
+  "mix1-ofi-2": [
+   "c01"
+  ],
+  "mix1-ofi-3": [
+   "c02",
+   "c03"
+  ],
+  "mix1-ofi-5": [
+   "c01"
+  ],
+  "mix1-5": [
+   "c04"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c04"
+  ],
+  "thin": []
+ }
+}

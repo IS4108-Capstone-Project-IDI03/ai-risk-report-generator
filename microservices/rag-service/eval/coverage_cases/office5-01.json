@@ -1,0 +1,183 @@
+{
+ "id": "office5-01",
+ "split": "tune",
+ "kind": "coverage",
+ "source": "office5 report notes, areas 6, 8",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Each boiler's type, fuel and pressure, where it sits and how it is separated, and its combustion safeguards and inspection records",
+   "key": "8/Boilers"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c05",
+   "area": "8",
+   "text": "What the site is used for, its operating hours and occupancy",
+   "key": "8/Overview"
+  },
+  {
+   "id": "c06",
+   "area": "8",
+   "text": "Refrigeration plant and its refrigerant, chillers, and cooling towers with their construction and whether combustible fill is protected",
+   "key": "8/Refrigeration / Chillers / Cooling towers"
+  },
+  {
+   "id": "c07",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  },
+  {
+   "id": "c08",
+   "area": "hazards",
+   "text": "Check server and comms rooms: separation, detection and suppression",
+   "key": "hazard:server_rooms"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-8",
+   "COPE_dimension": "Occupancy",
+   "note": "carpark all 3 bsmts, 351 lots + 6 accessible",
+   "severity": "low",
+   "location": "Basements"
+  },
+  {
+   "id": "off5-9",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-13",
+   "COPE_dimension": "Protection",
+   "note": "FM-200 in server room, last discharge/room integrity test 2023 - over due. no VESDA, only point smoke detectors",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-20",
+   "COPE_dimension": [
+    "Occupancy",
+    "Exposure"
+   ],
+   "note": "multi-tenant office, ~4000 occupants. building ERP exists, reviewed 2025, fire drill twice a yr. no BCP for the building itself - left to tenants. server room tenant has own DR site",
+   "severity": "moderate",
+   "location": "Whole building"
+  },
+  {
+   "id": "off5-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant fit-out works on L30 under hot work permit, fire watch posted, extinguisher at hand",
+   "severity": "moderate",
+   "location": "Office floors"
+  }
+ ],
+ "removed_observations": [
+  "off5-10"
+ ],
+ "links": {
+  "off5-8": [
+   "c05"
+  ],
+  "off5-9": [
+   "c08",
+   "c02",
+   "c04"
+  ],
+  "off5-13": [
+   "c08"
+  ],
+  "off5-20": [
+   "c01",
+   "c05"
+  ],
+  "off5-ok-2": [
+   "c01"
+  ],
+  "off5-10": [
+   "c06",
+   "c07",
+   "c03",
+   "c04"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c03",
+   "c06",
+   "c07"
+  ],
+  "thin": []
+ }
+}

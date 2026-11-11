@@ -1,0 +1,287 @@
+{
+ "id": "mall2-14",
+ "split": "check",
+ "kind": "coverage",
+ "source": "mall2 report notes, areas 11, 7, 9, hazards",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+   "key": "7/Construction Narrative"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Each building's construction class, floor area, storeys and year built",
+   "key": "7/Construction Table"
+  },
+  {
+   "id": "c04",
+   "area": "7",
+   "text": "Combustible roof or wall panels, insulation and linings, and where they are",
+   "key": "7/Details on Combustible Construction"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c06",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c07",
+   "area": "9",
+   "text": "Fire Alarm Details",
+   "key": "9/Fire Alarm Details"
+  },
+  {
+   "id": "c08",
+   "area": "9",
+   "text": "Where alarms are monitored, and how quickly they are acted on",
+   "key": "9/Fire Alarm Monitoring"
+  },
+  {
+   "id": "c09",
+   "area": "9",
+   "text": "Gaseous, foam or other special systems, and what they protect",
+   "key": "9/Special Extinguishing Systems"
+  },
+  {
+   "id": "c10",
+   "area": "9",
+   "text": "Water sources, tanks and mains feeding the fire protection",
+   "key": "9/Water Supply Details"
+  },
+  {
+   "id": "c11",
+   "area": "11",
+   "text": "Access Monitored",
+   "key": "11/Access Monitored"
+  },
+  {
+   "id": "c12",
+   "area": "11",
+   "text": "CCTV coverage, recording and who monitors it",
+   "key": "11/CCTV"
+  },
+  {
+   "id": "c13",
+   "area": "11",
+   "text": "Security Staff / Guards",
+   "key": "11/Security Staff / Guards"
+  },
+  {
+   "id": "c14",
+   "area": "hazards",
+   "text": "Check food court and restaurant kitchens, grease ducts and hood suppression",
+   "key": "hazard:cooking"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-1",
+   "COPE_dimension": "Construction",
+   "note": "mall opened 2009. bsmt link to MRT + links to nbr malls. site 21,731m2, GFA 125,621m2, NLA 58,340m2. residences ~35,000m2 GFA",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-2",
+   "COPE_dimension": "Construction",
+   "note": "mostly RC cols/beams/slabs, some steel w sprayed fireproofing. RC flat roof. partitions drywall or lightweight conc panels",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-3",
+   "COPE_dimension": "Construction",
+   "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen",
+   "severity": "low",
+   "location": "Facade"
+  },
+  {
+   "id": "mall2-4",
+   "COPE_dimension": "Construction",
+   "note": "retail L1-L5 all open to each other thru the voids - basically 1 compartment",
+   "severity": "moderate",
+   "location": "Retail L1-L5"
+  },
+  {
+   "id": "mall2-5",
+   "COPE_dimension": "Construction",
+   "note": "ok so in the basements the atriums and the escalator voids have the two hour fabric shutters, they drop on fire alarm, so each basement level is its own compartment except the utility rooms",
+   "severity": "low",
+   "location": "Retail basements"
+  },
+  {
+   "id": "mall2-6",
+   "COPE_dimension": "Construction",
+   "note": "4hr roller shutters at all MRT entrances + links to nbr malls. residences access separated from retail by brick wall - site team not sure if fire rated",
+   "severity": "moderate",
+   "location": "Connections"
+  },
+  {
+   "id": "mall2-7",
+   "COPE_dimension": "Construction",
+   "note": "HT/LT sw rms + tx rms - 2hr rated doors",
+   "severity": "low",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "mall2-ofi-3",
+   "COPE_dimension": "Protection",
+   "note": "concealed spk cover plates painted over in retail corridor",
+   "severity": "high",
+   "location": "Retail area L2"
+  },
+  {
+   "id": "mall2-s4-1",
+   "COPE_dimension": "Protection",
+   "note": "wet spk B4-L8 OH3 + L55-56 OH1 to CP52. not in elec rms / risers - smoke det there instead. tenant areas spk in room + ceiling void",
+   "severity": "low",
+   "location": "Retail B4-L8, L55-56"
+  },
+  {
+   "id": "mall2-s4-2",
+   "COPE_dimension": "Protection",
+   "note": "2 spk pump sets, duty/standby/jockey all elec, on genset backup. PSB listed. tanks L6 126 m3 SS, L55 77 m3 RC. pump flow test not seen - water proving test yearly for fire cert, no issues per FM",
+   "severity": "low",
+   "location": "L6 + L55 pump rooms"
+  },
+  {
+   "id": "mall2-s4-3",
+   "COPE_dimension": "Protection",
+   "note": "addressable FA panel in FCC, manned 24/7, DECAM by Chubb. smoke dets in all elec rms, risers, LMRs. beam dets L4 atrium voids. MCPs + bells throughout",
+   "severity": "low",
+   "location": "Fire command centre L1"
+  },
+  {
+   "id": "mall2-s4-4",
+   "COPE_dimension": "Protection",
+   "note": "kitchen hoods wet chemical, tenant maintained, not linked to main FA. tenants clean filters quarterly; common exhaust ducts cleaned yearly by FM contractor",
+   "severity": "low",
+   "location": "F&B tenants"
+  },
+  {
+   "id": "mall2-s4-11",
+   "COPE_dimension": "Exposure",
+   "note": "~500 CCTV incl 10 PTZ, 45 days recording, video analytics. guards 3 shifts in-house + Prosegur. pump + tx rooms lock and key + RFID",
+   "severity": "low",
+   "location": "Whole site"
+  }
+ ],
+ "removed_observations": [],
+ "links": {
+  "mall2-1": [
+   "c03"
+  ],
+  "mall2-2": [
+   "c02"
+  ],
+  "mall2-3": [
+   "c02",
+   "c04"
+  ],
+  "mall2-4": [
+   "c01"
+  ],
+  "mall2-5": [
+   "c01"
+  ],
+  "mall2-6": [
+   "c01"
+  ],
+  "mall2-7": [
+   "c01"
+  ],
+  "mall2-ofi-3": [
+   "c05"
+  ],
+  "mall2-s4-1": [
+   "c05"
+  ],
+  "mall2-s4-2": [
+   "c06",
+   "c10"
+  ],
+  "mall2-s4-3": [
+   "c08",
+   "c07"
+  ],
+  "mall2-s4-4": [
+   "c14",
+   "c09"
+  ],
+  "mall2-s4-11": [
+   "c12",
+   "c13",
+   "c11"
+  ]
+ },
+ "gold": {
+  "uncovered": [],
+  "thin": []
+ }
+}

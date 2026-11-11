@@ -1,0 +1,227 @@
+{
+ "id": "mall2-04",
+ "split": "check",
+ "kind": "coverage",
+ "source": "mall2 report notes, areas 10, 6, 7, hazards",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+   "key": "7/Construction Narrative"
+  },
+  {
+   "id": "c04",
+   "area": "7",
+   "text": "Each building's construction class, floor area, storeys and year built",
+   "key": "7/Construction Table"
+  },
+  {
+   "id": "c05",
+   "area": "7",
+   "text": "Combustible roof or wall panels, insulation and linings, and where they are",
+   "key": "7/Details on Combustible Construction"
+  },
+  {
+   "id": "c06",
+   "area": "10",
+   "text": "Boundary Exposures",
+   "key": "10/Boundary Exposures"
+  },
+  {
+   "id": "c07",
+   "area": "10",
+   "text": "Natural Catastrophe Exposures",
+   "key": "10/Natural Catastrophe Exposures"
+  },
+  {
+   "id": "c08",
+   "area": "hazards",
+   "text": "Check food court and restaurant kitchens, grease ducts and hood suppression",
+   "key": "hazard:cooking"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-2",
+   "COPE_dimension": "Construction",
+   "note": "mostly RC cols/beams/slabs, some steel w sprayed fireproofing. RC flat roof. partitions drywall or lightweight conc panels",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-3",
+   "COPE_dimension": "Construction",
+   "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen",
+   "severity": "low",
+   "location": "Facade"
+  },
+  {
+   "id": "mall2-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "note": "hot work permit form reviewed - no fire watch requirement during or after hot work",
+   "severity": "moderate",
+   "location": "Management office"
+  },
+  {
+   "id": "mall2-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "no formal FP system impairment programme. isolations approved by tech service team only, no impairment permit",
+   "severity": "moderate",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "mall2-s4-4",
+   "COPE_dimension": "Protection",
+   "note": "kitchen hoods wet chemical, tenant maintained, not linked to main FA. tenants clean filters quarterly; common exhaust ducts cleaned yearly by FM contractor",
+   "severity": "low",
+   "location": "F&B tenants"
+  },
+  {
+   "id": "mall2-s4-5",
+   "COPE_dimension": "Protection",
+   "note": "Chubb service contract for FP. monthly pump run, monthly smoke det test (100%), monthly roller shutter test, annual flow switch test",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-s4-9",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good most areas seen",
+   "severity": "low",
+   "location": "Retail + back of house"
+  },
+  {
+   "id": "mall2-s4-12",
+   "COPE_dimension": "Occupancy",
+   "note": "ERP for fire, bomb, pandemic. 6-man ERT. MOC involves stakeholders + risk assessment",
+   "severity": "low",
+   "location": "Management office"
+  }
+ ],
+ "removed_observations": [
+  "mall2-1",
+  "mall2-4",
+  "mall2-5",
+  "mall2-6",
+  "mall2-7",
+  "mall2-s4-10"
+ ],
+ "links": {
+  "mall2-2": [
+   "c03"
+  ],
+  "mall2-3": [
+   "c03",
+   "c05"
+  ],
+  "mall2-ofi-1": [
+   "c01"
+  ],
+  "mall2-ofi-2": [
+   "c01"
+  ],
+  "mall2-s4-4": [
+   "c08"
+  ],
+  "mall2-s4-5": [
+   "c01"
+  ],
+  "mall2-s4-9": [
+   "c01"
+  ],
+  "mall2-s4-12": [
+   "c01"
+  ],
+  "mall2-1": [
+   "c04"
+  ],
+  "mall2-4": [
+   "c02"
+  ],
+  "mall2-5": [
+   "c02"
+  ],
+  "mall2-6": [
+   "c02"
+  ],
+  "mall2-7": [
+   "c02"
+  ],
+  "mall2-s4-10": [
+   "c06",
+   "c07"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c02",
+   "c04",
+   "c06",
+   "c07"
+  ],
+  "thin": []
+ }
+}

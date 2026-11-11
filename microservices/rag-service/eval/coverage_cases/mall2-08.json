@@ -1,0 +1,203 @@
+{
+ "id": "mall2-08",
+ "split": "check",
+ "kind": "coverage",
+ "source": "mall2 report notes, areas 6, 8",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Refrigeration plant and its refrigerant, chillers, and cooling towers with their construction and whether combustible fill is protected",
+   "key": "8/Refrigeration / Chillers / Cooling towers"
+  },
+  {
+   "id": "c05",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  },
+  {
+   "id": "c06",
+   "area": "8",
+   "text": "How waste and effluent are collected, stored and treated, and where combustible waste builds up",
+   "key": "8/Waste and effluent treatment"
+  },
+  {
+   "id": "c07",
+   "area": "hazards",
+   "text": "Check food court and restaurant kitchens, grease ducts and hood suppression",
+   "key": "hazard:cooking"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-ofi-1",
+   "COPE_dimension": "Occupancy",
+   "note": "hot work permit form reviewed - no fire watch requirement during or after hot work",
+   "severity": "moderate",
+   "location": "Management office"
+  },
+  {
+   "id": "mall2-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "no formal FP system impairment programme. isolations approved by tech service team only, no impairment permit",
+   "severity": "moderate",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "mall2-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "loading bay cardboard waste removed daily, area clear at time of visit",
+   "severity": "moderate",
+   "location": "Basement 2 loading bay"
+  },
+  {
+   "id": "mall2-s4-4",
+   "COPE_dimension": "Protection",
+   "note": "kitchen hoods wet chemical, tenant maintained, not linked to main FA. tenants clean filters quarterly; common exhaust ducts cleaned yearly by FM contractor",
+   "severity": "low",
+   "location": "F&B tenants"
+  },
+  {
+   "id": "mall2-s4-5",
+   "COPE_dimension": "Protection",
+   "note": "Chubb service contract for FP. monthly pump run, monthly smoke det test (100%), monthly roller shutter test, annual flow switch test",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-s4-8",
+   "COPE_dimension": "Occupancy",
+   "note": "chillers 5 x 1000RT + 2 x 500RT, 3 x 1000RT run day, peak 2400-2600RT. spare capacity",
+   "severity": "low",
+   "location": "Chiller plant L6-L8"
+  },
+  {
+   "id": "mall2-s4-9",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good most areas seen",
+   "severity": "low",
+   "location": "Retail + back of house"
+  },
+  {
+   "id": "mall2-s4-12",
+   "COPE_dimension": "Occupancy",
+   "note": "ERP for fire, bomb, pandemic. 6-man ERT. MOC involves stakeholders + risk assessment",
+   "severity": "low",
+   "location": "Management office"
+  }
+ ],
+ "removed_observations": [
+  "mall2-s4-6",
+  "mall2-s4-7"
+ ],
+ "links": {
+  "mall2-ofi-1": [
+   "c01"
+  ],
+  "mall2-ofi-2": [
+   "c01"
+  ],
+  "mall2-ok-2": [
+   "c06"
+  ],
+  "mall2-s4-4": [
+   "c07"
+  ],
+  "mall2-s4-5": [
+   "c01"
+  ],
+  "mall2-s4-8": [
+   "c04"
+  ],
+  "mall2-s4-9": [
+   "c01"
+  ],
+  "mall2-s4-12": [
+   "c01"
+  ],
+  "mall2-s4-6": [
+   "c05"
+  ],
+  "mall2-s4-7": [
+   "c02",
+   "c03"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c02",
+   "c03",
+   "c05"
+  ],
+  "thin": []
+ }
+}

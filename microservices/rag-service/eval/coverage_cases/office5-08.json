@@ -1,0 +1,210 @@
+{
+ "id": "office5-08",
+ "split": "tune",
+ "kind": "coverage",
+ "source": "office5 report notes, areas 6, 9",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "9",
+   "text": "Sprinkler system types, coverage and design density for each area",
+   "key": "9/Automatic Sprinkler Protection"
+  },
+  {
+   "id": "c03",
+   "area": "9",
+   "text": "Each fire pump's type, driver, rating and controller",
+   "key": "9/Fire / Booster Pump Details"
+  },
+  {
+   "id": "c04",
+   "area": "9",
+   "text": "Fire Alarm Details",
+   "key": "9/Fire Alarm Details"
+  },
+  {
+   "id": "c05",
+   "area": "9",
+   "text": "Where alarms are monitored, and how quickly they are acted on",
+   "key": "9/Fire Alarm Monitoring"
+  },
+  {
+   "id": "c06",
+   "area": "9",
+   "text": "Manual Firefighting Features",
+   "key": "9/Manual Firefighting Features"
+  },
+  {
+   "id": "c07",
+   "area": "9",
+   "text": "The latest pump flow test results",
+   "key": "9/Pump Flow Test Data"
+  },
+  {
+   "id": "c08",
+   "area": "9",
+   "text": "Gaseous, foam or other special systems, and what they protect",
+   "key": "9/Special Extinguishing Systems"
+  },
+  {
+   "id": "c09",
+   "area": "9",
+   "text": "Water sources, tanks and mains feeding the fire protection",
+   "key": "9/Water Supply Details"
+  },
+  {
+   "id": "c10",
+   "area": "hazards",
+   "text": "Check server and comms rooms: separation, detection and suppression",
+   "key": "hazard:server_rooms"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-9",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant server room L5, approx 40 racks. UPS room next door, VRLA batteries. diesel genset at roof, 2 x 2000 kVA, day tank 1000 L, tested monthly on load per FM",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-12",
+   "COPE_dimension": "Protection",
+   "note": "few sprinkler heads recessed >50% into ceiling at B3 service corridor - obstructs spray pattern. FM said ceiling was lowered last yr",
+   "severity": "high",
+   "location": "B3 service corridor"
+  },
+  {
+   "id": "off5-13",
+   "COPE_dimension": "Protection",
+   "note": "FM-200 in server room, last discharge/room integrity test 2023 - over due. no VESDA, only point smoke detectors",
+   "severity": "moderate",
+   "location": "Level 5 server room"
+  },
+  {
+   "id": "off5-15",
+   "COPE_dimension": "Protection",
+   "note": "weekly pump churn test logs ok but last annual flow test record not available. diesel pump fuel tank 3/4 full",
+   "severity": "moderate",
+   "location": "Fire pump room"
+  },
+  {
+   "id": "off5-ofi-2",
+   "COPE_dimension": "Protection",
+   "note": "few spk heads recessed more than 50% into ceiling at B3 service corridor",
+   "severity": "high",
+   "location": "B3 service corridor"
+  }
+ ],
+ "removed_observations": [
+  "off5-11",
+  "off5-14",
+  "off5-20",
+  "off5-ok-1",
+  "off5-ok-2"
+ ],
+ "links": {
+  "off5-9": [
+   "c10"
+  ],
+  "off5-12": [
+   "c02"
+  ],
+  "off5-13": [
+   "c08",
+   "c10"
+  ],
+  "off5-15": [
+   "c07",
+   "c03"
+  ],
+  "off5-ofi-2": [
+   "c02"
+  ],
+  "off5-11": [
+   "c02",
+   "c09",
+   "c03"
+  ],
+  "off5-14": [
+   "c05",
+   "c04",
+   "c06"
+  ],
+  "off5-20": [
+   "c01"
+  ],
+  "off5-ok-1": [
+   "c05"
+  ],
+  "off5-ok-2": [
+   "c01"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c01",
+   "c04",
+   "c05",
+   "c06",
+   "c09"
+  ],
+  "thin": []
+ }
+}
