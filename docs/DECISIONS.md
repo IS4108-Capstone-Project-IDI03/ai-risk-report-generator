@@ -2300,3 +2300,30 @@ Rejected:
 Known limits: page transcription still runs in the gateway's memory, not on the BullMQ queue recordings use (CP-22), so a restart marks a running page failed, to retry; pages added later make that a little more likely. Pages still go to the model as photographed (see privacy.md). The browser asks before transcribing a corrected page again, but the gateway does not: a direct API call drops the correction without asking.
 
 Stories: CP-20, CP-19, CP-08, CP-21.
+
+## 2026-11-11 — The engineer customises the checklist on its tab; edits survive regeneration; references come from a keyword search; the field copy is an A4 PDF
+
+Chose:
+- (CP-32) The assigned engineer adds, edits, removes and restores items on the Checklist tab only. The sheet opened from capture stays for answering, so a phone on site shows no edit controls.
+- What can be edited: what to check, the COPE categories (one or more, so an answer is categorised) and the references. An added item goes where the engineer chooses: a priority risk, or a report section and optionally one of its template subsections.
+- Removing is soft (`status: 'removed'`, `removed { at, by }`), with Undo in the toast and Restore in a folded "Removed items" list. A report template subsection can't be removed (the report has it), nor a priority risk's last item (CP-30 guarantees each risk one), nor an item an observation answers (its answer would be hidden): each shows a greyed bin with the reason, and the first two are marked Not applicable instead. Marsh's report keeps every subsection, and Not applicable records the engineer's judgement where a removal would hide it.
+- A generated item keeps how it was generated (`edited.was`) on its first edit. Regenerating matches against that, by CP-31's rules, so the model's rewording finds the engineer's item; the match takes the engineer's wording and references. The engineer's own items, and edited items nothing matches, are copied as they are, with their answers. Removed items that match come back removed.
+- References: a passage of the checklist's standards (that still apply), with the words the engineer selects, else its first sentence. The gateway fetches the passage from S4 itself, checks the quote as S4 checks the model's, and keeps the passage in the checklist's `sources`.
+- The search is S4's `POST /passages/search`: BM25 keyword ranking over the chosen documents' passages, read from Chroma and cached for 10 minutes. No embedding or other paid call, and the words never leave our services, so the engineer's text needs no masking. It starts from the item's own words.
+- The field copy is an A4 PDF (engineers print on A4), built by the gateway from the saved checklist and printed by the export's Chromium with every request refused. Every item still on the checklist, numbered, with its answer, or boxes to tick and lines to write on, and each reference's title, edition, page and quoted words. Anyone who can view the assessment can download it.
+- CP-32 re-estimated from 3 to 5 points for the passage search and the PDF.
+
+Reason: the checklist should match the inspection the engineer plans, without losing that work when the site changes and the checklist is regenerated. Keeping edits by matching what the model generated, not what the engineer wrote, survives the model rewording every run. A PDF reads the same with no signal on site, and the export already prints with Chromium.
+
+Rejected:
+- Semantic search for references: it embeds the engineer's words with Cohere, so the query would need masking (an engineer may type a client name) and a paid call per search. Keyword search ranks the item's own words well enough to start, and is free.
+- Searching from the gateway: the passages are only in S4's Chroma index.
+- Removing template subsections: Marsh's report has every one; Not applicable says the same and keeps the record.
+- Deleting a removed item outright: it couldn't be undone, and the next generation would bring it back.
+- Hiding the bin on items that can't be removed: the design system greys out and explains a blocked action.
+- An HTML or Word field copy: the PDF prints the same everywhere and needs no app to open.
+- Editing from the capture sheet: planning happens before the visit, and the sheet should stay quick to answer from.
+
+Known limits: a removed or edited model-written item that comes back resting on different passages, or under another section, is not matched: an edited one is kept beside the new one, a removed one comes back. The keyword search finds the words given, not their synonyms ("sprinkler" finds "sprinklers" but not "automatic suppression"); its cache holds a re-ingested standard's old passages for up to 10 minutes. On a phone, selecting words in a passage is fiddly; the first sentence is quoted without one. Answers written on the PDF are entered in the app by hand.
+
+Stories: CP-32, CP-30, CP-31, CP-34.
