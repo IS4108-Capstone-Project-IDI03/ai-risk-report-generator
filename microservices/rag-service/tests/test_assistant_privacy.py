@@ -36,14 +36,15 @@ COVERAGE = {
 }
 WORDING = {
     "viewer": {"first_name": "John Tan", "role": "engineer"},
-    "messages": [{"id": "m1", "text": "Acme Holdings has one open issue.", "parts": []}],
-    "items": [
+    "messages": [
         {
-            "id": "i1",
-            "title": "Acme Holdings pump room",
-            "detail": "Reported by John Tan",
-            "kind": "k",
-            "weight": "gap",
+            "id": "m1",
+            "text": "",
+            "parts": [
+                {"type": "say", "text": "Acme Holdings has one open issue.", "tone": "normal"},
+                {"type": "say", "text": "John Tan noted it in the pump room.", "tone": "normal"},
+                {"type": "card", "id": "m1-rest", "card": "rows"},
+            ],
         }
     ],
     "privacy": PRIVACY,
@@ -94,7 +95,7 @@ def test_coverage_with_privacy_down_is_a_503_and_sends_nothing(monkeypatch, fake
 def test_wording_masks_in_and_unmasks_out_keeping_quotes_valid(monkeypatch, fake_privacy):
     program = (
         'root = Reply([a, b])\na = Say("[CLIENT_1] has one open issue, [PERSON_1].")\n'
-        'b = ActionRow("i1")'
+        'b = Card("m1-rest")'
     )
     prompts = mock(
         monkeypatch,
