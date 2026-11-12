@@ -2388,6 +2388,7 @@ Chose:
 - The list says where else the words were found ("Matched in Recording 2 and the photo description") when its row's text doesn't show them, as a row shows only the note, or else the first transcript.
 - A recording that plays and is searched away stops (`useRecordingPlayer.stop`), rather than playing on with no row to pause it from.
 - This reverses CP-12's rejection of a search box over transcripts: it was turned down until all three views could have one.
+- Filters on the three views (added the same day): Location, Category and Severity as on the Observations tab (the views have no navigator beside them, so Location is a menu, by building and level), and one about the item: a recording's Status, a page's Status (Transcribed, Corrected, Has unsure words, Transcribing, Couldn't transcribe; a page can be several), a photo's Description (Described, Out of date, Not described, judged by whether the description covers that photo). They reuse the Observations tab's chips (`FilterChip`), are kept with the search in `evidenceFilters`, emptied when a view opens, count towards Clear all with it, and stop a recording they leave out (`evidenceFilters.ts`).
 
 Reason: CP-12 put every voice recording in one place but left finding a word in them to reading each. The Observations list shows one line per observation, so a second recording, a page or the photos' description could not be found from it at all.
 

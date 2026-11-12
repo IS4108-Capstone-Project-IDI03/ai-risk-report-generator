@@ -573,3 +573,87 @@ describe('Searching All Recordings (CP-13)', () => {
     expect(within(view).getByRole('button', { name: 'Play Recording 1' })).toBeInTheDocument()
   })
 })
+
+// Filtering All Recordings (CP-13): Location, Category, Severity and Status,
+// with the search.
+describe('Filtering All Recordings (CP-13)', () => {
+  const filter = (name: string, option: string | RegExp) => {
+    fireEvent.click(screen.getByRole('button', { name: new RegExp('^' + name + '(:|$)') }))
+    fireEvent.click(
+      within(screen.getByRole('menu', { name })).getByRole('menuitemradio', { name: option }),
+    )
+  }
+  const names = (view: HTMLElement) =>
+    within(view)
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('.ob-pt-name')!.textContent)
+
+  it('narrows by status, location, category and severity, and Clear all clears them with the search', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS, RISER_OBS]
+    const view = await openRecordings()
+
+    filter('Status', 'Couldn’t transcribe')
+    expect(names(view)).toEqual(['Recording 4'])
+    expect(screen.getByText('1 of 4 recordings')).toBeInTheDocument()
+    click('Clear status filter')
+
+    filter('Location', /Pump house/)
+    expect(names(view)).toEqual(['Recording 3'])
+    click('Clear location filter')
+
+    filter('Category', 'Protection')
+    expect(names(view)).toEqual(['Recording 1', 'Recording 2', 'Recording 4'])
+    // With the search, Clear all appears and clears both.
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search recordings' }), {
+      target: { value: 'v-12' },
+    })
+    expect(names(view)).toEqual(['Recording 1', 'Recording 2'])
+    click('Clear all')
+    expect(screen.getByRole('searchbox', { name: 'Search recordings' })).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Category' })).toBeInTheDocument()
+    expect(within(view).getAllByRole('listitem')).toHaveLength(4)
+  })
+
+  it('says when none match the search and filters, with Clear all', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS]
+    await openRecordings()
+
+    filter('Status', 'Transcribing')
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search recordings' }), {
+      target: { value: 'v-12' },
+    })
+
+    const none = screen.getByText('No recordings match “v-12” and those filters')
+    // The message offers Clear all too, beside the toolbar's.
+    fireEvent.click(within(none.closest('.ob-empty')!).getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByText('3 recordings across 2 locations')).toBeInTheDocument()
+  })
+
+  it('keeps the filters through an observation and Back, and starts without them when opened again', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS]
+    let view = await openRecordings()
+    filter('Category', 'Occupancy')
+
+    fireEvent.click(within(rowOf(view, 'Recording 3')).getByRole('button', { name: PERMIT }))
+    click('Back to All Recordings')
+
+    view = screen.getByRole('group', { name: 'Recordings' })
+    expect(screen.getByRole('button', { name: 'Category: Occupancy' })).toBeInTheDocument()
+    expect(names(view)).toEqual(['Recording 3'])
+    click('Back to Observations')
+    click('All recordings')
+    expect(screen.getByRole('button', { name: 'Category' })).toBeInTheDocument()
+  })
+
+  it('stops the recording playing when a filter leaves it out', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS]
+    const view = await openRecordings()
+    click('Play Recording 1')
+    await loaded(75)
+
+    filter('Status', 'Transcribing')
+
+    expect(player().paused).toBe(true)
+    expect(within(view).queryByRole('slider')).not.toBeInTheDocument()
+  })
+})

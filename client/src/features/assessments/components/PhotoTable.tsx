@@ -16,10 +16,13 @@
 // item text, name or observation text hold every word are listed, the count
 // says how many of how many, the words are marked, and a row found in its
 // own text opens that text. The query is kept by the caller, so it is still
-// there after Back from an observation.
+// there after Back from an observation. Given `filters` too, its menus follow
+// the search (Location, Category, Severity and the item's own), as the
+// Observations tab's do, and narrow the rows with it.
 import type { ReactNode } from 'react'
-import { EmptyState, Icon, SearchField } from '../../../design-system'
+import { EmptyState, Icon, IconRegistry, SearchField } from '../../../design-system'
 import type { TranscriptionStatus } from '../api'
+import { filtersSet, type EvidenceFilters, type FilterMenu } from '../evidenceFilters'
 import { rowMatches, searchWords, textHits } from '../evidenceSearch'
 import type { Place } from '../locations'
 import { plural } from '../reviewDisplay'
@@ -28,6 +31,7 @@ import { HitText } from './HitText'
 import { LocationPath } from './LocationPath'
 import { ZoomBadge } from './ZoomBadge'
 import { CategoryMark } from './ObservationMarks'
+import { FilterChip } from './ObservationFilters'
 
 export type PhotoRow = {
   key: string
@@ -60,6 +64,16 @@ export type RowSearch = {
   noun: string
   label: string
 }
+// The filter menus over the rows (CP-13). `matches` says whether a row is kept
+// by a set of values, so a caller can tell before they change.
+export type RowFilters<R> = {
+  menus: FilterMenu[]
+  values: EvidenceFilters
+  onChoose: (key: keyof EvidenceFilters, value: string) => void
+  // Clears the filters and the search.
+  onClear: () => void
+  matches: (row: R, values: EvidenceFilters) => boolean
+}
 
 export function PhotoTable<R extends PhotoRow>({
   label,
@@ -70,6 +84,7 @@ export function PhotoTable<R extends PhotoRow>({
   extra,
   openRows,
   search,
+  filters,
 }: {
   label: string
   rows: R[]
@@ -82,12 +97,19 @@ export function PhotoTable<R extends PhotoRow>({
   extra?: (row: R) => ReactNode
   openRows?: OpenRows
   search?: RowSearch
+  filters?: RowFilters<R>
 }) {
   const words = searchWords(search?.query ?? '')
   // Back with a search, the texts it found open again.
   const own = useOpenRows(() => textHits(rows, words))
   const { open, toggle, showAll } = openRows ?? own
-  const shown = words.length ? rows.filter((r) => rowMatches(r, words)) : rows
+  const filtering = filters ? filtersSet(filters.values) : 0
+  const narrowed = words.length > 0 || filtering > 0
+  const shown = narrowed
+    ? rows.filter((r) => (!filters || filters.matches(r, filters.values)) && rowMatches(r, words))
+    : rows
+  const noun = search?.noun ?? 'item'
+  const query = search?.query.trim() ?? ''
   const onQuery = (query: string) => {
     search?.onQuery(query)
     showAll(textHits(rows, searchWords(query)))
@@ -104,23 +126,54 @@ export function PhotoTable<R extends PhotoRow>({
             onChange={(e) => onQuery(e.target.value)}
           />
         )}
+        {filters && (
+          <div className="ob-filter-set">
+            {filters.menus.map((m) => (
+              <FilterChip
+                key={m.key}
+                name={m.name}
+                choices={m.choices}
+                value={filters.values[m.key]}
+                onChoose={(value) => filters.onChoose(m.key, value)}
+              />
+            ))}
+            {/* The search counts as one of them, as on the Observations tab. */}
+            {filtering + (query ? 1 : 0) > 1 && (
+              <button
+                type="button"
+                className="ob-button ob-button--small"
+                onClick={filters.onClear}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        )}
         <span className="ob-count">
-          {words.length ? `${shown.length} of ${plural(rows.length, search!.noun)}` : count}
+          {narrowed ? `${shown.length} of ${plural(rows.length, noun)}` : count}
         </span>
       </div>
-      {words.length > 0 && shown.length === 0 && (
+      {narrowed && shown.length === 0 && (
         <div className="ob-empty">
           <EmptyState
-            icon="search"
-            title={`No ${search!.noun}s match “${search!.query.trim()}”`}
-            description="Try fewer words, or check the spelling."
+            icon={filtering ? IconRegistry.action.filter : 'search'}
+            title={
+              query
+                ? `No ${noun}s match “${query}”${filtering ? ' and those filters' : ''}`
+                : `No ${noun}s match those filters`
+            }
+            description={
+              filtering
+                ? 'Clear a filter to see the others.'
+                : 'Try fewer words, or check the spelling.'
+            }
             action={
               <button
                 type="button"
                 className="ob-button ob-button--tinted ob-button--small"
-                onClick={() => onQuery('')}
+                onClick={() => (filtering ? filters!.onClear() : onQuery(''))}
               >
-                Clear search
+                {filtering ? 'Clear all' : 'Clear search'}
               </button>
             }
           />

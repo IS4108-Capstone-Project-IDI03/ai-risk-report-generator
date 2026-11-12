@@ -4,11 +4,13 @@
 // opens its transcript as the observation's page shows it (CP-12's line, no
 // points of its own); correcting it is done there, which the observation's
 // text opens. A search finds a page by its text as shown (the correction, or
-// else the model's reading), its name or its observation's text (CP-13).
+// else the model's reading), its name or its observation's text, and filters
+// them by location, category, severity and status (CP-13).
 // Opened from the location navigator; rendered by AssessmentApp.
 import { useState } from 'react'
 import { EmptyState, IconRegistry } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { evidenceMenus, matchesEvidence, PAGE_FILTER } from '../evidenceFilters'
 import { hitRanges } from '../evidenceSearch'
 import { plural } from '../reviewDisplay'
 import { HitText } from '../components/HitText'
@@ -82,6 +84,13 @@ export function Scans({ v }: { v: AssessmentWorkflow }) {
             onQuery: v.setEvidenceQuery,
             noun: 'page',
             label: 'Search pages',
+          }}
+          filters={{
+            menus: evidenceMenus(v, scans, PAGE_FILTER),
+            values: v.evidenceFilters,
+            onChoose: v.setEvidenceFilter,
+            onClear: v.clearEvidenceFilters,
+            matches: matchesEvidence,
           }}
           onOpen={(r) => setViewing({ name: r.name, url: r.url, context: r.where })}
         />

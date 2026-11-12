@@ -11,21 +11,23 @@ import type { CSSProperties, KeyboardEvent } from 'react'
 import { Icon } from '../../../design-system'
 import { minutes } from '../../site-walk/walkItems'
 import type { TranscriptionStatus } from '../api'
+import type { FilteredRow } from '../evidenceFilters'
 import { NO_SPEECH, rowMatches, searchWords, textHits } from '../evidenceSearch'
 import { useRecordingPlayer, type Clip, type Playing } from '../useRecordingPlayer'
 import { useOpenRows } from '../useOpenRows'
 import { HitText } from './HitText'
-import { PhotoTable, type PhotoRow, type RowSearch } from './PhotoTable'
+import { PhotoTable, type PhotoRow, type RowFilters, type RowSearch } from './PhotoTable'
 
-export type RecordingRow = Omit<PhotoRow, 'item' | 'url'> & {
-  audioUrl: string
-  clip: Clip
-  status: TranscriptionStatus
-  // Starts a new transcription attempt; null unless it failed and may be retried.
-  retry: (() => void) | null
-  // As corrected, once transcribed.
-  transcript: string | null
-}
+export type RecordingRow = Omit<PhotoRow, 'item' | 'url'> &
+  FilteredRow & {
+    audioUrl: string
+    clip: Clip
+    status: TranscriptionStatus
+    // Starts a new transcription attempt; null unless it failed and may be retried.
+    retry: (() => void) | null
+    // As corrected, once transcribed.
+    transcript: string | null
+  }
 
 // The arrow keys skip five seconds, as most players do; Home and End are the range's own.
 const SKIP = 5
@@ -34,10 +36,12 @@ export function RecordingTable({
   rows,
   count,
   search,
+  filters,
 }: {
   rows: RecordingRow[]
   count: string
   search: RowSearch
+  filters: RowFilters<RecordingRow>
 }) {
   const player = useRecordingPlayer()
   const tableRows = rows.map((r) => {
@@ -63,6 +67,11 @@ export function RecordingTable({
       },
     }
   })
+  // A recording playing or paused stops when the search or a filter leaves it out.
+  const stopIfHidden = (words: string[], values: RowFilters<RecordingRow>['values']) => {
+    const on = player.now && tableRows.find((r) => r.key === player.now!.key)
+    if (on && !(rowMatches(on, words) && filters.matches(on, values))) player.stop()
+  }
   // Back with a search, the transcripts it found open again.
   const openRows = useOpenRows(() => textHits(tableRows, searchWords(search.query)))
   return (
@@ -75,10 +84,15 @@ export function RecordingTable({
         search={{
           ...search,
           onQuery: (query) => {
-            const words = searchWords(query)
-            const on = player.now && tableRows.find((r) => r.key === player.now!.key)
-            if (on && !rowMatches(on, words)) player.stop()
+            stopIfHidden(searchWords(query), filters.values)
             search.onQuery(query)
+          },
+        }}
+        filters={{
+          ...filters,
+          onChoose: (key, value) => {
+            stopIfHidden(searchWords(search.query), { ...filters.values, [key]: value })
+            filters.onChoose(key, value)
           },
         }}
         lead={(r) => {

@@ -474,10 +474,10 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting or removing a voice recording (on its observation's page, CP-08); a site walk proposal's voice recordings (its walk list already holds them); a length column (voice recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted against no story (CP-04 AC3, CP-19 AC17).
   </details>
 
-- [ ] **CP-13** — Search the evidence text of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5; reuses the ID of an earlier CP-13 that became CP-33)
+- [ ] **CP-13** — Search the evidence text of an assessment (risk engineer, Could, 5→6 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5; reuses the ID of an earlier CP-13 that became CP-33)
   <details><summary>Goal / AC</summary>
 
-  Goal: search an assessment's voice transcripts, handwritten page transcripts and photo descriptions, so I can find where I said, wrote or photographed something without opening each observation.
+  Goal: search an assessment's voice transcripts, handwritten page transcripts and photo descriptions, and filter its photos, pages and recordings, so I can find where I said, wrote or photographed something, or what still needs a look, without opening each observation.
 
   The evidence views
 
@@ -495,6 +495,15 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   9. Given the Observations tab or its deleted observations, when I type in its search box, then only the observations whose note, transcripts, page texts or photo description hold every word are listed, together with the location picked and the filters set.
   10. Given an observation found other than in the text its row shows, when it is listed, then its row says where, such as "Matched in Recording 2 and the photo description", and words in the row's own text are marked.
   11. Given no observation matches, when the search runs, then it says none match, with Clear search; Clear all clears the search with the filters.
+
+  Filters on the evidence views (added 12 Nov 2026, 1 point)
+
+  12. Given All Recordings, All Handwritten Pages or All Photos, when I choose a Location, Category or Severity, then only the items of observations carrying it are listed, together with the search, and the count says how many of how many.
+  13. Given All Recordings, when I choose a Status, then only the voice recordings transcribed, still transcribing, or that couldn't be transcribed are listed.
+  14. Given All Handwritten Pages, when I choose a Status, then only the pages transcribed, corrected, with unsure words, still transcribing, or that couldn't be transcribed are listed; a corrected page no longer counts as having unsure words.
+  15. Given All Photos, when I choose a Description, then only the photos described (out of date or not), described but out of date, or not described are listed; a photo added after its observation's description counts as not described.
+  16. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared; given none match, the view says so, naming the search and that filters are set, with Clear all.
+  17. Given filters, when I open an observation from a row and select Back, then they are kept; when I open the view again from the location navigator, none are set; a voice recording playing that a filter leaves out stops.
 
   Not in this story: a site walk proposal's views and list (its photos are described and its pages transcribed only at Create all, and a walk recording's transcript covers the whole walk, not each clip); choosing Appendix A's photos by their description (a GN-07 follow-up, as the appendix has no description to search); searching by meaning (Ask, AS-01); the wording a correction replaced; removed recordings, photos and pages. See DECISIONS.
   </details>

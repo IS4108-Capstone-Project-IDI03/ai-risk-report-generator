@@ -1639,7 +1639,7 @@ describe('Searching the Observations list (CP-13)', () => {
     })
   // A row by the start of its text; its name runs on to "Matched in …".
   const rowOf = (text: string) =>
-    screen.queryByRole('button', { name: new RegExp('^' + text.replace(/[.]/g, '\.')) })
+    screen.queryByRole('button', { name: new RegExp('^' + text.replace(/[.]/g, '\\.')) })
   const marks = (el: HTMLElement) =>
     [...el.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)
 
@@ -1690,5 +1690,43 @@ describe('Searching the Observations list (CP-13)', () => {
     expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
     expect(rowOf(ROOM)).toBeInTheDocument()
     expect(rowOf(VOICE)).toBeInTheDocument()
+  })
+})
+
+describe('Filtering All Photos (CP-13)', () => {
+  it('filters photos by whether their description describes them, and is up to date', async () => {
+    const LATER = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    listed = [
+      // Described before IMG_0470.jpg was added.
+      { ...INTERPRETED, photos: [...INTERPRETED.photos, LATER] },
+      photographed('o8', 'Loading dock.', { photos: described({ outOfDate: true }) }),
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const view = screen.getByRole('group', { name: 'Site photographs' })
+    const shownRows = () =>
+      within(view)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent)
+
+    filter('Description', 'Not described')
+    // IMG_0470.jpg, and the sample assessment's own photos, which carry none.
+    expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(false)
+
+    filter('Description', 'Out of date')
+    expect(shownRows()).toHaveLength(1)
+    expect(shownRows()[0]).toContain('Loading dock.')
+
+    // Described takes in the one out of date too, but not a photo added since.
+    filter('Description', 'Described')
+    expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes('Loading dock.'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(false)
   })
 })

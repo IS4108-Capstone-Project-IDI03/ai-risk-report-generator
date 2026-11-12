@@ -1,3 +1,4 @@
+import type { EvidenceFilters } from './evidenceFilters'
 import type {
   Assessment,
   InterpretationStatus,
@@ -311,6 +312,8 @@ export type WorkflowState = {
   // (CP-13): kept while an observation opened from it is open, so Back finds
   // it again, and cleared each time one of them is opened.
   evidenceQuery?: string
+  // Their filters (CP-13), kept and cleared with the search.
+  evidenceFilters?: EvidenceFilters
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).

@@ -3,13 +3,15 @@
 // row. Each photo's line opens the AI's description of its observation's
 // photos, once written, saying which of them it describes (CP-12's line, no
 // points of its own). A search finds a photo by its description, only where
-// it describes that photo, its name or its observation's text (CP-13). The
+// it describes that photo, its name or its observation's text, and filters
+// them by location, category, severity and description (CP-13). The
 // report's photo appendix (EX-01) draws on the same photos. Opened from the
 // location navigator; rendered by AssessmentApp.
 import { useState } from 'react'
 import { EmptyState, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { HitText } from '../components/HitText'
+import { evidenceMenus, matchesEvidence, PHOTO_FILTER } from '../evidenceFilters'
 import { plural } from '../reviewDisplay'
 import { PhotoTable } from '../components/PhotoTable'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
@@ -82,6 +84,13 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
             onQuery: v.setEvidenceQuery,
             noun: 'photo',
             label: 'Search photos',
+          }}
+          filters={{
+            menus: evidenceMenus(v, photos, PHOTO_FILTER),
+            values: v.evidenceFilters,
+            onChoose: v.setEvidenceFilter,
+            onClear: v.clearEvidenceFilters,
+            matches: matchesEvidence,
           }}
           onOpen={(r) => setViewing({ name: r.name, url: r.url, context: r.where })}
         />

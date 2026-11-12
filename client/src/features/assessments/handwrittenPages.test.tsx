@@ -908,3 +908,55 @@ describe('Searching the Scans view (CP-13)', () => {
     expect(within(view).getAllByRole('listitem')).toHaveLength(3)
   })
 })
+
+describe('Filtering the Scans view (CP-13)', () => {
+  it('filters pages by where their transcription stands', async () => {
+    listed = [
+      observation({
+        note: 'Pump room readings.',
+        pages: [
+          page('pg1', { status: 'transcribed', transcript: 'FHR 7 bar', uncertain: [[4, 5]] }),
+          {
+            ...page('pg4', {
+              status: 'transcribed',
+              transcript: 'Hydrnt',
+              correction: { text: 'Hydrant H2 seized.', at: AT, by: BY },
+            }),
+            name: 'Page 4',
+          },
+          { ...page('pg3'), name: 'Page 3' },
+          { ...page('pg2', { status: 'failed', error: 'Timed out.' }), name: 'Page 2' },
+        ],
+      }),
+    ]
+    await openObservations()
+    await screen.findByRole('button', { name: /Pump room readings\./ })
+    fireEvent.click(screen.getByRole('button', { name: 'All handwritten pages' }))
+    const view = screen.getByRole('group', { name: 'Handwritten pages' })
+    const names = () =>
+      within(view)
+        .getAllByRole('listitem')
+        .map((li) => li.querySelector('.ob-pt-name')!.textContent)
+    const status = (option: string) => {
+      fireEvent.click(screen.getByRole('button', { name: /^Status(:|$)/ }))
+      fireEvent.click(
+        within(screen.getByRole('menu', { name: 'Status' })).getByRole('menuitemradio', {
+          name: option,
+        }),
+      )
+    }
+
+    status('Has unsure words')
+    expect(names()).toEqual(['Page 1'])
+    status('Corrected')
+    expect(names()).toEqual(['Page 4'])
+    // Both are transcribed; a corrected one is no longer unsure.
+    status('Transcribed')
+    expect(names()).toEqual(['Page 1', 'Page 4'])
+    status('Transcribing')
+    expect(names()).toEqual(['Page 3'])
+    status('Couldn’t transcribe')
+    expect(names()).toEqual(['Page 2'])
+    expect(screen.getByText('1 of 4 pages')).toBeInTheDocument()
+  })
+})
