@@ -298,6 +298,35 @@ def _categories(answer: BaseModel, unmask) -> list[dict] | None:
     return kept[:MAX_CATEGORIES]
 
 
+# DEBUG: local test only, do not commit. Saves each photo exactly as it goes to Gemini into
+# the bind-mounted source folder, and logs the path on the host so it can be clicked.
+_DEBUG_DIR = "/app/debug-redacted"
+_DEBUG_HOST_DIR = (
+    r"C:\Users\Kor\Documents\GitHub\ai-risk-report-generator"
+    r"\microservices\speech-ocr-service\debug-redacted"
+)
+
+
+def _debug_save_sent_photos(images: list[tuple[str, str]], session) -> None:
+    import logging
+    import os
+    import re
+    from datetime import datetime
+
+    if not os.path.isdir("/app/app"):  # only inside the container, not under pytest
+        return
+    log = logging.getLogger("uvicorn.error")
+    os.makedirs(_DEBUG_DIR, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    faces = session.faces if session.enabled else [None] * len(images)
+    for (label, data), count in zip(images, faces, strict=True):
+        name = f"{stamp}-{re.sub(r'[^A-Za-z0-9._-]+', '_', label)}.jpg"
+        with open(os.path.join(_DEBUG_DIR, name), "wb") as file:
+            file.write(base64.b64decode(data))
+        state = f"{count} faces blurred" if session.enabled else "protection off, not blurred"
+        log.info("DEBUG sent to Gemini (%s): %s\\%s", state, _DEBUG_HOST_DIR, name)
+
+
 def interpret(
     photos: list[dict],
     texts: list[dict],
@@ -336,6 +365,7 @@ def interpret_images(
     # Faces blurred in every photo, in one call; the original in S3 is never changed.
     blurred = session.redact_images([data for _, data in images])
     images = [(label, data) for (label, _), data in zip(images, blurred, strict=True)]
+    _debug_save_sent_photos(images, session)  # DEBUG: local test only, do not commit
     # The texts and the location in one /mask call, so one mapping covers them (Rule 2).
     *masked, masked_location = session.mask([t["text"] for t in texts] + [location or ""])
     texts = [{**t, "text": text} for t, text in zip(texts, masked, strict=True)]
@@ -449,8 +479,10 @@ def _describe_gemini(
 _DESCRIBERS = {"gemini": _describe_gemini}
 
 
-def describe_photo(s3_key: str) -> dict:
-    """{description, usage} for one stored photo, by the VISION_PROVIDER."""
+def describe_photo(s3_key: str, privacy: dict | None = None) -> dict:
+    """{description, usage, privacy} for one stored photo, by the VISION_PROVIDER. With `privacy`
+    on, faces are blurred before the model sees it and, with `check_answers`, details it read off
+    the photo are taken out of the description, as in photo reading (PV-08)."""
     describer = _DESCRIBERS.get(VISION_PROVIDER)
     if describer is None:
         raise InterpretationError(
@@ -458,8 +490,16 @@ def describe_photo(s3_key: str) -> dict:
             "is not supported."
         )
     image = _prepare(_read(boto3.client("s3", region_name=AWS_REGION), s3_key))
+    session = protection.session(privacy)
+    [image] = session.redact_images([image])
+    _debug_save_sent_photos([(f"walk-{s3_key.rsplit('/', 1)[-1]}", image)], session)  # DEBUG: do not commit
     answer, usage = describer(image)
-    return {"description": answer.description, "usage": [usage]}
+    # Only the photo was sent, so whatever the check finds was read off it.
+    [description] = session.check_answer([answer.description])
+    __import__("logging").getLogger("uvicorn.error").info(  # DEBUG: do not commit
+        "DEBUG describe-photo\n  Gemini said: %s\n  saved as:    %s", answer.description, description
+    )
+    return {"description": description, "usage": [usage], "privacy": session.provenance()}
 
 
 def describe_chat_photo(s3_key: str) -> dict:
