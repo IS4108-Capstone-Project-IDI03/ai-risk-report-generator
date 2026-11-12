@@ -1,19 +1,16 @@
-// MarshBot's quick replies (AS-06 AC 4, AC 5, and the stale-export question):
-// what each button changes, and the exchange kept on the brief.
-// Called by routes/assistant.routes.ts. Calls brief.service.ts and recheck.service.ts.
+// MarshBot's replies (AS-06 AC 4, AC 5, round 5): what each tray button
+// changes, then the engineer's bubble and MarshBot's answer added to the
+// conversation. Called by routes/assistant.routes.ts. Calls brief.service.ts,
+// recheck.service.ts and thread.service.ts.
 import { z } from 'zod'
-import type { Types } from 'mongoose'
 import type { SessionUser } from '../auth.service'
 import { AssessmentModel } from '../../models/assessment.model'
-import { AssistantBriefModel } from '../../models/assistant-brief.model'
 import { AssistantViewerModel } from '../../models/assistant-viewer.model'
-import { dismiss, forEngineer, freshBrief, viewerOf } from './brief.service'
-import { viewBrief, type StoredBrief } from './brief-view'
-import { publishBriefChanged } from './bus'
-import { dayOf, longDay, weekdayDay } from './dates'
-import type { BriefFacts } from './phrases'
-import { ASSISTANT } from './settings'
-import type { AssistantBrief, QuickReply, ThreadEntry } from './types'
+import { dismiss, forEngineer, freshBrief } from './brief.service'
+import { dayOf } from './dates'
+import { engineerThread, type Loaded } from './thread.service'
+import type { ThreadBrief } from './thread/types'
+import type { AssistantThread, Reply } from './types'
 
 // A reply MarshBot isn't asking for right now (409).
 export class ReplyNotAskedError extends Error {
@@ -38,77 +35,64 @@ export const replySchema = z.object({
     'another-visit',
     'export-again',
     'not-now',
+    'skip',
+    'what-else',
+    'generate-anyway',
   ]),
   date: z.iso.date('Pick a valid day (YYYY-MM-DD).').optional(),
 })
 
 /**
- * Applies a quick reply (POST .../assistant/replies) and returns the brief
- * after it. Only a reply MarshBot is asking for now is taken. Throws
+ * Applies a reply (POST .../assistant/replies) and returns the conversation
+ * after it. Only a reply the tray offers now is taken. Throws
  * NotAssignedError, AssessmentArchivedError, ReplyNotAskedError, InvalidReplyError.
  */
 export async function postReply(
   reference: string,
   user: SessionUser,
   input: z.infer<typeof replySchema>,
-): Promise<AssistantBrief> {
-  // a. The question asking for this reply, as the engineer sees it now.
+): Promise<AssistantThread> {
   const assessment = await forEngineer(reference, user)
-  const viewer = await viewerOf(assessment._id, user, 'engineer')
-  const brief = await freshBrief(reference)
-  const question = viewBrief(brief, viewer).messages.find((m) =>
-    m.parts.some((p) => p.type === 'replies' && p.replies.some((r) => r.id === input.replyId)),
+  return engineerThread(
+    reference,
+    { type: 'reply', reply: input.replyId, date: input.date },
+    {
+      // Checked and applied while the thread is held, so two presses can't both land.
+      prepare: async (offered, loaded) => {
+        if (!offered.some((r) => r.id === input.replyId)) throw new ReplyNotAskedError()
+        if (await applyReply(assessment._id, user, input.replyId, input.date, loaded))
+          return (await freshBrief(reference)) as unknown as ThreadBrief
+        return loaded.brief
+      },
+    },
   )
-  if (!question) throw new ReplyNotAskedError()
-  const reply = question.parts
-    .flatMap((p) => (p.type === 'replies' ? p.replies : []))
-    .find((r) => r.id === input.replyId)!
-
-  // b. What the reply changes, and MarshBot's answer.
-  const { label, answer } = await applyReply(assessment._id, user, reply, input.date, brief)
-
-  // c. The exchange, kept on the brief; then the brief after it.
-  const at = new Date().toISOString()
-  const said: ThreadEntry[] = [
-    { who: 'bot', text: question.text, at, tone: 'question' },
-    { who: 'engineer', text: label, at, tone: 'normal' },
-    ...(answer ? [{ who: 'bot' as const, text: answer, at, tone: 'success' as const }] : []),
-  ]
-  await AssistantBriefModel.updateOne(
-    { _id: brief._id },
-    { $push: { thread: { $each: said, $slice: -ASSISTANT.keepThread } } },
-  )
-  const after = await freshBrief(reference)
-  publishBriefChanged(reference, after.updatedAt.toISOString())
-  return viewBrief(after, await viewerOf(assessment._id, user, 'engineer'))
 }
 
-// Saves what one reply changes; returns the engineer's words and MarshBot's answer.
+// Saves what one reply changes; returns whether it changed the assessment (so the brief is re-checked).
 async function applyReply(
-  assessment: Types.ObjectId,
+  assessment: Awaited<ReturnType<typeof forEngineer>>['_id'],
   user: SessionUser,
-  reply: QuickReply,
+  reply: Reply['id'],
   date: string | undefined,
-  brief: StoredBrief,
-): Promise<{ label: string; answer: string | null }> {
-  const f = brief.facts as BriefFacts
-  const stale = brief.items.find((i) => i.kind === 'stale-export' && !i.resolvedAt)
+  loaded: Loaded,
+): Promise<boolean> {
+  const stale = loaded.brief.items.find((i) => i.kind === 'stale-export' && !i.resolvedAt)
   const viewer = (update: object) =>
     AssistantViewerModel.updateOne({ assessment, user: user.id }, update, { upsert: true })
-  switch (reply.id) {
+  switch (reply) {
     case 'nothing-more':
       await AssessmentModel.updateOne(
         { _id: assessment },
         { $set: { setupConfirmedAt: new Date() } },
       )
-      return { label: reply.label, answer: "Thanks. I've moved this on to Prepare." }
+      return true
     case 'ready-to-generate':
       await AssessmentModel.updateOne(
         { _id: assessment },
         { $set: { readyToGenerateAt: new Date() }, $unset: { anotherVisit: 1 } },
       )
-      return { label: reply.label, answer: "Great. I've moved this on to Ready for generation." }
-    case 'another-visit': {
+      return true
+    case 'another-visit':
       // Without this, the survey could end before today and the question would come straight back.
       if (!date) throw new InvalidReplyError('Pick the day of the visit.')
       if (date < dayOf(new Date()))
@@ -120,16 +104,19 @@ async function applyReply(
           $unset: { readyToGenerateAt: 1 },
         },
       )
-      return {
-        label: `I need another visit on ${weekdayDay(date)}`,
-        answer: `Done. The survey now ends on ${longDay(date)}, and I'll keep ${f.site} in Capture until then. I won't raise any capture gaps in the meantime. Add whatever you gather on the day.`,
-      }
-    }
+      return true
     case 'export-again':
       await viewer({ $set: { exportAgain: stale?.fingerprint ?? null } })
-      return { label: reply.label, answer: null }
+      loaded.viewer.exportAgain = stale?.fingerprint ?? null
+      return false
     case 'not-now':
-      if (stale) await dismiss(assessment, user, stale.id, stale.fingerprint)
-      return { label: reply.label, answer: "No problem. I'll ask again if anything else changes." }
+      if (stale) {
+        await dismiss(assessment, user, stale.id, stale.fingerprint)
+        loaded.viewer.dismissed.push({ itemId: stale.id, fingerprint: stale.fingerprint })
+      }
+      return false
+    default:
+      // 'skip', 'what-else' and 'generate-anyway' only move the conversation on.
+      return false
   }
 }

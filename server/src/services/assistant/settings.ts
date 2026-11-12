@@ -1,5 +1,4 @@
-// MarshBot's numbers in one place (AS-06). The pause between messages is the
-// client's (client/src/features/marshbot/); Focus's work-left days are in
+// MarshBot's numbers in one place (AS-06). Focus's work-left days are in
 // focus.service.ts (FOCUS_WORK_DAYS).
 export const ASSISTANT = {
   // The coverage check (AC 7) runs at most this often while evidence keeps changing.
@@ -17,12 +16,13 @@ export const ASSISTANT = {
   // `mostlySeenShare` of its findings were on screen, went by quickly (AC 10).
   quickDecisionMs: 60_000,
   mostlySeenShare: 0.5,
-  // MarshBot is pleased for this long after something is resolved.
-  pleasedMs: 10 * 60_000,
-  // Opens closer together than this are one visit, so a pushed refresh keeps "since last time".
+  // An Overview opened this recently counts as open: the conversation moves on
+  // in the background, and a stage move this soon after the last turn keeps the session.
   sameVisitMs: 30 * 60_000,
-  // Resolved items kept on the brief, for "since last time" and the tick-off.
+  // Resolved items kept on the brief, for the catch-up and the tick-off.
   keepResolved: 50,
-  // Earlier exchanges kept on the brief.
-  keepThread: 50,
+  // Earlier sessions kept on a conversation thread.
+  keepSessions: 10,
+  // The wording AI gets this long per turn; after it the template words stand.
+  wordingTimeoutMs: 4_000,
 }

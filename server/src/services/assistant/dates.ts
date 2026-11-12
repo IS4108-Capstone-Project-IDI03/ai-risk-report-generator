@@ -40,9 +40,15 @@ export function longDay(day: string): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }
 
-/** Returns "Fri 20 Nov 2026" for '2026-11-20'. */
+/** Returns "20 Nov" for '2026-11-20'. */
+export function shortDay(day: string): string {
+  const d = new Date(day)
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`
+}
+
+/** Returns "Fri 20 Nov" for '2026-11-20'. */
 export function weekdayDay(day: string): string {
-  return `${WEEKDAYS[new Date(day).getUTCDay()]} ${longDay(day)}`
+  return `${WEEKDAYS[new Date(day).getUTCDay()]} ${shortDay(day)}`
 }
 
 /** Returns "Friday" for '2026-11-20'. */

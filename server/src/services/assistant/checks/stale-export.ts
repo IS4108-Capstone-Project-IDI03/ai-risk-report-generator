@@ -19,7 +19,7 @@ export function staleExport(ctx: CheckContext): RaisedItem[] {
       kind: 'stale-export',
       stage: 'exported',
       weight: 'info',
-      title: 'Exported copy',
+      title: 'Exported Copy',
       detail: `${listed(names)} changed since the export`,
       fact: `${listed(names)} changed since the export.`,
       icon: 'file-clock',

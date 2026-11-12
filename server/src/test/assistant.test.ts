@@ -1,16 +1,19 @@
-// MarshBot's brief API (AS-06 test seam 1): the brief for a seeded assessment,
-// stages that only move forward, another visit, dismissals, the admin's view,
-// the export hook and the stage migration. rag-service is faked (assistant-fixtures.ts).
+// MarshBot's API (AS-06 test seam 1): the saved conversation for a seeded
+// assessment, stages that only move forward, replies, another visit,
+// dismissals, the admin's view, the export hook and the stage migration.
+// rag-service is faked (assistant-fixtures.ts).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { AssistantActivityModel } from '../models/assistant-activity.model'
+import { AssistantBriefModel } from '../models/assistant-brief.model'
+import { AssistantThreadModel } from '../models/assistant-thread.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { settleBackground } from '../services/assistant/background'
-import { AssistantBriefModel } from '../models/assistant-brief.model'
 import { recordExport } from '../services/assistant/brief.service'
-import { oneAtATime, recheckAssessment, refreshBrief } from '../services/assistant/recheck.service'
-import type { AssistantBrief } from '../services/assistant/types'
+import { oneAtATime } from '../services/assistant/lock'
+import { recheckAssessment, refreshBrief } from '../services/assistant/recheck.service'
+import type { AssistantThread, Card, Reply } from '../services/assistant/types'
 import { drainInlineJobs } from '../services/job-queue.service'
 import { migrateStages } from '../scripts/migrate-stages'
 import { signedInAs } from './auth-test-helpers'
@@ -46,43 +49,76 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-const brief = (res: { body: unknown }) => res.body as AssistantBrief
-const ids = (b: AssistantBrief) => b.items.map((i) => i.id)
+type Api = ReturnType<typeof signedInAs>
+const thread = (res: { body: unknown }) => res.body as AssistantThread
+// The conversation once the new turns are worded (they are hidden while pending).
+async function opened(api: Api): Promise<AssistantThread> {
+  await api.get(url)
+  await settleBackground()
+  return thread(await api.get(url))
+}
+const topics = (t: AssistantThread) => t.session.turns.map((x) => x.topic)
+const said = (t: AssistantThread) => t.session.turns.map((x) => x.says.map((s) => s.text).join(' '))
+const rows = (cards: Card[]) =>
+  cards.flatMap((c) => (c.type === 'tasks' || c.type === 'rows' ? c.rows : []))
+const openItems = async () =>
+  ((await AssistantBriefModel.findOne({ reference: REF }).lean())?.items ?? [])
+    .filter((i) => !i.resolvedAt)
+    .map((i) => i.id)
 
-describe('the brief (AC 1)', () => {
-  it('greets the engineer and lists the Fix now items of an assessment in Capture', async () => {
+// Presses "What else?" until the tray offers `id`; returns the conversation then.
+async function untilOffered(api: Api, id: Reply['id']): Promise<AssistantThread> {
+  let t = await opened(api)
+  for (let n = 0; n < 5 && !t.replies.some((r) => r.id === id); n++) {
+    expect(t.replies.map((r) => r.id)).toContain('what-else')
+    await api.post(`${url}/replies`).send({ replyId: 'what-else' })
+    await settleBackground()
+    t = thread(await api.get(url))
+  }
+  return t
+}
+
+describe('the conversation (AC 1)', () => {
+  it('greets the engineer and raises the Fix now items of an assessment in Capture', async () => {
     const { engineer } = await people()
     const a = await assessment(engineer._id)
     const s = await session(a._id)
     const failed = await observation(a._id, s._id, { failed: true })
     const walk = await readyWalk(a._id, engineer._id)
+    const api = signedInAs(app, engineer)
 
-    const res = await signedInAs(app, engineer).get(url)
-
-    expect(res.status).toBe(200)
-    const b = brief(res)
-    expect(b).toMatchObject({
+    const first = await api.get(url)
+    expect(first.status).toBe(200)
+    // The new turns are being worded: the dots show, nothing to press yet.
+    expect(thread(first)).toMatchObject({
       viewer: 'engineer',
       stage: 'capture',
-      mood: 'concerned',
-      surveyStart: '2026-11-14',
+      thinking: true,
+      replies: [],
     })
-    const recording = `capture.failed-recording:${failed.id}:${failed.recordings[0]._id}`
-    expect(ids(b)).toEqual(expect.arrayContaining([recording, `walk.ready:${walk.id}`]))
-    const fix = b.items.find((i) => i.id === recording)!
-    expect(fix).toMatchObject({
-      weight: 'fix_now',
-      dismissible: false,
-      action: 'retry-transcription',
-      title: 'Loading Bay 2',
-    })
-    expect(fix.fact).toBe("A recording from Loading Bay 2 couldn't be transcribed.")
-    expect(b.messages[0].text).toMatch(
-      /^Morning, Alex\. Pasir Gudang Cold Store is in Capture, with 1 observation so far\. Two things to fix first\.$/,
+    await settleBackground()
+    const t = thread(await api.get(url))
+    expect(t).toMatchObject({ mood: 'concerned', surveyStart: '2026-11-14', thinking: false })
+    expect(t.status).toEqual({ text: '2 things to fix', tone: 'red', icon: 'circle-alert' })
+    expect(topics(t)).toEqual(['greeting', 'todo'])
+    expect(said(t)[0]).toBe(
+      'Good morning, Alex! Pasir Gudang Cold Store is in the Capture stage, and you already have 1 observation in, which is a great start for survey day.',
     )
-    expect(b.messages[1].parts).toEqual([
-      { type: 'actions', itemIds: expect.arrayContaining([recording, `walk.ready:${walk.id}`]) },
-    ])
+    const recording = `capture.failed-recording:${failed.id}:${failed.recordings[0]._id}`
+    const todo = rows(t.session.turns[1].cards)
+    expect(todo.map((r) => r.id)).toEqual(
+      expect.arrayContaining([recording, `walk.ready:${walk.id}`]),
+    )
+    expect(todo.find((r) => r.id === recording)).toMatchObject({
+      title: 'Loading Bay 2',
+      detail: "Couldn't transcribe",
+      end: { type: 'button', label: 'Try Again', action: 'retry-transcription' },
+    })
+    expect(t.replies.map((r) => r.id)).toEqual(['skip'])
+    // Opening again adds nothing, and one thread is kept for the engineer.
+    await settleBackground()
+    expect(topics(thread(await api.get(url)))).toEqual(['greeting', 'todo'])
+    expect(await AssistantThreadModel.countDocuments()).toBe(1)
   })
 
   it('refuses an engineer the assessment is not assigned to (403) and an unknown one (404)', async () => {
@@ -101,25 +137,29 @@ describe('stages (AC 2, AC 4)', () => {
     const a = await assessment(engineer._id)
     const api = signedInAs(app, engineer)
 
-    const first = brief(await api.get(url))
+    const first = await opened(api)
     expect(first.stage).toBe('setup')
-    expect(first.messages.find((m) => m.id.startsWith('setup-question'))?.parts[0]).toMatchObject({
-      type: 'replies',
-      replies: [{ id: 'nothing-more' }],
-    })
+    expect(first.replies).toEqual([
+      { id: 'nothing-more', label: 'Nothing more to add', primary: true, picksDate: false },
+    ])
 
     const replied = await api.post(`${url}/replies`).send({ replyId: 'nothing-more' })
     expect(replied.status).toBe(200)
-    expect(brief(replied).stage).toBe('prepare')
-    expect(brief(replied).stageDates.prepare).toBe(SURVEY_DAY.toISOString())
-    expect(brief(replied).thread.map((t) => t.who)).toEqual(['bot', 'engineer', 'bot'])
+    expect(thread(replied).stage).toBe('prepare')
+    expect(thread(replied).stageDates.prepare).toBe(SURVEY_DAY.toISOString())
+    await settleBackground()
+    const after = thread(await api.get(url))
+    expect(after.session.turns.slice(3, 5).map((x) => [x.who, x.says[0].text])).toEqual([
+      ['engineer', 'Nothing more to add'],
+      ['bot', "Thanks! I've moved this on to the Prepare stage."],
+    ])
     // Asked once: the same reply again is refused.
     expect((await api.post(`${url}/replies`).send({ replyId: 'nothing-more' })).status).toBe(409)
 
     const s = await session(a._id)
-    expect(brief(await api.get(url)).stage).toBe('capture')
+    expect(thread(await api.get(url)).stage).toBe('capture')
     await CaptureSessionModel.deleteOne({ _id: s._id })
-    expect(brief(await api.get(url)).stage).toBe('capture')
+    expect(thread(await api.get(url)).stage).toBe('capture')
     expect((await AssessmentModel.findById(a._id).lean())?.stage).toBe('capture')
   })
 
@@ -128,13 +168,17 @@ describe('stages (AC 2, AC 4)', () => {
     await assessment(engineer._id)
     await recordExport(REF, 'RPT-2026-0003 2026-11-14.pdf', 46)
     await settleBackground()
-    const b = brief(await signedInAs(app, engineer).get(url))
-    expect(b.stage).toBe('exported')
-    expect(b.export).toMatchObject({ fileName: 'RPT-2026-0003 2026-11-14.pdf', pages: 46 })
-    expect(b.messages[0]).toMatchObject({ tone: 'success', parts: [{ type: 'file' }] })
-    expect(b.messages[0].text).toMatch(
-      /^Nice work, Alex\. The report went out on 14 Nov 2026, 34 days before it was due\./,
-    )
+    const t = await opened(signedInAs(app, engineer))
+    expect(t.stage).toBe('exported')
+    expect(topics(t)).toEqual(['greeting', 'exported'])
+    expect(t.session.turns[1].says[0]).toEqual({
+      text: 'The Pasir Gudang Cold Store report went out on 14 Nov, 34 days before it was due.',
+      tone: 'good',
+    })
+    expect(rows(t.session.turns[1].cards)[0]).toMatchObject({
+      title: 'RPT-2026-0003 2026-11-14.pdf',
+      detail: '46 pages',
+    })
   })
 
   it('gives existing assessments a stage once (npm run migrate:stages)', async () => {
@@ -155,13 +199,11 @@ describe('another site visit (AC 5)', () => {
     await observation(a._id, (await session(a._id))._id, { categories: null })
     const api = signedInAs(app, engineer)
 
-    const before = brief(await api.get(url))
-    expect(ids(before)).toContain('uncategorised')
-    expect(
-      before.messages.find(
-        (m) => m.text === 'Is that everything from site, or do you need another visit?',
-      ),
-    ).toBeDefined()
+    const before = await untilOffered(api, 'another-visit')
+    expect(await openItems()).toContain('uncategorised')
+    expect(said(before).at(-1)).toBe(
+      "Sure! Your survey day has passed and you're at 1 observation now. Just 1 question before I move this on to generation: is that everything from site, or do you need another visit?",
+    )
 
     expect((await api.post(`${url}/replies`).send({ replyId: 'another-visit' })).status).toBe(400)
     expect(
@@ -173,11 +215,15 @@ describe('another site visit (AC 5)', () => {
       .send({ replyId: 'another-visit', date: '2026-11-20' })
 
     expect(res.status).toBe(200)
-    const after = brief(res)
-    expect(after).toMatchObject({ stage: 'capture', surveyEnd: '2026-11-20' })
-    expect(ids(after)).not.toContain('uncategorised')
-    expect(after.thread.at(-2)?.text).toBe('I need another visit on Fri 20 Nov 2026')
-    expect(after.thread.at(-1)?.text).toMatch(/^Done\. The survey now ends on 20 Nov 2026/)
+    expect(thread(res)).toMatchObject({ stage: 'capture', surveyEnd: '2026-11-20' })
+    await settleBackground()
+    const after = thread(await api.get(url))
+    expect(said(after).slice(-2)).toEqual([
+      'I need another visit on Fri 20 Nov',
+      "Done! The survey now ends on 20 Nov, and Pasir Gudang Cold Store stays in the Capture stage until then. I'll hold the gaps until you're back from site. Add whatever you gather on the day.",
+    ])
+    expect(after.status.text).toBe('Next visit booked')
+    expect(await openItems()).not.toContain('uncategorised')
     expect((await AssessmentModel.findById(a._id).lean())?.siteVisitEndDate).toEqual(
       new Date('2026-11-20'),
     )
@@ -186,72 +232,58 @@ describe('another site visit (AC 5)', () => {
       409,
     )
   })
-
-  it("repeats nothing of MarshBot's answer in the same visit (#53, board 05)", async () => {
-    vi.setSystemTime(new Date('2026-11-16T02:00:00Z'))
-    const { engineer } = await people()
-    const a = await assessment(engineer._id)
-    await observation(a._id, (await session(a._id))._id)
-    const api = signedInAs(app, engineer)
-    await api.get(url)
-
-    const res = await api
-      .post(`${url}/replies`)
-      .send({ replyId: 'another-visit', date: '2026-11-20' })
-
-    const keys = (b: AssistantBrief) => b.messages.map((m) => m.id.replace(/-[0-9a-f]{8}$/, ''))
-    expect(keys(brief(res))).not.toEqual(
-      expect.arrayContaining([expect.stringMatching(/^(greeting|visit-set|done)$/)]),
-    )
-    // Opened again later, it is a new visit: MarshBot greets again.
-    vi.setSystemTime(new Date('2026-11-16T02:45:00Z'))
-    expect(keys(brief(await signedInAs(app, engineer).get(url)))).toContain('greeting')
-  })
 })
 
-describe('dismissals (AC 6)', () => {
-  it('hides an item until it changes, and refuses a Fix now item', async () => {
+describe('who may reply, and archived assessments', () => {
+  it('refuses a reply from an admin or a colleague (403); the dismiss route is gone', async () => {
+    const { engineer, admin, colleague } = await people()
+    await assessment(engineer._id)
+    await opened(signedInAs(app, engineer))
+    for (const user of [admin, colleague])
+      expect(
+        (await signedInAs(app, user).post(`${url}/replies`).send({ replyId: 'nothing-more' }))
+          .status,
+      ).toBe(403)
+    expect(
+      (await signedInAs(app, engineer).post(`${url}/dismissals`).send({ itemId: 'x' })).status,
+    ).toBe(404)
+  })
+
+  it('opens an archived assessment read only: no session saved, no wording, nothing to answer', async () => {
     const { engineer } = await people()
-    const a = await assessment(engineer._id)
-    const s = await session(a._id)
-    const failed = await observation(a._id, s._id, { failed: true, categories: null })
-    const api = signedInAs(app, engineer)
-    await api.get(url)
-
-    expect((await api.post(`${url}/dismissals`).send({ itemId: 'uncategorised' })).status).toBe(204)
-    expect(ids(brief(await api.get(url)))).not.toContain('uncategorised')
-    const fixNow = `capture.failed-recording:${failed.id}:${failed.recordings[0]._id}`
-    expect((await api.post(`${url}/dismissals`).send({ itemId: fixNow })).status).toBe(409)
-    expect((await api.post(`${url}/dismissals`).send({ itemId: 'no-such-item' })).status).toBe(404)
-
-    // A second uncategorised observation changes the item's facts: it comes back.
-    await observation(a._id, s._id, { categories: null })
-    expect(ids(brief(await api.get(url)))).toContain('uncategorised')
+    await assessment(engineer._id, { archivedAt: new Date() })
+    const res = await signedInAs(app, engineer).get(url)
+    await settleBackground()
+    expect(res.status).toBe(200)
+    expect(thread(res)).toMatchObject({ replies: [], thinking: false })
+    expect(thread(res).status.text).toBe('Archived')
+    expect(await AssistantThreadModel.countDocuments()).toBe(0)
+    expect(rag.calls.filter((c) => c.path === '/assistant/wording')).toHaveLength(0)
   })
 })
 
 describe("an admin's view (AC 11)", () => {
-  it('shows stage and progress only, with no reminders and none of their activity kept', async () => {
+  it('shows stage and progress only, with nothing saved and none of their activity kept', async () => {
     vi.setSystemTime(new Date('2026-11-12T02:00:00Z'))
     const { engineer, admin } = await people()
     const a = await assessment(engineer._id, { setupConfirmedAt: new Date() })
     await checklist(a._id, engineer._id)
 
     // The engineer, two days before the survey, hasn't read the checklist.
-    const mine = brief(await signedInAs(app, engineer).get(url))
+    const mine = await opened(signedInAs(app, engineer))
     expect(mine.stage).toBe('prepare')
-    expect(mine.items.find((i) => i.id === 'prepare.checklist-read')).toMatchObject({
-      weight: 'reminder',
-    })
+    expect(await openItems()).toContain('prepare.checklist-read')
 
     const res = await signedInAs(app, admin).get(url)
     expect(res.status).toBe(200)
-    const theirs = brief(res)
-    expect(theirs).toMatchObject({ viewer: 'admin', stage: 'prepare', items: [], thread: [] })
-    expect(theirs.messages[0].text).toBe(
-      "Hi Sana. This one is Alex Rowe's. It's in prepare: the report is due on 18 Dec 2026.",
-    )
-    expect(theirs.messages.flatMap((m) => m.parts).map((p) => p.type)).toEqual(['stage-time'])
+    const theirs = thread(res)
+    expect(theirs).toMatchObject({ viewer: 'admin', stage: 'prepare', replies: [], earlier: [] })
+    expect(theirs.status).toEqual({ text: "Alex's assessment", tone: 'blue', icon: 'user' })
+    expect(said(theirs)).toEqual([
+      "Hi Sana! This one is Alex Rowe's. It's in the Prepare stage: the report is due on 18 Dec 2026.",
+    ])
+    expect(theirs.session.turns[0].cards.map((c) => c.type)).toEqual(['stage-time'])
+    expect(await AssistantThreadModel.countDocuments({ user: admin._id })).toBe(0)
 
     const activity = { places: [{ place: 'checklist', engagedMs: 5000, seen: {} }] }
     expect((await signedInAs(app, admin).post(`${url}/activity`).send(activity)).status).toBe(204)
@@ -272,22 +304,27 @@ describe("an admin's view (AC 11)", () => {
           .send({ places: [{ place: 'checklist', engagedMs: 3000, seen }] })
       ).status,
     ).toBe(204)
-    const b = brief(await api.get(url))
-    expect(ids(b)).toContain('prepare.checklist-ready')
-    expect(b.messages.find((m) => m.id.startsWith('checklist-ready'))?.text).toBe(
-      "The survey is in two days and you've read the checklist, so you're set.",
-    )
+    const t = await opened(api)
+    expect(await openItems()).toContain('prepare.checklist-ready')
+    const before = t.session.turns.find((x) => x.topic === 'before-survey')!
+    expect(before.says[0].text).toBe("You've read the checklist, so you're set.")
+    expect(rows(before.cards)[0]).toMatchObject({
+      title: 'Site Checklist',
+      detail: 'Read through',
+      end: { type: 'tick' },
+    })
   })
 })
 
 describe('the session (#14)', () => {
-  it("reading the brief doesn't refresh the session cookie; a change does", async () => {
+  it("reading the conversation doesn't refresh the session cookie; a change does", async () => {
     const { engineer } = await people()
     await assessment(engineer._id)
     const api = signedInAs(app, engineer)
     const read = await api.get(url)
     expect(read.status).toBe(200)
     expect(read.headers['set-cookie']).toBeUndefined()
+    await settleBackground()
     const reply = await api.post(`${url}/replies`).send({ replyId: 'nothing-more' })
     expect(reply.headers['set-cookie']).toBeDefined()
   })
@@ -300,19 +337,18 @@ describe('the survey passed with nothing captured (#10, AC 5)', () => {
     await assessment(engineer._id, { setupConfirmedAt: new Date() })
     const api = signedInAs(app, engineer)
 
-    const before = brief(await api.get(url))
+    const before = await untilOffered(api, 'another-visit')
     expect(before.stage).toBe('prepare')
-    const question = before.messages.find((m) => m.id.startsWith('visit-question'))
-    expect(question?.text).toBe(
-      'Nothing is captured from the survey on 14 Nov 2026. Is that everything, or do you need another visit?',
+    expect(said(before).at(-1)).toBe(
+      'Sure! Your survey day was on 14 Nov, and nothing is captured from it yet. Is that everything, or do you need another visit?',
     )
 
     const res = await api
       .post(`${url}/replies`)
       .send({ replyId: 'another-visit', date: '2026-11-20' })
     expect(res.status).toBe(200)
-    expect(brief(res)).toMatchObject({ stage: 'capture', surveyEnd: '2026-11-20' })
-    expect(ids(brief(res))).not.toContain('prepare.survey-passed')
+    expect(thread(res)).toMatchObject({ stage: 'capture', surveyEnd: '2026-11-20' })
+    expect(await openItems()).not.toContain('prepare.survey-passed')
   })
 })
 
@@ -357,17 +393,16 @@ describe('re-checks', () => {
     await session(a._id)
     const api = signedInAs(app, engineer)
     // Fire Protection needs 1 observation and has none.
-    const before = brief(await api.get(url))
-    expect(before.stage).toBe('ready_for_generation')
-    expect(ids(before)).toContain('section.thin:9')
+    expect(thread(await api.get(url)).stage).toBe('ready_for_generation')
+    expect(await openItems()).toContain('section.thin:9')
 
     rag.sections = () =>
       new Response(JSON.stringify({ detail: 'down' }), {
         status: 502,
         headers: { 'Content-Type': 'application/json' },
       })
-    const during = brief(await api.get(url))
-    expect(ids(during)).toContain('section.thin:9')
+    expect((await api.get(url)).status).toBe(200)
+    expect(await openItems()).toContain('section.thin:9')
     const stored = await refreshBrief(REF)
     expect(stored?.items.find((i) => i.id === 'section.thin:9')?.resolvedAt).toBeNull()
   })

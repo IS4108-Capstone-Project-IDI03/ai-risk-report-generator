@@ -13,6 +13,11 @@ export function publishBriefChanged(reference: string, updatedAt: string): void 
   bus.emit(reference, updatedAt)
 }
 
+/** Returns whether any Overview of `reference` is open now (a server-sent event stream is listening). */
+export function isWatched(reference: string): boolean {
+  return bus.listenerCount(reference) > 0
+}
+
 /** Calls `listener` whenever `reference`'s brief changes; returns the unsubscribe function. */
 export function onBriefChanged(
   reference: string,

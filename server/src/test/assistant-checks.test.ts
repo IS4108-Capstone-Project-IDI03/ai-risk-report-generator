@@ -1,24 +1,23 @@
 // MarshBot's rules without a database (AS-06): the item merge, when coverage is
 // due, the report outline, and the checks the Check round fixed (review work
 // after Ready to export, the stale export, unseen questions, quick decisions).
+// The conversation built from them is tested in assistant-thread.test.ts.
 // Each builds just the part of the check context the rule reads.
 import { describe, expect, it } from 'vitest'
 import type { CoverageState } from '../models/assistant-brief.model'
 import type { ChecklistDto } from '../services/checklist.service'
 import { coverageGaps } from '../services/assistant/checks/coverage-gaps'
-import type { StoredBrief } from '../services/assistant/brief-view'
 import { quickDecision } from '../services/assistant/checks/quick-decision'
 import { reviewItems } from '../services/assistant/checks/review-items'
 import { staleExport } from '../services/assistant/checks/stale-export'
+import { thinSections } from '../services/assistant/checks/thin-sections'
 import { unseenQuestions } from '../services/assistant/checks/unseen-questions'
 import type { CheckContext } from '../services/assistant/context'
 import { coverageDue } from '../services/assistant/coverage.service'
 import { raise } from '../services/assistant/item'
-import { buildMessages } from '../services/assistant/messages'
-import type { MessageInput } from '../services/assistant/message-parts'
 import type { BriefFacts } from '../services/assistant/phrases'
 import { areaHealth, sectionStates } from '../services/assistant/progress'
-import { mergeItems } from '../services/assistant/recheck.service'
+import { mergeItems, type StoredBrief } from '../services/assistant/recheck.service'
 import type { BriefItem } from '../services/assistant/types'
 
 const NOW = new Date('2026-11-14T02:00:00Z')
@@ -177,37 +176,6 @@ describe('after Ready to export (#6, #7)', () => {
     expect(exported([{ sectionId: '7', title: '7', where: 'review', reason: 'x' }])).toEqual([])
     expect(exported([]).map((i) => i.id)).toEqual(['exported.stale'])
   })
-
-  it("doesn't say everything is reviewed while review work is open; regenerating comes first", () => {
-    const input = (items: BriefItem[]) =>
-      ({
-        role: 'engineer',
-        viewerName: 'Alex Rowe',
-        stage: 'ready_to_export',
-        facts: { site: 'Pasir Gudang', stageDates: {} } as unknown as BriefFacts,
-        items,
-        resolvedSince: [],
-        movedSince: false,
-        areas: [],
-        sections: [],
-        coverage: 'idle',
-        exportAgain: null,
-        today: '2026-11-14',
-        now: NOW,
-      }) as MessageInput
-    const open = buildMessages(
-      input([item('review.pending'), item('generate.out-of-date:7', 'out-of-date')]),
-    )
-    expect(open.map((m) => m.id.replace(/-[0-9a-f]{8}$/, ''))).toEqual([
-      'greeting',
-      'regenerate-gaps',
-      'review-gaps',
-    ])
-    expect(open[0].text).toMatch(/was ready to export, but some of it needs another look\.$/)
-    expect(buildMessages(input([])).map((m) => m.text)).toContain(
-      "Everything is reviewed, so it's ready to export.",
-    )
-  })
 })
 
 describe('unseenQuestions (#8)', () => {
@@ -275,11 +243,11 @@ describe('areaHealth (#52)', () => {
   } as unknown as CoverageState
 
   it('marks only the areas the rules call thin, worst first', () => {
-    expect(areaHealth(checklist)).toEqual([
-      { area: 'External Exposures', total: 5, covered: 0, thin: true },
-      { area: 'Fire Protection', total: 12, covered: 4, thin: true },
-      { area: 'Management Programs', total: 6, covered: 5, thin: false },
-      { area: 'Construction', total: 8, covered: 7, thin: false },
+    expect(areaHealth(checklist).map(({ open, ...a }) => ({ ...a, open: open.length }))).toEqual([
+      { area: 'External Exposures', total: 5, covered: 0, thin: true, open: 5 },
+      { area: 'Fire Protection', total: 12, covered: 4, thin: true, open: 8 },
+      { area: 'Management Programs', total: 6, covered: 5, thin: false, open: 1 },
+      { area: 'Construction', total: 8, covered: 7, thin: false, open: 1 },
     ])
   })
 
@@ -296,5 +264,20 @@ describe('areaHealth (#52)', () => {
         .filter((i) => i.kind === 'coverage-uncovered')
         .map((i) => i.title),
     ).toEqual(['External Exposures', 'Fire Protection', 'Management Programs', 'Construction'])
+  })
+})
+
+describe('thinSections (RPT-2026-0092)', () => {
+  it('counts one observation in the singular', () => {
+    const sections = [
+      {
+        section: { id: '9', title: 'Fire Protection', min_observations: 1 },
+        latest: null,
+        usableObservations: 0,
+      },
+    ] as unknown as CheckContext['sections']
+    const [item] = thinSections(ctxOf({ stage: 'ready_for_generation', sections }))
+    expect(item.detail).toBe('0 of 1 observation needed')
+    expect(item.fact).toBe('Fire Protection has 0 of the 1 observation it needs.')
   })
 })
