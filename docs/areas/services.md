@@ -207,7 +207,9 @@ is (CP-03), and becomes drafting evidence.
    navigator beside All Photos and All Recordings (CP-12), lists every page
    of the assessment's observations not deleted, each with its state, Retry,
    and its transcript to open, shown the same way; its text opens the
-   observation.
+   observation. Its search (CP-13, in the browser) looks in the text as
+   shown, the correction or else the model's reading, and marks the words
+   found inside any uncertain word's underline.
    Drafting uses the text as transcribed, or as the engineer corrected it; the
    uncertain marks are for the engineer and are not sent to S4.
 6. The assigned engineer manages a saved observation's pages (CP-20) as

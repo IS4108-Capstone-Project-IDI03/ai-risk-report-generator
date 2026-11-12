@@ -474,6 +474,31 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting or removing a voice recording (on its observation's page, CP-08); a site walk proposal's voice recordings (its walk list already holds them); a length column (voice recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted against no story (CP-04 AC3, CP-19 AC17).
   </details>
 
+- [ ] **CP-13** — Search the evidence text of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5; reuses the ID of an earlier CP-13 that became CP-33)
+  <details><summary>Goal / AC</summary>
+
+  Goal: search an assessment's voice transcripts, handwritten page transcripts and photo descriptions, so I can find where I said, wrote or photographed something without opening each observation.
+
+  The evidence views
+
+  1. Given All Recordings, All Handwritten Pages or All Photos, when I type in its search box, then only the items holding every word I typed are listed, in any order and ignoring case and accents, and the count says how many of how many match.
+  2. Given a voice recording, when it is searched, then its transcript as corrected, its name and its observation's text are searched, but never "(No speech was detected.)".
+  3. Given a handwritten page, when it is searched, then its text as shown (the engineer's correction, or else the model's reading), its name and its observation's text are searched.
+  4. Given a photo, when it is searched, then its observation's photo description is searched only if it describes that photo, together with its name and its observation's text.
+  5. Given an item found in its own text, when it is listed, then its text opens under the row with every word found marked, and a word the model was unsure of keeps its underline round the mark.
+  6. Given no item matches, when the search runs, then the view says none match, with Clear search.
+  7. Given a search, when I open an observation from a row and select Back, then the view comes back with the same search; when I open the view again from the location navigator, its search is empty.
+  8. Given a voice recording playing, when a search leaves it out, then it stops.
+
+  The Observations list
+
+  9. Given the Observations tab or its deleted observations, when I type in its search box, then only the observations whose note, transcripts, page texts or photo description hold every word are listed, together with the location picked and the filters set.
+  10. Given an observation found other than in the text its row shows, when it is listed, then its row says where, such as "Matched in Recording 2 and the photo description", and words in the row's own text are marked.
+  11. Given no observation matches, when the search runs, then it says none match, with Clear search; Clear all clears the search with the filters.
+
+  Not in this story: a site walk proposal's views and list (its photos are described and its pages transcribed only at Create all, and a walk recording's transcript covers the whole walk, not each clip); choosing Appendix A's photos by their description (a GN-07 follow-up, as the appendix has no description to search); searching by meaning (Ask, AS-01); the wording a correction replaced; removed recordings, photos and pages. See DECISIONS.
+  </details>
+
 - [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
@@ -577,7 +602,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 - [ ] **CP-33** — Recommend checklist items (risk engineer, Could, 3 pts, deps: CP-30, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: have the system recommend inspection items based on past inspections of similar facilities, so my checklist includes known risks to verify. Replaces CP-13.
+  Goal: have the system recommend inspection items based on past inspections of similar facilities, so my checklist includes known risks to verify. Replaces an earlier CP-13 (recommended inspection items); the ID now names the evidence search.
 
   1. Given a facility type, when recommendations are generated, then they are drawn from findings and Opportunities for Improvement in past Marsh reports for the same facility type.
   2. Given a recommendation, when I view it, then the past report passage it came from is shown with its page.
