@@ -1,6 +1,7 @@
-// The client card at the foot of MarshBot's rail (AS-06 board 01): the client's avatar, name and
-// the assessment's reference, a real button with a chevron that opens Details (board 06).
-// Called by screens/MarshBotOverview.tsx. Reuses the client page's ClientAvatar.
+// The client card pinned at the foot of MarshBot's rail (AS-06 canvas P6): the client's avatar,
+// name and the assessment's reference, each on one line ending in "…", with both in full in its
+// tooltip; a real button with a chevron that opens Details (board 06).
+// Called by Rail.tsx. Reuses the client page's ClientAvatar.
 import { Icon, Tooltip } from '../../../design-system'
 import { ClientAvatar } from '../../clients/components/ClientAvatar'
 
@@ -15,7 +16,16 @@ export function ClientCard({
   onOpen: () => void
 }) {
   return (
-    <Tooltip label="Assessment details" style={{ display: 'flex', width: '100%' }}>
+    <Tooltip
+      label={
+        <span className="mb-client-tip">
+          {name}
+          <br />
+          {reference}
+        </span>
+      }
+      style={{ display: 'flex', width: '100%', flex: 'none' }}
+    >
       <button
         type="button"
         className="mb-client"

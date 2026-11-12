@@ -59,12 +59,14 @@ const SAID: Record<Mood, string> = {
   thinking: 'MarshBot, thinking',
 }
 
-/** Returns the Visor robot in `mood`; `decorative` hides it from screen readers. */
+/** Returns the Visor robot in `mood`; `decorative` hides it from screen readers, and a
+    decorative face doesn't blink (the thread has one per turn; only the rail's face lives). */
 export function MarshBotFace({ mood, decorative = false }: { mood: Mood; decorative?: boolean }) {
   // Blinks only while idle, at a random 4 to 7 s, so it never looks mechanical.
   const [blink, setBlink] = useState(false)
   useEffect(() => {
-    if (mood !== 'idle' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    if (mood !== 'idle' || decorative) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     let timer: ReturnType<typeof setTimeout>
     const next = () => {
       timer = setTimeout(
@@ -80,7 +82,7 @@ export function MarshBotFace({ mood, decorative = false }: { mood: Mood; decorat
     }
     next()
     return () => clearTimeout(timer)
-  }, [mood])
+  }, [mood, decorative])
   return (
     <svg
       className="mb-face-svg"
