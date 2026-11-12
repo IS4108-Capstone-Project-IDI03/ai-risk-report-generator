@@ -237,7 +237,7 @@ function ItemLine({
       {item.status === 'failed' && !!item.retry && (
         <button
           type="button"
-          className="ob-button ob-button--small ob-pt-above"
+          className="ob-button ob-button--tinted ob-button--small ob-pt-above"
           onClick={item.retry}
         >
           Retry
