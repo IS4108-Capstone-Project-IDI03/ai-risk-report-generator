@@ -16,6 +16,7 @@ import { ReportOfiModel } from '../../models/report-ofi.model'
 import { ReportSectionModel } from '../../models/report-section.model'
 import { ReportSectionVersionModel } from '../../models/report-section-version.model'
 import { ReviewAuditModel } from '../../models/review-audit.model'
+import { SiteWalkModel } from '../../models/site-walk.model'
 import type { ISite } from '../../models/site.model'
 import { getChecklist, type ChecklistDto, type StandardDto } from '../checklist.service'
 import { blockersFrom, type ExportBlocker } from '../export.service'
@@ -62,6 +63,8 @@ export type CheckContext = {
   stage: Stage
   observations: ObservationDto[]
   walks: SiteWalkDto[]
+  // Observations each reviewed site walk created, by walk id (its Done row, round 5).
+  walkObservations: Record<string, number>
   checklist: ChecklistDto | null
   standards: StandardDto[]
   areas: AreaHealth[]
@@ -125,10 +128,11 @@ export async function loadContext(
       ReportCommentThreadModel.find({ assessment: id }).lean<Thread[]>(),
       countDocuments(assessment),
     ])
-  const [brief, viewer, activity] = await Promise.all([
+  const [brief, viewer, activity, created] = await Promise.all([
     AssistantBriefModel.findOne({ assessment: id }, 'coverage').lean(),
     engineerId ? AssistantViewerModel.findOne({ assessment: id, user: engineerId }).lean() : null,
     engineerId ? AssistantActivityModel.find({ assessment: id, user: engineerId }).lean() : [],
+    SiteWalkModel.find({ assessment: id, status: 'created' }, 'created').lean(),
   ])
 
   // c. Generation and review: each rag-service read made once, and remembered when it failed.
@@ -214,6 +218,9 @@ export async function loadContext(
     stage,
     observations,
     walks,
+    walkObservations: Object.fromEntries(
+      created.map((w) => [String(w._id), Object.keys(w.created?.observationIds ?? {}).length]),
+    ),
     checklist: checklist?.checklist ?? null,
     standards: checklist?.standards ?? [],
     areas: areaHealth(checklist?.checklist ?? null),

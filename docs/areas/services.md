@@ -1294,10 +1294,12 @@ per attempt. An attempt is the walk's `retries` count, which Retry increments.
 
 ## Assessment assistant (MarshBot, AS-06)
 
-MarshBot is the Overview tab: it tells the engineer the assessment's stage, the
-one next step and what to fix, with a link or button for each. It never takes
-typed input; its buttons send short pre-filled replies. It sends nothing to the
-bell or the Inbox.
+MarshBot is the Overview tab: a saved conversation that tells the engineer the
+assessment's stage, what to fix and the next step, one topic at a time. Its
+cards only show and point (a button opens the tab where the work happens); the
+only things it changes are the replies in its tray and "Try Again" on a failed
+transcription. It never takes typed input and sends nothing to the bell or the
+Inbox.
 
 **Stage.** `Assessment.stage` is one of Setup, Prepare, Capture, Ready for
 generation, Generate, Review, Ready to export, Exported, with `stageDates` for
@@ -1309,8 +1311,9 @@ assessments made before AS-06.
 
 **Re-check.** `recheckAssessment(reference)` (`recheck.service.ts`) loads the
 assessment's data once, advances the stage, runs every check in
-`services/assistant/checks/` (one file per item kind), builds the messages and
-saves one brief per assessment (`assistant_briefs`). It runs:
+`services/assistant/checks/` (one file per item kind) and saves one brief per
+assessment (`assistant_briefs`: items, checklist areas, sections, facts,
+coverage). It runs:
 - after any 2xx non-GET under `/api/assessments/:reference/**`,
   `/api/observations/:id/**` or a client document route
   (`middleware/assistant-recheck.middleware.ts`);
@@ -1321,41 +1324,61 @@ saves one brief per assessment (`assistant_briefs`). It runs:
 Changes within 2 seconds are checked together (BullMQ job id
 `as-check-<ref>-<window>`).
 
-**Push.** After saving, the re-check calls `publishBriefChanged`
+**Conversation.** `assistant_threads` keeps one thread per (assessment,
+assigned engineer): today's session and up to 10 earlier ones. The engine in
+`services/assistant/thread/` is pure: `advance()` takes the thread, the brief,
+now and an event (open, changed, reply) and returns the turns to add. A session
+is one day (or a stage that moved on after a 30-minute pause) and opens with a
+greeting or a catch-up. MarshBot raises one topic at a time per stage
+(`thread/topics.ts`, `STAGE_TOPICS`) and waits: a "To Do" topic until its rows
+are done or skipped, a question for its own replies, any other topic offers
+"What else?" while another topic is waiting. A new Fix now item is raised at
+once. Cards in today's session are rebuilt from the brief on every read (a
+fixed row ticks in place); earlier sessions are frozen. Turns' words never
+change. `thread.service.ts` loads and saves the thread (one advance per thread
+at a time, `lock.ts`); a re-check that changed the brief advances it only when
+the Overview is open (a live event stream) and the engineer opened it in the
+last 30 minutes. An archived assessment is shown read only and never advanced.
+An admin's view is built on the fly and nothing is saved.
+
+**Push.** After saving, the re-check and the thread call `publishBriefChanged`
 (`services/assistant/bus.ts`). The open Overview listens on
 `GET /api/assessments/:reference/assistant/events` (server-sent events, auth
 without refreshing the session cookie, a ping every 25 s, closed when the
-session expires so the browser reconnects with a fresh cookie) and refetches
-the brief. No polling. The channel is in-process: a gateway running as several
-instances would need Redis pub/sub instead.
+session expires so the browser reconnects with a fresh cookie) and reads the
+conversation again. No polling. The channel is in-process: a gateway running
+as several instances would need Redis pub/sub instead.
 
-**API.** Under `/api/assessments/:reference/assistant`: `GET` the brief,
-`POST /replies` (a quick reply, e.g. another visit with its date, which moves
-`siteVisitEndDate`), `POST /dismissals` (hidden until the item changes; Fix now
-items can't be dismissed), `POST /activity` (the browser's engaged time and
-content seen per place, sent with `sendBeacon`). Each row of
-`GET /api/assessments` carries its `stage` and, for the engineer's own
-assessments, a `priority` with its Focus rank (`rankedFocus` in
-`focus.service.ts`: overdue, then Fix now, then least time to spare); the
-Focus list is those rows in rank order. Client page visits carry the same.
-An admin, or anyone who isn't the assigned engineer, sees the stage and
-progress only, never the engineer's activity.
+**API.** Under `/api/assessments/:reference/assistant`: `GET` the conversation
+(`AssistantThread`), `POST /replies` (`{ replyId, date? }`: only a reply the
+tray offers now, else 409; e.g. another visit with its date moves
+`siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
+seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
+carries its `stage` and, for the engineer's own assessments, a `priority` with
+its Focus rank (`rankedFocus` in `focus.service.ts`: overdue, then Fix now,
+then least time to spare); the Focus list is those rows in rank order. Client
+page visits carry the same. An admin, or anyone who isn't the assigned
+engineer, sees the stage and progress only, never the engineer's activity.
 
 **AI.** Two rag-service routes, both masked through privacy-service and failing
 closed (503 when privacy-service is down):
 - `POST /assistant/coverage` finds checklist items no observation covers and
-  observations too thin for their section. It runs when the Overview opens and
-  the evidence changed, at most every 5 minutes, from the first checklist and
-  observation until Review. Model `ASSISTANT_COVERAGE_MODEL`.
-- `POST /assistant/wording` rewords the rule-written messages as OpenUI Lang
-  programs, referring to items by id only. The gateway drops a program that
-  names an unknown id or a number the rules didn't write, and the Overview then
-  shows the plain rule-written text. Model `ASSISTANT_WORDING_MODEL`.
+  observations too thin for their section. It starts when the Overview opens
+  and the evidence changed, at most every 5 minutes, from the first checklist
+  and categorised observation until Review. The "gaps" topic waits for it
+  (typing dots) and raises its result as "Not Covered" and "Thin". Model
+  `ASSISTANT_COVERAGE_MODEL`.
+- `POST /assistant/wording` writes each new bot turn once as an OpenUI Lang
+  program (`Reply`, `Say`, `Card`): the turn's bubbles reworded and each card
+  placed once by id. The gateway (`wording.service.ts`) waits at most 4 s and
+  drops a program that leaves out or repeats a card, or adds or drops a number
+  or a name; the turn is then drawn as its bubbles, then its cards. Model
+  `ASSISTANT_WORDING_MODEL`.
 The prompt file `app/assistant/marshbot_components.txt` is generated from the
-client's MarshBot library (`client/src/features/marshbot/library.test.ts`,
-`UPDATE_PROMPT=1`). MarshBot uses `@openuidev/react-lang` 1.1.0 under the npm
-alias `openui-lang-v1`; the knowledge chatbot stays on 0.4.1.
+client's MarshBot library (`UPDATE_PROMPT=1`). MarshBot uses
+`@openuidev/react-lang` 1.1.0 under the npm alias `openui-lang-v1`; the
+knowledge chatbot stays on 0.4.1.
 
 **Numbers.** Server thresholds are in `services/assistant/settings.ts`, Focus's
-work-left days in `focus.service.ts`, and the browser's pacing and activity
-numbers in `client/src/features/marshbot/settings.ts`.
+work-left days in `focus.service.ts`, and the browser's activity numbers in
+`client/src/features/marshbot/settings.ts`.

@@ -56,7 +56,7 @@ export function coverageGaps(ctx: CheckContext): RaisedItem[] {
           fact: `An observation at ${o.location ? locationText(o.location) : 'the site'} is thin for ${section}.`,
           icon: 'file-minus',
           link: { tab: 'observations', params: { obs: o.id } },
-          facts: { section, reason: t.reason },
+          facts: { section, reason: t.reason, note: o.note },
         }),
       ]
     }),

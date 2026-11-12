@@ -15,7 +15,7 @@ export function uncategorised(ctx: CheckContext): RaisedItem[] {
       kind: 'uncategorised',
       stage: capturing ? 'capture' : 'ready_for_generation',
       weight: 'gap',
-      title: 'Uncategorised observations',
+      title: 'Uncategorised Observations',
       detail: capturing
         ? `${plural(n, 'observation')} with no category yet`
         : `${plural(n, 'observation')} left out of drafting`,

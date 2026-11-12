@@ -1,35 +1,25 @@
-// MarshBot's wording (AS-06): asks rag-service to reword the template messages
-// as OpenUI Lang programs, keeps only the programs that pass the checks below,
-// and saves them on the brief. Called by recheck.service.ts in the background;
-// a failure leaves each message's program null, so its plain text shows.
-import { AssistantBriefModel } from '../../models/assistant-brief.model'
+// MarshBot's wording (AS-06 round 5): asks rag-service once to write each new
+// bot turn as an OpenUI Lang program, `Reply([Say(...), Card("<id>")])`, and
+// keeps only programs that pass the checks below. A turn's program is set
+// when the turn is made and never changed (rule 8); without one, the turn is
+// drawn as its says then its cards. Called by thread.service.ts.
 import { recordAiCalls } from '../ai-usage.service'
 import { privacyFor } from '../privacy.service'
 import { requestAssistantWording } from '../rag.service'
-import { publishBriefChanged } from './bus'
-import type { BriefItem, BriefMessage } from './types'
+import { inBackground } from './background'
+import { ASSISTANT } from './settings'
+import type { Turn } from './types'
 
 /**
  * The MarshBot library's components, the one list the program check uses.
- * Must match client/src/features/marshbot/library.tsx (the drift test reads
- * rag-service's app/assistant/marshbot_components.txt, generated from it).
+ * Must match client/src/features/marshbot/ (the drift test reads rag-service's
+ * app/assistant/marshbot_components.txt, generated from the client's library).
  */
-export const MARSHBOT_COMPONENTS = [
-  'Reply',
-  'Say',
-  'ActionRow',
-  'HealthBars',
-  'ReportOutline',
-  'StatusLanes',
-  'StageTime',
-  'ExportFile',
-  'QuickReply',
-  'LinkButton',
-]
+export const MARSHBOT_COMPONENTS = ['Reply', 'Say', 'Card']
 const COMPONENTS = new Set(MARSHBOT_COMPONENTS)
 const STRING = String.raw`"(?:[^"\\]|\\.)*"`
 // A string literal's text, or null for one JSON can't read (e.g. `\'`): without this, one bad
-// escape from the AI would throw and lose every message's wording, not just this one.
+// escape from the AI would throw and lose the wording of every turn, not just this one.
 function literal(text: string): string | null {
   try {
     return JSON.parse(text) as string
@@ -37,14 +27,6 @@ function literal(text: string): string | null {
     return null
   }
 }
-const strings = (text: string) =>
-  [...text.matchAll(new RegExp(STRING, 'g'))].map((m) => literal(m[0]))
-// The id arguments: an ActionRow's item, a QuickReply's reply, a LinkButton's link key (`link-<part index>`).
-const ID_ARGS = [
-  new RegExp(String.raw`\bActionRow\(\s*(${STRING})`, 'g'),
-  new RegExp(String.raw`\bQuickReply\(\s*(${STRING})`, 'g'),
-  new RegExp(String.raw`\bLinkButton\(\s*${STRING}\s*,\s*(${STRING})`, 'g'),
-]
 const digits = (text: string) => text.match(/\d+/g) ?? []
 // Whether `text` names `name` as whole words, in any case.
 const mentions = (text: string, name: string) =>
@@ -52,9 +34,10 @@ const mentions = (text: string, name: string) =>
     text,
   )
 
-// The text of the statements reachable from root, the only ones OpenUI draws.
-// A statement is `name = expression`; a line that starts none continues the last.
-function reachable(code: string): string {
+// The statements reachable from root, the only ones OpenUI draws, and whether
+// any is used twice (a card drawn twice). A statement is `name = expression`;
+// a line that starts none continues the last.
+function reachable(code: string): { code: string; twice: boolean } {
   const all = new Map<string, string>()
   let last = ''
   for (const line of code.split('\n')) {
@@ -63,38 +46,38 @@ function reachable(code: string): string {
     else if (last) all.set(last, `${all.get(last)}\n${line}`)
   }
   const seen = new Set<string>()
+  const uses = new Map<string, number>()
   const todo = ['root']
   while (todo.length) {
     const name = todo.pop()!
     if (seen.has(name) || !all.has(name)) continue
     seen.add(name)
-    todo.push(
-      ...(all
+    const refs = (
+      all
         .get(name)!
         .replace(new RegExp(STRING, 'g'), '""')
-        .match(/\b\w+\b/g) ?? []),
-    )
+        .match(/\b\w+\b/g) ?? []
+    ).filter((ref) => all.has(ref))
+    for (const ref of refs) uses.set(ref, (uses.get(ref) ?? 0) + 1)
+    todo.push(...refs)
   }
-  return [...seen].map((n) => all.get(n)).join('\n')
+  return {
+    code: [...seen].map((n) => all.get(n)!).join('\n'),
+    twice: [...uses.values()].some((n) => n > 1),
+  }
 }
 
 /**
- * Returns the program if MarshBot can draw it and it says nothing the rules
- * didn't, else null: rooted at Reply, only library components, every id one
- * of this message's items, replies or links, every number and every name
- * (`names`: areas, sections; plus the places items name) in its words
- * already in the message's own text or link labels, and every control the
- * message needs drawn: each quick reply, each link, and the row of each Fix
- * now item. Without this, an invented id would draw the wrong row, a number
- * or area taken from elsewhere would point the engineer at the wrong thing
- * (#51), and a left-out button would leave a question with no way to answer it.
+ * Returns the program if MarshBot can draw it and it says nothing the turn
+ * didn't, else null: rooted at Reply, only Reply, Say and Card, every card of
+ * the turn drawn exactly once and no other, a Say's tone only "good" or "normal", and
+ * every number and every name (`names`: areas, sections, places) in its words
+ * already in the turn's own says, and every such name the says use kept.
+ * Without this, an invented id would draw nothing, a left-out card would hide
+ * a row the engineer needs, a number taken from elsewhere would point them at
+ * the wrong thing (#51), and a reworded catch-up could change what is sorted.
  */
-export function checkedProgram(
-  program: string,
-  message: BriefMessage,
-  items: BriefItem[],
-  names: string[] = [],
-): string | null {
+export function checkedProgram(program: string, turn: Turn, names: string[] = []): string | null {
   const code = program
     .trim()
     .replace(/^```\w*\n|\n```$/g, '')
@@ -102,91 +85,84 @@ export function checkedProgram(
   if (!code.startsWith('root = Reply(')) return null
   const called = code.replace(new RegExp(STRING, 'g'), '""').matchAll(/\b([A-Z]\w*)\(/g)
   if ([...called].some((m) => !COMPONENTS.has(m[1]))) return null
-  const rows = message.parts.flatMap((p) => (p.type === 'actions' ? p.itemIds : []))
-  const known = [
-    new Set(rows),
-    new Set(message.parts.flatMap((p) => (p.type === 'replies' ? p.replies.map((r) => r.id) : []))),
-    new Set(message.parts.flatMap((p, i) => (p.type === 'link' ? [`link-${i}`] : []))),
+  // Every card exactly once, and only from statements OpenUI draws.
+  const { code: shown, twice } = reachable(code)
+  if (twice) return null
+  const cards = [...shown.matchAll(new RegExp(String.raw`\bCard\(\s*(${STRING})\s*\)`, 'g'))].map(
+    (m) => literal(m[1]),
+  )
+  const ids = turn.cards.map((c) => c.id)
+  if (cards.length !== ids.length || !ids.every((id) => cards.includes(id))) return null
+  // A Say's second argument may only be a tone the library knows.
+  const tones = [
+    ...shown.matchAll(new RegExp(String.raw`\bSay\(\s*${STRING}\s*,\s*(${STRING})`, 'g')),
   ]
-  for (const [n, pattern] of ID_ARGS.entries())
-    for (const m of code.matchAll(pattern)) {
-      const id = literal(m[1])
-      if (id === null || !known[n].has(id)) return null
-    }
-  // Every control the rules gave must be reachable from root.
-  const shown = reachable(code)
-  const drawn = ID_ARGS.map(
-    (pattern) => new Set([...shown.matchAll(pattern)].map((m) => literal(m[1]))),
+  if (tones.some((m) => !['good', 'normal'].includes(literal(m[1]) ?? ''))) return null
+  const said = turn.says.map((s) => s.text).join(' ')
+  const words = [...shown.matchAll(new RegExp(String.raw`\bSay\(\s*(${STRING})`, 'g'))].map((m) =>
+    literal(m[1]),
   )
-  const fixNow = new Set(items.filter((i) => i.weight === 'fix_now').map((i) => i.id))
-  const needed = [rows.filter((id) => fixNow.has(id)), [...known[1]], [...known[2]]]
-  if (needed.some((ids, n) => ids.some((id) => !drawn[n].has(id)))) return null
-  // The template's own words: an item's facts don't count, its row shows them (#51).
-  const template = [
-    message.text,
-    ...message.parts.map((p) => (p.type === 'link' ? p.label : '')),
-  ].join(' ')
-  const allowed = new Set(digits(template))
-  // A place an item names (an observation's location, a site walk) is a name too.
-  const places = items
-    .filter((i) => i.link?.params?.obs || i.link?.params?.walk)
-    .map((i) => i.title)
-  const named = [...names, ...places].filter((n) => n && !mentions(template, n))
-  const words = ID_ARGS.reduce(
-    (text, pattern) => text.replace(pattern, (m, id: string) => m.replace(id, '""')),
-    code,
-  )
-  const texts = strings(words)
-  if (texts.some((t) => t === null)) return null
-  if (!texts.flatMap((t) => digits(t!)).every((d) => allowed.has(d))) return null
-  return texts.some((t) => named.some((n) => mentions(t!, n))) ? null : code
+  if (!words.length || words.some((t) => t === null)) return null
+  const allowed = new Set(digits(said))
+  if (!words.flatMap((t) => digits(t!)).every((d) => allowed.has(d))) return null
+  const unnamed = names.filter((n) => n && !mentions(said, n))
+  if (words.some((t) => unnamed.some((n) => mentions(t!, n)))) return null
+  // Every name the turn says is said again: a program can't drop a sorted item from a catch-up.
+  const text = words.join(' ')
+  return names.every((n) => !n || !mentions(said, n) || mentions(text, n)) ? code : null
 }
 
+// Resolves to null after `ms`, so a slow AI never holds a turn back for long.
+const timeout = (ms: number) =>
+  new Promise<null>((resolve) => setTimeout(() => resolve(null), ms).unref?.())
+
 /**
- * Asks for the wording of `messages` and saves the programs that pass, if the
- * brief still wants this message set (`key`); returns nothing. Never throws.
- * `names` are the areas and section titles a program may only repeat.
+ * Asks once for the wording of these new bot turns; returns the programs that
+ * pass, by turn id, or none when the AI fails or takes longer than 4 s. Never
+ * throws. Text is masked by rag-service's privacy path when protection is on.
  */
-export async function requestWording(
+export async function wordTurns(
   reference: string,
-  key: string,
-  messages: BriefMessage[],
-  items: BriefItem[],
   firstName: string,
+  turns: Turn[],
   names: string[],
-): Promise<void> {
-  try {
+): Promise<Record<string, string>> {
+  if (!turns.length) return {}
+  const call = (async () => {
     const result = await requestAssistantWording({
       viewer: { first_name: firstName, role: 'engineer' },
-      messages: messages.map(({ id, text, parts }) => ({ id, text, parts })),
-      items: items.map(({ id, title, detail, kind, weight }) => ({
-        id,
-        title,
-        detail,
-        kind,
-        weight,
+      messages: turns.map((t) => ({
+        id: t.id,
+        text: '',
+        parts: [
+          ...t.says.map((s) => ({ type: 'say', text: s.text, tone: s.tone })),
+          ...t.cards.map((c) => ({ type: 'card', id: c.id, card: c.type })),
+        ],
       })),
+      items: [],
       privacy: await privacyFor(reference),
     })
-    // The call is billed even if nothing passes, so record first.
+    // The call is billed even if it comes too late or nothing passes, so record first.
     await recordAiCalls(result.usage, { reportId: reference })
-    const $set: Record<string, string> = {}
-    for (const m of messages) {
-      const program = result.programs?.[m.id]
-      const checked = typeof program === 'string' ? checkedProgram(program, m, items, names) : null
-      if (checked) $set[`wording.programs.${m.id}`] = checked
-    }
-    if (!Object.keys($set).length) return
-    const saved = await AssistantBriefModel.findOneAndUpdate(
-      { reference, 'wording.key': key },
-      { $set },
-      { returnDocument: 'after' },
-    ).lean()
-    if (saved) publishBriefChanged(reference, saved.updatedAt.toISOString())
+    return result.programs ?? {}
+  })()
+  // Tracked, so a late answer is still recorded before a test empties the database.
+  inBackground('wording', call)
+  try {
+    const programs = await Promise.race([call, timeout(ASSISTANT.wordingTimeoutMs)])
+    if (!programs) return {}
+    return Object.fromEntries(
+      turns.flatMap((t) => {
+        const p = programs[t.id]
+        const checked = typeof p === 'string' ? checkedProgram(p, t, names) : null
+        return checked ? [[t.id, checked]] : []
+      }),
+    )
   } catch (error) {
     console.warn(
       `MarshBot wording failed for ${reference}:`,
       error instanceof Error ? error.message : error,
     )
+    return {}
   }
 }

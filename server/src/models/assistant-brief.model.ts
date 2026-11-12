@@ -1,8 +1,8 @@
 // MarshBot's brief for one assessment (AS-06): its stage, the items the checks
 // raised (open and recently resolved), the checklist by area, the report
-// outline, the coverage check and the AI's wording. Written by
-// services/assistant/recheck.service.ts and coverage.service.ts; read by
-// brief.service.ts and focus.service.ts.
+// outline and the coverage check. Written by services/assistant/recheck.service.ts
+// and coverage.service.ts; read by thread.service.ts, brief.service.ts and
+// focus.service.ts. The conversation itself is in assistant-thread.model.ts.
 // Not a knowledge or observation document, so the metadata-fields rule doesn't apply.
 import { Schema, Types, model } from 'mongoose'
 import {
@@ -11,7 +11,6 @@ import {
   type BriefItem,
   type SectionState,
   type Stage,
-  type ThreadEntry,
 } from '../services/assistant/types'
 
 // What the coverage check (AC 7) last found, and where it stands.
@@ -33,13 +32,10 @@ export interface IAssistantBrief {
   items: BriefItem[]
   areas: AreaHealth[]
   sections: SectionState[]
-  // The plain facts the messages are written from (counts, dates, names); see recheck.service.ts.
+  // The plain facts the conversation is written from (counts, dates, names); see recheck.service.ts.
   facts: Record<string, unknown>
   coverage: CoverageState
-  // The AI's OpenUI programs by message id, for the message set `key` names.
-  wording: { key: string | null; programs: Record<string, string> }
-  thread: ThreadEntry[]
-  // A fingerprint of everything above but wording, so an unchanged re-check saves and pushes nothing.
+  // A fingerprint of everything above, so an unchanged re-check saves and pushes nothing.
   contentHash: string
   updatedAt: Date
 }
@@ -62,11 +58,6 @@ const briefSchema = new Schema<IAssistantBrief>(
       uncovered: { type: [String], default: [] },
       thin: { type: Schema.Types.Mixed, default: [] },
     },
-    wording: {
-      key: { type: String, default: null },
-      programs: { type: Schema.Types.Mixed, default: {} },
-    },
-    thread: { type: Schema.Types.Mixed, default: [] },
     contentHash: { type: String, default: '' },
   },
   {

@@ -22,12 +22,12 @@ export function setupDetails(ctx: CheckContext): RaisedItem[] {
       facts,
     })
   return [
-    ...(a.reportDueDate ? [] : [gap('report-due', 'Report due date', 'calendar', { due: null })]),
+    ...(a.reportDueDate ? [] : [gap('report-due', 'Report Due Date', 'calendar', { due: null })]),
     ...(a.siteContacts?.length
       ? []
-      : [gap('site-contacts', 'Site contacts', 'users', { contacts: 0 })]),
+      : [gap('site-contacts', 'Site Contacts', 'users', { contacts: 0 })]),
     ...(ctx.documents
       ? []
-      : [gap('client-documents', 'Client documents', 'file-text', { documents: 0 })]),
+      : [gap('client-documents', 'Client Documents', 'file-text', { documents: 0 })]),
   ]
 }

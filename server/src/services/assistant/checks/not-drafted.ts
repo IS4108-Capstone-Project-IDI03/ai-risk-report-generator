@@ -16,7 +16,7 @@ export function notDrafted(ctx: CheckContext): RaisedItem[] {
       kind: 'not-drafted',
       stage: 'generate',
       weight: 'gap',
-      title: 'Still to draft',
+      title: 'Still to Draft',
       detail: listed(shown),
       fact: `${listed(shown)} ${left.length === 1 ? 'is' : 'are'} not drafted yet.`,
       icon: 'file-pen',

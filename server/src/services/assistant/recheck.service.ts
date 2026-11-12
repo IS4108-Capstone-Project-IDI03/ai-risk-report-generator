@@ -1,24 +1,26 @@
 // MarshBot's re-check (AS-06 Architecture 1-2): reads the assessment, moves its
 // stage forward, runs every check, keeps what was seen before, and saves one
-// brief per assessment; then pushes the change to open Overviews. Called by
-// check-queue.service.ts, brief.service.ts and coverage.service.ts. Calls
-// context.ts, checks/, brief-view.ts, wording.service.ts and bus.ts.
+// brief per assessment; then moves the engineer's conversation on and pushes
+// the change to open Overviews. Called by check-queue.service.ts,
+// brief.service.ts and coverage.service.ts. Calls context.ts, checks/,
+// thread.service.ts and bus.ts.
 import { AssessmentModel } from '../../models/assessment.model'
-import { AssistantBriefModel } from '../../models/assistant-brief.model'
+import { AssistantBriefModel, type IAssistantBrief } from '../../models/assistant-brief.model'
 import { AssessmentNotFoundError } from '../capture-session.service'
-import { AssistantViewerModel } from '../../models/assistant-viewer.model'
 import { inBackground } from './background'
-import { viewBrief, visibleItems, type StoredBrief } from './brief-view'
 import { publishBriefChanged } from './bus'
 import { runChecks } from './checks'
 import { loadContext, type CheckContext } from './context'
 import { dayOf, isoDay } from './dates'
 import { fingerprintOf, type RaisedItem } from './item'
-import { firstName, type BriefFacts } from './phrases'
+import type { BriefFacts } from './phrases'
 import { sectionStates } from './progress'
 import { ASSISTANT } from './settings'
+import { oneAtATime } from './lock'
+import { advanceThread } from './thread.service'
 import { STAGES, type BriefItem } from './types'
-import { requestWording } from './wording.service'
+
+export type StoredBrief = IAssistantBrief & { _id: unknown }
 
 /**
  * Returns the items with what was known before: an item still raised keeps
@@ -75,6 +77,12 @@ function factsOf(ctx: CheckContext): BriefFacts {
     hasChecklist: !!ctx.checklist,
     evidenceFingerprint: ctx.evidenceFingerprint,
     captureStarted: ctx.captureStarted,
+    documents: ctx.documents,
+    walksReviewed: ctx.walks.filter((w) => w.status === 'created').length,
+    recordingsTranscribed: ctx.observations
+      .flatMap((o) => o.recordings)
+      .filter((r) => r.transcription.status === 'transcribed').length,
+    walkObservations: ctx.walkObservations,
   }
 }
 
@@ -102,48 +110,24 @@ export function raisedItems(
   ]
 }
 
-// shortcut: an in-process lock, right while one gateway process saves briefs; a Redis lock if it runs as several.
-const chains = new Map<string, Promise<unknown>>()
-
 /**
- * Returns `work`'s result, run only after every earlier call for the same
- * assessment has finished. Without this, two re-checks could save out of
- * order and an older brief would overwrite a newer one.
+ * Re-checks the assessment and saves its brief when anything changed, then
+ * moves the engineer's conversation on (event 'changed') and pushes the change
+ * to open Overviews; returns the brief, or null for an unknown reference.
  */
-export function oneAtATime<T>(reference: string, work: () => Promise<T>): Promise<T> {
-  const run = (chains.get(reference) ?? Promise.resolve()).catch(() => {}).then(work)
-  chains.set(reference, run)
-  // Forgotten once the last one finishes, so the map doesn't grow per assessment.
-  void run.catch(() => {}).finally(() => chains.get(reference) === run && chains.delete(reference))
-  return run
+export function refreshBrief(reference: string): Promise<StoredBrief | null> {
+  return oneAtATime(reference, () => refresh(reference))
 }
 
-/**
- * Re-checks the assessment and saves its brief when anything changed, pushing
- * the change to open Overviews; returns the brief, or null for an unknown
- * reference. `wording: true` (an open Overview) also asks the wording AI for
- * a new message set; background re-checks don't, so nothing is paid for an
- * assessment nobody is looking at.
- */
-export function refreshBrief(
-  reference: string,
-  { wording = false } = {},
-): Promise<StoredBrief | null> {
-  return oneAtATime(reference, () => refresh(reference, wording))
-}
-
-async function refresh(reference: string, wording: boolean): Promise<StoredBrief | null> {
+async function refresh(reference: string): Promise<StoredBrief | null> {
   // a. Read everything once, and move the stage forward.
   const now = new Date()
   const ctx = await loadContext(reference, now)
   if (!ctx) return null
   const id = ctx.assessment._id
-  const [stored, dated, viewer] = await Promise.all([
+  const [stored, dated] = await Promise.all([
     AssistantBriefModel.findOne({ assessment: id }).lean<StoredBrief>(),
     AssessmentModel.findById(id, 'stageDates').lean(),
-    ctx.assessment.engineer
-      ? AssistantViewerModel.findOne({ assessment: id, user: ctx.assessment.engineer._id }).lean()
-      : null,
   ])
 
   // b. Run the checks and merge with what was known.
@@ -174,58 +158,17 @@ async function refresh(reference: string, wording: boolean): Promise<StoredBrief
     ctx.coverage,
     ctx.dismissed,
   ])
+  if (stored && stored.contentHash === contentHash) return stored
 
-  // c. The engineer's messages: a new set needs new wording (templates show first).
-  const engineer = ctx.assessment.engineer
-  const draft = {
-    ...(stored ?? { coverage: ctx.coverage, thread: [], wording: { key: null, programs: {} } }),
-    ...fields,
-    updatedAt: now,
-  } as StoredBrief
-  const view = engineer
-    ? {
-        role: 'engineer' as const,
-        name: engineer.name,
-        lastOpenedAt: viewer?.lastOpenedAt ?? null,
-        dismissed: viewer?.dismissed ?? [],
-        exportAgain: viewer?.exportAgain ?? null,
-      }
-    : null
-  const messages = view ? viewBrief(draft, view, now).messages : []
-  const key = fingerprintOf(messages.map((m) => m.id))
-  const reword = wording && !!view && messages.length > 0 && key !== stored?.wording.key
-  if (stored && stored.contentHash === contentHash && !reword) return stored
-
-  // d. Save, keeping the programs of messages still said; the coverage field is coverage.service's.
-  const programs = Object.fromEntries(
-    Object.entries(stored?.wording.programs ?? {}).filter(([m]) =>
-      messages.some((x) => x.id === m),
-    ),
-  )
-  const updated = await AssistantBriefModel.findOneAndUpdate(
+  // c. Save (the coverage field is coverage.service's), move the conversation on, and push.
+  const saved = await AssistantBriefModel.findOneAndUpdate(
     { assessment: id },
     { $set: { ...fields, contentHash } },
     { upsert: true, returnDocument: 'after' },
   ).lean<StoredBrief>()
-  // Claimed on the key, so two opens at once ask for (and pay for) the wording once.
-  const claimed =
-    reword &&
-    (await AssistantBriefModel.findOneAndUpdate(
-      { assessment: id, 'wording.key': { $ne: key } },
-      { $set: { wording: { key, programs } } },
-      { returnDocument: 'after' },
-    ).lean<StoredBrief>())
-  const saved = claimed || updated
-  if (claimed && view)
-    inBackground(
-      'wording',
-      requestWording(reference, key, messages, visibleItems(saved!, view), firstName(view.name), [
-        ...saved!.areas.map((a) => a.area),
-        ...saved!.sections.map((s) => s.title),
-      ]),
-    )
-  if (stored?.contentHash !== contentHash)
-    publishBriefChanged(reference, saved!.updatedAt.toISOString())
+  // Not awaited: the conversation's wording takes seconds, and a re-check must not wait on it.
+  inBackground('thread', advanceThread(reference, { type: 'changed' }))
+  publishBriefChanged(reference, saved!.updatedAt.toISOString())
   return saved
 }
 

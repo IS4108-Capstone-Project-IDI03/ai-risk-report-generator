@@ -27,6 +27,7 @@ export function areaHealth(checklist: ChecklistDto | null): AreaHealth[] {
         total: items.length,
         covered,
         thin: covered / items.length < ASSISTANT.thinShare,
+        open: items.filter((i) => !i.check).map((i) => ({ id: i.id, text: i.text })),
       },
     ]
   })

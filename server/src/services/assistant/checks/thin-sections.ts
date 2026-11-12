@@ -1,7 +1,7 @@
 // Ready for generation and Generate (AS-06): undrafted sections with fewer
 // usable observations than the template needs to draft them.
 import type { CheckContext } from '../context'
-import { raise, type RaisedItem } from '../item'
+import { plural, raise, type RaisedItem } from '../item'
 
 /** Returns a gap per undrafted section below its minimum number of observations. */
 export function thinSections(ctx: CheckContext): RaisedItem[] {
@@ -15,8 +15,8 @@ export function thinSections(ctx: CheckContext): RaisedItem[] {
         stage: 'ready_for_generation',
         weight: 'gap',
         title: section.title,
-        detail: `${have} of ${section.min_observations} observations needed`,
-        fact: `${section.title} has ${have} of the ${section.min_observations} observations it needs.`,
+        detail: `${have} of ${plural(section.min_observations, 'observation')} needed`,
+        fact: `${section.title} has ${have} of the ${plural(section.min_observations, 'observation')} it needs.`,
         icon: 'layers',
         link: { tab: 'observations' },
         facts: { have, needed: section.min_observations },
