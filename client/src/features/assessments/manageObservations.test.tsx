@@ -1607,3 +1607,88 @@ describe('Searching All Photos (CP-13)', () => {
       ])
   })
 })
+
+describe('Searching the Observations list (CP-13)', () => {
+  const ROOM = 'Riser room door wedged open.'
+  const BAY = 'Loading bay.'
+  const SEARCHED = [
+    observation({
+      id: 'o1',
+      note: ROOM,
+      recordings: [
+        recording('r1', { transcript: 'Fire pump jockey cycling.' }),
+        {
+          ...recording('r2', { transcript: 'Isolation valve zebra-tagged.' }),
+          name: 'Recording 2',
+        },
+      ],
+    }),
+    VOICE_ONLY,
+    photographed('o3', BAY, {
+      photos: described({ description: 'Zebra crossing paint worn by the dock.' }),
+    }),
+    observation({
+      id: 'o4',
+      note: 'Kitchen hood.',
+      recordings: [recording('r4', { transcript: '' })],
+    }),
+  ]
+  const search = (text: string) =>
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search observations' }), {
+      target: { value: text },
+    })
+  // A row by the start of its text; its name runs on to "Matched in …".
+  const rowOf = (text: string) =>
+    screen.queryByRole('button', { name: new RegExp('^' + text.replace(/[.]/g, '\.')) })
+  const marks = (el: HTMLElement) =>
+    [...el.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)
+
+  it('lists the observations whose evidence holds every word, saying where else they were found', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    // In a recording other than the row's text, and in the photos' description.
+    search('ZEBRA')
+    expect(rowOf(ROOM)).toHaveTextContent('Matched in Recording 2')
+    expect(rowOf(BAY)).toHaveTextContent('Matched in the photo description')
+    expect(rowOf(VOICE)).toBeNull()
+
+    // Words in two places, in any order.
+    search('zebra jockey')
+    expect(rowOf(ROOM)).toHaveTextContent('Matched in Recording 1 and Recording 2')
+    expect(rowOf(BAY)).toBeNull()
+
+    // Found in the row's own text: marked there, with nothing more to say.
+    search('v-12')
+    const voice = rowOf(VOICE)!
+    expect(marks(voice)).toEqual(['V-12'])
+    expect(voice).not.toHaveTextContent('Matched in')
+  })
+
+  it('says when none match, never finding words in a recording with no speech, and clears', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('speech')
+
+    expect(screen.getByText('No observations match “speech”')).toBeInTheDocument()
+    click('Clear search')
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf('Kitchen hood.')).toBeInTheDocument()
+  })
+
+  it('narrows with the filters, and Clear all clears the search too', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('zebra')
+    filter('Category', 'Occupancy')
+
+    expect(rowOf(BAY)).toBeInTheDocument()
+    expect(rowOf(ROOM)).toBeNull()
+    click('Clear all')
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf(ROOM)).toBeInTheDocument()
+    expect(rowOf(VOICE)).toBeInTheDocument()
+  })
+})

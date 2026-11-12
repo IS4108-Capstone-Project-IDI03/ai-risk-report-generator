@@ -28,11 +28,12 @@ import {
   type Stamp,
 } from './api'
 import { formatDay as formatDate, formatDayYearTime, STATUS_LABEL } from './format'
-import { NO_SPEECH } from './evidenceSearch'
+import { NO_SPEECH, searchWords } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
+  matchedIn,
   matchesFilters,
   matchesPlace,
   NO_FILTERS,
@@ -2626,6 +2627,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fMode: 'note',
       })
     // The Observations tab's rows, as the filters show them.
+    // The Observations tab's search, as words to find and mark (CP-13).
+    const obsSearchWords = searchWords(s.of.q ?? '')
     const obsList = shownRows.map(({ o, key }) => {
       const open = s.obsOpen === key
       const sev = o.sev || 'low'
@@ -2666,6 +2669,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         path: pathOf(o),
         // What it holds and where its recordings and photos stand (CP-08 AC2).
         typeLabel: typeLabel(o),
+        // Where a search found its words, beyond the row's own text (CP-13).
+        matchedIn: matchedIn(o, obsSearchWords),
         status,
         statusTone:
           status === 'Transcribing' || status === 'Interpreting'
@@ -3338,6 +3343,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : plural(0, obsNoun),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
+      obsSearchWords,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
       // Nothing captured yet, and no locations to list by: the list offers

@@ -1514,6 +1514,13 @@ span.ob-pt-thumb {
   border-radius: 2px;
   box-shadow: 0 0 0 1px var(--ink-100);
 }
+/* An observation's text with, while searching, where else the words were
+   found under it: one cell of the row's grid. */
+.ob-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 /* "Matched in Recording 2": under an observation's text in the list. */
 .ob-row-match {
   display: flex;

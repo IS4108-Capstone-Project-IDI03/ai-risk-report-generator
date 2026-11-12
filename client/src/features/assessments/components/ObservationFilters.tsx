@@ -1,14 +1,15 @@
-// The Observations tab's filters (CP-06, CP-08, CP-22): one small menu each for
-// category, severity, type and status. A filter that is set shows its value
-// in place, with an ✕ to clear it, so the applied filters read at a glance.
+// The Observations tab's filters (CP-06, CP-08, CP-22): a search over every
+// observation's evidence (CP-13), then one small menu each for category,
+// severity, type and status. A filter that is set shows its value in place,
+// with an ✕ to clear it, so the applied filters read at a glance.
 // Rendered by screens/Observations.tsx; the filtering is in useAssessmentWorkflow.tsx.
-import { Icon } from '../../../design-system'
+import { Icon, SearchField } from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../filterChoices'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { ChoiceMenu, type Choice } from './ChoiceMenu'
 
 type Key = 'cat' | 'sev' | 'type' | 'status'
-// Returns the four filter menus and, while two or more are set, Clear all.
+// Returns the search, the four filter menus and, while two or more are set, Clear all.
 export function ObservationFilters({ v }: { v: AssessmentWorkflow }) {
   const statusIcons = (choices: Choice[]) =>
     choices.map((c) =>
@@ -26,8 +27,17 @@ export function ObservationFilters({ v }: { v: AssessmentWorkflow }) {
     ['type', 'Type', typeIcons(asChoices(v.obsTypeFilterOptions))],
     ['status', 'Status', statusIcons(asChoices(v.obsStatusFilterOptions))],
   ]
+  // The search counts as one of them for Clear all.
+  const set = v.obsFilterChips.length + (v.obsFilters.q.trim() ? 1 : 0)
   return (
     <>
+      <SearchField
+        className="ob-search"
+        label="Search observations"
+        placeholder="Search observations"
+        value={v.obsFilters.q}
+        onChange={(e) => v.setObsFilter('q', e.target.value)}
+      />
       {menus.map(([key, name, choices]) => (
         <FilterChip
           key={key}
@@ -37,7 +47,7 @@ export function ObservationFilters({ v }: { v: AssessmentWorkflow }) {
           onChoose={(value) => v.setObsFilter(key, value)}
         />
       ))}
-      {v.obsFilterChips.length > 1 && (
+      {set > 1 && (
         <button type="button" className="ob-button ob-button--small" onClick={v.clearObsFilters}>
           {'Clear all'}
         </button>

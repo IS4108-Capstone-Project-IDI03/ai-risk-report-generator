@@ -17,7 +17,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
       <>
         <ColumnHeads last="" />
         {v.obsList.map((o) => (
-          <ObservationRow key={o.key} o={o} onOpen={open(o.key)} />
+          <ObservationRow key={o.key} o={o} words={v.obsSearchWords} onOpen={open(o.key)} />
         ))}
       </>
     ) : (
@@ -29,16 +29,36 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
         />
       </div>
     )
-  if (v.obsNoMatch)
+  if (v.obsNoMatch) {
+    // A search says what it looked for, and clears on its own (CP-13).
+    const query = v.obsFilters.q.trim()
     return (
       <div className="ob-empty">
-        <EmptyState
-          icon={IconRegistry.action.filter}
-          title="No observations match those filters"
-          description="Clear a filter to see the others."
-        />
+        {query ? (
+          <EmptyState
+            icon="search"
+            title={`No observations match “${query}”${v.obsFilterChips.length ? ' and those filters' : ''}`}
+            description="Try fewer words, or clear a filter."
+            action={
+              <button
+                type="button"
+                className="ob-button ob-button--tinted ob-button--small"
+                onClick={() => v.setObsFilter('q', '')}
+              >
+                Clear search
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={IconRegistry.action.filter}
+            title="No observations match those filters"
+            description="Clear a filter to see the others."
+          />
+        )}
       </div>
     )
+  }
   if (!view.sections.some((s) => s.location.items.length))
     return (
       <div className="ob-empty">
@@ -60,7 +80,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
             <h3 className="ob-group-head">{path.bare ? l.name : <LocationPath {...path} />}</h3>
           )}
           {l.items.map((o) => (
-            <ObservationRow key={o.key} o={o} onOpen={open(o.key)} />
+            <ObservationRow key={o.key} o={o} words={v.obsSearchWords} onOpen={open(o.key)} />
           ))}
         </section>
       ))}

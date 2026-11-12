@@ -352,6 +352,8 @@ export type ObservationFilters = {
   // A building (or Elsewhere on site), a level of it, or one location (CP-16).
   place: string
   status: string
+  // The search, as typed (CP-13): every word in the observation's evidence.
+  q: string
 }
 
 // A building, level or location name as typed, not yet on the site, and the
