@@ -8,7 +8,7 @@ import { StatBox, type BoxContent } from '../components/StatBox'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { MarshBotOverview } from '../../marshbot/screens/MarshBotOverview'
 import type { ItemLink } from '../../marshbot/types'
-import { openSiteWalkReview } from '../../site-walk/openReview'
+import { openOverviewLink } from '../openOverviewLink'
 
 // The assessment's Overview. A saved assessment is a conversation with MarshBot (AS-06): its
 // stage, next step and gaps. A sample (offline) one keeps the at-a-glance boxes below, with no
@@ -26,14 +26,15 @@ export function Overview({
   return v.liveReference ? (
     <MarshBotOverview
       reference={v.liveReference}
-      openLink={(link) => {
-        const { walk, obs, details } = link.params ?? {}
-        if (details) return openDetails()
-        if (walk) return openSiteWalkReview(v.liveReference!, walk)
-        if (obs) return v.showObservation(obs)
-        v.setTab(link.tab)
-        goTo(link)
-      }}
+      openLink={(link) =>
+        openOverviewLink(link, {
+          reference: v.liveReference!,
+          setTab: v.setTab,
+          showObservation: v.showObservation,
+          openDetails,
+          goTo,
+        })
+      }
       openDetails={openDetails}
     />
   ) : (

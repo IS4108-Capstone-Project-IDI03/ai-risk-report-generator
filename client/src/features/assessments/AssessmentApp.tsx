@@ -416,6 +416,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           answering={v.checklistTabAnswering}
                           onViewObservation={v.showObservation}
                           area={goTo?.params?.area}
+                          item={goTo?.params?.item}
                         />
                       ) : (
                         <div style={{ padding: '24px' }}>
@@ -427,7 +428,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         </div>
                       ))}
 
-                    {v.isObservations && <Observations v={v} />}
+                    {v.isObservations && <Observations v={v} media={goTo?.params?.media} />}
 
                     {v.isPhotos && <Photos v={v} />}
 
@@ -440,6 +441,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           canDraft={v.canDraftSections}
                           onCapture={v.canCapture ? v.goField : undefined}
                           onReview={v.goReview}
+                          openSection={goTo?.params?.section}
                         />
                       ) : (
                         <Generation v={v} />

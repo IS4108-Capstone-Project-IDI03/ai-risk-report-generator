@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { AIDraftBlock, Badge, Button, Callout, ProgressBar } from '../../../design-system'
 import {
   draftSection,
@@ -170,11 +170,14 @@ export function SectionDrafts({
   canDraft,
   onCapture,
   onReview,
+  openSection,
 }: {
   reference: string
   canDraft: boolean
   onCapture?: () => void
   onReview: () => void
+  // A section's id to open on (its draft shown, scrolled into view), from a MarshBot link (AS-06).
+  openSection?: string
 }) {
   const { sections, setSections, loadError } = useSections(reference)
   const [queue, setQueue] = useState<string[]>([])
@@ -201,11 +204,20 @@ export function SectionDrafts({
       setProposing(null)
     }
   }
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(openSection ?? null)
   // Sections redrafted while this tab is open, so their row says so (CP-08).
   const [redrafted, setRedrafted] = useState<Record<string, boolean>>({})
   const stop = useRef(false)
   const { observations } = useObservations(reference, true)
+
+  // Once the sections are in, scroll to the linked one (once, so a redraft doesn't pull the page back).
+  const loaded = sections !== null
+  useEffect(() => {
+    if (!openSection || !loaded) return
+    document
+      .getElementById('generation-section-' + openSection)
+      ?.scrollIntoView?.({ block: 'start' })
+  }, [openSection, loaded])
 
   const hasEvidence = (s: ReportSection) => s.usableObservations >= s.minObservations
   // Enough evidence, and for Sections 4 and 5 their figures (GN-03).
@@ -378,15 +390,22 @@ export function SectionDrafts({
               <span />
             </div>
             {/* Section 2 opens the report's drafted sections (GN-07). */}
-            <SummaryRow reference={reference} canDraft={canDraft} summaryState={summaryState} />
+            <div id="generation-section-2">
+              <SummaryRow reference={reference} canDraft={canDraft} summaryState={summaryState} />
+            </div>
             {/* Section 3 comes before sections 7-12 in the report (GN-05). */}
-            <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
+            <div id="generation-section-3">
+              <OfiRow reference={reference} canDraft={canDraft} observations={observations ?? []} />
+            </div>
             {sections.map((s) => {
               const state = stateOf(s)
               const failed = failures[s.id]
               return (
                 <Fragment key={s.id}>
-                  <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div
+                    id={'generation-section-' + s.id}
+                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                  >
                     <div
                       className="generation-row"
                       style={{

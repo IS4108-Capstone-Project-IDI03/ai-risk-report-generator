@@ -259,6 +259,7 @@ function ItemRow({
   general,
   indent = false,
   fresh = false,
+  flash = false,
   answer,
   actions,
 }: {
@@ -271,6 +272,8 @@ function ItemRow({
   // New in a regenerate just made, in the place of an answer it did not keep,
   // so it may replace that answer: tinted and tagged to answer again.
   fresh?: boolean
+  // The item a MarshBot link just opened: tinted for a moment (AS-06).
+  flash?: boolean
   answer: ReactNode
   // Edit and remove, for the engineer customising the checklist (CP-32).
   actions?: ReactNode
@@ -286,6 +289,7 @@ function ItemRow({
   const detail = itemDetail(item)
   return (
     <li
+      id={checklistItemId(item.id)}
       aria-label={itemTitle(item)}
       // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
       data-activity-key={item.id}
@@ -294,7 +298,9 @@ function ItemRow({
         borderTop: '1px solid var(--border-subtle)',
         // AI violet marks provisional machine-written text (docs/areas/ui.md).
         boxShadow: written ? 'inset 3px 0 0 var(--ai-border)' : undefined,
-        background: fresh ? 'var(--diff-added-bg)' : undefined,
+        background: fresh ? 'var(--diff-added-bg)' : flash ? 'var(--ink-50)' : undefined,
+        transition: 'background-color var(--duration-slow) var(--ease-out)',
+        scrollMarginTop: 'var(--space-9)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
@@ -435,6 +441,9 @@ function ItemRow({
 // nothing moves under the engineer's thumb.
 // The element id of a report section's card, for MarshBot links that scroll to it (AS-06).
 const checklistAreaId = (areaId: string) => 'checklist-area-' + areaId
+const checklistItemId = (itemId: string) => 'checklist-item-' + itemId
+// How long a linked item stays tinted.
+const FLASH_MS = 2000
 
 function Group({
   id,
@@ -443,6 +452,7 @@ function Group({
   items,
   need,
   answered,
+  revealed = false,
   onAdd,
   children,
 }: {
@@ -453,11 +463,13 @@ function Group({
   items: ChecklistItem[]
   need: number | null
   answered: ReactNode[]
+  // Opens the answered list, when a MarshBot link points at an item in it.
+  revealed?: boolean
   // Adds the engineer's own item here (CP-32).
   onAdd?: () => void
   children: ReactNode
 }) {
-  const [unfolded, setUnfolded] = useState(false)
+  const [unfolded, setUnfolded] = useState(revealed)
   const written = items.some((i) => i.origin === 'standard' || i.origin === 'hazard')
   const { checked } = areaProgress(items)
   return (
@@ -585,6 +597,7 @@ export function ChecklistItems({
   onViewObservation,
   customising = false,
   openArea,
+  openItem,
 }: {
   reference: string
   view: ChecklistView & { checklist: Checklist }
@@ -602,6 +615,8 @@ export function ChecklistItems({
   customising?: boolean
   // A report section's title to open on, from a MarshBot link (AS-06).
   openArea?: string
+  // A checklist item's id to scroll to and flash, from a MarshBot link (AS-06).
+  openItem?: string
 }) {
   // Removed items (CP-32) are left out of everything but their own list.
   const checklist = {
@@ -613,20 +628,36 @@ export function ChecklistItems({
   const [folded] = useState(() => new Set(checklist.items.filter((i) => i.check).map((i) => i.id)))
   // A MarshBot link opens the report sections on its area, showing it even when no standard
   // adds to it, then scrolls to it.
-  const target = checklist.areas.find((a) => a.title === openArea)?.id
-  const [part, setPart] = useState(target || !checklist.hazards.length ? 'sections' : 'risks')
+  const linked = checklist.items.find((i) => i.id === openItem)
+  // A linked item opens its own area, or the risks tab when it is a priority risk's.
+  const inRisks = linked?.area === 'hazards' && checklist.hazards.length > 0
+  const target =
+    checklist.areas.find((a) => a.title === openArea)?.id ??
+    (linked && !inRisks ? linked.area : undefined)
+  const [part, setPart] = useState(
+    inRisks ? 'risks' : target || !checklist.hazards.length ? 'sections' : 'risks',
+  )
   const [allChosen, setAllChosen] = useState(
     () =>
       readAllSections() ||
       (!!target &&
         !checklist.items.some(
           (i) => i.area === target && (i.origin === 'standard' || i.origin === 'manual'),
-        )),
+        )) ||
+      // The template's own items show only in All sections.
+      (!inRisks && linked?.origin === 'template'),
   )
+  // The linked item is tinted for a moment (reset in the timer, so it fades back).
+  const [flash, setFlash] = useState<string | null>(linked?.id ?? null)
   useEffect(() => {
-    if (target)
-      document.getElementById(checklistAreaId(target))?.scrollIntoView?.({ block: 'start' })
-  }, [target])
+    // The item if it is on screen, else its area; an answered item sits folded in its area.
+    const item = openItem ? document.getElementById(checklistItemId(openItem)) : null
+    const el = item ?? (target ? document.getElementById(checklistAreaId(target)) : null)
+    el?.scrollIntoView?.({ block: item ? 'center' : 'start' })
+    if (!openItem) return
+    const timer = setTimeout(() => setFlash(null), FLASH_MS)
+    return () => clearTimeout(timer)
+  }, [target, openItem])
   // With no standard in scope no section adds anything, so all are shown.
   const noStandards = checklist.standards.length === 0
   const all = allChosen || noStandards
@@ -785,6 +816,7 @@ export function ChecklistItems({
       answer={answer(item)}
       actions={actions(item)}
       fresh={!!highlight?.has(item.id)}
+      flash={flash === item.id}
       {...extra}
     />
   )
@@ -862,6 +894,7 @@ export function ChecklistItems({
                     <p style={{ ...caption, marginTop: 'var(--space-1)' }}>{riskNote(hazard)}</p>
                   )
                 }
+                revealed={items.some((i) => i.id === openItem && folded.has(i.id))}
                 answered={items
                   .filter((i) => folded.has(i.id))
                   .map((i) => itemRow(i, { general: general(i) }))}
@@ -887,6 +920,7 @@ export function ChecklistItems({
           setAll={setAll}
           shown={shownInSection}
           folded={folded}
+          openItem={openItem}
           itemRow={itemRow}
           onAdd={(area) => addTo({ area, subsection: null, hazard: null })}
         />
@@ -981,6 +1015,7 @@ function SectionsPart({
   setAll,
   shown,
   folded,
+  openItem,
   itemRow,
   onAdd,
 }: {
@@ -991,6 +1026,8 @@ function SectionsPart({
   setAll: (all: boolean) => void
   shown: (item: ChecklistItem) => boolean
   folded: Set<string>
+  // The item a MarshBot link points at: its answered list opens if it is in it.
+  openItem?: string
   itemRow: (item: ChecklistItem, extra?: { indent?: boolean }) => ReactNode
   // Adding the engineer's own item to a section (CP-32), when customising.
   onAdd: (area: string) => (() => void) | undefined
@@ -1076,6 +1113,7 @@ function SectionsPart({
             title={`${area.id}. ${area.title}`}
             items={items}
             need={draftingNeed(area.id, sections)}
+            revealed={items.some((i) => i.id === openItem && !open(i))}
             answered={items.filter((i) => !open(i)).map((i) => itemRow(i))}
             onAdd={onAdd(area.id)}
           >
