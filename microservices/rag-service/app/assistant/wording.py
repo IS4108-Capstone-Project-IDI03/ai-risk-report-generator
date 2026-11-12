@@ -1,8 +1,10 @@
-"""MarshBot's wording (AS-06): the rules' messages in, each one reworded as an OpenUI Lang
-program out. The model only rewords and orders; it points at items by id. Nothing is saved.
+"""MarshBot's wording (AS-06 round 5): MarshBot's new turns in (each turn's bubbles and the ids
+of its cards), one OpenUI Lang program per turn out. The model only rewords the bubbles and
+places each card once; the cards themselves are drawn by the client. Nothing is saved.
 
-Called by routes.py's /assistant/wording. Calls privacy.py (mask, unmask) and llm.complete
-under LLM_PROVIDER. The client renders the programs with client/src/features/marshbot/.
+Called by routes.py's /assistant/wording (asked by server wording.service.ts). Calls privacy.py
+(mask, unmask) and llm.complete under LLM_PROVIDER. The client draws the programs with
+client/src/features/marshbot/.
 """
 
 import re
@@ -47,39 +49,19 @@ class WordingResult(_Model):
     programs: list[Program]
 
 
-def link_key(index: int) -> str:
-    """The key a message's link part goes by in a program: its position among the parts.
-    Must match the client's LinkButton lookup (client/src/features/marshbot/)."""
-    return f"link-{index}"
-
-
-_PLAIN_PARTS = {
-    "outline": "ReportOutline",
-    "lanes": "StatusLanes",
-    "stage-time": "StageTime",
-    "file": "ExportFile",
-}
-
-
-def _part_line(index: int, part: dict, label: str | None) -> str:
-    """One part the program must include, in words for the model."""
-    kind = part["type"]
-    if kind == "actions":
-        return "- ActionRow, one per item id: " + ", ".join(part["itemIds"])
-    if kind == "replies":
-        return "- QuickReply, one per reply id: " + ", ".join(r["id"] for r in part["replies"])
-    if kind == "health":
-        return "- HealthBars for areas: " + (", ".join(part["areas"]) or "all")
-    if kind == "link":
-        return f'- LinkButton, label "{label}", id "{link_key(index)}"'
-    return f"- {_PLAIN_PARTS[kind]}"
+def _part_line(part: dict, text: str | None) -> str:
+    """One part of a turn, in words for the model: a bubble (masked text) or a card id."""
+    if part["type"] == "say":
+        tone = ' (good news: Say(text, "good"))' if part.get("tone") == "good" else ""
+        return f"- Say: {text}{tone}"
+    return f'- Card("{part["id"]}"), a {part.get("card", "card")} card'
 
 
 def _check(program: str) -> str | None:
     """The program with code fences removed, or None if it isn't an OpenUI program of MarshBot's
     library: not rooted at Reply, or calling another component. Only a sanity check, so nothing
-    is unmasked for a reply the gateway can't draw; the gateway checks ids, numbers and the
-    controls each message needs. Reads no string literal, so a bad escape can't raise here."""
+    is unmasked for a reply the gateway can't draw; the gateway checks card ids, numbers and
+    names (wording.service.ts). Reads no string literal, so a bad escape can't raise here."""
     program = re.sub(r"^```\w*\n|\n```$", "", program.strip()).strip()
     if not program.startswith("root = Reply("):
         return None
@@ -89,8 +71,9 @@ def _check(program: str) -> str | None:
 
 
 def word_messages(request, privacy=None) -> dict:
-    """Return `{programs: {message_id: program}, usage, provenance}`. A message whose program
-    fails the checks has no entry, and the client shows its plain text."""
+    """Return `{programs: {turn_id: program}, usage, provenance}`. Each message is one turn:
+    its parts are `{type: "say", text, tone}` and `{type: "card", id, card}`. A turn whose
+    program fails the checks has no entry, and the client draws its bubbles then its cards."""
     paid_calls = usage.start()
     protection = pii.session(privacy)
     provenance = {
@@ -100,7 +83,7 @@ def word_messages(request, privacy=None) -> dict:
         "prompt_version": WORDING_PROMPT_VERSION,
         "generated_at": datetime.now(UTC).isoformat(),
     }
-    messages, items = request.messages, request.items
+    messages = request.messages
     if not messages:
         return {
             "programs": {},
@@ -108,39 +91,20 @@ def word_messages(request, privacy=None) -> dict:
             "provenance": {**provenance, "privacy": protection.provenance()},
         }
 
-    # a. Mask the name, the messages, the items and the link labels in one /mask call.
-    links = [
-        (m.id, i, p["label"])
-        for m in messages
-        for i, p in enumerate(m.parts)
-        if p["type"] == "link"
+    # a. Mask the name and every bubble in one /mask call; card ids carry no client text.
+    says = [
+        (m.id, i, p["text"]) for m in messages for i, p in enumerate(m.parts) if p["type"] == "say"
     ]
-    texts = (
-        [request.viewer.first_name]
-        + [m.text for m in messages]
-        + [v or "" for item in items for v in (item.title, item.detail)]
-        + [label for _, _, label in links]
-    )
-    masked = iter(protection.mask(texts))
+    masked = iter(protection.mask([request.viewer.first_name] + [text for _, _, text in says]))
     name = next(masked)
-    message_texts = [next(masked) for _ in messages]
-    item_lines = []
-    for item in items:
-        title, detail = next(masked), next(masked)
-        item_lines.append(f"- {item.id} | {item.weight} | {item.kind} | {title} | {detail}")
-    labels = {(mid, i): next(masked) for mid, i, _ in links}
+    texts = {(mid, i): next(masked) for mid, i, _ in says}
 
-    # b. Ask the model, once for all messages.
+    # b. Ask the model, once for all turns.
     blocks = []
-    for m, text in zip(messages, message_texts, strict=True):
-        parts = "\n".join(_part_line(i, p, labels.get((m.id, i))) for i, p in enumerate(m.parts))
-        blocks.append(f"### Message {m.id}\nText: {text}\nParts:\n{parts or '(none)'}")
-    user = (
-        f"Viewer: {name} ({request.viewer.role})\n\nItems (id | weight | kind | title | detail):\n"
-        + ("\n".join(item_lines) or "(none)")
-        + "\n\nMessages:\n\n"
-        + "\n\n".join(blocks)
-    )
+    for m in messages:
+        parts = "\n".join(_part_line(p, texts.get((m.id, i))) for i, p in enumerate(m.parts))
+        blocks.append(f"### Turn {m.id}\n{parts or '(none)'}")
+    user = f"Viewer: {name} ({request.viewer.role})\n\nTurns:\n\n" + "\n\n".join(blocks)
     result, model = complete(
         WORDING_SYSTEM,
         user,
