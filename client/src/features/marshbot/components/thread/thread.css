@@ -42,14 +42,41 @@
   gap: 12px;
 }
 /* An earlier session: greyed and read-only (its buttons are left out, RowEnd.tsx). */
-/* Greyed by taking the colour out, not by fading: every text keeps at least 4.5:1, since people
-   still read their history. Only the decorative face is faded. */
-.mbt-session[data-past] .mbt-stack,
-.mbt-session[data-past] .mbt-me {
-  filter: grayscale(1);
+/* An earlier session reads as past (canvas H2) but stays legible: its words in one muted grey
+   (graphite-600, about 6.9:1 on white), its icons, tiles and bars faded (they carry no words),
+   and the engineer's old reply a light grey bubble instead of navy. */
+.mbt-session[data-past]
+  :is(
+    .mbt-who,
+    .mbt-bubble,
+    .mbt-bubble b,
+    .mbt-card-head h3,
+    .mbt-card-head small,
+    .mbt-card-head small b,
+    .mbt-row-title,
+    .mbt-row-detail,
+    .mbt-row-quote,
+    .mbt-gap b,
+    .mbt-gap small,
+    .mbt-gap li,
+    .mbt-ticks b,
+    .mbt-ol-lead b,
+    .mbt-ol-title,
+    .mbt-lane-title,
+    .mbt-bars-area,
+    .mbt-bars-count
+  ) {
+  color: var(--graphite-600);
 }
-.mbt-session[data-past] .mbt-face {
+.mbt-session[data-past] :is(.mbt-face, .mbt-tile, .mbt-stick, .mbt-segs, .mbt-ol-st, .mbt-tick) {
   opacity: 0.55;
+}
+.mbt-session[data-past] .mbt-me {
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+.mbt-session[data-past] .mbt-me::before {
+  background: var(--graphite-100);
 }
 /* A turn takes focus after a reply (Thread.tsx): a soft ring round it, not the control ring. */
 .mbt-turn:focus {
@@ -368,15 +395,19 @@ body.mbt-toasts:has(.mbt-tray)
   }
   /* Small controls in the cards (See All, the (?) help) get a 44 px tap area without growing
      their row: an invisible box centred on them, as .mb-hit does in marshbot.css. */
-  .mbt-seeall,
-  .mbt-help {
+  .mbt-seeall {
     position: relative;
   }
-  .mbt-seeall::after,
-  .mbt-help::after {
+  .mbt-seeall::after {
     content: '';
     position: absolute;
     inset: min(0px, calc(50% - 22px));
+  }
+  /* The (?) itself is 44 px: padding round its 16 px icon, taken back by a negative margin so
+     the card's header doesn't grow. */
+  .mbt .mbt-help {
+    padding: 14px;
+    margin: -14px;
   }
 }
 /* Phone: the page scrolls, the thread runs full width, the tray stays at the foot. */
