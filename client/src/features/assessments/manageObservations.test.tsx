@@ -1677,6 +1677,19 @@ describe('Searching the Observations list (CP-13)', () => {
     expect(rowOf('Kitchen hood.')).toBeInTheDocument()
   })
 
+  it('offers Clear all when a search and a filter together match nothing', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('jockey')
+    filter('Category', 'Occupancy')
+
+    const none = screen.getByText('No observations match “jockey” and those filters')
+    fireEvent.click(within(none.closest('.ob-empty')!).getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf(ROOM)).toBeInTheDocument()
+  })
+
   it('narrows with the filters, and Clear all clears the search too', async () => {
     listed = SEARCHED
     await openObservations()

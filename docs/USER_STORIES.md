@@ -477,49 +477,51 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 - [ ] **CP-13** — Search and filter the evidence of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: read, search and filter an assessment's voice recordings, handwritten pages and photos by what they say and where they stand, so I can find where I recorded, wrote or photographed something, and what still needs a look, without opening each observation.
+  Goal: read, search and filter an assessment's voice recordings, handwritten pages and photos, so I can find where I recorded, wrote or photographed something, and what still needs a look, without opening each observation.
 
   Reading the text (built 2026-11-11 with CP-12)
 
-  1. Given All Handwritten Pages, when a page is listed, then its row names it and says while it is transcribing, or that it could not be transcribed, with Retry.
-  2. Given a transcribed page, when I select Transcript, then its text opens under the row as its observation's page shows it: the model's reading with its unsure words marked, my correction plainly, or that no handwriting was found.
-  3. Given All Photos, when a photo is listed, then its row names it, and once its observation's photos are described, Description opens that description under it.
-  4. Given an open description, when I read it, then it says whether it describes this photo and how many others, or that it was written before this photo was added, and whether its evidence changed since.
+  1. Given a page still being transcribed, or one that failed, when I open All Handwritten Pages, then its row shows its name with "Transcribing" or "Couldn't transcribe", and Retry on a failed page starts transcribing it again.
+  2. Given a transcribed page, when I select Transcript on its row, then its text opens under the row as on the observation's page: unsure words underlined, my correction if I made one, or "No handwriting was found on this page."
+  3. Given a photo whose observation has a description, when I select Description on its row in All Photos, then the description opens under the row.
+  4. Given an open description, when I read it, then it says whether it describes this photo and how many others, or that it was written before this photo was added, and adds "Its evidence changed since." when it is out of date.
 
   Searching
 
-  5. Given All Recordings, All Handwritten Pages or All Photos, when I type in its search box, then only the items holding every word in their text, name or observation's text are listed, in any order and ignoring case and accents, with how many of how many match.
-  6. Given a voice recording, when I search, then its transcript as corrected is searched, but not "(No speech was detected.)".
-  7. Given a handwritten page, when I search, then its text as shown is searched: my correction, or else the model's reading.
-  8. Given a photo, when I search, then its observation's description is searched only if it describes that photo.
+  5. Given All Recordings, All Handwritten Pages or All Photos, when I type words in its search box, then only the items containing all of them are listed, in any order and ignoring capitals and accents, and the count reads, for example, "2 of 9 recordings".
+  6. Given an item, when I search for a word in its name or in its observation's text, then it is listed.
+  7. Given a voice recording, when I search for a word in its transcript, then it is found by the wording as corrected, not by the words I replaced, and never by "No speech was detected".
+  8. Given a handwritten page, when I search for a word in its text, then it is found by my correction if I made one, or else by the model's reading.
+  9. Given a photo, when I search for a word in its observation's description, then it is found only if that description covers this photo.
 
   Showing what matched
 
-  9. Given an item found in its own text, when it is listed, then its text opens under the row with the words found marked.
-  10. Given a word the model was unsure of, when a search finds it, then it keeps its underline round the mark.
+  10. Given an item found by its transcript or description, when it is listed, then that text opens under its row with the words found highlighted.
+  11. Given a word the model was unsure of, when a search finds it on a page, then it is highlighted and stays underlined.
 
   Filtering
 
-  11. Given one of the three views, when I choose a Location, Category or Severity, then only the items of observations carrying it are listed, together with the search.
-  12. Given All Recordings, when I choose a Status, then only the voice recordings transcribed, still transcribing, or that could not be transcribed are listed.
-  13. Given All Handwritten Pages, when I choose a Status, then only the pages transcribed, corrected, with unsure words, still transcribing, or that could not be transcribed are listed, and a corrected page no longer counts as having unsure words.
-  14. Given All Photos, when I choose a Description, then only the photos described, out of date, or not described are listed, and a photo added after its observation's description counts as not described.
+  12. Given one of the three views, when I choose a Location, Category or Severity, then only the items whose observation has that location, category or severity are listed, and any search still applies.
+  13. Given All Recordings, when I choose a Status, then only the recordings that are transcribed, still transcribing, or could not be transcribed are listed.
+  14. Given All Handwritten Pages, when I choose a Status, then only the pages that are transcribed, corrected, have unsure words, are still transcribing, or could not be transcribed are listed, and a corrected page is not listed under Has unsure words.
+  15. Given All Photos, when I choose a Description, then Described lists the photos a description covers, Out of date those whose description is out of date, and Not described the rest, including a photo added after its description.
 
   The Observations list
 
-  15. Given the Observations tab or its deleted observations, when I search, then only the observations whose note, transcripts, page texts or photo description hold every word are listed, together with the location picked and the filters set.
-  16. Given an observation found other than in the text its row shows, when it is listed, then its row says where, such as "Matched in Recording 2 and the photo description".
+  16. Given the Observations tab, or its deleted observations, when I type words in its search box, then only the observations with all of them in their note, a transcript, a page or the photo description are listed, together with the location picked and any filters.
+  17. Given a found observation, when it is listed, then the words found in its row's text are highlighted, and if they were found elsewhere, a line under the text says where, for example "Matched in Recording 2 and the photo description".
 
   Clearing and returning
 
-  17. Given nothing matches, when I search or filter, then I am told none match, with Clear search, or Clear all when filters are set.
-  18. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared.
-  19. Given a search or filters on one of the three views, when I open an observation from a row and select Back, then they are kept; when I open the view again from the location navigator, none are set.
-  20. Given a voice recording playing, when the search or a filter leaves it out, then it stops.
+  18. Given a search or filters that match nothing, when the list is shown, then it says nothing matches and offers Clear search, or Clear all when a filter is set.
+  19. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared.
+  20. Given a search or filters on one of the three views, when I open an observation from a row and select Back, then the same search and filters are still applied.
+  21. Given I go back to the Observations tab from one of the three views, when I open that view again, then its search and filters are empty.
+  22. Given a recording playing on All Recordings, when the search or a filter hides it, then it stops playing.
 
   Permissions
 
-  21. Given someone else's assessment I can view, when I search or filter it, then it works as on my own, and nothing is saved.
+  23. Given another engineer's assessment that I can open, when I search or filter its views or its Observations tab, then they work as on my own.
   </details>
 
 - [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)

@@ -30,32 +30,34 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
       </div>
     )
   if (v.obsNoMatch) {
-    // A search says what it looked for, and clears on its own (CP-13).
+    // A search says what it looked for (CP-13). As on All Photos, Pages and
+    // Recordings: Clear all while a filter is set, else Clear search.
     const query = v.obsFilters.q.trim()
+    const filtered = v.obsFilterChips.length > 0
     return (
       <div className="ob-empty">
-        {query ? (
-          <EmptyState
-            icon="search"
-            title={`No observations match “${query}”${v.obsFilterChips.length ? ' and those filters' : ''}`}
-            description="Try fewer words, or clear a filter."
-            action={
-              <button
-                type="button"
-                className="ob-button ob-button--tinted ob-button--small"
-                onClick={() => v.setObsFilter('q', '')}
-              >
-                Clear search
-              </button>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={IconRegistry.action.filter}
-            title="No observations match those filters"
-            description="Clear a filter to see the others."
-          />
-        )}
+        <EmptyState
+          icon={filtered ? IconRegistry.action.filter : 'search'}
+          title={
+            query
+              ? `No observations match “${query}”${filtered ? ' and those filters' : ''}`
+              : 'No observations match those filters'
+          }
+          description={
+            filtered
+              ? 'Clear a filter to see the others.'
+              : 'Try fewer words, or check the spelling.'
+          }
+          action={
+            <button
+              type="button"
+              className="ob-button ob-button--tinted ob-button--small"
+              onClick={() => (filtered ? v.clearObsFilters() : v.setObsFilter('q', ''))}
+            >
+              {filtered ? 'Clear all' : 'Clear search'}
+            </button>
+          }
+        />
       </div>
     )
   }
