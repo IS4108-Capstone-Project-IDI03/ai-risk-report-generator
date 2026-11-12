@@ -67,7 +67,14 @@ function walkParam(walk: WalkScreen): string | null {
   return [id, walk.from, walk.kind === 'review' && walk.open].filter(Boolean).join('.')
 }
 
-export function Observations({ v }: { v: AssessmentWorkflow }) {
+export function Observations({
+  v,
+  media,
+}: {
+  v: AssessmentWorkflow
+  // A recording's or page's id to scroll to once its observation is open (a MarshBot link, AS-06).
+  media?: string
+}) {
   const view = useObservationsView(v)
   const { walks, reload } = useSiteWalks(v.captureRef)
   const [walk, setWalk] = useState<WalkScreen>(walkFromUrl)
@@ -209,7 +216,14 @@ export function Observations({ v }: { v: AssessmentWorkflow }) {
       <div ref={page} className="ob">
         {open ? (
           // c. One observation on its own page, edited in place.
-          <ObservationPage key={open.key} v={v} o={open} order={view.order} onView={setViewing} />
+          <ObservationPage
+            key={open.key}
+            v={v}
+            o={open}
+            order={view.order}
+            onView={setViewing}
+            media={media}
+          />
         ) : (
           <>
             {/* d. Deleted observations get a header like the other sub-screens. */}

@@ -18,6 +18,7 @@ import type { ViewedPhoto } from '../components/PhotoReferences'
 import { RecordingItem } from '../components/RecordingItem'
 import { RemovedMedia } from '../components/RemovedMedia'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { useScrollToEvidence } from '../useScrollToEvidence'
 import { useObservationSave } from '../useObservationSave'
 import type { ObservationRowView } from '../useObservationsView'
 import '../observation-page.css'
@@ -29,11 +30,14 @@ export function ObservationPage({
   o,
   order,
   onView,
+  media,
 }: {
   v: AssessmentWorkflow
   o: ObservationRowView
   order: ObservationRowView[]
   onView: (photo: ViewedPhoto) => void
+  // A recording's or page's id to scroll to, from a MarshBot link (AS-06).
+  media?: string
 }) {
   const { status, save, whenSaved } = useObservationSave((change) =>
     v.saveObsChanges(o.key, change),
@@ -77,6 +81,8 @@ export function ObservationPage({
     // The whole tab scrolls, so start it at the top; 'nearest' left Back under the tab bar.
     bar.current?.closest('.om-scroll')?.scrollTo?.({ top: 0 })
   }, [])
+  // After the scroll to top, so a MarshBot link to a recording or page is not undone by it.
+  useScrollToEvidence(media)
   return (
     <>
       {/* b. Back at the page's left, where every sub-screen has it; then where

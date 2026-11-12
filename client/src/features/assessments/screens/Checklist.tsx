@@ -140,6 +140,7 @@ export function Checklist({
   answering,
   onViewObservation,
   area,
+  item,
 }: {
   reference: string
   canGenerate: boolean
@@ -147,6 +148,8 @@ export function Checklist({
   onViewObservation: (observationId: string) => void
   // An area's title to scroll to once the checklist is in, from a MarshBot link (AS-06).
   area?: string
+  // A checklist item's id to scroll to and flash, from a MarshBot link (AS-06).
+  item?: string
 }) {
   const { view, setView, sections, loadError, reload } = useChecklist(reference)
   // AS-06: the assigned engineer's time here and which items they saw (an admin's is not counted).
@@ -378,6 +381,7 @@ export function Checklist({
             answering={answering}
             customising={canGenerate}
             openArea={area}
+            openItem={item}
             highlight={regenerated?.replacing}
             regenerateHint={
               canGenerate

@@ -684,3 +684,48 @@ describe('answers (CP-31)', () => {
     expect(screen.queryByText(/Checklist regenerated/)).not.toBeInTheDocument()
   })
 })
+
+// A MarshBot link opens the checklist on one item (AS-06): its tab, scrolled to, tinted for a moment.
+describe('opened on an item', () => {
+  const scrolled: string[] = []
+  beforeEach(() => {
+    scrolled.length = 0
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id)
+    }
+  })
+  const showOn = (item: string) =>
+    render(
+      <Checklist
+        reference={REF}
+        canGenerate={false}
+        answering={null}
+        onViewObservation={viewed}
+        item={item}
+      />,
+    )
+
+  it("opens a priority risk's item on its own tab", async () => {
+    serve(view(CHECKLIST))
+    showOn('i3')
+    expect(await screen.findByRole('tab', { name: /^Priority risks/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await waitFor(() => expect(scrolled).toContain('checklist-item-i3'))
+    // Tinted at once, and back to plain once the moment has passed.
+    expect(screen.getByRole('listitem', { name: /Check the roof deck/ })).toHaveStyle({
+      background: 'var(--ink-50)',
+    })
+  })
+
+  it("shows a template item's section even when no standard adds to it", async () => {
+    serve(view(CHECKLIST))
+    showOn('i1')
+    expect(await screen.findByRole('tab', { name: /^Report sections/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await waitFor(() => expect(scrolled).toContain('checklist-item-i1'))
+  })
+})
