@@ -540,13 +540,27 @@
   .ob-head-actions > .ob-walks-button {
     flex-basis: 100%;
   }
+  /* Two columns of exactly even width, however long a chip's label. */
   .ob-filter-set {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     width: 100%;
   }
-  .ob-filter-set > .ob-button {
+  /* The search (CP-13) and Clear all take a whole row each. */
+  .ob-filter-set > .ob-button,
+  .ob-filter-set > .ob-search {
     grid-column: 1 / -1;
+  }
+  .ob-chip,
+  .ob-chip-main {
+    min-width: 0;
+  }
+  /* On All Photos, Pages and Recordings: the search across, the count under it. */
+  .ob-filters > .ob-search {
+    flex-basis: 100%;
+  }
+  .ob-filters .ob-search {
+    max-width: none;
   }
   /* The menu's wrappers stretch too, so the whole pill is the button. */
   .ob-chip > :first-child,
@@ -1498,5 +1512,52 @@ span.ob-pt-thumb {
   .ob-seek-speed {
     min-width: 44px;
     height: 44px;
+  }
+}
+
+/* ---- Search (CP-13): the box in a view's or the list's toolbar, and the
+   words it found, marked on the blue tint used for what is selected, so a
+   match never reads as amber's "not sure" or a comment. ---- */
+.ob-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+/* The pill shows focus round itself (`.ds-search:focus-within`); the tab's own
+   outline would draw a second, square ring inside it. */
+.ob .ds-search input:focus-visible {
+  outline: none;
+}
+/* As tall as the filter chips beside it on a touch screen. */
+@media (pointer: coarse), (max-width: 559px) {
+  .ob-search {
+    height: 44px;
+  }
+}
+.ob-hit {
+  background: var(--ink-100);
+  color: inherit;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--ink-100);
+}
+/* An observation's text with, while searching, where else the words were
+   found under it: one cell of the row's grid. */
+.ob-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* "Matched in Recording 2": under an observation's text in the list. */
+.ob-row-match {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+@media (forced-colors: active) {
+  .ob-hit {
+    background: Mark;
+    color: MarkText;
   }
 }

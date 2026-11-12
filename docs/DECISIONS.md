@@ -2360,7 +2360,7 @@ Chose:
 - The row shows the observation's text, as All Photos does, with the recording's name and its state (Transcribing, or Couldn't transcribe with Retry) under it, which tells an observation's recordings apart. Retry is offered only where the observation page offers it: not in someone else's assessment (RV-11) or the demo.
 - Removed recordings and deleted observations' recordings are left out, as All Photos leaves out theirs; they are restored from the observation and the Deleted observations list.
 - A site walk proposal's navigator has no recordings row: its walk list already lists the walk's recordings, with their own player.
-- Each row of the three views has the item's own line under the observation's text: its name, its transcription's state with Retry (recordings and pages), and a Transcript or Description toggle that opens its text under the row, closed to start with. A recording's transcript also opens when it plays, to read along. The text looks as on the observation's page: a recording's transcript plainly, as corrected; a page's reading behind the AI rule with its unsure words marked, or the engineer's correction plainly; a photo's description behind the AI rule. All Photos and All Handwritten Pages gained this with CP-12 but count against no story (noted on CP-04 AC3 and CP-19 AC17); a site walk proposal's views are unchanged.
+- Each row of the three views has the item's own line under the observation's text: its name, its transcription's state with Retry (recordings and pages), and a Transcript or Description toggle that opens its text under the row, closed to start with. A recording's transcript also opens when it plays, to read along. The text looks as on the observation's page: a recording's transcript plainly, as corrected; a page's reading behind the AI rule with its unsure words marked, or the engineer's correction plainly; a photo's description behind the AI rule. All Photos and All Handwritten Pages gained this with CP-12 but count against no story (noted on CP-04 AC3 and CP-19 AC17); a site walk proposal's views are unchanged. (12 Nov 2026: now counted in CP-13, AC1-AC4.)
 - A photo's description is the observation's, one for all its photos (CP-21), so each photo's row says whether it describes this photo and how many others, or that it was written before this photo was added, and "Its evidence changed since." when out of date, as the observation's page says. The client's photo reading now carries `photoIds` for this.
 - This reverses CP-19's choice to keep page transcripts off the Scans view ("tiles only"): with the text closed by default the list stays as compact, and reading a page or recording no longer means opening each observation.
 
@@ -2376,3 +2376,31 @@ Rejected:
 Known limits: a recording made in the browser (webm from MediaRecorder) has no length in its header. The player seeks past its end to make the browser work it out, then starts at 0:00; if the browser still can't tell within three seconds, only the time played shows, without a bar. The speed is not remembered between visits.
 
 Stories: CP-12, CP-03, CP-04, CP-08, CP-19, CP-21, CP-22, RV-11.
+
+## 2026-11-12 — The evidence text is searched in the browser: on the three evidence views and the Observations list
+
+Chose:
+- (CP-13) A search box on All Recordings, All Handwritten Pages and All Photos (`PhotoTable`'s toolbar, given `search`) and on the Observations tab beside its filters. It runs in the browser on the observations already loaded (`evidenceSearch.ts`): no route, index or field, and nothing is sent to a service, so privacy masking does not come into it.
+- Every word, in any order, ignoring case and accents. On a view, a row matches across its item's text, its name and its observation's text; on the list, across the note, every transcript, every page and the photos' description. Words rather than a phrase, as a spoken transcript rarely keeps the order typed. Positions stay in the text as written, so a mark lands on the right letters after an accent is dropped.
+- What is searched is what is shown: a recording's transcript as corrected, a page's correction or else the model's reading. "(No speech was detected.)" is not searched (`NO_SPEECH`). A photo matches on its observation's description only if the description covers it (`photoIds`), as its row already says; one out of date is still searched.
+- The words found are marked (`HitText`, `.ob-hit` on `--ink-100`, the blue tint for what is selected: amber already means not sure, and comments use it). In a page's reading a mark sits inside an unsure word's underline, so it keeps both. An item found in its own text opens that text; one found only by its name or observation stays closed.
+- One query (`evidenceQuery`) serves the three views: emptied whenever one is opened from the navigator, kept while an observation opened from it is open, so Back restores it with the texts it found open again. The list's search is a filter (`ObservationFilters.q`): it narrows with the location and the four menus, counts towards Clear all, works on the deleted observations too, and is cleared when a view opens an observation, as the filters are.
+- The list says where else the words were found ("Matched in Recording 2 and the photo description") when its row's text doesn't show them, as a row shows only the note, or else the first transcript.
+- A recording that plays and is searched away stops (`useRecordingPlayer.stop`), rather than playing on with no row to pause it from.
+- When nothing matches, all four lists say so the same way: Clear all while a filter is set, else Clear search.
+- This reverses CP-12's rejection of a search box over transcripts: it was turned down until all three views could have one.
+- CP-13 also counts the item line CP-12 gave All Photos and All Handwritten Pages (a page's state, Retry and transcript; a photo's description and which photos it covers), which no story had counted (AC1-AC4). The story stays at 5 points with the filters.
+- Filters on the three views (added the same day): Location, Category and Severity as on the Observations tab (the views have no navigator beside them, so Location is a menu, by building and level), and one about the item: a recording's Status, a page's Status (Transcribed, Corrected, Has unsure words, Transcribing, Couldn't transcribe; a page can be several), a photo's Description (Described, Out of date, Not described, judged by whether the description covers that photo). They reuse the Observations tab's chips (`FilterChip`), are kept with the search in `evidenceFilters`, emptied when a view opens, count towards Clear all with it, and stop a recording they leave out (`evidenceFilters.ts`).
+
+Reason: CP-12 put every voice recording in one place but left finding a word in them to reading each. The Observations list shows one line per observation, so a second recording, a page or the photos' description could not be found from it at all.
+
+Rejected:
+- Searching on the gateway (a Mongo text index, or the vectors): the evidence is already in the browser, and a request per keystroke adds a wait and another path for client text, for no gain at one assessment's size. Searching by meaning is Ask (AS-01).
+- One query shared by the three views: a search in recordings would silently filter photos.
+- Searching what a correction replaced: the engineer corrected it because it was wrong.
+- A site walk proposal's views and list: its photos are described and pages transcribed only at Create all, and a walk recording's transcript covers the whole walk, so every observation cut from it would match. After Create all, the list's search covers them.
+- Choosing Appendix A's photos by description here: the appendix's photos carry no description, so it needs one gateway field; a GN-07 follow-up.
+
+Known limits: words match as typed, with no stemming: "valve" finds "valves" but "valves" does not find "valve". Every row is checked on each keystroke, which is fine at hundreds of items. The browser's own find (Ctrl+F) still cannot see a closed transcript.
+
+Stories: CP-13, CP-12, CP-08, CP-19, CP-20, CP-21, CP-22, AS-01, GN-07.

@@ -1566,3 +1566,180 @@ describe('observation note', () => {
     expect(box).toHaveValue('New')
   })
 })
+
+describe('Searching All Photos (CP-13)', () => {
+  it('finds a photo by its description only where it describes that photo', async () => {
+    const LATER = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    const DOCK = 'A hose reel sits under the stairs at the loading dock.'
+    listed = [
+      // Described before IMG_0470.jpg was added.
+      { ...INTERPRETED, photos: [...INTERPRETED.photos, LATER] },
+      photographed('o8', 'Loading dock.', {
+        photos: described({ description: DOCK, outOfDate: true }),
+      }),
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const view = screen.getByRole('group', { name: 'Site photographs' })
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search photos' }), {
+      target: { value: 'under SITS' },
+    })
+
+    // Not IMG_0470.jpg: the description says nothing of it. (The other two
+    // of five are the sample assessment's own.)
+    expect(screen.getByText('2 of 5 photos')).toBeInTheDocument()
+    const rows = within(view).getAllByRole('listitem')
+    expect(rows.map((r) => r.textContent?.includes('IMG_0470.jpg'))).toEqual([false, false])
+    // A description since out of date is still found, and says so.
+    const dock = rows.find((r) => r.textContent?.includes('Loading dock.'))!
+    expect(dock).toHaveTextContent('Its evidence changed since.')
+    // Each opens its description, the words marked.
+    for (const row of rows)
+      expect([...row.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)).toEqual([
+        'sits',
+        'under',
+      ])
+  })
+})
+
+describe('Searching the Observations list (CP-13)', () => {
+  const ROOM = 'Riser room door wedged open.'
+  const BAY = 'Loading bay.'
+  const SEARCHED = [
+    observation({
+      id: 'o1',
+      note: ROOM,
+      recordings: [
+        recording('r1', { transcript: 'Fire pump jockey cycling.' }),
+        {
+          ...recording('r2', { transcript: 'Isolation valve zebra-tagged.' }),
+          name: 'Recording 2',
+        },
+      ],
+    }),
+    VOICE_ONLY,
+    photographed('o3', BAY, {
+      photos: described({ description: 'Zebra crossing paint worn by the dock.' }),
+    }),
+    observation({
+      id: 'o4',
+      note: 'Kitchen hood.',
+      recordings: [recording('r4', { transcript: '' })],
+    }),
+  ]
+  const search = (text: string) =>
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search observations' }), {
+      target: { value: text },
+    })
+  // A row by the start of its text; its name runs on to "Matched in …".
+  const rowOf = (text: string) =>
+    screen.queryByRole('button', { name: new RegExp('^' + text.replace(/[.]/g, '\\.')) })
+  const marks = (el: HTMLElement) =>
+    [...el.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)
+
+  it('lists the observations whose evidence holds every word, saying where else they were found', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    // In a recording other than the row's text, and in the photos' description.
+    search('ZEBRA')
+    expect(rowOf(ROOM)).toHaveTextContent('Matched in Recording 2')
+    expect(rowOf(BAY)).toHaveTextContent('Matched in the photo description')
+    expect(rowOf(VOICE)).toBeNull()
+
+    // Words in two places, in any order.
+    search('zebra jockey')
+    expect(rowOf(ROOM)).toHaveTextContent('Matched in Recording 1 and Recording 2')
+    expect(rowOf(BAY)).toBeNull()
+
+    // Found in the row's own text: marked there, with nothing more to say.
+    search('v-12')
+    const voice = rowOf(VOICE)!
+    expect(marks(voice)).toEqual(['V-12'])
+    expect(voice).not.toHaveTextContent('Matched in')
+  })
+
+  it('says when none match, never finding words in a recording with no speech, and clears', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('speech')
+
+    expect(screen.getByText('No observations match “speech”')).toBeInTheDocument()
+    click('Clear search')
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf('Kitchen hood.')).toBeInTheDocument()
+  })
+
+  it('offers Clear all when a search and a filter together match nothing', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('jockey')
+    filter('Category', 'Occupancy')
+
+    const none = screen.getByText('No observations match “jockey” and those filters')
+    fireEvent.click(within(none.closest('.ob-empty')!).getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf(ROOM)).toBeInTheDocument()
+  })
+
+  it('narrows with the filters, and Clear all clears the search too', async () => {
+    listed = SEARCHED
+    await openObservations()
+
+    search('zebra')
+    filter('Category', 'Occupancy')
+
+    expect(rowOf(BAY)).toBeInTheDocument()
+    expect(rowOf(ROOM)).toBeNull()
+    click('Clear all')
+    expect(screen.getByRole('searchbox', { name: 'Search observations' })).toHaveValue('')
+    expect(rowOf(ROOM)).toBeInTheDocument()
+    expect(rowOf(VOICE)).toBeInTheDocument()
+  })
+})
+
+describe('Filtering All Photos (CP-13)', () => {
+  it('filters photos by whether their description describes them, and is up to date', async () => {
+    const LATER = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    listed = [
+      // Described before IMG_0470.jpg was added.
+      { ...INTERPRETED, photos: [...INTERPRETED.photos, LATER] },
+      photographed('o8', 'Loading dock.', { photos: described({ outOfDate: true }) }),
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const view = screen.getByRole('group', { name: 'Site photographs' })
+    const shownRows = () =>
+      within(view)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent)
+
+    filter('Description', 'Not described')
+    // IMG_0470.jpg, and the sample assessment's own photos, which carry none.
+    expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(false)
+
+    filter('Description', 'Out of date')
+    expect(shownRows()).toHaveLength(1)
+    expect(shownRows()[0]).toContain('Loading dock.')
+
+    // Described takes in the one out of date too, but not a photo added since.
+    filter('Description', 'Described')
+    expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes('Loading dock.'))).toBe(true)
+    expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(false)
+  })
+})

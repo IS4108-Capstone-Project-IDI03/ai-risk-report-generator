@@ -28,10 +28,19 @@ import {
   type Stamp,
 } from './api'
 import { formatDay as formatDate, formatDayYearTime, STATUS_LABEL } from './format'
+import {
+  NO_EVIDENCE_FILTERS,
+  pageStates,
+  photoStates,
+  recordingStates,
+  type EvidenceFilters,
+} from './evidenceFilters'
+import { NO_SPEECH, searchWords } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
+  matchedIn,
   matchesFilters,
   matchesPlace,
   NO_FILTERS,
@@ -382,7 +391,7 @@ function toEntry(o: SavedObservation): Observation {
       // The engineer's correction stands in for what Whisper wrote (CP-08).
       text:
         status === 'transcribed'
-          ? (correction?.text ?? transcript) || '(No speech was detected.)'
+          ? (correction?.text ?? transcript) || NO_SPEECH
           : TRANSCRIPTION_TEXT[status],
       original: correction ? transcript : null,
       correction: correction && { at: correction.at, by: correction.by },
@@ -601,6 +610,9 @@ function placeFromUrl(): Partial<WorkflowState> {
       }),
   }
 }
+
+// The evidence views' search and filters, as each view opens (CP-13).
+const NO_EVIDENCE_SEARCH = { evidenceQuery: '', evidenceFilters: NO_EVIDENCE_FILTERS }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The screen comes from the URL (F-05), so a screen can be linked to and
@@ -1089,6 +1101,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           key: key + '/' + i,
           name: photo.name,
           url: photo.url,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: photoStates(reading && { outOfDate: reading.outOfDate, thisOne: covered(photo) }),
           description: reading && {
             text: reading.description!,
             outOfDate: reading.outOfDate,
@@ -2054,6 +2069,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         pageViews(o, key).map((page) => ({
           key: key + '/' + page.id,
           page,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: pageStates(page),
           where: placeOf(o),
           path: pathOf(o),
           cat: categoryLabel(o.cats),
@@ -2080,6 +2098,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         (o.recordings ?? []).map((r) => ({
           key: key + '/' + r.id,
           name: r.name,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: recordingStates(r.status),
           audioUrl: r.audioUrl,
           clip: r.clip ?? null,
           status: r.status,
@@ -2625,6 +2646,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fMode: 'note',
       })
     // The Observations tab's rows, as the filters show them.
+    // The Observations tab's search, as words to find and mark (CP-13).
+    const obsSearchWords = searchWords(s.of.q ?? '')
     const obsList = shownRows.map(({ o, key }) => {
       const open = s.obsOpen === key
       const sev = o.sev || 'low'
@@ -2665,6 +2688,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         path: pathOf(o),
         // What it holds and where its recordings and photos stand (CP-08 AC2).
         typeLabel: typeLabel(o),
+        // Where a search found its words, beyond the row's own text (CP-13).
+        matchedIn: matchedIn(o, obsSearchWords),
         status,
         statusTone:
           status === 'Transcribing' || status === 'Interpreting'
@@ -3187,9 +3212,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         sc === 'field' || s.tab === 'photos' || s.tab === 'scans' || s.tab === 'recordings'
           ? 'observations'
           : s.tab,
-      goPhotos: () => setState({ tab: 'photos' }),
-      goScans: () => setState({ tab: 'scans' }),
-      goRecordings: () => setState({ tab: 'recordings' }),
+      // Each opens with its search and filters empty (CP-13).
+      goPhotos: () => setState({ tab: 'photos', ...NO_EVIDENCE_SEARCH }),
+      goScans: () => setState({ tab: 'scans', ...NO_EVIDENCE_SEARCH }),
+      goRecordings: () => setState({ tab: 'recordings', ...NO_EVIDENCE_SEARCH }),
+      evidenceQuery: s.evidenceQuery ?? '',
+      setEvidenceQuery: (query: string) => setState({ evidenceQuery: query }),
+      evidenceFilters: s.evidenceFilters ?? NO_EVIDENCE_FILTERS,
+      setEvidenceFilter: (key: keyof EvidenceFilters, value: string) =>
+        setState({
+          evidenceFilters: { ...(s.evidenceFilters ?? NO_EVIDENCE_FILTERS), [key]: value },
+        }),
+      // Clear all: the filters and the search.
+      clearEvidenceFilters: () => setState(NO_EVIDENCE_SEARCH),
       goObservations: () => setState({ tab: 'observations' }),
       photoCollection,
       scanCollection,
@@ -3334,6 +3369,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : plural(0, obsNoun),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
+      obsSearchWords,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
       // Nothing captured yet, and no locations to list by: the list offers

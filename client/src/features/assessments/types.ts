@@ -1,3 +1,4 @@
+import type { EvidenceFilters } from './evidenceFilters'
 import type {
   Assessment,
   InterpretationStatus,
@@ -307,6 +308,12 @@ export type WorkflowState = {
   obsOpen?: string | null
   // Where an open observation came from when not the list: Back returns there.
   obsFrom?: 'photos' | 'scans' | 'recordings' | null
+  // The search on All Photos, All Handwritten Pages or All Recordings
+  // (CP-13): kept while an observation opened from it is open, so Back finds
+  // it again, and cleared each time one of them is opened.
+  evidenceQuery?: string
+  // Their filters (CP-13), kept and cleared with the search.
+  evidenceFilters?: EvidenceFilters
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
@@ -348,6 +355,8 @@ export type ObservationFilters = {
   // A building (or Elsewhere on site), a level of it, or one location (CP-16).
   place: string
   status: string
+  // The search, as typed (CP-13): every word in the observation's evidence.
+  q: string
 }
 
 // A building, level or location name as typed, not yet on the site, and the

@@ -17,7 +17,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
       <>
         <ColumnHeads last="" />
         {v.obsList.map((o) => (
-          <ObservationRow key={o.key} o={o} onOpen={open(o.key)} />
+          <ObservationRow key={o.key} o={o} words={v.obsSearchWords} onOpen={open(o.key)} />
         ))}
       </>
     ) : (
@@ -29,16 +29,38 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
         />
       </div>
     )
-  if (v.obsNoMatch)
+  if (v.obsNoMatch) {
+    // A search says what it looked for (CP-13). As on All Photos, Pages and
+    // Recordings: Clear all while a filter is set, else Clear search.
+    const query = v.obsFilters.q.trim()
+    const filtered = v.obsFilterChips.length > 0
     return (
       <div className="ob-empty">
         <EmptyState
-          icon={IconRegistry.action.filter}
-          title="No observations match those filters"
-          description="Clear a filter to see the others."
+          icon={filtered ? IconRegistry.action.filter : 'search'}
+          title={
+            query
+              ? `No observations match “${query}”${filtered ? ' and those filters' : ''}`
+              : 'No observations match those filters'
+          }
+          description={
+            filtered
+              ? 'Clear a filter to see the others.'
+              : 'Try fewer words, or check the spelling.'
+          }
+          action={
+            <button
+              type="button"
+              className="ob-button ob-button--tinted ob-button--small"
+              onClick={() => (filtered ? v.clearObsFilters() : v.setObsFilter('q', ''))}
+            >
+              {filtered ? 'Clear all' : 'Clear search'}
+            </button>
+          }
         />
       </div>
     )
+  }
   if (!view.sections.some((s) => s.location.items.length))
     return (
       <div className="ob-empty">
@@ -60,7 +82,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
             <h3 className="ob-group-head">{path.bare ? l.name : <LocationPath {...path} />}</h3>
           )}
           {l.items.map((o) => (
-            <ObservationRow key={o.key} o={o} onOpen={open(o.key)} />
+            <ObservationRow key={o.key} o={o} words={v.obsSearchWords} onOpen={open(o.key)} />
           ))}
         </section>
       ))}
