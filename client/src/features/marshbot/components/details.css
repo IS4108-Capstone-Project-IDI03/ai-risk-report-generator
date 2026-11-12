@@ -358,3 +358,14 @@ button.mb-place-main {
     --mb-tap: 44px;
   }
 }
+
+/* Toasts raised from the panel: bottom centre of the panel, not of the window (the panel is 400px
+   wide at the right edge). The conversation's rule that centres toasts on its column sets
+   `left` and `bottom` with !important, so this repeats the class to be the more specific. */
+.mb-panel-dialog
+  .mb-details-toaster.mb-details-toaster.mb-details-toaster[data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  left: auto !important;
+  right: min(200px, 50%) !important;
+  bottom: 16px !important;
+  transform: translateX(50%) !important;
+}

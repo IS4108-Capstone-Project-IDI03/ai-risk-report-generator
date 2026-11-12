@@ -2978,7 +2978,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : null,
       // A site corrected from the Overview: the work list reads it again, and
       // the header takes its name.
-      siteSaved: async (message: string, undo?: { label: string; onClick: () => void }) => {
+      // `toast` options send it to a toaster of its own (the Details panel's, with an Undo).
+      siteSaved: async (
+        message: string,
+        options?: { undo?: { label: string; onClick: () => void }; toasterId?: string },
+      ) => {
         const list = await reloadRows()
         const now = list?.find((a) => a.reference === s.captureTarget.reference)
         if (now)
@@ -2986,14 +2990,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...previous,
             captureTarget: { ...previous.captureTarget, site: now.site.name },
           }))
-        // A toast with an Undo (a removed pin) goes through the design system's own toast.
-        if (undo) sonner.success(message, { action: undo })
+        if (options) sonner.success(message, { action: options.undo, toasterId: options.toasterId })
         else toast(message)
       },
       // The work list reloads only on the dashboard, so reload it here.
-      detailsSaved: async (message: string) => {
+      detailsSaved: async (message: string, options?: { toasterId?: string }) => {
         await reloadRows()
-        toast(message)
+        if (options) sonner.success(message, { toasterId: options.toasterId })
+        else toast(message)
       },
       // Each visit to capture starts by asking where, until a location is chosen.
       goField: () =>
