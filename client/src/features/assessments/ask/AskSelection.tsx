@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system'
 import type { CommentAnchor } from '../comments/api'
 import { passageBlocks, selectionOffsets } from './draftSelection'
@@ -47,23 +47,24 @@ export function AskSelection({
     asked.current = onAsk
   })
 
-  // What the selection is now, if it is in the draft's text.
-  const read = useCallback((): Omit<Offer, 'pressed'> | null => {
-    const box = host.current
-    const selection = window.getSelection()
-    if (!box || !selection || selection.rangeCount === 0 || selection.isCollapsed) return null
-    const range = selection.getRangeAt(0)
-    if (!box.contains(range.commonAncestorContainer)) return null
-    const offsets = selectionOffsets(box, range, text)
-    if (!offsets) return null
-    const target = passageIn(text, offsets.start, offsets.end, label)
-    const at = range.getBoundingClientRect()
-    const frame = box.getBoundingClientRect()
-    const left = Math.max(0, Math.min(at.left - frame.left, frame.width - 168))
-    return { target, top: at.bottom - frame.top + 6, left }
-  }, [host, text, label])
-
+  // The selection, read on each change and on the shortcut. Set up again only
+  // when the section's text changes.
   useEffect(() => {
+    // What the selection is now, if it is in the draft's text.
+    const read = (): Omit<Offer, 'pressed'> | null => {
+      const box = host.current
+      const selection = window.getSelection()
+      if (!box || !selection || selection.rangeCount === 0 || selection.isCollapsed) return null
+      const range = selection.getRangeAt(0)
+      if (!box.contains(range.commonAncestorContainer)) return null
+      const offsets = selectionOffsets(box, range, text)
+      if (!offsets) return null
+      const target = passageIn(text, offsets.start, offsets.end, label)
+      const at = range.getBoundingClientRect()
+      const bounds = box.getBoundingClientRect()
+      const left = Math.max(0, Math.min(at.left - bounds.left, bounds.width - 168))
+      return { target, top: at.bottom - bounds.top + 6, left }
+    }
     let frame = 0
     const changed = () => {
       cancelAnimationFrame(frame)
@@ -91,7 +92,7 @@ export function AskSelection({
       document.removeEventListener('selectionchange', changed)
       window.removeEventListener('keydown', press)
     }
-  }, [read])
+  }, [host, text, label])
 
   // A passage linked back to from the Ask tab: marked in the draft and
   // scrolled to, once each time it is chosen.
