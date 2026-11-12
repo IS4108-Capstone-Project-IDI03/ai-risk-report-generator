@@ -28,8 +28,16 @@ export type Passage = {
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
-  boxes: { page: number; l: number; t: number; r: number; b: number }[]
+  boxes: PageBox[]
+  /** The part of the original page a table, formula or picture was read from (KB-02); null or
+   * absent for plain text and an attached PDF's page. */
+  region?: { kind: 'table' | 'formula' | 'picture'; boxes: PageBox[] } | null
+  /** The text holds a model's description of a picture, not the document's words (IN-13). */
+  generated?: boolean
 }
+
+/** A rectangle on a PDF page, in points from the page's bottom-left corner. */
+export type PageBox = { page: number; l: number; t: number; r: number; b: number }
 
 /** Returns the full text and page boxes of the passage a citation points to. */
 export async function fetchPassage(id: string, signal?: AbortSignal): Promise<Passage> {

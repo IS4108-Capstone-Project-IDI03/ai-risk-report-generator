@@ -1,0 +1,7 @@
+/* A formula in a cited passage's text (KB-02, PassageBody.tsx): closer to the lines around it
+   than KaTeX's 1em, and scrolled sideways rather than widening a narrow panel. */
+.katex-display {
+  margin: var(--space-3) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

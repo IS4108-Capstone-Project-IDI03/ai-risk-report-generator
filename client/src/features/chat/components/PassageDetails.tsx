@@ -1,13 +1,21 @@
 // The source panel's Passage tab (CB-02 AC1, AC3, AC4; CB-01 AC2, AC14): the document, its
 // edition and page, a newer edition if there is one, whether the quoted words were found, and
 // the passage with them highlighted. Jesper (18 Oct): only these, in this order.
-// Used by CitationPanel. The highlight comes from PassageText.
-import type { ReactNode } from 'react'
+// Used by CitationPanel. Above the text, the part of the original page a table, formula or
+// picture was read from (KB-02); the text, its formulas and highlight come from PassageBody.
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Badge, Callout, Icon, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
+import { PassageBody } from '../../sources/PassageBody'
+import type { Passage } from '../api'
 import type { SelectedCitation } from './citationSelection'
 import type { DocSummary } from './documents'
-import { PassageText } from './PassageText'
+import { PdfErrorBoundary } from './PdfErrorBoundary'
+
+// pdf.js loads only when a cited passage has a region to show.
+const SourceRegion = lazy(() =>
+  import('../../sources/SourceRegion').then((m) => ({ default: m.SourceRegion })),
+)
 
 type Props = {
   number: number
@@ -22,11 +30,16 @@ type Props = {
   status: ReactNode
   /** Names the source when it is not a knowledge-base document (an attached PDF, CB-09). */
   title?: string
+  /** The part of the original page the passage was read from, if it records one (KB-02). */
+  region?: Passage['region']
+  /** The passage holds a model's description of a picture (IN-13). */
+  generated?: boolean
 }
 
 /** The citation's details above its passage, the quoted words highlighted. */
 export function PassageDetails(props: Props) {
   const { number, doc, withdrawn, range, state, quote, passageText, status, title } = props
+  const { region, generated } = props
   const many = Boolean(range?.includes('–'))
   const where = range ? `${many ? 'pages' : 'page'} ${range}` : 'the passage'
 
@@ -82,7 +95,22 @@ export function PassageDetails(props: Props) {
           “{quote}” Check the source before relying on this statement.
         </Callout>
       )}
-      {status ?? <PassageText text={passageText ?? ''} quote={quote} />}
+      {!status && region && doc && (
+        // A region that can't be drawn leaves only the text, with no note (KB-02 AC4).
+        <PdfErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <SourceRegion fileUrl={doc.fileUrl} kind={region.kind} boxes={region.boxes} />
+          </Suspense>
+        </PdfErrorBoundary>
+      )}
+      {/* KB-02 AC6: the description is shown, as what the answer read, but never as the
+          document's words; a quote of it is never found (rag-service quotable_text). */}
+      {!status && generated && (
+        <p className="rv-viewer-note">
+          The picture's description was written by AI, not printed in the document.
+        </p>
+      )}
+      {status ?? <PassageBody text={passageText ?? ''} quote={quote} />}
     </div>
   )
 }

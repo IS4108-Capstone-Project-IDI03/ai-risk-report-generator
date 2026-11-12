@@ -3,7 +3,8 @@
 // missing a feature it needs) would unmount the whole app and leave a blank page.
 import { Component, type ReactNode } from 'react'
 
-type Props = { children: ReactNode }
+// `fallback` replaces the note, e.g. null where the crash should leave nothing behind (KB-02).
+type Props = { children: ReactNode; fallback?: ReactNode }
 
 /** The PDF tab's content, or a pointer to the original PDF if it crashed. */
 export class PdfErrorBoundary extends Component<Props, { failed: boolean }> {
@@ -15,6 +16,7 @@ export class PdfErrorBoundary extends Component<Props, { failed: boolean }> {
 
   render() {
     if (!this.state.failed) return this.props.children
+    if ('fallback' in this.props) return this.props.fallback
     return (
       <p className="rv-viewer-note" role="alert">
         The PDF couldn't be shown in this browser. The Passage tab still shows the quoted words.

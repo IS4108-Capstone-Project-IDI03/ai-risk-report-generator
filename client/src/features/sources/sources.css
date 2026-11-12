@@ -1,0 +1,28 @@
+/* The part of the original page a cited passage was read from (KB-02, SourceRegion.tsx).
+   Each frame has its box's shape; the page inside is shifted and scaled (inline styles) so only
+   the box shows. */
+.src-regions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.src-region {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  /* Paper, in either theme: the region is a picture of the printed page. */
+  background: #fff;
+}
+.src-region-page {
+  position: absolute;
+  line-height: 0;
+}
+/* react-pdf sizes the canvas in pixels; the frame scales it to the panel. */
+.src-region-page canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}
