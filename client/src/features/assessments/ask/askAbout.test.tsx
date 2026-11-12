@@ -198,6 +198,11 @@ function open() {
 }
 const inspector = () => screen.getByRole('complementary', { name: 'Source panel' })
 const askTab = () => within(inspector()).getByRole('tabpanel', { name: 'Ask' })
+// Opens the Ask tab, once the workspace has loaded.
+async function openAskTab() {
+  const panel = await screen.findByRole('complementary', { name: 'Source panel' })
+  fireEvent.click(await within(panel).findByRole('tab', { name: /^Ask/ }))
+}
 
 // Selects words of the draft as a reader does, in the text the draft shows.
 async function selectWords(words: string) {
@@ -291,8 +296,12 @@ describe('Ask about this in the draft (AC1, AC2)', () => {
     const button = await screen.findByRole('button', { name: 'Ask about this' })
     expect(button).toHaveAttribute('aria-disabled', 'true')
     fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true, altKey: true })
+    // The reason box of the greyed-out button holds the same words for screen readers;
+    // the shortcut adds them under the selection, as a status.
     expect(
-      await screen.findByText(/^Can't ask here\. Select some of the text to ask about\./),
+      await screen.findByText(/^Can't ask here\. Select some of the text to ask about\./, {
+        selector: '.rv-ask-hint',
+      }),
     ).toHaveAttribute('role', 'status')
   })
 })
@@ -301,7 +310,7 @@ describe('a question about a passage, later (AC3, AC4)', () => {
   it('links back to its passage in the draft and marks it there', async () => {
     gateway({ earlier: [ASKED] })
     open()
-    fireEvent.click(await within(inspector()).findByRole('tab', { name: /^Ask/ }))
+    await openAskTab()
     const quoted = await within(askTab()).findByRole('figure', { name: '9. Fire Protection' })
     fireEvent.click(within(quoted).getByRole('button', { name: 'Go to the passage' }))
 
@@ -324,7 +333,7 @@ describe('a question about a passage, later (AC3, AC4)', () => {
       ],
     })
     open()
-    fireEvent.click(await within(inspector()).findByRole('tab', { name: /^Ask/ }))
+    await openAskTab()
     const quoted = await within(askTab()).findByRole('figure', { name: '9. Fire Protection' })
     expect(within(quoted).getByText('Text deleted')).toBeInTheDocument()
     expect(within(quoted).queryByRole('button', { name: 'Go to the passage' })).toBeNull()
@@ -342,7 +351,7 @@ describe('a question about a passage, later (AC3, AC4)', () => {
     }
     gateway({ earlier: [{ ...ASKED, statements: [differs], confidence: 'medium' }] })
     open()
-    fireEvent.click(await within(inspector()).findByRole('tab', { name: /^Ask/ }))
+    await openAskTab()
     const answer = await within(askTab()).findByRole('article', {
       name: 'Answer to: Where does this come from?',
     })
