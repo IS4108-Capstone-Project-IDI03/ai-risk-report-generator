@@ -28,6 +28,7 @@ import {
   type Stamp,
 } from './api'
 import { formatDay as formatDate, formatDayYearTime, STATUS_LABEL } from './format'
+import { NO_SPEECH } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
@@ -382,7 +383,7 @@ function toEntry(o: SavedObservation): Observation {
       // The engineer's correction stands in for what Whisper wrote (CP-08).
       text:
         status === 'transcribed'
-          ? (correction?.text ?? transcript) || '(No speech was detected.)'
+          ? (correction?.text ?? transcript) || NO_SPEECH
           : TRANSCRIPTION_TEXT[status],
       original: correction ? transcript : null,
       correction: correction && { at: correction.at, by: correction.by },
@@ -3187,9 +3188,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         sc === 'field' || s.tab === 'photos' || s.tab === 'scans' || s.tab === 'recordings'
           ? 'observations'
           : s.tab,
-      goPhotos: () => setState({ tab: 'photos' }),
-      goScans: () => setState({ tab: 'scans' }),
-      goRecordings: () => setState({ tab: 'recordings' }),
+      // Each opens with its search empty (CP-13).
+      goPhotos: () => setState({ tab: 'photos', evidenceQuery: '' }),
+      goScans: () => setState({ tab: 'scans', evidenceQuery: '' }),
+      goRecordings: () => setState({ tab: 'recordings', evidenceQuery: '' }),
+      evidenceQuery: s.evidenceQuery ?? '',
+      setEvidenceQuery: (query: string) => setState({ evidenceQuery: query }),
       goObservations: () => setState({ tab: 'observations' }),
       photoCollection,
       scanCollection,

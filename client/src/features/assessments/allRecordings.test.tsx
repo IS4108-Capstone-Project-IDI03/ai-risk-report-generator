@@ -438,3 +438,114 @@ describe('All Recordings (CP-12)', () => {
     expect(screen.getByRole('button', { name: /Typed note only\./ })).toBeInTheDocument()
   })
 })
+
+// Searching All Recordings (CP-13): by transcript as corrected, name or the
+// observation's text, every word in any order.
+describe('Searching All Recordings (CP-13)', () => {
+  const searchBox = () => screen.getByRole('searchbox', { name: 'Search recordings' })
+  const search = (text: string) => fireEvent.change(searchBox(), { target: { value: text } })
+  const marks = (el: HTMLElement) =>
+    [...el.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)
+  const SILENT_OBS = observation({
+    id: 'o5',
+    note: 'Silent clip.',
+    location: PUMP_HOUSE,
+    recordings: [recording('r5', 'Recording 5', { transcript: '' })],
+  })
+  const FORKLIFT_OBS = observation({
+    id: 'o6',
+    note: 'Sprinkler riser checked.',
+    recordings: [recording('r6', 'Recording 6', { transcript: 'Forklift parked in the aisle.' })],
+  })
+
+  it('lists only the recordings holding every word, and marks them in the open transcript', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS, RISER_OBS, SILENT_OBS, FORKLIFT_OBS]
+    const view = await openRecordings()
+    expect(screen.getByText('6 recordings across 2 locations')).toBeInTheDocument()
+
+    // In the transcript, in any order and any case: its text opens, marked.
+    search('OPEN v-12')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText('2 of 6 recordings')).toBeInTheDocument()
+    const first = rowOf(view, 'Recording 1')
+    expect(
+      within(first).getByRole('button', { name: 'Transcript of Recording 1' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(marks(first)).toEqual(['V-12', 'open'])
+
+    // One word in the transcript, the other in the observation's text.
+    search('forklift sprinkler')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(1)
+    const forklift = rowOf(view, 'Recording 6')
+    expect(marks(forklift)).toEqual(['Sprinkler', 'Forklift'])
+
+    // One still transcribing, or failed, is found by its observation's text or name.
+    search('permit')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(1)
+    expect(rowOf(view, 'Recording 3')).toHaveTextContent('Transcribing')
+    search('recording 4')
+    const [failed] = within(view).getAllByRole('listitem')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(1)
+    expect(failed).toHaveTextContent('Recording 4')
+    expect(failed).toHaveTextContent('Couldn’t transcribe')
+    // Its name's words are marked, each on its own.
+    expect(marks(failed)).toEqual(['Recording', '4'])
+  })
+
+  it('says when none match, never finding words in a recording with no speech', async () => {
+    listed = [VALVE_OBS, SILENT_OBS]
+    const view = await openRecordings()
+
+    search('speech')
+
+    expect(screen.getByText('No recordings match “speech”')).toBeInTheDocument()
+    expect(screen.getByText('0 of 3 recordings')).toBeInTheDocument()
+    expect(within(view).queryAllByRole('listitem')).toHaveLength(0)
+    click('Clear search')
+    expect(searchBox()).toHaveValue('')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByText('3 recordings across 2 locations')).toBeInTheDocument()
+  })
+
+  it('keeps the search through an observation and Back, and starts empty when opened again', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS]
+    let view = await openRecordings()
+    search('v-12')
+    expect(screen.getByText('2 of 3 recordings')).toBeInTheDocument()
+
+    fireEvent.click(within(rowOf(view, 'Recording 1')).getByRole('button', { name: VALVE }))
+    click('Back to All Recordings')
+
+    view = screen.getByRole('group', { name: 'Recordings' })
+    expect(searchBox()).toHaveValue('v-12')
+    expect(screen.getByText('2 of 3 recordings')).toBeInTheDocument()
+    // The transcripts it found are open again.
+    expect(marks(rowOf(view, 'Recording 1'))).toEqual(['V-12'])
+    expect(marks(rowOf(view, 'Recording 2'))).toEqual(['V-12'])
+
+    click('Back to Observations')
+    click('All recordings')
+    expect(searchBox()).toHaveValue('')
+    expect(screen.getByText('3 recordings across 2 locations')).toBeInTheDocument()
+  })
+
+  it('stops the recording playing when a search leaves it out', async () => {
+    listed = [VALVE_OBS, PERMIT_OBS]
+    const view = await openRecordings()
+    click('Play Recording 1')
+    await loaded(75)
+
+    // Still listed, it plays on.
+    search('valve')
+    expect(player().paused).toBe(false)
+    expect(
+      within(view).getByRole('slider', { name: 'Position in Recording 1' }),
+    ).toBeInTheDocument()
+
+    search('permit')
+    expect(player().paused).toBe(true)
+    expect(within(view).queryByRole('slider')).not.toBeInTheDocument()
+    search('')
+    expect(within(view).getByRole('button', { name: 'Play Recording 1' })).toBeInTheDocument()
+  })
+})

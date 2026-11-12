@@ -307,6 +307,10 @@ export type WorkflowState = {
   obsOpen?: string | null
   // Where an open observation came from when not the list: Back returns there.
   obsFrom?: 'photos' | 'scans' | 'recordings' | null
+  // The search on All Photos, All Handwritten Pages or All Recordings
+  // (CP-13): kept while an observation opened from it is open, so Back finds
+  // it again, and cleared each time one of them is opened.
+  evidenceQuery?: string
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).

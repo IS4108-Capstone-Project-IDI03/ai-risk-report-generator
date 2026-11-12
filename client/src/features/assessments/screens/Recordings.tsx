@@ -1,8 +1,9 @@
 // All Recordings (CP-12): every recording kept on this assessment's
 // observations except a deleted observation's, as All Photos and All
 // Handwritten Pages list theirs, each playable in place with its transcript
-// to open. A transcript is corrected on its observation's page, which the
-// observation's text opens. Opened from the location navigator; rendered by AssessmentApp.
+// to open, and searched by it (CP-13). A transcript is corrected on its
+// observation's page, which the observation's text opens. Opened from the
+// location navigator; rendered by AssessmentApp.
 import { EmptyState } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { plural } from '../reviewDisplay'
@@ -25,6 +26,12 @@ export function Recordings({ v }: { v: AssessmentWorkflow }) {
         <RecordingTable
           rows={recordings}
           count={`${plural(recordings.length, 'recording')} across ${plural(new Set(recordings.map((r) => r.where)).size, 'location')}`}
+          search={{
+            query: v.evidenceQuery,
+            onQuery: v.setEvidenceQuery,
+            noun: 'recording',
+            label: 'Search recordings',
+          }}
         />
       )}
     </div>

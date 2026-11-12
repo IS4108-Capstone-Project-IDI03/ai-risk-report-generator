@@ -1566,3 +1566,44 @@ describe('observation note', () => {
     expect(box).toHaveValue('New')
   })
 })
+
+describe('Searching All Photos (CP-13)', () => {
+  it('finds a photo by its description only where it describes that photo', async () => {
+    const LATER = {
+      ...PHOTO,
+      id: 'p2',
+      name: 'IMG_0470.jpg',
+      url: '/api/observations/o6/photos/p2/image',
+    }
+    const DOCK = 'A hose reel sits under the stairs at the loading dock.'
+    listed = [
+      // Described before IMG_0470.jpg was added.
+      { ...INTERPRETED, photos: [...INTERPRETED.photos, LATER] },
+      photographed('o8', 'Loading dock.', {
+        photos: described({ description: DOCK, outOfDate: true }),
+      }),
+    ]
+    await openObservations()
+    fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
+    const view = screen.getByRole('group', { name: 'Site photographs' })
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search photos' }), {
+      target: { value: 'under SITS' },
+    })
+
+    // Not IMG_0470.jpg: the description says nothing of it. (The other two
+    // of five are the sample assessment's own.)
+    expect(screen.getByText('2 of 5 photos')).toBeInTheDocument()
+    const rows = within(view).getAllByRole('listitem')
+    expect(rows.map((r) => r.textContent?.includes('IMG_0470.jpg'))).toEqual([false, false])
+    // A description since out of date is still found, and says so.
+    const dock = rows.find((r) => r.textContent?.includes('Loading dock.'))!
+    expect(dock).toHaveTextContent('Its evidence changed since.')
+    // Each opens its description, the words marked.
+    for (const row of rows)
+      expect([...row.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)).toEqual([
+        'sits',
+        'under',
+      ])
+  })
+})

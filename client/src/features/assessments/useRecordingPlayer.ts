@@ -114,6 +114,14 @@ export function useRecordingPlayer() {
     setNow((n) => n && { ...n, at })
   }
 
+  // Stops whatever plays or is paused, and puts its bar away: a search left
+  // its row out (CP-13). One still loading gives way too.
+  function stop() {
+    turn.current++
+    audio.current?.pause()
+    finish()
+  }
+
   // 1×, 1.5×, 2×, then back to 1×.
   function nextSpeed() {
     const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]
@@ -151,5 +159,5 @@ export function useRecordingPlayer() {
     },
   } as const
 
-  return { now, speed, toggle, seek, nextSpeed, audioProps }
+  return { now, speed, toggle, seek, stop, nextSpeed, audioProps }
 }

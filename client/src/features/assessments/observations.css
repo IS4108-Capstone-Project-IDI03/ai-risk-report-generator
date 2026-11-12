@@ -1500,3 +1500,32 @@ span.ob-pt-thumb {
     height: 44px;
   }
 }
+
+/* ---- Search (CP-13): the box in a view's or the list's toolbar, and the
+   words it found, marked on the blue tint used for what is selected, so a
+   match never reads as amber's "not sure" or a comment. ---- */
+.ob-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+.ob-hit {
+  background: var(--ink-100);
+  color: inherit;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--ink-100);
+}
+/* "Matched in Recording 2": under an observation's text in the list. */
+.ob-row-match {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+@media (forced-colors: active) {
+  .ob-hit {
+    background: Mark;
+    color: MarkText;
+  }
+}

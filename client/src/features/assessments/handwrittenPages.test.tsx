@@ -852,3 +852,59 @@ describe('The Scans view (CP-19)', () => {
     expect(screen.getByRole('button', { name: /Typed note only\./ })).toBeInTheDocument()
   })
 })
+
+describe('Searching the Scans view (CP-13)', () => {
+  it('finds a page by its text as shown, keeping an unsure word’s mark beside the search’s', async () => {
+    listed = [
+      observation({
+        note: 'Pump room readings.',
+        pages: [
+          page('pg1', { status: 'transcribed', transcript: 'FHR 7 bar', uncertain: [[4, 5]] }),
+          {
+            ...page('pg4', {
+              status: 'transcribed',
+              transcript: 'Hydrnt',
+              correction: { text: 'Hydrant H2 seized.', at: AT, by: BY },
+            }),
+            name: 'Page 4',
+          },
+          { ...page('pg3'), name: 'Page 3' },
+        ],
+      }),
+    ]
+    await openObservations()
+    await screen.findByRole('button', { name: /Pump room readings\./ })
+    fireEvent.click(screen.getByRole('button', { name: 'All handwritten pages' }))
+    const view = screen.getByRole('group', { name: 'Handwritten pages' })
+    const search = (text: string) =>
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search pages' }), {
+        target: { value: text },
+      })
+
+    // The model's reading: the found word sits inside its unsure mark, and
+    // the page still says how many words it was unsure of.
+    search('7 BAR')
+    expect(screen.getByText('1 of 3 pages')).toBeInTheDocument()
+    const [first] = within(view).getAllByRole('listitem')
+    expect(first).toHaveTextContent('FHR 7 (unsure) bar')
+    expect(first).toHaveTextContent('1 word unsure. Check it against the page.')
+    const unsure = first.querySelector('mark:not(.ob-hit)')!
+    expect(unsure.querySelector('mark.ob-hit')).toHaveTextContent('7')
+    expect([...first.querySelectorAll('mark.ob-hit')].map((m) => m.textContent)).toEqual([
+      '7',
+      'bar',
+    ])
+
+    // A corrected page is found by the engineer's text, not what the model read.
+    search('hydrnt')
+    expect(screen.getByText('No pages match “hydrnt”')).toBeInTheDocument()
+    search('seized')
+    const [corrected] = within(view).getAllByRole('listitem')
+    expect(corrected).toHaveTextContent('Page 4')
+    expect(corrected.querySelector('mark.ob-hit')).toHaveTextContent('seized')
+
+    // One still transcribing is found by its observation's text.
+    search('pump')
+    expect(within(view).getAllByRole('listitem')).toHaveLength(3)
+  })
+})

@@ -2,11 +2,14 @@
 // observations except a deleted observation's, as a table with a thumbnail per
 // row. Each photo's line opens the AI's description of its observation's
 // photos, once written, saying which of them it describes (CP-12's line, no
-// points of its own). The report's photo appendix (EX-01) draws on the same
-// photos. Opened from the location navigator; rendered by AssessmentApp.
+// points of its own). A search finds a photo by its description, only where
+// it describes that photo, its name or its observation's text (CP-13). The
+// report's photo appendix (EX-01) draws on the same photos. Opened from the
+// location navigator; rendered by AssessmentApp.
 import { useState } from 'react'
 import { EmptyState, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { HitText } from '../components/HitText'
 import { plural } from '../reviewDisplay'
 import { PhotoTable } from '../components/PhotoTable'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
@@ -31,15 +34,18 @@ function covers(d: Described) {
   return d.outOfDate ? which + ' Its evidence changed since.' : which
 }
 
-// The AI's description, marked as the AI's, as on the observation's page.
-function description(d: Described) {
+// The AI's description, marked as the AI's, as on the observation's page,
+// with a search's words marked where it describes this photo.
+function description(d: Described, words: readonly string[]) {
   return (
     <>
       <p className="ob-pt-note">
         <Icon name="sparkles" size={13} color="var(--ai-fg)" />
         {covers(d)}
       </p>
-      <p className="ob-pt-ai">{d.text}</p>
+      <p className="ob-pt-ai">
+        <HitText text={d.text} words={d.thisOne ? words : []} />
+      </p>
     </>
   )
 }
@@ -64,11 +70,19 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
             item: {
               detail: p.description && {
                 label: 'Description',
-                body: description(p.description),
+                body: (words: readonly string[]) => description(p.description!, words),
               },
+              // A description written before this photo was added says nothing of it.
+              searchText: p.description?.thisOne ? p.description.text : null,
             },
           }))}
           count={`${plural(photos.length, 'photo')} across ${plural(new Set(photos.map((p) => p.where)).size, 'location')}`}
+          search={{
+            query: v.evidenceQuery,
+            onQuery: v.setEvidenceQuery,
+            noun: 'photo',
+            label: 'Search photos',
+          }}
           onOpen={(r) => setViewing({ name: r.name, url: r.url, context: r.where })}
         />
       )}

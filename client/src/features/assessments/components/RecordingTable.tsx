@@ -4,13 +4,18 @@
 // transcript, which opens by itself when the recording plays. The one playing
 // or paused also shows a seek bar, its time and the speed. Rendered by
 // screens/Recordings.tsx.
+//
+// A search (CP-13) finds a recording by its transcript as corrected, its name
+// or its observation's text; one that plays and is searched away stops.
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { Icon } from '../../../design-system'
 import { minutes } from '../../site-walk/walkItems'
 import type { TranscriptionStatus } from '../api'
+import { NO_SPEECH, rowMatches, searchWords, textHits } from '../evidenceSearch'
 import { useRecordingPlayer, type Clip, type Playing } from '../useRecordingPlayer'
 import { useOpenRows } from '../useOpenRows'
-import { PhotoTable, type PhotoRow } from './PhotoTable'
+import { HitText } from './HitText'
+import { PhotoTable, type PhotoRow, type RowSearch } from './PhotoTable'
 
 export type RecordingRow = Omit<PhotoRow, 'item' | 'url'> & {
   audioUrl: string
@@ -25,26 +30,57 @@ export type RecordingRow = Omit<PhotoRow, 'item' | 'url'> & {
 // The arrow keys skip five seconds, as most players do; Home and End are the range's own.
 const SKIP = 5
 
-export function RecordingTable({ rows, count }: { rows: RecordingRow[]; count: string }) {
+export function RecordingTable({
+  rows,
+  count,
+  search,
+}: {
+  rows: RecordingRow[]
+  count: string
+  search: RowSearch
+}) {
   const player = useRecordingPlayer()
-  const openRows = useOpenRows()
+  const tableRows = rows.map((r) => {
+    const transcript = r.transcript
+    return {
+      ...r,
+      item: {
+        status: r.status,
+        retry: r.retry,
+        detail:
+          transcript === null
+            ? null
+            : {
+                label: 'Transcript',
+                body: (words: readonly string[]) => (
+                  <p className="ob-transcript">
+                    <HitText text={transcript} words={words} />
+                  </p>
+                ),
+              },
+        // Nothing was said in one Whisper heard nothing in.
+        searchText: transcript === NO_SPEECH ? null : transcript,
+      },
+    }
+  })
+  // Back with a search, the transcripts it found open again.
+  const openRows = useOpenRows(() => textHits(tableRows, searchWords(search.query)))
   return (
     <>
       <PhotoTable
         label="Recordings"
         count={count}
         openRows={openRows}
-        rows={rows.map((r) => ({
-          ...r,
-          item: {
-            status: r.status,
-            retry: r.retry,
-            detail:
-              r.transcript === null
-                ? null
-                : { label: 'Transcript', body: <p className="ob-transcript">{r.transcript}</p> },
+        rows={tableRows}
+        search={{
+          ...search,
+          onQuery: (query) => {
+            const words = searchWords(query)
+            const on = player.now && tableRows.find((r) => r.key === player.now!.key)
+            if (on && !rowMatches(on, words)) player.stop()
+            search.onQuery(query)
           },
-        }))}
+        }}
         lead={(r) => {
           const playing = player.now?.key === r.key && player.now.playing
           return (
