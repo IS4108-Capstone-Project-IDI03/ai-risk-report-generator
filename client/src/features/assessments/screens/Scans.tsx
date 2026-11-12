@@ -1,8 +1,8 @@
 // All Handwritten Pages (CP-19, CP-22): every page saved with this assessment's
 // observations except a deleted observation's, as a table with a thumbnail per
 // row. Each page's line says where its transcription stands, with Retry, and
-// opens its transcript as the observation's page shows it (CP-12's line, no
-// points of its own); correcting it is done there, which the observation's
+// opens its transcript as the observation's page shows it (CP-12's line,
+// counted in CP-13); correcting it is done there, which the observation's
 // text opens. A search finds a page by its text as shown (the correction, or
 // else the model's reading), its name or its observation's text, and filters
 // them by location, category, severity and status (CP-13).

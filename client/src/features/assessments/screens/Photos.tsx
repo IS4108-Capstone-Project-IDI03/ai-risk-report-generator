@@ -1,8 +1,8 @@
 // All Photos (CP-04 AC3, CP-22): every photo saved with this assessment's
 // observations except a deleted observation's, as a table with a thumbnail per
 // row. Each photo's line opens the AI's description of its observation's
-// photos, once written, saying which of them it describes (CP-12's line, no
-// points of its own). A search finds a photo by its description, only where
+// photos, once written, saying which of them it describes (CP-12's line,
+// counted in CP-13). A search finds a photo by its description, only where
 // it describes that photo, its name or its observation's text, and filters
 // them by location, category, severity and description (CP-13). The
 // report's photo appendix (EX-01) draws on the same photos. Opened from the
