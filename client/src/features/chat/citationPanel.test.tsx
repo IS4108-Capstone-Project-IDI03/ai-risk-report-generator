@@ -1,6 +1,6 @@
 // Tests for the source panel beside the conversation (CB-01 AC1, AC2, AC14): where a
 // chosen citation came from, and whether its quoted words were found there.
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,13 +40,13 @@ vi.mock('react-pdf', () => ({
     children: React.ReactNode
     options?: object
     suspense?: boolean
-    onLoadSuccess: (d: object) => void
+    onLoadSuccess?: (d: object) => void
   }) => {
     pdf.options = props.options
     pdf.suspense.push(props.suspense)
     React.useEffect(() => {
       pdf.loads++
-      props.onLoadSuccess({
+      props.onLoadSuccess?.({
         numPages: 60,
         getPage: (n: number) =>
           Promise.resolve({
@@ -67,14 +67,14 @@ vi.mock('react-pdf', () => ({
     width: number
     suspense?: boolean
     loading?: React.ReactNode
-    onLoadSuccess: (p: object) => void
+    onLoadSuccess?: (p: object) => void
   }) => {
     pdf.suspense.push(props.suspense)
     pdf.pageLoading = props.loading
     if (pdf.crash) throw new Error('getOrInsertComputed is not a function')
     // Called when a page has loaded, as react-pdf does.
     React.useEffect(() => {
-      props.onLoadSuccess({
+      props.onLoadSuccess?.({
         pageNumber: props.pageNumber,
         originalWidth: 600,
         originalHeight: 800,
@@ -308,6 +308,97 @@ describe('Passage tab', () => {
     renderPanel(cited())
     expect(await screen.findByText(/passage couldn't be loaded/)).toBeInTheDocument()
     expect(screen.getByText('FM Data Sheet 2-81')).toBeInTheDocument()
+  })
+})
+
+// KB-02: the part of the original page a table, formula or picture passage was read from.
+describe('Source region', () => {
+  const TABLE: Passage = {
+    ...PASSAGE,
+    text: 'Inside Hose > gpm: 250',
+    region: { kind: 'table', boxes: [{ page: 4, l: 60, t: 700, r: 360, b: 500 }] },
+  }
+
+  it('shows the region of the original page above the passage text', async () => {
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'gpm: 250' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    const region = await within(panel).findByRole('img', {
+      name: 'Table on page 4 of the original',
+    })
+    expect(within(region).getByTestId('pdf-page')).toHaveAttribute('data-page', '4')
+    expect(within(panel).getByTestId('pdf-document')).toHaveAttribute('data-file', '/f/d1')
+    // Above the text it was read into.
+    const text = within(panel).getByLabelText('Passage text')
+    expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("cuts the page to the region's box", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited())
+    const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
+    // 600 x 800 page; box l60 t700 r360 b500 (bottom-left origin) is 300 x 200 points.
+    expect(region.style.aspectRatio).toBe('300 / 200')
+    const page = within(region).getByTestId('pdf-page').parentElement!
+    await waitFor(() => expect(page.style.width).toBe('200%'))
+    expect(page.style.left).toBe('-20%')
+    // Its top edge is 800 - 700 = 100 points below the page's top: half the box's height.
+    expect(page.style.top).toBe('-50%')
+  })
+
+  it("says a picture's description was written by AI, under the picture", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      text: 'Figure 3\nImage description (generated, photograph): Two cylinders on a rack.',
+      generated: true,
+      region: { kind: 'picture', boxes: [{ page: 2, l: 50, t: 350, r: 250, b: 200 }] },
+    })
+    renderPanel(cited({ quote: 'Figure 3' }))
+    const picture = await screen.findByRole('img', { name: 'Picture on page 2 of the original' })
+    const note = screen.getByText(/description was written by AI/)
+    expect(picture.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows one frame per page, in page order', async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...TABLE,
+      region: {
+        kind: 'table',
+        boxes: [
+          { page: 5, l: 60, t: 780, r: 360, b: 600 },
+          { page: 4, l: 60, t: 300, r: 360, b: 100 },
+          { page: 4, l: 60, t: 500, r: 360, b: 300 },
+        ],
+      },
+    })
+    renderPanel(cited())
+    const frames = await screen.findAllByRole('img', { name: /^Table on page/ })
+    expect(frames.map((f) => f.getAttribute('aria-label'))).toEqual([
+      'Table on page 4 of the original',
+      'Table on page 5 of the original',
+    ])
+    // Page 4's two boxes as one: t500 down to b100.
+    expect(frames[0].style.aspectRatio).toBe('300 / 400')
+  })
+
+  it('shows only the text when the passage records no region', async () => {
+    renderPanel(cited())
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await waitFor(() => expect(panel).toHaveTextContent('Record the result.'))
+    expect(within(panel).queryByRole('img')).toBeNull()
+    expect(within(panel).queryByTestId('pdf-document')).toBeNull()
+  })
+
+  it('shows only the text, with no note, when the region cannot be drawn', async () => {
+    pdf.crash = true
+    vi.spyOn(console, 'error').mockImplementation(() => {}) // React logs the caught error
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'gpm: 250' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await waitFor(() => expect(panel.querySelector('mark')).toHaveTextContent('gpm: 250'))
+    await waitFor(() => expect(within(panel).queryByRole('img')).toBeNull())
+    expect(within(panel).queryByRole('alert')).toBeNull()
+    pdf.crash = false
   })
 })
 

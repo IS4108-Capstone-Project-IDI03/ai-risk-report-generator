@@ -152,6 +152,8 @@ export function CitationPanel({ selected, onClose }: Props) {
           state={state}
           quote={quote}
           passageText={ready?.text ?? null}
+          region={ready?.region}
+          generated={ready?.generated}
           status={status}
           title={attached ? (ready?.headings[0] ?? 'Attached PDF') : undefined}
         />
