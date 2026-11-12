@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { IconButton, IconRegistry, type Reason } from '../../../design-system'
+import { editorPassage } from '../ask/passage'
 import { commentTarget } from '../comments/anchor'
 import { toggleSubheading } from './commands'
 
@@ -33,20 +34,34 @@ export type CommentTools = {
   open: number
 }
 
+// Asking about the selected text (AS-02): Ask about this, and the panel with
+// the questions asked and their answers. `labelOf` heads a section as the
+// report does.
+export type AskTools = {
+  onAsk: () => void
+  onPanel: () => void
+  panelOpen: boolean
+  labelOf: (sectionId: string) => string
+}
+
 // The document editor's formatting toolbar (AC6) with undo and redo (AC7),
 // each with its keyboard shortcut in its name; then Comment and the comments
-// list (RV-03). Read only, it keeps Find, Comment and the list.
+// list (RV-03), and Ask about this and the Ask panel (AS-02). Read only, it
+// keeps Find, Comment, Ask and the lists.
 export function DocumentToolbar({
   editor,
   onFind,
   readOnly = false,
   comments,
+  ask,
 }: {
   editor: Editor
   onFind: () => void
   readOnly?: boolean
   // Offered to anyone who can comment on the report (RV-03 AC7).
   comments?: CommentTools
+  // Offered to anyone with reports:ask (AS-02).
+  ask?: AskTools
 }) {
   const state = useEditorState({
     editor,
@@ -65,6 +80,8 @@ export function DocumentToolbar({
   })
   // Why the selection can't take a comment, if it can't (AC1).
   const target = comments?.onComment ? commentTarget(editor.state.doc, state.from, state.to) : null
+  // Why it can't be asked about, if it can't (AS-02 AC1).
+  const askTarget = ask ? editorPassage(editor.state.doc, state.from, state.to, ask.labelOf) : null
   const chain = () => editor.chain().focus()
   const formatting: Tool[][] = [
     [
@@ -164,7 +181,25 @@ export function DocumentToolbar({
         },
       ]
     : []
-  const groups = [...(readOnly ? [] : formatting), find, commenting].filter((g) => g.length)
+  const asking: Tool[] = ask
+    ? [
+        {
+          name: 'Ask about this',
+          icon: IconRegistry.editor.ask,
+          keys: ['Mod', 'Alt', 'K'],
+          reason: askTarget && 'reason' in askTarget ? askTarget.reason : undefined,
+          run: ask.onAsk,
+        },
+        {
+          name: 'Ask about this assessment',
+          icon: IconRegistry.editor.askPanel,
+          keys: [],
+          active: ask.panelOpen,
+          run: ask.onPanel,
+        },
+      ]
+    : []
+  const groups = [...(readOnly ? [] : formatting), find, commenting, asking].filter((g) => g.length)
   return (
     <div role="toolbar" aria-label={readOnly ? 'Tools' : 'Formatting'} className="dm-tools">
       {groups.map((group, i) => (

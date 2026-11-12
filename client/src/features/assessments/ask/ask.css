@@ -28,6 +28,9 @@
 }
 /* The engineer's own words: plain, right-leaning, never violet. */
 .ask-question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   align-self: flex-end;
   max-width: 92%;
   margin: 0;
@@ -38,7 +41,83 @@
   font-size: var(--text-small-size);
   line-height: var(--text-small-lh);
   overflow-wrap: anywhere;
+}
+.ask-question-text {
+  margin: 0;
   white-space: pre-line;
+}
+/* A passage selected in the draft (AS-02): quoted verbatim behind a 2px rule,
+   under the section it is in, in the question and in the question box. */
+.ask-passage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+.ask-passage-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-height: 24px;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.ask-passage-from {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+}
+.ask-passage-text {
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ask-passage-text.is-folded {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.ask-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.ask-link:hover {
+  text-decoration: underline;
+}
+.ask-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.ask-tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+.ask-composer .ask-passage {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 .ask-answer {
   display: flex;
@@ -99,6 +178,21 @@
 }
 .ask-statement .rv-cite {
   margin-left: 2px;
+}
+/* Where the sources behind a passage disagree (AS-02 AC4): both figures, neither
+   chosen, so the line is marked but not coloured as a warning. */
+.ask-differs {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.ask-differs-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+  vertical-align: -2px;
 }
 @keyframes askIn {
   from {
@@ -186,4 +280,70 @@
   .ask-statement {
     animation: none;
   }
+}
+
+/* "Ask about this" by text selected in the review workspace's draft (AS-02). */
+.rv-ask-host {
+  position: relative;
+}
+.rv-ask-offer {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: min(320px, 100%);
+  animation: askIn 120ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.rv-ask-offer > :first-child {
+  box-shadow: 0 12px 32px rgb(0 15 71 / 0.16);
+}
+.rv-ask-hint {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: 0 12px 32px rgb(0 15 71 / 0.16);
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+/* A passage the Ask tab links back to: its words marked as search marks are
+   (CP-13), or, without the CSS highlight API, its blocks tinted. */
+::highlight(ask-passage) {
+  background-color: var(--ink-100);
+}
+[data-asked] {
+  border-radius: 4px;
+  background: var(--ink-50);
+}
+@supports selector(::highlight(ask-passage)) {
+  [data-asked] {
+    background: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rv-ask-offer {
+    animation: none;
+  }
+}
+
+/* Ask in the document editor (AS-02): the panel sits in the comments list's
+   place; the passage in the question box is tinted in the text, and one an
+   answer went back to is marked as search marks are. Decorations only, so
+   nothing is saved with the text. */
+.dm-ask .ask-panel {
+  padding: 0;
+}
+.dm-ask-source {
+  margin-bottom: var(--space-6);
+}
+.dm-asked {
+  border-radius: 2px;
+  background: var(--ink-100);
+}
+.dm-asked.is-pending {
+  background: var(--ink-50);
+  box-shadow: inset 0 -2px 0 var(--ink-300);
 }

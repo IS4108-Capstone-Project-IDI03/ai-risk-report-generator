@@ -1387,18 +1387,34 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 - [ ] **AS-01** — Ask a question about this assessment (risk engineer, AI and Machine Learning, 8 pts, deps: GN-01, RV-01, CP-30, EV-03, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: as a risk engineer reviewing a draft, ask questions about the assessment and get cited answers from its observations, selected standards and past reports, so that I don't have to search the evidence by hand.
+  Goal: as a risk engineer reviewing a draft, ask questions about the assessment and get answers that cite its evidence, so that I don't have to search the evidence by hand.
 
-  1. An Ask tab sits in the review workspace's right inspector, beside the evidence panel. It stacks below 1080px and opens as a bottom sheet (`ds-dialog-sheet`) below 760px. It is keyboard-operable, with accessible names.
-  2. Answers stream in violet AI chrome. Every claim cites an observation, a standard clause or a past-report page through `EvidenceCitation`. Selecting a citation highlights that source in the evidence panel.
-  3. Retrieval is limited to three sources: the assessment's observations; the standards selected on the assessment, via a Chroma `doc_id` filter built from `knowledge_documents`; past reports matching the assessment's jurisdiction and facility type (`all` matches any).
-  4. When nothing in scope supports an answer, the response states what evidence is missing. It never gives an uncited answer.
-  5. Answers follow the content rules: the system is "it", never "I"; it states facts and never recommends; confidence is High/Medium/Low, never a percentage; no emoji.
-  6. Each answer follows the existing pipeline rules: text sent to Cohere and the LLM is masked as in draft generation; the provider comes from `LLM_PROVIDER`; the answer runs through the S4 orchestrator (retrieve → assemble → generate → guardrail) and leaves one trace for the EV harness.
-  7. A new `reports:ask` permission is given to both roles. A request without a session gets 401; one without the permission gets 403. Without the gateway, the tab explains that it is unavailable.
-  8. A failure states its cause and time, then the next step, e.g. "Answer stopped at 14:02: the model provider did not respond. Ask again." Each question is one streamed request with no polling, so the F-07 idle logout still applies.
+  1. Given I open an assessment's Review tab, when I look at the panel on the right, then it has an Ask tab beside Evidence that I can use with the keyboard alone. In a narrower window the panel sits below the draft, and on a phone Ask opens as a sheet from the bottom.
+  2. Given I ask a question, when the answer arrives, then it appears sentence by sentence in a violet box, every sentence cites an observation, a standard or a past report, and selecting a citation opens that source on the Evidence tab.
+  3. Given I ask a question, when it is answered, then the answer draws only on this assessment's observations, the standards on its checklist (or, before there is one, the standards that apply to the site), and past reports on sites of the same country and facility type.
+  4. Given nothing in that evidence answers my question, when the answer arrives, then it says which evidence is missing and makes no statement without a citation.
+  5. Given any answer, when I read it, then it calls the system "it", never "I"; it states facts and recommends nothing; it shows confidence as High, Medium or Low, never as a percentage; and it has no emoji.
+  6. Given I ask a question, when it is answered, then client names are hidden from the AI services as they are in drafting, the answer uses the same AI provider as drafting, and the question is saved with a record of how it was answered for the evaluation harness.
+  7. Given I am the assessment's engineer or a knowledge admin, when I open its Review tab, then I can ask. A request with no session, or from someone without access, is refused, and where the gateway can't be reached the tab says Ask is unavailable.
+  8. Given an answer fails, when it stops, then it says why, when and what to do next, e.g. "Answer stopped at 14:02: the model provider did not respond. Ask again." Asking never keeps me signed in past the 15-minute idle sign-out.
+
+  Technical terms (the first wording, 9 Nov): AC1 stacks below 1080px and uses `ds-dialog-sheet` below 760px. AC2's citations are `EvidenceCitation`s. AC3 filters the standards through `knowledge_documents` and searches them by Chroma `doc_id`; a past report marked `all` matches any country or facility type. AC6 masks the text sent to Cohere and the model as draft generation does, takes the provider from `LLM_PROVIDER`, runs the S4 orchestrator (retrieve → assemble → generate → guardrail) and leaves one trace. AC7 adds a `reports:ask` permission for both roles: no session gets 401, no permission gets 403. AC8 makes each question one streamed request with no polling, so F-07's idle sign-out still applies. AC wording simplified 12 Nov 2026; the meaning is unchanged.
 
   Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
+  </details>
+
+- [ ] **AS-02** — Ask about a selected passage (risk engineer, Software, 3 pts, deps: AS-01, RV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, select text in the draft and ask about it, so that the answer concerns that passage and the sources behind it.
+
+  1. Selecting draft text offers "Ask about this", both in the editor and through a keyboard shortcut that does not clash with Ctrl+Alt+M.
+  2. The question sends the section ID, the selected passage, its citations and the section's findings. The panel quotes the passage verbatim behind a 2px left rule.
+  3. The message stores an anchor in RV-03's format (`anchor.ts`) and links back to the passage. If the passage is later deleted, the message shows "Text deleted".
+  4. Where the sources behind the passage disagree, the answer names both figures and their sources and does not choose between them.
+  5. Asking about a passage never changes the section's text, version or review state.
+
+  Built 12 Nov 2026 (DECISIONS 2026-11-12). "The editor" is both the review workspace's draft editor (Sections 4 to 12: a button by the selection opens the Ask tab) and the document editor (beside Comment, with an Ask panel in the comments list's place); the shortcut is Ctrl+Alt+K (Cmd+Option+K). A passage's citations are those of every block it is in; the gateway reads the findings and the cited sources from the saved draft. A disagreement is its own line, "Sources disagree:", citing both sources, and makes the answer Medium at most. A passage is at most 4,000 characters.
   </details>
 
 ## E8 — Evaluation Harness

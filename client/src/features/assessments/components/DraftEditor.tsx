@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   AIDraftBlock,
   Badge,
@@ -7,7 +7,18 @@ import {
   EmptyState,
   IconRegistry,
 } from '../../../design-system'
-import type { DocumentBlock, DocumentInline, ReviewDraft, ReviewSection } from '../api'
+import type {
+  DocumentBlock,
+  DocumentHeading,
+  DocumentInline,
+  DocumentParagraph,
+  ReviewDraft,
+  ReviewSection,
+} from '../api'
+import { AskSelection } from '../ask/AskSelection'
+import { askBlockAttrs } from '../ask/draftSelection'
+import { contentText, type AskPassage, type PassageText } from '../ask/passage'
+import type { CommentAnchor } from '../comments/api'
 import { hasWritten, sectionContent, textBlocksIn } from '../documentContent'
 import { formatDayTime, formatDayYearTime } from '../format'
 import {
@@ -30,6 +41,34 @@ type Citing = {
   focus: ReviewFocus
   describe: (citation: string) => string
   onCite: (citation: string | null, statement: string | null) => void
+  // The section's text, for reading a selection as a passage to ask about (AS-02).
+  askText?: PassageText
+}
+
+// Asking about text selected in the draft (AS-02): what Ask about this does,
+// how the report heads the section, and the passage the Ask tab last went back
+// to, to mark in the draft.
+export type DraftAsk = {
+  label: string
+  onAsk: (passage: AskPassage) => void
+  shown: CommentAnchor | null
+}
+
+// Where a block of the draft's text is in its section's text (AS-02).
+const blockAttrs =
+  (text: PassageText | undefined) => (block: DocumentParagraph | DocumentHeading) =>
+    askBlockAttrs(text?.indexOf.get(block))
+// Where a finding's block is, and where its shown words start in it: all of
+// them, or only a Section 6 programme row's comment.
+function findingAttrs(text: PassageText | undefined, key: string, shown: string | undefined) {
+  const index = text?.blocks.findIndex((b) => b.finding === key) ?? -1
+  if (!text || index < 0) return {}
+  const block = text.blocks[index]
+  const from =
+    shown === undefined
+      ? 0
+      : text.text.slice(block.offset, block.offset + block.length).indexOf(shown)
+  return askBlockAttrs(index, from)
 }
 
 // The engineer's decisions on each finding (RV-02). Left out where they may
@@ -46,7 +85,10 @@ export type FindingActions = {
 // A citation marker in text from the document editor (RV-08), opening its
 // source like any other.
 const citeMark =
-  ({ numbers, focus, describe, onCite }: Omit<Citing, 'sectionId'>, claimKey: string | null) =>
+  (
+    { numbers, focus, describe, onCite }: Omit<Citing, 'sectionId' | 'askText'>,
+    claimKey: string | null,
+  ) =>
   (id: string) => (
     <CitationMark
       number={numbers.get(id) ?? 0}
@@ -66,6 +108,7 @@ function Finding({
   focus,
   describe,
   onCite,
+  askText,
   shown,
   content,
   heading = false,
@@ -104,6 +147,7 @@ function Finding({
           (focus.statement === claim.key ? ' is-active' : '') +
           (claim.supported ? '' : ' is-unsupported')
         }
+        {...findingAttrs(askText, claim.key, shown)}
       >
         {content && shown === undefined ? (
           <RichWords
@@ -264,7 +308,12 @@ function DraftSubsection({
       <>
         <MaturityTable entries={entries} unplaced={unplaced} />
         {others.length > 0 && (
-          <WrittenBlocks blocks={others} cite={citeMark(citing, null)} finding={finding} />
+          <WrittenBlocks
+            blocks={others}
+            cite={citeMark(citing, null)}
+            finding={finding}
+            attrs={blockAttrs(citing.askText)}
+          />
         )}
       </>
     )
@@ -297,7 +346,12 @@ function DraftSubsection({
       {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
         <p className="rv-muted">The positive points from the visit are the following:</p>
       )}
-      <WrittenBlocks blocks={blocks} cite={citeMark(citing, null)} finding={finding} />
+      <WrittenBlocks
+        blocks={blocks}
+        cite={citeMark(citing, null)}
+        finding={finding}
+        attrs={blockAttrs(citing.askText)}
+      />
     </AIDraftBlock>
   )
 }
@@ -308,7 +362,8 @@ function DraftSubsection({
 // finding shows its review decision and, for the assigned engineer, Accept,
 // Edit and Reject (RV-02); rejected findings are left out. `header` holds the
 // section's review controls; a replacement draft is shown read-only. Version
-// history (RV-06) opens the section's versions in its place.
+// history (RV-06) opens the section's versions in its place. With `ask`,
+// selecting the draft's text offers Ask about this (AS-02).
 export function DraftEditor({
   section,
   position,
@@ -320,8 +375,9 @@ export function DraftEditor({
   actions,
   header,
   figures,
+  ask,
   ...citing
-}: Omit<Citing, 'sectionId'> & {
+}: Omit<Citing, 'sectionId' | 'askText'> & {
   section: ReviewSection
   // e.g. "2 of 6"
   position: string
@@ -339,8 +395,11 @@ export function DraftEditor({
   // 5), it is given each subsection's findings by heading and lays them out itself,
   // inside Marsh's per-level tables, so they are not listed again below.
   figures?: React.ReactNode | ((drafted: Map<string, React.ReactNode>) => React.ReactNode)
+  ask?: DraftAsk
 }) {
   const { draft, review } = section
+  // The box "Ask about this" sits in, by the selection.
+  const host = useRef<HTMLDivElement>(null)
 
   // A claim picked in the panel scrolls its statement into view.
   useEffect(() => {
@@ -353,13 +412,17 @@ export function DraftEditor({
   const claims = draft ? claimsOf(draft) : []
   // The section's text: its draft's findings, in the engineer's layout and
   // words once changed in the document editor, with what they wrote (RV-08).
-  const content = sectionContent(section)
+  // Read once per section as loaded, so a selection is read against the
+  // blocks drawn (AS-02).
+  const content = useMemo(() => sectionContent(section), [section])
+  const askText = useMemo(() => contentText(section.id, content), [section.id, content])
   const saved = section.document
   const byKey = new Map(claims.map((c) => [c.key, c]))
   const blocksOf = (blocks: DocumentBlock[]) => (
     <WrittenBlocks
       blocks={blocks}
       cite={citeMark(citing, null)}
+      attrs={blockAttrs(askText)}
       finding={(key, words, heading) => {
         const claim = byKey.get(key)
         return claim ? (
@@ -369,6 +432,7 @@ export function DraftEditor({
             content={words}
             heading={heading}
             sectionId={section.id}
+            askText={askText}
             {...citing}
           />
         ) : null
@@ -415,7 +479,16 @@ export function DraftEditor({
   )
   return (
     <section aria-label="Draft editor" className="om-scroll rv-editor">
-      <div className="rv-editor-inner">
+      <div className="rv-editor-inner rv-ask-host" ref={host}>
+        {ask && askText.blocks.length > 0 && (
+          <AskSelection
+            host={host}
+            text={askText}
+            label={ask.label}
+            onAsk={ask.onAsk}
+            shown={ask.shown?.sectionId === section.id ? ask.shown : null}
+          />
+        )}
         <div className="rv-editor-bar">
           <p className="rv-label">Draft editor · {position}</p>
           <Button
@@ -533,6 +606,7 @@ export function DraftEditor({
                   claims={claims}
                   actions={actions}
                   sectionId={section.id}
+                  askText={askText}
                   {...citing}
                 />
               ))}

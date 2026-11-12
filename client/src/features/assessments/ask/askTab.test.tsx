@@ -131,6 +131,7 @@ const STATEMENTS = [
 const ANSWER: AskAnswer = {
   id: 'q1',
   question: 'Was the B1 valve shut?',
+  passage: null,
   askedAt: '2026-11-09T06:00:00.000Z',
   status: 'complete',
   statements: STATEMENTS.map((s) => ({ ...s, citations: [...s.citations] })),

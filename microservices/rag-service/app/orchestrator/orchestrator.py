@@ -836,6 +836,20 @@ def _candidate(o) -> dict:
     return {"id": f"O:{o.id}", "text": " ".join(text.split()), "metadata": {}}
 
 
+def _given_sources(passage) -> tuple[list[dict], list[dict]]:
+    """The standard and past-report passages a selected passage cites (AS-02), as the gateway
+    read them from the draft, shaped like search hits."""
+    refs = set(passage.citations)
+    standards, reports = [], []
+    for s in passage.sources:
+        kind = "standard" if s.kind == "standard" else "report"
+        if f"{'C' if kind == 'standard' else 'P'}:{s.id}" not in refs:
+            continue
+        hit = {"id": s.id, "text": s.text, "metadata": dict(s.metadata)}
+        (standards if kind == "standard" else reports).append(hit)
+    return standards, reports
+
+
 def ask(
     question: str,
     assessment,
@@ -843,6 +857,7 @@ def ask(
     standard_ids: list[str],
     names: dict[str, str] | None = None,
     privacy: dict | None = None,
+    passage=None,
 ) -> Iterator[dict]:
     """Answer one question about an assessment (AS-01): retrieve -> assemble -> generate ->
     guardrail, as events for the review workspace's Ask tab, ending with one `result` event that
@@ -853,10 +868,18 @@ def ask(
     `knowledge_documents`), through a Chroma `doc_id` filter; and past reports on sites of the
     same jurisdiction and facility type (`all` matches any). `names` maps a document id to the
     name the prompt shows. With `privacy` on, Cohere and the model see client details masked.
+
+    `passage` is text the engineer selected in the draft (AS-02): its section, words, the
+    sources it cites and the section's findings. Its words join the search, the sources it
+    cites are always part of the evidence, and the prompt shows the passage and the findings,
+    all masked as the question is.
     """
     paid_calls = usage.start()
     names = names or {}
     protection = pii.session(privacy)
+    passage_refs = list(dict.fromkeys(passage.citations)) if passage else []
+    cited_obs = {ref[2:] for ref in passage_refs if ref.startswith("O:")}
+    given_standards, given_reports = _given_sources(passage) if passage else ([], [])
     timings: dict[str, int] = {}
     step, clock = "retrieve", time.perf_counter()
 
@@ -872,31 +895,55 @@ def ask(
     sources: dict[str, dict] = {}
     retrieved = {"observations": [], "standards": [], "reports": []}
     reranked, model, error = False, None, None
-    usable = [o for o in observations if o.recorded()][:ASK_MAX_OBSERVATIONS]
+    recorded = [o for o in observations if o.recorded()]
+    # The observations a selected passage cites come first, so none is cut off (AS-02).
+    usable = [o for o in recorded if o.id in cited_obs]
+    usable = (usable + [o for o in recorded if o.id not in cited_obs])[:ASK_MAX_OBSERVATIONS]
     yield {"type": "step", "step": "retrieve"}
     try:
-        # 1. Retrieve. One /mask call covers the question, the observations and the documents'
-        # names (a past report's title can name its client), so one mapping covers the answer.
+        # 1. Retrieve. One /mask call covers the question, the observations, the documents'
+        # names (a past report's title can name its client) and a selected passage with its
+        # section's findings (AS-02), so one mapping covers the answer.
         ids = sorted(names)
-        masked_obs, [masked_question, *masked_names] = _mask_evidence(
-            protection, usable, [question, *(names[i] for i in ids)]
+        findings = passage.findings if passage else []
+        masked_obs, [masked_question, *rest] = _mask_evidence(
+            protection,
+            usable,
+            [
+                question,
+                *(names[i] for i in ids),
+                *([passage.text] if passage else []),
+                *(f.text for f in findings),
+            ],
         )
-        shown_names = dict(zip(ids, masked_names, strict=True))
-        query = spell_out(masked_question)[:1000]
+        shown_names = dict(zip(ids, rest[: len(ids)], strict=True))
+        rest = rest[len(ids) :]
+        masked_passage, masked_findings = (rest[0], rest[1:]) if passage else (None, [])
+        # A question about a passage is searched with the passage's words too.
+        query = spell_out(masked_question + (f"\n{masked_passage}" if passage else ""))[:1000]
         site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
         requests = [(query, {**site, "source_type": "marsh_report"}, ASK_CANDIDATES)]
         if standard_ids:
             requests.insert(0, (query, {"doc_id": list(standard_ids)}, ASK_CANDIDATES))
         *standard_hits, report_hits = search(requests, protection)
         standard_hits = standard_hits[0] if standard_hits else []
+        # What the passage cites is evidence whatever search finds; it is not ranked again.
+        given = {p["id"] for p in given_standards + given_reports}
+        standard_hits = [p for p in standard_hits if p["id"] not in given]
+        report_hits = [p for p in report_hits if p["id"] not in given]
         # Standards are public; observations and past reports are masked for Cohere's rerank.
-        stored = {p["id"]: p for p in report_hits}
-        masked_reports = {p["id"]: p for p in _mask_passages(protection, report_hits)}
+        stored = {p["id"]: p for p in given_reports + report_hits}
+        masked_reports = {
+            p["id"]: p for p in _mask_passages(protection, given_reports + report_hits)
+        }
         by_ref = {f"O:{o.id}": (o, m) for o, m in zip(usable, masked_obs, strict=True)}
+        ranked_obs = [m for o, m in zip(usable, masked_obs, strict=True) if o.id not in cited_obs]
         candidates = (
-            [_candidate(m) for m in masked_obs] + standard_hits + list(masked_reports.values())
+            [_candidate(m) for m in ranked_obs]
+            + standard_hits
+            + [masked_reports[p["id"]] for p in report_hits]
         )
-        kinds = {c["id"]: "observation" for c in candidates[: len(masked_obs)]}
+        kinds = {c["id"]: "observation" for c in candidates[: len(ranked_obs)]}
         kinds |= {p["id"]: "standard" for p in standard_hits}
         kinds |= {p["id"]: "report" for p in report_hits}
         try:
@@ -906,17 +953,21 @@ def ask(
         except Exception:
             log.warning("Rerank failed for a question; using vector order", exc_info=True)
             ranked = (
-                [_candidate(m) for m in masked_obs[:ASK_UNRANKED_OBSERVATIONS]]
+                [_candidate(m) for m in ranked_obs[:ASK_UNRANKED_OBSERVATIONS]]
                 + standard_hits
-                + list(masked_reports.values())
+                + [masked_reports[p["id"]] for p in report_hits]
             )
 
         def top(kind: str, n: int) -> list[dict]:
             return [c for c in ranked if kinds.get(c["id"]) == kind][:n]
 
-        kept_obs = [by_ref[c["id"]] for c in top("observation", ASK_OBSERVATIONS)]
-        kept_standards = top("standard", ASK_STANDARDS)
-        kept_reports = [masked_reports[c["id"]] for c in top("report", ASK_REPORTS)]
+        kept_obs = [by_ref[f"O:{o.id}"] for o in usable if o.id in cited_obs] + [
+            by_ref[c["id"]] for c in top("observation", ASK_OBSERVATIONS)
+        ]
+        kept_standards = given_standards + top("standard", ASK_STANDARDS)
+        kept_reports = [masked_reports[p["id"]] for p in given_reports] + [
+            masked_reports[c["id"]] for c in top("report", ASK_REPORTS)
+        ]
         retrieved = {
             "observations": [o.id for o, _ in kept_obs],
             "standards": [p["id"] for p in kept_standards],
@@ -930,6 +981,8 @@ def ask(
             [o for o, _ in kept_obs], kept_standards, [stored[p["id"]] for p in kept_reports]
         )
         by_label = {ref: (kind, item) for ref, kind, item in labels.values()}
+        label_of = {ref: label for label, (ref, _, _) in labels.items()}
+        cited = frozenset(label_of[ref] for ref in passage_refs if ref in label_of)
         found = {k: len(v) for k, v in retrieved.items()}
         if not any(found.values()):
             # Nothing in scope relates to the question: say what is missing, ask no model (AC4).
@@ -945,6 +998,10 @@ def ask(
                 kept_standards,
                 kept_reports,
                 shown_names,
+                asking.selected_blocks(passage, masked_passage, masked_findings, label_of)
+                if passage
+                else None,
+                cited,
             )
             finished("assemble")
 
@@ -962,10 +1019,11 @@ def ask(
             for line in _lines(written):
                 # Real values back before any check compares text (PV-02 Rule 4).
                 real, unknown = protection.unmask(line)
-                text, cites, is_missing = asking.parse_line(real)
+                kind, words = asking.line_kind(real)
+                text, cites = asking.parse_words(words)
                 if unknown:
                     dropped.append({"text": text, "reason": "placeholder"})
-                elif is_missing:
+                elif kind == "missing":
                     problem = asking.content_problem(text)
                     if problem or not text:
                         dropped.append({"text": text, "reason": problem or "empty"})
@@ -973,7 +1031,9 @@ def ask(
                     missing.append(text)
                     yield {"type": "missing", "text": text}
                 elif text or cites:
-                    statement, why = asking.check_statement(text, cites, labels)
+                    statement, why = asking.check_statement(
+                        text, cites, labels, differs=kind == "differs"
+                    )
                     if statement is None:
                         dropped.append({"text": text, "reason": why})
                         continue
@@ -1018,7 +1078,7 @@ def ask(
             # One trace per answer for the evaluation harness (AC6): what was searched, what
             # the model was given and what the checks did, never the masked text or mapping.
             "trace": {
-                "story": "AS-01",
+                "story": "AS-02" if passage else "AS-01",
                 "pipeline": ["retrieve", "assemble", "generate", "guardrail"],
                 "provider": config.LLM_PROVIDER,
                 "model": model,
@@ -1031,6 +1091,17 @@ def ask(
                     "observations": len(usable),
                 },
                 "retrieved": retrieved,
+                # A question about a selected passage (AS-02): where it is and what it cites,
+                # never its words.
+                "passage": {
+                    "section_id": passage.section_id,
+                    "chars": len(passage.text),
+                    "citations": passage_refs,
+                    "findings": len(passage.findings),
+                    "findings_in_passage": sum(f.in_passage for f in passage.findings),
+                }
+                if passage
+                else None,
                 "reranked": reranked,
                 "guardrail": {
                     "passed": not dropped and not unverified,

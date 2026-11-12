@@ -300,3 +300,192 @@ def test_parse_line_reads_citations_wherever_they_sit():
     )
     assert asking.content_problem("A Class I standpipe serves Level 2.") is None
     assert asking.content_problem("We noted the valve.") == "first_person"
+
+
+# AS-02: a question about a passage the engineer selected in the draft.
+PUMP = {
+    "id": "fm37:2",
+    "text": "The pump shall deliver a churn pressure of 10 bar at the test header.",
+    "metadata": {"doc_id": "fm37", "headings": ["Fire Pumps"], "page_start": 2},
+}
+PASSAGE = {
+    "section_id": "9",
+    "section_title": "9. Fire Protection",
+    "text": "The fire pump churn pressure was 10 bar.",
+    "citations": ["O:pump", "C:fm37:2"],
+    "sources": [{"kind": "standard", **PUMP}],
+    "findings": [
+        {
+            "text": "The fire pump churn pressure was 10 bar.",
+            "state": "pending",
+            "citations": ["O:pump", "C:fm37:2"],
+            "in_passage": True,
+        },
+        {"text": "The B1 valve was found shut.", "state": "accepted", "citations": ["O:obs1"]},
+    ],
+}
+PASSAGE_REQUEST = {
+    **REQUEST,
+    "question": "Where does this figure come from?",
+    "observations": [
+        *REQUEST["observations"],
+        {
+            "id": "pump",
+            "COPE_dimension": ["Protection"],
+            "note": "Fire pump churn test read 7 bar at the test header.",
+            "location": "Pump room",
+        },
+    ],
+    "documents": [*REQUEST["documents"], {"id": "fm37", "name": "FM Global 3-7 (2026)"}],
+    "passage": PASSAGE,
+}
+
+
+def test_a_passage_question_shows_the_passage_its_sources_and_the_findings(monkeypatch):
+    events, sent = run(
+        monkeypatch,
+        ["The fire pump test read 7 bar. [O1]", 'FM Global 3-7 sets 10 bar [C1 "10 bar"].'],
+        PASSAGE_REQUEST,
+    )
+
+    prompt = sent["prompts"][0]
+    assert '<passage section="9. Fire Protection">\nThe fire pump churn pressure was 10 bar.' in (
+        prompt
+    )
+    # The sources the passage cites are labelled first and marked, whatever search found.
+    assert "[O1] (Pump room; Protection; severity not set; cited by the passage)" in prompt
+    assert "[C1] (FM Global 3-7 (2026) > Fire Pumps, p. 2; cited by the passage)" in prompt
+    assert "[C2] (FM Global 2-81 (2026) > Valves, p. 4-4)\n" in prompt
+    # The section's findings, which say which evidence each cites; never citable themselves.
+    assert "- (pending; in the passage; cites O1, C1) The fire pump churn" in prompt
+    assert "- (accepted; cites O2) The B1 valve was found shut." in prompt
+    # The passage's words are searched with the question; what it cites is not ranked again.
+    assert all("The fire pump churn pressure" in q for q, _, _ in sent["search"])
+    ranked = [t for _, texts in sent["rerank"] for t in texts]
+    assert PUMP["text"] not in ranked
+    assert not any(t.startswith("Fire pump churn test") for t in ranked)
+
+    result = result_of(events)
+    assert [c["ref"] for s in result["statements"] for c in s["citations"]] == [
+        "O:pump",
+        "C:fm37:2",
+    ]
+    assert result["sources"]["C:fm37:2"]["page_start"] == 2
+    trace = result["trace"]
+    assert trace["story"] == "AS-02"
+    assert trace["passage"] == {
+        "section_id": "9",
+        "chars": len(PASSAGE["text"]),
+        "citations": ["O:pump", "C:fm37:2"],
+        "findings": 2,
+        "findings_in_passage": 1,
+    }
+    assert trace["retrieved"]["observations"][0] == "pump"
+    assert trace["retrieved"]["standards"] == ["fm37:2", "fm25:4"]
+    # The trace never holds the passage's words.
+    assert "churn pressure was 10 bar" not in json.dumps(trace)
+
+
+def test_where_the_passages_sources_disagree_it_names_both_and_never_chooses(monkeypatch):
+    differs = (
+        "Differs: the observation records a churn pressure of 7 bar [O1], while FM Global 3-7 "
+        'sets 10 bar [C1 "10 bar"].'
+    )
+    events, _ = run(
+        monkeypatch,
+        [
+            differs,
+            # Naming one side only is not a disagreement.
+            "Differs: the observation records 7 bar [O1].",
+            # Choosing between them is never shown.
+            'The standard is more reliable than the observation [C1 "10 bar"].',
+            'The correct figure is 10 bar [C1 "10 bar"].',
+            "The observation is likely a typo [O1].",
+        ],
+        PASSAGE_REQUEST,
+    )
+
+    result = result_of(events)
+    [statement] = result["statements"]
+    assert statement == {
+        "text": "the observation records a churn pressure of 7 bar, while FM Global 3-7 sets "
+        "10 bar.",
+        "citations": [
+            {"ref": "O:pump", "kind": "observation", "quote": None, "verified": True},
+            {"ref": "C:fm37:2", "kind": "standard", "quote": "10 bar", "verified": True},
+        ],
+        "differs": True,
+    }
+    assert [e for e in events if e["type"] == "statement"][0]["differs"] is True
+    assert [d["reason"] for d in result["trace"]["guardrail"]["dropped"]] == [
+        "one_source",
+        "chooses",
+        "chooses",
+        "chooses",
+    ]
+
+    # Sources that disagree make an answer Medium at most, even with every check passed.
+    events, _ = run(monkeypatch, [differs], PASSAGE_REQUEST)
+    assert result_of(events)["confidence"] == "medium"
+
+
+def test_a_passage_and_its_findings_are_masked_before_cohere_or_the_model(
+    monkeypatch, fake_privacy
+):
+    request = {
+        **PASSAGE_REQUEST,
+        "privacy": {
+            "enabled": True,
+            "known_entities": [
+                {"type": "CLIENT", "names": ["Acme Holdings"]},
+                {"type": "PERSON", "names": ["John Tan"]},
+            ],
+        },
+        "passage": {
+            **PASSAGE,
+            "text": "John Tan said the Acme Holdings pump read 10 bar.",
+            "findings": [{**PASSAGE["findings"][0], "text": "Acme Holdings pump: 10 bar."}],
+        },
+    }
+    _, sent = run(monkeypatch, ["The pump read 7 bar. [O1]"], request)
+
+    payloads = (
+        [q for q, _, _ in sent["search"]]
+        + [t for q, texts in sent["rerank"] for t in [q, *texts]]
+        + sent["prompts"]
+    )
+    for payload in payloads:
+        assert "John Tan" not in payload and "Acme Holdings" not in payload, payload
+    assert "[PERSON_1] said the [CLIENT_1] pump read 10 bar." in sent["prompts"][0]
+
+
+def test_a_passage_cites_only_what_the_gateway_sent_with_it(monkeypatch):
+    # A citation with no source sent is not evidence; nor is a source it does not cite.
+    passage = {
+        **PASSAGE,
+        "citations": ["C:fm37:2", "C:gone:1"],
+        "sources": [
+            {"kind": "standard", **PUMP},
+            {"kind": "report", "id": "rep:3", "text": "Not cited.", "metadata": {}},
+        ],
+    }
+    events, sent = run(
+        monkeypatch, ["The valve was shut. [O1]"], {**PASSAGE_REQUEST, "passage": passage}
+    )
+
+    prompt = sent["prompts"][0]
+    assert "cited by the passage" in prompt
+    assert "Not cited." not in prompt
+    assert result_of(events)["trace"]["retrieved"]["standards"][0] == "fm37:2"
+
+
+def test_line_kinds_and_choosing_words():
+    assert asking.line_kind("**Differs:** 7 bar [O1] against 10 bar [C1].")[0] == "differs"
+    assert asking.line_kind("Sources disagree: 7 bar [O1], 10 bar [C1].")[0] == "differs"
+    assert asking.line_kind("- Missing: no test record.") == ("missing", "no test record.")
+    assert asking.content_problem("The 2024 figure takes precedence.") == "chooses"
+    assert asking.content_problem("The report is outdated.") == "chooses"
+    # Facts about what a source says are not choosing.
+    assert asking.content_problem("FM Global 2-0 describes the preferred arrangement.") is None
+    assert asking.content_problem("The gauge reading was incorrect.") is None
+    assert asking.content_problem("The observation records 7 bar; the standard sets 10.") is None

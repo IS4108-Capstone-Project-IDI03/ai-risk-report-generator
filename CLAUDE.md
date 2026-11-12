@@ -61,6 +61,12 @@
   model's words straight to the client, or an uncited or first-person line
   could show (AC4, AC5). See docs/areas/services.md, "Asking about an
   assessment".
+- Asking about a selected passage (AS-02) only reads the report: the gateway
+  takes the findings and cited sources from the saved draft, never the
+  browser, and in the document editor the passage is marked by decorations
+  (`ask/askHighlight.ts`), never a mark in the text, so it adds no version
+  and changes no review state. Its anchor is RV-03's (`comments/anchor.ts`):
+  change both together.
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export

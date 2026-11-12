@@ -37,6 +37,8 @@ import {
   type InspectorTab,
 } from '../components/ReviewInspector'
 import { useAsk } from '../ask/useAsk'
+import { contentText, passageAt, type AskPassage } from '../ask/passage'
+import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
 import { WrittenBlocks } from '../components/WrittenBlocks'
 import {
@@ -52,6 +54,7 @@ import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSummary } from '../useSummary'
+import { useCompact } from '../useCompact'
 import '../review.css'
 // Loaded on first open: the document editor brings TipTap, which the rest of
 // the workspace can skip.
@@ -195,8 +198,12 @@ export function ReviewWorkspace({
   const ask = useAsk(reference, canAsk)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('evidence')
   const [askSheet, setAskSheet] = useState(false)
+  // Below 760px the Ask tab is a bottom sheet (AS-01 AC1).
+  const phone = useCompact(759)
   // The source last opened from an answer, for the parts with no draft (1, 2, 3, A).
   const [askedRef, setAskedRef] = useState<string | null>(null)
+  // The passage an answer last went back to, marked in the draft (AS-02 AC3).
+  const [shownPassage, setShownPassage] = useState<CommentAnchor | null>(null)
   // Brings a source opened from an answer into view, also when the panel sits
   // below the draft (tablet) or the sheet just closed (phone).
   useEffect(() => {
@@ -262,6 +269,7 @@ export function ReviewWorkspace({
           readOnly={!canReview}
           canComment={canComment}
           me={me ?? undefined}
+          ask={canAsk ? ask : null}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)
             setDocumentAt(null)
@@ -304,6 +312,7 @@ export function ReviewWorkspace({
     setSelected(id)
     setFocus(NOTHING)
     setAskedRef(null)
+    setShownPassage(null)
     setView('saved')
     setProblem(null)
     setRestored(null)
@@ -314,6 +323,42 @@ export function ReviewWorkspace({
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
+  // A part's text now, as the document editor reads it, to find a passage
+  // asked about in (AS-02 AC3); undefined while Section 2 is still loading.
+  const textOf = (id: string) => {
+    const listed = sections.find((s) => s.id === id)
+    if (listed) return contentText(id, sectionContent(listed))
+    if (id === '2')
+      return summary || summaryError
+        ? contentText(
+            id,
+            summaryContent(summary?.executiveSummary.draft ?? null, workspace.parts?.['2'] ?? null),
+          )
+        : undefined
+    if (id === '1' || id === '3' || id === 'A')
+      return contentText(id, partContent(workspace.parts?.[id] ?? null))
+    return null
+  }
+  const locatePassage = (anchor: CommentAnchor) => {
+    const text = textOf(anchor.sectionId)
+    return text === undefined ? undefined : passageAt(text, anchor) !== null
+  }
+  // "Ask about this" on text selected in the draft (AS-02 AC1): the Ask tab,
+  // or its sheet on a phone, opens with the passage in the question box.
+  const askAbout = (passage: AskPassage) => {
+    ask.setAbout(passage)
+    setShownPassage(null)
+    setInspectorTab('ask')
+    if (phone) setAskSheet(true)
+  }
+  // Back to a passage asked about: its part opens, the passage marked there.
+  const showPassage = (passage: AskPassage) => {
+    const { sectionId } = passage.anchor
+    setHistoryOpen(false)
+    setAskSheet(false)
+    if (sectionId !== railId) select(sectionId)
+    setShownPassage(passage.anchor)
+  }
   // Every source an answer cites, so the evidence panel can open one (AS-01 AC2).
   const asked = {
     passages: ask.items.flatMap((item) => item.passages),
@@ -336,6 +381,8 @@ export function ReviewWorkspace({
           onTab: setInspectorTab,
           sheetOpen: askSheet,
           onSheet: setAskSheet,
+          locate: locatePassage,
+          onShowPassage: showPassage,
         }
       : undefined
   // A source opened from an answer, in a part with no draft to cite it.
@@ -735,6 +782,13 @@ export function ReviewWorkspace({
         describe={describe}
         onCite={cite}
         actions={actions}
+        // Ask about text selected in the draft (AS-02); not in a replacement
+        // waiting to be accepted, which is not the report's text yet.
+        ask={
+          canAsk && showing === 'saved'
+            ? { label: `${saved.id}. ${saved.title}`, onAsk: askAbout, shown: shownPassage }
+            : undefined
+        }
         // Sections 4 and 5's figures (GN-03); saving them reloads the workspace, so
         // the draft shows as out of date when they changed.
         figures={

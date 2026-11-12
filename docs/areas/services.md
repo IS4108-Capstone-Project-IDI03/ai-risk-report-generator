@@ -1192,6 +1192,66 @@ it is saved as `stopped`.
 Without the gateway the tab says it is unavailable: on the sample assessment
 always, and on a saved one when the gateway cannot be reached.
 
+### Asking about a selected passage (AS-02)
+
+Selecting text offers **Ask about this** in two places, both with
+Ctrl+Alt+K (Cmd+Option+K), beside Comment's Ctrl+Alt+M (`ask/shortcut.ts`):
+
+- the review workspace's draft editor, Sections 4 to 12 (`ask/AskSelection.tsx`):
+  a button by the selection opens the Ask tab (the sheet on a phone). Each
+  block of text the draft draws carries `data-ask-block`, its index in the
+  section's text, so a DOM selection is read as offsets in that text
+  (`ask/draftSelection.ts`; a citation number counts as its one marker,
+  badges as nothing).
+- the document editor (RV-08): a toolbar button beside Comment, and an Ask
+  panel (`ask/DocumentAsk.tsx`) in the comments list's place, with the same
+  conversation as the Ask tab; a source an answer cites opens at its top.
+
+A selection that can't be asked about (no words, across two sections, over
+4,000 characters) greys the button out with the reason; the shortcut says it.
+Either way the passage is kept as a comment thread's anchor is (RV-03,
+`comments/anchor.ts`): offsets into the section's text as the document editor
+saves it, its words and 32 characters either side (`ask/passage.ts` reads that
+text from the saved content too, so both places agree). Its citations are
+those of every block it is in; its findings, the keys of those blocks'
+findings. The passage waits in the question box, quoted verbatim behind a 2px
+rule, until the next question is asked or it is taken off.
+
+1. The browser sends `{ question, passage: { anchor, citations, findings } }`.
+   The gateway checks the anchor as RV-03's (`anchorSchema`), and that it holds
+   words and at most 4,000 characters (400 otherwise).
+2. It reads the section's saved draft, never the browser's copy: the findings
+   still in the draft (text now, decision, citations), and the sources the
+   draft cites. Only citations the draft holds are kept; each cited standard
+   or past-report passage is sent with its words and Chroma labels as the
+   draft was given them, and a cited observation deleted since is sent as the
+   draft was given it. S4 gets `passage: { section_id, section_title, text,
+   citations, sources, findings }`, `text` being the passage's words without
+   the markers.
+3. S4 masks the passage and the findings in the same `/mask` call as the
+   question, searches with the question and the passage's words, and always
+   keeps what the passage cites as evidence, labelled first and marked "cited
+   by the passage" (not reranked). The prompt (`as02-v1`) shows `<passage>` and
+   `<section_findings>` (each with its decision and the labels it cites); the
+   findings are the draft under review, never citable.
+4. Where the sources behind the passage disagree, the model writes a
+   `Differs:` line naming each figure with its source. The guardrail keeps it
+   only if it cites two sources or more, and drops any line that chooses
+   between sources ("more reliable", "the correct figure", "should be used",
+   "takes precedence", "likely a typo"). It is shown as "Sources disagree:"
+   and the answer's confidence is at most Medium.
+5. The question is saved with `passage: { anchor, label, citations, findings }`;
+   the trace's `story` is `AS-02` and its `passage` block holds the section,
+   length and citations, never the words.
+
+The Ask tab quotes each question's passage above it, with **Go to the
+passage**: the part opens and the passage is marked (the CSS highlight API
+where the browser has it, else its blocks tinted; in the document editor a
+decoration). The anchor is never moved: each time it is found again from its
+words, as RV-03 does, and once they are gone the message says "Text deleted".
+Asking writes nothing to the report (AC5): no version, no review log entry, no
+mark in the editor's text (`ask/askHighlight.ts` draws decorations only).
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word

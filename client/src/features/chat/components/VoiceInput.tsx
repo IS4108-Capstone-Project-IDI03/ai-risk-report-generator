@@ -88,6 +88,13 @@ export function VoiceInput() {
   // False when the browser will not run the level meter; then only Stop ends a recording.
   const [metered, setMetered] = useState(true)
   const recorder = useRef<MediaRecorder | null>(null)
+  // Ends a recording still running when this goes away (the chat closed mid-question): the
+  // meter, the recorder and the microphone stop, and nothing is transcribed.
+  const release = useRef<() => void>(() => {})
+  useEffect(() => {
+    const leave = release
+    return () => leave.current()
+  }, [])
   const { card, below: host } = useComposerHosts()
 
   // Read when the recording ends, not when it began, so a switch flipped mid-recording counts.
@@ -156,7 +163,14 @@ export function VoiceInput() {
     }
     peak.current = 0
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+    release.current = () => {
+      rec.onstop = null
+      if (rec.state !== 'inactive') rec.stop()
+      stopWatching()
+      stream.getTracks().forEach((t) => t.stop())
+    }
     rec.onstop = async () => {
+      release.current = () => {}
       stopWatching()
       // Without this the browser keeps showing "recording" after the question is done.
       stream.getTracks().forEach((t) => t.stop())

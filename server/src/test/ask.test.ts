@@ -9,6 +9,10 @@ import { CaptureSessionModel } from '../models/capture-session.model'
 import { ChecklistModel } from '../models/checklist.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { ObservationModel, type CopeDimension } from '../models/observation.model'
+import { ReportCommentThreadModel } from '../models/report-comment.model'
+import { ReportSectionModel } from '../models/report-section.model'
+import { ReportSectionVersionModel } from '../models/report-section-version.model'
+import { ReviewAuditModel } from '../models/review-audit.model'
 import { SiteModel } from '../models/site.model'
 import type { UserRole } from '../models/user.model'
 import { resetChatLimits } from '../services/chat-limits.service'
@@ -396,5 +400,289 @@ describe('failures (AC8)', () => {
       cause: 'more than 10 questions were asked in a minute',
       next: 'Ask again in a minute.',
     })
+  })
+})
+
+// AS-02: a question about a passage selected in the draft. Section 9 is
+// drafted with three findings: the first cites the valve and a standard, the
+// second the valve, and the third, rejected, nothing.
+const MARKER = '￼'
+async function draftedNine() {
+  const seeded = await seedAssessment()
+  const { assessment, valve } = seeded
+  const standard = await knowledge('FM Global 2-81', 'fm_standard')
+  const valveRef = `O:${valve._id}`
+  const standardRef = `C:${standard._id}:4`
+  const draft = await ReportSectionModel.create({
+    assessment: assessment._id,
+    sectionId: '9',
+    title: 'Fire Protection',
+    subsections: [
+      {
+        heading: 'Sprinkler Protection',
+        kind: 'narrative',
+        statements: [
+          {
+            text: 'The B1 control valve was shut.',
+            citations: [valveRef, standardRef],
+            supported: true,
+          },
+          { text: 'No tamper switch was fitted.', citations: [valveRef], supported: true },
+          { text: 'Sprinklers are generally reliable.', citations: [], supported: false },
+        ],
+      },
+    ],
+    sources: {
+      [standardRef]: {
+        text: 'Sprinkler control valves shall be supervised in the open position.',
+        doc_id: String(standard._id),
+        headings: ['Valves'],
+        page_start: 4,
+        page_end: 4,
+      },
+    },
+    questions: [],
+    evidence: [
+      {
+        id: String(valve._id),
+        COPE_dimension: ['Protection'],
+        note: 'B1 sprinkler control valve found shut.',
+        transcripts: [],
+        severity: 'high',
+        location: 'Bay 3, Ground',
+        standard: null,
+      },
+      // An observation deleted since drafting, cited by no finding.
+      {
+        id: 'gone',
+        COPE_dimension: ['Protection'],
+        note: 'Pump room door wedged open.',
+        transcripts: [],
+        severity: 'moderate',
+        location: null,
+        standard: null,
+      },
+    ],
+    guardrail: { passed: false, unsupported_count: 1 },
+    provenance: {
+      provider: 'anthropic',
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      prompt_version: 'gn01-v2.4',
+      template_version: 'global-pre-v2.0-2026-02',
+      generated_at: new Date(),
+    },
+    createdBy: engineer._id,
+    metadata: {
+      source_type: 'report_section',
+      jurisdiction: 'SG',
+      facility_type: 'Warehouse',
+      COPE_dimension: 'Protection',
+      effective_date: new Date(),
+    },
+  })
+  await ReviewAuditModel.create({
+    assessment: assessment._id,
+    sectionId: '9',
+    draft: draft._id,
+    finding: '0.2',
+    sequence: 0,
+    action: 'reject',
+    by: { id: String(engineer._id), name: engineer.name },
+    at: new Date(),
+    metadata: {
+      source_type: 'review_decision',
+      jurisdiction: 'SG',
+      facility_type: 'Warehouse',
+      COPE_dimension: 'Protection',
+      effective_date: new Date(),
+    },
+  })
+  return { ...seeded, standard, draft, valveRef, standardRef }
+}
+
+// The first finding's words and its two citation markers, as the document
+// editor's text holds them, then the second finding.
+const SECTION_TEXT = `The B1 control valve was shut.${MARKER}${MARKER}\nNo tamper switch was fitted.${MARKER}`
+const ON_VALVE = {
+  sectionId: '9',
+  start: 4,
+  end: 32,
+  exact: `B1 control valve was shut.${MARKER}${MARKER}`,
+  prefix: 'The ',
+  suffix: '\nNo tamper switch was fitted.' + MARKER,
+}
+// What the report holds, to show asking changed none of it (AC5).
+async function reportNow() {
+  const strip = (docs: object[]) => JSON.stringify(docs)
+  return {
+    sections: strip(await ReportSectionModel.find().lean()),
+    versions: strip(await ReportSectionVersionModel.find().lean()),
+    reviews: strip(await ReviewAuditModel.find().lean()),
+    threads: await ReportCommentThreadModel.countDocuments(),
+  }
+}
+
+describe('asking about a selected passage (AS-02)', () => {
+  it('sends the section, the passage, its citations and the findings, and saves its anchor', async () => {
+    const { valve, standard, valveRef, standardRef } = await draftedNine()
+    expect(SECTION_TEXT.slice(ON_VALVE.start, ON_VALVE.end)).toBe(ON_VALVE.exact)
+    const before = await reportNow()
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent(JSON.parse(String(init!.body)))
+      return new Response(answer(String(valve._id)))
+    })
+
+    const res = await asEngineer.post(base).send({
+      question: 'Where does this come from?',
+      passage: {
+        anchor: ON_VALVE,
+        // A citation the draft does not hold is not sent as one.
+        citations: [valveRef, standardRef, 'C:made-up:1'],
+        findings: ['0.0', '7.7'],
+      },
+    })
+
+    expect(res.status).toBe(200)
+    const body = sent.mock.calls[0][0]
+    expect(body.passage).toEqual({
+      section_id: '9',
+      section_title: '9. Fire Protection',
+      // The words as selected, the citation markers left out.
+      text: 'B1 control valve was shut.',
+      citations: [valveRef, standardRef],
+      sources: [
+        {
+          id: `${standard._id}:4`,
+          kind: 'standard',
+          text: 'Sprinkler control valves shall be supervised in the open position.',
+          metadata: {
+            doc_id: String(standard._id),
+            headings: ['Valves'],
+            page_start: 4,
+            page_end: 4,
+          },
+        },
+      ],
+      // The section's findings still in the draft, the one the passage is in marked.
+      findings: [
+        {
+          text: 'The B1 control valve was shut.',
+          state: 'pending',
+          citations: [valveRef, standardRef],
+          in_passage: true,
+        },
+        {
+          text: 'No tamper switch was fitted.',
+          state: 'pending',
+          citations: [valveRef],
+          in_passage: false,
+        },
+      ],
+    })
+    // The cited standard's name reaches the prompt, as a selected one's does.
+    expect(body.documents).toContainEqual({
+      id: String(standard._id),
+      name: 'FM Global 2-81 (2026)',
+    })
+
+    // Saved with the passage's anchor in RV-03's format (AC3), shown with the answer.
+    const passage = {
+      anchor: ON_VALVE,
+      label: '9. Fire Protection',
+      citations: [valveRef, standardRef],
+      findings: ['0.0'],
+    }
+    const [saved] = await AssessmentQuestionModel.find().lean()
+    expect(saved.passage).toMatchObject(passage)
+    expect(eventsOf(res.text).at(-1).answer.passage).toEqual(passage)
+    const listed = await asEngineer.get(base)
+    expect(listed.body.questions[0].passage).toEqual(passage)
+
+    // Asking changed nothing in the report: no text, version or review state (AC5).
+    expect(await reportNow()).toEqual(before)
+  })
+
+  it('sends a cited observation deleted since, as the draft was given it', async () => {
+    await draftedNine()
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent(JSON.parse(String(init!.body)))
+      return new Response(event({ type: 'result', value: {} }))
+    })
+    await asEngineer.post(base).send({
+      question: 'Why?',
+      passage: {
+        anchor: { ...ON_VALVE, start: 0, end: 4, exact: 'The ', prefix: '', suffix: 'B1' },
+        citations: ['O:gone'],
+        findings: [],
+      },
+    })
+    const body = sent.mock.calls[0][0]
+    expect(body.passage.citations).toEqual(['O:gone'])
+    expect(body.observations).toContainEqual(
+      expect.objectContaining({ id: 'gone', note: 'Pump room door wedged open.' }),
+    )
+  })
+
+  it('passes on a line naming where the sources disagree, and saves it', async () => {
+    const { valve, valveRef } = await draftedNine()
+    const differs = {
+      text: 'the observation records the valve shut, while the standard requires it open.',
+      citations: [
+        { ref: `O:${valve._id}`, kind: 'observation', quote: null, verified: true },
+        {
+          ref: 'C:fm:4',
+          kind: 'standard',
+          quote: 'supervised in the open position',
+          verified: true,
+        },
+      ],
+      differs: true,
+    }
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(
+          event({ type: 'statement', ...differs, sources: {} }) +
+            event({
+              type: 'result',
+              value: { statements: [differs], missing: [], sources: {}, confidence: 'medium' },
+            }),
+        ),
+    )
+    const res = await asEngineer.post(base).send({
+      question: 'Do the sources agree?',
+      passage: { anchor: ON_VALVE, citations: [valveRef], findings: ['0.0'] },
+    })
+    const events = eventsOf(res.text)
+    expect(events.find((e) => e.type === 'statement').differs).toBe(true)
+    expect(events.at(-1).answer.statements[0].differs).toBe(true)
+    const [saved] = await AssessmentQuestionModel.find().lean()
+    expect(saved.statements[0].differs).toBe(true)
+  })
+
+  it('refuses a passage with no words, one too long, or one whose quote does not match', async () => {
+    await draftedNine()
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', sent)
+    const ask = (anchor: object) =>
+      asEngineer.post(base).send({ question: 'Why?', passage: { anchor } })
+
+    const markers = await ask({ ...ON_VALVE, start: 30, end: 32, exact: MARKER + MARKER })
+    expect(markers.status).toBe(400)
+    expect(markers.body.fields['passage.anchor.exact']).toBe(
+      'Select some of the text to ask about.',
+    )
+    const long = 'x'.repeat(4001)
+    const tooLong = await ask({ ...ON_VALVE, start: 0, end: 4001, exact: long })
+    expect(tooLong.status).toBe(400)
+    expect(tooLong.body.fields['passage.anchor.exact']).toBe(
+      'Select up to 4,000 characters to ask about.',
+    )
+    expect((await ask({ ...ON_VALVE, end: 99 })).status).toBe(400)
+    expect(sent).not.toHaveBeenCalled()
+    expect(await AssessmentQuestionModel.countDocuments()).toBe(0)
   })
 })

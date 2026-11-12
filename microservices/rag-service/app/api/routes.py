@@ -519,6 +519,39 @@ class AskDocument(BaseModel):
 Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 
 
+# A standard's or past report's passage that a selected passage cites (AS-02), as the draft
+# was given it: its chunk id, words and Chroma labels, read by the gateway from the draft.
+class AskPassageSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    kind: Literal["standard", "report"]
+    text: Annotated[str, StringConstraints(max_length=20_000)]
+    metadata: dict = {}
+
+
+# One of the section's findings still in the draft, with the engineer's decision on it, its
+# citations (O:/C:/P: refs) and whether the selected passage is in it.
+class AskFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: Annotated[str, StringConstraints(max_length=5000)]
+    state: Literal["pending", "accepted", "edited"]
+    citations: Annotated[list[str], Field(max_length=50)] = []
+    in_passage: bool = False
+
+
+# Text the engineer selected in the draft to ask about (AS-02): its section, as the report
+# heads it ("9. Fire Protection"), its words (the citation markers left out), the sources it
+# cites and the section's findings.
+class AskPassage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[1-9]|A)$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    citations: Annotated[list[str], Field(max_length=50)] = []
+    sources: Annotated[list[AskPassageSource], Field(max_length=50)] = []
+    findings: Annotated[list[AskFinding], Field(max_length=200)] = []
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: Question
@@ -529,12 +562,14 @@ class AskRequest(BaseModel):
     standard_ids: list[str] = []
     documents: list[AskDocument] = []
     privacy: Privacy | None = None
+    passage: AskPassage | None = None
 
 
 @router.post("/assessments/ask")
 def ask_assessment(request: AskRequest) -> StreamingResponse:
-    """Stream one cited answer to a question about an assessment (AS-01), through the
-    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
+    """Stream one cited answer to a question about an assessment (AS-01), or about a passage
+    selected in its draft (AS-02), through the orchestrator: retrieve, assemble, generate,
+    guardrail. Its last event is the result."""
     events = ask_events(
         request.question,
         request.assessment,
@@ -542,6 +577,7 @@ def ask_assessment(request: AskRequest) -> StreamingResponse:
         request.standard_ids,
         {d.id: d.name for d in request.documents},
         privacy=_privacy(request),
+        passage=request.passage,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 

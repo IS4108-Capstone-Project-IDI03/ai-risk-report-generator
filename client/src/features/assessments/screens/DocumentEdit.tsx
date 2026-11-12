@@ -3,6 +3,12 @@ import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
+import { AskHighlight, setAskMarks } from '../ask/askHighlight'
+import { DocumentAsk } from '../ask/DocumentAsk'
+import { editorPassage, type AskPassage } from '../ask/passage'
+import { isAskShortcut } from '../ask/shortcut'
+import type { AskWorkflow } from '../ask/useAsk'
+import { rangeOf } from '../comments/anchor'
 import type { Stamp } from '../comments/api'
 import { CommentAnchors } from '../comments/commentMarks'
 import { CommentMargin } from '../comments/CommentMargin'
@@ -31,6 +37,7 @@ import { useSections } from '../useSections'
 import '../document/document.css'
 import '../document/page/pages.css'
 import '../comments/comments.css'
+import '../ask/ask.css'
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: 'All changes saved',
@@ -56,18 +63,25 @@ const bottomOf = (element: HTMLElement | null) => element?.getBoundingClientRect
 // the gaps around them.
 const MARGIN_ROOM = { continuous: 560 + 296 + 64, page: 816 + 296 + 64 }
 
-// What the editor's comment marks call back to (RV-03): set once the
-// document has rendered, so the editor, made once, always reaches the
-// latest handlers.
+// What the editor's comment marks (RV-03) and Ask's shortcut (AS-02) call
+// back to: set once the document has rendered, so the editor, made once,
+// always reaches the latest handlers. `ask` says whether it asked.
 function createCommentBridge() {
   let activate: (threadId: string) => void = () => {}
   let comment: () => void = () => {}
+  let ask: () => boolean = () => false
   return {
     onActivate: (threadId: string) => activate(threadId),
     onComment: () => comment(),
-    set(handlers: { activate: (threadId: string) => void; comment: () => void }) {
+    onAsk: () => ask(),
+    set(handlers: {
+      activate: (threadId: string) => void
+      comment: () => void
+      ask: () => boolean
+    }) {
       activate = handlers.activate
       comment = handlers.comment
+      ask = handlers.ask
     },
   }
 }
@@ -88,6 +102,7 @@ function DocumentBody({
   readOnly,
   canComment,
   me,
+  ask,
   onReturn,
   onReload,
   wrapStyle,
@@ -103,6 +118,8 @@ function DocumentBody({
   readOnly: boolean
   canComment: boolean
   me: Stamp
+  // Asking about the selected text (AS-02): the Ask tab's conversation, or null.
+  ask: AskWorkflow | null
   onReturn: (sectionId: string) => void
   onReload: () => void
   wrapStyle: React.CSSProperties
@@ -128,6 +145,9 @@ function DocumentBody({
   const main = useRef<HTMLElement>(null)
   const [mainWidth, setMainWidth] = useState(0)
   const [bridge] = useState(createCommentBridge)
+  // The Ask panel (AS-02), and why the selection could not be asked about.
+  const [askOpen, setAskOpen] = useState(false)
+  const [askHint, setAskHint] = useState<string | null>(null)
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -141,6 +161,7 @@ function DocumentBody({
       FindReplace,
       PageLayout.configure({ geometry: MARSH_GEOMETRY, onLayout: setLayout }),
       CommentAnchors.configure({ onActivate: bridge.onActivate, onComment: bridge.onComment }),
+      AskHighlight.configure({ onAsk: bridge.onAsk }),
       Extension.create({
         name: 'documentKeys',
         priority: 1000,
@@ -173,6 +194,7 @@ function DocumentBody({
     onSelectionUpdate: ({ editor: e }) => {
       const id = sectionAtSelection(e)
       if (id) setCurrent(id)
+      setAskHint(null)
     },
   })
 
@@ -209,17 +231,74 @@ function DocumentBody({
   // A new thread on the selected text (AC1): in the margin, or in the
   // comments list's place where there is no margin.
   const startComment = () => {
-    if (comments.startDraft() && !inMargin) comments.setPanel('thread')
+    if (!comments.startDraft()) return
+    setAskOpen(false)
+    if (!inMargin) comments.setPanel('thread')
   }
+  // Each section as the report heads it, for a passage asked about (AS-02).
+  const labelOf = (sectionId: string) => {
+    const part = report.parts.find((p) => p.id === sectionId)
+    if (!part) return `Section ${sectionId}`
+    return part.id === 'A' ? `Appendix A. ${part.title}` : `${part.number}. ${part.title}`
+  }
+  // The Ask panel opens in the comments list's place, so only one is open.
+  const openAsk = () => {
+    if (comments.active === DRAFT) comments.cancelDraft()
+    comments.setPanel(null)
+    setAskOpen(true)
+  }
+  // Ask about this (AS-02 AC1): the selected text goes into the question box
+  // of the Ask panel, or the reason it can't is said under the toolbar.
+  const askAboutSelection = () => {
+    if (!ask || !editor) return
+    const { from, to } = editor.state.selection
+    const target = editorPassage(editor.state.doc, from, to, labelOf)
+    if ('reason' in target) {
+      setAskHint(`${target.reason.title}. ${target.reason.text}`)
+      return
+    }
+    setAskHint(null)
+    setAskMarks(editor.view, { shown: null })
+    ask.setAbout(target.passage)
+    openAsk()
+  }
+  // Back to a passage asked about (AC3): marked and scrolled to; the panel
+  // steps aside where it covers the text.
+  const showAsked = (passage: AskPassage) => {
+    if (!editor) return
+    const range = rangeOf(editor.state.doc, passage.anchor)
+    if (!range) return
+    setAskMarks(editor.view, { shown: range })
+    const at = editor.view.domAtPos(range.from).node
+    const element = at instanceof Element ? at : at.parentElement
+    element?.scrollIntoView?.({
+      block: 'center',
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    })
+    if (!room) setAskOpen(false)
+  }
+  // The passage in the question box is marked in the text while it waits
+  // there, also when it was chosen in the review workspace.
+  const about = ask?.about ?? null
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    setAskMarks(editor.view, { pending: about ? rangeOf(editor.state.doc, about.anchor) : null })
+  }, [editor, about])
   // A thread's highlighted text clicked: its thread opens.
   useEffect(() =>
     bridge.set({
       activate: (threadId) => {
         comments.activate(threadId)
+        setAskOpen(false)
         if (!inMargin) comments.setPanel('thread')
       },
       comment: () => {
         if (canComment) startComment()
+      },
+      ask: () => {
+        if (!ask) return false
+        askAboutSelection()
+        return true
       },
     }),
   )
@@ -235,6 +314,19 @@ function DocumentBody({
     window.addEventListener('keydown', press)
     return () => window.removeEventListener('keydown', press)
   }, [readOnly, canComment, bridge])
+  // So is Ask about this's (AS-02).
+  useEffect(() => {
+    if (!readOnly || !ask) return
+    const press = (event: KeyboardEvent) => {
+      if (!isAskShortcut(event)) return
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('input, textarea')) return
+      event.preventDefault()
+      bridge.onAsk()
+    }
+    window.addEventListener('keydown', press)
+    return () => window.removeEventListener('keydown', press)
+  }, [readOnly, ask, bridge])
   const actions: ThreadActions = {
     reply: comments.reply,
     edit: comments.edit,
@@ -445,9 +537,20 @@ function DocumentBody({
                         if (comments.panel && !room && comments.active === DRAFT)
                           comments.cancelDraft()
                         comments.setPanel(comments.panel ? null : 'list')
+                        setAskOpen(false)
                       },
                       listOpen: comments.panel !== null,
                       open: comments.counts.open,
+                    }
+                  : undefined
+              }
+              ask={
+                ask
+                  ? {
+                      onAsk: askAboutSelection,
+                      onPanel: () => (askOpen ? setAskOpen(false) : openAsk()),
+                      panelOpen: askOpen,
+                      labelOf,
                     }
                   : undefined
               }
@@ -455,6 +558,11 @@ function DocumentBody({
             {comments.hint && (
               <p className="dm-comment-hint" role="status">
                 {comments.hint}
+              </p>
+            )}
+            {askHint && (
+              <p className="dm-comment-hint" role="status">
+                {askHint}
               </p>
             )}
             {findOpen && (
@@ -523,6 +631,19 @@ function DocumentBody({
                 )}
               </div>
             </div>
+            {/* Questions about the assessment and the passages asked about (AS-02). */}
+            {askOpen && ask && !comments.panel && (
+              <DocumentAsk
+                editor={editor}
+                ask={ask}
+                overlay={!room}
+                onShowPassage={showAsked}
+                onClose={() => {
+                  setAskOpen(false)
+                  setAskMarks(editor.view, { shown: null })
+                }}
+              />
+            )}
             {/* The comments list (AC8), and threads where there is no margin. */}
             {comments.panel && (
               <CommentsPanel
@@ -618,6 +739,7 @@ export function DocumentEdit({
   readOnly = false,
   canComment = false,
   me = NOBODY,
+  ask = null,
   onReturn,
   onReload,
   wrapStyle,
@@ -643,6 +765,9 @@ export function DocumentEdit({
   canComment?: boolean
   // Who is signed in, for whose comments they may edit and delete (AC3).
   me?: Stamp
+  // The Ask tab's conversation, to ask about selected text here (AS-02);
+  // null without `reports:ask`.
+  ask?: AskWorkflow | null
   onReturn: (sectionId: string) => void
   // Reads the workspace again and reopens the document from it.
   onReload: () => void
@@ -678,6 +803,7 @@ export function DocumentEdit({
       readOnly={readOnly}
       canComment={canComment}
       me={me}
+      ask={ask}
       onReturn={onReturn}
       onReload={onReload}
       wrapStyle={wrapStyle}
