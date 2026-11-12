@@ -529,6 +529,30 @@ describe('Searching All Recordings (CP-13)', () => {
     expect(screen.getByText('3 recordings across 2 locations')).toBeInTheDocument()
   })
 
+  it('is reached on a phone from the Locations sheet, and searched there', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    try {
+      listed = [VALVE_OBS, PERMIT_OBS]
+      await openObservations()
+      // The navigator is a sheet on a phone; its foot opens the three views.
+      fireEvent.click(screen.getByRole('button', { name: 'Location: All locations. Change' }))
+      const sheet = screen.getByRole('dialog', { name: 'Locations' })
+      for (const name of ['All photos', 'All handwritten pages', 'All recordings'])
+        expect(within(sheet).getByRole('button', { name })).toBeInTheDocument()
+
+      fireEvent.click(within(sheet).getByRole('button', { name: 'All recordings' }))
+
+      expect(screen.queryByRole('dialog', { name: 'Locations' })).toBeNull()
+      const view = screen.getByRole('group', { name: 'Recordings' })
+      search('permit')
+      expect(within(view).getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('1 of 3 recordings')).toBeInTheDocument()
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
+  })
+
   it('stops the recording playing when a search leaves it out', async () => {
     listed = [VALVE_OBS, PERMIT_OBS]
     const view = await openRecordings()
