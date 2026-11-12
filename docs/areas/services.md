@@ -392,6 +392,31 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   `<id>:table:<n>:picture[:g<k>]`, so it never clashes with a picture of the same
   chunk (`<id>:picture:<n>`).
 
+### Cited regions and formulas (KB-02)
+
+- **What S4 returns.** `GET /passages/{id}` (`app/chat/passages.py`), through the
+  gateway's `GET /api/chat/passages/:id`, adds `region` (`{ kind, boxes }` or null)
+  and `generated`. A table or formula region comes only from the passage's
+  `region_kind`/`region_bbox`/`region_pages` keys (see database.md); a described
+  picture with no region keys gets its own `bbox`; anything else is null, so today's
+  table and formula passages show as text. No box is guessed: the largest box of a
+  table chunk is often its prose.
+- **What is quotable.** `quotable_text` (`app/generation/generator.py`) leaves out a
+  described picture's `Image description (generated …)` block, up to its
+  `Text in image:` line or the next blank line. A quote found only in a model's
+  description is therefore never "found" in the document, in chat, the checklist or
+  Ask. The caption, the printed text and the prose stay quotable.
+- **Where it shows.** The chat's Passage tab and the review workspace's source panel
+  draw the region above the passage text (`client/src/features/sources/`:
+  `CitedRegion`, `SourceRegion`), with react-pdf as the PDF tab does (`pdfSetup.ts`).
+  Review looks the passage up live by its chunk id only for the region; its text stays
+  as the draft was given it. A region that can't be drawn shows nothing. The region is
+  never sent to an AI model.
+- **Formulas as math.** `PassageBody` renders the LaTeX the formula reader wrote
+  (`$$…$$`, `\[…\]`, or a line with a command and no run of prose) with KaTeX,
+  lazy-loaded. LaTeX KaTeX rejects, and a formula holding the quoted words, show as
+  written.
+
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
 ## Automatic labelling (IN-05)
