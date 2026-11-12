@@ -174,8 +174,32 @@ def passage_headings(meta: dict) -> list[str]:
 def quotable_text(passage: dict) -> str:
     """The passage's words a model is shown, for its quote checks: the headings, then the text.
     A past report's cover lines, for one, are headings only. The document's name is the app's
-    label, not the document's words, so it is not quotable."""
-    return "\n".join([*passage_headings(passage.get("metadata") or {}), passage["text"]])
+    label, not the document's words, so it is not quotable. Nor is a picture's generated
+    description (IN-13, KB-02): the caption, the text printed in the image and the prose stay."""
+    meta = passage.get("metadata") or {}
+    text = passage["text"]
+    if meta.get("generated_text") == "picture_description":
+        text = _without_description(text)
+    return "\n".join([*passage_headings(meta), text])
+
+
+# How ingestion writes a picture's reading (ingestion-service `ocr_prompts._picture_text`).
+_DESCRIPTION = "Image description (generated"
+_PRINTED = "Text in image:"
+
+
+def _without_description(text: str) -> str:
+    """The text without its generated description, which runs to the printed-text line or a
+    blank line, since a description may span lines."""
+    kept, skipping = [], False
+    for line in text.split("\n"):
+        if line.startswith(_DESCRIPTION):
+            skipping = True
+        elif skipping and (line.startswith(_PRINTED) or not line.strip()):
+            skipping = False
+        if not skipping:
+            kept.append(line)
+    return "\n".join(kept)
 
 
 def _chunk_block(label: str, chunk: dict) -> str:
