@@ -8,6 +8,8 @@ import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
+import { DetailsToaster } from './DetailsToaster'
+import { DETAILS_TOASTER } from './detailsToast'
 import { SiteMapPanel } from './SiteMapPanel'
 import '../marshbot.css'
 
@@ -42,10 +44,16 @@ export function DetailsPanel({
   const record = v.liveRecord as DetailedRecord | null
   if (!record) return null
   const edit = v.ovEdit
+  // On a computer the panel is a modal <dialog> in the top layer, which covers the app's toaster:
+  // its toasts go to a toaster inside it. A phone's sheet isn't in the top layer, so it keeps the app's.
+  const toasterId = phone ? undefined : DETAILS_TOASTER
   const mapping = view === 'map' && !!v.ovMap
   const title = mapping ? 'Site Map' : 'Details'
   const content = mapping ? (
-    <SiteMapPanel map={v.ovMap!} onSaved={v.siteSaved} />
+    <SiteMapPanel
+      map={v.ovMap!}
+      onSaved={(message, undo) => v.siteSaved(message, { undo, toasterId })}
+    />
   ) : (
     <DetailsContent
       v={v}
@@ -122,6 +130,7 @@ export function DetailsPanel({
               </header>
               <div className="mb-panel-body">{content}</div>
             </div>
+            <DetailsToaster />
           </dialog>
         )
       )}
@@ -132,7 +141,7 @@ export function DetailsPanel({
           onClose={() => setDialog(null)}
           onSaved={(message) => {
             setDialog(null)
-            void v.siteSaved(message)
+            void v.siteSaved(message, { toasterId })
           }}
         />
       )}
@@ -142,7 +151,7 @@ export function DetailsPanel({
           onClose={() => setDialog(null)}
           onSaved={(message) => {
             setDialog(null)
-            void v.detailsSaved(message)
+            void v.detailsSaved(message, { toasterId })
           }}
         />
       )}

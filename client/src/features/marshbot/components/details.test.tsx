@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadGoogleMaps } from '../../assessments/googleMaps'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
+import { toast, Toaster } from '../../../design-system'
+import { DetailsToaster } from './DetailsToaster'
+import { DETAILS_TOASTER } from './detailsToast'
 import { SiteMapPanel } from './SiteMapPanel'
 
 vi.mock('../../assessments/googleMaps', async (original) => ({
@@ -351,5 +354,33 @@ describe('the site map in the panel', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set pin' })))
     expect(sent()).toEqual({ block: 'Plant Room', point: { lat: 1.2966, lng: 103.852 } })
     expect(onSaved).toHaveBeenCalled()
+  })
+})
+
+describe('toasts raised from the panel', () => {
+  it('appear inside the panel’s dialog, so their Undo is not covered by it', async () => {
+    const undo = vi.fn()
+    // The app's toaster sits outside the modal dialog, and the dialog's own is inside it.
+    render(
+      <>
+        <Toaster />
+        <dialog open data-testid="panel">
+          <DetailsToaster />
+        </dialog>
+      </>,
+    )
+    act(() => {
+      toast.success('Pin removed', {
+        action: { label: 'Undo', onClick: undo },
+        toasterId: DETAILS_TOASTER,
+      })
+    })
+    const dialog = screen.getByTestId('panel')
+    const button = await within(dialog).findByRole('button', { name: 'Undo' })
+    expect(within(dialog).getByText('Pin removed')).toBeInTheDocument()
+    // Shown once: the app's own toaster ignores a toast sent to the panel's.
+    expect(screen.getAllByText('Pin removed')).toHaveLength(1)
+    fireEvent.click(button)
+    expect(undo).toHaveBeenCalled()
   })
 })
