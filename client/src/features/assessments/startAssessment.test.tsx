@@ -1541,8 +1541,11 @@ it('says why a colleague’s site can’t be changed, and opens the client’s p
     fireEvent.click(row)
     const panel = openDetails()
     const siteCard = within(panel).getByRole('region', { name: 'Site' })
-    expect(within(siteCard).queryByRole('button', { name: 'Edit site' })).not.toBeInTheDocument()
-    expect(within(siteCard).getByText(OTHERS)).toBeInTheDocument()
+    // The pencil stays, greyed, and says why on the button itself (design system v2).
+    const edit = within(siteCard).getByRole('button', { name: 'Edit site' })
+    expect(edit).toHaveAttribute('aria-disabled', 'true')
+    expect(edit).toHaveAccessibleDescription(new RegExp(OTHERS))
+    expect(within(siteCard).queryByText(OTHERS, { selector: 'p, div' })).not.toBeInTheDocument()
     // Edit details is still the engineer's.
     expect(within(panel).getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
 

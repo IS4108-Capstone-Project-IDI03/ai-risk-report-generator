@@ -1,19 +1,21 @@
-// The assessment's Details (AS-06 board 06): a side panel from the right over a dimmed page on
-// a computer, a bottom sheet on a phone. Its pencil opens Edit details; Edit site sits by the
-// site. Opened by the header's Details button and the rail's client card (AssessmentApp.tsx).
+// The assessment's Details (AS-06 boards 06, D1, D3): a side panel from the right over a dimmed
+// page on a computer, a bottom sheet on a phone. Its pencil opens Edit details; Edit site sits by
+// the site; Open map swaps the content to the site map, and a back arrow returns. Opened by the
+// header's Details button and the rail's client card (AssessmentApp.tsx).
 import { useEffect, useId, useRef, useState } from 'react'
 import { IconButton, Sheet, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
+import { SiteMapPanel } from './SiteMapPanel'
 import '../marshbot.css'
 
 /** Returns the Details panel (or sheet) while open; nothing without a saved record. */
 export function DetailsPanel({
   v,
   open,
-  onClose,
+  onClose: close,
 }: {
   v: AssessmentWorkflow
   open: boolean
@@ -21,6 +23,13 @@ export function DetailsPanel({
 }) {
   const phone = useIsPhone()
   const [dialog, setDialog] = useState<'site' | 'details' | null>(null)
+  // What the panel shows: the facts, or the site map in their place (same panel, no new dialog).
+  const [view, setView] = useState<'details' | 'map'>('details')
+  // Closing starts the next opening on the facts again.
+  const onClose = () => {
+    setView('details')
+    close()
+  }
   const titleId = useId()
   // What had focus when the panel opened. The panel unmounts rather than closing, so the
   // browser doesn't return focus by itself: without this it would drop to the page's top.
@@ -33,11 +42,26 @@ export function DetailsPanel({
   const record = v.liveRecord as DetailedRecord | null
   if (!record) return null
   const edit = v.ovEdit
-  const content = (
+  const mapping = view === 'map' && !!v.ovMap
+  const title = mapping ? 'Site Map' : 'Details'
+  const content = mapping ? (
+    <SiteMapPanel map={v.ovMap!} onSaved={v.siteSaved} />
+  ) : (
     <DetailsContent
       v={v}
       record={record}
       onEditSite={edit?.site.allowed ? () => setDialog('site') : undefined}
+      siteReason={edit && !edit.site.allowed ? edit.site.reason : null}
+      onOpenMap={v.ovMap ? () => setView('map') : undefined}
+    />
+  )
+  const back = (
+    <IconButton
+      icon="chevron-left"
+      label="Back to details"
+      tooltip="Back to details"
+      className="mb-hit"
+      onClick={() => setView('details')}
     />
   )
   const editDetails = edit && (
@@ -55,9 +79,9 @@ export function DetailsPanel({
         <Sheet
           open={open}
           onClose={onClose}
-          title="Details"
+          title={title}
           className="mb-details-sheet"
-          headerAction={editDetails}
+          headerAction={mapping ? back : editDetails}
         >
           {content}
         </Sheet>
@@ -77,14 +101,22 @@ export function DetailsPanel({
               e.preventDefault()
               onClose()
             }}
+            // Escape closes a list open over the panel (the Popover hears it too), not the panel:
+            // without this one press would close both.
+            onKeyDown={(e) =>
+              e.key === 'Escape' &&
+              e.currentTarget.querySelector('.ds-popover') &&
+              e.preventDefault()
+            }
             // A click on the dimmed backdrop (the dialog's own box, outside the panel) closes it.
             onClick={(e) => e.target === e.currentTarget && onClose()}
           >
             <div className="mb-panel-sheet">
               <header className="mb-panel-head">
-                <h2 id={titleId}>Details</h2>
+                {mapping && back}
+                <h2 id={titleId}>{title}</h2>
                 <span>
-                  {editDetails}
+                  {!mapping && editDetails}
                   <IconButton icon="x" label="Close" tooltip="Close" onClick={onClose} />
                 </span>
               </header>

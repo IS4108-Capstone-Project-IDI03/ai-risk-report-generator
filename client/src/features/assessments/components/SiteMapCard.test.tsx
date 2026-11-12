@@ -92,7 +92,7 @@ describe('the site pin', () => {
     await clickMap(1.5, 103.5)
     expect(put.mock.calls[0][0]).toBe('/api/sites/s1/map')
     expect(sentMap()).toEqual({ coordinates: { lat: 1.5, lng: 103.5 } })
-    expect(onSaved).toHaveBeenCalledWith('Geolocation saved')
+    expect(onSaved).toHaveBeenCalledWith('Pin set', undefined)
   })
 
   it('takes pasted coordinates instead, and says what is wrong with bad ones (AC2, AC3)', async () => {

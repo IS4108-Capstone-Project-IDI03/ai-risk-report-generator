@@ -2,35 +2,12 @@
 // with directions, and for the assigned engineer, placing, moving and removing
 // pins. Used by screens/Overview.tsx. Saves one change at a time through
 // PUT /api/sites/:id/map.
-import { useState } from 'react'
 import { Button, Icon, Input } from '../../../design-system'
-import { GatewayError } from '../api'
-import { changeSiteMap, type SiteMap, type SiteMapChange } from '../../clients/api'
-import { directionsUrl, formatCoordinates, parseCoordinates, type Coordinates } from '../googleMaps'
-import { sameName } from '../locations'
+import type { SiteMap } from '../../clients/api'
+import { directionsUrl, formatCoordinates } from '../googleMaps'
 import { MyLocationButton } from './MyLocationButton'
-import { SiteMapView, type MapPin } from './SiteMapView'
-
-const SITE = 'Site'
-
-// One row: the site, or a block, with its pin if it has one.
-type Row = { key: string; name: string; label: string; point: Coordinates | null; block: boolean }
-
-// Every block this visit has, and any pinned on an earlier visit, named once.
-function rowsOf(site: SiteMap, buildings: string[]): Row[] {
-  const names = [...site.pins.map((p) => p.name)]
-  for (const b of buildings) if (!names.some((n) => sameName(n, b))) names.push(b)
-  return [
-    { key: 'site', name: SITE, label: 'S', point: site.coordinates, block: false },
-    ...names.map((name, i) => ({
-      key: 'block:' + name,
-      name,
-      label: String(i + 1),
-      point: site.pins.find((p) => sameName(p.name, name)) ?? null,
-      block: true,
-    })),
-  ]
-}
+import { useSiteMapEdit } from './siteMapEdit'
+import { SiteMapView } from './SiteMapView'
 
 export function SiteMapCard({
   site,
@@ -43,59 +20,20 @@ export function SiteMapCard({
   canEdit: boolean
   onSaved: (message: string) => void | Promise<void>
 }) {
-  // The row whose pin the next map click or pasted coordinates set.
-  const [placing, setPlacing] = useState<Row | null>(null)
-  const [typed, setTyped] = useState('')
-  const [problem, setProblem] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const rows = rowsOf(site, buildings)
-
-  const save = async (change: SiteMapChange) => {
-    setSaving(true)
-    setProblem(null)
-    try {
-      await changeSiteMap(site.id, change)
-      setPlacing(null)
-      setTyped('')
-      // Waited for, so the buttons come back once the card shows the new pin.
-      await onSaved('Geolocation saved')
-    } catch (error: unknown) {
-      setProblem(
-        error instanceof GatewayError && error.message
-          ? error.message
-          : 'The geolocation couldn’t be saved. Try again.',
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const place = (row: Row, point: Coordinates | null) =>
-    save(row.block ? { block: row.name, point } : { coordinates: point })
-
-  // A click only places a pin while a row is waiting for one, so panning the
-  // map can't move a pin by accident.
-  const pick = (point: Coordinates) => {
-    if (placing && !saving) void place(placing, point)
-  }
-  const setFromTyped = () => {
-    const point = parseCoordinates(typed)
-    if (!point) setProblem('Enter a latitude from -90 to 90 and a longitude from -180 to 180.')
-    else if (placing) void place(placing, point)
-  }
-  const cancel = () => {
-    setPlacing(null)
-    setProblem(null)
-  }
-  const start = (row: Row) => {
-    setPlacing(row)
-    setTyped(row.point ? formatCoordinates(row.point) : '')
-    setProblem(null)
-  }
-
-  const pins: MapPin[] = rows.flatMap((r) =>
-    r.point ? [{ ...r.point, label: r.label, title: r.name }] : [],
-  )
+  const {
+    rows,
+    pins,
+    placing,
+    typed,
+    setTyped,
+    problem,
+    saving,
+    place,
+    pick,
+    setFromTyped,
+    cancel,
+    start,
+  } = useSiteMapEdit(site, buildings, onSaved)
   return (
     <section aria-label="Geolocation" className="sm-card">
       <div className="sm-head">

@@ -2978,7 +2978,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : null,
       // A site corrected from the Overview: the work list reads it again, and
       // the header takes its name.
-      siteSaved: async (message: string) => {
+      siteSaved: async (message: string, undo?: { label: string; onClick: () => void }) => {
         const list = await reloadRows()
         const now = list?.find((a) => a.reference === s.captureTarget.reference)
         if (now)
@@ -2986,7 +2986,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...previous,
             captureTarget: { ...previous.captureTarget, site: now.site.name },
           }))
-        toast(message)
+        // A toast with an Undo (a removed pin) goes through the design system's own toast.
+        if (undo) sonner.success(message, { action: undo })
+        else toast(message)
       },
       // The work list reloads only on the dashboard, so reload it here.
       detailsSaved: async (message: string) => {

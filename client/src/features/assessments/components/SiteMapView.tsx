@@ -1,7 +1,7 @@
 // The map itself (CP-26): draws numbered pins, and says so when Google can't
 // load. Used by SiteMapCard on the Overview and SiteCard on the create form.
 // Calls googleMaps.ts. Keyboard users have the Coordinates field beside it.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../../../design-system'
 import {
   loadGoogleMaps,
@@ -26,11 +26,18 @@ export function SiteMapView({
   pins,
   onPick,
   onPinClick,
+  focus,
+  overlay,
 }: {
   label: string
   pins: MapPin[]
   onPick?: (point: Coordinates) => void
   onPinClick?: (pin: MapPin) => void
+  // Centres the map here; a new object each press, so the same spot can be asked for twice.
+  focus?: Coordinates | null
+  // Drawn over the map (a hint, a button) and left out when Google can't load, where it would
+  // only cover the fallback text. The caller's box must be `position: relative`.
+  overlay?: ReactNode
 }) {
   const element = useRef<HTMLDivElement>(null)
   const map = useRef<GoogleMapInstance | null>(null)
@@ -102,6 +109,13 @@ export function SiteMapView({
     }
   }, [maps, drawn])
 
+  // d. Centre on a place the engineer asked to see (a row, or their own position).
+  useEffect(() => {
+    if (!maps || !map.current || !focus) return
+    map.current.setCenter({ lat: focus.lat, lng: focus.lng })
+    map.current.setZoom(SITE_ZOOM)
+  }, [maps, focus])
+
   if (unavailable)
     return (
       <p className="sm-unavailable" role="status">
@@ -109,5 +123,10 @@ export function SiteMapView({
         {'The map isn’t available right now. You can still paste coordinates and get directions.'}
       </p>
     )
-  return <div ref={element} className="sm-map" role="region" aria-label={label} />
+  return (
+    <>
+      <div ref={element} className="sm-map" role="region" aria-label={label} />
+      {overlay}
+    </>
+  )
 }
