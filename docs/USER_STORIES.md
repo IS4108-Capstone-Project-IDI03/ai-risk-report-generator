@@ -474,38 +474,45 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting or removing a voice recording (on its observation's page, CP-08); a site walk proposal's voice recordings (its walk list already holds them); a length column (voice recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted against no story (CP-04 AC3, CP-19 AC17).
   </details>
 
-- [ ] **CP-13** — Search the evidence text of an assessment (risk engineer, Could, 5→6 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5; reuses the ID of an earlier CP-13 that became CP-33)
+- [ ] **CP-13** — Search and filter the evidence of an assessment (risk engineer, Could, 5→6 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: search an assessment's voice transcripts, handwritten page transcripts and photo descriptions, and filter its photos, pages and recordings, so I can find where I said, wrote or photographed something, or what still needs a look, without opening each observation.
+  Goal: search and filter an assessment's voice recordings, handwritten pages and photos by what they say and where they stand, so I can find where I recorded, wrote or photographed something, and what still needs a look, without opening each observation.
 
-  The evidence views
+  Searching
 
-  1. Given All Recordings, All Handwritten Pages or All Photos, when I type in its search box, then only the items holding every word I typed are listed, in any order and ignoring case and accents, and the count says how many of how many match.
-  2. Given a voice recording, when it is searched, then its transcript as corrected, its name and its observation's text are searched, but never "(No speech was detected.)".
-  3. Given a handwritten page, when it is searched, then its text as shown (the engineer's correction, or else the model's reading), its name and its observation's text are searched.
-  4. Given a photo, when it is searched, then its observation's photo description is searched only if it describes that photo, together with its name and its observation's text.
-  5. Given an item found in its own text, when it is listed, then its text opens under the row with every word found marked, and a word the model was unsure of keeps its underline round the mark.
-  6. Given no item matches, when the search runs, then the view says none match, with Clear search.
-  7. Given a search, when I open an observation from a row and select Back, then the view comes back with the same search; when I open the view again from the location navigator, its search is empty.
-  8. Given a voice recording playing, when a search leaves it out, then it stops.
+  1. Given All Recordings, All Handwritten Pages or All Photos, when I type in its search box, then only the items holding every word in their text, name or observation's text are listed, in any order and ignoring case and accents, with how many of how many match.
+  2. Given a voice recording, when I search, then its transcript as corrected is searched, but not "(No speech was detected.)".
+  3. Given a handwritten page, when I search, then its text as shown is searched: my correction, or else the model's reading.
+  4. Given a photo, when I search, then its observation's description is searched only if it describes that photo.
+
+  Showing what matched
+
+  5. Given an item found in its own text, when it is listed, then its text opens under the row with the words found marked.
+  6. Given a word the model was unsure of, when a search finds it, then it keeps its underline round the mark.
+
+  Filtering
+
+  7. Given one of the three views, when I choose a Location, Category or Severity, then only the items of observations carrying it are listed, together with the search.
+  8. Given All Recordings, when I choose a Status, then only the voice recordings transcribed, still transcribing, or that could not be transcribed are listed.
+  9. Given All Handwritten Pages, when I choose a Status, then only the pages transcribed, corrected, with unsure words, still transcribing, or that could not be transcribed are listed, and a corrected page no longer counts as having unsure words.
+  10. Given All Photos, when I choose a Description, then only the photos described, out of date, or not described are listed, and a photo added after its observation's description counts as not described.
 
   The Observations list
 
-  9. Given the Observations tab or its deleted observations, when I type in its search box, then only the observations whose note, transcripts, page texts or photo description hold every word are listed, together with the location picked and the filters set.
-  10. Given an observation found other than in the text its row shows, when it is listed, then its row says where, such as "Matched in Recording 2 and the photo description", and words in the row's own text are marked.
-  11. Given no observation matches, when the search runs, then it says none match, with Clear search; Clear all clears the search with the filters.
+  11. Given the Observations tab or its deleted observations, when I search, then only the observations whose note, transcripts, page texts or photo description hold every word are listed, together with the location picked and the filters set.
+  12. Given an observation found other than in the text its row shows, when it is listed, then its row says where, such as "Matched in Recording 2 and the photo description".
 
-  Filters on the evidence views (added 12 Nov 2026, 1 point)
+  Clearing and returning
 
-  12. Given All Recordings, All Handwritten Pages or All Photos, when I choose a Location, Category or Severity, then only the items of observations carrying it are listed, together with the search, and the count says how many of how many.
-  13. Given All Recordings, when I choose a Status, then only the voice recordings transcribed, still transcribing, or that couldn't be transcribed are listed.
-  14. Given All Handwritten Pages, when I choose a Status, then only the pages transcribed, corrected, with unsure words, still transcribing, or that couldn't be transcribed are listed; a corrected page no longer counts as having unsure words.
-  15. Given All Photos, when I choose a Description, then only the photos described (out of date or not), described but out of date, or not described are listed; a photo added after its observation's description counts as not described.
-  16. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared; given none match, the view says so, naming the search and that filters are set, with Clear all.
-  17. Given filters, when I open an observation from a row and select Back, then they are kept; when I open the view again from the location navigator, none are set; a voice recording playing that a filter leaves out stops.
+  13. Given nothing matches, when I search or filter, then I am told none match, with Clear search, or Clear all when filters are set.
+  14. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared.
+  15. Given a search or filters on one of the three views, when I open an observation from a row and select Back, then they are kept; when I open the view again from the location navigator, none are set.
+  16. Given a voice recording playing, when the search or a filter leaves it out, then it stops.
 
-  Not in this story: a site walk proposal's views and list (its photos are described and its pages transcribed only at Create all, and a walk recording's transcript covers the whole walk, not each clip); choosing Appendix A's photos by their description (a GN-07 follow-up, as the appendix has no description to search); searching by meaning (Ask, AS-01); the wording a correction replaced; removed recordings, photos and pages. See DECISIONS.
+  Permissions
+
+  17. Given someone else's assessment I can view, when I search or filter it, then it works as on my own, and nothing is saved.
   </details>
 
 - [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)

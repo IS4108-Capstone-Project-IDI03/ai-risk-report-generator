@@ -645,6 +645,20 @@ describe('Filtering All Recordings (CP-13)', () => {
     expect(screen.getByRole('button', { name: 'Category' })).toBeInTheDocument()
   })
 
+  it('searches and filters someone else’s assessment as one’s own', async () => {
+    workList = [assessment(OTHER)]
+    listed = [VALVE_OBS, PERMIT_OBS]
+    const view = await openRecordings()
+
+    filter('Category', 'Protection')
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search recordings' }), {
+      target: { value: 'v-12' },
+    })
+
+    expect(names(view)).toEqual(['Recording 1', 'Recording 2'])
+    expect(screen.getByText('2 of 3 recordings')).toBeInTheDocument()
+  })
+
   it('stops the recording playing when a filter leaves it out', async () => {
     listed = [VALVE_OBS, PERMIT_OBS]
     const view = await openRecordings()
