@@ -1390,6 +1390,23 @@ ingest, and a correction rewrites them in place (KB-01). An Unconfirmed detail
 (IN-05) is left out of the passage, since Chroma can't store null, so no filter
 can match it.
 
+A passage read from a table, formula or picture may also record its **region**: the
+part of the original page a citation shows (KB-02). `bbox` can't serve: a table
+passage's `bbox` also holds the prose, captions and pictures in its chunk, and a
+formula passage's is the whole chunk. Only a described picture's `bbox` is the
+picture alone.
+
+| Key | Meaning |
+|---|---|
+| `region_kind` | `table`, `formula` or `picture`; absent for plain text |
+| `region_bbox` | flat `[l, t, r, b, …]` in PDF points from the page's bottom-left, only the boxes to show |
+| `region_pages` | the page of each box in `region_bbox`, in the same order |
+
+`bbox`/`bbox_pages` stay as they are (the chat's PDF tab outlines the whole passage
+with them). Ingestion doesn't write the region keys yet (IN-__); until it does, S4
+gives a described picture (`generated_text: picture_description`) its `bbox` as its
+region, and every other passage none.
+
 Knowledge documents carry no `COPE_dimension` (an exception to the
 five-field rule): each passage carries its own `section` instead (IN-05).
 During ingestion, a past report's passage gets the template section it sits

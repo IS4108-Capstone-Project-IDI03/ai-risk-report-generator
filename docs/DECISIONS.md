@@ -2428,3 +2428,26 @@ Rejected:
 Known limits: "choosing" is checked with patterns, so wording outside them is left to the prompt. The passage's words are not checked against the saved text on the gateway: a passage selected in unsaved document edits is sent as selected. Old answers have no passage.
 
 Stories: AS-02, AS-01, RV-03, RV-08, RV-01.
+
+## 2026-11-12 — Cited regions: a crop of the original page, from region keys only; formulas shown as math; a picture's description is never a quote
+
+Chose:
+- (KB-02) A cited table, formula or picture shows the part of the original page it was read from, cropped from the PDF in the browser with react-pdf, above the passage text. The table or formula is not rebuilt from its reading: the reading is what may be wrong, and a tidy rebuild would make an OCR error look authoritative. Ingestion keeps no table grid to rebuild from anyway.
+- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-__, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
+- Shown in the chat's Passage tab and the review workspace's source panel. Review looks the passage up live, only for its region; the text stays as the draft was given it (RV-01 AC7), and a passage gone since shows text only.
+- LaTeX in passage text is rendered with KaTeX (lazy-loaded) when valid, and shown as written when not, with no error. Detection is by text (delimiters, or a command on a line with no run of prose), so it also works for documents ingested before; it never decides whether a crop is shown.
+- A picture's generated description stays in the citation, under the picture, noted as written by AI: it is what the answer read, so the engineer can catch a misreading. `quotable_text` leaves it out, so a quote of it is never "found in the document".
+- Nothing about a region goes to an AI model: images can't pass through `/mask`, and past reports are stored masked (PV-05).
+
+Reason: chat and review showed only the OCR's reading of a table, formula or picture, the part of a citation most likely to be wrong, so a number taken from a table couldn't be checked without opening the PDF and finding the page.
+
+Rejected:
+- Using `bbox` for tables and formulas: a table passage's boxes include its chunk's prose and captions, and a formula's is the whole chunk, so the crop would show the wrong area.
+- Guessing a table's box as the largest in its chunk: a small table beside long prose crops the prose.
+- Recognising a formula region from valid LaTeX in old passages: its boxes are still the whole chunk.
+- Rebuilding tables as HTML tables: needs the grid kept at ingestion and re-ingesting every document; it belongs with exporting a table into the report (EX), if ever needed.
+- Sending crops to the chat or drafting model: breaks fail-closed masking.
+
+Known limits: the checklist and the drafting screen's evidence panel don't open passages, so they show no regions. Formula detection by text can miss an unread formula (Docling's placeholder or flattened arithmetic) and render a rare non-formula line with a command as math.
+
+Stories: KB-02, IN-__, CB-02, RV-01, IN-13.
