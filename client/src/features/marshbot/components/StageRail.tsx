@@ -1,40 +1,34 @@
-// The assessment's eight stages down the rail (AS-06 board 01): the line fills the column, done
-// stages have a green tick and their date, the current one sits on a light blue band, and the
-// survey and report due dates show with a calendar icon, amber when close, red when late.
-// A stage that moves on grows its line and slides the band down (board 12).
-// Called by screens/MarshBotOverview.tsx; the stage words come from assessments/format.ts.
+// The assessment's eight stages down the rail (AS-06 canvas P6): packed 44 px rows, done stages
+// with a green tick, the current one on a light blue band with its one date: the survey day up to
+// Capture ("tomorrow" the day before), the report due after it, the export day once exported;
+// amber when close, red when the report is late. A stage that moves on grows its line and slides
+// the band down (board 12). Called by Rail.tsx; the stage words come from assessments/format.ts.
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../../design-system'
 import { STAGE_LABEL } from '../../assessments/format'
-import { dateTone, fullDay } from '../format'
-import { STAGES, type AssistantBrief, type Stage } from '../types'
+import { dateTone, daysBetween, shortDay, today } from '../format'
+import { STAGES, type AssistantThread, type Stage } from '../types'
 
-// The date beside a stage: its label, the day, and how close it is.
-type Dated = { label: string | null; day: string; tone: 'late' | 'soon' | null; strong: boolean }
+// The current stage's date: its label, the day as said, and how close it is.
+type Dated = { label: string | null; text: string; tone: 'late' | 'soon' | null }
 
-// What date a stage shows: Capture its survey, Ready to export the report due until passed,
-// a passed stage the day it was entered (spec: no "in N days" here).
-function dateOf(stage: Stage, brief: AssistantBrief, at: number, now: number): Dated | null {
-  const passed = at < now
-  if (stage === 'capture') {
-    const day = brief.surveyEnd ?? brief.surveyStart
+function dateOf(stage: Stage, thread: AssistantThread): Dated | null {
+  const at = STAGES.indexOf(stage)
+  if (at <= STAGES.indexOf('capture')) {
+    const day = thread.surveyEnd ?? thread.surveyStart
     if (!day) return null
-    const ends = !!brief.surveyEnd && !!brief.surveyStart && brief.surveyEnd !== brief.surveyStart
-    const tone = passed ? null : dateTone(day, false)
-    return { label: ends ? 'Survey ends' : 'Survey', day, tone, strong: !passed }
+    const text = daysBetween(today(), day) === 1 ? 'tomorrow' : shortDay(day)
+    return { label: 'Survey', text, tone: dateTone(day, false) }
   }
-  if (stage === 'ready_to_export' && !passed && brief.reportDue)
-    return {
-      label: 'Due',
-      day: brief.reportDue,
-      tone: dateTone(brief.reportDue, true),
-      strong: true,
-    }
-  const entered = brief.stageDates[stage]
-  return passed && entered ? { label: null, day: entered, tone: null, strong: false } : null
+  if (stage === 'exported') {
+    const day = thread.stageDates.exported
+    return day ? { label: null, text: shortDay(day), tone: null } : null
+  }
+  const due = thread.reportDue
+  return due ? { label: 'Due', text: shortDay(due), tone: dateTone(due, true) } : null
 }
 
-// The day a date last changed, so it can crossfade and hold the "just changed" tint (board 12).
+// Bumps when a date changes, so it crossfades and holds the "just changed" tint (board 12).
 function useChanged(value: string | null) {
   const last = useRef(value)
   const [changed, setChanged] = useState(0)
@@ -47,25 +41,22 @@ function useChanged(value: string | null) {
   return changed
 }
 
-/** Returns the stage track; `from` is the stage it showed before, so the move animates. */
-export function StageRail({ brief, from }: { brief: AssistantBrief; from?: Stage }) {
-  // Opened after the stage moved on: start one stage back, then move on (board 12).
-  const [shown, setShown] = useState<Stage>(from ?? brief.stage)
+/** Returns the stage track for the thread's stage. */
+export function StageRail({ thread }: { thread: AssistantThread }) {
+  // A stage that moves on while the screen is open steps there after a beat, so the move shows.
+  const [shown, setShown] = useState<Stage>(thread.stage)
   useEffect(() => {
-    if (shown === brief.stage) return
-    const timer = setTimeout(() => setShown(brief.stage), 400)
+    if (shown === thread.stage) return
+    const timer = setTimeout(() => setShown(thread.stage), 400)
     return () => clearTimeout(timer)
-  }, [shown, brief.stage])
+  }, [shown, thread.stage])
   const now = STAGES.indexOf(shown)
-  const surveyChanged = useChanged(brief.surveyEnd)
-  const dueChanged = useChanged(brief.reportDue)
+  const changed = useChanged(`${thread.surveyEnd}|${thread.reportDue}`)
+  const dated = dateOf(shown, thread)
   return (
     <ol className="mb-stages" aria-label="Stages">
       {STAGES.map((stage, i) => {
         const state = i < now ? 'done' : i === now ? 'now' : 'next'
-        const dated = dateOf(stage, brief, i, now)
-        const changed =
-          stage === 'capture' ? surveyChanged : stage === 'ready_to_export' ? dueChanged : 0
         return (
           <li
             key={stage}
@@ -81,7 +72,7 @@ export function StageRail({ brief, from }: { brief: AssistantBrief; from?: Stage
                 {STAGE_LABEL[stage]}
                 {state === 'done' && <span className="mb-sr">, done</span>}
               </span>
-              {dated && (
+              {state === 'now' && dated && (
                 <span
                   key={changed}
                   className="mb-stage-date"
@@ -89,10 +80,10 @@ export function StageRail({ brief, from }: { brief: AssistantBrief; from?: Stage
                   data-changed={changed > 0 || undefined}
                 >
                   {dated.label && (
-                    <Icon name={dated.tone ? 'calendar-clock' : 'calendar'} size={15} />
+                    <Icon name={dated.tone ? 'calendar-clock' : 'calendar'} size={13} />
                   )}
                   {dated.label && <span>{dated.label}</span>}
-                  {dated.strong ? <b>{fullDay(dated.day)}</b> : <span>{fullDay(dated.day)}</span>}
+                  <b>{dated.text}</b>
                 </span>
               )}
             </span>

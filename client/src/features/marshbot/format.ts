@@ -1,5 +1,5 @@
-// How MarshBot's screen words dates and times (AS-06): full days on the rail, short days on the
-// phone bar and lanes, and when a message was said. Used across features/marshbot.
+// How MarshBot's screen words dates and times (AS-06): short days on the rail, phone bar and lanes,
+// the picked visit day, and the time dividers in the thread. Used across features/marshbot.
 import { dueState } from '../../design-system'
 import { formatDay } from '../assessments/format'
 
@@ -16,9 +16,6 @@ export function toDate(value: string) {
   return day ? new Date(+day[1], +day[2] - 1, +day[3]) : new Date(value)
 }
 
-/** Returns "14 Nov 2026". */
-export const fullDay = (value: string) => formatDay(toDate(value))
-
 /** Returns "14 Nov". */
 export function shortDay(value: string) {
   const d = toDate(value)
@@ -29,6 +26,12 @@ export function shortDay(value: string) {
 export function visitDay(value: string) {
   const d = toDate(value)
   return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${formatDay(d)}`
+}
+
+/** Returns "Fri 20 Nov", a day in a reply or a toast. */
+export function weekDay(value: string) {
+  const d = toDate(value)
+  return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${shortDay(value)}`
 }
 
 /** Returns the whole calendar days from `from` to `to` (negative when `to` is earlier). */
@@ -56,13 +59,24 @@ export function dateTone(day: string | null, canBeLate: boolean): 'late' | 'soon
   return state === 'soon' ? 'soon' : null
 }
 
-/** Returns when something was said: "just now", "09:12", "Monday 09:12" or "3 Nov 2026, 09:12". */
-export function saidAt(iso: string, now = new Date()) {
+/** Returns "10:41", the time of a turn. */
+export function clock(iso: string) {
   const d = new Date(iso)
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  if (now.getTime() - d.getTime() < 60_000) return 'just now'
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Returns a session's divider: "Today, 10:23", "Yesterday, 10:23", "Friday, 09:05" within a
+    week, else "Wednesday 11 Nov, 10:23". */
+export function sessionTime(iso: string, now = new Date()) {
+  const d = new Date(iso)
   const days = daysBetween(iso, now.toISOString())
-  if (days === 0) return time
-  if (days < 7) return `${WEEKDAYS[d.getDay()]} ${time}`
-  return `${formatDay(d)}, ${time}`
+  const day =
+    days === 0
+      ? 'Today'
+      : days === 1
+        ? 'Yesterday'
+        : days < 7
+          ? WEEKDAYS[d.getDay()]
+          : `${WEEKDAYS[d.getDay()]} ${shortDay(iso)}`
+  return `${day}, ${clock(iso)}`
 }

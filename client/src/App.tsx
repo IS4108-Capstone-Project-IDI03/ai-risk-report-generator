@@ -5,6 +5,7 @@ import { currentSession, signOut, type Session } from './features/auth/api'
 import { AssessmentApp } from './features/assessments/AssessmentApp'
 import { SESSION_ENDED_EVENT } from './features/assessments/api'
 import { useAssessmentWorkflow } from './features/assessments/useAssessmentWorkflow'
+import { clearThreadCache } from './features/marshbot/useThread'
 import { NotificationCountsProvider } from './features/notifications/NotificationCountsContext'
 
 function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
@@ -48,6 +49,8 @@ export default function App() {
 
   function leave() {
     setSession(null)
+    // Without this, the next person on this tab would first see the last one's MarshBot threads.
+    clearThreadCache()
     // The next person to sign in starts from their own home screen.
     window.history.replaceState(null, '', '/')
     signOut().catch(() => {

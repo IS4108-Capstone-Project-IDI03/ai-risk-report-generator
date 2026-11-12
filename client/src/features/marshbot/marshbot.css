@@ -1,11 +1,10 @@
-/* MarshBot Overview (AS-06 boards 01 to 07, 11, 12): the rail, the conversation, bubbles and the
-   Details panel. Message widgets are in parts.css. Values from the canvas sources (r2.css, r4.css)
-   on design-system v2 tokens; motion from board 12. */
-@import './parts.css';
+/* MarshBot Overview (AS-06 canvas P6, boards 06, 11, 12): the page split, the rail (MarshBot,
+   stages, at a glance, client card), the phone stage bar and the Details panel. The thread and
+   its cards are in components/thread/thread.css and cards.css. Values from the canvas sources
+   (r4.css, r7.css, r8.css) on design-system v2 tokens; motion from board 12. */
 
-/* Page split: the rail on the left, the conversation on the right; both fill the height. */
-/* The page fills the workspace's scroll area; the conversation scrolls on its own so the rail
-   stays put beside it. */
+/* Page split: the rail on the left, the thread on the right; both fill the workspace's height,
+   and only the thread scrolls. */
 .mb {
   display: flex;
   height: 100%;
@@ -27,44 +26,53 @@
   margin: 0;
 }
 
-/* --- Rail --- */
+/* --- Rail (284 px, so an 18-character status pill fits beside the face): it never scrolls and
+   nothing in it overlaps. As the height runs out (rail size queries at the end of this block):
+   the header and stage rows tighten (44 to 36 px) and the facts' rows to 36 px, then "At a
+   Glance" steps aside, then the stage rows go to 32 px; below that the Overview shows the phone's
+   stage bar instead (MarshBotOverview.tsx, SHORT_WINDOW). --- */
 .mb-rail {
-  width: 300px;
+  width: 284px;
   flex: none;
   min-height: 0;
-  overflow-y: auto;
-  /* Scrolling to its end doesn't carry on into the page behind. */
-  overscroll-behavior: contain;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--surface-card);
+  border-right: 1px solid var(--graphite-200);
+  container: rail / size;
+}
+.mb-rail-in {
+  height: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px 14px 14px;
-  background: var(--surface-card);
-  border-right: 1px solid var(--graphite-200);
+  gap: 10px;
+  padding: 14px 12px 12px;
 }
 .mb-bot {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 6px 12px;
+  gap: 12px;
+  padding: 0 4px 12px;
   border-bottom: 1px solid var(--graphite-100);
 }
-.mb-bot b {
-  display: block;
-  font-size: 17px;
-  line-height: 22px;
+/* The name, and directly under it the status pill. */
+.mb-bot-id {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.mb-bot-id b {
+  font-size: 16px;
+  line-height: 21px;
   color: var(--marsh-navy);
 }
-.mb-bot small {
-  display: block;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--graphite-600);
-}
 .mb-face {
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
   flex: none;
   border-radius: 50%;
   display: flex;
@@ -105,10 +113,44 @@
   transform: scaleY(0.12);
 }
 
-/* Stages: each takes an equal share of the height; the line runs through the dots. */
+/* MarshBot's status pill: no dot, an icon, one line that never wraps (r2.css .mood). */
+.mb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px 0 9px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.mb-status > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-status[data-tone='red'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.mb-status[data-tone='amber'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.mb-status[data-tone='green'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+/* Stages, packed: 44 px rows, the current one taller for its date; the line runs through the dots. */
 .mb-stages {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -116,18 +158,20 @@
   list-style: none;
 }
 .mb-stage {
-  flex: 1;
-  min-height: 48px;
+  height: 44px;
   display: flex;
   align-items: center;
   position: relative;
+}
+.mb-stage[data-state='now'] {
+  height: 58px;
 }
 /* The grey line, and over it the green one, which grows down as a stage moves on. */
 .mb-stage::before,
 .mb-stage::after {
   content: '';
   position: absolute;
-  left: 23px;
+  left: 19px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -160,19 +204,24 @@
   position: relative;
   z-index: 1;
   flex: 1;
+  min-width: 0;
+  align-self: stretch;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  column-gap: 12px;
+  column-gap: 10px;
+  align-content: center;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-radius: 12px;
   transition: background-color var(--duration-base) var(--ease-out);
 }
 .mb-stage[data-state='now'] .mb-stage-band {
   background: var(--ink-50);
 }
+/* On the name's line only (the date sits under the name), so the dot is centred on the name. */
 .mb-stage-dot {
-  grid-row: 1 / span 2;
+  grid-row: 1;
+  align-self: center;
   justify-self: center;
   width: 20px;
   height: 20px;
@@ -199,16 +248,19 @@
   border: 6px solid var(--marsh-navy);
 }
 .mb-stage-name {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13.5px;
+  line-height: 18px;
   font-weight: 500;
   color: var(--graphite-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mb-stage[data-state='done'] .mb-stage-name {
   color: var(--graphite-900);
 }
 .mb-stage[data-state='now'] .mb-stage-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--marsh-navy);
 }
@@ -216,12 +268,13 @@
   grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin: 0 -6px;
   padding: 0 6px;
   border-radius: 6px;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
   color: var(--graphite-600);
   font-variant-numeric: tabular-nums;
   animation: mb-fade var(--duration-fast) var(--ease-out);
@@ -245,16 +298,98 @@
     mb-tint 1260ms linear;
 }
 
-/* Client card: a real button that opens Details. */
+/* At a Glance: the stage's 3 facts share the height the stages leave. */
+.mb-glance {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.mb-glance-in {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-glance h2 {
+  flex: none;
+  margin: 0 0 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+.mb-glance dl {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.mb-glance-row {
+  flex: 1 1 40px;
+  min-height: 36px;
+  max-height: 60px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 0 6px;
+}
+.mb-glance-row + .mb-glance-row {
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-glance-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.mb-glance dt {
+  font-size: 13px;
+  color: var(--graphite-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-glance dd {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--graphite-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mb-glance dd[data-tone='amber'] {
+  color: var(--amber-600);
+}
+.mb-glance dd[data-tone='red'] {
+  color: var(--red-600);
+}
+.mb-glance dd[data-tone='green'] {
+  color: var(--green-600);
+}
+
+/* Client card, pinned at the foot: a real button that opens Details. */
 .mb-client {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 56px;
-  padding: 10px;
+  min-width: 0;
+  min-height: 50px;
+  margin-top: auto;
+  padding: 8px;
   border: 1px solid var(--graphite-200);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface-card);
   box-shadow: 0 1px 2px rgb(0 15 71 / 0.05);
   font: inherit;
@@ -262,13 +397,14 @@
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
 }
 .mb-client .client-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  font-size: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 11px;
 }
 .mb-client-text {
   flex: 1;
@@ -276,30 +412,37 @@
   display: flex;
   flex-direction: column;
 }
-.mb-client-name {
-  font-size: 14px;
-  line-height: 19px;
-  font-weight: 600;
-  color: var(--graphite-900);
+.mb-client-name,
+.mb-client-ref {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mb-client-ref {
-  font-size: 12.5px;
+.mb-client-name {
+  font-size: 13px;
   line-height: 17px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mb-client-ref {
+  font-size: 12px;
+  line-height: 15px;
   color: var(--graphite-600);
   font-variant-numeric: tabular-nums;
 }
 .mb-client-chev {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--graphite-600);
-  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+/* The tooltip's full name and reference wrap inside the rail instead of running off it. */
+.mb-client-tip {
+  display: block;
+  width: 200px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 @media (hover: hover) and (pointer: fine) {
   .mb-client:hover {
@@ -307,7 +450,6 @@
     box-shadow: 0 6px 16px rgb(0 15 71 / 0.1);
   }
   .mb-client:hover .mb-client-chev {
-    background: var(--graphite-100);
     color: var(--marsh-navy);
   }
 }
@@ -315,152 +457,68 @@
   transform: scale(0.98);
 }
 
-/* --- Conversation --- */
-.mb-convo {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  box-sizing: border-box;
-  padding: 20px 40px 40px 32px;
-}
-/* Focus lands here only when a dismissed row had no neighbour (ActionRow); no ring for that. */
-.mb .mb-convo:focus {
-  outline: none;
-}
-/* The reading column: the board's 800 px, wider for an admin's lanes. */
-.mb-thread {
-  max-width: 800px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.mb[data-admin] .mb-thread {
-  max-width: 1000px;
-}
-/* A wide screen: the column grows a little and centres, so the right half isn't left empty,
-   while a line of text stays readable. */
-@media (min-width: 1600px) {
-  .mb-thread {
-    max-width: 920px;
-    margin-inline: auto;
+/* A short rail, step by step (heights measured, see .mb-rail): tighter header, stage rows and
+   facts first, so "At a Glance" still shows on a laptop; then the facts step aside; then the
+   stage rows take their smallest height. */
+@container rail (max-height: 700px) {
+  .mb-rail-in {
+    gap: 6px;
+    padding: 8px 12px;
   }
-  .mb[data-admin] .mb-thread {
-    max-width: 1100px;
+  .mb-bot {
+    padding-bottom: 8px;
+  }
+  .mb-bot .mb-face {
+    width: 48px;
+    height: 48px;
+  }
+  .mb-stage {
+    height: 36px;
+  }
+  .mb-stage[data-state='now'] {
+    height: 48px;
+  }
+  .mb-glance-in {
+    padding-top: 4px;
+  }
+  .mb-glance h2 {
+    margin-bottom: 0;
+  }
+  .mb-client {
+    min-height: 44px;
+    padding: 5px 8px;
   }
 }
-.mb-turn {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+@container rail (max-height: 566px) {
+  .mb-glance {
+    display: none;
+  }
 }
-.mb-msg {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.mb-who {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--graphite-600);
-}
-.mb-when {
-  font-weight: 500;
-  color: var(--graphite-600);
-}
-.mb-bubble {
-  min-width: 0;
-  padding: 12px 16px;
-  border: 1px solid var(--graphite-200);
-  border-radius: 4px 18px 18px 18px;
-  background: var(--surface-card);
-  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
-  font-size: 14.5px;
-  line-height: 21px;
-  color: var(--graphite-900);
-  overflow-wrap: anywhere;
-  animation: mb-rise var(--duration-base) var(--ease-out);
-}
-.mb-bubble[data-big] {
-  padding: 14px 18px;
-  font-size: 16px;
-  line-height: 24px;
-}
-.mb-bubble[data-tone='success'] {
-  background: color-mix(in srgb, var(--green-50) 60%, var(--surface-card));
-  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
-}
-.mb-bubble[data-tone='question'] {
-  background: var(--ink-50);
-  border-color: var(--ink-100);
-}
-.mb-say {
-  margin: 0;
-  font-weight: 500;
-  text-wrap: pretty;
-}
-.mb-say + .mb-say,
-* + div > .mb-say {
-  margin-top: 8px;
-}
-.mb-say strong {
-  font-weight: 650;
-}
-/* Each word fades in over 240 ms as it is revealed, like the chatbot's letters (chat.css .chat-ch). */
-.mb-word {
-  animation: mb-fade 240ms ease-out both;
+@container rail (max-height: 424px) {
+  .mb-stage {
+    height: 32px;
+  }
+  .mb-stage[data-state='now'] {
+    height: 46px;
+  }
 }
 
-/* The engineer's answer on the right; a pressed reply rises 8 px into place. */
-.mb-me-wrap {
-  align-self: flex-end;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  max-width: min(420px, 85%);
-  animation: mb-rise-8 var(--duration-base) var(--ease-out);
-}
-.mb-me {
-  padding: 10px 16px;
-  border-radius: 18px 4px 18px 18px;
-  background: var(--marsh-navy);
-  color: var(--text-inverse);
-  font-size: 14.5px;
-  line-height: 21px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.mb-me-when {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--graphite-600);
-}
-
-/* Typing dots: each pulses over 1.2 s, 0.2 s apart. */
+/* MarshBot typing: three dots in a small bubble, each pulsing over 1.2 s, 0.2 s apart. */
 .mb-typing {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  align-self: flex-start;
   padding: 12px 16px;
   border: 1px solid var(--graphite-200);
-  border-radius: 4px 18px 18px 18px;
+  border-radius: 6px 18px 18px 18px;
   background: var(--surface-card);
   font-size: 13px;
   font-weight: 500;
   color: var(--graphite-600);
-  animation: mb-fade var(--duration-base) var(--ease-out);
 }
 .mb-dots {
   display: inline-flex;
-  gap: 4px;
+  gap: 5px;
 }
 .mb-dots i {
   width: 7px;
@@ -475,39 +533,14 @@
 .mb-dots i:nth-child(3) {
   animation-delay: 0.4s;
 }
-
-/* All caught up: one quiet line, no empty card. */
-.mb-done {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--graphite-700);
-  animation: mb-rise var(--duration-base) var(--ease-out);
-}
-.mb-done-tick {
-  width: 24px;
-  height: 24px;
-  flex: none;
-}
-.mb-seeall {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--graphite-100);
-  color: var(--marsh-navy);
-  font: 600 13px/1 var(--font-sans);
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mb-seeall:hover {
-    background: var(--graphite-200);
+/* Reduced motion stops the pulse (index.css): the dots stay at three strengths, so they still
+   read as "typing" rather than an idle mark. The spinner's partial ring does the same. */
+@media (prefers-reduced-motion: reduce) {
+  .mb-dots i:nth-child(2) {
+    opacity: 0.7;
+  }
+  .mb-dots i:nth-child(3) {
+    opacity: 0.4;
   }
 }
 /* A quiet text link with a chevron (Details' See all, board 06). */
@@ -537,7 +570,9 @@
   white-space: nowrap;
 }
 
-/* --- Phone (board 11): a stage bar on top, bubbles full width --- */
+/* --- Phone (board 11): a stage bar on top, the page scrolls. A window too short for the rail
+   (a landscape phone, a laptop at high zoom) gets the same bar over the thread, which keeps
+   scrolling on its own. Must match SHORT_WINDOW in screens/MarshBotOverview.tsx. --- */
 .mb-phonebar {
   display: none;
 }
@@ -546,10 +581,13 @@
     flex-direction: column;
     height: auto;
   }
-  .mb-convo {
-    overflow: visible;
+}
+@media (max-width: 767px), (max-height: 559px) {
+  .mb {
+    flex-direction: column;
   }
   .mb-phonebar {
+    flex: none;
     display: flex;
     position: relative;
     align-items: center;
@@ -564,17 +602,6 @@
     text-align: left;
     color: var(--graphite-600);
     cursor: pointer;
-  }
-  .mb-convo {
-    padding: 12px;
-  }
-  .mb-thread {
-    gap: 10px;
-  }
-  .mb-bubble[data-big] {
-    font-size: 14.5px;
-    line-height: 21px;
-    padding: 12px 16px;
   }
 }
 .mb-phonebar-main {
@@ -610,13 +637,14 @@
 .mb-phonebar-dates {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 6px;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 8px;
   font-size: 12.5px;
   color: var(--graphite-600);
   font-variant-numeric: tabular-nums;
 }
-.mb-phonebar-dates span {
+.mb-phonebar-dates > span:not(.mb-status) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -800,18 +828,6 @@
     opacity: 0;
   }
 }
-@keyframes mb-rise {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-@keyframes mb-rise-8 {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
 @keyframes mb-slide-in {
   from {
     transform: translateX(24px);
@@ -860,14 +876,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mb-bubble,
-  .mb-me-wrap,
-  .mb-done,
   .mb-panel-sheet {
     animation-name: mb-fade;
-  }
-  .mb-word {
-    animation: none;
   }
   .mb-stage::after,
   .mb-stage-band,

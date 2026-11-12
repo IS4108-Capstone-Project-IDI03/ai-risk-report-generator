@@ -1,0 +1,752 @@
+/* MarshBot's cards (AS-06 rules 2 to 6): the shared frame, rows and their one ending, ticks,
+   segment bars, the checklist, the outline, the admin lanes and time in stage. Sizes from the
+   canvas sources (r4.css, r6.css, r7.css, r8.css) on design-system v2 tokens. Nothing here is
+   wider than the thread: min-width 0 and minmax(0, 1fr) grids throughout. */
+
+/* --- Frame --- */
+/* A fixed width, never its content's: 660 px (or the column, if narrower) for rows and tasks,
+   the full column for the wide ones, so they grow when the sidebar collapses. */
+.mbt-card {
+  width: 660px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgb(0 15 71 / 0.05);
+}
+.mbt-card[data-wide] {
+  width: 100%;
+}
+.mbt-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 12px 16px 10px;
+}
+.mbt-card-head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--graphite-900);
+}
+.mbt-card-head small {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mbt-card-head small b {
+  font-weight: 700;
+  color: var(--graphite-900);
+}
+.mbt-help {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--graphite-600);
+  border-radius: 50%;
+  cursor: help;
+}
+.mbt-cta {
+  padding: 10px 16px 14px;
+}
+
+/* --- Rows: tile, name and status, one ending in the same slot --- */
+.mbt-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-top: 1px solid var(--graphite-100);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.mbt-row:last-child {
+  border-radius: 0 0 17px 17px;
+}
+.mbt-row[data-link] {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-row[data-link]:hover {
+    background: var(--graphite-50);
+  }
+}
+/* The keyboard's twin of the hover: the row lights up while its own button has focus. */
+.mbt-row[data-link]:focus-within {
+  background: var(--graphite-50);
+}
+.mbt-tile {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.mbt-row .mbt-tile {
+  align-self: start;
+  margin-top: calc((var(--mbt-control) - 32px) / 2);
+}
+.mbt-tile[data-tone='violet'] {
+  background: var(--violet-50);
+  color: var(--violet-600);
+}
+.mbt-tile[data-tone='amber'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.mbt-tile[data-tone='red'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.mbt-tile[data-tone='green'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.mbt-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mbt-row-title {
+  font-size: 14.5px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--graphite-900);
+  overflow-wrap: anywhere;
+}
+.mbt-row-quote {
+  font-size: 13.5px;
+  line-height: 19px;
+  color: var(--graphite-700);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mbt-row-quote::before {
+  content: '\201C';
+}
+.mbt-row-quote::after {
+  content: '\201D';
+}
+.mbt-row-detail {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  overflow-wrap: anywhere;
+}
+.mbt-row-detail[data-bad] {
+  color: var(--red-600);
+  font-weight: 600;
+}
+/* The ending slot: 128 px, flush right, so every row's end lines up. */
+.mbt-end {
+  width: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.mbt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mbt-status[data-status='done'] {
+  color: var(--green-600);
+}
+/* "Transcribing" sits centred in the slot, right under the button of the row above. */
+.mbt-status[data-status='busy'] {
+  width: 100%;
+  justify-content: center;
+  padding-right: 0;
+  color: var(--ink-600);
+}
+.mbt-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--ink-100);
+  border-top-color: var(--ink-600);
+  animation: mbt-spin 0.8s linear infinite;
+}
+.mbt-tick {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--green-600);
+}
+/* The round arrow: the row only opens something (a design-system IconButton, sized inline). */
+.mbt .mbt-open {
+  width: var(--mbt-arrow, 32px) !important;
+  height: var(--mbt-arrow, 32px) !important;
+  border-radius: 999px !important;
+  background: var(--graphite-100) !important;
+  color: var(--marsh-navy) !important;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt .mbt-open:hover {
+    background: var(--graphite-200) !important;
+  }
+}
+
+/* --- Ticks: what is fine, in even columns of at least 170 px that wrap to another row rather
+   than clip a name (140 px on a phone, so two fit). Each cell draws its right and bottom
+   divider; the list clips the ones on its outer edges. --- */
+.mbt-ticks {
+  --mbt-line: var(--graphite-100);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border-top: 1px solid var(--mbt-line);
+}
+.mbt-ticks:last-child {
+  border-radius: 0 0 17px 17px;
+}
+.mbt-ticks li {
+  margin: 0 -1px -1px 0;
+  border-right: 1px solid var(--mbt-line);
+  border-bottom: 1px solid var(--mbt-line);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 8px;
+  align-items: center;
+  align-content: center;
+  padding: 12px 16px;
+  background: var(--surface-card);
+  min-width: 0;
+}
+/* A solid green tick, centred on the name and its line. */
+.mbt-stick {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--green-600);
+}
+/* Nothing else on the card: the ticks are the news, on a soft green band. */
+.mbt-ticks[data-band] {
+  --mbt-line: color-mix(in srgb, var(--green-600) 18%, var(--green-50));
+  background: var(--green-50);
+}
+.mbt-ticks[data-band] li {
+  background: var(--green-50);
+}
+.mbt-ticks[data-band] b {
+  color: color-mix(in srgb, var(--green-600) 70%, var(--graphite-900));
+}
+.mbt-ticks b {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mbt-ticks small {
+  display: block;
+  font-size: 12.5px;
+  line-height: 16px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mbt-ticks .mbt-segs {
+  grid-column: 1 / -1;
+  height: 6px;
+}
+
+/* --- Segment bars: a segment per thing counted --- */
+.mbt-segs {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+.mbt-segs i {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--graphite-200);
+}
+.mbt-segs[data-fill] {
+  border-radius: 3px;
+  background: var(--graphite-200);
+}
+.mbt-segs[data-fill] i {
+  flex: none;
+}
+.mbt-segs i[data-tone='green'] {
+  background: var(--green-600);
+}
+.mbt-segs i[data-tone='amber'] {
+  background: var(--amber-500);
+}
+.mbt-segs i[data-tone='ink'] {
+  background: var(--ink-600);
+}
+.mbt-segs i[data-tone='red'] {
+  background: var(--red-600);
+}
+
+/* --- Checklist: the areas that need more, opened up side by side --- */
+.mbt-gaps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--graphite-100);
+  background: var(--graphite-100);
+}
+.mbt-gap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+}
+.mbt-gap header {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+  padding: 12px 16px 8px;
+}
+.mbt-gap header b {
+  display: block;
+  font-size: 14.5px;
+  line-height: 19px;
+  font-weight: 700;
+  color: var(--graphite-900);
+}
+.mbt-gap header small {
+  display: block;
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.mbt-gap small[data-tone='red'] {
+  color: var(--red-600);
+}
+.mbt-gap small[data-tone='amber'] {
+  color: var(--amber-600);
+}
+.mbt-gap ul {
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+.mbt-gap li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 16px 0 20px;
+  font-size: 14px;
+  line-height: 19px;
+  color: var(--graphite-900);
+}
+.mbt-gap li::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--graphite-400);
+}
+.mbt-gap footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 16px;
+  border-top: 1px solid var(--graphite-100);
+  font-size: 13.5px;
+  color: var(--graphite-600);
+}
+.mbt-seeall {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: 600 13.5px/1 var(--font-sans);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-seeall:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+/* --- Checklist bars (the catch-up): one line per area --- */
+.mbt-bars {
+  margin: 0;
+  padding: 2px 16px 8px;
+  list-style: none;
+}
+.mbt-bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 64px 32px;
+  column-gap: 16px;
+  align-items: center;
+  min-height: 38px;
+}
+.mbt-bars li + li {
+  border-top: 1px solid var(--graphite-100);
+}
+.mbt-bars-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mbt-bars-area > span {
+  color: var(--graphite-600);
+}
+.mbt-bars-count {
+  font-size: 13px;
+  color: var(--graphite-600);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mbt-bars li[data-low] .mbt-bars-count {
+  color: var(--amber-600);
+  font-weight: 600;
+}
+.mbt-bars-end {
+  display: flex;
+  justify-content: center;
+}
+
+/* --- Outline: every item in two columns, the next one highlighted --- */
+/* The bar drops under a lead too long to share its line, instead of pushing out of the card. */
+.mbt-ol-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 0 16px 6px;
+}
+.mbt-ol-lead b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mbt-ol-lead .mbt-segs {
+  flex: 1 1 240px;
+}
+.mbt-ol-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  padding: 2px 10px 6px;
+}
+.mbt-ol-cols ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mbt-ol > button,
+.mbt-ol > div {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 20px 24px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.mbt-ol > button {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-ol > button:hover {
+    background: var(--graphite-50);
+  }
+}
+.mbt-ol-no {
+  font-size: 12px;
+  color: var(--graphite-600);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mbt-ol-st {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--graphite-400);
+}
+.mbt-ol-st[data-state='ok'] {
+  color: var(--green-600);
+}
+.mbt-ol-st[data-state='wait'],
+.mbt-ol-st[data-state='question'] {
+  color: var(--amber-600);
+}
+.mbt-ol-st[data-state='figures'] {
+  color: var(--ink-600);
+}
+.mbt-ol-st[data-state='bad'] {
+  color: var(--red-600);
+}
+.mbt-ol-title {
+  padding: 3px 0;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--graphite-900);
+}
+.mbt-ol[data-state='ok'] .mbt-ol-title {
+  color: var(--graphite-700);
+}
+.mbt-ol-note {
+  max-width: 14em;
+  padding-right: 6px;
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--graphite-600);
+}
+.mbt-ol-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 8px 16px 12px;
+  list-style: none;
+  border-top: 1px solid var(--graphite-100);
+  font-size: 12.5px;
+  color: var(--graphite-600);
+}
+.mbt-ol-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mbt-ol-key + .mbt-cta {
+  padding-top: 4px;
+}
+
+/* --- Admin: sections in three lanes --- */
+.mbt-lanes {
+  display: grid;
+  grid-template-columns: var(--cols, minmax(0, 1fr));
+  gap: 12px;
+  padding: 4px 14px 14px;
+}
+.mbt-lane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--graphite-50);
+}
+.mbt-lane h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 4px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--graphite-700);
+}
+.mbt-lane[data-state='wait'] h4 > span:first-child {
+  color: var(--amber-600);
+}
+.mbt-lane[data-state='ok'] h4 > span:first-child {
+  color: var(--green-600);
+}
+.mbt-lane[data-state='new'] h4 > span:first-child {
+  color: var(--graphite-400);
+}
+.mbt-lane-n {
+  margin-left: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--surface-card);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--graphite-700);
+  font-variant-numeric: tabular-nums;
+}
+.mbt-lane-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* A long lane: its cards 2 abreast (it is twice as wide, LanesCard.tsx). */
+.mbt-lane[data-wide] .mbt-lane-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mbt-lane-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--graphite-100);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+.mbt-lane[data-state='wait'] .mbt-lane-card {
+  border-color: var(--amber-100);
+}
+.mbt-lane-card .mbt-ol-no {
+  width: 18px;
+  flex: none;
+}
+.mbt-lane-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--graphite-900);
+  overflow-wrap: anywhere;
+}
+.mbt-lane-date {
+  font-size: 12.5px;
+  color: var(--graphite-600);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mbt-lane-cm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--amber-600);
+}
+
+/* --- Admin: time in each stage, one bar split by days --- */
+/* Every span names its stage: none gets narrower than its label, the long ones give up the
+   room, and where even that can't fit (a phone) the spans wrap onto a second line. */
+.mbt-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 16px 14px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mbt-time > span {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  min-width: max-content;
+  padding: 0 8px;
+  white-space: nowrap;
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mbt-time > span[data-now] {
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+}
+.mbt-time-label b {
+  font-weight: inherit;
+}
+
+/* --- Touch and phone --- */
+@media (pointer: coarse), (max-width: 767px) {
+  .mbt {
+    --mbt-arrow: 44px;
+  }
+}
+@media (max-width: 767px) {
+  .mbt-row {
+    column-gap: 10px;
+    padding: 10px 12px;
+  }
+  .mbt-end {
+    width: auto;
+    min-width: 44px;
+  }
+  .mbt-ticks {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  }
+  .mbt-bars {
+    padding: 2px 12px 8px;
+  }
+  .mbt-bars li {
+    grid-template-columns: minmax(0, 1fr) 72px 44px;
+    column-gap: 10px;
+  }
+  .mbt-bars-count {
+    display: none;
+  }
+  .mbt-ol-lead .mbt-segs {
+    flex-basis: 100%;
+  }
+  .mbt-ol-cols {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 2px 6px 6px;
+  }
+  .mbt-ol > button,
+  .mbt-ol > div {
+    min-height: 44px;
+  }
+  .mbt-lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mbt-lane[data-wide] .mbt-lane-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@keyframes mbt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

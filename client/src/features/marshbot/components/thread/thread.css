@@ -1,0 +1,452 @@
+/* MarshBot's thread (AS-06 canvas C1 to C13, H1, H2): the scrolling conversation, MarshBot's
+   turns and bubbles, the engineer's replies, the Earlier fold and the reply tray. Cards are in
+   cards.css. Sizes from the canvas sources (r6.css, r7.css, r8.css) on design-system v2 tokens. */
+
+/* --mbt-control: a row's button (36 px, 44 px for touch); --mbt-reply: a reply in the tray. */
+.mbt {
+  --mbt-control: 36px;
+  --mbt-reply: 40px;
+  --mbt-cta: 40px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--graphite-50);
+}
+.mbt-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Scrolling to its end doesn't carry on into the page behind. */
+  overscroll-behavior: contain;
+}
+.mbt-thread {
+  max-width: 1600px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 32px 24px 24px;
+}
+/* Wide enough to use a collapsed sidebar's room even at 1920 px; past that the column centres. */
+@media (min-width: 1600px) {
+  .mbt-thread {
+    margin-inline: auto;
+  }
+}
+.mbt-session,
+.mbt-live {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* An earlier session: greyed and read-only (its buttons are left out, RowEnd.tsx). */
+/* Greyed by taking the colour out, not by fading: every text keeps at least 4.5:1, since people
+   still read their history. Only the decorative face is faded. */
+.mbt-session[data-past] .mbt-stack,
+.mbt-session[data-past] .mbt-me {
+  filter: grayscale(1);
+}
+.mbt-session[data-past] .mbt-face {
+  opacity: 0.55;
+}
+/* A turn takes focus after a reply (Thread.tsx): a soft ring round it, not the control ring. */
+.mbt-turn:focus {
+  outline: none;
+}
+.mbt-turn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.mbt-divider {
+  align-self: center;
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Earlier": the folded sessions, opened and closed in place. */
+.mbt-fold {
+  position: relative;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-card);
+  box-shadow: inset 0 0 0 1px var(--graphite-200);
+  color: var(--marsh-navy);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+.mbt-fold small {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-fold:hover {
+    background: var(--graphite-50);
+  }
+}
+.mbt-fold:active {
+  transform: scale(0.97);
+}
+
+/* One turn from MarshBot: its face, then a stack of what it says and hands over. */
+.mbt-turn {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+}
+.mbt-face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--graphite-0) 0,
+    var(--ink-50) 62%,
+    var(--ink-100) 100%
+  );
+  box-shadow: 0 0 0 1px var(--ink-100);
+}
+.mbt-face .mb-face-svg {
+  width: 32px;
+  height: 32px;
+}
+.mbt-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The turn's bubbles and cards in one column. It stretches, so a card always takes its full
+   width (OpenUI wraps a program in a plain div, which would otherwise shrink to its content);
+   a bubble keeps to its words. */
+.mbt-flow {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mbt-stack > .mb-typing {
+  align-self: flex-start;
+}
+.mbt-who {
+  align-self: flex-start;
+  margin: 0 0 -1px 2px;
+  font-size: 12.5px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+
+/* A speech bubble: sized to its words, the first with a tail towards the face. */
+.mbt-bubble {
+  position: relative;
+  width: fit-content;
+  max-width: 660px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 18px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--graphite-900);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.mbt-bubble p {
+  margin: 0;
+}
+.mbt-bubble p + p {
+  margin-top: 8px;
+}
+.mbt-bubble b {
+  font-weight: 600;
+}
+.mbt-bubble[data-tail] {
+  border-top-left-radius: 6px;
+}
+.mbt-bubble[data-tail]::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 11px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-left: 1px solid var(--graphite-200);
+  border-bottom: 1px solid var(--graphite-200);
+  border-bottom-left-radius: 3px;
+  transform: rotate(45deg);
+}
+.mbt-bubble[data-tone='good'] {
+  background: color-mix(in srgb, var(--green-50) 55%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
+}
+.mbt-bubble[data-tone='good'][data-tail]::before {
+  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
+}
+.mbt-slot {
+  width: 100%;
+  min-width: 0;
+}
+
+/* The engineer's reply: right aligned, navy, with its own tail. */
+.mbt-me {
+  position: relative;
+  align-self: flex-end;
+  max-width: min(420px, 85%);
+  margin-right: 6px;
+  padding: 9px 16px;
+  border-radius: 18px;
+  border-top-right-radius: 6px;
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+  font-size: 15px;
+  line-height: 23px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.mbt-me::before {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 11px;
+  width: 12px;
+  height: 12px;
+  background: var(--marsh-navy);
+  border-top-right-radius: 3px;
+  transform: rotate(45deg);
+}
+/* The reply the engineer just pressed rises into place while it is sent. */
+.mbt-me[data-sending] {
+  animation: mbt-rise var(--duration-slow) var(--ease-out) both;
+}
+
+/* A turn pushed in while the screen is open arrives piece by piece, 120 ms apart (board 12);
+   one already there when the screen opened draws at once. */
+.mbt-turn[data-fresh] .mbt-in {
+  animation: mbt-rise var(--duration-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+@keyframes mbt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The reply tray, where a chat box would be: always one row, never taller. */
+.mbt-tray {
+  flex: none;
+  background: var(--surface-card);
+  border-top: 1px solid var(--graphite-200);
+}
+/* The thread's own column (.mbt-thread): it starts where the bubbles start (24 px gutter, 40 px
+   face, 12 px gap) and ends where the engineer's bubble ends (32 px gutter, 6 px tail). */
+.mbt-tray-in {
+  max-width: 1600px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 38px 13px 76px;
+}
+/* The calendar and its confirm float 8 px clear of the tray's top edge: the button sits 12 px
+   (11 px padding and the 1 px border) below it. */
+.mbt-tray .ds-popover[data-flip] {
+  bottom: calc(100% + 20px);
+}
+/* While the Overview is open, toasts centre on the conversation, not the window, and clear the
+   tray when there is one (useToastPlace.ts sets the class and measures both). Every other
+   screen keeps the app's own Toaster place. */
+body.mbt-toasts [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  left: var(--mbt-toast-x, 50%) !important;
+}
+body.mbt-toasts:has(.mbt-tray)
+  [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  bottom: var(--mbt-toast-bottom, 77px) !important;
+}
+@media (min-width: 1600px) {
+  .mbt-tray-in {
+    margin-inline: auto;
+  }
+}
+.mbt-tray-hint {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--graphite-600);
+  white-space: nowrap;
+}
+.mbt-tray-replies {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* The calendar's confirm: the picked day, what changes, Cancel and Confirm. */
+.mbt-confirm {
+  width: 320px;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--graphite-700);
+}
+.mbt-confirm > b {
+  font-size: 15.5px;
+  color: var(--graphite-900);
+}
+.mbt-confirm p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.mbt-confirm s {
+  color: var(--graphite-600);
+}
+.mbt-confirm p b {
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mbt-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.mbt-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Touch screens: 44 px targets for every control in the thread and tray. */
+@media (pointer: coarse), (max-width: 767px) {
+  .mbt {
+    --mbt-control: 44px;
+    --mbt-reply: 44px;
+    --mbt-cta: 44px;
+  }
+  .mbt-fold {
+    min-height: 44px;
+  }
+  /* Small controls in the cards (See All, the (?) help) get a 44 px tap area without growing
+     their row: an invisible box centred on them, as .mb-hit does in marshbot.css. */
+  .mbt-seeall,
+  .mbt-help {
+    position: relative;
+  }
+  .mbt-seeall::after,
+  .mbt-help::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px));
+  }
+}
+/* Phone: the page scrolls, the thread runs full width, the tray stays at the foot. */
+@media (max-width: 767px) {
+  .mbt {
+    min-height: auto;
+  }
+  .mbt-scroll {
+    overflow: visible;
+  }
+  .mbt-thread {
+    padding: 12px 12px 20px;
+    gap: 10px;
+  }
+  .mbt-session,
+  .mbt-live {
+    gap: 10px;
+  }
+  .mbt-turn {
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+  .mbt-face {
+    width: 32px;
+    height: 32px;
+  }
+  .mbt-face .mb-face-svg {
+    width: 26px;
+    height: 26px;
+  }
+  .mbt-bubble {
+    padding: 9px 14px;
+    font-size: 15px;
+  }
+  .mbt-tray {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+  }
+  .mbt-tray-in {
+    padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+  }
+  /* The newest turn scrolls into view whole, above the tray stuck to the screen's foot. */
+  .mbt:has(.mbt-tray) .mbt-endmark {
+    scroll-margin-bottom: calc(65px + env(safe-area-inset-bottom, 0px));
+  }
+  .mbt-tray-hint {
+    display: none;
+  }
+  .mbt-tray-replies {
+    flex: 1;
+  }
+}
+/* Reduced motion: the app stops every animation (index.css); presses stop moving too. */
+@media (prefers-reduced-motion: reduce) {
+  .mbt-fold:active {
+    transform: none;
+  }
+}
+
+/* A later turn in the same run: no face and no tail, tucked up under the turn before it (canvas C1). */
+.mbt-turn[data-grouped] {
+  margin-top: -6px;
+}
+.mbt-turn[data-grouped] .mbt-face {
+  visibility: hidden;
+}
+.mbt-turn[data-grouped] .mbt-bubble[data-tail] {
+  border-top-left-radius: 18px;
+}
+.mbt-turn[data-grouped] .mbt-bubble[data-tail]::before {
+  display: none;
+}

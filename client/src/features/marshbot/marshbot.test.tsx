@@ -1,137 +1,42 @@
-// MarshBot on the Overview (AS-06, test seam 4): a fixture brief, a fixture OpenUI program, the
-// plain fallback, quick replies, the admin view, pacing and a pushed tick-off. The gateway is a
-// stubbed fetch and the push stream a stand-in EventSource; no network, no AI.
+// MarshBot on the Overview (AS-06, test seam 4): fixture threads (testThreads.ts), a fixture
+// OpenUI program and its fallback, the row endings, the reply tray and its calendar, the Earlier
+// fold, the admin view, pushes and the per-assessment cache. The gateway is a stubbed fetch and
+// the push stream a stand-in EventSource; no network, no AI.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MarshBotOverview } from './screens/MarshBotOverview'
-import type { AssistantBrief, BriefItem, BriefMessage } from './types'
+import {
+  REF,
+  THREAD_URL,
+  admin,
+  bothDone,
+  checklist,
+  earlierFolded,
+  generateOutline,
+  surveyDay,
+  thread,
+  todo,
+  turn,
+  visitQuestion,
+} from './testThreads'
+import type { AssistantThread } from './types'
+import { clearThreadCache } from './useThread'
 
-// Short waits so pacing runs in real time here; the pause stays long enough to see.
-vi.mock('./settings', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./settings')>()),
-  TYPING_MS: 5,
-  WORD_MS: 1,
-  WIDGET_MS: 1,
-  MESSAGE_PAUSE_MS: 2000,
-}))
-
-const REF = 'RPT-2026-0003'
-const BRIEF_URL = `/api/assessments/${REF}/assistant`
-
-const walk: BriefItem = {
-  id: 'capture.walk-ready:w1',
-  kind: 'walk-ready',
-  stage: 'capture',
-  weight: 'fix_now',
-  title: 'Morning walk',
-  detail: '10:42 · 9 proposed',
-  fact: 'Your morning walk is ready to review.',
-  icon: 'footprints',
-  link: { tab: 'observations', params: { walk: 'w1' } },
-  action: null,
-  actionTarget: null,
-  facts: {},
-  fingerprint: 'a',
-  dismissible: false,
-  firstSeenAt: '2026-11-14T02:00:00.000Z',
-  resolvedAt: null,
-}
-const recording: BriefItem = {
-  ...walk,
-  id: 'capture.failed-transcription:o1:r1',
-  kind: 'failed-transcription',
-  title: 'Loading Bay 2',
-  detail: "1:48 · Couldn't transcribe",
-  icon: 'mic',
-  link: null,
-  action: 'retry-transcription',
-  actionTarget: 'o1:r1',
-}
-const reminder: BriefItem = {
-  ...walk,
-  id: 'review.comments:7',
-  kind: 'new-comments',
-  weight: 'reminder',
-  title: '2 new comments from Sana',
-  detail: 'Both on Construction, yesterday afternoon.',
-  icon: 'message-square',
-  link: { tab: 'review' },
-  dismissible: true,
-}
-
-const greeting: BriefMessage = {
-  id: 'm1',
-  text: 'Morning, Alex. Pasir Gudang is coming along nicely.',
-  program: null,
-  parts: [],
-  tone: 'normal',
-}
-const rows: BriefMessage = {
-  id: 'm2',
-  text: 'Your morning walk is ready, and one recording didn’t come through.',
-  program: null,
-  parts: [{ type: 'actions', itemIds: [walk.id, recording.id] }],
-  tone: 'normal',
-}
-const health: BriefMessage = {
-  id: 'm3',
-  text: 'Here’s the checklist by area.',
-  program: null,
-  parts: [
-    { type: 'health', areas: [] },
-    { type: 'link', label: 'Add observation', link: { tab: 'observations' }, icon: 'plus' },
-  ],
-  tone: 'normal',
-}
-
-/** Returns a brief; by default opened before with nothing new since, so nothing is paced. */
-function brief(over: Partial<AssistantBrief> = {}): AssistantBrief {
-  return {
-    reference: REF,
-    viewer: 'engineer',
-    engineerName: 'Alex Rowe',
-    stage: 'capture',
-    stageDates: {
-      setup: '2026-11-03',
-      prepare: '2026-11-11',
-      capture: '2026-11-13',
-      ready_for_generation: null,
-      generate: null,
-      review: null,
-      ready_to_export: null,
-      exported: null,
-    },
-    surveyStart: '2026-11-14',
-    surveyEnd: '2026-11-14',
-    reportDue: '2026-12-18',
-    client: { id: 'c1', name: 'Harbourline Properties', reference: REF },
-    mood: 'concerned',
-    items: [walk, recording],
-    areas: [
-      { area: 'External Exposures', total: 5, covered: 0, thin: true },
-      { area: 'Security', total: 4, covered: 3, thin: false },
-    ],
-    sections: [],
-    export: null,
-    coverage: { status: 'idle', checkedAt: null },
-    thread: [],
-    messages: [greeting, rows, health],
-    lastOpenedAt: '2026-11-14T03:00:00.000Z',
-    updatedAt: '2026-11-14T02:30:00.000Z',
-    ...over,
-  }
-}
-
-// The stand-in gateway: GET answers the queue of briefs in turn (the last one repeats).
-let briefs: AssistantBrief[] = []
+// The stand-in gateway (set up by show()): GET answers the queue of threads in turn (the last one
+// repeats); a reply answers `answer`.
+let threads: AssistantThread[] = []
+let answer: AssistantThread
+// The status the reply route answers with; 500 makes it refuse.
+let replyStatus = 200
 let posts: { url: string; body: unknown }[] = []
-const reply = (body: unknown, status = 200) =>
+let gets = 0
+const json = (body: unknown, status = 200) =>
   new Response(status === 204 ? null : JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
 
-// The stand-in push stream: tests fire `brief` on the open one.
+// The stand-in push stream: tests fire `brief` or `open` on the open one.
 class FakeEventSource {
   static open: FakeEventSource[] = []
   static CLOSED = 2
@@ -156,16 +61,10 @@ class FakeEventSource {
 
 beforeEach(() => {
   posts = []
+  gets = 0
+  replyStatus = 200
   FakeEventSource.open = []
   vi.stubGlobal('EventSource', FakeEventSource)
-  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
-    const method = init?.method ?? 'GET'
-    if (method === 'GET' && url === BRIEF_URL)
-      return reply(briefs.length > 1 ? briefs.shift() : briefs[0])
-    posts.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
-    if (url === `${BRIEF_URL}/replies`) return reply(briefs[0])
-    return reply(null, 204)
-  })
 })
 afterEach(() => {
   cleanup()
@@ -173,232 +72,359 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-// MarshBot's words come one span per word, so match the whole paragraph's text.
-const said = (words: RegExp) => (_: string, el: Element | null) =>
-  !!el?.classList.contains('mb-say') && words.test(el.textContent ?? '')
-
-const show = (openLink = vi.fn()) =>
-  render(<MarshBotOverview reference={REF} openLink={openLink} openDetails={vi.fn()} />)
+// Each test uses its own reference, so the module cache of an earlier test never answers it.
+let refs = 0
+function show(first: AssistantThread, openLink = vi.fn()) {
+  refs += 1
+  const reference = `${REF}-${refs}`
+  const url = `/api/assessments/${reference}/assistant`
+  const swap = (t: AssistantThread) => ({ ...t, reference })
+  threads = [swap(first)]
+  vi.stubGlobal('fetch', async (u: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET'
+    if (method === 'GET' && u === url) {
+      gets += 1
+      return json(threads.length > 1 ? threads.shift() : threads[0])
+    }
+    posts.push({
+      url: u.replace(reference, REF),
+      body: init?.body ? JSON.parse(String(init.body)) : null,
+    })
+    if (u === `${url}/replies`)
+      return replyStatus === 200 ? json(answer) : json({ error: 'Down' }, replyStatus)
+    return json(null, 204)
+  })
+  const view = render(
+    <MarshBotOverview reference={reference} openLink={openLink} openDetails={vi.fn()} />,
+  )
+  return { ...view, reference, openLink }
+}
 
 describe('MarshBot Overview', () => {
-  it('greets, lists the action rows and shows the health bars of a fixture brief', async () => {
-    briefs = [brief()]
-    const openLink = vi.fn()
-    show(openLink)
-    expect(await screen.findByText(said(/Pasir Gudang is coming along nicely/))).toBeTruthy()
-    expect(screen.getByText('Morning walk')).toBeTruthy()
-    expect(screen.getByText('Loading Bay 2')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Retry Loading Bay 2' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: /External Exposures: 0 of 5/ })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'MarshBot, concerned' })).toBeTruthy()
-    // The rail: stages in order, the survey day beside Capture.
+  it('draws survey day: rail, greeting, the to-do card and its row endings', async () => {
+    const { openLink } = show(surveyDay)
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
+    // Bold names from **…**, the tail on the first bubble only.
+    expect(screen.getByText('Pasir Gudang').tagName).toBe('B')
+    const bubbles = document.querySelectorAll('.mbt-bubble')
+    expect([...bubbles].map((b) => b.hasAttribute('data-tail'))).toEqual([true, false])
+    // The rail: status pill, stages, at a glance, the client card.
+    expect(screen.getByText('2 things to fix')).toBeTruthy()
     expect(screen.getByText('Survey')).toBeTruthy()
+    expect(screen.getByText('25 of 42')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Harbourline Properties/ })).toBeTruthy()
+    // The card: its note, both rows, and a link button that opens where the work is.
+    expect(screen.getByRole('group', { name: 'To do' }).textContent).toContain('0 of 2 done')
     fireEvent.click(screen.getByRole('button', { name: 'Review Morning walk' }))
-    expect(openLink).toHaveBeenCalledWith(walk.link)
+    expect(openLink).toHaveBeenCalledWith({ tab: 'observations', params: { walk: 'w1' } })
+    // The tray offers Skip for now.
+    expect(screen.getByRole('group', { name: 'Your reply' })).toBeTruthy()
   })
 
-  it('draws a fixture OpenUI program with the same parts', async () => {
-    const program = [
-      'root = Reply([s1, a1, l1])',
-      's1 = Say("Two things need you, starting with **Loading Bay 2**.")',
-      `a1 = ActionRow("${recording.id}")`,
-      'l1 = LinkButton("Add one now", "link-1")',
-    ].join('\n')
-    briefs = [brief({ messages: [{ ...health, id: 'p1', program }] })]
-    show()
-    expect(
-      await screen.findByText(said(/Two things need you, starting with Loading Bay 2/)),
-    ).toBeTruthy()
-    expect(screen.getByText('Loading Bay 2', { selector: '.mb-row-title' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Add one now/ })).toBeTruthy()
-    // The program replaced the plain words.
-    expect(screen.queryByText(said(/checklist by area/))).toBeNull()
+  it('opens a row with a link from anywhere on it', async () => {
+    const { openLink } = show(surveyDay)
+    fireEvent.click(await screen.findByText('9 proposed observations'))
+    expect(openLink).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to the plain words and the same rows for a broken program', async () => {
-    const program = 'root = Reply([s1, a1])\ns1 = Say("Look at'
-    briefs = [brief({ messages: [{ ...rows, program }] })]
-    show()
-    expect(await screen.findByText(said(/Your morning walk is ready/))).toBeTruthy()
-    expect(screen.getByText('Morning walk')).toBeTruthy()
-    expect(screen.getByText('Loading Bay 2')).toBeTruthy()
-    expect(screen.queryByText(said(/Look at/))).toBeNull()
-  })
-
-  // The gateway refuses programs naming unknown ids (wording.service.ts); one that slips through
-  // still draws, and the unknown part draws nothing.
-  it('draws a program that names an unknown id without that part', async () => {
-    const program = `root = Reply([s1, a1])\ns1 = Say("Look at this.")\na1 = ActionRow("nope")`
-    briefs = [brief({ messages: [{ ...rows, program }] })]
-    show()
-    expect(await screen.findByText(said(/^Look at this\.$/))).toBeTruthy()
-    expect(screen.queryByText('Morning walk')).toBeNull()
-  })
-
-  it('sends a quick reply as its pre-filled words', async () => {
-    const question: BriefMessage = {
-      id: 'q1',
-      text: 'Anything more to come from the client?',
-      program: null,
-      tone: 'question',
-      parts: [
-        {
-          type: 'replies',
-          replies: [{ id: 'nothing-more', label: 'Nothing more', primary: true, picksDate: false }],
-        },
-      ],
-    }
-    briefs = [brief({ messages: [question] })]
-    show()
-    fireEvent.click(await screen.findByRole('button', { name: 'Nothing more' }))
-    // The button becomes the engineer's own bubble while it is sent, and can't be sent twice.
-    expect(screen.getByText('Nothing more', { selector: '.mb-me' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Nothing more' })).toHaveProperty('disabled', true)
-    fireEvent.click(screen.getByRole('button', { name: 'Nothing more' }))
+  it('runs Try again in place and shows the row busy at once', async () => {
+    show(surveyDay)
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again Loading Bay 2' }))
+    expect(screen.getByText('Transcribing')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Try again Loading Bay 2' })).toBeNull()
     await waitFor(() =>
-      expect(posts).toEqual([{ url: `${BRIEF_URL}/replies`, body: { replyId: 'nothing-more' } }]),
+      expect(posts).toEqual([
+        { url: '/api/observations/o1/recordings/r1/transcription/retry', body: null },
+      ]),
     )
   })
 
-  it('sends another visit with the picked day, as one reply', async () => {
+  it('shows Done where the buttons were and a green acknowledgement, with no tray', async () => {
+    show(bothDone)
+    expect(await screen.findByText(/Nice work, Alex!/)).toBeTruthy()
+    expect(screen.getAllByText('Done')).toHaveLength(2)
+    expect(document.querySelector('.mbt-bubble[data-tone="good"]')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Your reply' })).toBeNull()
+    expect(screen.getByRole('img', { name: 'MarshBot, pleased' })).toBeTruthy()
+  })
+
+  it('draws the checklist card: the area to work on, See all, and the ticked ones', async () => {
+    const { openLink } = show(checklist)
+    expect(await screen.findByText('Sprinkler type and design')).toBeTruthy()
+    expect(screen.getByText('+5 more')).toBeTruthy()
+    expect(screen.getByText('Security')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'See all of Fire Protection' }))
+    expect(openLink).toHaveBeenCalledWith({ tab: 'checklist', params: { area: 'Fire Protection' } })
+  })
+
+  it('sends a reply: the engineer’s bubble at once, the tray off, then the answer', async () => {
+    answer = thread({
+      ...visitQuestion,
+      stage: 'ready_for_generation',
+      session: {
+        ...visitQuestion.session,
+        turns: [
+          ...visitQuestion.session.turns,
+          turn({ who: 'engineer', says: [{ text: 'That’s everything', tone: 'normal' }] }),
+          turn({ says: [{ text: 'Great! I’ve moved it on.', tone: 'good' }] }),
+        ],
+      },
+      replies: [],
+      updatedAt: '2026-11-11T03:00:00.000Z',
+    })
+    show(visitQuestion)
+    fireEvent.click(await screen.findByRole('button', { name: 'That’s everything' }))
+    expect(screen.getByText('That’s everything', { selector: '.mbt-me' })).toBeTruthy()
+    // Held, not disabled, so keyboard focus isn't dropped while it is sent.
+    expect(
+      screen.getByRole('button', { name: 'I need another visit' }).getAttribute('aria-disabled'),
+    ).toBe('true')
+    expect(await screen.findByText('Great! I’ve moved it on.')).toBeTruthy()
+    // The tray is gone: focus moves to MarshBot's newest turn, never the page's top.
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toContain('Great! I’ve moved it on.'),
+    )
+    expect(posts).toEqual([
+      { url: `${THREAD_URL}/replies`, body: { replyId: 'ready-to-generate' } },
+    ])
+    // The saved turn replaced the pending bubble: one, not two.
+    expect(screen.getAllByText('That’s everything', { selector: '.mbt-me' })).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: 'Your reply' })).toBeNull()
+  })
+
+  it('picks another visit: calendar, then confirm, then one reply with the day', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 10, 17, 9, 12))
-    const question: BriefMessage = {
-      id: 'q2',
-      text: 'Is that everything from site, or do you need another visit?',
-      program: null,
-      tone: 'normal',
-      parts: [
-        {
-          type: 'replies',
-          replies: [
-            {
-              id: 'ready-to-generate',
-              label: 'That’s everything',
-              primary: true,
-              picksDate: false,
-            },
-            { id: 'another-visit', label: 'I need another visit', primary: false, picksDate: true },
-          ],
-        },
-      ],
-    }
-    briefs = [brief({ messages: [question] })]
-    show()
-    fireEvent.click(await screen.findByRole('button', { name: /I need another visit/ }))
-    const calendar = screen.getByRole('dialog', { name: 'Day of your next visit' })
+    answer = { ...visitQuestion, replies: [], surveyEnd: '2026-11-20' }
+    show(visitQuestion)
+    fireEvent.click(await screen.findByRole('button', { name: 'I need another visit' }))
+    const calendar = screen.getByRole('dialog', { name: 'Day of Your Next Visit' })
     expect(within(calendar).getByRole('button', { name: '16 November 2026' })).toHaveProperty(
       'disabled',
       true,
     )
     fireEvent.click(within(calendar).getByRole('button', { name: '20 November 2026' }))
-    expect(screen.getByText('I need another visit on Fri 20 Nov 2026')).toBeTruthy()
+    // Nothing is sent until Confirm.
+    const confirm = screen.getByRole('dialog', { name: 'Confirm the New Survey End' })
+    expect(within(confirm).getByText('Fri 20 Nov 2026')).toBeTruthy()
+    expect(confirm.textContent).toMatch(/Survey End\s*11 Nov\s*→\s*to\s*20 Nov/)
+    expect(posts).toEqual([])
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Confirm' }))
+    expect(screen.getByText('I need another visit on Fri 20 Nov')).toBeTruthy()
     await waitFor(() =>
       expect(posts).toEqual([
-        { url: `${BRIEF_URL}/replies`, body: { replyId: 'another-visit', date: '2026-11-20' } },
+        { url: `${THREAD_URL}/replies`, body: { replyId: 'another-visit', date: '2026-11-20' } },
       ]),
     )
   })
 
-  it('shows an admin stage and progress only: no dismiss and no replies', async () => {
-    const question: BriefMessage = {
-      id: 'q3',
-      text: 'Hi Sana. This one is Alex Rowe’s.',
-      program: null,
-      tone: 'normal',
-      parts: [
-        { type: 'actions', itemIds: [reminder.id] },
-        {
-          type: 'replies',
-          replies: [{ id: 'not-now', label: 'Not now', primary: false, picksDate: false }],
-        },
-      ],
-    }
-    briefs = [brief({ viewer: 'admin', items: [reminder], messages: [question] })]
-    show()
-    expect(await screen.findByText('Alex Rowe’s assessment')).toBeTruthy()
-    expect(screen.getByText('2 new comments from Sana')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Dismiss/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull()
-  })
-
-  it('dismisses a reminder', async () => {
-    briefs = [
-      brief({
-        items: [reminder],
-        messages: [{ ...rows, parts: [{ type: 'actions', itemIds: [reminder.id] }] }],
-      }),
-    ]
-    show()
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss 2 new comments from Sana' }))
-    await waitFor(() =>
-      expect(posts).toEqual([{ url: `${BRIEF_URL}/dismissals`, body: { itemId: reminder.id } }]),
-    )
-  })
-
-  it('paces new messages one at a time, and Show all skips the wait', async () => {
-    briefs = [brief({ lastOpenedAt: '2026-11-14T01:00:00.000Z' })]
-    show()
-    // The first message types out; the second waits out the pause (2 s here, 8 s for real).
-    expect(await screen.findByText(said(/coming along nicely\.\s*$/))).toBeTruthy()
-    expect(screen.queryByText('Morning walk')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
-    expect(screen.getByText('Morning walk')).toBeTruthy()
-    expect(screen.getByText(said(/checklist by area/))).toBeTruthy()
-  })
-
-  it('ticks off a row when a push says it was resolved', async () => {
-    briefs = [brief(), brief({ items: [walk], mood: 'idle' })]
-    show()
-    expect(await screen.findByText('Loading Bay 2')).toBeTruthy()
-    expect(FakeEventSource.open[0].url).toBe(`${BRIEF_URL}/events`)
-    await act(async () => FakeEventSource.open[0].emit('brief'))
-    expect((await screen.findByText('Done')).getAttribute('role')).toBe('status')
-    expect(screen.getByRole('img', { name: 'MarshBot' })).toBeTruthy()
-  })
-
-  it('reads the brief again when the stream reconnects, keeping the newer brief', async () => {
-    const newer = brief({ items: [walk], mood: 'idle', updatedAt: '2026-11-14T02:40:00.000Z' })
-    const older = brief({ updatedAt: '2026-11-14T02:20:00.000Z' })
-    briefs = [brief(), newer, older]
-    show()
-    expect(await screen.findByText('Loading Bay 2')).toBeTruthy()
-    // A reconnect may have missed a push: it reads again and the resolved row ticks off.
-    await act(async () => FakeEventSource.open[0].emit('open'))
-    await waitFor(() => expect(screen.getByText('Done')).toBeTruthy())
-    // A late answer older than what is shown changes nothing.
-    await act(async () => FakeEventSource.open[0].emit('brief'))
-    await act(async () => new Promise((r) => setTimeout(r, 20)))
-    expect(screen.getByRole('img', { name: 'MarshBot' })).toBeTruthy()
-  })
-
-  it('draws an area with many items as one filled bar, not slivers', async () => {
-    briefs = [
-      brief({
-        messages: [health],
-        areas: [
-          { area: 'Fire Protection', total: 40, covered: 10, thin: true },
-          { area: 'Security', total: 4, covered: 3, thin: false },
-        ],
-      }),
-    ]
-    show()
-    const big = await screen.findByRole('img', { name: /Fire Protection: 10 of 40/ })
-    expect(big.querySelectorAll('i')).toHaveLength(1)
-    expect(big.querySelector('i')?.getAttribute('style')).toContain('width: 25%')
+  it('draws the generate outline with no row singled out, rows that open, and one button', async () => {
+    const { openLink } = show(generateOutline)
+    expect(await screen.findByText('2 of 3 sections ready')).toBeTruthy()
+    expect(document.querySelector('.mbt-ol[data-next]')).toBeNull()
+    // The state is in the row's name too, not only in its icon.
     expect(
-      screen.getByRole('img', { name: /Security: 3 of 4/ }).querySelectorAll('i'),
-    ).toHaveLength(4)
+      screen.getByRole('button', { name: /Occupancy.*Questions for you.*3 questions/ }),
+    ).toBeTruthy()
+    expect(screen.getByText('Questions for you')).toBeTruthy()
+    // A row with a link opens its section; one without is plain text.
+    fireEvent.click(screen.getByRole('button', { name: /Occupancy/ }))
+    expect(openLink).toHaveBeenCalledWith({ tab: 'generate', params: { section: '8' } })
+    expect(screen.queryByRole('button', { name: /Fire Protection/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generation' }))
+    expect(openLink).toHaveBeenLastCalledWith({ tab: 'generate' })
   })
 
-  it('offers Try again when the brief cannot load', async () => {
+  it('shows an admin the lanes and time in each stage, with nothing to answer', async () => {
+    show(admin)
+    expect(await screen.findByText('Alex Rowe’s assessment')).toBeTruthy()
+    expect(screen.getByText('Decisions to make')).toBeTruthy()
+    expect(screen.getByText('28 Nov')).toBeTruthy()
+    expect(screen.getByText('Review 6 days, now')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Your reply' })).toBeNull()
+  })
+
+  it('folds earlier sessions away, and shows them read-only when asked', async () => {
+    show(earlierFolded)
+    expect(await screen.findByText(/Since Wednesday, both are sorted/)).toBeTruthy()
+    expect(screen.queryByText(/Wednesday’s greeting/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Earlier/ }))
+    expect(screen.getByText(/Wednesday’s greeting/)).toBeTruthy()
+    // Read-only: the earlier card's rows have no buttons.
+    expect(screen.getByText('Morning walk')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Review Morning walk' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Hide Earlier/ }))
+    expect(screen.queryByText(/Wednesday’s greeting/)).toBeNull()
+  })
+
+  it('draws a fixture OpenUI program with the turn’s card', async () => {
+    const program = [
+      'root = Reply([s1, c1])',
+      's1 = Say("Two things need you, starting with **Loading Bay 2**.")',
+      'c1 = Card("todo")',
+    ].join('\n')
+    show(
+      thread({
+        session: {
+          ...surveyDay.session,
+          turns: [
+            turn({ says: [{ text: 'Plain words.', tone: 'normal' }], cards: [todo], program }),
+          ],
+        },
+      }),
+    )
+    expect(await screen.findByText(/Two things need you, starting with/)).toBeTruthy()
+    expect(screen.getByText('Loading Bay 2', { selector: 'b' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Review Morning walk' })).toBeTruthy()
+    // The program replaced the plain words.
+    expect(screen.queryByText('Plain words.')).toBeNull()
+  })
+
+  it('falls back to the says and cards for a broken program', async () => {
+    for (const program of [
+      'root = Reply([s1, c1])\ns1 = Say("Look at',
+      'root = Reply([s1, c1, c2])\ns1 = Say("Twice.")\nc1 = Card("todo")\nc2 = Card("todo")',
+    ]) {
+      show(
+        thread({
+          session: {
+            ...surveyDay.session,
+            turns: [
+              turn({ says: [{ text: 'Plain words.', tone: 'normal' }], cards: [todo], program }),
+            ],
+          },
+        }),
+      )
+      expect(await screen.findByText('Plain words.')).toBeTruthy()
+      expect(screen.getByText('Morning walk')).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  // Rule 8: cards are rebuilt live, so a program keeps its words when its turn gains or loses one.
+  it('keeps a program’s words when its cards change, drawing a new card after them', async () => {
+    const program = 'root = Reply([s1])\ns1 = Say("Words from the AI.")'
+    show(
+      thread({
+        session: {
+          ...surveyDay.session,
+          turns: [
+            turn({ says: [{ text: 'Plain words.', tone: 'normal' }], cards: [todo], program }),
+          ],
+        },
+      }),
+    )
+    expect(await screen.findByText('Words from the AI.')).toBeTruthy()
+    expect(screen.queryByText('Plain words.')).toBeNull()
+    expect(screen.getByText('Morning walk')).toBeTruthy()
+  })
+
+  it('takes the engineer’s bubble back and keeps the tray when a reply is refused', async () => {
+    replyStatus = 500
+    show(visitQuestion)
+    fireEvent.click(await screen.findByRole('button', { name: 'That’s everything' }))
+    expect(screen.getByText('That’s everything', { selector: '.mbt-me' })).toBeTruthy()
+    await waitFor(() =>
+      expect(screen.queryByText('That’s everything', { selector: '.mbt-me' })).toBeNull(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'That’s everything' }).getAttribute('aria-disabled'),
+    ).toBeNull()
+  })
+
+  it('drops a read sent before a reply that answers after it', async () => {
+    answer = thread({
+      ...visitQuestion,
+      session: {
+        ...visitQuestion.session,
+        turns: [
+          ...visitQuestion.session.turns,
+          turn({ says: [{ text: 'Answered.', tone: 'normal' }] }),
+        ],
+      },
+      replies: [],
+    })
+    // A push's read that is still on its way when the reply is pressed.
+    let release: (r: Response) => void = () => {}
+    const { reference } = show(visitQuestion)
+    expect(await screen.findByText(/everything from site/)).toBeTruthy()
+    const url = `/api/assessments/${reference}/assistant`
+    const stubbed = globalThis.fetch
+    vi.stubGlobal('fetch', (u: string, init?: RequestInit) =>
+      (init?.method ?? 'GET') === 'GET' && u === url
+        ? new Promise<Response>((r) => (release = r))
+        : stubbed(u, init),
+    )
+    await act(async () => FakeEventSource.open[0].emit('brief'))
+    fireEvent.click(screen.getByRole('button', { name: 'That’s everything' }))
+    expect(await screen.findByText('Answered.')).toBeTruthy()
+    await act(async () => release(json({ ...visitQuestion, reference })))
+    expect(screen.getByText('Answered.')).toBeTruthy()
+  })
+
+  it('replaces a cached thread with the failed state when the gateway refuses the re-read', async () => {
+    const { reference, unmount } = show(surveyDay)
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
+    unmount()
+    vi.stubGlobal('fetch', async () => json({ error: 'Not yours' }, 403))
+    render(<MarshBotOverview reference={reference} openLink={vi.fn()} openDetails={vi.fn()} />)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn’t load/)
+    expect(screen.queryByText(/is in the Capture stage/)).toBeNull()
+  })
+
+  it('forgets every cached thread on sign-out', async () => {
+    const { reference, unmount } = show(surveyDay)
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
+    unmount()
+    clearThreadCache()
+    render(<MarshBotOverview reference={reference} openLink={vi.fn()} openDetails={vi.fn()} />)
+    expect(screen.queryByText(/is in the Capture stage/)).toBeNull()
+  })
+
+  it('reads again on a push, not on the first connect, and animates only the new turn', async () => {
+    const pushed = thread({
+      session: {
+        ...surveyDay.session,
+        turns: [
+          ...surveyDay.session.turns,
+          turn({ says: [{ text: 'A new finding came in.', tone: 'normal' }] }),
+        ],
+      },
+      updatedAt: '2026-11-11T02:50:00.000Z',
+    })
+    show(surveyDay)
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
+    threads = [{ ...pushed, reference: threads[0].reference }]
+    await act(async () => FakeEventSource.open[0].emit('open'))
+    expect(gets).toBe(1)
+    await act(async () => FakeEventSource.open[0].emit('brief'))
+    const added = await screen.findByText('A new finding came in.')
+    expect(added.closest('.mbt-turn')?.hasAttribute('data-fresh')).toBe(true)
+    expect(
+      screen
+        .getByText(/is in the Capture stage/)
+        .closest('.mbt-turn')
+        ?.hasAttribute('data-fresh'),
+    ).toBe(false)
+  })
+
+  it('shows the cached thread at once when the Overview opens again', async () => {
+    const { reference, unmount } = show(surveyDay)
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
+    unmount()
+    render(<MarshBotOverview reference={reference} openLink={vi.fn()} openDetails={vi.fn()} />)
+    // No loading state: the thread is there before the background read answers.
+    expect(screen.getByText(/is in the Capture stage/)).toBeTruthy()
+    await waitFor(() => expect(gets).toBe(2))
+  })
+
+  it('offers Try again when the thread cannot load', async () => {
     let fail = true
-    briefs = [brief()]
-    vi.stubGlobal('fetch', async () => (fail ? reply({ error: 'down' }, 500) : reply(briefs[0])))
-    show()
+    vi.stubGlobal('fetch', async () => (fail ? json({ error: 'down' }, 500) : json(surveyDay)))
+    render(<MarshBotOverview reference="RPT-FAIL" openLink={vi.fn()} openDetails={vi.fn()} />)
     expect((await screen.findByRole('alert')).textContent).toMatch(/couldn’t load/)
     fail = false
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByText('Loading Bay 2')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+    expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
   })
 })

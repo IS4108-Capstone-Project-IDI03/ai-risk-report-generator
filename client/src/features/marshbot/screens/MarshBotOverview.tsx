@@ -1,25 +1,39 @@
-// The assessment's Overview as a conversation with MarshBot (AS-06 boards 01 to 07 and 11):
-// MarshBot, the stages and the client card on the left (a stage bar on a phone), and on the
-// right its earlier exchanges, then what it says now, one message at a time.
-// Called by assessments/screens/Overview.tsx. Calls useBrief.ts and usePacing.ts.
-import { useMemo, useState } from 'react'
-import { Button, useIsPhone } from '../../../design-system'
+// The assessment's Overview as a saved conversation with MarshBot (AS-06 canvas C1 to C13, S1 to
+// S9, H1, H2): MarshBot, the stages, the facts at a glance and the client on the left (a stage
+// bar on a phone), the thread on the right, and the reply tray under it while MarshBot asks.
+// Called by assessments/screens/Overview.tsx. Calls useThread.ts and components/thread/.
+import { useRef, useState, useSyncExternalStore } from 'react'
+import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
-import { ClientCard } from '../components/ClientCard'
-import { EngineerReply } from '../components/EngineerReply'
-import { MarshBotFace } from '../components/MarshBotFace'
-import { MessageBody } from '../components/MessageBody'
-import { MessageBubble } from '../components/MessageBubble'
+import { STAGE_LABEL } from '../../assessments/format'
 import { PhoneStageBar } from '../components/PhoneStageBar'
-import { StageRail } from '../components/StageRail'
-import { TypingDots } from '../components/TypingDots'
+import { Rail } from '../components/Rail'
+import { ReplyTray } from '../components/thread/ReplyTray'
+import { Thread } from '../components/thread/Thread'
+import { useToastPlace } from '../components/thread/useToastPlace'
 import { MarshBotContext, type MarshBot } from '../context'
-import { saidAt, visitDay } from '../format'
-import { planOf } from '../plan'
-import { STAGES, type AssistantBrief, type BriefItem, type ItemLink, type Stage } from '../types'
-import { useBrief } from '../useBrief'
-import { usePacing } from '../usePacing'
+import { weekDay } from '../format'
+import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
+import { useThread, type ThreadState } from '../useThread'
 import '../marshbot.css'
+import '../components/thread/thread.css'
+import '../components/thread/cards.css'
+
+// A window too short for the rail (below its smallest, about 400 px under the page header) shows
+// the phone's stage bar instead. Must match the media query in marshbot.css.
+const SHORT_WINDOW = '(max-height: 559px)'
+
+/** Returns whether the window is too short for the rail; false where matchMedia is missing. */
+function useShortWindow() {
+  return useSyncExternalStore(
+    (change) => {
+      const mq = window.matchMedia?.(SHORT_WINDOW)
+      mq?.addEventListener('change', change)
+      return () => mq?.removeEventListener('change', change)
+    },
+    () => window.matchMedia?.(SHORT_WINDOW).matches ?? false,
+  )
+}
 
 type Props = {
   reference: string
@@ -27,172 +41,106 @@ type Props = {
   openDetails: () => void
 }
 
-// A row's in-place action: retry a failed recording or handwritten page.
-async function act(item: BriefItem) {
-  const [observation, target] = (item.actionTarget ?? '').split(':')
-  if (item.action === 'retry-transcription') await retryTranscription(observation, target)
-  if (item.action === 'retry-page') await retryPageTranscription(observation, target)
+/** Returns the MarshBot Overview for a saved assessment. */
+export function MarshBotOverview(props: Props) {
+  // Keyed, so another assessment starts from its own cached thread, never this one's.
+  return <Loader key={props.reference} {...props} />
 }
 
-/** Returns the MarshBot Overview for a saved assessment. */
-
-// The server's closing "all caught up" message (id `done-…`, server/src/services/assistant/messages.ts)
-// shows as one quiet line after the rest, never as a bubble or a paced message.
-const isDone = (m: { id: string }) => m.id.startsWith('done-')
-export function MarshBotOverview({ reference, openLink, openDetails }: Props) {
-  const state = useBrief(reference)
+function Loader({ reference, openLink, openDetails }: Props) {
+  const state = useThread(reference)
   if (state.failed)
     return (
       <div className="mb-failed" role="alert">
         <p>MarshBot couldn’t load this assessment.</p>
         <Button variant="secondary" pill onClick={state.retry}>
-          Try again
+          Try Again
         </Button>
       </div>
     )
-  if (!state.brief) return <div className="mb" aria-busy="true" />
+  if (!state.thread) return <div className="mb" aria-busy="true" />
   return (
-    <Conversation {...state} brief={state.brief} openLink={openLink} openDetails={openDetails} />
+    <Conversation
+      thread={state.thread}
+      reply={state.reply}
+      openLink={openLink}
+      openDetails={openDetails}
+    />
   )
 }
 
-// The stage the rail showed at the viewer's last open, so a move since then animates (board 12).
-function stageAtLastOpen(brief: AssistantBrief, lastOpened: string | null): Stage | undefined {
-  if (!lastOpened) return undefined
-  const entered = brief.stageDates[brief.stage]
-  const i = STAGES.indexOf(brief.stage)
-  return entered && entered > lastOpened && i > 0 ? STAGES[i - 1] : undefined
+// What changed after a reply, said once as a toast: the survey's new last day, a new stage.
+function confirmChange(before: AssistantThread, after: AssistantThread) {
+  if (after.surveyEnd && after.surveyEnd !== before.surveyEnd)
+    toast.success(`Survey end moved to ${weekDay(after.surveyEnd)}`)
+  if (after.stage !== before.stage) toast.success(`Moved to ${STAGE_LABEL[after.stage]}`)
 }
 
 function Conversation({
-  brief,
-  ticked,
-  firstLastOpened,
+  thread,
   reply,
-  dismiss,
   openLink,
   openDetails,
-}: ReturnType<typeof useBrief> & { brief: AssistantBrief } & Omit<Props, 'reference'>) {
+}: { thread: AssistantThread } & Pick<ThreadState, 'reply'> & Omit<Props, 'reference'>) {
   const phone = useIsPhone()
-  // a. Pace the messages only when something changed since the viewer's last open.
-  const [paced] = useState(() => !firstLastOpened || brief.updatedAt > firstLastOpened)
-  const [from] = useState(() => stageAtLastOpen(brief, firstLastOpened))
-  const planned = useMemo(
-    () => brief.messages.filter((m) => !isDone(m)).map((m) => ({ id: m.id, plan: planOf(m) })),
-    [brief],
-  )
-  const pacing = usePacing(planned, paced)
-  // b. A pressed quick reply shows as the engineer's bubble while it is sent.
-  const [answering, setAnswering] = useState<{ id: string; text: string; at: string } | null>(null)
-  const bot: MarshBot = {
-    brief,
-    ticked,
-    openLink,
-    dismiss,
-    act,
-    answering: answering?.id ?? null,
-    answer: (id, r, date) => {
-      // One reply at a time: without this, a second press would post the reply twice.
-      if (answering) return
-      setAnswering({
-        id,
-        text: date ? `${r.label} on ${visitDay(date)}` : r.label,
-        at: new Date().toISOString(),
-      })
-      void reply(r, date).then(() => setAnswering(null))
-    },
+  const short = useShortWindow()
+  // The engineer's reply on its way, shown as their bubble until the answer comes back.
+  const [pending, setPending] = useState<string | null>(null)
+  // Replies the gateway took: each one moves focus to MarshBot's newest turn (Thread.tsx).
+  const [answered, setAnswered] = useState(0)
+  const [busy, setBusy] = useState<Set<string>>(() => new Set())
+  const column = useRef<HTMLElement>(null)
+  const hasTray = thread.replies.length > 0
+  useToastPlace(column, hasTray)
+
+  // a. A reply: their bubble at once, the tray off, then the answer and a toast for what changed.
+  const answer = (r: Reply, date?: string) => {
+    // One reply at a time: without this, a second press would post twice.
+    if (pending) return
+    setPending(date ? `${r.label} on ${weekDay(date)}` : r.label)
+    void reply(r.id, date).then((next) => {
+      // Cleared on a refusal too, so no bubble is left behind for a reply that wasn't sent.
+      setPending(null)
+      if (!next) return
+      setAnswered((n) => n + 1)
+      confirmChange(thread, next)
+      if (r.id === 'export-again') openLink({ tab: 'export' })
+    })
   }
-  const admin = brief.viewer === 'admin'
-  const shown = brief.messages.filter((m) => !isDone(m) && pacing.cursorOf(m.id) !== 'none')
-  const done = brief.messages.find(isDone)
-  // The last message said in full, for screen readers: one announcement per finished message,
-  // never each word as it streams in.
-  const finished = shown.filter((m) => pacing.cursorOf(m.id) === 'all').at(-1)
+
+  // b. Try again on a failed recording or page: the row shows "Transcribing" at once.
+  const retry = (row: CardRow) => {
+    const end = row.end
+    if (end.type !== 'button' || !end.action) return
+    const [observation, target] = (end.actionTarget ?? '').split(':')
+    const run = end.action === 'retry-page' ? retryPageTranscription : retryTranscription
+    setBusy((b) => new Set(b).add(row.id))
+    toast.success(`Trying ${row.title} again`)
+    run(observation, target).catch((error: unknown) => {
+      setBusy((b) => new Set([...b].filter((id) => id !== row.id)))
+      toast.error(error instanceof Error ? error.message : 'Couldn’t try that again.')
+    })
+  }
+
+  const bot: MarshBot = { thread, openLink, retry, busy }
   return (
     <MarshBotContext.Provider value={bot}>
-      <div className="mb" data-admin={admin || undefined}>
-        {phone ? (
-          <PhoneStageBar brief={brief} onOpen={openDetails} />
+      <div className="mb" data-admin={thread.viewer === 'admin' || undefined}>
+        {phone || short ? (
+          <PhoneStageBar thread={thread} onOpen={openDetails} />
         ) : (
-          <aside className="mb-rail" aria-label="MarshBot and stages">
-            <div className="mb-bot">
-              <span className="mb-face">
-                <MarshBotFace mood={brief.mood} />
-              </span>
-              <div>
-                <b>MarshBot</b>
-                {admin && brief.engineerName && (
-                  <small>{`${brief.engineerName}’s assessment`}</small>
-                )}
-              </div>
-            </div>
-            <StageRail brief={brief} from={from} />
-            <ClientCard
-              name={brief.client.name}
-              reference={brief.client.reference}
-              onOpen={openDetails}
-            />
-          </aside>
+          <Rail thread={thread} openDetails={openDetails} />
         )}
-        <section className="mb-convo" aria-label="MarshBot" tabIndex={-1}>
-          <p className="mb-sr" aria-live="polite">
-            {finished?.text}
-          </p>
-          <div className="mb-thread">
-            {/* c. Earlier exchanges, oldest first, all at once. */}
-            {brief.thread.map((t, i) =>
-              t.who === 'engineer' ? (
-                <EngineerReply key={i} text={t.text} said={saidAt(t.at)} />
-              ) : (
-                // An answered question is a plain message now: only an open one is tinted blue.
-                <MessageBubble
-                  key={i}
-                  said={saidAt(t.at)}
-                  tone={t.tone === 'question' ? 'normal' : t.tone}
-                >
-                  <p className="mb-say">{t.text}</p>
-                </MessageBubble>
-              ),
-            )}
-            {/* d. What MarshBot says now, as far as the reveal has got. */}
-            {shown.map((m, i) => (
-              <div key={m.id} className="mb-turn">
-                <MessageBubble
-                  said={i === 0 ? saidAt(brief.updatedAt) : undefined}
-                  tone={answering?.id === m.id && m.tone === 'question' ? 'normal' : m.tone}
-                  big={i === 0 && !brief.thread.length}
-                  aside={
-                    i === 0 && pacing.waiting ? (
-                      <button type="button" className="mb-seeall mb-hit" onClick={pacing.showAll}>
-                        Show all
-                      </button>
-                    ) : undefined
-                  }
-                >
-                  <MessageBody message={m} cursor={pacing.cursorOf(m.id)} />
-                </MessageBubble>
-                {answering?.id === m.id && (
-                  <EngineerReply text={answering.text} said={saidAt(answering.at)} />
-                )}
-              </div>
-            ))}
-            {pacing.typing && <TypingDots />}
-            {/* e. Once everything is said: the coverage check still running, or all caught up. */}
-            {!pacing.waiting && brief.coverage.status === 'running' && (
-              <TypingDots label="Checking what your observations cover" />
-            )}
-            {!pacing.waiting && done && (
-              <p className="mb-done">
-                <span className="mb-done-tick" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" className="mb-tick">
-                    <circle cx="12" cy="12" r="11" />
-                    <path d="M7 12.5l3.2 3.2L17 9" />
-                  </svg>
-                </span>
-                {done.text}
-              </p>
-            )}
-          </div>
+        <section ref={column} className="mbt" aria-label="MarshBot">
+          <Thread thread={thread} pending={pending} answered={answered} />
+          {hasTray && (
+            <ReplyTray
+              replies={thread.replies}
+              sending={!!pending}
+              surveyEnd={thread.surveyEnd ?? thread.surveyStart}
+              onReply={answer}
+            />
+          )}
         </section>
       </div>
     </MarshBotContext.Provider>
