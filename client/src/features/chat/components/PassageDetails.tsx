@@ -3,19 +3,14 @@
 // the passage with them highlighted. Jesper (18 Oct): only these, in this order.
 // Used by CitationPanel. Above the text, the part of the original page a table, formula or
 // picture was read from (KB-02); the text, its formulas and highlight come from PassageBody.
-import { lazy, Suspense, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Badge, Callout, Icon, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
+import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
 import type { Passage } from '../api'
 import type { SelectedCitation } from './citationSelection'
 import type { DocSummary } from './documents'
-import { PdfErrorBoundary } from './PdfErrorBoundary'
-
-// pdf.js loads only when a cited passage has a region to show.
-const SourceRegion = lazy(() =>
-  import('../../sources/SourceRegion').then((m) => ({ default: m.SourceRegion })),
-)
 
 type Props = {
   number: number
@@ -95,14 +90,7 @@ export function PassageDetails(props: Props) {
           “{quote}” Check the source before relying on this statement.
         </Callout>
       )}
-      {!status && region && doc && (
-        // A region that can't be drawn leaves only the text, with no note (KB-02 AC4).
-        <PdfErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
-            <SourceRegion fileUrl={doc.fileUrl} kind={region.kind} boxes={region.boxes} />
-          </Suspense>
-        </PdfErrorBoundary>
-      )}
+      {!status && doc && <CitedRegion fileUrl={doc.fileUrl} region={region} />}
       {/* KB-02 AC6: the description is shown, as what the answer read, but never as the
           document's words; a quote of it is never found (rag-service quotable_text). */}
       {!status && generated && (

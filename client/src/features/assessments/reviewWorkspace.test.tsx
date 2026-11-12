@@ -1,6 +1,7 @@
 import { SourcePanel } from './components/SourcePanel'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
@@ -15,6 +16,31 @@ import type {
   ReviewWorkspace,
   SourcePassage,
 } from './api'
+
+// jsdom can't run pdf.js: a cited region's page (KB-02) is drawn by this stand-in, which reports
+// a 600 x 800 page as react-pdf does.
+vi.mock('react-pdf', () => ({
+  pdfjs: { GlobalWorkerOptions: {} },
+  Document: (props: { file: { range: { url: string } }; children: React.ReactNode }) => (
+    <div data-testid="pdf-document" data-file={props.file.range.url}>
+      {props.children}
+    </div>
+  ),
+  Page: (props: {
+    pageNumber: number
+    onLoadSuccess?: (p: { originalWidth: number; originalHeight: number }) => void
+  }) => {
+    React.useEffect(() => {
+      props.onLoadSuccess?.({ originalWidth: 600, originalHeight: 800 })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.pageNumber])
+    return <div data-testid="pdf-page" data-page={props.pageNumber} />
+  },
+}))
+// The byte-range loader (tested in chat/components/pdfSource.test.ts) stands in as the file's URL.
+vi.mock('../chat/components/pdfSource', () => ({
+  openPdfSource: async (url: string) => ({ url }),
+}))
 
 // jsdom does not implement native modal dialogs.
 beforeAll(() => {
@@ -1096,5 +1122,91 @@ describe('A knowledge admin in Review (RV-11)', () => {
     await openAsAdmin(SANA)
     expect(within(editor()).getByRole('button', { name: 'Regenerate' })).toBeInTheDocument()
     expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeInTheDocument()
+  })
+})
+
+// KB-02: an opened standard shows the part of the original page its passage was read from,
+// looked up live by the passage's id; its text stays as the draft was given it (AC7).
+describe('Source region in review (KB-02)', () => {
+  const opened = (citation: string) => (
+    <SourcePanel
+      section={CONSTRUCTION}
+      numbers={new Map([[citation, 1]])}
+      focus={{ citation, statement: null }}
+      describe={() => 'Source'}
+      onCite={vi.fn()}
+      onShowClaim={vi.fn()}
+      style={{}}
+    />
+  )
+  // The gateway's passage lookup (chat/api fetchPassage) answers with the live passage.
+  const livePassage = (answer: () => Promise<Response>) =>
+    vi.stubGlobal('fetch', (url: string) =>
+      url === '/api/chat/passages/fm121%3A4' ? answer() : json(404, { error: 'Not expected.' }),
+    )
+
+  it("shows the region of the original page above the draft's own text", async () => {
+    livePassage(() =>
+      json(200, {
+        id: 'fm121:4',
+        documentId: 'fm121',
+        text: 'Live text, which the review does not show.',
+        headings: [],
+        pageStart: 12,
+        pageEnd: 13,
+        boxes: [],
+        region: { kind: 'table', boxes: [{ page: 12, l: 60, t: 700, r: 360, b: 500 }] },
+        generated: false,
+      }),
+    )
+    render(opened('C:fm121:4'))
+    const source = screen.getByRole('article', { name: 'Source passage' })
+    const region = await within(source).findByRole('img', {
+      name: 'Table on page 12 of the original',
+    })
+    expect(within(source).getByTestId('pdf-document')).toHaveAttribute(
+      'data-file',
+      '/api/knowledge-documents/fm121/file',
+    )
+    const text = within(source).getByLabelText('Passage text')
+    expect(text).toHaveTextContent('Fire-stop all penetrations of rated assemblies.')
+    expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows only the saved text when the passage is no longer in the knowledge base', async () => {
+    let asked = false
+    livePassage(() => {
+      asked = true
+      return json(404, { error: 'Passage not found.' })
+    })
+    render(opened('C:fm121:4'))
+    const source = screen.getByRole('article', { name: 'Source passage' })
+    await waitFor(() => expect(asked).toBe(true))
+    expect(within(source).getByLabelText('Passage text')).toHaveTextContent(
+      'Fire-stop all penetrations of rated assemblies.',
+    )
+    expect(within(source).queryByRole('img')).toBeNull()
+    expect(within(source).queryByRole('alert')).toBeNull()
+  })
+
+  it("shows a formula in the draft's saved text as math", async () => {
+    livePassage(() => json(404, { error: 'Passage not found.' }))
+    const formula = { ...STANDARD, text: 'Agent weight:\nW = \\frac{V}{S}' }
+    render(
+      <SourcePanel
+        section={{ ...CONSTRUCTION, sources: { ...CONSTRUCTION.sources, [STANDARD.id]: formula } }}
+        numbers={new Map([[STANDARD.id, 1]])}
+        focus={{ citation: STANDARD.id, statement: null }}
+        describe={() => 'Source'}
+        onCite={vi.fn()}
+        onShowClaim={vi.fn()}
+        style={{}}
+      />,
+    )
+    const text = within(screen.getByRole('article', { name: 'Source passage' })).getByLabelText(
+      'Passage text',
+    )
+    await waitFor(() => expect(text.querySelector('.katex')).not.toBeNull())
+    expect(text).toHaveTextContent('Agent weight:')
   })
 })

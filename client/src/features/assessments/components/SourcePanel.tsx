@@ -15,6 +15,9 @@ import {
   type ReviewFocus,
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
+import { usePassage } from '../../sources/usePassage'
+import { CitedRegion } from '../../sources/CitedRegion'
+import { PassageBody } from '../../sources/PassageBody'
 import { ReviewInspector, type InspectorAsk } from './ReviewInspector'
 
 // How a source listed below the viewer looks while it is open above.
@@ -58,6 +61,10 @@ export function PassageView({
   const doc = passage.document
   const precedent = passage.kind === 'precedent'
   const range = pages(passage)
+  // The live passage, for its region of the original page only (KB-02); the text stays as the
+  // draft was given it (AC7). The citation ID is `C:` or `P:` and the passage's id.
+  const live = usePassage(passage.id.slice(2))
+  const region = live.status === 'ready' ? live.passage.region : null
   return (
     <>
       <ViewerHead number={number} onClose={onClose}>
@@ -110,10 +117,9 @@ export function PassageView({
         <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
         <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
       </dl>
+      {doc && <CitedRegion fileUrl={doc.fileUrl} region={region} />}
       {/* Focusable, since a long passage scrolls on its own. */}
-      <blockquote className="rv-passage" tabIndex={0} aria-label="Passage text">
-        {passage.text}
-      </blockquote>
+      <PassageBody as="blockquote" className="rv-passage" text={passage.text} quote="" />
       {doc?.withdrawnAt && (
         <p className="rv-viewer-note">
           This source has been withdrawn from the knowledge base, so search no longer uses it. Check
