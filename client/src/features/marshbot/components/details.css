@@ -1,0 +1,360 @@
+/* The Details panel's blocks and its site map (AS-06, boards D1, D2, D3). Loaded by
+   DetailsContent.tsx and SiteMapPanel.tsx. Builds on the panel's frame in ../marshbot.css. */
+
+/* The panel doesn't scroll on a computer: each block has a budget (useDetailsBudget.ts) that
+   shrinks until everything fits. Only below the height where even three one-line rows fit
+   does the body scroll, as a last resort, so nothing is unreachable. */
+.mb-panel-sheet .mb-panel-body {
+  padding-bottom: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.mb-panel-body .mb-details {
+  gap: 15px;
+}
+.mb-panel-head {
+  gap: 10px;
+}
+.mb-panel-head h2 {
+  flex: 1;
+}
+
+/* Links only, when even one of each doesn't fit: each block is one 52px row (board D1). */
+.mb-bigrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+/* The three rows sit together as one list, with a line above the first. */
+.mb-details > section:has(> .mb-bigrow) + section:has(> .mb-bigrow) {
+  margin-top: -15px;
+}
+.mb-two + section > .mb-bigrow {
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-bigrow-label {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mb-bigrow .mb-none {
+  line-height: 1;
+}
+
+/* "None yet", the documents line, and "+N more": plain grey text, one line. */
+.mb-none,
+.mb-more {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--graphite-600);
+}
+.mb-more {
+  padding-top: 4px;
+}
+/* Tighter heading rows keep one of each within a 720px-high screen. */
+.mb-panel-body .mb-labelrow {
+  min-height: 28px;
+}
+.mb-people li + li {
+  margin-top: 0;
+}
+.mb-person .cl-contact-dot {
+  width: 28px;
+  height: 28px;
+}
+.mb-person {
+  min-height: 28px;
+}
+
+/* A long document name wraps to two lines (the full name is not reachable by touch otherwise). */
+.mb-docs .mb-doc-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A document's name over its size and date. */
+.mb-doc-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-doc-detail {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
+}
+
+/* Site contacts, listed: a small card over the panel (board D2). */
+.mb-contacts-pop {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+}
+.mb-contacts-list {
+  padding: 12px 14px;
+}
+.mb-contacts-list h4 {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+.mb-contacts-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-contacts-list li {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.mb-contacts-list li + li {
+  border-top: 1px solid var(--graphite-100);
+}
+
+/* The site map block: two columns, a number badge, the name, a pin when pinned. */
+.mb-places {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-places li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 16px;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 32px;
+  color: var(--marsh-navy);
+}
+.mb-places li > [role='img'] {
+  grid-column: 3;
+}
+.mb-place-name {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--graphite-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A place's number: grey outlined when not pinned, navy when pinned. */
+.mb-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--graphite-600);
+  background: var(--surface-card);
+  box-shadow: inset 0 0 0 1.5px var(--graphite-300);
+}
+.mb-places .mb-badge {
+  background: var(--graphite-100);
+  box-shadow: none;
+  font-size: 11px;
+}
+.mb-badge[data-on] {
+  color: #fff;
+  background: var(--marsh-navy);
+  box-shadow: none;
+}
+
+/* --- Site map view (board D3) --- */
+.mb-sitemap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.mb-mapbox {
+  position: relative;
+  flex: none;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--graphite-200);
+}
+.mb-mapbox .sm-map {
+  height: 250px;
+}
+.mb-mapbox .sm-unavailable {
+  min-height: 120px;
+  align-items: center;
+}
+/* While a pin is being placed the map waits for one click: a navy ring and a crosshair. */
+.mb-mapbox[data-placing]:not(:has(.sm-unavailable)) {
+  box-shadow: 0 0 0 2px var(--marsh-navy);
+}
+.mb-mapbox[data-placing] .sm-map {
+  cursor: crosshair;
+}
+
+.mb-maphint {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 18px;
+  color: var(--graphite-700);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 2px 8px rgb(0 15 71 / 0.16);
+}
+.mb-maphint b {
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+
+/* The bar under the map while placing: Coordinates (with a locate button inside its right end),
+   a green tick, a cross. One row at every width. */
+.mb-placebar {
+  --mb-tap: 40px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex: none;
+}
+.mb-placebar-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* The tick and cross centre on the 40px field even where they are 44px (phone). */
+.mb-placebar > button {
+  margin-bottom: calc((40px - var(--mb-tap, 40px)) / 2);
+}
+/* Doubled class: on a phone .mb-hit sets position: relative, which would drop it out of the input. */
+.mb-placebar .mb-placebar-locate.mb-placebar-locate {
+  position: absolute;
+  right: 0;
+  bottom: calc((40px - var(--mb-tap, 40px)) / 2);
+}
+.mb-mapproblem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: none;
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--red-600);
+}
+
+/* The places: every one, in a list that scrolls by itself. The bottom fades out, and the
+   list's end padding keeps the last row clear of the fade. */
+.mb-placelist {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+}
+.mb-placelist ul {
+  margin: 0;
+  padding: 0 0 28px;
+  list-style: none;
+}
+.mb-place {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 48px;
+  padding: 0 4px 0 6px;
+  border-radius: 10px;
+}
+.mb-place + .mb-place {
+  box-shadow: 0 -1px 0 var(--graphite-100);
+}
+.mb-place[data-current] {
+  background: var(--ink-50);
+  box-shadow: 0 0 0 1px var(--ink-100);
+}
+.mb-place-main {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+button.mb-place-main {
+  cursor: pointer;
+}
+.mb-place .mb-place-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.mb-place-name small {
+  display: block;
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-place-actions {
+  display: inline-flex;
+}
+.mb-iconlink {
+  border: 0; /* the app's link underline would show as a border under the arrow */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+/* A phone, or any touch screen: every control has a 44px hit area without growing. The sheet's
+   scroller (and the places list) would clip a control's tap box where it meets the content
+   edge, so it bleeds 8px past it (the content stays where it was); the keys of a row sit 44px apart so their boxes
+   don't overlap; the client name takes its box as real padding. */
+@media (max-width: 767px), (pointer: coarse) {
+  .mb-details-sheet .ds-sheet-body {
+    margin-inline: -8px;
+    padding-inline: 8px;
+  }
+  .mb-placelist {
+    margin-inline: -8px;
+    padding-inline: 8px;
+  }
+  .mb-details-client .mb-details-name {
+    padding-block: 11px 15px;
+    margin-block: -11px -15px;
+  }
+  .mb-place-actions {
+    gap: 12px;
+  }
+  .mb-placebar {
+    --mb-tap: 44px;
+  }
+}
