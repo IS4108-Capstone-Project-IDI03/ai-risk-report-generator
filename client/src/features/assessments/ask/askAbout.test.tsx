@@ -268,6 +268,9 @@ describe('Ask about this in the draft (AC1, AC2)', () => {
     gateway()
     open()
     await selectWords('tamper switch')
+    // The selection has been read, and the shortcut listened for, once the
+    // button is offered beside it.
+    await screen.findByRole('button', { name: 'Ask about this' })
     fireEvent.keyDown(window, { key: 'm', code: 'KeyM', ctrlKey: true, altKey: true })
     expect(within(inspector()).getByRole('tab', { name: 'Evidence' })).toHaveAttribute(
       'aria-selected',
@@ -275,7 +278,8 @@ describe('Ask about this in the draft (AC1, AC2)', () => {
     )
 
     fireEvent.keyDown(window, { key: 'k', code: 'KeyK', ctrlKey: true, altKey: true })
-    const quoted = within(askTab()).getByRole('figure', { name: 'Asking about 9. Fire Protection' })
+    const tab = await within(inspector()).findByRole('tabpanel', { name: 'Ask' })
+    const quoted = within(tab).getByRole('figure', { name: 'Asking about 9. Fire Protection' })
     expect(quoted.querySelector('.ask-passage-text')).toHaveTextContent(/^tamper switch$/)
     // It can be taken off again before asking.
     fireEvent.click(within(quoted).getByRole('button', { name: "Don't ask about this passage" }))
