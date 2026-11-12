@@ -47,9 +47,10 @@ router.get('/', requirePermission('reports:ask'), async (req, res) => {
   }
 })
 
-// Asks one question: `{ question }`. The answer streams as server-sent
-// events (`step`, `statement`, `missing`, then `result` with the saved
-// answer). One request per question and no polling (AC8).
+// Asks one question: `{ question }`, or `{ question, passage }` about text
+// selected in the draft (AS-02: its anchor, citations and findings). The
+// answer streams as server-sent events (`step`, `statement`, `missing`, then
+// `result` with the saved answer). One request per question and no polling (AC8).
 router.post('/', requirePermission('reports:ask'), async (req, res) => {
   const parsed = questionSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -59,7 +60,8 @@ router.post('/', requirePermission('reports:ask'), async (req, res) => {
   let prepared: PreparedQuestion
   try {
     const reference = (req.params as Params).reference
-    prepared = await prepareQuestion(reference, res.locals.user!, parsed.data.question)
+    const { question, passage } = parsed.data
+    prepared = await prepareQuestion(reference, res.locals.user!, question, passage)
   } catch (error: unknown) {
     refuse(error, res)
     return

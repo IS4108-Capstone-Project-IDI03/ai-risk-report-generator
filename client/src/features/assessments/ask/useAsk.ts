@@ -8,6 +8,7 @@ import {
   type AskEvent,
   type AskScope,
 } from './api'
+import type { AskPassage } from './passage'
 
 // A failure as the Ask tab shows it (AC8): its cause and time, and the next step.
 export type ShownFailure = { cause: string; at: string; next: string }
@@ -55,7 +56,9 @@ function shown(answer: AskAnswer, key = answer.id): AskItem {
 // questions and answers, read once when the workspace opens, and the question
 // being answered. `available` is false without the gateway (AC7): the tab then
 // says why. Kept by the review workspace, so an answer keeps streaming while
-// the engineer moves between sections.
+// the engineer moves between sections, and into the document editor. `about`
+// is the passage chosen with "Ask about this" (AS-02), asked about with the
+// next question.
 export function useAsk(reference: string, enabled: boolean) {
   const [items, setItems] = useState<AskItem[]>([])
   const [scope, setScope] = useState<AskScope | null>(null)
@@ -63,6 +66,7 @@ export function useAsk(reference: string, enabled: boolean) {
   const [reason, setReason] = useState<string | null>(null)
   const running = useRef<AbortController | null>(null)
   const [busy, setBusy] = useState(false)
+  const [about, setAbout] = useState<AskPassage | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -95,7 +99,7 @@ export function useAsk(reference: string, enabled: boolean) {
   }, [])
 
   const ask = useCallback(
-    async (question: string) => {
+    async (question: string, passage: AskPassage | null = null) => {
       if (running.current) return
       const controller = new AbortController()
       running.current = controller
@@ -109,6 +113,7 @@ export function useAsk(reference: string, enabled: boolean) {
           id: key,
           key,
           question,
+          passage,
           askedAt: new Date().toISOString(),
           status: 'answering',
           statements: [],
@@ -137,7 +142,11 @@ export function useAsk(reference: string, enabled: boolean) {
           const step = event.step === 'generate' ? 'generate' : 'retrieve'
           update((item) => ({ ...item, step }))
         } else if (event.type === 'statement') {
-          const statement = { text: event.text, citations: event.citations }
+          const statement = {
+            text: event.text,
+            citations: event.citations,
+            ...(event.differs && { differs: true }),
+          }
           update((item) => ({
             ...item,
             statements: [...item.statements, statement],
@@ -152,7 +161,7 @@ export function useAsk(reference: string, enabled: boolean) {
         }
       }
       try {
-        await askQuestion(reference, question, onEvent, controller.signal)
+        await askQuestion(reference, question, onEvent, controller.signal, passage)
         if (!finished) fail('the answer ended before it was finished')
       } catch (error: unknown) {
         if (controller.signal.aborted) fail('the answer was stopped before it finished')
@@ -170,7 +179,7 @@ export function useAsk(reference: string, enabled: boolean) {
 
   const stop = useCallback(() => running.current?.abort(), [])
 
-  return { items, scope, state, reason, busy, ask, stop }
+  return { items, scope, state, reason, busy, ask, stop, about, setAbout }
 }
 
 export type AskWorkflow = ReturnType<typeof useAsk>

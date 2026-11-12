@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import type { DocumentBlock, DocumentInline } from '../api'
+import type { DocumentBlock, DocumentHeading, DocumentInline, DocumentParagraph } from '../api'
 
 // Text as the engineer formatted it in the document editor (RV-08): bold,
 // italic and underline, with each citation marker where it sits, drawn by
@@ -32,24 +32,31 @@ export function RichWords({
 // A section's text from the document editor (RV-08): paragraphs, sub-headings
 // and lists. A block taken from the draft is drawn by `finding` when given,
 // told whether it was set as a sub-heading; otherwise, like the engineer's
-// own, as text, which `flagged` can mark unsupported.
+// own, as text, which `flagged` can mark unsupported. `attrs` adds attributes
+// to a block of text drawn here, e.g. where it is in its section's text for
+// asking about a selection (AS-02).
 export function WrittenBlocks({
   blocks,
   cite,
   finding,
   flagged,
+  attrs,
 }: {
   blocks: DocumentBlock[]
   cite?: (id: string) => React.ReactNode
   finding?: (key: string, content: DocumentInline[], heading: boolean) => React.ReactNode
   flagged?: (key: string | null | undefined) => boolean
+  attrs?: (block: DocumentParagraph | DocumentHeading) => Record<string, string>
 }) {
-  const paragraph = (key: string | null | undefined, content: DocumentInline[]) =>
-    key && finding ? (
-      finding(key, content, false)
+  const paragraph = (p: DocumentParagraph) =>
+    p.finding && finding ? (
+      finding(p.finding, p.content, false)
     ) : (
-      <p className={'rv-statement rv-written' + (flagged?.(key) ? ' is-unsupported' : '')}>
-        <RichWords content={content} cite={cite} />
+      <p
+        className={'rv-statement rv-written' + (flagged?.(p.finding) ? ' is-unsupported' : '')}
+        {...attrs?.(p)}
+      >
+        <RichWords content={p.content} cite={cite} />
       </p>
     )
   return (
@@ -62,17 +69,17 @@ export function WrittenBlocks({
             <h4
               key={i}
               className={'rv-written-heading' + (flagged?.(b.finding) ? ' is-unsupported' : '')}
+              {...attrs?.(b)}
             >
               <RichWords content={b.content} cite={cite} />
             </h4>
           )
-        if (b.type === 'paragraph')
-          return <Fragment key={i}>{paragraph(b.finding, b.content)}</Fragment>
+        if (b.type === 'paragraph') return <Fragment key={i}>{paragraph(b)}</Fragment>
         const List = b.type === 'orderedList' ? 'ol' : 'ul'
         return (
           <List key={i} className="rv-written-list">
             {b.items.map((item, j) => (
-              <li key={j}>{paragraph(item.finding, item.content)}</li>
+              <li key={j}>{paragraph(item)}</li>
             ))}
           </List>
         )

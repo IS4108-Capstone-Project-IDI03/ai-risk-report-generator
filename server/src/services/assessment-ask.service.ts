@@ -5,6 +5,13 @@
 // through its orchestrator and streams each checked statement; the gateway
 // passes them on, then records the answer's paid calls and saves the question
 // with its answer and trace (AC6). Called by routes/ask.routes.ts.
+//
+// A question can be about a passage the engineer selected in the draft
+// (AS-02). The browser sends where it is (RV-03's anchor), the sources it
+// cites and the findings it is in; the gateway reads the section's findings
+// and those sources from the saved draft, so S4 is told only what the draft
+// holds. Nothing in the report is written: asking adds no version and changes
+// no review state (AS-02 AC5).
 import { Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
@@ -14,6 +21,7 @@ import {
   type AssessmentQuestionDocument,
   type IAnswerStatement,
   type IAssessmentQuestion,
+  type IQuestionPassage,
   type QuestionStatus,
 } from '../models/assessment-question.model'
 import type { ISite } from '../models/site.model'
@@ -22,7 +30,9 @@ import { opensAssessment } from './assessment.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { addChatSpend, checkChatLimits, PER_DAY, PER_MINUTE } from './chat-limits.service'
 import { selectedStandardIds } from './checklist.service'
-import { CannotOpenAssessmentError } from './comment.service'
+import { anchorSchema, CannotOpenAssessmentError } from './comment.service'
+import { UNDRAFTED_PARTS } from './report-document.service'
+import { entriesFor, foldFindings } from './review-decision.service'
 import {
   findKnowledgeDocuments,
   listApplicableStandards,
@@ -34,9 +44,48 @@ import { captureTimes, listObservations } from './observation.service'
 import { privacyFor } from './privacy.service'
 import { openAskStream, RagServiceError } from './rag.service'
 import { toPassage, type FieldObservationDto, type SourcePassageDto } from './review.service'
-import { handwritingOf, isUsable, transcriptsOf } from './section.service'
+import {
+  handwritingOf,
+  isUsable,
+  savedEvidence,
+  sectionDrafts,
+  transcriptsOf,
+  type Draft,
+} from './section.service'
 
 export const MAX_QUESTION_CHARS = 1000
+// The longest passage a question can be about: a few paragraphs (AS-02).
+export const MAX_PASSAGE_CHARS = 4000
+
+// A citation marker in a section's text, as an anchor holds it (RV-03).
+const MARKER = '\uFFFC'
+// A passage's words for S4: markers left out, each block on its own line.
+const wordsOf = (exact: string) =>
+  exact
+    .replaceAll(MARKER, '')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+
+const passageSchema = z.strictObject({
+  anchor: anchorSchema
+    .refine((a) => a.exact.length <= MAX_PASSAGE_CHARS, {
+      message: 'Select up to 4,000 characters to ask about.',
+      path: ['exact'],
+    })
+    .refine((a) => wordsOf(a.exact) !== '', {
+      message: 'Select some of the text to ask about.',
+      path: ['exact'],
+    }),
+  // The sources the passage cites, and the findings it is in, by key.
+  citations: z.array(z.string().max(200)).max(50).default([]),
+  findings: z
+    .array(z.string().regex(/^\d{1,3}\.\d{1,3}$/))
+    .max(200)
+    .default([]),
+})
+export type PassageInput = z.infer<typeof passageSchema>
 
 export const questionSchema = z.object({
   question: z
@@ -44,6 +93,8 @@ export const questionSchema = z.object({
     .trim()
     .min(1, 'Type a question to ask.')
     .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.'),
+  // Text selected in the draft that the question is about (AS-02).
+  passage: passageSchema.optional(),
 })
 
 // The chat's limits on questions a minute and a day (CB-01) count Ask's
@@ -163,6 +214,8 @@ export type AskScopeDto = {
 export type AnswerDto = {
   id: string
   question: string
+  // The passage it is about (AS-02), or null.
+  passage: IQuestionPassage | null
   askedAt: Date
   status: QuestionStatus
   statements: IAnswerStatement[]
@@ -234,6 +287,7 @@ async function toDtos(questions: AssessmentQuestionDocument[]): Promise<AnswerDt
   return questions.map((q) => ({
     id: String(q._id),
     question: q.question,
+    passage: passageDto(q.passage),
     askedAt: q.createdAt,
     status: q.status,
     statements: q.statements,
@@ -281,6 +335,119 @@ function scopeDto(
   }
 }
 
+function passageDto(p: IQuestionPassage | null | undefined): IQuestionPassage | null {
+  if (!p) return null
+  const { sectionId, start, end, exact, prefix, suffix } = p.anchor
+  return {
+    anchor: { sectionId, start, end, exact, prefix: prefix ?? '', suffix: suffix ?? '' },
+    label: p.label,
+    citations: [...(p.citations ?? [])],
+    findings: [...(p.findings ?? [])],
+  }
+}
+
+// How the report heads the parts with no drafted findings of their own.
+const PART_LABELS: Record<string, string> = {
+  '1': '1. Purpose and Scope',
+  '2': '2. Executive Summary',
+  '3': '3. Opportunities for Improvement',
+  A: 'Appendix A. Site Photos',
+}
+
+// A source the draft cites, as S4 saved it with the draft.
+type SavedPassage = {
+  text?: unknown
+  doc_id?: unknown
+  headings?: unknown
+  page_start?: unknown
+  page_end?: unknown
+}
+
+// What S4 is told of a selected passage (AS-02 AC2): its section, its words,
+// the sources it cites and the section's findings, read from the section's
+// saved draft. Only the draft's own sources count as the passage's citations;
+// a cited observation deleted since is sent as the draft was given it.
+async function passageContext(
+  assessment: OpenedAssessment,
+  input: PassageInput,
+  observations: AskObservation[],
+) {
+  const { sectionId } = input.anchor
+  const drafted = sectionId !== '2' && !UNDRAFTED_PARTS.has(sectionId)
+  const draft: Draft | null = drafted
+    ? ((await sectionDrafts(assessment._id)).get(sectionId)?.saved ?? null)
+    : null
+  const findings = draft
+    ? foldFindings(draft, await entriesFor([draft._id])).filter((f) => f.state !== 'rejected')
+    : []
+  const sources = (draft?.sources ?? {}) as Record<string, SavedPassage>
+  const evidence = new Map(savedEvidence(draft?.evidence).map((e) => [e.id, e]))
+  const cited = new Set([
+    ...Object.keys(sources),
+    ...[...evidence.keys()].map((id) => `O:${id}`),
+    ...findings.flatMap((f) => f.citations),
+  ])
+  const citations = [...new Set(input.citations)].filter((ref) => cited.has(ref))
+  const keys = new Set(findings.map((f) => f.key))
+  const inPassage = input.findings.filter((key) => keys.has(key))
+  const passages = citations.flatMap((ref) => {
+    const saved = sources[ref]
+    if (ref.startsWith('O:') || !saved || typeof saved.text !== 'string') return []
+    return [
+      {
+        id: ref.slice(2),
+        kind: ref.startsWith('P:') ? ('report' as const) : ('standard' as const),
+        text: saved.text,
+        metadata: {
+          doc_id: typeof saved.doc_id === 'string' ? saved.doc_id : null,
+          headings: Array.isArray(saved.headings) ? saved.headings.map(String) : [],
+          page_start: typeof saved.page_start === 'number' ? saved.page_start : null,
+          page_end: typeof saved.page_end === 'number' ? saved.page_end : null,
+        },
+      },
+    ]
+  })
+  // An observation the passage cites is evidence even if deleted since.
+  const known = new Set(observations.map((o) => o.id))
+  const draftedCopies: AskObservation[] = citations.flatMap((ref) => {
+    const e = ref.startsWith('O:') ? evidence.get(ref.slice(2)) : undefined
+    if (!e || known.has(e.id)) return []
+    return [
+      {
+        id: e.id,
+        COPE_dimension: e.COPE_dimension.length ? e.COPE_dimension : null,
+        note: e.note ?? null,
+        transcripts: e.transcripts ?? [],
+        handwriting: e.handwriting ?? [],
+        severity: e.severity ?? null,
+        location: e.location ?? null,
+        standard: e.standard ?? null,
+      },
+    ]
+  })
+  const label =
+    PART_LABELS[sectionId] ?? (draft ? `${sectionId}. ${draft.title}` : `Section ${sectionId}`)
+  const documentIds = passages.flatMap((p) => (p.metadata.doc_id ? [p.metadata.doc_id] : []))
+  return {
+    saved: { anchor: input.anchor, label, citations, findings: inPassage } as IQuestionPassage,
+    observations: draftedCopies,
+    documents: await findKnowledgeDocuments(documentIds),
+    body: {
+      section_id: sectionId,
+      section_title: label,
+      text: wordsOf(input.anchor.exact),
+      citations,
+      sources: passages,
+      findings: findings.slice(0, 200).map((f) => ({
+        text: f.text.slice(0, 5000),
+        state: f.state as 'pending' | 'accepted' | 'edited',
+        citations: f.citations.slice(0, 50),
+        in_passage: inPassage.includes(f.key),
+      })),
+    },
+  }
+}
+
 // A question checked, within the limits, and saved, ready to be answered.
 export type PreparedQuestion = {
   saved: AssessmentQuestionDocument
@@ -292,11 +459,14 @@ export type PreparedQuestion = {
 }
 
 // Checks who may ask and the limits, then saves the question before S4 is
-// asked, so it is kept even if the answer fails (as chat does, CB-03).
+// asked, so it is kept even if the answer fails (as chat does, CB-03). A
+// question about a selected passage (AS-02) is sent with it, and saved with
+// its anchor; the report itself is only read.
 export async function prepareQuestion(
   reference: string,
   user: SessionUser,
   question: string,
+  passage?: PassageInput,
 ): Promise<PreparedQuestion> {
   const assessment = await openToAsk(reference, user)
   const refused = checkChatLimits(user.id, [question])
@@ -312,12 +482,14 @@ export async function prepareQuestion(
         : new QuestionLimitError('the question is too long', 'Shorten it and ask again.')
   }
   const scope = await scopeOf(assessment)
+  const about = passage ? await passageContext(assessment, passage, scope.observations) : null
   const { jurisdiction, facilityType } = assessment.site
   const saved = (
     await AssessmentQuestionModel.create({
       assessment: assessment._id,
       userId: new Types.ObjectId(user.id),
       question,
+      passage: about?.saved ?? null,
       status: 'answering',
       metadata: {
         source_type: 'assessment_question',
@@ -328,6 +500,11 @@ export async function prepareQuestion(
       },
     })
   ).toObject() as AssessmentQuestionDocument
+  // Every document S4 may cite, each once: those in scope, and those the
+  // selected passage cites.
+  const documents = new Map(
+    [...scope.standards, ...scope.reports, ...(about?.documents ?? [])].map((d) => [d.id, d]),
+  )
   const body = {
     question,
     assessment: {
@@ -335,16 +512,13 @@ export async function prepareQuestion(
       jurisdiction,
       facility_type: facilityType,
     },
-    observations: scope.observations,
+    observations: [...scope.observations, ...(about?.observations ?? [])],
     standard_ids: scope.standards.map((d) => d.id),
-    documents: [...scope.standards, ...scope.reports].map((d) => ({
-      id: d.id,
-      name: documentName(d),
-    })),
+    documents: [...documents.values()].map((d) => ({ id: d.id, name: documentName(d) })),
     // The gateway decides protection (PV-02), as for drafting.
     privacy: await privacyFor(assessment.reference),
+    ...(about && { passage: about.body }),
   }
-  const documents = new Map([...scope.standards, ...scope.reports].map((d) => [d.id, d]))
   return { saved, assessment, userId: user.id, body, documents }
 }
 
@@ -423,13 +597,16 @@ export async function answerQuestion(
           continue
         }
         if (event.type === 'statement') {
-          statements.push({ text: event.text, citations: event.citations })
+          // A line naming where the passage's sources disagree (AS-02 AC4).
+          const differs = event.differs === true ? { differs: true } : {}
+          statements.push({ text: event.text, citations: event.citations, ...differs })
           Object.assign(streamed, event.sources)
           // With its sources, so a citation opens while the answer is written (AC2).
           send({
             type: 'statement',
             text: event.text,
             citations: event.citations,
+            ...differs,
             ...sourceDtos(event.sources ?? {}, prepared.documents),
           })
         } else if (event.type === 'missing') {

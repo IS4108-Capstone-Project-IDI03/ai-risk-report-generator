@@ -4,6 +4,7 @@
 // tab never polls, so the idle sign-out (F-07) still applies.
 import { GatewayError, reportSessionEnded, request } from '../api'
 import type { FieldObservation, SourcePassage } from '../api'
+import { passageBody, type AskPassage } from './passage'
 
 export type AskCitation = {
   // `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report).
@@ -13,13 +14,20 @@ export type AskCitation = {
   // Whether the quoted words were found in the source.
   verified: boolean
 }
-export type AskStatement = { text: string; citations: AskCitation[] }
+export type AskStatement = {
+  text: string
+  citations: AskCitation[]
+  // Names where the sources behind a selected passage disagree (AS-02 AC4).
+  differs?: boolean
+}
 export type Confidence = 'high' | 'medium' | 'low'
 export type AskFailure = { step: string; cause: string; at: string }
 
 export type AskAnswer = {
   id: string
   question: string
+  // The passage selected in the draft that it is about (AS-02), or null.
+  passage: AskPassage | null
   askedAt: string
   status: 'answering' | 'complete' | 'stopped' | 'failed'
   statements: AskStatement[]
@@ -84,19 +92,23 @@ export class AskRefusedError extends Error {
   }
 }
 
-/** Asks one question; `onEvent` gets each event as it arrives. Resolves when the stream ends. */
+/**
+ * Asks one question, about a selected passage when given (AS-02); `onEvent`
+ * gets each event as it arrives. Resolves when the stream ends.
+ */
 export async function askQuestion(
   reference: string,
   question: string,
   onEvent: (event: AskEvent) => void,
   signal?: AbortSignal,
+  passage?: AskPassage | null,
 ): Promise<void> {
   let response: Response
   try {
     response = await fetch(`/api/assessments/${encodeURIComponent(reference)}/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(passage ? { question, passage: passageBody(passage) } : { question }),
       signal,
     })
   } catch (error: unknown) {

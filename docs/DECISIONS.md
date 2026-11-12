@@ -2404,3 +2404,27 @@ Rejected:
 Known limits: words match as typed, with no stemming: "valve" finds "valves" but "valves" does not find "valve". Every row is checked on each keystroke, which is fine at hundreds of items. The browser's own find (Ctrl+F) still cannot see a closed transcript.
 
 Stories: CP-13, CP-12, CP-08, CP-19, CP-20, CP-21, CP-22, AS-01, GN-07.
+
+## 2026-11-12 — Asking about a selected passage keeps it as a comment's anchor, reads the section from its saved draft, and names disagreeing sources without choosing
+
+Chose:
+- (AS-02) Ask about this is offered in both places draft text is read: the review workspace's draft editor (Sections 4 to 12), where a button by the selection opens the Ask tab, and the document editor (RV-08), where it sits beside Comment in the toolbar and opens an Ask panel in the comments list's place. One conversation (`useAsk`, kept by the review workspace) serves both. Asked on 12 Nov.
+- Ctrl+Alt+K (Cmd+Option+K), beside Comment's Ctrl+Alt+M: K types no letter with AltGr on most European layouts, and Chrome and Edge leave it free. Asked on 12 Nov.
+- The passage is stored as RV-03's anchor, from the same `comments/anchor.ts`: offsets into the section's text as the document editor saves it, its words, and 32 characters either side. `ask/passage.ts` reads that text from the saved content as well (`contentText`), so a passage selected in the review workspace is found in the document editor and the other way round. The anchor is never moved: it is found again from its words each time, as RV-03 finds a thread after the text changes outside the editor, and once its words are gone the message says "Text deleted". Comment threads move their anchors on every save; a question is a record of what was asked, so it does not.
+- In the review workspace, the draft's blocks carry `data-ask-block` (their index in the section's text) so a DOM selection is read as offsets in that text; a citation number counts as its one marker, badges as nothing. Section 6's programme rows, which show only their comment, carry where it starts.
+- A passage's citations are those of every block it is in, not only the markers inside the selection: a few words of a finding bring the finding's sources. Its findings are the keys of those blocks' findings.
+- The gateway reads the section's findings and sources from the saved draft (`sectionDrafts`, `foldFindings`), never from the browser: only citations the draft holds are sent, each standard or past-report passage with the words it was drafted from, and a cited observation deleted since as the draft was given it. The browser sends only the anchor, the citations and the finding keys.
+- S4 always keeps what the passage cites as evidence, labelled first and marked "cited by the passage", outside rerank; it searches with the question and the passage's words. The findings are shown to the model as the draft under review, with their decisions and the labels they cite, and are never citable.
+- Disagreement (AC4) is a line of its own, `Differs:`, kept only if it cites at least two sources and shown as "Sources disagree:". Any line that chooses between sources ("more reliable", "the correct figure", "should be used", "takes precedence", "likely a typo") is dropped, by pattern, as the other content rules are. Sources that disagree make the answer Medium at most.
+- Nothing is written to the report (AC5): the gateway only reads it; in the document editor the passage is marked with decorations (`ask/askHighlight.ts`), outside the undo history, never a mark in the text. Going back to a passage marks it with the CSS highlight API where the browser has it (as CP-13's search marks, `--ink-100`), else its blocks are tinted.
+- A passage is at most 4,000 characters (comments allow 10,000): it goes into the prompt whole.
+
+Rejected:
+- A second Ask for the document editor with its own conversation: the engineer would find half their questions in each place.
+- Moving a question's anchor on each document save, as comments do: a question says what was asked then; finding it by its words is enough to link back.
+- Detecting disagreement in code (comparing numbers across the cited sources): which figures are about the same thing is the model's reading; the code checks the line names both sides and does not choose.
+- Offering Ask about this on Sections 1, 2, 3 and Appendix A in the review workspace: they have no drafted findings or cited sources there. In the document editor every section can be asked about.
+
+Known limits: "choosing" is checked with patterns, so wording outside them is left to the prompt. The passage's words are not checked against the saved text on the gateway: a passage selected in unsaved document edits is sent as selected. Old answers have no passage.
+
+Stories: AS-02, AS-01, RV-03, RV-08, RV-01.

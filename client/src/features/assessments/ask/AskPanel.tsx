@@ -7,13 +7,16 @@ import {
   EmptyState,
   EvidenceCitation,
   Icon,
+  IconButton,
   Textarea,
 } from '../../../design-system'
 import type { FieldObservation, SourcePassage } from '../api'
+import type { CommentAnchor } from '../comments/api'
 import { CitationMark } from '../components/CitationMark'
 import { formatTimeOfDay } from '../format'
 import { excerpt, pageLocator, severityLabel } from '../reviewDisplay'
 import type { AskCitation } from './api'
+import { quotedWords, type AskPassage } from './passage'
 import type { AskItem, AskWorkflow } from './useAsk'
 import './ask.css'
 
@@ -64,6 +67,71 @@ const STEP_TEXT = {
   generate: 'Writing the answer…',
 }
 
+// A passage quoted longer than this folds, with a way to read all of it.
+const FOLD_AT = 280
+
+// A passage selected in the draft (AS-02), quoted verbatim behind a 2px rule
+// (AC2): under the section it is in, with a link back to it while it is in the
+// text and "Text deleted" once it is not (AC3). In the question box it can be
+// taken off again.
+function PassageQuote({
+  passage,
+  heading,
+  found,
+  onShow,
+  onRemove,
+}: {
+  passage: AskPassage
+  heading: string
+  // Whether its text is still in the report; undefined where that is not known.
+  found?: boolean
+  onShow?: () => void
+  onRemove?: () => void
+}) {
+  const [whole, setWhole] = useState(false)
+  const words = quotedWords(passage.anchor.exact)
+  const long = words.length > FOLD_AT || words.split('\n').length > 4
+  return (
+    <figure className="ask-passage" aria-label={heading}>
+      <figcaption className="ask-passage-head">
+        <span className="ask-passage-from">{heading}</span>
+        {found === false ? (
+          <span className="ask-tag">Text deleted</span>
+        ) : (
+          found &&
+          onShow && (
+            <button type="button" className="ask-link" onClick={onShow}>
+              Go to the passage
+            </button>
+          )
+        )}
+        {onRemove && (
+          <IconButton
+            icon="x"
+            size="sm"
+            label="Don't ask about this passage"
+            tooltip="Remove the passage"
+            onClick={onRemove}
+          />
+        )}
+      </figcaption>
+      <blockquote className={'ask-passage-text' + (long && !whole ? ' is-folded' : '')}>
+        {words}
+      </blockquote>
+      {long && (
+        <button
+          type="button"
+          className="ask-link"
+          aria-expanded={whole}
+          onClick={() => setWhole((open) => !open)}
+        >
+          {whole ? 'Show less' : 'Show the whole passage'}
+        </button>
+      )}
+    </figure>
+  )
+}
+
 // One answer in AI violet (AC2): each statement with its citation numbers,
 // what evidence is missing (AC4), its confidence (AC5), why it stopped (AC8),
 // and its sources as EvidenceCitations. Selecting a citation or a source opens
@@ -78,7 +146,7 @@ function Answer({
   item: AskItem
   current: string | null
   onCite: (ref: string, item: AskItem) => void
-  onAskAgain: (question: string) => void
+  onAskAgain: (question: string, passage: AskPassage | null) => void
   canAsk: boolean
 }) {
   const answering = item.status === 'answering'
@@ -107,7 +175,15 @@ function Answer({
       {item.statements.length > 0 && (
         <div className="ask-statements">
           {item.statements.map((s, i) => (
-            <p key={i} className="ask-statement">
+            // Where the passage's sources disagree, each figure with its source,
+            // neither chosen (AS-02 AC4).
+            <p key={i} className={s.differs ? 'ask-statement ask-differs' : 'ask-statement'}>
+              {s.differs && (
+                <span className="ask-differs-label">
+                  <Icon name="git-compare-arrows" size={14} color="var(--text-secondary)" />
+                  Sources disagree:{' '}
+                </span>
+              )}
               {s.text}{' '}
               {s.citations.map((c) => (
                 <CitationMark
@@ -142,7 +218,7 @@ function Answer({
                   variant="secondary"
                   size="sm"
                   iconLeft="rotate-ccw"
-                  onClick={() => onAskAgain(item.question)}
+                  onClick={() => onAskAgain(item.question, item.passage ?? null)}
                 >
                   Ask again
                 </Button>
@@ -233,19 +309,25 @@ function scopeLine(ask: AskWorkflow) {
 // The Ask tab (AS-01): this engineer's questions about the assessment and
 // their cited answers, newest last, then the question box. Without the
 // gateway (`ask` null, e.g. the sample assessment) it says it is unavailable
-// and why (AC7).
+// and why (AC7). A question about a passage selected in the draft (AS-02)
+// quotes it, in the question box and above the question once asked; `locate`
+// says whether its text is still there and `onShowPassage` goes back to it.
 export function AskPanel({
   ask,
   unavailable,
   current,
   onCite,
   autoFocus = false,
+  locate,
+  onShowPassage,
 }: {
   ask: AskWorkflow | null
   unavailable?: string
   current: string | null
   onCite: (ref: string, item: AskItem) => void
   autoFocus?: boolean
+  locate?: (anchor: CommentAnchor) => boolean | undefined
+  onShowPassage?: (passage: AskPassage) => void
 }) {
   const [question, setQuestion] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
@@ -264,6 +346,11 @@ export function AskPanel({
   useEffect(() => {
     if (autoFocus) box.current?.querySelector('textarea')?.focus()
   }, [autoFocus])
+  // A passage chosen with Ask about this: the question box is next (AS-02).
+  const about = ask?.about ?? null
+  useEffect(() => {
+    if (about) box.current?.querySelector('textarea')?.focus()
+  }, [about])
 
   if (!ask || ask.state === 'unavailable')
     return (
@@ -280,7 +367,9 @@ export function AskPanel({
       </div>
     )
 
-  const send = (text: string) => {
+  // Asks a question, about `passage` when given: the one in the question box
+  // unless asked again.
+  const send = (text: string, passage: AskPassage | null = about) => {
     const trimmed = text.trim()
     if (!trimmed) {
       setProblem('Type a question to ask.')
@@ -293,8 +382,18 @@ export function AskPanel({
     }
     setProblem(null)
     setQuestion('')
-    void ask.ask(trimmed)
+    if (passage && passage === about) ask.setAbout(null)
+    void ask.ask(trimmed, passage)
   }
+  const passageOf = (item: AskItem) =>
+    item.passage && (
+      <PassageQuote
+        passage={item.passage}
+        heading={item.passage.label}
+        found={locate?.(item.passage.anchor)}
+        onShow={onShowPassage && (() => onShowPassage(item.passage!))}
+      />
+    )
 
   return (
     <div className="ask-panel">
@@ -313,10 +412,13 @@ export function AskPanel({
         <ol ref={thread} className="ask-thread" aria-label="Questions and answers">
           {ask.items.map((item) => (
             <li key={item.key} className="ask-item">
-              <p className="ask-question">
-                <span className="ask-sr-only">Question: </span>
-                {item.question}
-              </p>
+              <div className="ask-question">
+                {passageOf(item)}
+                <p className="ask-question-text">
+                  <span className="ask-sr-only">Question: </span>
+                  {item.question}
+                </p>
+              </div>
               <Answer
                 item={item}
                 current={current}
@@ -336,6 +438,16 @@ export function AskPanel({
           send(question)
         }}
       >
+        {about && (
+          <PassageQuote
+            passage={about}
+            heading={`Asking about ${about.label}`}
+            onRemove={() => {
+              ask.setAbout(null)
+              focusBox()
+            }}
+          />
+        )}
         <div ref={box}>
           <Textarea
             label="Question"
@@ -343,7 +455,11 @@ export function AskPanel({
             rows={3}
             value={question}
             maxLength={MAX_QUESTION}
-            placeholder="e.g. Which observations concern the sprinkler control valves?"
+            placeholder={
+              about
+                ? 'e.g. Where does this figure come from?'
+                : 'e.g. Which observations concern the sprinkler control valves?'
+            }
             error={problem ?? undefined}
             onChange={(event) => {
               setQuestion(event.target.value)

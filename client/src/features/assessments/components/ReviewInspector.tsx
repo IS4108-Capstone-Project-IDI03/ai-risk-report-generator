@@ -1,6 +1,8 @@
 import { Button, Dialog, Tabs } from '../../../design-system'
 import { AskPanel } from '../ask/AskPanel'
+import type { AskPassage } from '../ask/passage'
 import type { AskItem, AskWorkflow } from '../ask/useAsk'
+import type { CommentAnchor } from '../comments/api'
 import { useCompact } from '../useCompact'
 
 export type InspectorTab = 'evidence' | 'ask'
@@ -17,6 +19,10 @@ export type InspectorAsk = {
   // The bottom sheet on phones, open or not.
   sheetOpen: boolean
   onSheet: (open: boolean) => void
+  // Whether a passage asked about is still in the report, and going back to
+  // it in the draft (AS-02 AC3).
+  locate?: (anchor: CommentAnchor) => boolean | undefined
+  onShowPassage?: (passage: AskPassage) => void
 }
 
 // The review workspace's right inspector: the evidence panel and, beside it,
@@ -50,6 +56,8 @@ export function ReviewInspector({
       current={ask.current}
       onCite={ask.onCite}
       autoFocus={sheet}
+      locate={ask.locate}
+      onShowPassage={ask.onShowPassage}
     />
   )
   if (phone)

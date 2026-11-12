@@ -1,8 +1,12 @@
 import { Schema, Types, model } from 'mongoose'
+import { SECTION_ID, type ICommentAnchor } from './report-comment.model'
 
 // Questions asked about an assessment in the review workspace's Ask tab, each
 // with its answer (AS-01). One document per question: the engineer's own
 // conversation about that assessment, read back when the tab opens again.
+// A question can be about a passage selected in the draft (AS-02): it then
+// keeps where that passage is, as a comment thread's anchor (RV-03), so the
+// tab links back to it, or says "Text deleted" once it is gone.
 // Each holds the trace of the run that answered it (retrieve, assemble,
 // generate, guardrail), so the evaluation harness can score answers later.
 // See docs/areas/database.md, "Assessment questions".
@@ -30,6 +34,20 @@ export interface IAnswerCitation {
 export interface IAnswerStatement {
   text: string
   citations: IAnswerCitation[]
+  // Set on a line naming where the sources behind a selected passage disagree
+  // (AS-02 AC4): each figure with its source, never choosing between them.
+  differs?: boolean
+}
+
+// The passage a question was asked about (AS-02): its anchor in the section's
+// text, in RV-03's format; the section as the report heads it; the sources it
+// cites (O:/C:/P: refs) and the keys of the section's findings it is in. Never
+// moved as the text changes: the tab finds it again from its words.
+export interface IQuestionPassage {
+  anchor: ICommentAnchor
+  label: string
+  citations: string[]
+  findings: string[]
 }
 
 export interface IAssessmentQuestion {
@@ -37,6 +55,8 @@ export interface IAssessmentQuestion {
   // Who asked: only they read it back.
   userId: Types.ObjectId
   question: string
+  // The passage it is about, or null for a question about the whole assessment.
+  passage: IQuestionPassage | null
   status: QuestionStatus
   statements: IAnswerStatement[]
   // What evidence the answer says is missing (AC4).
@@ -77,16 +97,44 @@ const citationSchema = new Schema<IAnswerCitation>(
   { _id: false },
 )
 
+const passageSchema = new Schema<IQuestionPassage>(
+  {
+    anchor: {
+      type: new Schema<ICommentAnchor>(
+        {
+          sectionId: { type: String, required: true, match: SECTION_ID },
+          start: { type: Number, required: true, min: 0 },
+          end: { type: Number, required: true, min: 1 },
+          exact: { type: String, required: true },
+          prefix: { type: String, default: '' },
+          suffix: { type: String, default: '' },
+        },
+        { _id: false },
+      ),
+      required: true,
+    },
+    label: { type: String, required: true },
+    citations: { type: [String], default: [] },
+    findings: { type: [String], default: [] },
+  },
+  { _id: false },
+)
+
 const assessmentQuestionSchema = new Schema<IAssessmentQuestion>(
   {
     assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     question: { type: String, required: true, maxlength: 1000 },
+    passage: { type: passageSchema, default: null },
     status: { type: String, enum: QUESTION_STATUSES, default: 'answering' },
     statements: {
       type: [
         new Schema<IAnswerStatement>(
-          { text: { type: String, required: true }, citations: [citationSchema] },
+          {
+            text: { type: String, required: true },
+            citations: [citationSchema],
+            differs: { type: Boolean },
+          },
           { _id: false },
         ),
       ],
