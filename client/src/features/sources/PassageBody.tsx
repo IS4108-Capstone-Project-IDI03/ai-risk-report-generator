@@ -5,7 +5,13 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { quoteSpan } from '../chat/components/quoteSpan'
 import { runsOf } from './mathText'
 
-type Props = { text: string; quote: string }
+type Props = {
+  text: string
+  quote: string
+  /** The element and class it is drawn as: the chat's paragraph, or review's blockquote. */
+  as?: 'p' | 'blockquote'
+  className?: string
+}
 type RenderMath = (latex: string, display: boolean) => string | null
 
 const loadMathRenderer = () => import('./katexRender').then((m) => m.renderMath)
@@ -41,7 +47,12 @@ function marked(text: string, start: number, end: number, span: [number, number]
 }
 
 /** The passage text, line breaks kept, with the quote in <mark> when it is found. */
-export function PassageBody({ text, quote }: Props) {
+export function PassageBody({
+  text,
+  quote,
+  as: Tag = 'p',
+  className = 'chat-passage-text',
+}: Props) {
   const renderMath = useMathRenderer()
   const span = quoteSpan(quote, text)
   const parts: ReactNode[] = runsOf(text).map((run) => {
@@ -54,8 +65,8 @@ export function PassageBody({ text, quote }: Props) {
   })
   return (
     // Focusable, so a keyboard user can scroll a long passage.
-    <p className="chat-passage-text" tabIndex={0} aria-label="Passage text">
+    <Tag className={className} tabIndex={0} aria-label="Passage text">
       {parts}
-    </p>
+    </Tag>
   )
 }

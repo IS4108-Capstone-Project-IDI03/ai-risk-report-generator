@@ -10,7 +10,7 @@ import { useDocument } from './documents'
 import { PassageDetails } from './PassageDetails'
 import { PdfErrorBoundary } from './PdfErrorBoundary'
 import { loadPdfViewer } from './pdfViewerLoader'
-import { usePassage } from './usePassage'
+import { usePassage } from '../../sources/usePassage'
 import { useSplitWidth, type SplitMode } from './useSplitWidth'
 
 const PdfViewer = lazy(() => loadPdfViewer().then((m) => ({ default: m.PdfViewer })))
