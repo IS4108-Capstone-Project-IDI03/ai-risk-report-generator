@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.chat.quotes import quote_found
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved draft names the prompt it came from.
@@ -181,6 +182,18 @@ def quotable_text(passage: dict) -> str:
     if meta.get("generated_text") == "picture_description":
         text = _without_description(text)
     return "\n".join([*passage_headings(meta), text])
+
+
+def quote_check(quote: str, passage: dict) -> Literal["found", "described", "missing"]:
+    """Where a citation's quote is: in the passage's quotable words ("found"), only in a
+    picture's generated description ("described": a real citation of what the answer read,
+    but never the document's words, KB-02 AC7), or nowhere ("missing")."""
+    if quote_found(quote, quotable_text(passage)):
+        return "found"
+    meta = passage.get("metadata") or {}
+    if meta.get("generated_text") == "picture_description" and quote_found(quote, passage["text"]):
+        return "described"
+    return "missing"
 
 
 # How ingestion writes a picture's reading (ingestion-service `ocr_prompts._picture_text`).

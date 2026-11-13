@@ -152,6 +152,9 @@ function PassagePanel({ passage, checklist }: { passage: string; checklist: Chec
 
 // Said of a quote the code could not find in the passage it cites (CP-30 AC6).
 const UNVERIFIED = "The AI's quoted words are not word for word in this passage. Verify before use."
+// Said of a quote found only in a picture's AI description (KB-02): cited, never found.
+const DESCRIBED =
+  "These words are from the AI's reading of the figure, not the document's printed text. Check the figure."
 
 // An item's citations by standard and page, in the order first cited.
 function groupCitations(citations: ChecklistItem['citations'], checklist: Checklist) {
@@ -376,10 +379,16 @@ function ItemRow({
               {page != null && <span style={{ fontFamily: 'var(--font-mono)' }}>p. {page}</span>}
               <Icon name={open === key ? 'chevron-up' : 'chevron-down'} size={12} />
             </button>
-            {citations.some((c) => !c.quoteFound) && (
+            {citations.some((c) => !c.quoteFound && !c.quoteDescribed) ? (
               <Badge tone="moderate" icon="triangle-alert">
                 Unverified quote
               </Badge>
+            ) : (
+              citations.some((c) => c.quoteDescribed) && (
+                <Badge tone="info" icon="info">
+                  AI reading of figure
+                </Badge>
+              )
             )}
           </span>
         ))}
@@ -408,10 +417,10 @@ function ItemRow({
                     ...caption,
                     display: 'block',
                     marginTop: 'var(--space-2)',
-                    color: 'var(--status-moderate-fg)',
+                    color: c.quoteDescribed ? 'var(--text-muted)' : 'var(--status-moderate-fg)',
                   }}
                 >
-                  {UNVERIFIED}
+                  {c.quoteDescribed ? DESCRIBED : UNVERIFIED}
                 </span>
               )}
             </p>

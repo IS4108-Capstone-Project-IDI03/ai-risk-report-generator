@@ -1083,12 +1083,12 @@ evaluation harness.
 | `question` | as asked, at most 1,000 characters |
 | `passage` | the text selected in the draft that the question is about (AS-02), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
 | `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
-| `statements` | `{ text, citations: [{ ref, kind, quote, verified }], differs? }`: `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs? }`: `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
 | `missing` | what evidence the answer says is missing (AC4) |
 | `sources` | the cited sources as S4 returned them, by `ref`: a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
 | `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
 | `error` | `{ step, cause, at }` when it stopped, else `null` |
-| `trace` | the run (AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+| `trace` | the run (AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
 | `metadata` | the five required fields: `source_type: 'assessment_question'`, the site's `jurisdiction` and `facility_type`, `COPE_dimension: 'all'` (a question covers the whole assessment) and `effective_date` (when asked) |
 
 - The question is saved before S4 is asked, so it is kept even if the
@@ -1265,7 +1265,9 @@ engineer's changes over from the latest). Each document has:
   the hazard list's own item when the model wrote none; or `manual`, added by
   the engineer, CP-32), `hazard` (the configured hazard's id),
   `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
-  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
+  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`; `quoteDescribed`,
+  true only when the words are only in a picture's AI description, KB-02, else
+  absent), and `flags`
   (`uncited`: it rests on no passage; never on a template or `manual` item).
   `status`: `active`, or `removed` by the engineer (CP-32), kept so it can be
   restored and stays removed when generated again. `prefill` (`null`) is kept

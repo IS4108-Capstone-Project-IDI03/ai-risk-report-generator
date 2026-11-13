@@ -16,7 +16,7 @@ import re
 import unicodedata
 
 from app.chat.quotes import quote_found
-from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quotable_text
+from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quote_check
 
 # Bump on every prompt or check change; the trace of each answer records it (AC6).
 PROMPT_VERSION = "as02-v1"
@@ -332,12 +332,18 @@ def check_statement(
         if ref in seen:
             continue
         seen.add(ref)
+        described = False
         if kind == "observation":
             # An observation is cited as a whole; a quote from it, when given, must be in it.
             verified = quote_found(quote, observation_text(item)) if quote else True
         else:
-            verified = bool(quote) and quote_found(quote, quotable_text(item))
-        citations.append({"ref": ref, "kind": kind, "quote": quote, "verified": verified})
+            where = quote_check(quote, item) if quote else "missing"
+            verified = where == "found"
+            # Only in a picture's AI description (KB-02): cited, never "found".
+            described = where == "described"
+        citations.append(
+            {"ref": ref, "kind": kind, "quote": quote, "verified": verified, "described": described}
+        )
     if not citations:
         return None, "uncited"
     if differs and len(citations) < 2:
@@ -348,6 +354,13 @@ def check_statement(
     if differs:
         return {"text": text, "citations": citations, "differs": True}, None
     return {"text": text, "citations": citations}, None
+
+
+def not_found(citation: dict) -> bool:
+    """A quote that is nowhere in its source. One only in a picture's AI description is a real
+    citation of what the answer read, so it counts against neither confidence nor the guardrail
+    (KB-02); the trace lists it apart."""
+    return not citation["verified"] and not citation.get("described")
 
 
 def confidence(statements: list[dict], dropped: int, missing: list[str]) -> str | None:
@@ -361,7 +374,7 @@ def confidence(statements: list[dict], dropped: int, missing: list[str]) -> str 
     """
     if not statements:
         return None
-    unverified = sum(any(not c["verified"] for c in s["citations"]) for s in statements)
+    unverified = sum(any(not_found(c) for c in s["citations"]) for s in statements)
     own = any(c["kind"] != "report" for s in statements for c in s["citations"])
     if dropped or not own or unverified * 2 > len(statements):
         return "low"

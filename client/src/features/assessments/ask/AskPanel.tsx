@@ -49,12 +49,19 @@ function citedOrder(item: AskItem): AskCitation[] {
   for (const s of item.statements)
     for (const c of s.citations) {
       const known = seen.get(c.ref)
-      // A source is unverified if any of its quotes was not found in it.
+      // A source is unverified if any of its quotes was not found in it; else it
+      // is marked as the AI's reading if any quote is from a picture's
+      // description (KB-02).
       if (!known) seen.set(c.ref, c)
-      else if (!c.verified) seen.set(c.ref, { ...known, verified: false })
+      else if (notFound(c)) seen.set(c.ref, { ...known, verified: false, described: false })
+      else if (c.described && !notFound(known))
+        seen.set(c.ref, { ...known, verified: false, described: true })
     }
   return [...seen.values()]
 }
+
+// A quote nowhere in its source: one only in a picture's AI description is cited, not lost.
+const notFound = (c: AskCitation) => !c.verified && !c.described
 
 function sourceName(source: AskSource | undefined, citation: AskCitation): string {
   if (!source) return KIND_LABEL[citation.kind]
@@ -245,12 +252,20 @@ function Answer({
                     source={
                       <>
                         {sourceName(source, c)}
-                        {!c.verified && (
+                        {notFound(c) ? (
                           <span className="rv-flag">
                             <Badge tone="moderate" icon="triangle-alert">
                               Quote not found
                             </Badge>
                           </span>
+                        ) : (
+                          c.described && (
+                            <span className="rv-flag">
+                              <Badge tone="info" icon="info">
+                                AI reading of figure
+                              </Badge>
+                            </span>
+                          )
                         )}
                       </>
                     }

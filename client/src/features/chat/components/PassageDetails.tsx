@@ -84,6 +84,14 @@ export function PassageDetails(props: Props) {
         </p>
       )}
       {state === 'checking' && <p className="rv-viewer-note">Checking {where}…</p>}
+      {/* KB-02: the words are only in a picture's AI description, so they are cited but
+          never "found" in the document; the highlight below shows them in the description. */}
+      {state === 'described' && (
+        <Callout tone="info">
+          From the AI's reading of the figure on {where}, not the document's printed text. Check the
+          figure.
+        </Callout>
+      )}
       {/* CB-01 AC2: nothing is highlighted then, so the quoted words are shown instead. */}
       {state === 'unverified' && (
         <Callout tone="danger" title={`Not found on ${where}`}>

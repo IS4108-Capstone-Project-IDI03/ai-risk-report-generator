@@ -2451,3 +2451,20 @@ Rejected:
 Known limits: the checklist and the drafting screen's evidence panel don't open passages, so they show no regions. Formula detection by text can miss an unread formula (Docling's placeholder or flattened arithmetic) and render a rare non-formula line with a command as math.
 
 Stories: KB-02, IN-__, CB-02, RV-01, IN-13.
+
+## 2026-11-13 — A quote from a picture's AI description is "from the AI's reading", not "not found"
+
+Chose:
+- (KB-02 AC9) A quote check has three outcomes, `found`, `described` and `missing` (rag-service `generator.quote_check`). A quote only in a picture's generated description is a real citation of what the answer read, so chat, the checklist (screen and PDF) and Ask show a neutral "from the AI's reading of the figure: check the figure" note, not the red "Not found" warning. It is still never "found in the document" (AC7).
+- Kept the boolean (`verified`, `quote_found`, `quoteFound`) false for it and added a separate flag (`described`, `quote_described`/`quoteDescribed`), absent meaning false. Stored chats, checklists and Ask answers read as before, and the eval scripts still count it as not verified.
+- Chat marks it on the `meta` line's `unverified` entry (`described: true`), not as a new positional argument, so `gap` keeps its place and saved messages still parse.
+- In Ask it lowers neither confidence nor `guardrail.passed`; the trace counts it apart as `described_citations`.
+- The gateway's check of a hand-chosen checklist quote now leaves out the description too. It didn't, so such a quote was marked found, against AC7.
+
+Reason: a chart's values read by the vision model (e.g. "Moderate Capital shows 0") could only be cited from its description, and every such citation showed as a likely hallucination although it pointed at the right figure.
+
+Rejected:
+- Telling the model never to quote a description: it would then quote a bare label or caption that passes the check but doesn't support the claim, so "Found" would overstate it.
+- Replacing the boolean with a three-value field: every stored record and consumer would need migrating for no gain.
+
+Stories: KB-02, CB-01, CP-30, CP-32, AS-01.

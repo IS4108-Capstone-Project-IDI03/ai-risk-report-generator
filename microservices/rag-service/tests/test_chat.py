@@ -124,6 +124,7 @@ def test_each_citation_is_checked_against_its_passage(fake):
         "page_end": 13,
         "quote": "at least 18 in. (450 mm) clearance",
         "verified": True,
+        "described": False,
         "withdrawn": False,
     }
     assert bad["verified"] is False  # AC2
@@ -899,6 +900,22 @@ def _cite_picture(fake, quote):
 
 def test_a_quote_only_in_a_generated_picture_description_is_not_verified(fake):
     assert _cite_picture(fake, "Two red cylinders strapped to a wall rack")["verified"] is False
+
+
+def test_a_quote_only_in_a_picture_description_is_cited_as_described(fake):
+    citation = _cite_picture(fake, "Two red cylinders strapped to a wall rack")
+    assert (citation["verified"], citation["described"]) == (False, True)
+    meta = _program(_ask("How are the cylinders stored?")).rstrip().splitlines()[-1]
+    assert (
+        '{label: "P1", quote: "Two red cylinders strapped to a wall rack", described: true}' in meta
+    )
+
+
+def test_a_quote_in_neither_the_picture_nor_its_description_is_not_described(fake):
+    citation = _cite_picture(fake, "Blue cylinders on the floor")
+    assert (citation["verified"], citation["described"]) == (False, False)
+    meta = _program(_ask("How are the cylinders stored?")).rstrip().splitlines()[-1]
+    assert '{label: "P1", quote: "Blue cylinders on the floor"}' in meta
 
 
 @pytest.mark.parametrize("quote", ["Figure 4. Cylinder rack", "FM-200 50 kg"])

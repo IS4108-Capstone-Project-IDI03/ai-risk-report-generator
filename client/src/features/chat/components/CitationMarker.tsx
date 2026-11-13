@@ -24,6 +24,7 @@ export function CitationMarker({ passage, quote }: Props) {
   const name = [
     `Citation ${number ?? ''}${where ? `: ${where}` : ''}`,
     state === 'unverified' && 'unverified',
+    state === 'described' && 'from AI reading of figure',
     source?.withdrawn && 'withdrawn edition',
   ]
     .filter(Boolean)

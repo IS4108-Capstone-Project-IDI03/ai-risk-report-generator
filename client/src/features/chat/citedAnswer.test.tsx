@@ -126,6 +126,27 @@ describe('Cited answer', () => {
     expect(second).toHaveAccessibleName(/unverified/i)
   })
 
+  it("marks a quote from a picture's AI description as from the AI's reading, not unverified (KB-02)", () => {
+    const select = renderAnswer(
+      [
+        'root = Answer([s1], meta)',
+        's1 = Statement("Two categories show no bar.", [c1])',
+        'c1 = Cite("P1", "Major Capital categories show 0")',
+        'meta = Meta([{label: "P1", documentId: "d1", pageStart: 8, pageEnd: 11}], ' +
+          '[{label: "P1", quote: "Major Capital categories show 0", described: true}])',
+      ].join('\n'),
+    )
+    const marker = screen.getByRole('button', { name: /^Citation 1/ })
+    expect(marker).toHaveAccessibleName(/from AI reading of figure/)
+    expect(marker).not.toHaveAccessibleName(/unverified/i)
+    expect(within(marker).queryByText('!')).not.toBeInTheDocument()
+    fireEvent.click(marker)
+    expect(select).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'described' }),
+      expect.anything(),
+    )
+  })
+
   it('opens the citation in the source panel when a marker is chosen', () => {
     const select = renderAnswer(`${body}\n${meta}`)
     fireEvent.click(screen.getByRole('button', { name: /^Citation 1/ }))
