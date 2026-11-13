@@ -66,7 +66,7 @@ const openItems = async () =>
     .filter((i) => !i.resolvedAt)
     .map((i) => i.id)
 
-// Presses "What else?" until the tray offers `id`; returns the conversation then.
+// Presses "What else?" until the choices offer `id`; returns the conversation then.
 async function untilOffered(api: Api, id: Reply['id']): Promise<AssistantThread> {
   let t = await opened(api)
   for (let n = 0; n < 5 && !t.replies.some((r) => r.id === id); n++) {
@@ -140,7 +140,13 @@ describe('stages (AC 2, AC 4)', () => {
     const first = await opened(api)
     expect(first.stage).toBe('setup')
     expect(first.replies).toEqual([
-      { id: 'nothing-more', label: 'Nothing more to add', primary: true, picksDate: false },
+      {
+        id: 'nothing-more',
+        label: 'Nothing more to add',
+        primary: true,
+        picksDate: false,
+        link: null,
+      },
     ])
 
     const replied = await api.post(`${url}/replies`).send({ replyId: 'nothing-more' })
@@ -161,6 +167,47 @@ describe('stages (AC 2, AC 4)', () => {
     await CaptureSessionModel.deleteOne({ _id: s._id })
     expect(thread(await api.get(url)).stage).toBe('capture')
     expect((await AssessmentModel.findById(a._id).lean())?.stage).toBe('capture')
+  })
+
+  it('takes a press when MarshBot only added its own turns since, and refuses an unknown turn (round 7, item 9; review #46)', async () => {
+    const { engineer } = await people()
+    await assessment(engineer._id)
+    const api = signedInAs(app, engineer)
+    const first = await opened(api)
+    const press = (lastTurnId: string) =>
+      api.post(`${url}/replies`).send({ replyId: 'nothing-more', lastTurnId })
+    // Not a turn of this session: refused, with the code the browser keys on (review #17).
+    const unknown = await press('s0-1')
+    expect([unknown.status, unknown.body]).toEqual([
+      409,
+      {
+        error: 'MarshBot is not asking that right now. Reload the Overview.',
+        code: 'reply-not-asked',
+      },
+    ])
+    expect(thread(await api.get(url)).session.turns).toHaveLength(first.session.turns.length)
+    // Only bot turns came after the one seen (e.g. a "sorry" turn): the question still stands.
+    expect((await press(first.session.turns[0].id)).status).toBe(200)
+  })
+
+  it('refuses a second press once the engineer has answered, so it adds nothing (round 7, item 9; review #46)', async () => {
+    vi.setSystemTime(new Date('2026-11-16T02:00:00Z'))
+    const { engineer } = await people()
+    const a = await assessment(engineer._id)
+    await observation(a._id, (await session(a._id))._id, { categories: null })
+    const api = signedInAs(app, engineer)
+    const first = await opened(api)
+    const seen = first.session.turns.at(-1)!.id
+    const press = (replyId: Reply['id']) =>
+      api.post(`${url}/replies`).send({ replyId, lastTurnId: seen })
+    expect((await press('what-else')).status).toBe(200)
+    await settleBackground()
+    const after = thread(await api.get(url))
+    // The next question is offered, but sent from the view before the engineer's own answer.
+    expect(after.replies.map((r) => r.id)).toContain('ready-to-generate')
+    const again = await press('ready-to-generate')
+    expect([again.status, again.body.code]).toEqual([409, 'reply-not-asked'])
+    expect(thread(await api.get(url)).session.turns).toHaveLength(after.session.turns.length)
   })
 
   it('records the export: Exported, with the file', async () => {
@@ -202,7 +249,7 @@ describe('another site visit (AC 5)', () => {
     const before = await untilOffered(api, 'another-visit')
     expect(await openItems()).toContain('uncategorised')
     expect(said(before).at(-1)).toBe(
-      "Sure! Your survey day has passed and you're at 1 observation now. Just 1 question before I move this on to generation: is that everything from site, or do you need another visit?",
+      "Sure! Your survey day has passed and you're at 1 observation now. There is just 1 question before I move this on to generation: is that everything from site, with all your observations recorded, or do you need another visit?",
     )
 
     expect((await api.post(`${url}/replies`).send({ replyId: 'another-visit' })).status).toBe(400)
@@ -219,7 +266,7 @@ describe('another site visit (AC 5)', () => {
     await settleBackground()
     const after = thread(await api.get(url))
     expect(said(after).slice(-2)).toEqual([
-      'I need another visit on Fri 20 Nov',
+      'Another visit on Fri 20 Nov',
       "Done! The survey now ends on 20 Nov, and Pasir Gudang Cold Store stays in the Capture stage until then. I'll hold the gaps until you're back from site. Add whatever you gather on the day.",
     ])
     expect(after.status.text).toBe('Next visit booked')
@@ -259,6 +306,11 @@ describe('who may reply, and archived assessments', () => {
     expect(thread(res).status.text).toBe('Archived')
     expect(await AssistantThreadModel.countDocuments()).toBe(0)
     expect(rag.calls.filter((c) => c.path === '/assistant/wording')).toHaveLength(0)
+    // A press on it is 409 without the not-asked code, so the browser can tell it apart (review #17).
+    const press = await signedInAs(app, engineer)
+      .post(`${url}/replies`)
+      .send({ replyId: 'nothing-more' })
+    expect([press.status, press.body]).toEqual([409, { error: `Assessment ${REF} is archived.` }])
   })
 })
 

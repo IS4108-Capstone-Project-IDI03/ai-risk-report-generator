@@ -1,5 +1,5 @@
 // The conversation as the Overview shows it (AS-06 round 5): the saved turns
-// with this session's cards rebuilt from the brief now, the tray's replies,
+// with this session's cards rebuilt from the brief now, the choices offered,
 // and the rail's status pill, mood and "At a glance". An admin gets one turn
 // built on the fly and nothing saved (AC 11). Called by thread.service.ts.
 import type { StoredSession, StoredTurn } from '../../../models/assistant-thread.model'
@@ -24,7 +24,7 @@ import { DEFS } from './topics'
 import type { Status, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
 
 // The browser's turn: what is only kept for the engine is left out.
-const shown = ({ items: _items, ...turn }: StoredTurn): Turn => turn
+const shown = ({ items: _items, order: _order, ...turn }: StoredTurn): Turn => turn
 const sessionOf = (s: StoredSession, turns: Turn[]): Session => ({
   id: s.id,
   startedAt: s.startedAt,
@@ -160,7 +160,7 @@ function statusOf(
   if (thinking && w?.topic === 'gaps')
     return { text: 'Reading your notes', tone: 'blue', icon: 'clock' }
   if (w?.topic === 'gaps-failed') return { text: 'Checking again', tone: 'blue', icon: 'clock' }
-  // Only from the same kind of topic as the turn that waits: a pill never asks a question the tray can't answer.
+  // Only from the same kind of topic as the turn that waits: a pill never asks a question the choices can't answer.
   const built = w && DEFS[w.topic]?.build(ctx, w.items)
   if (built && (built.kind === 'question') === (w.kind === 'question')) return built.status
   const f = ctx.facts

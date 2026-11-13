@@ -6,9 +6,17 @@ import type { CoverageState } from '../models/assistant-brief.model'
 import { raise } from '../services/assistant/item'
 import type { BriefFacts } from '../services/assistant/phrases'
 import { advance } from '../services/assistant/thread/advance'
-import type { Event, ThreadBrief, ThreadState } from '../services/assistant/thread/types'
+import type { Event, ThreadBrief, ThreadState, TopicCtx } from '../services/assistant/thread/types'
 import { adminThread, viewThread } from '../services/assistant/thread/view'
-import type { AreaHealth, BriefItem, Card, SectionState, Stage } from '../services/assistant/types'
+import { answerWords } from '../services/assistant/thread/words'
+import type {
+  AreaHealth,
+  BriefItem,
+  Card,
+  Reply,
+  SectionState,
+  Stage,
+} from '../services/assistant/types'
 
 // 10:00 in Singapore on the survey day (Saturday 14 Nov 2026).
 const SURVEY_DAY = new Date('2026-11-14T02:00:00Z')
@@ -275,12 +283,52 @@ describe('tasks', () => {
     const skipped = run(first, SURVEY, { type: 'reply', reply: 'skip' }, LATER)
     expect(topics(skipped.added)).toEqual(['reply', 'answer', 'checklist'])
     expect(skipped.added[0].says[0].text).toBe('Skip for now')
+    // It names what stays (round 7, item 10).
     expect(skipped.added[1].says[0].text).toBe(
-      "No problem. Those 2 will stay here until they're done.",
+      "No problem. Morning walk and Loading Bay 2 will stay in To Do until they're done.",
     )
     const shown = view(skipped, SURVEY, LATER)
     expect(rowsOf(shown.session.turns[1].cards[0])[0].end).toMatchObject({ label: 'Review' })
     expect(shown.status.text).toBe('2 things to fix')
+
+    // 3 or more are counted instead.
+    const three = brief({
+      items: [
+        walk(),
+        recording('failed'),
+        { ...recording('failed'), id: 'capture.failed-recording:o2:r1', title: 'Cold Room 1' },
+      ],
+    })
+    const counted = run(run(EMPTY, three, { type: 'open' }), three, {
+      type: 'reply',
+      reply: 'skip',
+    })
+    expect(counted.added[1].says[0].text).toBe(
+      "No problem. Those 3 will stay in To Do until they're done.",
+    )
+
+    // Two open tasks with the same title are named once, and the verb follows the one name (review #18).
+    const same = brief({
+      items: [
+        recording('failed'),
+        { ...recording('failed'), id: 'capture.failed-recording:o2:r1' },
+      ],
+    })
+    const once = run(run(EMPTY, same, { type: 'open' }), same, { type: 'reply', reply: 'skip' })
+    expect(once.added[1].says[0].text).toBe(
+      "No problem. Loading Bay 2 will stay in To Do until it's done.",
+    )
+  })
+
+  it('never names nothing in the skip answer (review #30)', () => {
+    const ctx = { facts: facts() } as unknown as TopicCtx
+    const said = (left: string[]) => answerWords(ctx, 'skip', undefined, left)!.text
+    expect(said([])).toBe('No problem.')
+    // A task whose title has gone is counted, not printed.
+    expect(said(['', ''])).toBe("No problem. Those 2 will stay in To Do until they're done.")
+    expect(said(['Loading Bay 2', ''])).toBe(
+      "No problem. Loading Bay 2 will stay in To Do until it's done.",
+    )
   })
 
   it('raises a new Fix now item at once mid-session', () => {
@@ -323,10 +371,24 @@ describe('what else and the coverage check', () => {
 
     const next = run(first, b, { type: 'reply', reply: 'what-else' }, LATER)
     expect(topics(next.added)).toEqual(['reply', 'gaps'])
-    expect(next.added[1].says[0].text).toBe(
-      "Sure! I also read your observations against the checklist itself. 1 checklist item isn't mentioned anywhere yet, and 1 note is too thin to support its section. None of this blocks you today, but it's quicker to sort out while you're still on site.",
-    )
+    // Each card has its own lead-in, then one closing bubble (round 7, items 23-24).
+    expect(next.added[1].says.map((x) => x.text)).toEqual([
+      "Sure! I also read your observations against the checklist itself. 1 checklist item isn't mentioned anywhere yet.",
+      '1 observation is too thin to support its section.',
+      "None of this blocks you today, but it's quicker to sort out while you're still on site.",
+    ])
     const [notCovered, thinCard] = next.added[1].cards
+    // Drawn in that order even when the wording AI writes nothing.
+    expect(next.added[1].program).toBe(
+      [
+        'root = Reply([p0, p1, p2, p3, p4])',
+        `p0 = Say(${JSON.stringify(next.added[1].says[0].text)})`,
+        `p1 = Card("${notCovered.id}")`,
+        'p2 = Say("1 observation is too thin to support its section.")',
+        `p3 = Card("${thinCard.id}")`,
+        `p4 = Say(${JSON.stringify(next.added[1].says[2].text)})`,
+      ].join('\n'),
+    )
     expect(notCovered).toMatchObject({
       id: `${next.added[1].id}-not-covered`,
       title: 'Not Covered',
@@ -338,9 +400,11 @@ describe('what else and the coverage check', () => {
       end: { type: 'open', link: { tab: 'checklist', params: { item: 'Security.0' } } },
     })
     expect(rowsOf(thinCard)[0]).toMatchObject({
-      quote: 'Walked Loading Bay 2.',
+      quote: null,
       detail: 'Add contents, stacking and hazards',
     })
+    // The browser never sees the saved order, only the program.
+    expect(view(next, b, LATER).session.turns.at(-1)).not.toHaveProperty('order')
     expect(view(next, b, LATER).status).toEqual({
       text: '2 gaps to close',
       tone: 'amber',
@@ -404,17 +468,30 @@ describe('the survey-day question (C6, C9, C10)', () => {
   const fine = AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] }))
   const past = brief({ areas: fine, facts: facts({ observations: 31 }) })
 
-  it('asks, with two different replies', () => {
+  it("asks, with another visit, add observations (a link) and that's everything", () => {
     const opened = run(EMPTY, past, { type: 'open' }, MONDAY)
     expect(topics(opened.added)).toEqual(['greeting', 'visit-question'])
     expect(opened.added[1].says.map((s) => s.text)).toEqual([
       "Your survey day has passed and you're at 31 observations now.",
-      'Just 1 question before I move this on to generation: is that everything from site, or do you need another visit?',
+      'There is just 1 question before I move this on to generation: is that everything from site, with all your observations recorded, or do you need another visit?',
     ])
     const shown = view(opened, past, MONDAY)
     expect(shown.replies).toEqual([
-      { id: 'another-visit', label: 'I need another visit', primary: false, picksDate: true },
-      { id: 'ready-to-generate', label: "That's everything", primary: true, picksDate: false },
+      { id: 'another-visit', label: 'Another visit', primary: false, picksDate: true, link: null },
+      {
+        id: 'add-observations',
+        label: 'Add observations',
+        primary: false,
+        picksDate: false,
+        link: { tab: 'observations' },
+      },
+      {
+        id: 'ready-to-generate',
+        label: "That's everything",
+        primary: true,
+        picksDate: false,
+        link: null,
+      },
     ])
     expect(shown.status).toEqual({
       text: '1 question for you',
@@ -423,7 +500,7 @@ describe('the survey-day question (C6, C9, C10)', () => {
     })
   })
 
-  it('"I need another visit" moves the survey end and holds the gaps', () => {
+  it('"Another visit" moves the survey end and holds the gaps', () => {
     const opened = run(EMPTY, past, { type: 'open' }, MONDAY)
     const booked = brief({
       areas: fine,
@@ -436,7 +513,7 @@ describe('the survey-day question (C6, C9, C10)', () => {
       MONDAY,
     )
     expect(after.added.map((t) => t.says[0].text)).toEqual([
-      'I need another visit on Fri 20 Nov',
+      'Another visit on Fri 20 Nov',
       "Done! The survey now ends on 20 Nov, and Pasir Gudang Cold Store stays in the Capture stage until then. I'll hold the gaps until you're back from site. Add whatever you gather on the day.",
     ])
     const shown = view(after, booked, MONDAY)
@@ -561,6 +638,22 @@ describe('other stages', () => {
     })
   })
 
+  it('notes how many sections the Executive Summary waits on (review #49)', () => {
+    const gen = brief({
+      stage: 'generate',
+      facts: facts({ draftedParts: 8, observations: 31 }),
+      items: [
+        item('generate.not-drafted', 'not-drafted', 'gap', { facts: { left: '2,3,7' } }),
+        item('generate.summary-waiting', 'summary-waiting', 'info', { facts: { waitsOn: '3,7' } }),
+      ],
+    })
+    const card = run(EMPTY, gen, { type: 'open' }).added[1].cards[0]
+    expect(card.type === 'outline' && card.items.slice(0, 2).map((i) => [i.no, i.note])).toEqual([
+      ['2', 'Waits on 2'],
+      ['3', null],
+    ])
+  })
+
   it('says all clear with a card of ticks when nothing is open (C13)', () => {
     const clear = brief({
       areas: AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] })),
@@ -677,6 +770,18 @@ describe('round 6 and the review ledger', () => {
     const first = run(EMPTY, ready([thin]), { type: 'open' })
     expect(topics(first.added)).toEqual(['greeting', 'before-generate'])
     expect(view(first, ready([thin])).replies.map((r) => r.id)).toEqual(['generate-anyway'])
+    // It names what would leave gaps, from the card's rows (round 7, item 31).
+    expect(first.added[1].says[0].text).toBe(
+      "It's nearly ready for generation, but 1 section without enough observations would leave gaps in the draft, so it's worth clearing it first.",
+    )
+    const more = [
+      thin,
+      { ...thin, id: 'section.thin:10' },
+      item('uncategorised', 'uncategorised', 'gap', { facts: { uncategorised: 2 } }),
+    ]
+    expect(run(EMPTY, ready(more), { type: 'open' }).added[1].says[0].text).toBe(
+      "It's nearly ready for generation, but 2 uncategorised observations and 2 sections without enough observations would leave gaps in the draft, so it's worth clearing them first.",
+    )
     const before = first.added[1].cards[0]
     expect(before.type === 'rows' && before.ticks.map((t) => [t.title, t.bar])).toEqual([
       ['Site Walks', null],
@@ -690,7 +795,7 @@ describe('round 6 and the review ledger', () => {
     expect(shown.status.text).toBe('Ready to generate')
   })
 
-  it('asks about the export once a section changes after it, with the cards then the question (S8, ledger #5)', () => {
+  it('says what changed after the export, with one Export Again link and no question (S8, round 7 item 37)', () => {
     const exported = (items: BriefItem[]) =>
       brief({
         stage: 'exported',
@@ -706,16 +811,48 @@ describe('round 6 and the review ledger', () => {
     expect(view(first, exported([])).status.text).toBe('Exported')
     const stale = item('exported.stale', 'stale-export', 'info', { facts: { changed: '9' } })
     const asked = run(first, exported([stale]), { type: 'changed' }, LATER)
-    expect(topics(asked.added)).toEqual(['exported', 'question'])
+    expect(topics(asked.added)).toEqual(['exported'])
+    expect(asked.added[0].says.map((x) => x.text)).toEqual([
+      'The Pasir Gudang Cold Store report went out on 14 Nov. Since then, Fire Protection was edited, so the copy you sent is a version behind.',
+    ])
     expect(asked.added[0].cards.map((c) => [c.type, c.type === 'rows' && c.title])).toEqual([
       ['rows', 'Changed Since Export'],
-      ['rows', 'Exported'],
     ])
-    expect(rowsOf(asked.added[0].cards[1])[0].detail).toBe('38 pages')
-    expect(asked.added[1].says[0].text).toBe('Do you want to export the newer one?')
     const shown = view(asked, exported([stale]), LATER)
-    expect(shown.status.text).toBe('1 question for you')
-    expect(shown.replies.map((r) => r.id)).toEqual(['not-now', 'export-again'])
+    // The earlier clean "Exported" turn keeps its file row and its link (review #44).
+    expect(shown.session.turns[1].cards.map((c) => c.type === 'rows' && c.title)).toEqual([
+      'Exported',
+    ])
+    expect(rowsOf(shown.session.turns[1].cards[0])[0]).toMatchObject({
+      title: 'RPT-2026-0072 Pasir Gudang Cold Store.docx',
+      end: { type: 'open', link: { tab: 'export' } },
+    })
+    expect(shown.status.text).toBe('1 section changed')
+    expect(shown.replies).toEqual([
+      {
+        id: 'export-again',
+        label: 'Export Again',
+        primary: true,
+        picksDate: false,
+        link: { tab: 'export' },
+      },
+    ])
+    // A thread saved before round 7 still waits with "Not now": it is no longer offered, and
+    // its "Export again" opens Export instead of posting (review #6).
+    const saved = structuredClone(asked)
+    saved.session!.waiting!.replies = [
+      { id: 'not-now', label: 'Not now', primary: false, picksDate: false },
+      { id: 'export-again', label: 'Export again', primary: true, picksDate: false },
+    ] as unknown as Reply[]
+    expect(view(saved, exported([stale]), LATER).replies).toEqual([
+      {
+        id: 'export-again',
+        label: 'Export Again',
+        primary: true,
+        picksDate: false,
+        link: { tab: 'export' },
+      },
+    ])
   })
 
   it('says a place once, with the count, when two recordings from it fail (live defect 3b)', () => {
@@ -811,8 +948,12 @@ describe('round 6 and the review ledger', () => {
       type: 'outline',
       key: [],
       next: null,
-      cta: { label: 'Export the Report', link: { tab: 'export' } },
+      cta: { label: 'Open Export', link: { tab: 'export' } },
     })
+    // The words don't echo the button under them (round 7, item 36).
+    expect(opened.added[1].says[0].text).toBe(
+      "All 3 sections on Pasir Gudang Cold Store are reviewed. That's 32 days ahead of the due date. Nice work!",
+    )
   })
 
   it('keeps every status pill within 18 characters', () => {

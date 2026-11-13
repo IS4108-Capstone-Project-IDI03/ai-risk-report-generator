@@ -1297,9 +1297,18 @@ per attempt. An attempt is the walk's `retries` count, which Retry increments.
 MarshBot is the Overview tab: a saved conversation that tells the engineer the
 assessment's stage, what to fix and the next step, one topic at a time. Its
 cards only show and point (a button opens the tab where the work happens); the
-only things it changes are the replies in its tray and "Try Again" on a failed
-transcription. It never takes typed input and sends nothing to the bell or the
-Inbox.
+only things it changes are the choices under its newest turn and "Try Again" on
+a failed transcription. A choice with a `link` (Add observations, Export Again)
+only opens a tab and posts nothing. It never takes typed input and sends
+nothing to the bell or the Inbox.
+
+**In the browser.** The newest bot turn has one action slot under its last
+bubble or card: that card's `cta` (e.g. Open Generation), then the choices;
+older turns show none. Scrolled away from it, a sticky bar at the bottom of the
+conversation repeats those buttons, with a round arrow that scrolls back to the
+newest turn. A 409 with `code: 'reply-not-asked'` (already answered, e.g. in
+another tab) only re-reads the conversation, quietly. The Review and Generation tabs count 11 parts (Section 1 not counted), as
+MarshBot does.
 
 **Stage.** `Assessment.stage` is one of Setup, Prepare, Capture, Ready for
 generation, Generate, Review, Ready to export, Exported, with `stageDates` for
@@ -1331,15 +1340,21 @@ now and an event (open, changed, reply) and returns the turns to add. A session
 is one day (or a stage that moved on after a 30-minute pause) and opens with a
 greeting or a catch-up. MarshBot raises one topic at a time per stage
 (`thread/topics.ts`, `STAGE_TOPICS`) and waits: a "To Do" topic until its rows
-are done or skipped, a question for its own replies, any other topic offers
-"What else?" while another topic is waiting. A new Fix now item is raised at
-once. Cards in today's session are rebuilt from the brief on every read (a
-fixed row ticks in place); earlier sessions are frozen. Turns' words never
-change. `thread.service.ts` loads and saves the thread (one advance per thread
-at a time, `lock.ts`); a re-check that changed the brief advances it only when
-the Overview is open (a live event stream) and the engineer opened it in the
-last 30 minutes. An archived assessment is shown read only and never advanced.
-An admin's view is built on the fly and nothing is saved.
+are done or skipped ("Skip for now" names what stays in To Do), a question for
+its own replies, any other topic offers "What else?" while another topic is
+waiting. Survey day passed asks "Another visit", "Add observations" (opens
+Observations) or "That's everything". Exported with sections changed since says
+which, shows the "Changed Since Export" card and one "Export Again" choice that
+opens the Export tab; nothing is asked. The gaps turn gives "Not Covered" and
+"Thin" each its own lead-in bubble, then a closing bubble; such a turn keeps
+its `order` and starts with the gateway's own program in that order. A new Fix
+now item is raised at once. Cards in today's session are rebuilt from the brief
+on every read (a fixed row ticks in place); earlier sessions are frozen. Turns'
+words never change. `thread.service.ts` loads and saves the thread (one advance
+per thread at a time, `lock.ts`); a re-check that changed the brief advances it
+only when the Overview is open (a live event stream) and the engineer opened it
+in the last 30 minutes. An archived assessment is shown read only and never
+advanced. An admin's view is built on the fly and nothing is saved.
 
 **Push.** After saving, the re-check and the thread call `publishBriefChanged`
 (`services/assistant/bus.ts`). The open Overview listens on
@@ -1350,8 +1365,11 @@ conversation again. No polling. The channel is in-process: a gateway running
 as several instances would need Redis pub/sub instead.
 
 **API.** Under `/api/assessments/:reference/assistant`: `GET` the conversation
-(`AssistantThread`), `POST /replies` (`{ replyId, date? }`: only a reply the
-tray offers now, else 409; e.g. another visit with its date moves
+(`AssistantThread`), `POST /replies` (`{ replyId, date?, lastTurnId? }`: only a
+reply offered now, and only while `lastTurnId` is a turn of today's session
+with no engineer turn after it (MarshBot's own turns don't count), else 409
+with `code: 'reply-not-asked'`, so a second press adds nothing; an archived
+assessment is 409 without that code; e.g. another visit with its date moves
 `siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
 seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
 carries its `stage` and, for the engineer's own assessments, a `priority` with
@@ -1371,8 +1389,10 @@ closed (503 when privacy-service is down):
 - `POST /assistant/wording` writes each new bot turn once as an OpenUI Lang
   program (`Reply`, `Say`, `Card`): the turn's bubbles reworded and each card
   placed once by id. The gateway (`wording.service.ts`) waits at most 4 s and
-  drops a program that leaves out or repeats a card, or adds or drops a number
-  or a name; the turn is then drawn as its bubbles, then its cards. Model
+  drops a program that leaves out or repeats a card, moves a bubble out from
+  between two cards or swaps the cards around it, or adds or drops a number or
+  a name; the turn is then
+  drawn as its bubbles, then its cards (or by the gateway's own program). Model
   `ASSISTANT_WORDING_MODEL`.
 The prompt file `app/assistant/marshbot_components.txt` is generated from the
 client's MarshBot library (`UPDATE_PROMPT=1`). MarshBot uses

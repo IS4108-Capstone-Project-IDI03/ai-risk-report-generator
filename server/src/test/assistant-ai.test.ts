@@ -120,6 +120,22 @@ describe('checking a wording program', () => {
     // A name the turn says can't be dropped: a reworded catch-up can't change what it names.
     expect(checkedProgram(program('There are 2 things to sort first.'), turn, names)).toBeNull()
   })
+
+  it('keeps a bubble that sits between two cards there (round 7, item 24)', () => {
+    const between = { ...turn, order: ['say', 'card', 'say', 'card'] as ('say' | 'card')[] }
+    const kept = program('There are 2 things to sort.', 'b, d, c') + '\nd = Say("Loading Bay 2.")'
+    expect(checkedProgram(kept, between)).toBe(kept)
+    // All the words first, then both cards: the second card loses its lead-in.
+    const moved = program('There are 2 things to sort.', 'd, b, c') + '\nd = Say("Loading Bay 2.")'
+    expect(checkedProgram(moved, between)).toBeNull()
+    // The same shape with the two cards swapped puts each card under the other's lead-in (review #7).
+    const swapped =
+      program('There are 2 things to sort.', 'c, d, b') + '\nd = Say("Loading Bay 2.")'
+    expect(checkedProgram(swapped, between)).toBeNull()
+    const inline =
+      'root = Reply([a, Card("s1-2-todo"), d, Card("s1-2-thin")])\na = Say("There are 2 things to sort.")\nd = Say("Loading Bay 2.")'
+    expect(checkedProgram(inline, between)).toBe(inline)
+  })
 })
 
 describe('wording a turn', () => {

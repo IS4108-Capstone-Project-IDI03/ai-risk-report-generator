@@ -119,7 +119,7 @@ export type CardRow = {
   title: string
   detail: string | null // one short status, e.g. "9 proposed observations"
   bad: boolean // draw `detail` in red ("Couldn't transcribe")
-  quote: string | null // the engineer's own words, one line, in quotes (a thin note)
+  quote: string | null // the engineer's own words in quotes; no longer set (round 7), kept for saved turns
   end: RowEnd
 }
 
@@ -230,24 +230,29 @@ export type Turn = {
   mood: Mood // MarshBot's face beside this turn (bot turns)
   says: Say[] // an engineer turn has exactly one
   cards: Card[]
-  // The same turn in OpenUI Lang from the wording AI, set once when the turn is made, never changed after. null = draw says then cards.
+  // The same turn in OpenUI Lang, written once by the wording AI while the turn is hidden, never
+  // changed after. A turn whose words sit between its cards starts with the server's own program
+  // in that order. null = draw says then cards.
   program: string | null
 }
 
-// A reply in the tray. Only the newest bot turn offers replies.
+// A choice under the newest bot turn. Only the newest bot turn offers replies.
 export type Reply = {
   id:
     | 'nothing-more'
     | 'ready-to-generate'
     | 'another-visit'
+    | 'add-observations'
     | 'export-again'
-    | 'not-now'
+    | 'not-now' // no longer offered; kept so saved threads still load
     | 'skip'
     | 'what-else'
     | 'generate-anyway'
   label: string
   primary: boolean // exactly one reply is primary (solid navy)
   picksDate: boolean // 'another-visit': calendar, then confirm, then send with `date`
+  // Set = this choice only opens something: the button follows the link and no reply is posted.
+  link: ItemLink | null
 }
 
 // One day's (or stage's) conversation. Earlier ones fold away, read-only.

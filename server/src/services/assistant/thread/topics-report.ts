@@ -33,12 +33,16 @@ export function beforeGenerateTopic(ctx: TopicCtx): Built | null {
     label: 'Generate anyway',
     primary: true,
     picksDate: false,
+    link: null,
   }
+  // What would leave gaps, named from the card's own rows (round 7, item 31).
+  const named = byKind(blockers)
+  const one = named.length === 1 && named[0].startsWith('1 ')
   return {
     kind: 'question',
     says: [
       {
-        text: `It's nearly ready for generation, but ${n === 1 ? '1 thing' : `${n} things`} would leave gaps in the draft, so it's worth clearing ${n === 1 ? 'it' : 'them'} first.`,
+        text: `It's nearly ready for generation, but ${andList(named)} would leave gaps in the draft, so it's worth clearing ${one ? 'it' : 'them'} first.`,
         tone: 'normal',
       },
     ],
@@ -57,6 +61,23 @@ export function beforeGenerateTopic(ctx: TopicCtx): Built | null {
     mood: 'concerned',
     status: { text: `${count(n, 'thing')} to clear`, tone: 'amber', icon: 'circle-alert' },
   }
+}
+
+// Each kind of blocker as a counted phrase, e.g. "2 uncategorised observations", "3 sections without enough observations".
+function byKind(blockers: BriefItem[]): string[] {
+  const of = (kind: string) => blockers.filter((i) => i.kind === kind)
+  const uncategorised = of('uncategorised')[0]
+  const transcribing = of('transcribing')[0]
+  const thin = of('thin-sections').length
+  return [
+    uncategorised
+      ? count(Number(uncategorised.facts.uncategorised), 'uncategorised observation')
+      : '',
+    thin ? `${count(thin, 'section')} without enough observations` : '',
+    transcribing
+      ? `${count(Number(transcribing.facts.running), 'recording or page', 'recordings or pages')} still being transcribed`
+      : '',
+  ].filter(Boolean)
 }
 
 /** Ready to Generate (C10): what makes it ready, as three ticks, then Open Generation. */
@@ -151,6 +172,8 @@ function outlineCard(
 /** Sections (S4, S5): all 11 report parts with their drafting state. */
 export function sectionsTopic(ctx: TopicCtx): Built {
   const left = String(has(ctx, 'generate.not-drafted')?.facts.left ?? '').split(',')
+  // While the Executive Summary waits, its row says on how many (review #49).
+  const waits = has(ctx, 'generate.summary-waiting')
   const items: OutlineItem[] = PARTS.map((no) => {
     const q = has(ctx, `generate.questions:${no}`)
     const fig = has(ctx, `generate.figures:${no}`)
@@ -161,7 +184,12 @@ export function sectionsTopic(ctx: TopicCtx): Built {
         : has(ctx, `generate.out-of-date:${no}`)
           ? ['wait', 'Out of date']
           : left.includes(no)
-            ? ['new', null]
+            ? [
+                'new',
+                no === '2' && waits
+                  ? `Waits on ${String(waits.facts.waitsOn).split(',').length}`
+                  : null,
+              ]
             : ['ok', null]
     return {
       no,
@@ -349,7 +377,8 @@ export function exportReadyTopic(ctx: TopicCtx): Built | null {
     kind: 'info',
     says: [
       {
-        text: `Everything on ${ctx.facts.site} is reviewed, so the report is ready to export.${ahead > 0 ? ` That's ${count(ahead, 'day')} ahead of the due date. Nice work!` : ''}`,
+        // Not "ready to export": the Open Export button under it says that (round 7, item 36).
+        text: `All ${items.length} sections on ${ctx.facts.site} are reviewed.${ahead > 0 ? ` That's ${count(ahead, 'day')} ahead of the due date. Nice work!` : ''}`,
         tone: 'good',
       },
     ],
@@ -360,7 +389,7 @@ export function exportReadyTopic(ctx: TopicCtx): Built | null {
         `${items.filter((i) => i.state === 'ok').length} of ${items.length} sections reviewed`,
         items,
         REVIEW_LABELS,
-        { label: 'Export the Report', link: { tab: 'export' } },
+        { label: 'Open Export', link: { tab: 'export' } },
       ),
     ],
     mood: 'pleased',
@@ -369,7 +398,7 @@ export function exportReadyTopic(ctx: TopicCtx): Built | null {
 }
 
 export const EXPORTED_KINDS = kinds('stale-export')
-/** Returns the stale-export item while MarshBot may still ask about it ("Not now" and "Export again" end that). */
+/** Returns the stale-export item while MarshBot may still ask about it (a saved "Not now" or "Export again" ends that). */
 export function staleAsk(ctx: TopicCtx): BriefItem | null {
   const stale = has(ctx, 'exported.stale')
   if (!stale) return null
@@ -380,9 +409,9 @@ export function staleAsk(ctx: TopicCtx): BriefItem | null {
 }
 
 /**
- * Exported (S8): with changes since, the "Changed Since Export" card, then
- * the "Exported" file card, then the question as its own bubble; without, the
- * file card alone.
+ * Exported (S8): with changes since, what changed, the "Changed Since Export"
+ * card and one Export Again choice that opens the Export tab (round 7, item 37);
+ * without, the file card alone.
  */
 export function exportedTopic(ctx: TopicCtx): Built | null {
   const f = ctx.facts
@@ -394,8 +423,13 @@ export function exportedTopic(ctx: TopicCtx): Built | null {
   const early = f.reportDue ? daysBetween(f.exportDay, f.reportDue) : 0
   const went = `The ${f.site} report went out on ${shortDay(f.exportDay)}`
   const replies: Reply[] = [
-    { id: 'not-now', label: 'Not now', primary: false, picksDate: false },
-    { id: 'export-again', label: 'Export again', primary: true, picksDate: false },
+    {
+      id: 'export-again',
+      label: 'Export Again',
+      primary: true,
+      picksDate: false,
+      link: { tab: 'export' },
+    },
   ]
   const file: Card = {
     type: 'rows',
@@ -438,7 +472,7 @@ export function exportedTopic(ctx: TopicCtx): Built | null {
     says: ask
       ? [
           {
-            text: `${went}. ${changed.length === 1 ? '1 thing has' : `${changed.length} things have`} changed since then: ${andList(names)} ${changed.length === 1 ? 'was' : 'were'} edited after the export, so the copy you sent is a version behind.`,
+            text: `${went}. Since then, ${andList(names)} ${changed.length === 1 ? 'was' : 'were'} edited, so the copy you sent is a version behind.`,
             tone: 'normal',
           },
         ]
@@ -448,12 +482,18 @@ export function exportedTopic(ctx: TopicCtx): Built | null {
             tone: 'good',
           },
         ],
-    cards: changed.length ? [since, file] : [file],
-    after: ask ? [{ text: 'Do you want to export the newer one?', tone: 'normal' }] : undefined,
+    // A rebuild keeps the file card: an earlier clean "Exported" turn's file row stays as
+    // it was, instead of turning into a Done tick without its link (review #44).
+    cards: ask && !ctx.rebuild ? [since] : changed.length ? [since, file] : [file],
     replies: ask ? replies : undefined,
     mood: ask ? 'concerned' : 'pleased',
+    // No question is asked any more, so the pill says what changed.
     status: ask
-      ? { text: '1 question for you', tone: 'blue', icon: 'message-square' }
+      ? {
+          text: pill(`${count(changed.length, 'section')} changed`, `${changed.length} changed`),
+          tone: 'amber',
+          icon: 'pen',
+        }
       : { text: 'Exported', tone: 'green', icon: 'stamp' },
   }
 }

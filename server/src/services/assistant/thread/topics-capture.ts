@@ -4,7 +4,7 @@
 // returns the topic, or null when it has nothing to say. Card and row titles
 // are Title Case, words are sentences (round 6). Called by topics.ts.
 import { longDay, shortDay, weekdayName } from '../dates'
-import type { AreaHealth, CardRow, Reply } from '../types'
+import type { AreaHealth, CardRow, Reply, Say } from '../types'
 import { andList, areaIcon, count, itemRow, kinds, opens, row, tick, tickRow } from './cards'
 import type { Built, TopicCtx } from './types'
 
@@ -44,6 +44,7 @@ export function setupTopic(ctx: TopicCtx): Built {
     label: 'Nothing more to add',
     primary: true,
     picksDate: false,
+    link: null,
   }
   return {
     kind: 'question',
@@ -303,24 +304,31 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
       status: { text: 'No gaps found', tone: 'green', icon: 'circle-check' },
     }
   }
-  const clauses = [
+  // Each card has its own lead-in bubble right before it, then one closing bubble (round 7, items 23-24).
+  const leads = [
     missed.length
-      ? `${count(missed.length, 'checklist item')} ${missed.length === 1 ? "isn't" : "aren't"} mentioned anywhere yet`
+      ? `${count(missed.length, 'checklist item')} ${missed.length === 1 ? "isn't" : "aren't"} mentioned anywhere yet.`
       : '',
     thin.length
       ? thin.length === 1
-        ? '1 note is too thin to support its section'
-        : `${thin.length} notes are too thin to support their sections`
+        ? '1 observation is too thin to support its section.'
+        : `${thin.length} observations are too thin to support their sections.`
       : '',
   ].filter(Boolean)
+  const says: Say[] = [
+    ...leads.map((text, n) => ({
+      text: n ? text : `I also read your observations against the checklist itself. ${text}`,
+      tone: 'normal' as const,
+    })),
+    {
+      text: "None of this blocks you today, but it's quicker to sort out while you're still on site.",
+      tone: 'normal',
+    },
+  ]
   return {
     kind: 'info',
-    says: [
-      {
-        text: `I also read your observations against the checklist itself. ${clauses.join(', and ')}. None of this blocks you today, but it's quicker to sort out while you're still on site.`,
-        tone: 'normal',
-      },
-    ],
+    says,
+    order: [...leads.flatMap(() => ['say', 'card'] as const), 'say'],
     cards: [
       ...(missed.length
         ? [
@@ -352,9 +360,7 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
               title: 'Thin',
               note: count(thin.length, 'observation'),
               rows: thin.map((i) =>
-                row(i.id, i.icon, 'amber', i.title, String(i.facts.reason ?? ''), opens(i.link!), {
-                  quote: typeof i.facts.note === 'string' ? i.facts.note : null,
-                }),
+                row(i.id, i.icon, 'amber', i.title, String(i.facts.reason ?? ''), opens(i.link!)),
               ),
               ticks: [],
               cta: null,
@@ -380,9 +386,23 @@ export const coverageFailedTopic = (): Built => ({
   status: { text: 'Checking again', tone: 'blue', icon: 'clock' },
 })
 
+// Another visit, more to add from this one (opens Observations, posts nothing), or done (round 7, item 25).
 const VISIT_REPLIES: Reply[] = [
-  { id: 'another-visit', label: 'I need another visit', primary: false, picksDate: true },
-  { id: 'ready-to-generate', label: "That's everything", primary: true, picksDate: false },
+  { id: 'another-visit', label: 'Another visit', primary: false, picksDate: true, link: null },
+  {
+    id: 'add-observations',
+    label: 'Add observations',
+    primary: false,
+    picksDate: false,
+    link: { tab: 'observations' },
+  },
+  {
+    id: 'ready-to-generate',
+    label: "That's everything",
+    primary: true,
+    picksDate: false,
+    link: null,
+  },
 ]
 
 export const VISIT_KINDS = kinds('survey-passed-empty')
@@ -404,7 +424,7 @@ export function visitQuestionTopic(ctx: TopicCtx): Built | null {
         ]
       : [
           `Your survey day has passed and you're at ${count(f.observations, 'observation')} now.`,
-          'Just 1 question before I move this on to generation: is that everything from site, or do you need another visit?',
+          'There is just 1 question before I move this on to generation: is that everything from site, with all your observations recorded, or do you need another visit?',
         ]
   return {
     kind: 'question',

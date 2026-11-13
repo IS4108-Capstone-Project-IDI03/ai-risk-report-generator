@@ -3,12 +3,13 @@
 // keeps only programs that pass the checks below. A turn's program is set
 // when the turn is made and never changed (rule 8); without one, the turn is
 // drawn as its says then its cards. Called by thread.service.ts.
+import type { StoredTurn } from '../../models/assistant-thread.model'
 import { recordAiCalls } from '../ai-usage.service'
 import { privacyFor } from '../privacy.service'
 import { requestAssistantWording } from '../rag.service'
 import { inBackground } from './background'
 import { ASSISTANT } from './settings'
-import type { Turn } from './types'
+import { partsOf, programOf } from './thread/session'
 
 /**
  * The MarshBot library's components, the one list the program check uses.
@@ -67,17 +68,43 @@ function reachable(code: string): { code: string; twice: boolean } {
   }
 }
 
+// The order a program draws its root's parts in, as "Say Card:<id> Say …" with a run of says as one.
+function shapeOf(code: string): string {
+  const ids: string[] = []
+  // Each Card("<id>") becomes CardN() first, so the shape keeps which card sits where:
+  // without this, swapping two cards between their lead-in bubbles passed (review #7).
+  const blank = code
+    .replace(
+      new RegExp(String.raw`\bCard\(\s*(${STRING})\s*\)`, 'g'),
+      (_, id: string) => `Card${ids.push(literal(id) ?? '') - 1}()`,
+    )
+    .replace(new RegExp(STRING, 'g'), '""')
+  const defs = new Map(
+    [...blank.matchAll(/^\s*([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*)\(/gm)].map((m) => [m[1], m[2]]),
+  )
+  const root = /^\s*root\s*=\s*Reply\(\s*\[([^\]]*)\]/m.exec(blank)?.[1] ?? ''
+  const kinds = (root.match(/\b[A-Za-z_]\w*\b/g) ?? [])
+    .map((n) => defs.get(n) ?? n)
+    .map((k) => k.replace(/^Card(\d+)$/, (_, n: string) => `Card:${ids[Number(n)]}`))
+  return kinds.filter((k, n) => k !== 'Say' || kinds[n - 1] !== 'Say').join(' ')
+}
+
 /**
  * Returns the program if MarshBot can draw it and it says nothing the turn
  * didn't, else null: rooted at Reply, only Reply, Say and Card, every card of
  * the turn drawn exactly once and no other, a Say's tone only "good" or "normal", and
  * every number and every name (`names`: areas, sections, places) in its words
- * already in the turn's own says, and every such name the says use kept.
+ * already in the turn's own says, and every such name the says use kept. A
+ * turn with an `order` keeps it: a bubble between two cards stays between them.
  * Without this, an invented id would draw nothing, a left-out card would hide
  * a row the engineer needs, a number taken from elsewhere would point them at
  * the wrong thing (#51), and a reworded catch-up could change what is sorted.
  */
-export function checkedProgram(program: string, turn: Turn, names: string[] = []): string | null {
+export function checkedProgram(
+  program: string,
+  turn: StoredTurn,
+  names: string[] = [],
+): string | null {
   const code = program
     .trim()
     .replace(/^```\w*\n|\n```$/g, '')
@@ -93,6 +120,7 @@ export function checkedProgram(program: string, turn: Turn, names: string[] = []
   )
   const ids = turn.cards.map((c) => c.id)
   if (cards.length !== ids.length || !ids.every((id) => cards.includes(id))) return null
+  if (turn.order && shapeOf(code) !== shapeOf(programOf(turn))) return null
   // A Say's second argument may only be a tone the library knows.
   const tones = [
     ...shown.matchAll(new RegExp(String.raw`\bSay\(\s*${STRING}\s*,\s*(${STRING})`, 'g')),
@@ -124,7 +152,7 @@ const timeout = (ms: number) =>
 export async function wordTurns(
   reference: string,
   firstName: string,
-  turns: Turn[],
+  turns: StoredTurn[],
   names: string[],
 ): Promise<Record<string, string>> {
   if (!turns.length) return {}
@@ -134,10 +162,12 @@ export async function wordTurns(
       messages: turns.map((t) => ({
         id: t.id,
         text: '',
-        parts: [
-          ...t.says.map((s) => ({ type: 'say', text: s.text, tone: s.tone })),
-          ...t.cards.map((c) => ({ type: 'card', id: c.id, card: c.type })),
-        ],
+        // In the order drawn, so a bubble meant to sit between two cards is asked for there.
+        parts: partsOf(t).map((p) =>
+          p.type === 'say'
+            ? { type: 'say', text: p.say.text, tone: p.say.tone }
+            : { type: 'card', id: p.card.id, card: p.card.type },
+        ),
       })),
       items: [],
       privacy: await privacyFor(reference),

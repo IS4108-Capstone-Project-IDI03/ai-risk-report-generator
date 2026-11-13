@@ -6,8 +6,9 @@
 import { Schema, Types, model } from 'mongoose'
 import type { Reply, Session, Turn } from '../services/assistant/types'
 
-// A turn as saved: a tasks turn keeps the item ids its card follows.
-export type StoredTurn = Turn & { items?: string[] }
+// A turn as saved: a tasks turn keeps the item ids its card follows, and a turn
+// whose words sit between its cards keeps that order (thread/session.ts partsOf).
+export type StoredTurn = Turn & { items?: string[]; order?: ('say' | 'card')[] }
 
 // What MarshBot waits on: the topic its newest turn raised (`turnId` null while
 // the coverage check it needs is still running), and that turn's own replies.
