@@ -1,6 +1,7 @@
-// "I need another visit" (AS-06 canvas C7, C8): the design system's calendar floats above the
-// tray (a centred sheet on a phone), from today on; picking a day swaps it for a short confirm of
-// what will change. Nothing is sent until Confirm. Used by ReplyTray.tsx.
+// "Another visit" (AS-06 canvas C7, C8, round 7 C5): the design system's calendar hangs from its
+// button, above every card and never clipped by the scrolling thread (a centred sheet on a
+// phone), from today on; picking a day swaps it for a short confirm of what will change. Nothing
+// is sent until Confirm. Used by Actions.tsx.
 import { useState } from 'react'
 import { Button, Popover } from '../../../../design-system'
 import { Calendar } from '../../../../design-system/components/forms/DatePicker'
@@ -11,12 +12,10 @@ import { ReplyButton } from './ReplyButton'
 /** Returns the reply that picks a day, then confirms it, then sends `onSend(day)`. */
 export function DateReply({
   reply,
-  disabled,
   surveyEnd,
   onSend,
 }: {
   reply: Reply
-  disabled: boolean
   // The survey's last day now, shown struck through beside the picked one.
   surveyEnd: string | null
   onSend: (day: string) => void
@@ -32,9 +31,10 @@ export function DateReply({
     <Popover
       open={open}
       onOpenChange={(o) => (o ? setOpen(true) : close())}
-      trigger={<ReplyButton reply={reply} disabled={disabled} onClick={() => setOpen((o) => !o)} />}
+      trigger={<ReplyButton reply={reply} onClick={() => setOpen((o) => !o)} />}
       ariaLabel={day ? 'Confirm the New Survey End' : 'Day of Your Next Visit'}
-      align="right"
+      align="left"
+      fixed
       sheetCentred
       surfaceClassName="mbt-pop"
     >
@@ -67,7 +67,9 @@ export function DateReply({
           </div>
         </div>
       ) : (
-        <Calendar value="" min={today()} focusDay onPick={setDay} />
+        // Only while open: the Popover redraws its surface for the closing fade, and a calendar
+        // taking focus then would drop it to the page's top when the fade ends.
+        <Calendar value="" min={today()} focusDay={open} onPick={setDay} />
       )}
     </Popover>
   )

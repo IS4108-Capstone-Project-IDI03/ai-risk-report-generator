@@ -26,13 +26,14 @@
   margin: 0;
 }
 
-/* --- Rail (284 px, so an 18-character status pill fits beside the face): it never scrolls and
+/* --- Rail (248 px, round 7; the conversation gets the rest): a long status pill wraps to a second
+   line beside the face (.mb-bot-id .mb-status). It never scrolls and
    nothing in it overlaps. As the height runs out (rail size queries at the end of this block):
    the header and stage rows tighten (44 to 36 px) and the facts' rows to 36 px, then "At a
    Glance" steps aside, then the stage rows go to 32 px; below that the Overview shows the phone's
    stage bar instead (MarshBotOverview.tsx, SHORT_WINDOW). --- */
 .mb-rail {
-  width: 284px;
+  width: 248px;
   flex: none;
   min-height: 0;
   overflow: hidden;
@@ -53,8 +54,9 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 4px 12px;
+  /* Tight, so a usual status ("1 question for you") keeps to one line in the 248 px rail. */
+  gap: 8px;
+  padding: 0 0 12px;
   border-bottom: 1px solid var(--graphite-100);
 }
 /* The name, and directly under it the status pill. */
@@ -120,7 +122,7 @@
   gap: 5px;
   max-width: 100%;
   height: 26px;
-  padding: 0 10px 0 9px;
+  padding: 0 9px 0 8px;
   box-sizing: border-box;
   border-radius: 999px;
   font-size: 12.5px;
@@ -134,6 +136,17 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* In the rail the pill may take two lines in its column, never overflow it; the phone bar keeps one. */
+.mb-bot-id .mb-status {
+  height: auto;
+  min-height: 26px;
+  padding-block: 4px;
+  border-radius: 13px;
+  line-height: 18px;
+  white-space: normal;
+  /* Two even lines ("10 sections / to do"), never one word left alone. */
+  text-wrap: balance;
 }
 .mb-status[data-tone='red'] {
   background: var(--red-50);

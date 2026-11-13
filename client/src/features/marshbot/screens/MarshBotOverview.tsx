@@ -1,16 +1,16 @@
 // The assessment's Overview as a saved conversation with MarshBot (AS-06 canvas C1 to C13, S1 to
-// S9, H1, H2): MarshBot, the stages, the facts at a glance and the client on the left (a stage
-// bar on a phone), the thread on the right, and the reply tray under it while MarshBot asks.
-// Called by assessments/screens/Overview.tsx. Calls useThread.ts and components/thread/.
-import { useRef, useState, useSyncExternalStore } from 'react'
+// S9, H1, H2, round 7 R7-C1 to C8): MarshBot, the stages, the facts at a glance and the client on
+// the left (a stage bar on a phone), the thread on the right, with the action slot under
+// MarshBot's newest turn. Called by assessments/screens/Overview.tsx. Calls useThread.ts and
+// components/thread/.
+import { useState, useSyncExternalStore } from 'react'
 import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
 import { STAGE_LABEL } from '../../assessments/format'
 import { PhoneStageBar } from '../components/PhoneStageBar'
 import { Rail } from '../components/Rail'
-import { ReplyTray } from '../components/thread/ReplyTray'
+import { Actions } from '../components/thread/Actions'
 import { Thread } from '../components/thread/Thread'
-import { useToastPlace } from '../components/thread/useToastPlace'
 import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
@@ -69,11 +69,17 @@ function Loader({ reference, openLink, openDetails }: Props) {
   )
 }
 
-// What changed after a reply, said once as a toast: the survey's new last day, a new stage.
+// What changed after a reply, said once as a short toast: a new survey end, a new stage.
 function confirmChange(before: AssistantThread, after: AssistantThread) {
   if (after.surveyEnd && after.surveyEnd !== before.surveyEnd)
-    toast.success(`Survey end moved to ${weekDay(after.surveyEnd)}`)
+    toast.success('Survey end date updated')
   if (after.stage !== before.stage) toast.success(`Moved to ${STAGE_LABEL[after.stage]}`)
+}
+
+// The newest bot turn's next step: the first of its cards with one (Open Generation, Open Review).
+function newestCta(thread: AssistantThread) {
+  const turn = thread.session.turns.findLast((t) => t.who === 'bot')
+  return turn?.cards.map((c) => ('cta' in c ? c.cta : null)).find((c) => c) ?? null
 }
 
 function Conversation({
@@ -89,12 +95,11 @@ function Conversation({
   // Replies the gateway took: each one moves focus to MarshBot's newest turn (Thread.tsx).
   const [answered, setAnswered] = useState(0)
   const [busy, setBusy] = useState<Set<string>>(() => new Set())
-  const column = useRef<HTMLElement>(null)
-  const hasTray = thread.replies.length > 0
-  useToastPlace(column, hasTray)
 
-  // a. A reply: their bubble at once, the tray off, then the answer and a toast for what changed.
+  // a. A choice: one with a link only opens it (nothing is posted, the question stays). Any other
+  //    is their bubble at once with the slot gone, then the answer and a toast for what changed.
   const answer = (r: Reply, date?: string) => {
+    if (r.link) return openLink(r.link)
     // One reply at a time: without this, a second press would post twice.
     if (pending) return
     setPending(date ? `${r.label} on ${weekDay(date)}` : r.label)
@@ -104,23 +109,34 @@ function Conversation({
       if (!next) return
       setAnswered((n) => n + 1)
       confirmChange(thread, next)
-      if (r.id === 'export-again') openLink({ tab: 'export' })
     })
   }
 
-  // b. Try again on a failed recording or page: the row shows "Transcribing" at once.
+  // b. Try again on a failed recording or page: the row's "Transcribing" says it, no toast.
   const retry = (row: CardRow) => {
     const end = row.end
     if (end.type !== 'button' || !end.action) return
     const [observation, target] = (end.actionTarget ?? '').split(':')
     const run = end.action === 'retry-page' ? retryPageTranscription : retryTranscription
     setBusy((b) => new Set(b).add(row.id))
-    toast.success(`Trying ${row.title} again`)
     run(observation, target).catch((error: unknown) => {
       setBusy((b) => new Set([...b].filter((id) => id !== row.id)))
       toast.error(error instanceof Error ? error.message : 'Couldn’t try that again.')
     })
   }
+
+  // c. The action slot: nothing while a reply is sent or MarshBot is still writing.
+  const cta = newestCta(thread)
+  const actions =
+    !pending && !thread.thinking && (cta || thread.replies.length) ? (
+      <Actions
+        cta={cta}
+        replies={thread.replies}
+        surveyEnd={thread.surveyEnd ?? thread.surveyStart}
+        onReply={answer}
+        onOpen={openLink}
+      />
+    ) : null
 
   const bot: MarshBot = { thread, openLink, retry, busy }
   return (
@@ -131,16 +147,8 @@ function Conversation({
         ) : (
           <Rail thread={thread} openDetails={openDetails} />
         )}
-        <section ref={column} className="mbt" aria-label="MarshBot">
-          <Thread thread={thread} pending={pending} answered={answered} />
-          {hasTray && (
-            <ReplyTray
-              replies={thread.replies}
-              sending={!!pending}
-              surveyEnd={thread.surveyEnd ?? thread.surveyStart}
-              onReply={answer}
-            />
-          )}
+        <section className="mbt" aria-label="MarshBot">
+          <Thread thread={thread} pending={pending} answered={answered} actions={actions} />
         </section>
       </div>
     </MarshBotContext.Provider>

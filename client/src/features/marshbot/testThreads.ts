@@ -66,10 +66,36 @@ export const todo: Card = {
   rows: [walkRow, recordingRow],
 }
 
-const skip: Reply = { id: 'skip', label: 'Skip for now', primary: true, picksDate: false }
+const skip: Reply = {
+  id: 'skip',
+  label: 'Skip for now',
+  primary: true,
+  picksDate: false,
+  link: null,
+}
 export const visitReplies: Reply[] = [
-  { id: 'another-visit', label: 'I need another visit', primary: false, picksDate: true },
-  { id: 'ready-to-generate', label: 'That’s everything', primary: true, picksDate: false },
+  {
+    id: 'another-visit',
+    label: 'I need another visit',
+    primary: false,
+    picksDate: true,
+    link: null,
+  },
+  // Only opens the Observations tab: nothing is posted (round 7).
+  {
+    id: 'add-observations',
+    label: 'Add observations',
+    primary: false,
+    picksDate: false,
+    link: { tab: 'observations' },
+  },
+  {
+    id: 'ready-to-generate',
+    label: 'That’s everything',
+    primary: true,
+    picksDate: false,
+    link: null,
+  },
 ]
 
 const session = (turns: Turn[], over: Partial<Session> = {}): Session => ({
@@ -181,7 +207,7 @@ const checklistCard: Card = {
   ],
   fine: [{ title: 'Security', detail: '3 of 4', bar: { covered: 3, total: 4 } }],
 }
-/** The checklist: one area to work on, one ticked, What else? in the tray. */
+/** The checklist: one area to work on, one ticked, What else? in the action slot. */
 export const checklist = thread({
   session: session([
     turn({
@@ -190,7 +216,7 @@ export const checklist = thread({
       cards: [checklistCard],
     }),
   ]),
-  replies: [{ id: 'what-else', label: 'What else?', primary: true, picksDate: false }],
+  replies: [{ id: 'what-else', label: 'What else?', primary: true, picksDate: false, link: null }],
 })
 
 /** The visit question after the survey day passed. */
@@ -207,7 +233,7 @@ export const visitQuestion = thread({
   replies: visitReplies,
 })
 
-/** Generate: the outline with its next section highlighted and Continue. */
+/** Generate: the outline, with its Open Generation drawn in the action slot. */
 export const generateOutline = thread({
   stage: 'generate',
   session: session([

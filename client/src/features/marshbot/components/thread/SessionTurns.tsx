@@ -1,6 +1,8 @@
 // One session of the thread (AS-06 canvas C1 to C13, H2): its day and time, then its turns, with
 // the time again wherever a turn came a while after the one before. Earlier sessions are drawn
-// greyed and read-only. Drawn by Thread.tsx.
+// greyed and read-only. The live session's newest bot turn ends in the action slot. Drawn by
+// Thread.tsx.
+import type { ReactNode } from 'react'
 import { clock, sessionTime } from '../../format'
 import { TurnContext } from '../../context'
 import { TURN_GAP_MS } from '../../settings'
@@ -9,16 +11,20 @@ import { BotTurn } from './BotTurn'
 import { EngineerBubble } from './EngineerBubble'
 import { TurnBody } from './TurnBody'
 
-/** Returns the session's divider and turns; `fresh` names the turns that just arrived. */
+/** Returns the session's divider and turns; `fresh` names the turns that just arrived, and
+    `slot` is drawn under the newest bot turn's last bubble or card. */
 export function SessionTurns({
   session,
   past = false,
   fresh,
+  slot,
 }: {
   session: Session
   past?: boolean
   fresh?: Set<string>
+  slot?: ReactNode
 }) {
+  const newest = session.turns.findLast((t) => t.who === 'bot')
   return (
     <div className="mbt-session" data-past={past || undefined}>
       <p className="mbt-divider">{sessionTime(session.startedAt)}</p>
@@ -42,6 +48,7 @@ export function SessionTurns({
                 fresh={fresh?.has(turn.id)}
               >
                 <TurnBody turn={turn} />
+                {turn === newest && slot}
               </BotTurn>
             )}
           </TurnContext.Provider>

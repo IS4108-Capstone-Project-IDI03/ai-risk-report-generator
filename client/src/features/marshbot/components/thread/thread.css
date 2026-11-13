@@ -1,12 +1,14 @@
-/* MarshBot's thread (AS-06 canvas C1 to C13, H1, H2): the scrolling conversation, MarshBot's
-   turns and bubbles, the engineer's replies, the Earlier fold and the reply tray. Cards are in
+/* MarshBot's thread (AS-06 canvas C1 to C13, H1, H2, round 7): the scrolling conversation,
+   MarshBot's turns and bubbles, the engineer's replies, the Earlier fold, the action slot and the
+   scrolled-away bar. Cards are in
    cards.css. Sizes from the canvas sources (r6.css, r7.css, r8.css) on design-system v2 tokens. */
 
-/* --mbt-control: a row's button (36 px, 44 px for touch); --mbt-reply: a reply in the tray. */
+/* --mbt-control: a row's button; --mbt-reply: a button in the action slot (36 px on touch, with
+   a 44 px tap area). */
 .mbt {
   --mbt-control: 36px;
   --mbt-reply: 40px;
-  --mbt-cta: 40px;
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -55,7 +57,6 @@
     .mbt-card-head small b,
     .mbt-row-title,
     .mbt-row-detail,
-    .mbt-row-quote,
     .mbt-gap b,
     .mbt-gap small,
     .mbt-gap li,
@@ -158,6 +159,11 @@
 .mbt-face .mb-face-svg {
   width: 32px;
   height: 32px;
+}
+/* Under "MarshBot", the face drops by the name's height (16 px line, -1 px margin, 6 px gap), so
+   its top lines up with the first bubble's top (round 7). */
+.mbt-turn[data-named] .mbt-face {
+  margin-top: 21px;
 }
 .mbt-stack {
   min-width: 0;
@@ -285,57 +291,100 @@
   }
 }
 
-/* The reply tray, where a chat box would be: always one row, never taller. */
-.mbt-tray {
-  flex: none;
+/* The action slot under the newest turn's last bubble or card: 8 px below it, flush with the
+   bubbles, 8 px between buttons, wrapping on a phone. In a turn that just arrived it fades in
+   after the pieces (opacity only: a transform would trap the calendar's fixed popover). */
+.mbt-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+/* The slot's last pixel row, watched for "in view" (ScrolledAway.tsx); out of the flex flow. */
+.mbt-slot-end {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.mbt-turn[data-fresh] .mbt-actions {
+  animation: mbt-fade var(--duration-slow) var(--ease-out) 360ms both;
+}
+@keyframes mbt-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Scrolled away (R7-C8): the round arrow, 12 px above a slim bar with the slot's buttons, over the
+   conversation's foot. Kept mounted, so it fades and rises 8 px in and out (interruptible). */
+.mbt-away {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    visibility 0s linear var(--duration-fast);
+}
+.mbt-away[data-away] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s;
+}
+.mbt-away[data-away] > * {
+  pointer-events: auto;
+}
+.mbt-away[data-alone] {
+  padding-bottom: 16px;
+}
+.mbt .mbt-latest {
+  border-color: var(--graphite-200);
+  color: var(--marsh-navy);
+  box-shadow: 0 2px 8px rgb(0 15 71 / 0.12);
+}
+/* The bar: white, a top hairline, the buttons right-aligned in the thread's own column (.mbt-thread:
+   it ends where the engineer's bubble ends, 32 px gutter and 6 px tail). */
+.mbt-bar {
+  align-self: stretch;
   background: var(--surface-card);
   border-top: 1px solid var(--graphite-200);
 }
-/* The thread's own column (.mbt-thread): it starts where the bubbles start (24 px gutter, 40 px
-   face, 12 px gap) and ends where the engineer's bubble ends (32 px gutter, 6 px tail). */
-.mbt-tray-in {
+.mbt-bar-in {
   max-width: 1600px;
   box-sizing: border-box;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
   padding: 11px 38px 13px 76px;
 }
-/* The calendar and its confirm float 8 px clear of the tray's top edge: the button sits 12 px
-   (11 px padding and the 1 px border) below it. */
-.mbt-tray .ds-popover[data-flip] {
-  bottom: calc(100% + 20px);
-}
-/* While the Overview is open, toasts centre on the conversation, not the window, and clear the
-   tray when there is one (useToastPlace.ts sets the class and measures both). Every other
-   screen keeps the app's own Toaster place. */
-body.mbt-toasts [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
-  left: var(--mbt-toast-x, 50%) !important;
-}
-body.mbt-toasts:has(.mbt-tray)
-  [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
-  bottom: var(--mbt-toast-bottom, 77px) !important;
-}
 @media (min-width: 1600px) {
-  .mbt-tray-in {
+  .mbt-bar-in {
     margin-inline: auto;
   }
 }
-.mbt-tray-hint {
-  margin-right: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--graphite-600);
-  white-space: nowrap;
+/* While the Overview is open, toasts centre on the conversation, not the window, and clear the
+   bar while it shows (useToastPlace.ts sets the class and measures both). Every other screen
+   keeps the app's own Toaster place. */
+body.mbt-toasts [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  left: var(--mbt-toast-x, 50%) !important;
 }
-.mbt-tray-replies {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
+body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
+  [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  bottom: var(--mbt-toast-bottom, 77px) !important;
 }
 /* The calendar's confirm: the picked day, what changes, Cancel and Confirm. */
 .mbt-confirm {
@@ -383,12 +432,28 @@ body.mbt-toasts:has(.mbt-tray)
   white-space: nowrap;
 }
 
-/* Touch screens: 44 px targets for every control in the thread and tray. */
+/* Touch screens: 44 px targets for every control in the thread and bar. The slot's and rows'
+   buttons look smaller (36 px, 14 px text, round 7 item 45): the 44 px is an invisible box. */
 @media (pointer: coarse), (max-width: 767px) {
   .mbt {
-    --mbt-control: 44px;
-    --mbt-reply: 44px;
-    --mbt-cta: 44px;
+    --mbt-reply: 36px;
+  }
+  :is(.mbt-actions, .mbt-bar, .mbt-end) .ds-press {
+    --text-body-size: 14px;
+    position: relative;
+  }
+  /* Exactly 44 px tall whatever the button's own height: the box reaches 22 px each way from its middle. */
+  :is(.mbt-actions, .mbt-bar, .mbt-end) .ds-press::after,
+  .mbt .mbt-latest::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px)) 0;
+  }
+  .mbt .mbt-latest {
+    position: relative;
+  }
+  .mbt .mbt-latest::after {
+    inset: -4px;
   }
   .mbt-fold {
     min-height: 44px;
@@ -410,7 +475,8 @@ body.mbt-toasts:has(.mbt-tray)
     margin: -14px;
   }
 }
-/* Phone: the page scrolls, the thread runs full width, the tray stays at the foot. */
+/* Phone: the page scrolls, the thread runs full width, the scrolled-away bar is fixed to the
+   screen's foot. */
 @media (max-width: 767px) {
   .mbt {
     min-height: auto;
@@ -442,29 +508,26 @@ body.mbt-toasts:has(.mbt-tray)
     padding: 9px 14px;
     font-size: 15px;
   }
-  .mbt-tray {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
+  .mbt-away {
+    position: fixed;
   }
-  .mbt-tray-in {
+  .mbt-away[data-alone] {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Left-aligned like the slot, so wrapped buttons don't stagger. */
+  .mbt-bar-in {
+    justify-content: flex-start;
     padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
-  }
-  /* The newest turn scrolls into view whole, above the tray stuck to the screen's foot. */
-  .mbt:has(.mbt-tray) .mbt-endmark {
-    scroll-margin-bottom: calc(65px + env(safe-area-inset-bottom, 0px));
-  }
-  .mbt-tray-hint {
-    display: none;
-  }
-  .mbt-tray-replies {
-    flex: 1;
   }
 }
 /* Reduced motion: the app stops every animation (index.css); presses stop moving too. */
 @media (prefers-reduced-motion: reduce) {
   .mbt-fold:active {
     transform: none;
+  }
+  /* The bar and arrow appear and leave at once. */
+  .mbt-away {
+    transition-duration: 0s;
   }
 }
 
