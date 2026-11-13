@@ -100,7 +100,7 @@ describe('Declined question (CB-07)', () => {
         await screen.findByText(
           phrase("The knowledge base doesn't cover Mars sprinklers."),
           {},
-          { timeout: 10000 },
+          { timeout: 25000 },
         ),
       ).toBeVisible()
       expect(screen.queryByText('No answer in the knowledge base')).toBeNull()

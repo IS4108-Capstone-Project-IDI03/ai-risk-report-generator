@@ -441,8 +441,20 @@ def test_where_the_passages_sources_disagree_it_names_both_and_never_chooses(mon
         "text": "the observation records a churn pressure of 7 bar, while FM Global 3-7 sets "
         "10 bar.",
         "citations": [
-            {"ref": "O:pump", "kind": "observation", "quote": None, "verified": True},
-            {"ref": "C:fm37:2", "kind": "standard", "quote": "10 bar", "verified": True},
+            {
+                "ref": "O:pump",
+                "kind": "observation",
+                "quote": None,
+                "verified": True,
+                "described": False,
+            },
+            {
+                "ref": "C:fm37:2",
+                "kind": "standard",
+                "quote": "10 bar",
+                "verified": True,
+                "described": False,
+            },
         ],
         "differs": True,
     }
