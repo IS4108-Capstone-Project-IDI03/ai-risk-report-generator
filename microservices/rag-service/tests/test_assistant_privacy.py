@@ -147,3 +147,85 @@ def test_wording_with_privacy_down_is_a_503_and_sends_nothing(monkeypatch, fake_
 
     assert response.status_code == 503
     assert prompts == []
+
+
+def _turn(turn_id, text):
+    return {"id": turn_id, "text": "", "parts": [{"type": "say", "text": text, "tone": "normal"}]}
+
+
+# The masker read "Alex! Capture" as one name: a value that runs across a sentence end.
+MISREAD = {
+    "enabled": True,
+    "known_entities": [
+        {"type": "PERSON", "names": ["Alex! Capture"]},
+        {"type": "CLIENT", "names": ["Acme Holdings"]},
+    ],
+}
+
+
+def test_a_turn_with_a_value_across_a_sentence_end_is_not_sent_for_wording(
+    monkeypatch, fake_privacy
+):
+    request = {
+        "viewer": {"first_name": "Sam", "role": "engineer"},
+        "messages": [
+            _turn("m1", "Good morning, Alex! Capture the pump room."),
+            _turn("m2", "Acme Holdings has one open issue."),
+        ],
+        "privacy": MISREAD,
+    }
+    program = 'root = Reply([a])\na = Say("[CLIENT_1] has one open issue.")'
+    prompts = mock(
+        monkeypatch,
+        "wording",
+        WordingResult(
+            programs=[
+                Program(message_id="m1", program='root = Reply([a])\na = Say("Hi.")'),
+                Program(message_id="m2", program=program),
+            ]
+        ),
+    )
+
+    programs = client.post("/assistant/wording", json=request).json()["programs"]
+
+    assert list(programs) == ["m2"]
+    # The system prompt has its own examples, so look at the turns part only.
+    sent = prompts[0].split("Turns:")[1]
+    assert "### Turn m1" not in sent and "Capture" not in sent
+    assert "### Turn m2" in sent
+
+
+def test_wording_with_every_turn_filtered_out_does_not_call_the_model(monkeypatch, fake_privacy):
+    request = {
+        "viewer": {"first_name": "Sam", "role": "engineer"},
+        "messages": [_turn("m1", "Good morning, Alex! Capture the pump room.")],
+        "privacy": MISREAD,
+    }
+    prompts = mock(monkeypatch, "wording", WordingResult(programs=[]))
+
+    response = client.post("/assistant/wording", json=request)
+
+    assert response.status_code == 200
+    assert response.json()["programs"] == {}
+    assert prompts == []
+
+
+def test_a_name_inside_one_sentence_is_still_worded(monkeypatch, fake_privacy):
+    request = {
+        "viewer": {"first_name": "Sam", "role": "engineer"},
+        "messages": [_turn("m1", "Good morning, John Tan! Capture the pump room.")],
+        "privacy": PRIVACY,
+    }
+    program = 'root = Reply([a])\na = Say("Morning, [PERSON_1]! Capture the pump room.")'
+    prompts = mock(
+        monkeypatch,
+        "wording",
+        WordingResult(programs=[Program(message_id="m1", program=program)]),
+    )
+
+    programs = client.post("/assistant/wording", json=request).json()["programs"]
+
+    assert "John Tan" not in prompts[0]
+    assert (
+        programs["m1"] == 'root = Reply([a])\na = Say("Morning, John Tan! Capture the pump room.")'
+    )

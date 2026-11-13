@@ -1,6 +1,7 @@
-"""MarshBot's wording (AS-06 round 5): MarshBot's new turns in (each turn's bubbles and the ids
-of its cards), one OpenUI Lang program per turn out. The model only rewords the bubbles and
-places each card once; the cards themselves are drawn by the client. Nothing is saved.
+"""MarshBot's wording (AS-06 round 5; the rules pick the format since round 8): MarshBot's new
+turns in (each turn's pieces: its words, each marked with the form the rules gave it, and the ids
+of its cards), one OpenUI Lang program per turn out. The model only rewords each piece and keeps
+its form; the cards themselves are drawn by the client. Nothing is saved.
 
 Called by routes.py's /assistant/wording (asked by server wording.service.ts). Calls privacy.py
 (mask, unmask) and llm.complete under LLM_PROVIDER. The client draws the programs with
@@ -31,6 +32,9 @@ _SIGNATURES = (
 COMPONENTS = set(re.findall(r"^([A-Z]\w*)\(", _SIGNATURES, re.MULTILINE))
 _STRING = r'"(?:[^"\\]|\\.)*"'
 _CALL = re.compile(r"\b([A-Z]\w*)\(")
+# A masked value that runs across a sentence end ("Alex! Capture"): the detector read half a
+# sentence as one name, and the model garbles the turn around it.
+_CROSSES_SENTENCE = re.compile(r"[.!?]\s")
 # A placeholder the mapping couldn't restore (same shapes as privacy.py's unmask pattern).
 _LEFTOVER = re.compile(rf"\b({'|'.join((*pii.TYPES, 'LITERAL'))})_\d+\b", re.IGNORECASE)
 
@@ -50,10 +54,16 @@ class WordingResult(_Model):
 
 
 def _part_line(part: dict, text: str | None) -> str:
-    """One part of a turn, in words for the model: a bubble (masked text) or a card id."""
+    """One part of a turn, in words for the model: its words (masked) named by the form the
+    rules gave them, or a card id. Must match the tones of `Say` in server types.ts."""
     if part["type"] == "say":
-        tone = ' (good news: Say(text, "good"))' if part.get("tone") == "good" else ""
-        return f"- Say: {text}{tone}"
+        kind = {
+            "lead": "Lead line, Lead(text)",
+            "good": 'Words, good news, Say(text, "good")',
+            "tick": "Ticked item, one item of Ticks([...])",
+            "alert": "Stand-out message, Alert(text)",
+        }.get(part.get("tone"), "Words, Say(text)")
+        return f"- {kind}: {text}"
     return f'- Card("{part["id"]}"), a {part.get("card", "card")} card'
 
 
@@ -84,12 +94,16 @@ def word_messages(request, privacy=None) -> dict:
         "generated_at": datetime.now(UTC).isoformat(),
     }
     messages = request.messages
-    if not messages:
+
+    def nothing() -> dict:
         return {
             "programs": {},
             "usage": paid_calls,
             "provenance": {**provenance, "privacy": protection.provenance()},
         }
+
+    if not messages:
+        return nothing()
 
     # a. Mask the name and every bubble in one /mask call; card ids carry no client text.
     says = [
@@ -98,6 +112,15 @@ def word_messages(request, privacy=None) -> dict:
     masked = iter(protection.mask([request.viewer.first_name] + [text for _, _, text in says]))
     name = next(masked)
     texts = {(mid, i): next(masked) for mid, i, _ in says}
+    # A turn holding a mis-read value is not sent: it keeps the gateway's rule words.
+    misread = [p for p, value in protection.mapping.items() if _CROSSES_SENTENCE.search(value)]
+    messages = [
+        m
+        for m in messages
+        if not any(p in texts.get((m.id, i), "") for p in misread for i in range(len(m.parts)))
+    ]
+    if not messages:
+        return nothing()
 
     # b. Ask the model, once for all turns.
     blocks = []
