@@ -3482,7 +3482,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'observations',
           label: 'Observations',
           icon: 'camera',
-          count: fieldSaved,
+          // Same count as the Overview and MarshBot: what the server holds.
+          count: savedCount,
         },
         {
           value: 'generate',

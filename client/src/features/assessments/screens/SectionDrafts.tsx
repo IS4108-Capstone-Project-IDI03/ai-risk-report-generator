@@ -617,7 +617,9 @@ export function SectionDrafts({
                 {progress.done} of {plural(progress.total, 'section')} drafted ·{' '}
                 {attention
                   ? `${attention} need${attention === 1 ? 's' : ''} attention`
-                  : 'nothing outstanding in drafting'}
+                  : progress.done < progress.total
+                    ? `${plural(progress.total - progress.done, 'section')} still to draft`
+                    : 'nothing outstanding in drafting'}
                 {!canDraft &&
                   ' · Only the assigned engineer can draft sections while the assessment is open.'}
               </span>
