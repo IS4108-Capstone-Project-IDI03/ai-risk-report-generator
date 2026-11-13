@@ -1399,7 +1399,7 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   expect(within(panel).getByText('First survey')).toBeInTheDocument()
 
   // Cancel closes it over the panel, changing nothing.
-  fireEvent.click(within(panel).getByRole('button', { name: 'Edit details' }))
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Assessment Details' }))
   fireEvent.click(
     within(screen.getByRole('dialog', { name: 'Edit details' })).getByRole('button', {
       name: 'Cancel',
@@ -1408,7 +1408,7 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   expect(screen.queryByRole('dialog', { name: 'Edit details' })).not.toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
 
-  fireEvent.click(within(panel).getByRole('button', { name: 'Edit details' }))
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Assessment Details' }))
   // Only this visit's own details, from the saved ones: the site and client
   // change for all their assessments elsewhere (CP-18), and the engineer stays.
   const dialog = screen.getByRole('dialog', { name: 'Edit details' })
@@ -1427,7 +1427,7 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   expect(within(dialog).getByLabelText(/Assessment type/)).toHaveValue('Follow-up visit')
 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
-  await screen.findByText('Details saved for RPT-2026-0001.')
+  await screen.findByText('Details updated')
   expect(saves[1].body).toEqual({
     surveyType: 'Follow-up visit',
     siteVisitDate: '2026-04-21',
@@ -1471,7 +1471,7 @@ it('corrects the site from Details for every assessment at it, asking first abou
   const panel = openDetails()
   fireEvent.click(
     within(within(panel).getByRole('region', { name: 'Site' })).getByRole('button', {
-      name: 'Edit site',
+      name: 'Edit Site',
     }),
   )
   const dialog = screen.getByRole('dialog', { name: 'Edit Jurong Distribution Hub' })
@@ -1487,7 +1487,7 @@ it('corrects the site from Details for every assessment at it, asking first abou
   expect(corrections).toHaveLength(0)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Change scope' }))
 
-  await screen.findByText(/Jurong Distribution Hub saved/)
+  await screen.findByText('Site updated')
   expect(corrections).toEqual([
     {
       name: 'Jurong Distribution Hub',
@@ -1542,12 +1542,14 @@ it('says why a colleague’s site can’t be changed, and opens the client’s p
     const panel = openDetails()
     const siteCard = within(panel).getByRole('region', { name: 'Site' })
     // The pencil stays, greyed, and says why on the button itself (design system v2).
-    const edit = within(siteCard).getByRole('button', { name: 'Edit site' })
+    const edit = within(siteCard).getByRole('button', { name: 'Edit Site' })
     expect(edit).toHaveAttribute('aria-disabled', 'true')
     expect(edit).toHaveAccessibleDescription(new RegExp(OTHERS))
     expect(within(siteCard).queryByText(OTHERS, { selector: 'p, div' })).not.toBeInTheDocument()
     // Edit details is still the engineer's.
-    expect(within(panel).getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(
+      within(panel).getByRole('button', { name: 'Edit Assessment Details' }),
+    ).toBeInTheDocument()
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Straits Logistics' }))
     expect(
@@ -1621,7 +1623,8 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     const panel = openDetails()
     expect(within(panel).getByText('Malaysia')).toBeInTheDocument()
     expect(within(panel).getByText('Alex Rowe')).toBeInTheDocument()
-    for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(false)
+    for (const name of ['Edit Assessment Details', 'Edit Site', 'Archive'])
+      expect(has(name)).toBe(false)
     fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     // The report tabs are there to read.
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
@@ -1647,7 +1650,8 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
   it('does everything an engineer does on their own', async () => {
     await open(SANA)
     const panel = openDetails()
-    for (const name of ['Edit details', 'Edit site', 'Archive']) expect(has(name)).toBe(true)
+    for (const name of ['Edit Assessment Details', 'Edit Site', 'Archive'])
+      expect(has(name)).toBe(true)
     fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     tab(/^Checklist/)
     expect(await screen.findByRole('button', { name: 'Generate checklist' })).toBeInTheDocument()

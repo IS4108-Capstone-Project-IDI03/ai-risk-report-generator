@@ -19,6 +19,11 @@
 .mb-panel-head h2 {
   flex: 1;
 }
+/* The Back button leads the title, in the sheet's header too (its title comes first in the DOM). */
+.mb-back {
+  order: -1;
+  display: inline-flex;
+}
 
 /* Links only, when even one of each doesn't fit: each block is one 52px row (board D1). */
 .mb-bigrow {
@@ -171,7 +176,7 @@
   font-size: 11px;
 }
 .mb-badge[data-on] {
-  color: #fff;
+  color: var(--text-inverse);
   background: var(--marsh-navy);
   box-shadow: none;
 }
@@ -191,12 +196,19 @@
   overflow: hidden;
   box-shadow: inset 0 0 0 1px var(--graphite-200);
 }
-.mb-mapbox .sm-map {
-  height: 250px;
+/* The map's frame: 204px at a 600px-high window, 245px at 720, 306px at 900 (320px at most). */
+.mb-mapbox {
+  height: clamp(180px, 34vh, 320px);
 }
+.mb-mapbox .sm-map {
+  height: 100%;
+}
+/* No map: the same frame, its message centred. */
 .mb-mapbox .sm-unavailable {
-  min-height: 120px;
+  box-sizing: border-box;
+  height: 100%;
   align-items: center;
+  justify-content: center;
 }
 /* While a pin is being placed the map waits for one click: a navy ring and a crosshair. */
 .mb-mapbox[data-placing]:not(:has(.sm-unavailable)) {
@@ -229,22 +241,25 @@
 }
 
 /* The bar under the map while placing: Coordinates (with a locate button inside its right end),
-   a green tick, a cross. One row at every width. */
+   then Set Pin and Cancel. One row; the buttons wrap under the input where there is no room. */
 .mb-placebar {
   --mb-tap: 40px;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   flex: none;
 }
 .mb-placebar-field {
   position: relative;
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
 }
-/* The tick and cross centre on the 40px field even where they are 44px (phone). */
-.mb-placebar > button {
-  margin-bottom: calc((40px - var(--mb-tap, 40px)) / 2);
+/* The small buttons centre on the 40px input beside them. */
+.mb-placebar-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: calc((40px - var(--control-height-sm)) / 2);
 }
 /* Doubled class: on a phone .mb-hit sets position: relative, which would drop it out of the input. */
 .mb-placebar .mb-placebar-locate.mb-placebar-locate {
@@ -357,6 +372,23 @@ button.mb-place-main {
   .mb-placebar {
     --mb-tap: 44px;
   }
+  .mb-placebar-actions {
+    gap: 12px;
+  }
+}
+
+/* The site map on a phone: the sheet takes its full height, so the header, map and bar stay put
+   and only the places list scrolls. */
+/* On the sheet, not its root: the root covers the whole screen, so the scrim does too. */
+.mb-details-map .ds-sheet {
+  height: 85svh;
+}
+.mb-details-map .ds-sheet-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: hidden;
 }
 
 /* Toasts raised from the panel: bottom centre of the panel, not of the window (the panel is 400px

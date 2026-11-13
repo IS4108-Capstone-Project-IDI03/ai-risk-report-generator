@@ -1,5 +1,5 @@
 // The site map inside the Details panel (AS-06, board D3): the map full width, a round
-// "Show my location" button on it, and one row per place (site first, then blocks) in a list that
+// "Show My Location" button on it, and one row per place (site first, then blocks) in a list that
 // scrolls by itself. A pin is placed from the bar under the map (PlacingBar). Everything the old
 // Geolocation card did, same logic (assessments/components/siteMapEdit.ts).
 // Called by DetailsPanel.tsx. Calls SiteMapView.
@@ -64,8 +64,8 @@ export function SiteMapPanel({
             ) : (
               <IconButton
                 icon="locate-fixed"
-                label="Show my location"
-                tooltip="Show my location"
+                label="Show My Location"
+                tooltip="Show My Location"
                 className="mb-hit"
                 // Round, white, floating on the map; its tap area grows to 44 px on a phone (mb-hit).
                 style={{

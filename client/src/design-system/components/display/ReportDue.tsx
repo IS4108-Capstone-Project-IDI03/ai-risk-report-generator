@@ -14,6 +14,8 @@ export type ReportDueProps = {
   note?: string
   // False leaves the calendar icon out (the Clients list's Next survey, round 14).
   icon?: boolean
+  // The word for a date that is today: "Today" in MarshBot's Details panel (AS-06).
+  todayLabel?: string
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -42,6 +44,7 @@ export function ReportDue({
   plain = false,
   note,
   icon = true,
+  todayLabel = 'today',
 }: ReportDueProps) {
   if (!date) {
     return (
@@ -55,7 +58,7 @@ export function ReportDue({
   const { d, days } = due
   const state = plain || note !== undefined ? 'ok' : due.state
   const glyph = state === 'late' ? 'calendar-x' : state === 'soon' ? 'calendar-clock' : 'calendar'
-  const count = days < 0 ? `${plural(-days)} late` : days === 0 ? 'today' : `in ${plural(days)}`
+  const count = days < 0 ? `${plural(-days)} late` : days === 0 ? todayLabel : `in ${plural(days)}`
   return (
     <span className={`ds-due ds-due-${state}`}>
       {icon && <Icon name={glyph} size={16} />}
