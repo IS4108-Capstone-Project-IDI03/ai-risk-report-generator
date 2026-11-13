@@ -1310,6 +1310,18 @@ newest turn. A 409 with `code: 'reply-not-asked'` (already answered, e.g. in
 another tab) only re-reads the conversation, quietly. The Review and Generation tabs count 11 parts (Section 1 not counted), as
 MarshBot does.
 
+A bot turn is one message: its words share one bubble, opening with the bold
+lead line when the turn brings something to do or decide; cards and a
+stand-out message (an overdue report) stand alone. A bar above the conversation
+names the stage and lists its topics (`agenda`: done, still open, now, to
+come); on a computer a raised topic jumps back to its turn. A "Moved on to
+<stage>" marker sits in the conversation where the stage changed, and the rail
+shows the day each finished stage was finished. A choice that moves the stage
+carries a line under the choices (`reply.hint`, "Clicking “That's everything”
+will move the assessment's status forward to Ready for generation."), and
+"What else?" carries "Up next: <topic>". A bold name in the words that one of
+the turn's cards lists is a link to it.
+
 **Stage.** `Assessment.stage` is one of Setup, Prepare, Capture, Ready for
 generation, Generate, Review, Ready to export, Exported, with `stageDates` for
 when each was entered. It only moves forward: each re-check stores the furthest
@@ -1350,7 +1362,10 @@ opens the Export tab; nothing is asked. The gaps turn gives "Not Covered" and
 its `order` and starts with the gateway's own program in that order. A new Fix
 now item is raised at once. Cards in today's session are rebuilt from the brief
 on every read (a fixed row ticks in place); earlier sessions are frozen. Turns'
-words never change. `thread.service.ts` loads and saves the thread (one advance
+words never change. The rules give every piece of words its form (`Say.tone`):
+plain, good news (green), the lead line, a tick (a catch-up with 2 or more
+changes is a tick list) or a stand-out message (the report is overdue; a
+report due within 7 days is a sentence at the end of the greeting). `thread.service.ts` loads and saves the thread (one advance
 per thread at a time, `lock.ts`); a re-check that changed the brief advances it
 only when the Overview is open (a live event stream) and the engineer opened it
 in the last 30 minutes. An archived assessment is shown read only and never
@@ -1386,13 +1401,23 @@ closed (503 when privacy-service is down):
   and categorised observation until Review. The "gaps" topic waits for it
   (typing dots) and raises its result as "Not Covered" and "Thin". Model
   `ASSISTANT_COVERAGE_MODEL`.
-- `POST /assistant/wording` writes each new bot turn once as an OpenUI Lang
-  program (`Reply`, `Say`, `Card`): the turn's bubbles reworded and each card
-  placed once by id. The gateway (`wording.service.ts`) waits at most 4 s and
-  drops a program that leaves out or repeats a card, moves a bubble out from
-  between two cards or swaps the cards around it, or adds or drops a number or
-  a name; the turn is then
-  drawn as its bubbles, then its cards (or by the gateway's own program). Model
+- `POST /assistant/wording` rewords each new bot turn once as an OpenUI Lang
+  program (`Reply`, `Lead`, `Say`, `Ticks`, `Alert`, `Card`). The rules pick
+  the format and the AI only words it: each piece is sent with its form, and a
+  card as its id and kind only (nothing a card shows is sent). The gateway
+  (`wording.service.ts`) waits at most 4 s and keeps a program only when it has
+  the same pieces in the same order as the gateway's own program for the turn
+  (`programOf`; a run of plain words counts as one), so the AI can't add, drop
+  or move a lead line, a tick, a green or stand-out message or a card. Each
+  part (the lead line, the stand-out message, each tick, a run of plain words)
+  is then checked against the rule words it rewords: the same numbers; the
+  same names (the viewer's first name, the site, areas, sections, places); the
+  same stage, weekday and month names; no tick, list mark or pictograph typed
+  into the words; and bold only on a name the rules wrote in that part, with
+  every `**` closed. Otherwise the turn is drawn from its rule words in the
+  same format. rag-service also leaves out a turn whose masked value runs
+  across a sentence end (a mis-read name), so it keeps its rule words. Known
+  limit: inside one part a number is not tied to the word beside it. Model
   `ASSISTANT_WORDING_MODEL`.
 The prompt file `app/assistant/marshbot_components.txt` is generated from the
 client's MarshBot library (`UPDATE_PROMPT=1`). MarshBot uses
