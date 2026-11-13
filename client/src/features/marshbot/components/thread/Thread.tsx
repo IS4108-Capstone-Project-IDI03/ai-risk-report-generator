@@ -129,6 +129,15 @@ export function Thread({
         el.scrollHeight - el.scrollTop - el.clientHeight < 48
     })
 
+  // d2. The agenda jumping back to a topic (Agenda.tsx) lets go of the end too: its own scroll
+  //     fires no wheel, touch or key, so letGo never sees it.
+  useEffect(() => {
+    const el = column.current
+    const release = () => (stick.current = false)
+    el?.addEventListener('mbt-jump', release)
+    return () => el?.removeEventListener('mbt-jump', release)
+  }, [])
+
   // Stable, so ScrolledAway's watch isn't set up again on every render.
   const focusLatest = useCallback(
     () => newestTurn(column.current)?.focus({ preventScroll: true }),
@@ -194,13 +203,17 @@ export function Thread({
               <Icon name={showEarlier ? 'chevron-up' : 'chevron-down'} size={14} />
             </button>
           )}
-          {showEarlier && earlier.map((s) => <SessionTurns key={s.id} session={s} past />)}
+          {showEarlier &&
+            earlier.map((s, i) => (
+              <SessionTurns key={s.id} session={s} past since={earlier[i - 1]?.turns.at(-1)?.at} />
+            ))}
           {/* f. Today's session, then what is on its way. Only this part is a live log: opening
                  Earlier would otherwise have a screen reader read a whole history out. */}
           <div className="mbt-live" role="log" aria-label="Conversation with MarshBot">
             <SessionTurns
               session={thread.session}
               fresh={fresh}
+              since={lastEarlier?.turns.at(-1)?.at}
               slot={
                 actions && (
                   <div ref={setSlot} className="mbt-actions" role="group" aria-label="Your reply">
@@ -214,7 +227,10 @@ export function Thread({
             {pending && <EngineerBubble text={pending} sending />}
             {thread.thinking && (
               <BotTurn mood="thinking" named={false} fresh>
-                <TypingDots />
+                {/* While it reads the notes against the checklist, the dots say so (the pill's words). */}
+                <TypingDots
+                  label={thread.status.icon === 'clock' ? `${thread.status.text}…` : undefined}
+                />
               </BotTurn>
             )}
           </div>

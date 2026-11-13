@@ -1,6 +1,7 @@
-// Fixture conversation threads for MarshBot's tests (AS-06): survey day, both done, the
-// checklist, the visit question, the generate outline, an admin, and an earlier session folded
-// away. Shaped like the gateway's GET /assistant (types.ts). Used by marshbot.test.tsx.
+// Fixture conversation threads for MarshBot's tests (AS-06): survey day, a catch-up greeting (lead
+// line, ticks, alert), both done, the checklist, the visit question, the generate outline, an
+// admin, and an earlier session folded away. Shaped like the gateway's GET /assistant (types.ts).
+// Used by marshbot.test.tsx.
 import type { AssistantThread, Card, CardRow, Reply, Session, Turn } from './types'
 
 export const REF = 'RPT-2026-0072'
@@ -134,6 +135,7 @@ export function thread(over: Partial<AssistantThread> = {}): AssistantThread {
       { icon: 'list-checks', label: 'Checklist', value: '25 of 42', tone: 'normal' },
       { icon: 'calendar', label: 'Report due', value: '16 Dec', tone: 'normal' },
     ],
+    agenda: [],
     earlier: [],
     session: session([
       turn({
@@ -153,6 +155,22 @@ export function thread(over: Partial<AssistantThread> = {}): AssistantThread {
 
 /** Survey day: the greeting and the to-do card, with Skip for now. */
 export const surveyDay = thread()
+
+/** The catch-up greeting as the rules form it (no program): a lead line, plain words, two ticked
+    items and the overdue alert. */
+export const catchUp = thread({
+  session: session([
+    turn({
+      says: [
+        { text: 'Before we look at the report, there are 2 things to sort out.', tone: 'lead' },
+        { text: 'Good morning, Alex! Here is what has changed since yesterday.', tone: 'normal' },
+        { text: 'The morning walk is sorted', tone: 'tick' },
+        { text: 'The **Loading Bay 2** recording is sorted', tone: 'tick' },
+        { text: 'The report is 2 days overdue, so let’s keep it moving.', tone: 'alert' },
+      ],
+    }),
+  ]),
+})
 
 /** Both done: the rows ticked in place and MarshBot's green acknowledgement. */
 export const bothDone = thread({

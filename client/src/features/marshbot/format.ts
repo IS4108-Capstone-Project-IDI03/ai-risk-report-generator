@@ -80,3 +80,6 @@ export function sessionTime(iso: string, now = new Date()) {
           : `${WEEKDAYS[d.getDay()]} ${shortDay(iso)}`
   return `${day}, ${clock(iso)}`
 }
+
+/** Returns the id a turn carries on the page, so the agenda can jump to it (Agenda.tsx). */
+export const turnAnchor = (turnId: string) => `mbt-turn-${turnId}`

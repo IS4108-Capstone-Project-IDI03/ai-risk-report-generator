@@ -105,7 +105,8 @@ export function OutlineCard({ card }: { card: Extract<Card, { type: 'outline' }>
   // when it has 3 entries or fewer; a longer key would wrap to 2 lines in the cell, and with an
   // even count there is no free cell, so it goes on its own line under the list.
   const freeCell = columns[1].length < columns[0].length && card.key.length <= 3
-  const key = card.key.length > 0 && <Key keys={card.key} />
+  // One state needs no key; the gateway still sends it, so each row keeps its word ("Reviewed").
+  const key = card.key.length > 1 && <Key keys={card.key} />
   return (
     <CardShell title={card.title} wide>
       <div className="mbt-ol-lead">

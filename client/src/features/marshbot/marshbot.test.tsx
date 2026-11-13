@@ -12,6 +12,7 @@ import {
   THREAD_URL,
   admin,
   bothDone,
+  catchUp,
   checklist,
   earlierFolded,
   generateOutline,
@@ -114,10 +115,11 @@ describe('MarshBot Overview', () => {
   it('draws survey day: rail, greeting, the to-do card and its row endings', async () => {
     const { openLink } = show(surveyDay)
     expect(await screen.findByText(/is in the Capture stage/)).toBeTruthy()
-    // Bold names from **…**, the tail on the first bubble only.
+    // Bold names from **…**; a turn's words share one bubble, with the tail.
     expect(screen.getByText('Pasir Gudang').tagName).toBe('B')
     const bubbles = document.querySelectorAll('.mbt-bubble')
-    expect([...bubbles].map((b) => b.hasAttribute('data-tail'))).toEqual([true, false])
+    expect([...bubbles].map((b) => b.hasAttribute('data-tail'))).toEqual([true])
+    expect(bubbles[0].querySelectorAll('p')).toHaveLength(2)
     // The rail: status pill, stages, at a glance, the client card.
     expect(screen.getByText('2 things to fix')).toBeTruthy()
     expect(screen.getByText('Survey')).toBeTruthy()
@@ -479,6 +481,244 @@ describe('MarshBot Overview', () => {
       expect(
         order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  // The kit the rules fill in: the AI rewords each piece; the pieces keep their kind and place.
+  it('draws the kit: lead and words in one bubble, ticks inside it, an alert in its own, a name that opens its row', async () => {
+    const program = [
+      'root = Reply([l1, s1, t1, a1, c1])',
+      'l1 = Lead("2 things to sort out first.")',
+      's1 = Say("Start with **Morning walk**, then **Loading Bay 2**.")',
+      't1 = Ticks(["One", "Two", "Three"])',
+      'a1 = Alert("The report is 2 days overdue.")',
+      'c1 = Card("todo")',
+    ].join('\n')
+    const { openLink } = show(
+      thread({
+        session: { ...surveyDay.session, turns: [turn({ topic: 'todo', cards: [todo], program })] },
+      }),
+    )
+    const lead = await screen.findByText('2 things to sort out first.')
+    const bubbles = [...document.querySelectorAll('.mbt-bubble')]
+    // The lead, the words and the ticks share the first bubble (with the tail); the alert is its
+    // own bubble, amber, without a second tail.
+    expect(bubbles.map((b) => b.hasAttribute('data-tail'))).toEqual([true, false])
+    expect(lead.className).toBe('mbt-lead')
+    expect(bubbles[0].contains(lead) && bubbles[0].textContent).toContain('Start with')
+    const list = bubbles[0].querySelector('.mbt-list')
+    expect([list?.tagName, list?.children.length]).toEqual(['UL', 3])
+    expect(bubbles[1].getAttribute('data-tone')).toBe('alert')
+    expect(bubbles[1].textContent).toBe('Important: The report is 2 days overdue.')
+    // A bold name the card lists with a link opens it; one whose row has no link stays bold.
+    fireEvent.click(screen.getByRole('button', { name: 'Morning walk' }))
+    expect(openLink).toHaveBeenCalledWith({ tab: 'observations', params: { walk: 'w1' } })
+    expect(screen.getByText('Loading Bay 2', { selector: 'b' })).toBeTruthy()
+  })
+
+  it('draws the lead, a tick list and the alert from the rules when there is no program', async () => {
+    show(catchUp)
+    const lead = await screen.findByText(/there are 2 things to sort out/)
+    expect(lead.className).toBe('mbt-lead')
+    const bubbles = [...document.querySelectorAll('.mbt-bubble')]
+    // Lead, words and the two neighbouring ticks (one list) share the first bubble.
+    expect(bubbles.map((b) => b.getAttribute('data-tone'))).toEqual(['normal', 'alert'])
+    expect(bubbles[0].contains(lead)).toBe(true)
+    const list = bubbles[0].querySelector('.mbt-list')
+    expect(list?.children).toHaveLength(2)
+    expect(within(list as HTMLElement).getByText('Loading Bay 2').tagName).toBe('B')
+    expect(bubbles[1].textContent).toContain('The report is 2 days overdue')
+    expect(bubbles[1].hasAttribute('data-tail')).toBe(false)
+  })
+
+  it('keeps a name link inline, opens it from the keyboard, and shows an unclosed ** as plain words', async () => {
+    const program = [
+      'root = Reply([s1, c1])',
+      's1 = Say("Start with **Morning walk** then **Loading Bay 2 and the rest.")',
+      'c1 = Card("todo")',
+    ].join('\n')
+    const { openLink } = show(
+      thread({
+        session: { ...surveyDay.session, turns: [turn({ topic: 'todo', cards: [todo], program })] },
+      }),
+    )
+    const name = await screen.findByRole('button', { name: 'Morning walk' })
+    // A <button> is always inline-block and would break a wrapped name onto its own line.
+    expect(name.tagName).toBe('SPAN')
+    fireEvent.keyDown(name, { key: 'Enter' })
+    expect(openLink).toHaveBeenCalledWith({ tab: 'observations', params: { walk: 'w1' } })
+    // The partner-less ** adds no bold run: its tail stays plain.
+    expect(
+      screen.getByText(/Loading Bay 2 and the rest/, { selector: 'p' }).querySelectorAll('b'),
+    ).toHaveLength(0)
+  })
+
+  it('says under the choices what pressing one leads to', async () => {
+    const hint =
+      'Clicking “That’s everything” will move the assessment’s status forward to Ready for generation.'
+    show(
+      thread({
+        replies: [
+          {
+            id: 'ready-to-generate',
+            label: 'That’s everything',
+            primary: true,
+            picksDate: false,
+            link: null,
+            hint,
+          },
+        ],
+      }),
+    )
+    const slot = await screen.findByRole('group', { name: 'Your reply' })
+    expect(within(slot).getByText(hint)).toBeTruthy()
+  })
+
+  it('shows the agenda, and jumps to a topic that was raised', async () => {
+    const first = turn({ says: [{ text: 'Hello.', tone: 'normal' }] })
+    const tasks = turn({ topic: 'todo', cards: [todo] })
+    show(
+      thread({
+        session: { ...surveyDay.session, turns: [first, tasks] },
+        agenda: [
+          { key: 'todo', title: 'To Do', state: 'open', turnId: tasks.id },
+          { key: 'checklist', title: 'Checklist', state: 'now', turnId: null },
+          { key: 'gaps', title: 'Gaps', state: 'next', turnId: null },
+        ],
+      }),
+    )
+    const agenda = await screen.findByRole('navigation', { name: /topics in Capture/ })
+    expect(within(agenda).getByText('Capture')).toBeTruthy()
+    expect(within(agenda).queryByText(/Topic \d of/)).toBeNull()
+    expect(within(agenda).getByText('Checklist').closest('li')?.getAttribute('aria-current')).toBe(
+      'step',
+    )
+    // Only a topic with a turn is a button; pressing it moves focus to that turn.
+    expect(within(agenda).getAllByRole('button')).toHaveLength(1)
+    fireEvent.click(within(agenda).getByRole('button', { name: /To Do, still open/ }))
+    expect(document.activeElement?.contains(screen.getByRole('group', { name: 'To do' }))).toBe(
+      true,
+    )
+    expect(document.activeElement?.className).toBe('mbt-turn')
+  })
+
+  it('stays on the topic the agenda jumped to when the thread grows afterwards', async () => {
+    const grew = () => watchers.forEach((fn) => fn())
+    const watchers: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(fn: () => void) {
+          watchers.push(fn)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    // jsdom has no layout, so the thread follows its end by scrolling the end mark into view.
+    const toEnd = vi.fn()
+    Element.prototype.scrollIntoView = function (this: Element) {
+      if (this.classList.contains('mbt-endmark')) toEnd()
+    }
+    const first = turn({ says: [{ text: 'Hello.', tone: 'normal' }] })
+    const tasks = turn({ topic: 'todo', cards: [todo] })
+    show(
+      thread({
+        session: { ...surveyDay.session, turns: [first, tasks] },
+        agenda: [{ key: 'todo', title: 'To Do', state: 'open', turnId: tasks.id }],
+      }),
+    )
+    const agenda = await screen.findByRole('navigation', { name: /topics in Capture/ })
+    // The thread still follows its end before the jump.
+    grew()
+    expect(toEnd).toHaveBeenCalled()
+    toEnd.mockClear()
+    fireEvent.click(within(agenda).getByRole('button', { name: /To Do, still open/ }))
+    grew()
+    expect(toEnd).not.toHaveBeenCalled()
+    // @ts-expect-error jsdom has none; put it back as it was
+    delete Element.prototype.scrollIntoView
+  })
+
+  it('marks a stage reached mid-session above the answer to the reply that moved it', async () => {
+    const asked = turn({ says: [{ text: 'Is that everything?', tone: 'normal' }] })
+    const reply = turn({ who: 'engineer', says: [{ text: 'That’s everything', tone: 'normal' }] })
+    const moved = turn({ says: [{ text: 'Moved it on.', tone: 'good' }] })
+    show(
+      thread({
+        stage: 'ready_for_generation',
+        // Stamped a moment after the reply's turns, as the gateway does.
+        stageDates: {
+          ...surveyDay.stageDates,
+          ready_for_generation: new Date(Date.parse(reply.at) + 900).toISOString(),
+        },
+        session: { ...surveyDay.session, turns: [asked, reply, moved] },
+        replies: [],
+      }),
+    )
+    const mark = (await screen.findByText('Ready for generation', { selector: 'b' })).closest('p')
+    expect(mark?.textContent).toBe('Moved on to Ready for generation')
+    const order = [screen.getByText('That’s everything'), mark!, screen.getByText('Moved it on.')]
+    for (let i = 1; i < order.length; i++)
+      expect(
+        order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('leaves out the mark of a stage the same press jumped over', async () => {
+    const reply = turn({ who: 'engineer', says: [{ text: 'Skip it all', tone: 'normal' }] })
+    const moved = turn({ says: [{ text: 'Moved it on.', tone: 'good' }] })
+    // Capture and Ready for generation share one date: one press passed through Capture.
+    const movedAt = new Date(Date.parse(reply.at) + 900).toISOString()
+    show(
+      thread({
+        stage: 'ready_for_generation',
+        stageDates: { ...surveyDay.stageDates, capture: movedAt, ready_for_generation: movedAt },
+        session: { ...surveyDay.session, turns: [reply, moved] },
+        replies: [],
+      }),
+    )
+    expect(await screen.findByText('Ready for generation', { selector: 'b' })).toBeTruthy()
+    expect(screen.queryByText('Capture', { selector: 'b' })).toBeNull()
+  })
+
+  it("marks a stage once: not again in today's session if the earlier one ended after it moved", async () => {
+    const earlierSession = {
+      id: 's-wed',
+      startedAt: '2026-11-11T02:23:00.000Z',
+      stage: 'capture' as const,
+      turns: [
+        turn({
+          at: '2026-11-11T02:23:00.000Z',
+          says: [{ text: 'Wednesday hello.', tone: 'normal' }],
+        }),
+        turn({
+          at: '2026-11-11T03:00:00.000Z',
+          says: [{ text: 'Wednesday later.', tone: 'normal' }],
+        }),
+      ],
+    }
+    const today = { ...surveyDay.session, startedAt: '2026-11-12T01:05:00.000Z' }
+    today.turns = [
+      turn({ at: '2026-11-12T01:05:00.000Z', says: [{ text: 'Thursday hello.', tone: 'normal' }] }),
+    ]
+    const view = (movedAt: string) =>
+      show(
+        thread({
+          stage: 'ready_for_generation',
+          stageDates: { ...surveyDay.stageDates, ready_for_generation: movedAt },
+          earlier: [earlierSession],
+          session: today,
+          replies: [],
+        }),
+      )
+    // Moved during Wednesday, before its last turn: marked there, not above Thursday's greeting.
+    view('2026-11-11T02:45:00.000Z')
+    await screen.findByText('Thursday hello.')
+    expect(screen.queryByText('Ready for generation', { selector: 'b' })).toBeNull()
+    cleanup()
+    // Moved after Wednesday's last turn: marked above Thursday's greeting.
+    view('2026-11-11T22:00:00.000Z')
+    expect(await screen.findByText('Ready for generation', { selector: 'b' })).toBeTruthy()
   })
 
   it('falls back to the says and cards for a broken program', async () => {

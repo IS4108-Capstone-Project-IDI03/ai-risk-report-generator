@@ -2,7 +2,8 @@
 // in the rail's order, each with a thin bar sized against the longest stage, its days and its
 // name. Finished stages are green, the current one navy, the ones not reached empty with a dash.
 // The gateway sends only the stages reached; the rest are filled in here (one jumped over shows
-// as passed in 0 days). Used by CardView.tsx.
+// as passed in 0 days). A stage the gateway marks skipped reads "Skipped", not "0d", so it isn't
+// mistaken for a same-day stage. Used by CardView.tsx.
 import { STAGE_LABEL } from '../../../assessments/format'
 import { STAGES, type Card } from '../../types'
 import { CardShell } from './CardShell'
@@ -27,24 +28,31 @@ export function StageTimeCard({ card }: { card: Extract<Card, { type: 'stage-tim
       <div className="mbt-time">
         <ol>
           {steps.map(({ label, jumped, span }) => (
-            <li key={label} data-now={span?.now || undefined} data-reached={!!span}>
+            <li
+              key={label}
+              data-now={span?.now || undefined}
+              data-reached={!!span}
+              data-skipped={span?.skipped || undefined}
+            >
               {/* The picture says nothing a screen reader needs; the sentence below does. */}
               <span className="mbt-time-bar" aria-hidden="true">
-                {span && !jumped && (
+                {span && !jumped && !span.skipped && (
                   <i style={{ width: `${Math.max(span.days / longest, 0.04) * 100}%` }} />
                 )}
               </span>
               <span className="mbt-time-days" aria-hidden="true">
-                {span ? `${span.days}d` : '–'}
+                {span ? (span.skipped ? 'Skipped' : `${span.days}d`) : '–'}
                 {span?.now && <em>Now</em>}
               </span>
               <span className="mbt-time-name" aria-hidden="true">
                 {label}
               </span>
               <span className="mbt-sr">
-                {span
-                  ? `${label}, ${days(span.days)}${span.now ? ', now' : ''}`
-                  : `${label}, not reached`}
+                {!span
+                  ? `${label}, not reached`
+                  : span.skipped
+                    ? `${label}, skipped`
+                    : `${label}, ${days(span.days)}${span.now ? ', now' : ''}`}
               </span>
             </li>
           ))}

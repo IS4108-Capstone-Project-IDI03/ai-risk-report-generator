@@ -879,10 +879,12 @@
 /* Small controls get a 44 px tap area on a phone or touch screen without growing: an invisible
    box centred on them (design system v2 tap target). */
 @media (max-width: 767px), (pointer: coarse) {
-  .mb-hit {
+  .mb-hit,
+  .mb-failed .ds-press {
     position: relative;
   }
-  .mb-hit::after {
+  .mb-hit::after,
+  .mb-failed .ds-press::after {
     content: '';
     position: absolute;
     inset: min(0px, calc(50% - 22px));
@@ -915,4 +917,33 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The rail reads as the journey: a finished stage shows the day it was finished (AS-06 round 8).
+   --------------------------------------------------------------------------------------------- */
+.mb-stage-date {
+  grid-column: 2;
+}
+/* The name and, on its right, the day. One line high and wrapping: a day that doesn't fit beside
+   a long name ("Ready for generation") wraps out of sight instead of cutting the name short. */
+.mb-stage-line {
+  grid-column: 2;
+  min-width: 0;
+  height: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 8px;
+  overflow: hidden;
+}
+.mb-stage-line .mb-stage-name {
+  max-width: 100%;
+}
+.mb-stage-day {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
