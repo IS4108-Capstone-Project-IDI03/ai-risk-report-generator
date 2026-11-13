@@ -1,6 +1,6 @@
 // One row of a card (AS-06 rules 3 and 4): a coloured tile with the row's icon, a 1-2 word name,
-// one short status (red when something failed), the engineer's own words when the row quotes a
-// note, and its RowEnd. A row that opens something opens from anywhere on it.
+// one short status (red when something failed), and its RowEnd. A row that opens something opens
+// from anywhere on it. A saved `quote` is not drawn (round 7).
 // Used by every card in this folder.
 import { useContext } from 'react'
 import { Icon } from '../../../../design-system'
@@ -31,12 +31,6 @@ export function CardRow({ row }: { row: Row }) {
       </span>
       <span className="mbt-row-text">
         <span className="mbt-row-title">{row.title}</span>
-        {/* Up to 2 lines; the title holds the whole note for a pointer. */}
-        {row.quote && (
-          <span className="mbt-row-quote" title={row.quote}>
-            {row.quote}
-          </span>
-        )}
         {row.detail && (
           <span className="mbt-row-detail" data-bad={row.bad || undefined}>
             {row.detail}
