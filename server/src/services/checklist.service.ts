@@ -464,7 +464,12 @@ export async function generateChecklist(
     previous ? await itemChecks(previous) : new Map<string, ItemCheckDto>(),
     draft.items.map(({ citations, ...item }) => ({
       ...item,
-      citations: citations.map((c) => ({ ref: c.ref, quote: c.quote, quoteFound: c.quote_found })),
+      citations: citations.map((c) => ({
+        ref: c.ref,
+        quote: c.quote,
+        quoteFound: c.quote_found,
+        ...(c.quote_described && { quoteDescribed: true }),
+      })),
     })),
   )
   const saved = await ChecklistModel.create({
@@ -615,16 +620,46 @@ export function quoteFound(quote: string, passage: string) {
 }
 
 // What a passage's quote is looked for in: its headings, then its text, as S4
-// shows a passage to the model (generator.quotable_text).
+// shows a passage to the model (generator.quotable_text). A picture's
+// generated description is the model's words, not the document's (KB-02).
 type StoredSource = {
   text: string
   doc_id?: string | null
   headings?: string[]
   page_start?: number | null
   page_end?: number | null
+  generated_text?: string
 }
+const described = (s: StoredSource) => s.generated_text === 'picture_description'
 const quotable = (s: StoredSource) =>
-  [...(s.headings ?? []).filter((h) => h.length <= 200), s.text].join('\n')
+  [
+    ...(s.headings ?? []).filter((h) => h.length <= 200),
+    described(s) ? withoutDescription(s.text) : s.text,
+  ].join('\n')
+
+// The text without its generated description, which runs to the printed-text
+// line or a blank line (S4 generator._without_description).
+function withoutDescription(text: string) {
+  let skipping = false
+  return text
+    .split('\n')
+    .filter((line) => {
+      if (line.startsWith('Image description (generated')) skipping = true
+      else if (skipping && (line.startsWith('Text in image:') || !line.trim())) skipping = false
+      return !skipping
+    })
+    .join('\n')
+}
+
+// Where a chosen quote is: in the passage's own words, only in a picture's
+// generated description (cited, never found), or nowhere (S4 quote_check).
+function quoteCheck(quote: string, source: StoredSource) {
+  if (quoteFound(quote, quotable(source))) return { quoteFound: true }
+  if (described(source) && quoteFound(quote, source.text)) {
+    return { quoteFound: false, quoteDescribed: true }
+  }
+  return { quoteFound: false }
+}
 
 // A passage's opening words, for a reference chosen without highlighting any:
 // its first sentence, or as many whole words as fit in 240 characters.
@@ -678,6 +713,7 @@ async function chosenCitations(
         headings: passage.headings,
         page_start: passage.pageStart,
         page_end: passage.pageEnd,
+        ...(passage.generated && { generated_text: 'picture_description' }),
       }
       added[ref] = source
     }
@@ -687,7 +723,7 @@ async function chosenCitations(
       )
     }
     const words = quote || openingWords(source.text)
-    citations.push({ ref, quote: words, quoteFound: quoteFound(words, quotable(source)) })
+    citations.push({ ref, quote: words, ...quoteCheck(words, source) })
   }
   const unique = citations.filter(
     (c, n) => citations.findIndex((d) => d.ref === c.ref && d.quote === c.quote) === n,

@@ -17,7 +17,6 @@ from pathlib import Path
 
 from app import config, usage
 from app import privacy as pii
-from app.chat.quotes import quote_found
 from app.generation import ask as asking
 from app.generation.checklist import (
     CHECKLIST,
@@ -40,7 +39,7 @@ from app.generation.generator import (
     draft_summary,
     filed_under,
     generate,
-    quotable_text,
+    quote_check,
     ram_priority,
 )
 from app.generation.llm import GenerationFailed, stream_text
@@ -700,7 +699,12 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
     given = {f"C:{p['id']}": p for p in passages}
     for item in drafted:
         item["citations"] = [
-            {**c, "quote_found": quote_found(c["quote"], quotable_text(given[c["ref"]]))}
+            {
+                **c,
+                "quote_found": (where := quote_check(c["quote"], given[c["ref"]])) == "found",
+                # Only in a picture's AI description (KB-02): cited, never "found".
+                "quote_described": where == "described",
+            }
             for c in item["citations"]
             if c["ref"] in given
         ]
@@ -1004,7 +1008,9 @@ def ask(
             "at": datetime.now(UTC).isoformat(),
         }
         finished(step)
-    unverified = sum(not c["verified"] for s in statements for c in s["citations"])
+    cited = [c for s in statements for c in s["citations"]]
+    unverified = sum(asking.not_found(c) for c in cited)
+    described = sum(bool(c.get("described")) for c in cited)
     yield {
         "type": "result",
         "value": {
@@ -1037,6 +1043,8 @@ def ask(
                     "kept": len(statements),
                     "dropped": dropped,
                     "unverified_citations": unverified,
+                    # Quotes only in a picture's AI description (KB-02), apart from the above.
+                    "described_citations": described,
                 },
                 "timings_ms": timings,
                 "privacy": protection.provenance(),

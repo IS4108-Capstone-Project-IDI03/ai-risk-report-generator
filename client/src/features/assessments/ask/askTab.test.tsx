@@ -341,6 +341,45 @@ describe('an answer (AC2, AC4, AC5)', () => {
     expect(within(inspector()).getByRole('tab', { name: 'Ask, 1' })).toBeInTheDocument()
   })
 
+  it("marks a source quoted from a picture's AI description, unless a quote of it was not found (KB-02)", async () => {
+    const figure = {
+      ref: 'C:fm25:4',
+      kind: 'standard',
+      quote: 'A valve with a chain',
+      verified: false,
+      described: true,
+    } as const
+    const described: AskAnswer = {
+      ...ANSWER,
+      id: 'q2',
+      question: 'Is the valve chained?',
+      statements: [{ text: 'The valve is chained.', citations: [figure] }],
+    }
+    const mixed: AskAnswer = {
+      ...described,
+      id: 'q3',
+      question: 'Is it locked?',
+      statements: [
+        { text: 'The valve is chained.', citations: [figure] },
+        {
+          text: 'It is locked.',
+          citations: [{ ...figure, quote: 'locked with a padlock', described: false }],
+        },
+      ],
+    }
+    gateway({ earlier: [described, mixed] })
+    const panel = await openAsk()
+
+    const chained = await within(panel).findByRole('article', {
+      name: 'Answer to: Is the valve chained?',
+    })
+    expect(within(chained).getByText('AI reading of figure')).toBeInTheDocument()
+    expect(within(chained).queryByText('Quote not found')).not.toBeInTheDocument()
+    const locked = within(panel).getByRole('article', { name: 'Answer to: Is it locked?' })
+    expect(within(locked).getByText('Quote not found')).toBeInTheDocument()
+    expect(within(locked).queryByText('AI reading of figure')).not.toBeInTheDocument()
+  })
+
   it('asks for a question before sending one', async () => {
     const asked = gateway()
     const panel = await openAsk()

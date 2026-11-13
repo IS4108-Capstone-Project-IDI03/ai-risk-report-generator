@@ -12,6 +12,10 @@ import numpy as np
 
 PRIVACY_SERVICE_URL = os.getenv("PRIVACY_SERVICE_URL", "http://localhost:8004")
 PRIVACY_TIMEOUT = float(os.getenv("PRIVACY_TIMEOUT", "10"))
+# /mask takes about 0.4 s per 1,000 characters, and ingestion sends a whole document (or a
+# label's 20 pages) in one call, so a flat 10 s fails anything over about 25,000 characters.
+# Each 1,000 characters adds this many seconds to PRIVACY_TIMEOUT: about twice the measured rate.
+PRIVACY_SECONDS_PER_1000_CHARS = float(os.getenv("PRIVACY_SECONDS_PER_1000_CHARS", "1"))
 
 # Copied from privacy-service/app/placeholders.py, as rag-service does (pure string work).
 TYPES = (
@@ -144,9 +148,11 @@ class Session:
         """privacy-service's answer to one request."""
         # Fail closed (Rule 3): on any failure the document fails; raw text is never the fallback.
         # The message names no value from the document (Rule 5), in rag-service's wording.
+        chars = sum(len(text) for text in payload.get("texts", []))
+        timeout = PRIVACY_TIMEOUT + chars / 1000 * PRIVACY_SECONDS_PER_1000_CHARS
         try:
             with _client() as client:
-                response = client.post(path, json=payload)
+                response = client.post(path, json=payload, timeout=timeout)
             response.raise_for_status()
         except httpx.TimeoutException as error:
             raise PrivacyUnavailable(

@@ -12,6 +12,8 @@ export type AskCitation = {
   quote: string | null
   // Whether the quoted words were found in the source.
   verified: boolean
+  // The words are only in a picture's AI description (KB-02); absent means false.
+  described?: boolean
 }
 export type AskStatement = { text: string; citations: AskCitation[] }
 export type Confidence = 'high' | 'medium' | 'low'

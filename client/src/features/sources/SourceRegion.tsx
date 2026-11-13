@@ -2,7 +2,7 @@
 // drawn by react-pdf like the chat's PDF tab and cut to the region's box, one frame per page.
 // Loaded lazily by PassageDetails, so pdf.js stays out of the first download. Shows nothing when
 // the file or a page can't be drawn: the passage text below still stands.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import type { PageBox } from '../chat/api'
 import { openPdfSource } from '../chat/components/pdfSource'
@@ -104,42 +104,59 @@ function withMargin(box: PageBox, page: Size | null): PageBox {
   }
 }
 
-/** One page drawn inside a frame the shape of its box, shifted so only the box shows. */
+/** The box cut out of the drawn page as an image, which the panel scales down to fit like any
+ * picture. The page is drawn out of sight, then let go once its box is copied. */
 function RegionFrame({ box: tight, name }: { box: PageBox; name: string }) {
   const [size, setSize] = useState<Size | null>(null)
+  const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const canvas = useRef<HTMLCanvasElement>(null)
   if (failed) return null
+  if (src) return <img className="src-region" src={src} alt={name} />
   const box = withMargin(tight, size)
   const width = box.r - box.l
-  const height = box.t - box.b
-  if (width <= 0 || height <= 0) return null
-  // PDF points run up from the page's bottom-left; the screen runs down from its top-left.
-  const placed = size && {
-    width: `${(size.width / width) * 100}%`,
-    left: `${(-box.l / width) * 100}%`,
-    top: `${(-(size.height - box.t) / height) * 100}%`,
-  }
+  if (width <= 0 || box.t - box.b <= 0) return null
   const pageWidth = Math.min(MAX_PAGE, size ? (REGION_WIDTH * size.width) / width : REGION_WIDTH)
+  const cut = (page: Size) => {
+    const drawn = canvas.current
+    const crop = drawn && cropOf(drawn, withMargin(tight, page), page)
+    if (crop) setSrc(crop)
+    else setFailed(true)
+  }
   return (
-    <div
-      role="img"
-      aria-label={name}
-      className="src-region"
-      style={{ aspectRatio: `${width} / ${height}` }}
-    >
-      <div className="src-region-page" style={placed ?? { visibility: 'hidden' }}>
-        <Page
-          pageNumber={box.page}
-          width={pageWidth}
-          suspense={false}
-          loading={null}
-          renderTextLayer={false}
-          renderAnnotationLayer={false}
-          onLoadSuccess={(p) => setSize({ width: p.originalWidth, height: p.originalHeight })}
-          onLoadError={() => setFailed(true)}
-          error=""
-        />
-      </div>
+    <div className="src-region-draw" aria-hidden="true">
+      <Page
+        pageNumber={box.page}
+        width={pageWidth}
+        canvasRef={canvas}
+        suspense={false}
+        loading={null}
+        renderTextLayer={false}
+        renderAnnotationLayer={false}
+        onLoadSuccess={(p) => setSize({ width: p.originalWidth, height: p.originalHeight })}
+        onLoadError={() => setFailed(true)}
+        onRenderSuccess={(p) => cut({ width: p.originalWidth, height: p.originalHeight })}
+        onRenderError={() => setFailed(true)}
+        error=""
+      />
     </div>
   )
+}
+
+/** The box's pixels from the drawn page, as a PNG data URL; null when the browser can't copy. */
+function cropOf(drawn: HTMLCanvasElement, box: PageBox, page: Size): string | null {
+  // Pixels per point: react-pdf draws the page at its width times the screen's pixel ratio.
+  const scale = drawn.width / page.width
+  // PDF points run up from the page's bottom-left; canvas pixels run down from its top-left.
+  const sx = box.l * scale
+  const sy = (page.height - box.t) * scale
+  const sw = (box.r - box.l) * scale
+  const sh = (box.t - box.b) * scale
+  const out = document.createElement('canvas')
+  out.width = Math.round(sw)
+  out.height = Math.round(sh)
+  const context = out.getContext('2d')
+  if (!context) return null
+  context.drawImage(drawn, sx, sy, sw, sh, 0, 0, sw, sh)
+  return out.toDataURL('image/png')
 }

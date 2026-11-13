@@ -406,13 +406,26 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   `Text in image:` line or the next blank line. A quote found only in a model's
   description is therefore never "found" in the document, in chat, the checklist or
   Ask. The caption, the printed text and the prose stay quotable.
+- **Three outcomes.** `quote_check(quote, passage)` (same file) returns `found`,
+  `described` (only in the description: a real citation of what the answer read) or
+  `missing`. Every check uses it. The boolean stays false for a described quote, and a
+  separate flag marks it: `described` on a chat or Ask citation, `quote_described` from
+  `/checklist/draft` (`quoteDescribed` in Mongo), absent meaning false. Chat's `meta`
+  line marks it on the `unverified` entry, `{label, quote, described: true}`. The
+  screens show a neutral "from the AI's reading of the figure" note, not "not found".
+  In Ask it counts against neither confidence nor `guardrail.passed`; the trace
+  counts it in `described_citations`. The gateway's check of a hand-chosen checklist
+  quote (`checklist.service.ts` `quoteCheck`) does the same, leaving out the
+  description as S4 does.
 - **Where it shows.** The chat's Passage tab and the review workspace's source panel
   draw the region above the passage text (`client/src/features/sources/`:
   `CitedRegion`, `SourceRegion`), with react-pdf as the PDF tab does (`pdfSetup.ts`).
   Review looks the passage up live by its chunk id only for the region; its text stays
-  as the draft was given it. The frame shows 8 points (`MARGIN`) more than the box on
-  each side, inside the page, since Docling's boxes sit tight on a table's top rule.
-  A region that can't be drawn shows nothing. The region is never sent to an AI model.
+  as the draft was given it. The page is drawn out of sight and the box copied out of
+  its canvas as an image, 8 points (`MARGIN`) more than the box on each side, inside
+  the page, since Docling's boxes sit tight on a table's top rule. The image scales
+  down to fit the panel, never wider than it and never taller than 24rem
+  (`sources.css`). A region that can't be drawn shows nothing. The region is never sent to an AI model.
 - **Formulas as math.** `PassageBody` renders the LaTeX the formula reader wrote
   (`$$…$$`, `\[…\]`, or a line with a command and no run of prose; words inside
   `\text{}` or `\mathrm{}` are not prose) with KaTeX, lazy-loaded. A formula the text
@@ -767,8 +780,9 @@ of date and to regenerate it.
    subsection (6) is put under it when the model leaves it out.
 5. Code checks the result. A citation of a passage not given is dropped; each
    quote is looked for in its passage, the headings shown with it and then its
-   text (`quote_found` over `quotable_text`, as chat does): a past report's
-   cover lines, for one, are headings only. An item
+   text (`quote_check`, as chat does): a past report's
+   cover lines, for one, are headings only. A quote only in a picture's AI
+   description is `quote_described` (KB-02). An item
    left with no citation is flagged `uncited`. A configured hazard with no item
    gets the config's own item, with origin `hazard_list` (written by the team,
    so not shown as AI-generated) and flagged `uncited`. Items are placed after their
@@ -811,7 +825,8 @@ from the item's own words, and opens a passage to read; the engineer may
 select the words the item rests on, else its first sentence is quoted. The
 gateway fetches a newly chosen passage from S4 (`GET /passages/{id}`), refuses
 one outside the checklist's standards or no longer applying to the site, looks
-for the quote in it as S4 does (`quoteFound`) and keeps the passage in the
+for the quote in it as S4 does (`quoteCheck`: `quoteFound`, or `quoteDescribed`
+for words only in a picture's AI description, KB-02) and keeps the passage in the
 checklist's `sources`, so the reference reads the same later and offline.
 
 **Passage search.** S4's `POST /passages/search` (`app/retrieval/keyword_search.py`)
@@ -1361,7 +1376,8 @@ S4 sends text as the model writes it; the chat screen paces it
 at an even rate, keeping the `meta` line whole). When the knowledge base lacks the
 answer, the reply is in the model's own words and the `meta` line carries a third
 argument, `Meta([...], [...], true)`, which shows the "Ask an admin" or "Add documents"
-button (CB-07). Errors and an empty question get a random friendly phrasing instead of
+button (CB-07). An `unverified` entry with `described: true` is a quote only in a
+picture's AI description (KB-02). Errors and an empty question get a random friendly phrasing instead of
 a fixed sentence; the technical reason stays in `chat_result.error`.
 
 ## Usage and Costs report (EV-04)

@@ -25,6 +25,9 @@ export interface IAnswerCitation {
   kind: 'observation' | 'standard' | 'report'
   quote: string | null
   verified: boolean
+  // The words are only in a picture's AI description (KB-02): cited, never
+  // found in the document. Absent on older answers, meaning false.
+  described?: boolean
 }
 
 export interface IAnswerStatement {
@@ -73,6 +76,7 @@ const citationSchema = new Schema<IAnswerCitation>(
     kind: { type: String, enum: ['observation', 'standard', 'report'], required: true },
     quote: { type: String, default: null },
     verified: { type: Boolean, required: true },
+    described: { type: Boolean },
   },
   { _id: false },
 )

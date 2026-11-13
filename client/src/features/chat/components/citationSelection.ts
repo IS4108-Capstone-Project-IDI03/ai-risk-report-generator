@@ -1,14 +1,14 @@
 // Which citation the engineer has opened in the source panel beside the chat (CB-01 AC1).
 // Set by CitationMarker; read by screens/KnowledgeAssistant.tsx, which shows CitationPanel.
 import { createContext } from 'react'
-import type { CitedSource } from './citationCheck'
+import type { CitationState, CitedSource } from './citationCheck'
 
 /** One opened citation: its number in the answer, passage label, quote and check result. */
 export type SelectedCitation = {
   number: number
   passage: string
   quote: string
-  state: 'checking' | 'verified' | 'unverified'
+  state: CitationState
   source?: CitedSource
 }
 

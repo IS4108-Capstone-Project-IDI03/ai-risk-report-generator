@@ -117,6 +117,8 @@ A past report names its client, the client's staff and their phone numbers. Its 
 
 **Fail closed.** If the gateway or privacy-service can't be reached at ingestion, the document fails with "Client details could not be protected because the privacy service or the gateway did not answer, so nothing was sent or indexed. Retry it later." Nothing is parsed or indexed.
 
+**How long ingestion waits for `/mask`.** Labelling and redaction each send a lot of text in one call, and `/mask` takes about 0.4 s per 1,000 characters (10 s for 40,000). A flat `PRIVACY_TIMEOUT` (10 s) failed any document over about 25,000 characters, so labelling left every detail Unconfirmed and redaction failed the document. Ingestion waits `PRIVACY_TIMEOUT` plus `PRIVACY_SECONDS_PER_1000_CHARS` (1 s) for every 1,000 characters sent: about twice the measured time.
+
 **Measured** on the three sample reports (43 to 60 pages) on a laptop with other apps using about half its CPU: redaction took 0.75 to 1.2 s a page, about half of it privacy-service's name model. The acceptance criterion is under 1 s a page; measure again on EC2, where nothing else competes.
 
 ### Scanned pages, pictures and the safety net (PV-06)

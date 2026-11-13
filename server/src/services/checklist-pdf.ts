@@ -117,7 +117,10 @@ function references(checklist: ChecklistDto, item: Item) {
       `<li>${escape(referenceName(checklist, sources[c.ref]))}: <span class="quote">“${escape(c.quote)}”</span>` +
       (c.quoteFound
         ? ''
-        : ' <span class="warn">(not word for word in the passage: verify before use)</span>') +
+        : c.quoteDescribed
+          ? // Only in a picture's AI description (KB-02): cited, never found.
+            ` <span class="note">(from the AI's reading of the figure: check the figure)</span>`
+          : ' <span class="warn">(not word for word in the passage: verify before use)</span>') +
       '</li>',
   )
   return `<ul class="refs">${rows.join('')}</ul>`

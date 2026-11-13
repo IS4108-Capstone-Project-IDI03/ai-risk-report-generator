@@ -2,7 +2,7 @@ import { SourcePanel } from './components/SourcePanel'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import * as React from 'react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { ReviewWorkspace as ReviewWorkspaceScreen } from './screens/ReviewWorkspace'
@@ -18,7 +18,8 @@ import type {
 } from './api'
 
 // jsdom can't run pdf.js: a cited region's page (KB-02) is drawn by this stand-in, which reports
-// a 600 x 800 page as react-pdf does.
+// a 600 x 800 page drawn at once, as react-pdf does. jsdom can't draw on a canvas either, so the
+// region's crop is stubbed in its tests.
 vi.mock('react-pdf', () => ({
   pdfjs: { GlobalWorkerOptions: {} },
   Document: (props: { file: { range: { url: string } }; children: React.ReactNode }) => (
@@ -28,13 +29,21 @@ vi.mock('react-pdf', () => ({
   ),
   Page: (props: {
     pageNumber: number
+    width: number
+    canvasRef?: React.Ref<HTMLCanvasElement>
     onLoadSuccess?: (p: { originalWidth: number; originalHeight: number }) => void
+    onRenderSuccess?: (p: { originalWidth: number; originalHeight: number }) => void
   }) => {
     React.useEffect(() => {
       props.onLoadSuccess?.({ originalWidth: 600, originalHeight: 800 })
+      props.onRenderSuccess?.({ originalWidth: 600, originalHeight: 800 })
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.pageNumber])
-    return <div data-testid="pdf-page" data-page={props.pageNumber} />
+    return (
+      <div data-testid="pdf-page" data-page={props.pageNumber}>
+        <canvas ref={props.canvasRef} width={props.width * 2} />
+      </div>
+    )
   },
 }))
 // The byte-range loader (tested in chat/components/pdfSource.test.ts) stands in as the file's URL.
@@ -1139,6 +1148,18 @@ describe('Source region in review (KB-02)', () => {
       style={{}}
     />
   )
+  beforeEach(() => {
+    const context = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+    const toDataURL = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/png;base64,AA')
+    return () => {
+      context.mockRestore()
+      toDataURL.mockRestore()
+    }
+  })
   // The gateway's passage lookup (chat/api fetchPassage) answers with the live passage.
   const livePassage = (answer: () => Promise<Response>) =>
     vi.stubGlobal('fetch', (url: string) =>

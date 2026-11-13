@@ -43,14 +43,14 @@ REPORT = {
 }
 
 
-def run(monkeypatch, lines, request=REQUEST, scores=None, fail_at=None):
+def run(monkeypatch, lines, request=REQUEST, scores=None, fail_at=None, standard=STANDARD):
     """Asks through the route; returns the events and what search, rerank and the model got."""
     sent = {"search": [], "rerank": [], "prompts": [], "stream": []}
 
     def search(requests, protection=None):
         sent["search"].extend(requests)
         return [
-            [REPORT] if f.get("source_type") == "marsh_report" else [STANDARD]
+            [REPORT] if f.get("source_type") == "marsh_report" else [standard]
             for _, f, _ in requests
         ]
 
@@ -116,6 +116,7 @@ def test_an_answer_streams_cited_statements_and_ends_with_one_trace(monkeypatch)
             "kind": "standard",
             "quote": "supervised in the open position",
             "verified": True,
+            "described": False,
         }
     ]
     assert set(result["sources"]) == {"O:obs1", "C:fm25:4"}
@@ -250,6 +251,35 @@ def test_a_quote_not_in_its_passage_is_marked_unverified(monkeypatch):
     assert statement["citations"][0]["verified"] is False
     assert result["confidence"] == "low"
     assert result["trace"]["guardrail"]["unverified_citations"] == 1
+
+
+def test_a_quote_from_a_pictures_ai_description_is_described_and_does_not_lower_confidence(
+    monkeypatch,
+):
+    # KB-02: a real citation of what the model read, never "found" in the document, and not
+    # counted against the answer as a quote not found (it stays visible in the trace).
+    figure = {
+        **STANDARD,
+        "text": (
+            "Figure 3. Valve\n"
+            "Image description (generated, photograph): A valve with a chain and padlock.\n"
+            "Text in image: OPEN"
+        ),
+        "metadata": {**STANDARD["metadata"], "generated_text": "picture_description"},
+    }
+    events, _ = run(
+        monkeypatch,
+        ['The valve is chained [C1 "A valve with a chain and padlock"].'],
+        standard=figure,
+    )
+
+    result = result_of(events)
+    [citation] = result["statements"][0]["citations"]
+    assert (citation["verified"], citation["described"]) == (False, True)
+    assert result["confidence"] == "high"
+    guardrail = result["trace"]["guardrail"]
+    assert (guardrail["passed"], guardrail["unverified_citations"]) == (True, 0)
+    assert guardrail["described_citations"] == 1
 
 
 def test_no_client_detail_reaches_cohere_or_the_model(monkeypatch, fake_privacy):

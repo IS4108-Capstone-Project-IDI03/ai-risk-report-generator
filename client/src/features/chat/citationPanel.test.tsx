@@ -68,20 +68,35 @@ vi.mock('react-pdf', () => ({
     suspense?: boolean
     loading?: React.ReactNode
     onLoadSuccess?: (p: object) => void
+    onRenderSuccess?: (p: object) => void
+    canvasRef?: React.Ref<HTMLCanvasElement>
   }) => {
     pdf.suspense.push(props.suspense)
     pdf.pageLoading = props.loading
     if (pdf.crash) throw new Error('getOrInsertComputed is not a function')
+    const page = { pageNumber: props.pageNumber, originalWidth: 600, originalHeight: 800 }
     // Called when a page has loaded, as react-pdf does.
     React.useEffect(() => {
-      props.onLoadSuccess?.({
-        pageNumber: props.pageNumber,
-        originalWidth: 600,
-        originalHeight: 800,
-      })
+      props.onLoadSuccess?.(page)
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.pageNumber])
-    return <div data-testid="pdf-page" data-page={props.pageNumber} data-width={props.width} />
+    // A page drawn for its pixels (a cited region) is drawn at once, at a device pixel ratio of 2.
+    React.useEffect(() => {
+      if (props.canvasRef) props.onRenderSuccess?.(page)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.pageNumber, props.width])
+    return (
+      <div data-testid="pdf-page" data-page={props.pageNumber} data-width={props.width}>
+        {props.canvasRef && (
+          <canvas
+            ref={props.canvasRef}
+            data-page={props.pageNumber}
+            width={Math.round(props.width * 2)}
+            height={Math.round(((props.width * 800) / 600) * 2)}
+          />
+        )}
+      </div>
+    )
   },
 }))
 vi.mock('./api', () => ({ fetchPassage: vi.fn() }))
@@ -319,6 +334,30 @@ describe('Source region', () => {
     region: { kind: 'table', boxes: [{ page: 4, l: 60, t: 700, r: 360, b: 500 }] },
   }
 
+  // jsdom has no canvas drawing: the crop is recorded instead of drawn.
+  const drawImage = vi.fn()
+  beforeEach(() => {
+    drawImage.mockClear()
+    const context = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+    const toDataURL = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValue('data:image/png;base64,AA')
+    return () => {
+      context.mockRestore()
+      toDataURL.mockRestore()
+    }
+  })
+
+  /** The part of page `page` cut out for the region, in PDF points from the page's top-left. */
+  const cutFrom = (page: number) => {
+    const call = drawImage.mock.calls.find(([source]) => source.dataset.page === String(page))!
+    const [source, sx, sy, sw, sh] = call as [HTMLCanvasElement, number, number, number, number]
+    const scale = source.width / 600
+    return { left: sx / scale, top: sy / scale, width: sw / scale, height: sh / scale }
+  }
+
   it('shows the region of the original page above the passage text', async () => {
     vi.mocked(fetchPassage).mockResolvedValue(TABLE)
     renderPanel(cited({ quote: 'gpm: 250' }))
@@ -326,27 +365,26 @@ describe('Source region', () => {
     const region = await within(panel).findByRole('img', {
       name: 'Table on page 4 of the original',
     })
-    expect(within(region).getByTestId('pdf-page')).toHaveAttribute('data-page', '4')
+    expect(region).toHaveAttribute('src', 'data:image/png;base64,AA')
     expect(within(panel).getByTestId('pdf-document')).toHaveAttribute('data-file', '/f/d1')
+    expect(cutFrom(4)).toBeTruthy()
     // Above the text it was read into.
     const text = within(panel).getByLabelText('Passage text')
     expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  // Docling's boxes sit tight on a table's top rule and header, so the frame keeps a margin.
+  // Docling's boxes sit tight on a table's top rule and header, so the cut keeps a margin.
   it("cuts the page to the region's box, with a margin of 8 points", async () => {
     vi.mocked(fetchPassage).mockResolvedValue(TABLE)
     renderPanel(cited())
-    const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
-    const page = within(region).getByTestId('pdf-page').parentElement!
-    await waitFor(() => expect(page.style.width).not.toBe(''))
+    await screen.findByRole('img', { name: 'Table on page 4 of the original' })
     // 600 x 800 page; box l60 t700 r360 b500 (bottom-left origin), 8 points out on each side:
-    // l52 t708 r368 b492, 316 x 216 points.
-    expect(region.style.aspectRatio).toBe('316 / 216')
-    expect(parseFloat(page.style.width)).toBeCloseTo((600 / 316) * 100)
-    expect(parseFloat(page.style.left)).toBeCloseTo((-52 / 316) * 100)
-    // Its top edge is 800 - 708 = 92 points below the page's top.
-    expect(parseFloat(page.style.top)).toBeCloseTo((-92 / 216) * 100)
+    // l52 t708 r368 b492, 316 x 216 points, its top 800 - 708 = 92 points below the page's top.
+    const cut = cutFrom(4)
+    expect(cut.left).toBeCloseTo(52)
+    expect(cut.top).toBeCloseTo(92)
+    expect(cut.width).toBeCloseTo(316)
+    expect(cut.height).toBeCloseTo(216)
   })
 
   it('keeps the margin inside the page', async () => {
@@ -355,13 +393,13 @@ describe('Source region', () => {
       region: { kind: 'table', boxes: [{ page: 4, l: 0, t: 800, r: 300, b: 600 }] },
     })
     renderPanel(cited())
-    const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
-    const page = within(region).getByTestId('pdf-page').parentElement!
-    await waitFor(() => expect(page.style.width).not.toBe(''))
+    await screen.findByRole('img', { name: 'Table on page 4 of the original' })
     // l0 t800 r308 b592: nothing above the page's top or left of its edge.
-    expect(region.style.aspectRatio).toBe('308 / 208')
-    expect(parseFloat(page.style.left)).toBeCloseTo(0)
-    expect(parseFloat(page.style.top)).toBeCloseTo(0)
+    const cut = cutFrom(4)
+    expect(cut.left).toBeCloseTo(0)
+    expect(cut.top).toBeCloseTo(0)
+    expect(cut.width).toBeCloseTo(308)
+    expect(cut.height).toBeCloseTo(208)
   })
 
   it("says a picture's description was written by AI, under the picture", async () => {
@@ -375,6 +413,25 @@ describe('Source region', () => {
     const picture = await screen.findByRole('img', { name: 'Picture on page 2 of the original' })
     const note = screen.getByText(/description was written by AI/)
     expect(picture.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("says a quote from a picture's AI description is from the AI's reading, not that it wasn't found (KB-02)", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      text: 'Figure 3\nImage description (generated, chart): Major Capital shows 0.',
+      generated: true,
+    })
+    renderPanel(cited({ state: 'described', quote: 'Major Capital shows 0' }))
+    const panel = screen.getByRole('complementary')
+    expect(panel).toHaveTextContent(
+      "From the AI's reading of the figure on pages 50–52, not the document's printed text. Check the figure.",
+    )
+    expect(panel).not.toHaveTextContent('Not found')
+    expect(panel).not.toHaveTextContent('Found on')
+    // The words are still shown where the answer read them, in the description.
+    await waitFor(() =>
+      expect(panel.querySelector('mark')).toHaveTextContent('Major Capital shows 0'),
+    )
   })
 
   it('shows one frame per page, in page order', async () => {
@@ -391,12 +448,12 @@ describe('Source region', () => {
     })
     renderPanel(cited())
     const frames = await screen.findAllByRole('img', { name: /^Table on page/ })
-    expect(frames.map((f) => f.getAttribute('aria-label'))).toEqual([
+    expect(frames.map((f) => f.getAttribute('alt'))).toEqual([
       'Table on page 4 of the original',
       'Table on page 5 of the original',
     ])
     // Page 4's two boxes as one, t500 down to b100, with its margin.
-    expect(frames[0].style.aspectRatio).toBe('316 / 416')
+    expect(cutFrom(4).height).toBeCloseTo(416)
   })
 
   it('shows only the text when the passage records no region', async () => {

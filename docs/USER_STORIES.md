@@ -293,6 +293,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a cited picture has a generated description, when its source opens, then the description is shown below the picture, labelled as generated.
   7. Given a quote is found only in a picture's generated description, when its citation is checked, then it is not shown as found in the document.
   8. Given a cited region is shown, when the AI answers a question or drafts a section, then no image of it is sent to the AI.
+  9. Given a quote is found only in a picture's generated description, when its citation is shown in the chat, the checklist (on screen and in its PDF) or an Ask answer, then it is marked as from the AI's reading of the figure, not as not found, and in Ask it does not lower the answer's confidence.
   </details>
 
 ## E4 — Retrieval & Context Management

@@ -326,6 +326,38 @@ describe('asking (AC2, AC3, AC6)', () => {
     expect(sent.mock.calls[0][0].standard_ids).toEqual([String(applies._id)])
   })
 
+  it("keeps a quote from a picture's AI description marked as described (KB-02)", async () => {
+    const { valve } = await seedAssessment()
+    const figure = {
+      text: 'The valve is chained.',
+      citations: [
+        {
+          ref: 'C:fm:4',
+          kind: 'standard',
+          quote: 'A valve with a chain',
+          verified: false,
+          described: true,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      async () => new Response(answer(String(valve._id), { statements: [figure] })),
+    )
+    await asEngineer.post(base).send({ question: 'Is the valve chained?' })
+
+    const res = await asEngineer.get(base)
+    expect(res.body.questions[0].statements[0].citations).toEqual([
+      {
+        ref: 'C:fm:4',
+        kind: 'standard',
+        quote: 'A valve with a chain',
+        verified: false,
+        described: true,
+      },
+    ])
+  })
+
   it("lets a knowledge admin ask, and lists only the asker's own questions", async () => {
     const { valve } = await seedAssessment()
     vi.stubGlobal('fetch', async () => new Response(answer(String(valve._id))))
