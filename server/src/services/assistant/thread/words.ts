@@ -102,7 +102,8 @@ export function greetingWords(ctx: TopicCtx, last: StoredSession | null): string
 const LABELS: Record<Reply['id'], string> = {
   'nothing-more': 'Nothing more to add',
   'ready-to-generate': "That's everything",
-  'another-visit': 'I need another visit',
+  'another-visit': 'Another visit',
+  'add-observations': 'Add observations',
   'export-again': 'Export again',
   'not-now': 'Not now',
   skip: 'Skip for now',
@@ -110,31 +111,30 @@ const LABELS: Record<Reply['id'], string> = {
   'generate-anyway': 'Generate anyway',
 }
 
-/** Returns the engineer's reply as their bubble says it ("I need another visit on Fri 20 Nov"). */
+/** Returns the engineer's reply as their bubble says it ("Another visit on Fri 20 Nov", as the button). */
 export function replyLabel(reply: Reply['id'], date?: string): string {
-  return reply === 'another-visit' && date
-    ? `I need another visit on ${weekdayDay(date)}`
-    : LABELS[reply]
+  return reply === 'another-visit' && date ? `Another visit on ${weekdayDay(date)}` : LABELS[reply]
 }
 
-/** Returns a reply as the tray offers it. */
+/** Returns a reply as the choices offer it. */
 export const offer = (id: Reply['id'], primary = true): Reply => ({
   id,
   label: LABELS[id],
   primary,
   picksDate: id === 'another-visit',
+  link: null,
 })
 
 /**
  * Returns MarshBot's answer to a reply, and whether it is the green
  * acknowledgement; null when the next topic answers it ('what-else', 'generate-anyway').
- * `left` is how many skipped tasks stay open.
+ * `left` names the skipped tasks that stay open.
  */
 export function answerWords(
   ctx: TopicCtx,
   reply: Reply['id'],
   date: string | undefined,
-  left: number,
+  left: string[],
 ): { text: string; good: boolean } | null {
   const site = ctx.facts.site
   switch (reply) {
@@ -147,11 +147,20 @@ export function answerWords(
         text: `Done! The survey now ends on ${shortDay(date ?? ctx.today)}, and ${site} stays in the Capture stage until then. I'll hold the gaps until you're back from site. Add whatever you gather on the day.`,
         good: true,
       }
-    case 'skip':
+    case 'skip': {
+      // Names what stays (1 or 2 places), else counts it (round 7, item 10). The verb and the
+      // count follow the names printed, so two tasks with one title read "it's" (review #18);
+      // a task with no title ('') is counted, never printed as an empty name (review #30).
+      const names = [...new Set(left.filter(Boolean))]
+      const n = names.length || left.length
+      const what = names.length && names.length <= 2 ? andList(names) : `Those ${n}`
       return {
-        text: `No problem. ${left === 1 ? "That 1 will stay here until it's done." : `Those ${left} will stay here until they're done.`}`,
+        text: n
+          ? `No problem. ${what} will stay in To Do until ${names.length === 1 ? "it's" : "they're"} done.`
+          : 'No problem.',
         good: false,
       }
+    }
     case 'export-again':
       return { text: 'Sure! The newer version is ready to go from the Export tab.', good: false }
     case 'not-now':

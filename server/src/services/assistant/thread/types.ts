@@ -47,6 +47,8 @@ export type Built = {
   replies?: Reply[] // a question's own replies
   // The question itself, posted as its own bubble after the cards (S1, S8).
   after?: Say[]
+  // The says and cards in the order drawn, when a bubble sits between cards; default says then cards.
+  order?: ('say' | 'card')[]
   mood: Mood
   status: Status // the rail's pill while MarshBot waits on this topic
 }

@@ -1,11 +1,11 @@
 // When MarshBot starts a new session, and what a topic builder reads (AS-06
 // round 5). A session is one day of work, or a stage that moved on after a
 // pause. Called by advance.ts and view.ts.
-import type { StoredSession } from '../../../models/assistant-thread.model'
+import type { StoredSession, StoredTurn } from '../../../models/assistant-thread.model'
 import { dayOf } from '../dates'
 import { firstName } from '../phrases'
 import { ASSISTANT } from '../settings'
-import type { Card, Stage } from '../types'
+import type { Card, Say, Stage } from '../types'
 import type { ThreadBrief, ThreadViewer, TopicCtx } from './types'
 
 /**
@@ -56,3 +56,31 @@ export function topicCtx(
 /** Returns the cards with the turn's id in front of their local ids, so a rebuilt card keeps its id. */
 export const withIds = (turnId: string, cards: Card[]): Card[] =>
   cards.map((c) => ({ ...c, id: `${turnId}-${c.id}` }))
+
+/** Returns the turn's says and cards in the order they are drawn (its `order`, else says then cards). */
+export function partsOf(
+  turn: StoredTurn,
+): ({ type: 'say'; say: Say } | { type: 'card'; card: Card })[] {
+  const order = turn.order ?? [...turn.says.map(() => 'say'), ...turn.cards.map(() => 'card')]
+  let say = 0
+  let card = 0
+  return order.map((kind) =>
+    kind === 'say'
+      ? { type: 'say', say: turn.says[say++] }
+      : { type: 'card', card: turn.cards[card++] },
+  )
+}
+
+/**
+ * Returns the turn as an OpenUI program in its own words and order. Set on a
+ * turn whose words sit between its cards: without it, a turn the wording AI
+ * didn't word would draw every bubble before every card (the browser's fallback).
+ */
+export function programOf(turn: StoredTurn): string {
+  const lines = partsOf(turn).map((p, n) =>
+    p.type === 'say'
+      ? `p${n} = Say(${JSON.stringify(p.say.text)}${p.say.tone === 'good' ? ', "good"' : ''})`
+      : `p${n} = Card(${JSON.stringify(p.card.id)})`,
+  )
+  return [`root = Reply([${lines.map((_, n) => `p${n}`).join(', ')}])`, ...lines].join('\n')
+}

@@ -7,7 +7,7 @@ import type { StoredSession, StoredTurn } from '../../../models/assistant-thread
 import { dayOf } from '../dates'
 import { ASSISTANT } from '../settings'
 import type { Card, CardRow, Mood, Reply } from '../types'
-import { needsNewSession, newSession, topicCtx, withIds } from './session'
+import { needsNewSession, newSession, programOf, topicCtx, withIds } from './session'
 import { ackWords, isTask, liveOf, sorryWords, tasksLeft, todoTopic } from './tasks'
 import { coverageFailedTopic } from './topics-capture'
 import { DEFS, STAGE_TOPICS } from './topics'
@@ -37,7 +37,7 @@ function nextTopic(ctx: TopicCtx): { key: string; built: Built | 'wait' } | null
 }
 
 /**
- * Returns the replies the tray offers now: Skip while a tasks topic has open
+ * Returns the choices offered now: Skip while a tasks topic has open
  * rows, a question's own replies, and "What else?" only when another topic waits.
  */
 export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Reply[] {
@@ -45,7 +45,17 @@ export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Re
   // A failed coverage check is said once with nothing to press (P2): the result comes as its own turn.
   if (!w?.turnId || w.topic === 'gaps-failed') return []
   if (w.kind === 'tasks') return tasksLeft(ctx, w.items) ? [offer('skip')] : []
-  if (w.kind === 'question') return w.replies
+  // A question saved before round 7 may still hold "Not now" and no links: the one is dropped,
+  // and its "Export again" opens Export as today's does. Without that, the browser posted it and
+  // the stale-export reminder was settled without Export ever opening (review #6).
+  if (w.kind === 'question')
+    return w.replies
+      .filter((r) => r.id !== 'not-now')
+      .map((r) =>
+        r.id === 'export-again' && !r.link
+          ? { ...r, label: 'Export Again', link: { tab: 'export' as const } }
+          : { ...r, link: r.link ?? null },
+      )
   return nextTopic(ctx) ? [offer('what-else')] : []
 }
 
@@ -114,7 +124,9 @@ export function advance(
       cards: withIds(id, built.cards ?? []),
       program: null,
       ...(built.items ? { items: built.items } : {}),
+      ...(built.order ? { order: built.order } : {}),
     }
+    if (turn.order) turn.program = programOf(turn)
     s.turns.push(turn)
     added.push(turn)
     return turn
@@ -134,7 +146,7 @@ export function advance(
         ? [{ ...built.says[0], text: `${lead} ${built.says[0].text}` }, ...built.says.slice(1)]
         : built.says
     const main = post('bot', key, built.mood, { ...built, says })
-    // A question asked after the cards is its own bubble, and the one the tray answers.
+    // A question asked after the cards is its own bubble, and the one the choices answer.
     const turn = built.after?.length
       ? post('bot', 'question', built.mood, { says: built.after })
       : main
@@ -238,7 +250,7 @@ export function advance(
       DEFS[w.topic] &&
       (w.kind === 'question') !== (live?.kind === 'question')
     ) {
-      // The pill and the tray follow the turn that waits: a question nothing asks any more
+      // The pill and the choices follow the turn that waits: a question nothing asks any more
       // (every blocker cleared) gives way to the next topic, and a topic that now has a
       // question (a section edited after the export) is raised again with it.
       s.said = s.said.filter((k) => k !== w.topic)
@@ -267,7 +279,15 @@ export function advance(
   function reply(id: Reply['id'], date?: string) {
     const s = session!
     const w = s.waiting
-    const left = w?.kind === 'tasks' ? tasksLeft(ctx(), w.items) : 0
+    // The skipped tasks still open, by title, for "<title> will stay in To Do"; '' when its
+    // item has gone, so it is counted but never printed as an empty name (review #30).
+    const left =
+      w?.kind === 'tasks'
+        ? w.items.flatMap((i) => {
+            const live = liveOf(ctx(), i)
+            return live.state !== 'done' ? [live.item?.title ?? ''] : []
+          })
+        : []
     post('engineer', 'reply', 'idle', { says: [{ text: replyLabel(id, date), tone: 'normal' }] })
     s.waiting = null
     if (id === 'what-else') return raiseNext('Sure!')

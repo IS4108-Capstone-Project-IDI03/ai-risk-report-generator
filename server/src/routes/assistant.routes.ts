@@ -37,7 +37,9 @@ function refuse(error: unknown, res: Response) {
             ? 400
             : null
   if (!status || !(error instanceof Error)) throw error
-  res.status(status).json({ error: error.message })
+  // The code tells "already answered" apart from archived (both 409): the browser re-reads quietly only on it.
+  const code = error instanceof ReplyNotAskedError ? { code: 'reply-not-asked' } : {}
+  res.status(status).json({ error: error.message, ...code })
 }
 
 // The conversation as the caller sees it (AC 1, AC 11).
@@ -49,7 +51,7 @@ router.get('/', requirePermission('assessments:view'), async (req, res) => {
   }
 })
 
-// A reply: `{ replyId, date? }`. 200 with the conversation after it.
+// A reply: `{ replyId, date?, lastTurnId? }`. 200 with the conversation after it.
 router.post('/replies', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = replySchema.safeParse(req.body)
   if (!parsed.success) {

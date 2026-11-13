@@ -1,4 +1,4 @@
-// MarshBot's replies (AS-06 AC 4, AC 5, round 5): what each tray button
+// MarshBot's replies (AS-06 AC 4, AC 5, round 5): what each choice
 // changes, then the engineer's bubble and MarshBot's answer added to the
 // conversation. Called by routes/assistant.routes.ts. Calls brief.service.ts,
 // recheck.service.ts and thread.service.ts.
@@ -40,11 +40,15 @@ export const replySchema = z.object({
     'generate-anyway',
   ]),
   date: z.iso.date('Pick a valid day (YYYY-MM-DD).').optional(),
+  // The id of the newest turn the engineer saw when they pressed it.
+  lastTurnId: z.string().max(100).optional(),
 })
 
 /**
  * Applies a reply (POST .../assistant/replies) and returns the conversation
- * after it. Only a reply the tray offers now is taken. Throws
+ * after it. Only a reply offered now is taken, and, when `lastTurnId` is
+ * sent, only while that turn is in this session with no engineer turn after it
+ * (a repeat is refused). Throws
  * NotAssignedError, AssessmentArchivedError, ReplyNotAskedError, InvalidReplyError.
  */
 export async function postReply(
@@ -60,6 +64,17 @@ export async function postReply(
       // Checked and applied while the thread is held, so two presses can't both land.
       prepare: async (offered, loaded) => {
         if (!offered.some((r) => r.id === input.replyId)) throw new ReplyNotAskedError()
+        // Without this, a second press of "What else?" (a double click, another tab) that is
+        // offered again for the next topic would post a second bubble and skip a topic. Only an
+        // engineer turn after the one seen refuses it: a turn MarshBot added by itself (a "sorry")
+        // leaves the question standing, and refusing then dropped a real press (review #46).
+        const turns = loaded.thread.session?.turns ?? []
+        const seen = turns.findIndex((t) => t.id === input.lastTurnId)
+        if (
+          input.lastTurnId &&
+          (seen < 0 || turns.slice(seen + 1).some((t) => t.who === 'engineer'))
+        )
+          throw new ReplyNotAskedError()
         if (await applyReply(assessment._id, user, input.replyId, input.date, loaded))
           return (await freshBrief(reference)) as unknown as ThreadBrief
         return loaded.brief
