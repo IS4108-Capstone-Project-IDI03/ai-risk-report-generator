@@ -13,13 +13,15 @@ export async function getThread(reference: string, signal?: AbortSignal): Promis
   return (await request<AssistantThread>('GET', assistantPath(reference), undefined, signal)).data
 }
 
-/** Returns the thread after the engineer's reply (with the picked day for another visit). */
+/** Returns the thread after the engineer's reply (with the picked day for another visit).
+    `lastTurnId` is the newest turn on screen: a reply pressed again elsewhere is refused (409). */
 export async function sendReply(
   reference: string,
   replyId: Reply['id'],
   date?: string,
+  lastTurnId?: string,
 ): Promise<AssistantThread> {
-  const body = date ? { replyId, date } : { replyId }
+  const body = { replyId, ...(date && { date }), ...(lastTurnId && { lastTurnId }) }
   return (await request<AssistantThread>('POST', `${assistantPath(reference)}/replies`, body)).data
 }
 

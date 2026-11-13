@@ -29,6 +29,8 @@ export function BotTurn({
       tabIndex={-1}
       data-fresh={fresh || undefined}
       data-grouped={!faced || undefined}
+      // Named: the face drops by the name's height, level with the first bubble (thread.css).
+      data-named={named || undefined}
     >
       <span className="mbt-face mbt-in" style={{ '--i': 0 } as CSSProperties}>
         {faced && <MarshBotFace mood={mood} decorative />}

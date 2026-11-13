@@ -25,7 +25,7 @@ export type ThreadState = {
   // Reads the thread again after a failed first read.
   retry: () => void
   // Sends a reply and puts the answer on screen; resolves that thread, or null when the gateway
-  // refused it (a toast says so).
+  // refused it (a toast says so, except for a reply no longer asked: answered elsewhere).
   reply: (replyId: Reply['id'], date?: string) => Promise<AssistantThread | null>
 }
 
@@ -131,11 +131,17 @@ export function useThread(reference: string): ThreadState {
   const reply = async (replyId: Reply['id'], date?: string) => {
     const ticket = ++issued.current
     try {
-      const next = await sendReply(reference, replyId, date)
+      const next = await sendReply(reference, replyId, date, thread?.session.turns.at(-1)?.id)
       if (!isThread(next)) throw new Error('MarshBot didn’t get that. Try again.')
       take(next, ticket)
       return next
     } catch (error: unknown) {
+      // The conversation moved on (answered in another tab): show it, no error. Any other refusal,
+      // such as a 409 for an archived assessment, says why in a toast.
+      if (error instanceof GatewayError && error.detail.code === 'reply-not-asked') {
+        refresh()
+        return null
+      }
       toast.error(error instanceof Error ? error.message : 'MarshBot didn’t get that. Try again.')
       return null
     }

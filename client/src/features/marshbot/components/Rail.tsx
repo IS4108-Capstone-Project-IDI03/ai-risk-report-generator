@@ -1,4 +1,4 @@
-// MarshBot's rail beside the thread (AS-06 canvas P6, 284 px): MarshBot's face, its name with the
+// MarshBot's rail beside the thread (AS-06 canvas P6, 248 px since round 7): MarshBot's face, its name with the
 // status pill under it, the eight stages packed, "At a Glance" in the height left, and the client
 // card pinned at the foot. It never scrolls. Called by screens/MarshBotOverview.tsx above 767 px.
 import type { AssistantThread } from '../types'

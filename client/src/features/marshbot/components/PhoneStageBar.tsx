@@ -1,5 +1,5 @@
 // The rail folded into one tappable bar on a phone (AS-06 board 11): MarshBot's face, "Capture ·
-// stage 3 of 8", a segmented bar, MarshBot's status pill with the survey and due dates, and a
+// Stage 3 of 8", a segmented bar, MarshBot's status pill with the survey and due dates, and a
 // chevron that opens Details. Called by screens/MarshBotOverview.tsx under 768 px.
 import { Icon } from '../../../design-system'
 import { STAGE_LABEL } from '../../assessments/format'
@@ -23,7 +23,7 @@ export function PhoneStageBar({ thread, onOpen }: { thread: AssistantThread; onO
       <span className="mb-phonebar-main">
         <span className="mb-phonebar-stage">
           <b>{STAGE_LABEL[thread.stage]}</b>
-          {` · stage ${now + 1} of ${STAGES.length}`}
+          {` · Stage ${now + 1} of ${STAGES.length}`}
         </span>
         <span className="mb-phonebar-segs" aria-hidden="true">
           {STAGES.map((s, i) => (
@@ -35,7 +35,8 @@ export function PhoneStageBar({ thread, onOpen }: { thread: AssistantThread; onO
           {survey && (
             <span data-tone={surveyTone ?? undefined}>
               <Icon name={surveyTone ? 'calendar-clock' : 'calendar'} size={13} />
-              {`${ends ? 'Survey ends' : 'Survey'} ${shortDay(survey)}`}
+              {/* Labels in Title Case (round 7): "Survey Ends 20 Nov", "Due 16 Dec". */}
+              {`${ends ? 'Survey Ends' : 'Survey'} ${shortDay(survey)}`}
             </span>
           )}
           {thread.reportDue && (
