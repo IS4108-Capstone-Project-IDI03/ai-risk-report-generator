@@ -267,6 +267,17 @@ describe('the site map in the panel', () => {
     expect(screen.queryByLabelText('Coordinates')).not.toBeInTheDocument()
   })
 
+  it('keeps Set Pin disabled until there are coordinates to set', () => {
+    open()
+    fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
+    const setPin = screen.getByRole('button', { name: 'Set Pin' })
+    expect(setPin).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
+    expect(setPin).toBeEnabled()
+    fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '  ' } })
+    expect(setPin).toBeDisabled()
+  })
+
   it('moves and removes a pin', async () => {
     open()
     await act(async () =>
