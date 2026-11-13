@@ -3,11 +3,12 @@
 // where the button was, or a tick. Earlier sessions are read-only, so their slots stay empty.
 // Used by CardRow.tsx. Reads the thread's actions from context.ts.
 import { useContext, useEffect, useRef, type ReactNode } from 'react'
-import { Button, Icon, IconButton, Tooltip } from '../../../../design-system'
+import { Button, IconButton, Tooltip } from '../../../../design-system'
 import { TurnContext, useMarshBot } from '../../context'
 import type { CardRow } from '../../types'
+import { DoneTick } from './DoneTick'
 
-// "Done" with a green tick, or a spinner with "Transcribing", where the button was. A status that
+// "Done" with a solid green tick, or a spinner with "Transcribing", where the button was. A status that
 // replaces the pressed Try Again (`takeFocus`) keeps keyboard focus, which would otherwise fall to
 // the page's top with the button; it stays the same element as the row's later states.
 function Status({
@@ -28,7 +29,7 @@ function Status({
       {status === 'busy' ? (
         <span className="mbt-spinner" aria-hidden="true" />
       ) : (
-        <Icon name="circle-check" size={16} />
+        <DoneTick size={16} />
       )}
       {label}
     </span>
@@ -84,7 +85,7 @@ export function RowEnd({ row }: { row: CardRow }) {
   else
     view = (
       <span className="mbt-tick" role="img" aria-label="Done">
-        <Icon name="circle-check" size={18} />
+        <DoneTick />
       </span>
     )
   return <span className="mbt-end">{view}</span>

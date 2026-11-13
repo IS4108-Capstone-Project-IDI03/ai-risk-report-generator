@@ -5,6 +5,7 @@ import { Icon, IconButton, Tooltip } from '../../../../design-system'
 import { TurnContext, useMarshBot } from '../../context'
 import type { Card } from '../../types'
 import { CardShell } from './CardShell'
+import { DoneTick } from './DoneTick'
 import { SegBar } from './SegBar'
 
 /** Returns the checklist bars card. */
@@ -37,7 +38,7 @@ export function BarsCard({ card }: { card: Extract<Card, { type: 'bars' }> }) {
             <span className="mbt-bars-end">
               {!a.low ? (
                 <span className="mbt-tick" aria-hidden="true">
-                  <Icon name="circle-check" size={18} />
+                  <DoneTick />
                 </span>
               ) : past ? null : (
                 <Tooltip label="Open in Checklist" placement="top-end">
