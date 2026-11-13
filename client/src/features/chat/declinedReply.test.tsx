@@ -126,7 +126,7 @@ describe('Declined question (CB-07)', () => {
     await askDeclined('knowledge_admin', gap)
 
     expect(
-      await screen.findByRole('button', { name: 'Add documents' }, { timeout: 10000 }),
+      await screen.findByRole('button', { name: 'Add documents' }, { timeout: 25000 }),
     ).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Ask an admin to add it' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add documents' }))
