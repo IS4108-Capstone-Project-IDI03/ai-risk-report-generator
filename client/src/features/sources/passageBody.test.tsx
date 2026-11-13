@@ -46,6 +46,25 @@ describe('PassageBody', () => {
     expect(plainText()).toBe('Agent weight:\n')
   })
 
+  it('shows a formula with words inside \\text{} as math', async () => {
+    // Read from a past report's agent-concentration calculation.
+    const lines = [
+      '\\text{Switch Room: } C = \\frac{100 \\times 68.1 \\times 0.1376751}{(68.1 \\times 0.1376751) + 120.8} = 7.20\\%',
+      '\\text{Floor Void:} \\quad 16.0 \\times 12.0 \\times 0.34 = 65.3\\, \\text{m}^3',
+    ]
+    render(<PassageBody text={lines.join('\n')} quote="" />)
+    await waitFor(() => expect(body().querySelectorAll('.katex')).toHaveLength(2))
+    expect(plainText()).toBe('')
+  })
+
+  it('shows a formula the text breaks over two lines as one formula', async () => {
+    const text =
+      'Computer Room:\n\\text{Computer Room:} \\quad C = \\frac{100 \\times 303.9 \\times 0.1407537}\n{(303.9 \\times 0.1407537) + 537.6} = 7.37\\%'
+    render(<PassageBody text={text} quote="" />)
+    await waitFor(() => expect(body().querySelectorAll('.katex')).toHaveLength(1))
+    expect(plainText()).toBe('Computer Room:\n')
+  })
+
   it('keeps a formula holding the quoted words as written, so they stay marked', async () => {
     render(<PassageBody text={'x = \\sqrt{2}\nC = \\frac{100}{2}'} quote={'C = \\frac{100}{2}'} />)
     await waitFor(() => expect(body().querySelectorAll('.katex')).toHaveLength(1))
