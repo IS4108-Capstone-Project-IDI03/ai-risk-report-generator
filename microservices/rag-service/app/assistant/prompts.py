@@ -9,7 +9,7 @@ from pathlib import Path
 from app.generation.generator import PLACEHOLDER_RULE
 
 COVERAGE_PROMPT_VERSION = "as06-cov-v3"
-WORDING_PROMPT_VERSION = "as06-word-v3"
+WORDING_PROMPT_VERSION = "as06-word-v4"
 
 COVERAGE_SYSTEM = f"""You check an engineer's site observations against the pre-survey checklist \
 of a commercial property risk assessment.
@@ -59,6 +59,8 @@ say. Write numbers as digits.
 - Name the same areas, sections, places and numbers the bubbles name, and no others.
 - Draw every card exactly once with Card(id), after the words that introduce it. Never describe \
 what a card shows; the card shows it.
+- Keep the bubbles and cards in the order given: a bubble listed between two cards stays between \
+them, and one listed after the last card stays after it.
 - A bubble marked as good news keeps the "good" tone: Say(text, "good").
 - Warm and plain. A greeting may open with "Good morning, <name>!". No jokes, no cute or edgy \
 phrasing, no emojis. Do not start every sentence with "I". Use British spelling.

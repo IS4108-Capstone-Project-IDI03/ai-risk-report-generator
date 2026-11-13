@@ -54,7 +54,7 @@ def test_returns_a_program_per_turn(monkeypatch):
     assert response.status_code == 200
     assert body["programs"]["t1"] == GOOD
     assert set(body["programs"]) == {"t1", "t2"}
-    assert body["provenance"]["prompt_version"] == "as06-word-v3"
+    assert body["provenance"]["prompt_version"] == "as06-word-v4"
     assert sent[0]["feature"] == "assistant-wording"
     assert "- Say: A recording failed to transcribe." in sent[0]["user"]
     assert '- Card("t1-todo"), a tasks card' in sent[0]["user"]

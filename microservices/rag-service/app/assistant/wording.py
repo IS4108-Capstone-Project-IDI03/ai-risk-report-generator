@@ -73,7 +73,7 @@ def _check(program: str) -> str | None:
 def word_messages(request, privacy=None) -> dict:
     """Return `{programs: {turn_id: program}, usage, provenance}`. Each message is one turn:
     its parts are `{type: "say", text, tone}` and `{type: "card", id, card}`. A turn whose
-    program fails the checks has no entry, and the client draws its bubbles then its cards."""
+    program fails the checks has no entry, and the turn keeps the gateway's own drawing."""
     paid_calls = usage.start()
     protection = pii.session(privacy)
     provenance = {
