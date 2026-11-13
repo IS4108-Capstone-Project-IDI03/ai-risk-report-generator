@@ -28,6 +28,12 @@ function dateOf(stage: Stage, thread: AssistantThread): Dated | null {
   return due ? { label: 'Due', text: shortDay(due), tone: dateTone(due, true) } : null
 }
 
+// The day a stage was finished: when the first later stage with a date began.
+const finished = (stage: Stage, thread: AssistantThread) =>
+  STAGES.slice(STAGES.indexOf(stage) + 1)
+    .map((s) => thread.stageDates[s])
+    .find(Boolean) ?? null
+
 // Bumps when a date changes, so it crossfades and holds the "just changed" tint (board 12).
 function useChanged(value: string | null) {
   const last = useRef(value)
@@ -68,9 +74,17 @@ export function StageRail({ thread }: { thread: AssistantThread }) {
               <span className="mb-stage-dot" aria-hidden="true">
                 <Icon name="check" size={12} />
               </span>
-              <span className="mb-stage-name">
-                {STAGE_LABEL[stage]}
-                {state === 'done' && <span className="mb-sr">, done</span>}
+              {/* A finished stage: its name, then the day it was finished (the day the next
+                  stage began), so the rail reads as the journey so far. The day is left out
+                  where the name leaves it no room (marshbot.css .mb-stage-line). */}
+              <span className="mb-stage-line">
+                <span className="mb-stage-name">
+                  {STAGE_LABEL[stage]}
+                  {state === 'done' && <span className="mb-sr">, done</span>}
+                </span>
+                {state === 'done' && finished(stage, thread) && (
+                  <span className="mb-stage-day">{shortDay(finished(stage, thread)!)}</span>
+                )}
               </span>
               {state === 'now' && dated && (
                 <span

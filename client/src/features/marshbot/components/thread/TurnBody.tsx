@@ -1,15 +1,17 @@
 // What one bot turn shows (AS-06): the wording AI's OpenUI program drawn by OpenUI 1.1.0's
 // Renderer with MarshBot's library, or, when there is none, it doesn't parse cleanly, or a piece
-// throws, the turn's says then its cards. Either way each piece knows its place, for the tail and
-// the stagger, and all sit in one column (thread.css .mbt-flow). Called by BotTurn.tsx.
-// Calls library.tsx.
+// throws, the turn's says then its cards. Either way the pieces go through Flow.tsx: a run of
+// words shares one bubble, a stand-out message and a card stand alone, all in one column
+// (thread.css .mbt-flow). Called by BotTurn.tsx. Calls library.tsx.
 import { Renderer } from 'openui-lang-v1'
 import { Component, useState, type ReactNode } from 'react'
 import { FailContext, SlotContext } from '../../context'
 import { marshbotLibrary, programCards } from '../../library'
-import type { Turn } from '../../types'
-import { Bubble } from './Bubble'
+import type { Card, Say, Turn } from '../../types'
+import { Alert } from './Alert'
+import { LeadLine, TickList, Words } from './Bubble'
 import { CardView } from './CardView'
+import { Flow, type PieceKind } from './Flow'
 
 // A program that throws while drawing falls back; without this the whole Overview would blank.
 class ProgramBoundary extends Component<
@@ -38,17 +40,51 @@ function Cards({ cards, from }: { cards: Turn['cards']; from: number }) {
   ))
 }
 
-// The fallback: every say as a bubble (the first with the tail), then every card.
+// The fallback draws what the program would: the lead line, plain words and a run of ticks in one
+// bubble, good news in a green one, an alert in its own, then every card.
+type Piece = { say: Say } | { ticks: string[] } | { card: Card }
+const kindOf = (p: Piece): PieceKind =>
+  'card' in p
+    ? 'alone'
+    : 'ticks' in p
+      ? 'normal'
+      : p.say.tone === 'alert'
+        ? 'alert'
+        : p.say.tone === 'good'
+          ? 'good'
+          : 'normal'
+
+// The says in order, with neighbouring ticks gathered into one list.
+function piecesOf(turn: Turn): Piece[] {
+  const out: Piece[] = []
+  for (const say of turn.says) {
+    const last = out.at(-1)
+    if (say.tone !== 'tick') out.push({ say })
+    else if (last && 'ticks' in last) last.ticks.push(say.text)
+    else out.push({ ticks: [say.text] })
+  }
+  return [...out, ...turn.cards.map((card) => ({ card }))]
+}
+
 function Plain({ turn }: { turn: Turn }) {
   return (
-    <>
-      {turn.says.map((say, i) => (
-        <SlotContext.Provider key={`s${i}`} value={{ index: i, tail: i === 0 }}>
-          <Bubble {...say} />
-        </SlotContext.Provider>
-      ))}
-      <Cards cards={turn.cards} from={turn.says.length} />
-    </>
+    <Flow
+      pieces={piecesOf(turn)}
+      kindOf={kindOf}
+      draw={(p) =>
+        'card' in p ? (
+          <CardView card={p.card} />
+        ) : 'ticks' in p ? (
+          <TickList items={p.ticks} />
+        ) : p.say.tone === 'alert' ? (
+          <Alert text={p.say.text} />
+        ) : p.say.tone === 'lead' ? (
+          <LeadLine text={p.say.text} />
+        ) : (
+          <Words text={p.say.text} />
+        )
+      }
+    />
   )
 }
 
@@ -57,12 +93,7 @@ export function TurnBody({ turn }: { turn: Turn }) {
   // Set once the program throws or OpenUI reports an error: the plain says take over for good.
   const [failed, setFailed] = useState(false)
   const drawn = failed ? null : programCards(turn)
-  if (!drawn)
-    return (
-      <div className="mbt-flow">
-        <Plain turn={turn} />
-      </div>
-    )
+  if (!drawn) return <Plain turn={turn} />
   // Said stays said (rule 8): cards are rebuilt live, so one the program doesn't name (added
   // since) is drawn after its words, and one it names that has gone draws nothing.
   const extra = turn.cards.filter((c) => !drawn.includes(c.id))

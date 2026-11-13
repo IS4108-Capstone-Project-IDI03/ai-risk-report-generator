@@ -10,6 +10,7 @@ import { STAGE_LABEL } from '../../assessments/format'
 import { PhoneStageBar } from '../components/PhoneStageBar'
 import { Rail } from '../components/Rail'
 import { Actions } from '../components/thread/Actions'
+import { Agenda } from '../components/thread/Agenda'
 import { Thread } from '../components/thread/Thread'
 import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
@@ -148,6 +149,7 @@ function Conversation({
           <Rail thread={thread} openDetails={openDetails} />
         )}
         <section className="mbt" aria-label="MarshBot">
+          <Agenda steps={thread.agenda ?? []} stage={STAGE_LABEL[thread.stage]} />
           <Thread thread={thread} pending={pending} answered={answered} actions={actions} />
         </section>
       </div>

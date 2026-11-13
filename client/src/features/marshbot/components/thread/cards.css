@@ -780,6 +780,11 @@
 .mbt-time li[data-reached='false'] .mbt-time-days {
   color: var(--graphite-500);
 }
+.mbt-time li[data-skipped] .mbt-time-days {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--graphite-600);
+}
 .mbt-time-days em {
   padding: 0 5px;
   border-radius: 999px;

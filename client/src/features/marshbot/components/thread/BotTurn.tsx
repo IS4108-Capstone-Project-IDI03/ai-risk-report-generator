@@ -7,12 +7,15 @@ import type { Mood } from '../../types'
 
 /** Returns a bot turn: face, optional name, then `children` (TurnBody or the typing dots). */
 export function BotTurn({
+  id,
   mood,
   named,
   faced = true,
   fresh = false,
   children,
 }: {
+  // The turn's id on the page, so the agenda can jump to it (Agenda.tsx).
+  id?: string
   mood: Mood
   named: boolean
   // false = a later turn of the same run: the face's column stays, empty, so bubbles line up.
@@ -23,6 +26,7 @@ export function BotTurn({
   return (
     // A labelled stop for focus: after a reply, focus moves to the newest turn (Thread.tsx).
     <div
+      id={id}
       className="mbt-turn"
       role="group"
       aria-label="MarshBot"

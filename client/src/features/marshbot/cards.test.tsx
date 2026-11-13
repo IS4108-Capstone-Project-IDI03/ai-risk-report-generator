@@ -32,7 +32,10 @@ const outline = (items: OutlineItem[]): Extract<Card, { type: 'outline' }> => ({
   lead: 'Lead',
   items,
   next: null,
-  key: [{ state: 'ok', label: 'Drafted' }],
+  key: [
+    { state: 'ok', label: 'Ready' },
+    { state: 'new', label: 'Not Drafted' },
+  ],
   cta: null,
 })
 const attn = (no: string) => screen.getByText(`Section ${no}`).closest('li')?.dataset.attn
@@ -93,6 +96,15 @@ describe('outline card', () => {
     expect(even.container.querySelector('.mbt-ol-keycell')).toBeNull()
     expect(even.container.querySelector('.mbt-ol-cols + .mbt-ol-key')).toBeTruthy()
     even.unmount()
+    // One state needs no key (round 8, item 25): the rows still take its word.
+    const one = inBot(
+      <OutlineCard
+        card={{ ...outline([item('1', 'ok')]), key: [{ state: 'ok', label: 'Reviewed' }] }}
+      />,
+    )
+    expect(one.container.querySelector('.mbt-ol-key')).toBeNull()
+    expect(one.container.textContent).toContain('Reviewed')
+    one.unmount()
     // A key of 4 states would wrap to 2 lines in the free cell: it goes under the list instead.
     const four = inBot(
       <OutlineCard
@@ -171,6 +183,30 @@ describe('time in each stage', () => {
       '–',
     )
     expect(container.querySelector('li[data-now] em')?.textContent).toBe('Now')
+  })
+
+  it('says a skipped stage was skipped, not "0d"', () => {
+    const { container } = render(
+      <StageTimeCard
+        card={{
+          type: 'stage-time',
+          id: 'st',
+          title: 'Time in Each Stage',
+          note: '3 days so far',
+          spans: [
+            { label: 'Setup', days: 3, now: false },
+            { label: 'Prepare', days: 0, now: false, skipped: true },
+            { label: 'Capture', days: 0, now: true },
+          ],
+        }}
+      />,
+    )
+    const [, prepare, capture] = container.querySelectorAll<HTMLElement>('.mbt-time li')
+    expect(prepare.querySelector('.mbt-time-days')?.textContent).toBe('Skipped')
+    expect(prepare.querySelector('.mbt-time-bar i')).toBeNull()
+    expect(screen.getByText('Prepare, skipped')).toBeTruthy()
+    // A stage done on the same day still reads 0d.
+    expect(capture.querySelector('.mbt-time-days')?.textContent).toBe('0dNow')
   })
 
   it('shows a stage jumped over as passed in 0 days, and only later ones as not reached', () => {
