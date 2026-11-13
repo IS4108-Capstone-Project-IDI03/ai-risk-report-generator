@@ -91,14 +91,28 @@ export function ReviewSectionRail({
     </li>
   )
   const drafted = sections.filter((s) => s.draft).length
-  // Over all 12 of Marsh's sections, not only those with a draft of their own.
+  // Over the 11 counted parts (Sections 2-12), not only those with a draft of their own.
   const progress = reportProgress({
     summaryDrafted: !!executiveSummary?.draft,
     ofisAccepted: inReport,
     sectionsDrafted: drafted,
   })
   const flagged = sections.filter((s) => s.review.state === 'needs_review').length
-  const reviewed = sections.filter((s) => s.review.state === 'reviewed').length
+  // Reviewed as MarshBot counts it (server/src/services/assistant/progress.ts): the summary
+  // when drafted and up to date, Section 3 with an accepted OFI, and 4-12 drafted with nothing open.
+  const reviewed =
+    Number(!!executiveSummary?.draft && !executiveSummary.staleSections.length) +
+    Number(inReport > 0) +
+    sections.filter(
+      (s) =>
+        s.completion.state !== 'not_started' &&
+        s.findings.pending +
+          s.review.unsupportedStatements +
+          s.review.withdrawnSources +
+          s.review.changesSinceDraft +
+          (s.replacement ? 1 : 0) ===
+          0,
+    ).length
   return (
     <nav aria-label="Report sections" className="om-scroll" style={style}>
       {onEditDocument && (
@@ -130,7 +144,7 @@ export function ReviewSectionRail({
         />
         {reviewed > 0 && (
           <p className="rv-muted">
-            {reviewed} of {drafted} reviewed
+            {reviewed} of {progress.total} reviewed
           </p>
         )}
         {flagged > 0 && (
