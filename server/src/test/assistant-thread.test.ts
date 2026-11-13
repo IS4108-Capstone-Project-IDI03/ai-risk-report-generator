@@ -7,7 +7,9 @@ import { raise } from '../services/assistant/item'
 import type { BriefFacts } from '../services/assistant/phrases'
 import { advance } from '../services/assistant/thread/advance'
 import type { Event, ThreadBrief, ThreadState, TopicCtx } from '../services/assistant/thread/types'
+import { stageSpans } from '../services/assistant/thread/cards'
 import { adminThread, viewThread } from '../services/assistant/thread/view'
+import { programOf } from '../services/assistant/thread/session'
 import { answerWords } from '../services/assistant/thread/words'
 import type {
   AreaHealth,
@@ -229,8 +231,12 @@ describe('tasks', () => {
       ['External Exposures', 3, 2],
       ['Fire Protection', 3, 5],
     ])
-    expect(shown.session.turns[3].says[0].text).toMatch(
-      /^Now let's look at what the report still needs\. I've lined your 25 observations up against this site's checklist\. 4 areas are in good shape, but 2 need more before you leave: External Exposures has nothing yet and Fire Protection is only at 4 of 12\./,
+    expect(shown.session.turns[3].says[0]).toEqual({
+      text: "Now let's look at what the report still needs.",
+      tone: 'lead',
+    })
+    expect(shown.session.turns[3].says[1].text).toMatch(
+      /^I've lined your 25 observations up against this site's checklist\. 4 areas are in good shape, but 2 need more before you leave: External Exposures has nothing yet and Fire Protection is only at 4 of 12\./,
     )
     expect(shown.status.text).toBe('2 areas need more')
     // While the checklist turn is still being worded, the rail says both are done and the dots show.
@@ -373,7 +379,7 @@ describe('what else and the coverage check', () => {
     expect(topics(next.added)).toEqual(['reply', 'gaps'])
     // Each card has its own lead-in, then one closing bubble (round 7, items 23-24).
     expect(next.added[1].says.map((x) => x.text)).toEqual([
-      "Sure! I also read your observations against the checklist itself. 1 checklist item isn't mentioned anywhere yet.",
+      "Sure! I also read your observations against the checklist itself, and 1 checklist item isn't mentioned anywhere yet.",
       '1 observation is too thin to support its section.',
       "None of this blocks you today, but it's quicker to sort out while you're still on site.",
     ])
@@ -382,7 +388,7 @@ describe('what else and the coverage check', () => {
     expect(next.added[1].program).toBe(
       [
         'root = Reply([p0, p1, p2, p3, p4])',
-        `p0 = Say(${JSON.stringify(next.added[1].says[0].text)})`,
+        `p0 = Lead(${JSON.stringify(next.added[1].says[0].text)})`,
         `p1 = Card("${notCovered.id}")`,
         'p2 = Say("1 observation is too thin to support its section.")',
         `p3 = Card("${thinCard.id}")`,
@@ -491,6 +497,7 @@ describe('the survey-day question (C6, C9, C10)', () => {
         primary: true,
         picksDate: false,
         link: null,
+        hint: "Clicking “That's everything” will move the assessment's status forward to Ready for generation.",
       },
     ])
     expect(shown.status).toEqual({
@@ -567,9 +574,14 @@ describe('sessions', () => {
     })
     const next = run(first, later, { type: 'open' }, MONDAY)
     expect(next.earlier).toHaveLength(1)
-    expect(next.added[0].says[0].text).toBe(
-      'Good morning, Alex! Since Saturday, the morning walk and the Loading Bay 2 recording are both sorted, and you added 13 more observations. That brings you to 31.',
-    )
+    // Two changes: a lead-in, one tick for each change, then where that leaves the count.
+    expect(next.added[0].says).toEqual([
+      { text: "Good morning, Alex! Here's what has changed since Saturday.", tone: 'normal' },
+      { text: 'The morning walk is sorted', tone: 'tick' },
+      { text: 'The Loading Bay 2 recording is sorted', tone: 'tick' },
+      { text: 'You added 13 more observations', tone: 'tick' },
+      { text: 'That brings you to 31.', tone: 'normal' },
+    ])
     // The catch-up's checklist is every area as a bar.
     expect(next.added[1].cards[0]).toMatchObject({ type: 'bars', answered: 25, total: 42 })
     const shown = view(next, later, MONDAY)
@@ -615,7 +627,7 @@ describe('other stages', () => {
       next: null,
       cta: { label: 'Open Generation', link: { tab: 'generate' } },
       key: [
-        { state: 'ok', label: 'Drafted' },
+        { state: 'ok', label: 'Ready' },
         { state: 'question', label: 'Questions for You' },
         { state: 'figures', label: 'Needs Your Figures' },
         { state: 'wait', label: 'Out of Date' },
@@ -629,7 +641,7 @@ describe('other stages', () => {
     // How many are drafted is the greeting's to say; the outline's words don't repeat it.
     expect(opened.added[0].says[0].text).toMatch(/with 9 of 11 sections drafted\.$/)
     expect(opened.added[1].says[0].text).toBe(
-      'Of the 11 sections, 6 are clean, 1 came back with questions for you, 1 is waiting on figures only you can enter, 1 is out of date, and 2 are not drafted yet.',
+      'Of the 11 sections, 6 are ready, 1 came back with questions for you, 1 is waiting on figures only you can enter, 1 is out of date, and 2 are not drafted yet.',
     )
     expect(view(opened, gen).status).toEqual({
       text: '5 sections to do',
@@ -726,6 +738,26 @@ describe('other stages', () => {
       'Reviewed',
     ])
     expect(turn.cards[1]).toMatchObject({ title: 'Time in Each Stage' })
+    // A stage dated the same instant as the next was jumped over: only that one is `skipped`.
+    const jumped = stageSpans(
+      {
+        ...facts().stageDates,
+        ready_for_generation: '2026-11-13T01:00:00.000Z',
+        generate: '2026-11-13T01:00:00.000Z',
+        review: '2026-11-15T01:00:00.000Z',
+      },
+      'review',
+      '2026-11-16',
+    )
+    expect(jumped.map((s) => [s.label, s.skipped])).toEqual([
+      ['Setup', undefined],
+      ['Prepare', undefined],
+      ['Capture', undefined],
+      ['Ready for generation', true],
+      ['Generate', undefined],
+      ['Review', undefined],
+    ])
+    expect(jumped.some((s, n) => n !== 3 && 'skipped' in s)).toBe(false)
 
     // Only lanes with sections; with none open, no lanes card at all (round 6).
     const someDone = adminThread(
@@ -771,22 +803,40 @@ describe('round 6 and the review ledger', () => {
     expect(topics(first.added)).toEqual(['greeting', 'before-generate'])
     expect(view(first, ready([thin])).replies.map((r) => r.id)).toEqual(['generate-anyway'])
     // It names what would leave gaps, from the card's rows (round 7, item 31).
-    expect(first.added[1].says[0].text).toBe(
-      "It's nearly ready for generation, but 1 section without enough observations would leave gaps in the draft, so it's worth clearing it first.",
-    )
+    expect(first.added[1].says.map((x) => [x.text, x.tone])).toEqual([
+      [
+        "It's nearly ready for generation, but 1 section without enough observations would leave gaps in the draft.",
+        'lead',
+      ],
+      ["It's worth clearing it first.", 'normal'],
+    ])
     const more = [
       thin,
       { ...thin, id: 'section.thin:10' },
       item('uncategorised', 'uncategorised', 'gap', { facts: { uncategorised: 2 } }),
     ]
-    expect(run(EMPTY, ready(more), { type: 'open' }).added[1].says[0].text).toBe(
-      "It's nearly ready for generation, but 2 uncategorised observations and 2 sections without enough observations would leave gaps in the draft, so it's worth clearing them first.",
-    )
+    expect(run(EMPTY, ready(more), { type: 'open' }).added[1].says.map((x) => x.text)).toEqual([
+      "It's nearly ready for generation, but 2 uncategorised observations and 2 sections without enough observations would leave gaps in the draft.",
+      "It's worth clearing them first.",
+    ])
     const before = first.added[1].cards[0]
     expect(before.type === 'rows' && before.ticks.map((t) => [t.title, t.bar])).toEqual([
       ['Site Walks', null],
       ['Recordings', null],
-      ['Checklist', null],
+    ])
+    // The Checklist tick is there only once the checklist is fully answered.
+    const answered = AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] }))
+    const full = run(
+      EMPTY,
+      brief({ stage: 'ready_for_generation', areas: answered, items: [thin] }),
+      {
+        type: 'open',
+      },
+    ).added[1].cards[0]
+    expect(full.type === 'rows' && full.ticks.map((t) => t.title)).toEqual([
+      'Site Walks',
+      'Recordings',
+      'Checklist',
     ])
     const cleared = run(first, ready([]), { type: 'changed' }, LATER)
     expect(topics(cleared.added)).toEqual(['ready'])
@@ -813,16 +863,15 @@ describe('round 6 and the review ledger', () => {
     const asked = run(first, exported([stale]), { type: 'changed' }, LATER)
     expect(topics(asked.added)).toEqual(['exported'])
     expect(asked.added[0].says.map((x) => x.text)).toEqual([
-      'The Pasir Gudang Cold Store report went out on 14 Nov. Since then, Fire Protection was edited, so the copy you sent is a version behind.',
+      'The Pasir Gudang Cold Store report went out on 14 Nov, but the copy you sent is now a version behind.',
+      'Since then, Fire Protection was edited.',
     ])
     expect(asked.added[0].cards.map((c) => [c.type, c.type === 'rows' && c.title])).toEqual([
       ['rows', 'Changed Since Export'],
     ])
     const shown = view(asked, exported([stale]), LATER)
     // The earlier clean "Exported" turn keeps its file row and its link (review #44).
-    expect(shown.session.turns[1].cards.map((c) => c.type === 'rows' && c.title)).toEqual([
-      'Exported',
-    ])
+    expect(shown.session.turns[1].cards.map((c) => 'title' in c && c.title)).toEqual(['Exported'])
     expect(rowsOf(shown.session.turns[1].cards[0])[0]).toMatchObject({
       title: 'RPT-2026-0072 Pasir Gudang Cold Store.docx',
       end: { type: 'open', link: { tab: 'export' } },
@@ -909,6 +958,20 @@ describe('round 6 and the review ledger', () => {
     expect(text).not.toMatch(/morning walk/)
   })
 
+  it('keeps a catch-up of one change as a sentence, with the overdue alert after it', () => {
+    const first = run(EMPTY, SURVEY, { type: 'open' })
+    const sorted = '2026-11-15T03:00:00.000Z'
+    const later = brief({
+      items: [walk(sorted), recording('failed', 2)],
+      facts: facts({ reportDue: '2026-11-14' }),
+    })
+    const says = run(first, later, { type: 'open' }, new Date('2026-11-16T01:05:00Z')).added[0].says
+    expect(says.map((x) => [x.text, x.tone])).toEqual([
+      ['Good morning, Alex! Since Saturday, the morning walk is sorted.', 'normal'],
+      ["The report is 2 days overdue, so let's keep it moving.", 'alert'],
+    ])
+  })
+
   it('claims nothing as sorted when the last session only skipped (live RPT-2026-0072)', () => {
     // Saturday: the walk and the recording were raised, and only "Skip for now" was pressed.
     const first = run(EMPTY, SURVEY, { type: 'open' })
@@ -935,7 +998,7 @@ describe('round 6 and the review ledger', () => {
     expect(topics(next.session!.turns)).toEqual(['reply', 'answer', 'checklist'])
   })
 
-  it('sends an empty key when every outline item is in the same state (live defect 5)', () => {
+  it('lists the state in the key even when every outline item is in it (live defect 5)', () => {
     const all = (['2', '3', '4'] as const).map((no) => ({
       sectionId: no,
       title: `Section ${no}`,
@@ -946,7 +1009,7 @@ describe('round 6 and the review ledger', () => {
     const opened = run(EMPTY, brief({ stage: 'ready_to_export', sections: all }), { type: 'open' })
     expect(opened.added[1].cards[0]).toMatchObject({
       type: 'outline',
-      key: [],
+      key: [{ state: 'ok', label: 'Reviewed' }],
       next: null,
       cta: { label: 'Open Export', link: { tab: 'export' } },
     })
@@ -993,5 +1056,256 @@ describe('round 6 and the review ledger', () => {
     ]
     for (const t of texts) expect(t.length).toBeLessThanOrEqual(18)
     expect(texts[2]).toBe('11 to review')
+  })
+})
+
+// Round 8: the journey made legible (an agenda, hints, the report date).
+describe('the journey made legible (round 8)', () => {
+  const steps = (state: ThreadState, b: ThreadBrief, now = SURVEY_DAY) =>
+    view(state, b, now).agenda.map((s) => [s.title, s.state])
+
+  it("lists the stage's topics as an agenda: now, still open, to come", () => {
+    const first = run(EMPTY, SURVEY, { type: 'open' })
+    expect(steps(first, SURVEY)).toEqual([
+      ['To Do', 'now'],
+      ['Checklist', 'next'],
+    ])
+    // Skipped tasks stay open on the agenda while MarshBot waits on the next topic, and each
+    // raised topic names its turn, so the agenda can jump back to it.
+    const skipped = run(first, SURVEY, { type: 'reply', reply: 'skip' }, LATER)
+    expect(steps(skipped, SURVEY, LATER)).toEqual([
+      ['To Do', 'open'],
+      ['Checklist', 'now'],
+    ])
+    expect(view(skipped, SURVEY, LATER).agenda.map((s) => s.turnId)).toEqual([
+      skipped.session!.turns[1].id,
+      skipped.session!.turns.at(-1)!.id,
+    ])
+    expect(view(first, SURVEY).agenda[1].turnId).toBeNull()
+    // Sorted tasks are done.
+    const sorted = brief({
+      items: [walk(LATER.toISOString()), recording('failed', 1, LATER.toISOString())],
+    })
+    expect(steps(run(first, sorted, { type: 'changed' }, LATER), sorted, LATER)[0]).toEqual([
+      'To Do',
+      'done',
+    ])
+  })
+
+  it('keeps a topic open while its work is outstanding, and ticks it when finished (round 8)', () => {
+    // Two thin checklist areas and an uncategorised observation: "What else?" moves on to tidying.
+    const tidy = item('capture.uncategorised', 'uncategorised', 'gap', {
+      facts: { uncategorised: 2 },
+    })
+    const b = brief({ items: [tidy] })
+    const next = run(
+      run(EMPTY, b, { type: 'open' }),
+      b,
+      { type: 'reply', reply: 'what-else' },
+      LATER,
+    )
+    // The checklist was raised, not finished: it must not be ticked.
+    expect(steps(next, b, LATER).slice(0, 2)).toEqual([
+      ['Checklist', 'open'],
+      ['To Tidy Up', 'now'],
+    ])
+    // Once the checklist's areas are answered, the same topic is done.
+    const answered = brief({
+      items: [tidy],
+      areas: AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] })),
+    })
+    expect(steps(next, answered, LATER)[0]).toEqual(['Checklist', 'done'])
+  })
+
+  it('has no turn to jump to for a topic still to come (round 8)', () => {
+    const tidy = item('capture.uncategorised', 'uncategorised', 'gap', {
+      facts: { uncategorised: 2 },
+    })
+    const b = brief({ items: [tidy] })
+    const first = run(EMPTY, b, { type: 'open' })
+    expect(view(first, b).agenda.map((s) => [s.title, s.state, s.turnId === null])).toEqual([
+      ['Checklist', 'now', false],
+      ['To Tidy Up', 'next', true],
+    ])
+  })
+
+  it('counts an answered question as done, not open for ever (round 8)', () => {
+    const MONDAY = new Date('2026-11-16T01:05:00Z')
+    const fine = AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] }))
+    const tidy = item('capture.uncategorised', 'uncategorised', 'gap', {
+      facts: { uncategorised: 2 },
+    })
+    const b = brief({ areas: fine, items: [tidy], facts: facts({ observations: 31 }) })
+    const opened = run(EMPTY, b, { type: 'open' }, MONDAY)
+    const asked = run(opened, b, { type: 'reply', reply: 'what-else' }, MONDAY)
+    expect(steps(asked, b, MONDAY).at(-1)).toEqual(['Wrap Up', 'now'])
+    const answered = run(asked, b, { type: 'reply', reply: 'ready-to-generate' }, MONDAY)
+    // Answered: the question is done, while the tidying it came after is still open.
+    expect(steps(answered, b, MONDAY)).toEqual([
+      ['To Tidy Up', 'open'],
+      ['Wrap Up', 'done'],
+    ])
+  })
+
+  it('shows no agenda for a single topic, or to an admin', () => {
+    const clean = brief({
+      areas: AREAS.map((a) => ({ ...a, covered: a.total, thin: false, open: [] })),
+    })
+    expect(view(run(EMPTY, clean, { type: 'open' }), clean).agenda).toEqual([])
+    expect(adminThread(SURVEY, 'Sana', SURVEY_DAY).agenda).toEqual([])
+  })
+
+  it('says under "What else?" which topic comes next', () => {
+    const tidy = item('capture.uncategorised', 'uncategorised', 'gap', {
+      facts: { uncategorised: 2 },
+    })
+    const b = brief({ items: [tidy] })
+    const first = run(EMPTY, b, { type: 'open' })
+    expect(view(first, b).replies).toMatchObject([{ id: 'what-else', hint: 'Up next: To Tidy Up' }])
+  })
+
+  it('says the report date at the end of the hello, and a missed date as its own alert', () => {
+    const due = (reportDue: string) =>
+      run(EMPTY, brief({ items: [walk()], facts: facts({ reportDue }) }), { type: 'open' }).added[0]
+    const soon = due('2026-11-19')
+    expect(soon.says).toHaveLength(1)
+    expect(soon.says[0].text).toMatch(/ Just so you know, the report is due in 5 days\.$/)
+    const late = due('2026-11-12')
+    expect(late.says).toHaveLength(2)
+    expect(late.says[1]).toEqual({
+      text: "The report is 2 days overdue, so let's keep it moving.",
+      tone: 'alert',
+    })
+    // Far off: nothing is said. And the fallback program draws the alert as an Alert.
+    expect(due('2026-12-16').says[0].text).not.toMatch(/report is due/)
+    expect(programOf(late)).toContain(
+      'p1 = Alert("The report is 2 days overdue, so let\'s keep it moving.")',
+    )
+  })
+
+  it('keeps the Setup card as it was when the stage moves on: no done tick beside "Not set" (round 8, item 22)', () => {
+    const gap = (id: string, title: string) =>
+      item(id, 'setup-details', 'gap', { title, link: { tab: 'overview' } })
+    const open = brief({
+      stage: 'setup',
+      items: [
+        gap('setup.report-due', 'Report Due Date'),
+        gap('setup.client-documents', 'Client Documents'),
+      ],
+    })
+    const first = run(EMPTY, open, { type: 'open' })
+    expect(first.added[1].cards[0]).toMatchObject({ title: 'Setup', note: '3 of 5 set' })
+    // Prepare: the setup details leave the brief, but nothing was set. The move is dated with the
+    // instant they were resolved at, as recheck.service.ts does.
+    const moved = brief({
+      stage: 'prepare',
+      items: open.items.map((i) => ({ ...i, resolvedAt: LATER.toISOString() })),
+      facts: facts({ stageDates: { ...facts().stageDates, prepare: LATER.toISOString() } }),
+    })
+    const after = run(first, moved, { type: 'reply', reply: 'nothing-more' }, LATER)
+    const card = view(after, moved, LATER).session.turns[1].cards[0]
+    expect(card).toMatchObject({ note: '3 of 5 set' })
+    expect(rowsOf(card).map((r) => [r.title, r.tone, r.end.type])).toEqual([
+      ['Report Due Date', 'amber', 'open'],
+      ['Client Documents', 'amber', 'open'],
+    ])
+  })
+
+  describe('what a stage move drops is not sorted (round 8)', () => {
+    const MONDAY = new Date('2026-11-16T01:05:00Z')
+    // The brief once the stage has moved at `at`: stage.ts dates the move with the same
+    // instant recheck.service.ts resolves the dropped items with.
+    const movedTo = (
+      stage: Stage,
+      at: Date,
+      dropped: BriefItem[],
+      part: Partial<ThreadBrief> = {},
+    ) =>
+      brief({
+        stage,
+        items: dropped.map((i) => ({ ...i, resolvedAt: at.toISOString() })),
+        facts: facts({ stageDates: { ...facts().stageDates, [stage]: at.toISOString() } }),
+        ...part,
+      })
+    const says = (state: ThreadState, b: ThreadBrief) =>
+      run(state, b, { type: 'open' }, MONDAY).added[0].says
+
+    it('does not call Setup details sorted the next day when "Nothing more to add" left them unset', () => {
+      const gap = (id: string, title: string) =>
+        item(id, 'setup-details', 'gap', { title, link: { tab: 'overview' } })
+      const open = brief({
+        stage: 'setup',
+        items: [
+          gap('setup.report-due', 'Report Due Date'),
+          gap('setup.client-documents', 'Client Documents'),
+        ],
+      })
+      const first = run(EMPTY, open, { type: 'open' })
+      const prepare = movedTo('prepare', LATER, open.items)
+      const after = run(first, prepare, { type: 'reply', reply: 'nothing-more' }, LATER)
+      const next = says(after, prepare)
+      expect(next).toHaveLength(1)
+      expect(next[0].text).not.toMatch(/sorted|changed|Report Due|Client Documents/)
+    })
+
+    it('keeps the Capture gaps as they were after "That\'s everything", and sorts nothing next day', () => {
+      const gaps = [
+        item('capture.area:External Exposures', 'area-gaps', 'gap', {
+          title: 'External Exposures',
+        }),
+        item('walk.fields:w1', 'walk-fields', 'gap', { title: 'Morning walk' }),
+      ]
+      const capture = brief({ items: gaps })
+      const opened = run(EMPTY, capture, { type: 'open' })
+      const tidy = run(opened, capture, { type: 'reply', reply: 'what-else' })
+      expect(topics(tidy.added)).toEqual(['reply', 'tidy'])
+      const ready = movedTo('ready_for_generation', LATER, gaps)
+      const after = run(tidy, ready, { type: 'reply', reply: 'ready-to-generate' }, LATER)
+      const card = view(after, ready, LATER).session.turns.find((t) => t.topic === 'tidy')!.cards[0]
+      expect(rowsOf(card).map((r) => [r.title, r.end.type])).toEqual([['Morning walk', 'open']])
+      expect(says(after, ready)[0].text).not.toMatch(/sorted/)
+    })
+
+    it('keeps the Sections outline as it was when Review starts with questions still open', () => {
+      const questions = [
+        item('generate.questions:8', 'draft-questions', 'gap', { facts: { questions: 3 } }),
+      ]
+      const gen = brief({ stage: 'generate', items: questions, facts: facts({ draftedParts: 11 }) })
+      const opened = run(EMPTY, gen, { type: 'open' })
+      const review = movedTo('review', LATER, questions)
+      const after = run(opened, review, { type: 'changed' }, LATER)
+      const card = view(after, review, LATER).session.turns.find((t) => t.topic === 'sections')!
+        .cards[0]
+      expect(card.type === 'outline' && card.items.find((i) => i.no === '8')?.state).toBe(
+        'question',
+      )
+      expect(says(after, review)[0].text).not.toMatch(/sorted/)
+    })
+  })
+
+  it('writes the fallback program with each piece in its own form', () => {
+    const turn = {
+      id: 't',
+      says: [
+        { text: 'First.', tone: 'lead' },
+        { text: 'Then this.', tone: 'normal' },
+        { text: 'Well done.', tone: 'good' },
+        { text: 'One', tone: 'tick' },
+        { text: 'Two', tone: 'tick' },
+        { text: 'Late.', tone: 'alert' },
+      ],
+      cards: [{ id: 't-card' }],
+    } as unknown as Parameters<typeof programOf>[0]
+    expect(programOf(turn)).toBe(
+      [
+        'root = Reply([p0, p1, p2, p3, p4, p5])',
+        'p0 = Lead("First.")',
+        'p1 = Say("Then this.")',
+        'p2 = Say("Well done.", "good")',
+        'p3 = Ticks(["One", "Two"])',
+        'p4 = Alert("Late.")',
+        'p5 = Card("t-card")',
+      ].join('\n'),
+    )
   })
 })

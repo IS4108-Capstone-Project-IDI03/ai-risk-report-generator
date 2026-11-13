@@ -51,10 +51,14 @@ export function setupTopic(ctx: TopicCtx): Built {
     says: n
       ? [
           {
+            text: n === 1 ? '1 detail is still missing.' : `${n} details are still missing.`,
+            tone: 'lead',
+          },
+          {
             text:
               n === 1
-                ? "1 detail is still missing. It doesn't stop you, but it makes the report easier later."
-                : `${n} details are still missing. None of them stop you, but they make the report easier later.`,
+                ? "It doesn't stop you, but it makes the report easier later."
+                : 'None of them stop you, but they make the report easier later.',
             tone: 'normal',
           },
         ]
@@ -138,7 +142,8 @@ export function beforeSurveyTopic(ctx: TopicCtx): Built | null {
   ].filter(Boolean)
   return {
     kind: 'info',
-    says: [{ text: words.join(' '), tone: 'normal' }],
+    // The first sentence is the bold line, unless it only says the checklist is read.
+    says: words.map((text, n) => ({ text, tone: n === 0 && !read ? 'lead' : 'normal' })),
     cards: [
       {
         type: 'rows',
@@ -177,14 +182,19 @@ export function checklistTopic(ctx: TopicCtx): Built | null {
   const need = thin.length === 1 ? '1 needs' : `${thin.length} need`
   const text = ctx.catchUp
     ? `${fine.length ? 'Only ' : ''}${andList(names)} still ${thin.length === 1 ? 'needs' : 'need'} more.`
-    : `Now let's look at what the report still needs. I've lined your ${count(ctx.facts.observations, 'observation')} up against this site's checklist. ${
+    : `I've lined your ${count(ctx.facts.observations, 'observation')} up against this site's checklist. ${
         fine.length
           ? `${count(fine.length, 'area is', 'areas are')} in good shape, but ${need} more before you leave: `
           : `${thin.length === 1 ? '1 area needs' : `All ${thin.length} areas need`} more before you leave: `
       }${andList(clauses)}. Here's what's still open${thin.length === 1 ? '' : ' in each'}.`
   return {
     kind: 'info',
-    says: [{ text, tone: 'normal' }],
+    says: ctx.catchUp
+      ? [{ text, tone: 'lead' }]
+      : [
+          { text: "Now let's look at what the report still needs.", tone: 'lead' },
+          { text, tone: 'normal' },
+        ],
     cards: [
       ctx.catchUp
         ? {
@@ -243,7 +253,7 @@ export function tidyTopic(ctx: TopicCtx): Built | null {
     says: [
       {
         text: `There ${n === 1 ? 'is 1 small thing' : `are ${n} small things`} to tidy up while it's still fresh.`,
-        tone: 'normal',
+        tone: 'lead',
       },
     ],
     cards: [
@@ -316,9 +326,10 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
       : '',
   ].filter(Boolean)
   const says: Say[] = [
+    // The first lead-in is the turn's bold line; the second sits between the two cards.
     ...leads.map((text, n) => ({
-      text: n ? text : `I also read your observations against the checklist itself. ${text}`,
-      tone: 'normal' as const,
+      text: n ? text : `I also read your observations against the checklist itself, and ${text}`,
+      tone: n ? ('normal' as const) : ('lead' as const),
     })),
     {
       text: "None of this blocks you today, but it's quicker to sort out while you're still on site.",
@@ -420,7 +431,8 @@ export function visitQuestionTopic(ctx: TopicCtx): Built | null {
       ]
     : f.anotherVisit
       ? [
-          `How did ${weekdayName(end)} go? If that's everything now, I'll move this on to generation.`,
+          `How did ${weekdayName(end)} go?`,
+          "If that's everything now, I'll move this on to generation.",
         ]
       : [
           `Your survey day has passed and you're at ${count(f.observations, 'observation')} now.`,
@@ -428,7 +440,7 @@ export function visitQuestionTopic(ctx: TopicCtx): Built | null {
         ]
   return {
     kind: 'question',
-    says: says.map((text) => ({ text, tone: 'normal' })),
+    says: says.map((text, n) => ({ text, tone: n ? 'normal' : 'lead' })),
     cards: [],
     replies: VISIT_REPLIES,
     mood: 'idle',

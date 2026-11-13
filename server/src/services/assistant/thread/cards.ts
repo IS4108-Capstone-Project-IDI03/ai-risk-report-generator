@@ -1,7 +1,16 @@
 // The pieces MarshBot's cards are made of (AS-06 round 5): a row from an item,
 // the row endings, area icons and ticks. Called by the topic builders in thread/.
 // Cards are terse: a row is a name and one short status (rule 3).
-import type { BriefItem, CardRow, ItemLink, TickCell } from '../types'
+import { dayOf, daysBetween } from '../dates'
+import { STAGE_LABELS } from '../stage'
+import {
+  STAGES,
+  type BriefItem,
+  type CardRow,
+  type ItemLink,
+  type Stage,
+  type TickCell,
+} from '../types'
 
 const TAB_NAMES: Record<ItemLink['tab'], string> = {
   overview: 'Details',
@@ -89,3 +98,28 @@ export const pill = (text: string, short: string) => (text.length <= 18 ? text :
 export const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 /** Returns the text with its first letter in upper case. */
 export const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/**
+ * Returns the days spent in each stage reached so far, in order; the current one runs to
+ * `today` and is marked `now`. A stage the assessment jumped over is `skipped`: advanceStage
+ * (stage.ts) dates every stage passed in one move with the same instant, so a stage dated the
+ * same instant as the next one was never worked in. Read by the admin's Time in Each Stage card.
+ */
+export function stageSpans(
+  stageDates: Record<Stage, string | null>,
+  stage: Stage,
+  today: string,
+): { label: string; days: number; now: boolean; skipped?: boolean }[] {
+  const reached = STAGES.filter((s) => stageDates[s])
+  return reached.map((s, n) => {
+    const next = reached[n + 1] ? stageDates[reached[n + 1]]! : null
+    const from = dayOf(new Date(stageDates[s]!))
+    const to = next ? dayOf(new Date(next)) : today
+    return {
+      label: STAGE_LABELS[s],
+      days: Math.max(0, daysBetween(from, to)),
+      now: s === stage,
+      ...(next && Date.parse(next) === Date.parse(stageDates[s]!) ? { skipped: true } : {}),
+    }
+  })
+}

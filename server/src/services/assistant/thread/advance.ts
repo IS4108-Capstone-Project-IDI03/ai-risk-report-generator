@@ -7,12 +7,19 @@ import type { StoredSession, StoredTurn } from '../../../models/assistant-thread
 import { dayOf } from '../dates'
 import { ASSISTANT } from '../settings'
 import type { Card, CardRow, Mood, Reply } from '../types'
-import { needsNewSession, newSession, programOf, topicCtx, withIds } from './session'
+import {
+  droppedByStageMove,
+  needsNewSession,
+  newSession,
+  programOf,
+  topicCtx,
+  withIds,
+} from './session'
 import { ackWords, isTask, liveOf, sorryWords, tasksLeft, todoTopic } from './tasks'
 import { coverageFailedTopic } from './topics-capture'
 import { DEFS, STAGE_TOPICS } from './topics'
 import type { Built, Event, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
-import { answerWords, greetingWords, offer, replyLabel } from './words'
+import { answerWords, greetingSays, moveHint, offer, replyLabel, TOPIC_TITLES } from './words'
 
 export type AdvanceInput = { brief: ThreadBrief; viewer: ThreadViewer; now: Date }
 
@@ -36,9 +43,14 @@ function nextTopic(ctx: TopicCtx): { key: string; built: Built | 'wait' } | null
   return null
 }
 
+// "Up next: To Tidy Up": the topic "What else?" brings up, by its name on the agenda, so the
+// engineer sees how much is left before pressing.
+const upNext = (key: string) => TOPIC_TITLES[key] && `Up next: ${TOPIC_TITLES[key]}`
+
 /**
  * Returns the choices offered now: Skip while a tasks topic has open
  * rows, a question's own replies, and "What else?" only when another topic waits.
+ * A choice that moves the stage on, and "What else?", carry a `hint` saying what follows.
  */
 export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Reply[] {
   const w = session?.waiting
@@ -54,9 +66,10 @@ export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Re
       .map((r) =>
         r.id === 'export-again' && !r.link
           ? { ...r, label: 'Export Again', link: { tab: 'export' as const } }
-          : { ...r, link: r.link ?? null },
+          : { ...r, link: r.link ?? null, hint: moveHint(r.id) },
       )
-  return nextTopic(ctx) ? [offer('what-else')] : []
+  const next = nextTopic(ctx)
+  return next ? [{ ...offer('what-else'), hint: upNext(next.key) }] : []
 }
 
 // A row that is no longer open, as a done row: green with a tick, unless it already ends in Done.
@@ -67,12 +80,13 @@ const asDone = (r: CardRow): CardRow =>
 
 // One stored card brought up to date: its rows as the brief has them now, and a
 // row that has gone (fixed) kept in place, ticked. Without this, a fixed row
-// vanished and the last open one froze as open (rule 2).
-function merged(old: Card, live: Card | undefined): Card {
+// vanished and the last open one froze as open (rule 2). A row the stage move dropped
+// (`dropped`, item ids) stays as it was: it was never fixed.
+function merged(old: Card, live: Card | undefined, dropped: Set<string>): Card {
   if (old.type !== 'rows' && old.type !== 'tasks') return live ?? old
   const now = live?.type === old.type ? live.rows : []
   const rows = [
-    ...old.rows.map((r) => now.find((x) => x.id === r.id) ?? asDone(r)),
+    ...old.rows.map((r) => now.find((x) => x.id === r.id) ?? (dropped.has(r.id) ? r : asDone(r))),
     ...now.filter((x) => !old.rows.some((r) => r.id === x.id)),
   ]
   return { ...(live?.type === old.type ? live : old), rows } as Card
@@ -86,6 +100,11 @@ function merged(old: Card, live: Card | undefined): Card {
 export function rebuilt(turn: StoredTurn, ctx: TopicCtx): StoredTurn {
   const topic = turn.who === 'bot' ? DEFS[turn.topic] : undefined
   if (!topic || !turn.cards.length) return turn
+  // A card of a topic this stage no longer raises stays as it was when the stage moved on, if the
+  // move dropped its items. Without this, `merged` ticks every dropped row as done (the Setup
+  // card's "Not set" rows) and an outline rebuilds as all ready (Sections with questions open).
+  const dropped = ctx.brief.items.filter((i) => droppedByStageMove(ctx.brief, i))
+  if (!STAGE_TOPICS[ctx.brief.stage].includes(turn.topic) && dropped.some(topic.claims)) return turn
   const live = withIds(turn.id, topic.build({ ...ctx, rebuild: true }, turn.items)?.cards ?? [])
   return {
     ...turn,
@@ -93,6 +112,7 @@ export function rebuilt(turn: StoredTurn, ctx: TopicCtx): StoredTurn {
       merged(
         c,
         live.find((l) => l.id === c.id),
+        new Set(dropped.map((i) => i.id)),
       ),
     ),
   }
@@ -174,7 +194,7 @@ export function advance(
     const last = session
     if (session) earlier = [...earlier, session].slice(-ASSISTANT.keepSessions)
     session = newSession(brief, now)
-    const greeting = say('greeting', greetingWords(ctx(), last), false)
+    const greeting = post('bot', 'greeting', 'idle', { says: greetingSays(ctx(), last) })
     raiseNext()
     greeting.mood = added[1]?.mood ?? 'idle'
   } else if (session) {

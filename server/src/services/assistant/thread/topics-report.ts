@@ -25,7 +25,8 @@ export function beforeGenerateTopic(ctx: TopicCtx): Built | null {
     ...(blockers.some((i) => i.kind === 'transcribing')
       ? []
       : [tick('Recordings', `${f.recordingsTranscribed ?? 0} transcribed`)]),
-    ...(total ? [tick('Checklist', `${covered} of ${total}`)] : []),
+    // A tick says done: a checklist still being answered gets none (round 8, item 22).
+    ...(total && covered === total ? [tick('Checklist', `${covered} of ${total}`)] : []),
   ]
   const n = blockers.length
   const reply: Reply = {
@@ -42,9 +43,10 @@ export function beforeGenerateTopic(ctx: TopicCtx): Built | null {
     kind: 'question',
     says: [
       {
-        text: `It's nearly ready for generation, but ${andList(named)} would leave gaps in the draft, so it's worth clearing ${one ? 'it' : 'them'} first.`,
-        tone: 'normal',
+        text: `It's nearly ready for generation, but ${andList(named)} would leave gaps in the draft.`,
+        tone: 'lead',
       },
+      { text: `It's worth clearing ${one ? 'it' : 'them'} first.`, tone: 'normal' },
     ],
     cards: [
       {
@@ -109,7 +111,9 @@ export function readyTopic(ctx: TopicCtx): Built | null {
         rows: [],
         ticks: [
           tick('Observations', uncategorised ? `${n}` : `${n}, all categorised`),
-          ...(total ? [tick('Checklist', `${covered} of ${total} answered`)] : []),
+          ...(total && covered === total
+            ? [tick('Checklist', `${covered} of ${total} answered`)]
+            : []),
           ...(thin ? [] : [tick('Sections', `All ${PARTS.length} have enough to draft`)]),
         ],
         cta: { label: 'Open Generation', link: { tab: 'generate' } },
@@ -128,8 +132,10 @@ export const SECTIONS_KINDS = kinds(
   'summary-waiting',
   'no-accepted-ofi',
 )
+// 'ok' is "Ready" in the words, on the card and in the key alike (round 8, item 20). "Drafted"
+// is a different count, the sections that have a draft at all (the greeting and the rail).
 const KEY_LABELS: Partial<Record<OutlineState, string>> = {
-  ok: 'Drafted',
+  ok: 'Ready',
   question: 'Questions for You',
   figures: 'Needs Your Figures',
   wait: 'Out of Date',
@@ -140,8 +146,9 @@ type Outline = Extract<Card, { type: 'outline' }>
 
 /**
  * Returns one outline card. No row is singled out (`next` null, round 6): a
- * row opens its own section, and the button opens the tab. The key is left
- * out when every row is in the same state.
+ * row opens its own section, and the button opens the tab. The key names each
+ * state present; the browser draws it only when there are 2 or more (with 1, it
+ * still gives the rows their word, e.g. "Reviewed": round 8, item 25).
  */
 function outlineCard(
   id: string,
@@ -159,12 +166,9 @@ function outlineCard(
     lead,
     items,
     next: null,
-    key:
-      present.size > 1
-        ? (Object.keys(labels) as OutlineState[])
-            .filter((s) => present.has(s))
-            .map((state) => ({ state, label: labels[state]! }))
-        : [],
+    key: (Object.keys(labels) as OutlineState[])
+      .filter((s) => present.has(s))
+      .map((state) => ({ state, label: labels[state]! })),
     cta,
   }
 }
@@ -203,7 +207,7 @@ export function sectionsTopic(ctx: TopicCtx): Built {
   const ok = n('ok')
   // How many drafted is the greeting's to say; these words say how they stand.
   const clauses = [
-    ok ? `${ok} ${ok === 1 ? 'is' : 'are'} clean` : '',
+    ok ? `${ok} ${ok === 1 ? 'is' : 'are'} ready` : '',
     n('question') ? `${n('question')} came back with questions for you` : '',
     n('figures')
       ? `${n('figures')} ${n('figures') === 1 ? 'is' : 'are'} waiting on figures only you can enter`
@@ -218,8 +222,8 @@ export function sectionsTopic(ctx: TopicCtx): Built {
       {
         text: need
           ? `Of the ${items.length} sections, ${andList(clauses)}.`
-          : `All ${items.length} sections are drafted, and every one is clean.`,
-        tone: need ? 'normal' : 'good',
+          : `All ${items.length} sections are drafted, and every one is ready.`,
+        tone: need ? 'lead' : 'good',
       },
     ],
     cards: [
@@ -276,7 +280,7 @@ export function outlineTopic(ctx: TopicCtx): Built | null {
         text: reopened
           ? `${ctx.facts.site} was ready to export, but some of it needs another look in review.`
           : `${reviewed} of ${items.length} sections are fully reviewed${left ? `, so ${count(left, 'section')} still ${left === 1 ? 'needs' : 'need'} you` : ''}.`,
-        tone: 'normal',
+        tone: 'lead',
       },
     ],
     cards: [
@@ -311,7 +315,7 @@ export function remindersTopic(ctx: TopicCtx): Built | null {
     says: [
       {
         text: `${n === 1 ? '1 small thing' : `${n} small things`} I noticed while you were away.`,
-        tone: 'normal',
+        tone: 'lead',
       },
     ],
     cards: [
@@ -344,7 +348,7 @@ export function draftAgainTopic(ctx: TopicCtx): Built | null {
     says: [
       {
         text: 'Some drafts are out of date since you reviewed them, so draft them again first.',
-        tone: 'normal',
+        tone: 'lead',
       },
     ],
     cards: [
@@ -471,8 +475,9 @@ export function exportedTopic(ctx: TopicCtx): Built | null {
     kind: ask ? 'question' : 'info',
     says: ask
       ? [
+          { text: `${went}, but the copy you sent is now a version behind.`, tone: 'lead' },
           {
-            text: `${went}. Since then, ${andList(names)} ${changed.length === 1 ? 'was' : 'were'} edited, so the copy you sent is a version behind.`,
+            text: `Since then, ${andList(names)} ${changed.length === 1 ? 'was' : 'were'} edited.`,
             tone: 'normal',
           },
         ]

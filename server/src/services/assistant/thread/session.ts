@@ -5,7 +5,7 @@ import type { StoredSession, StoredTurn } from '../../../models/assistant-thread
 import { dayOf } from '../dates'
 import { firstName } from '../phrases'
 import { ASSISTANT } from '../settings'
-import type { Card, Say, Stage } from '../types'
+import type { BriefItem, Card, Say, Stage } from '../types'
 import type { ThreadBrief, ThreadViewer, TopicCtx } from './types'
 
 /**
@@ -31,6 +31,17 @@ export function newSession(brief: ThreadBrief, now: Date): StoredSession {
     observations: brief.facts.observations,
   }
 }
+
+/**
+ * Returns whether the stage moving on dropped this item, rather than the engineer fixing it: it
+ * was resolved at the very instant a stage was dated (stage.ts and recheck.service.ts share one
+ * `now`). Without this, a check that stops applying once the stage moves (Setup details after
+ * Prepare) reads as "sorted" in the catch-up and ticks done on the old card.
+ * shortcut: a real fix landing in the same re-check as a stage move is also treated as dropped (it
+ * is never claimed as sorted); upgrade only if that proves too quiet.
+ */
+export const droppedByStageMove = (brief: ThreadBrief, item: BriefItem) =>
+  !!item.resolvedAt && Object.values(brief.facts.stageDates).includes(item.resolvedAt)
 
 /** Returns what the topic builders read for this session. */
 export function topicCtx(
@@ -72,15 +83,32 @@ export function partsOf(
 }
 
 /**
- * Returns the turn as an OpenUI program in its own words and order. Set on a
- * turn whose words sit between its cards: without it, a turn the wording AI
- * didn't word would draw every bubble before every card (the browser's fallback).
+ * Returns the turn as an OpenUI program in its own words and order, each piece in the form the
+ * rules gave it (Lead, Say, Ticks, Alert, Card). It is the format every AI wording must keep
+ * (wording.service.ts), and it is set on a turn whose words sit between its cards: without it,
+ * a turn the wording AI didn't word would draw every bubble before every card (the browser's
+ * fallback).
  */
 export function programOf(turn: StoredTurn): string {
-  const lines = partsOf(turn).map((p, n) =>
-    p.type === 'say'
-      ? `p${n} = Say(${JSON.stringify(p.say.text)}${p.say.tone === 'good' ? ', "good"' : ''})`
-      : `p${n} = Card(${JSON.stringify(p.card.id)})`,
-  )
-  return [`root = Reply([${lines.map((_, n) => `p${n}`).join(', ')}])`, ...lines].join('\n')
+  const calls: string[] = []
+  // A run of ticks is one tick list.
+  let ticks: string[] | null = null
+  for (const p of partsOf(turn)) {
+    const text = p.type === 'say' ? JSON.stringify(p.say.text) : ''
+    if (p.type === 'say' && p.say.tone === 'tick') {
+      if (!ticks) calls.push('')
+      ticks = [...(ticks ?? []), text]
+      calls[calls.length - 1] = `Ticks([${ticks.join(', ')}])`
+      continue
+    }
+    ticks = null
+    if (p.type === 'card') calls.push(`Card(${JSON.stringify(p.card.id)})`)
+    else if (p.say.tone === 'lead') calls.push(`Lead(${text})`)
+    else if (p.say.tone === 'alert') calls.push(`Alert(${text})`)
+    else calls.push(`Say(${text}${p.say.tone === 'good' ? ', "good"' : ''})`)
+  }
+  return [
+    `root = Reply([${calls.map((_, n) => `p${n}`).join(', ')}])`,
+    ...calls.map((call, n) => `p${n} = ${call}`),
+  ].join('\n')
 }
