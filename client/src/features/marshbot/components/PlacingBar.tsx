@@ -70,7 +70,7 @@ export function PlacingBar({
           pill
           size="sm"
           className="ds-press mb-hit"
-          disabled={busy}
+          disabled={busy || !typed.trim()}
           onClick={onSet}
         >
           Set Pin
