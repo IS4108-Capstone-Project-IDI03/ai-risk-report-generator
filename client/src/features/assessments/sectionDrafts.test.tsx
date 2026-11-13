@@ -219,7 +219,7 @@ it('drafts a section of a saved assessment and shows the draft without its citat
   expect(screen.getByRole('button', { name: 'Redraft section' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Review report' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: /Draft (all|remaining) sections/ })).toBeNull()
-  expect(screen.getByText(/2 of 12 sections drafted · 1 needs attention/)).toBeInTheDocument()
+  expect(screen.getByText(/1 of 11 sections drafted · 1 needs attention/)).toBeInTheDocument()
 }, 15_000) // Many role queries over the whole app; slow when every test file runs at once.
 
 it('fills the width with a draft opened on Generation, rather than holding it to prose width', async () => {
@@ -254,8 +254,8 @@ it('drafts every section with enough evidence, one after another', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Draft all sections' }))
 
-  // Over Marsh's 12 sections: Section 1 (always ready) and the two drafted here.
-  await screen.findByText(/3 of 12 sections drafted · 1 needs attention/)
+  // Over the 11 counted parts: the two drafted here.
+  await screen.findByText(/2 of 11 sections drafted · 1 needs attention/)
   // The section without evidence is left out of the run.
   expect(drafted).toEqual(['7', '9'])
   expect(screen.getAllByText('Drafted')).toHaveLength(2)
@@ -279,7 +279,7 @@ it('asks for Section 4 or 5’s figures before drafting it, and leaves it out of
   expect(within(row as HTMLElement).getByRole('button', { name: 'Enter figures' })).toBeVisible()
 
   fireEvent.click(screen.getByRole('button', { name: 'Draft all sections' }))
-  await screen.findByText(/2 of 12 sections drafted · 1 needs attention/)
+  await screen.findByText(/1 of 11 sections drafted · 1 needs attention/)
   expect(drafted).toEqual(['7'])
 }, 15_000)
 

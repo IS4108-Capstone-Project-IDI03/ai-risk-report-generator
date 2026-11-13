@@ -337,7 +337,7 @@ export function SectionDrafts({
             >
               <div style={{ flex: '1', minWidth: '200px' }}>
                 <ProgressBar
-                  // Over Marsh's 12 sections, as the Review rail and Overview count them.
+                  // Over the 11 counted parts, as the Review rail and Overview count them.
                   value={progress.percent}
                   label={`${progress.done} of ${plural(progress.total, 'section')} drafted`}
                   showValue={true}

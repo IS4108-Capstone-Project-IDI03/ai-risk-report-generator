@@ -316,12 +316,11 @@ export function maturityEntries<T>(
   return { entries, unplaced }
 }
 
-// How many of Marsh's 12 report sections are drafted, for every "N of 12 sections
-// drafted" (Review rail, Generation, Overview). Section 1 is always ready: it is filled
-// in from the assessment's details. Section 2 needs its draft, Section 3 an accepted
-// OFI, and 4-12 their own drafts (4 and 5 can be drafted only once their figures
-// are entered; GN-03).
-export const REPORT_SECTIONS = 12
+// How many of the report's 11 counted parts are drafted, for every "N of 11 sections
+// drafted" (Review rail, Generation), as MarshBot counts them. Section 1 is the cover
+// and is not counted. Section 2 needs its draft, Section 3 an accepted OFI, and 4-12
+// their own drafts (4 and 5 can be drafted only once their figures are entered; GN-03).
+export const REPORT_SECTIONS = 11
 export function reportProgress({
   summaryDrafted,
   ofisAccepted,
@@ -332,6 +331,6 @@ export function reportProgress({
   // Drafted sections among 4-12.
   sectionsDrafted: number
 }) {
-  const done = 1 + Number(summaryDrafted) + Number(ofisAccepted > 0) + sectionsDrafted
+  const done = Number(summaryDrafted) + Number(ofisAccepted > 0) + sectionsDrafted
   return { done, total: REPORT_SECTIONS, percent: Math.round((done / REPORT_SECTIONS) * 100) }
 }
