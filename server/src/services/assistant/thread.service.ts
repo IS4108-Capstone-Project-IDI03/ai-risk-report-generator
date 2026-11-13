@@ -67,8 +67,9 @@ async function load(reference: string, brief?: ThreadBrief): Promise<Loaded | nu
   }
 }
 
-// The names a program may only repeat: areas, sections and the places items name.
+// The names a program may only repeat: the site, areas, sections and the places items name.
 const namesOf = (brief: ThreadBrief) => [
+  brief.facts.site,
   ...brief.areas.map((a) => a.area),
   ...PARTS.map(partTitle),
   ...brief.items.filter((i) => i.link?.params?.obs || i.link?.params?.walk).map((i) => i.title),
@@ -154,12 +155,9 @@ export function advanceThread(
  */
 async function word(reference: string, loaded: Loaded, bots: StoredTurn[]): Promise<void> {
   try {
-    const programs = await wordTurns(
-      reference,
-      firstName(loaded.viewer.name),
-      bots,
-      namesOf(loaded.brief),
-    )
+    const first = firstName(loaded.viewer.name)
+    // The viewer's first name is a name too: the AI can't greet someone else.
+    const programs = await wordTurns(reference, first, bots, [first, ...namesOf(loaded.brief)])
     if (!Object.keys(programs).length) return
     await oneAtATime(lockOf(reference), async () => {
       const key = { assessment: loaded.assessment, user: loaded.engineer._id }
