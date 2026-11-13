@@ -32,6 +32,9 @@ export type PopoverProps = {
   sheetCancel?: boolean
   // A class on the phone sheet's root, for a feature's own look (it is portalled to the body).
   sheetClassName?: string
+  // Placed against the window, below the trigger or above it when there is more room, so a
+  // scrolling box round the trigger can't clip it (MarshBot's reply slot, AS-06).
+  fixed?: boolean
 }
 
 // A small floating surface anchored to a trigger. It owns the overlay
@@ -54,6 +57,7 @@ export function Popover({
   sheetCentred = false,
   sheetCancel = false,
   sheetClassName,
+  fixed = false,
 }: PopoverProps) {
   const asSheet = useIsPhone() && !noSheet
   const anchor = useRef<HTMLDivElement>(null)
@@ -88,10 +92,61 @@ export function Popover({
   // just enough to fit, a small margin from the edge. jsdom lays nothing out,
   // so a surface with no width is left where it is.
   const surface = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onOpenChange)
+  useEffect(() => {
+    closeRef.current = onOpenChange
+  })
   useLayoutEffect(() => {
     const el = surface.current
     if (!open || !el) return
+    // `fixed`: the trigger's own box on screen decides the place, clamped to the window.
+    const placeFixed = () => {
+      const t = anchor.current?.getBoundingClientRect()
+      const width = el.offsetWidth
+      // The whole height, also while capped (scrollHeight), so a cap never shrinks the next place.
+      const height = Math.max(el.offsetHeight, el.scrollHeight)
+      if (!t || !width) return
+      const margin = 8
+      const start = align === 'left' ? t.left : t.right - width
+      const room = document.documentElement.clientWidth - margin - width
+      el.style.left = `${Math.max(margin, Math.min(start, room))}px`
+      // Below when it fits, else above when that fits, else the roomier side with the height
+      // capped to it and its own scroll: a short window still reaches the last rows.
+      const below = window.innerHeight - margin * 2 - t.bottom
+      const above = t.top - margin * 2
+      const up = height > below && (height <= above || above > below)
+      const fit = Math.min(height, up ? above : below)
+      if (fit < height) {
+        el.style.setProperty('--cap', `${fit}px`)
+        el.setAttribute('data-cap', '')
+      } else el.removeAttribute('data-cap')
+      el.style.top = `${up ? t.top - margin - fit : t.bottom + margin}px`
+      el.style.transformOrigin = `${up ? 'bottom' : 'top'} ${align}`
+    }
+    // A scroll that carries the trigger out of its scrolling box's view: following it would
+    // float the surface over whatever is round that box (a header, a rail).
+    const triggerHidden = (scroller: EventTarget | null) => {
+      const t = anchor.current
+      if (!(scroller instanceof Element) || !t || !scroller.contains(t)) return false
+      const box = scroller.getBoundingClientRect()
+      const r = t.getBoundingClientRect()
+      return r.top < box.top || r.bottom > box.bottom
+    }
+    // Fixed: at most one place per frame, as scroll and resize events can come many to a frame.
+    let frame = 0
+    let scrolled: EventTarget | null = null
+    const onMove = (e: Event) => {
+      if (e.type === 'scroll') scrolled = e.target
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        if (triggerHidden(scrolled)) closeRef.current(false)
+        else placeFixed()
+        scrolled = null
+      })
+    }
     const place = () => {
+      if (fixed) return placeFixed()
       el.style.transform = ''
       el.removeAttribute('data-flip')
       el.removeAttribute('data-cap')
@@ -119,9 +174,16 @@ export function Popover({
       }
     }
     place()
-    window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
-  }, [open, asSheet])
+    const move = fixed ? onMove : place
+    window.addEventListener('resize', move)
+    // A fixed surface follows its trigger when anything scrolls (capture: any scrolling box).
+    if (fixed) window.addEventListener('scroll', move, true)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', move)
+      window.removeEventListener('scroll', move, true)
+    }
+  }, [open, asSheet, fixed, align])
 
   // Opening moves focus to the selected item (or the first) of a menu inside, so a keyboard
   // user lands in it. Only options and menu items: a form inside keeps its own focus.
@@ -136,10 +198,9 @@ export function Popover({
 
   // Only the topmost overlay answers Esc, so one press closes one thing.
   const isTop = useOverlayStack(open && !asSheet)
-  const closeRef = useRef(onOpenChange)
-  useEffect(() => {
-    closeRef.current = onOpenChange
-  })
+  // Set when it closed because focus moved on by itself (Tab): the return-focus step below must
+  // leave focus where the user took it.
+  const focusMoved = useRef(false)
   useEffect(() => {
     if (!open || asSheet) return
 
@@ -151,13 +212,25 @@ export function Popover({
     const onPointerDown = (event: MouseEvent) => {
       if (!anchor.current?.contains(event.target as Node)) closeRef.current(false)
     }
+    // Fixed: it floats over the page, so Tab to anywhere outside the trigger and the surface closes
+    // it. Without this it would stay open behind the user. No target (a click on plain page, the
+    // window losing focus) is left to the outside-click handler.
+    const box = anchor.current
+    const onFocusOut = (event: FocusEvent) => {
+      const to = event.relatedTarget
+      if (!(to instanceof Node) || box?.contains(to)) return
+      focusMoved.current = true
+      closeRef.current(false)
+    }
+    if (fixed) box?.addEventListener('focusout', onFocusOut)
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('mousedown', onPointerDown)
     return () => {
+      box?.removeEventListener('focusout', onFocusOut)
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('mousedown', onPointerDown)
     }
-  }, [open, asSheet, isTop])
+  }, [open, asSheet, isTop, fixed])
 
   // Return focus to the trigger once the surface is gone, so a keyboard user
   // who closed with Escape lands back on the control they opened from. The
@@ -167,15 +240,26 @@ export function Popover({
   const wasOpen = useRef(false)
   useEffect(() => {
     const wrap = triggerWrap.current
-    // Focus already in the trigger (typing in the date text) stays where it is.
-    if (!open && wasOpen.current && !wrap?.contains(document.activeElement)) {
+    const moved = focusMoved.current
+    // Focus already in the trigger (typing in the date text) stays where it is, and so does focus
+    // the user moved on with Tab.
+    if (!open && wasOpen.current && !moved && !wrap?.contains(document.activeElement)) {
       const focusable = wrap?.matches('button, [tabindex], a[href]')
         ? wrap
         : wrap?.querySelector<HTMLElement>('button, [tabindex], a[href]')
-      focusable?.focus()
+      // Fixed: it may have closed because its trigger scrolled away; don't scroll it back.
+      const keep = fixed ? { preventScroll: true } : undefined
+      focusable?.focus(keep)
+      // Fixed: a trigger that can't take focus now (its slot is inert behind the sticky bar, or
+      // it is gone) would leave focus in the surface, which then unmounts and drops it to the
+      // page's top; the nearest focusable region round the trigger (a turn) takes it instead.
+      const at = document.activeElement
+      if (fixed && (!at || at === document.body || surface.current?.contains(at)))
+        wrap?.closest<HTMLElement>('[tabindex]')?.focus(keep)
     }
+    if (!open) focusMoved.current = false
     wasOpen.current = open
-  }, [open])
+  }, [open, fixed])
 
   // The aria state belongs on the interactive control, so clone the trigger to
   // add it. Only plain props are injected — no ref — which keeps the clone
@@ -219,9 +303,9 @@ export function Popover({
             aria-label={ariaLabel}
             className={`ds-popover ${surfaceClassName}`}
             style={{
-              position: 'absolute',
-              top: 'calc(100% + var(--space-2))',
-              [align]: 0,
+              ...(fixed
+                ? { position: 'fixed', top: 0, left: 0 }
+                : { position: 'absolute', top: 'calc(100% + var(--space-2))', [align]: 0 }),
               zIndex: 50,
               minWidth: '320px',
               maxWidth: 'min(92vw, 420px)',
