@@ -1,5 +1,10 @@
+import { configure } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
 import { testAuth } from './session'
+
+// findBy*/waitFor give up after 1s by default, too short for a screen that
+// renders under a full parallel run.
+configure({ asyncUtilTimeout: 5000 })
 
 // Every test signs in without a gateway: the auth calls answer with the
 // session in session.ts, and no session exists until the form is submitted.

@@ -10,7 +10,7 @@ import { useDocument } from './documents'
 import { PassageDetails } from './PassageDetails'
 import { PdfErrorBoundary } from './PdfErrorBoundary'
 import { loadPdfViewer } from './pdfViewerLoader'
-import { usePassage } from './usePassage'
+import { usePassage } from '../../sources/usePassage'
 import { useSplitWidth, type SplitMode } from './useSplitWidth'
 
 const PdfViewer = lazy(() => loadPdfViewer().then((m) => ({ default: m.PdfViewer })))
@@ -152,6 +152,8 @@ export function CitationPanel({ selected, onClose }: Props) {
           state={state}
           quote={quote}
           passageText={ready?.text ?? null}
+          region={ready?.region}
+          generated={ready?.generated}
           status={status}
           title={attached ? (ready?.headings[0] ?? 'Attached PDF') : undefined}
         />

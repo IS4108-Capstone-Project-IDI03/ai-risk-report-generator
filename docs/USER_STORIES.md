@@ -240,6 +240,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given an image contains risk-relevant visual evidence, such as property damage, safety hazards, equipment conditions, or site conditions, when extraction runs, then the description captures the observable details relevant to risk assessment without presenting unverified assumptions as facts.
   </details>
 
+- [ ] **IN-__** — Record the region each table, formula and picture passage was read from (knowledge admin, Should, deps: IN-12, IN-13, KB-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: store, for each passage read from a table, formula or picture, only the boxes of the item it was read from, so a citation can show that region of the original page (KB-02).
+
+  Today a table passage's `bbox` also holds the prose, captions and pictures in its chunk, and a formula passage's `bbox` is the whole chunk. This story writes the region keys KB-02 reads (`region_kind`, `region_bbox`, `region_pages`; see `docs/areas/database.md`). The GLM path is out of scope until it is fixed or dropped.
+
+  1. Given a chunk holds a table and prose, when it is ingested, then each table passage's region holds only the table's boxes.
+  2. Given a chunk holds two tables, when it is ingested, then each table's passages carry the boxes of the table they were read from.
+  3. Given a chunk is read as a formula, when it is ingested, then its passage's region holds the equation's own boxes, or the chunk's when no single item is the equation.
+  4. Given a picture is described, when it is ingested, then its passage's region holds the picture's boxes.
+  5. Given a passage is plain text, when it is ingested, then it records no region.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)
@@ -262,6 +276,24 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   13. Given a document is withdrawn, when reference material is retrieved, then none of its passages are returned.
   14. Given a document is withdrawn, when I view its details, then I see who withdrew it and when.
   15. Given a document is withdrawn, when I view it, then I can't edit its details.
+  </details>
+
+- [ ] **KB-02** — See the original table, formula or picture behind a cited passage (risk engineer, Should, 5 pts, deps: CB-02, RV-01, IN-13)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see the cited region of the original document beside the passage text, so a number read from a table or formula, or a description of a picture, can be checked against the source.
+
+  Covers the chat's Passage tab and the review workspace's source panel. A table or formula shows its region only once ingestion records it (IN-__); until then it shows as text. A described picture's own boxes stand in for its region. See `docs/DECISIONS.md` (2026-11-12, cited regions).
+
+  1. Given a cited passage records a table, formula or picture region, when its source opens in the chat or the review workspace, then that region of the original page is shown above the passage text.
+  2. Given a cited picture passage has a generated description but no recorded region, when its source opens, then the picture's own location is shown as its region.
+  3. Given a cited region spans several pages, when its source opens, then each page's region is shown in page order.
+  4. Given a cited passage records no region, or its document can't be loaded, when its source opens, then only the passage text is shown, with no error.
+  5. Given a passage's text holds valid LaTeX, when it is shown, then the formula is displayed as math; given the LaTeX is not valid, then the text is shown as written.
+  6. Given a cited picture has a generated description, when its source opens, then the description is shown below the picture, labelled as generated.
+  7. Given a quote is found only in a picture's generated description, when its citation is checked, then it is not shown as found in the document.
+  8. Given a cited region is shown, when the AI answers a question or drafts a section, then no image of it is sent to the AI.
+  9. Given a quote is found only in a picture's generated description, when its citation is shown in the chat, the checklist (on screen and in its PDF) or an Ask answer, then it is marked as from the AI's reading of the figure, not as not found, and in Ask it does not lower the answer's confidence.
   </details>
 
 ## E4 — Retrieval & Context Management

@@ -3,20 +3,13 @@
 // pages and the quoted words in yellow (quoteRects.ts). A bar to step pages, zoom, expand over the chat and open the original.
 // Loaded lazily by CitationPanel, so pdf.js stays out of the chat's first download.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Document, Page, pdfjs } from 'react-pdf'
+import { Document, Page } from 'react-pdf'
 import type { PDFDocumentProxy, PDFPageProxy, TextItem } from 'pdfjs-dist/types/src/display/api'
 import { Icon, IconButton } from '../../../design-system'
 import type { Passage } from '../api'
+import { PDF_OPTIONS } from './pdfSetup'
 import { openPdfSource } from './pdfSource'
 import { quoteRects, type PdfText, type Rect } from './quoteRects'
-
-// react-pdf's docs: set the worker in the same module that renders <Document>. Vite turns the
-// new URL(...) into a hashed file served next to the page. The legacy worker, to match the
-// legacy pdf.js build vite.config.ts aliases in (older browsers).
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
 
 type Props = {
   fileUrl: string
@@ -43,19 +36,6 @@ const GUTTER = 16
 const HIDDEN_CHROME = 90
 // US Letter, until the page's own size is known: the placeholder's shape.
 const LETTER = 11 / 8.5
-// pdf.js asks for byte ranges only as pages need them (pdfSource.ts fetches them), instead of
-// fetching pages nobody looks at. A module constant, so react-pdf doesn't reload the document
-// on every render.
-//
-// wasmUrl: where pdf.js fetches its JPEG 2000 and JBIG2 image decoders and its colour module, by
-// file name. Without it, a page that is one big image (all of NFPA 13 2022) is drawn blank. The
-// dev server serves node_modules; the build copies the folder to /pdfjs-wasm/ (vite.config.ts,
-// pdfjsWasm), which must match the path here.
-const PDF_OPTIONS = {
-  disableAutoFetch: true,
-  wasmUrl: import.meta.env.DEV ? '/node_modules/pdfjs-dist/wasm/' : '/pdfjs-wasm/',
-}
-
 /** Returns the passage's pages: those its boxes sit on plus its page range, else page 1. */
 // Both, because a picture passage's boxes cover only the figure's page while its text, and so the
 // quote, can run on to the next page.

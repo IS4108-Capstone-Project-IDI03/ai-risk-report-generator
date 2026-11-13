@@ -34,7 +34,32 @@ def get_passage(passage_id: str) -> dict | None:
         "pageStart": page_start,
         "pageEnd": meta.get("page_end"),
         "boxes": _boxes(meta.get("bbox") or [], meta.get("bbox_pages"), page_start),
+        "region": _region(meta, page_start),
+        # The passage holds a model's description of a picture, not the document's words (IN-13).
+        "generated": _described(meta),
     }
+
+
+def _described(meta: dict) -> bool:
+    return meta.get("generated_text") == "picture_description"
+
+
+def _region(meta: dict, page_start: int | None) -> dict | None:
+    """The part of the page a citation's source crops (KB-02), or None to show text only.
+
+    Only the `region_*` keys name a table or formula region: such a passage's `bbox` also holds
+    the prose and captions beside it. A described picture's `bbox` is the picture alone, so it
+    stands in until ingestion writes the region keys.
+    """
+    if meta.get("region_kind") and meta.get("region_bbox"):
+        boxes = _boxes(meta["region_bbox"], meta.get("region_pages"), page_start)
+        return {"kind": meta["region_kind"], "boxes": boxes}
+    if _described(meta) and meta.get("bbox"):
+        return {
+            "kind": "picture",
+            "boxes": _boxes(meta["bbox"], meta.get("bbox_pages"), page_start),
+        }
+    return None
 
 
 # `bbox` is a flat list, 4 floats per box (l, t, r, b); `bbox_pages` gives each box's page.

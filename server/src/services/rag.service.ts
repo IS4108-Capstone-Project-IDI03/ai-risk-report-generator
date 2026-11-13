@@ -74,6 +74,8 @@ export type FoundPassage = {
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
+  // The passage holds a model's description of a picture (IN-13, KB-02).
+  generated?: boolean
 }
 
 // The passage for a checklist item's reference (CP-32 AC2), or null when S4
@@ -264,7 +266,8 @@ export type ChecklistDraftResult = {
     text: string
     fields: string[]
     COPE_dimension: string[]
-    citations: { ref: string; quote: string; quote_found: boolean }[]
+    // quote_described: the words are only in a picture's AI description (KB-02).
+    citations: { ref: string; quote: string; quote_found: boolean; quote_described?: boolean }[]
     flags: 'uncited'[]
   }[]
   areas: { id: string; title: string }[]

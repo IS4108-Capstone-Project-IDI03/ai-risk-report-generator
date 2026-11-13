@@ -422,6 +422,32 @@ it('marks a quote not found in its passage as unverified, and says to verify it'
   ).toBeInTheDocument()
 })
 
+it("marks a quote from a picture's AI description as the AI's reading, not unverified (KB-02)", async () => {
+  const fromFigure = {
+    ...CHECKLIST.items[1],
+    citations: [
+      {
+        ref: 'C:nfpa13:118',
+        quote: 'Bars show racks of 9 m',
+        quoteFound: false,
+        quoteDescribed: true,
+      },
+    ],
+  }
+  serve(view({ ...CHECKLIST, items: [CHECKLIST.items[0], fromFigure, CHECKLIST.items[2]] }))
+  show(false)
+
+  const racks = await screen.findByRole('region', { name: 'Rack and high-piled storage' })
+  expect(within(racks).getByText('AI reading of figure')).toBeInTheDocument()
+  expect(within(racks).queryByText('Unverified quote')).not.toBeInTheDocument()
+  fireEvent.click(within(racks).getByRole('button', { name: 'NFPA 13 p. 118' }))
+  expect(
+    within(racks).getByText(
+      "These words are from the AI's reading of the figure, not the document's printed text. Check the figure.",
+    ),
+  ).toBeInTheDocument()
+})
+
 it('leaves out a heading too long to be one when a passage is opened', async () => {
   const story = 'Loss Examples. The hot work permit system was not followed. '.repeat(5)
   const source = CHECKLIST.sources['C:nfpa13:118']

@@ -808,7 +808,13 @@ export type ChecklistItem = {
   // Where it stands on site (CP-31); null while unchecked.
   check: ItemCheck | null
 }
-export type ChecklistCitation = { ref: string; quote: string; quoteFound: boolean }
+// quoteDescribed: the words are only in a picture's AI description (KB-02); absent means false.
+export type ChecklistCitation = {
+  ref: string
+  quote: string
+  quoteFound: boolean
+  quoteDescribed?: boolean
+}
 // Confirmed and Differs come from the observation that checks the item;
 // Not seen and Not applicable are marks with no observation.
 export type CheckResult = 'confirmed' | 'differs' | 'not_seen' | 'not_applicable'

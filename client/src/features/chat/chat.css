@@ -26,6 +26,8 @@
   position: relative; /* the source panel covers the chat on narrow screens */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
   /* OpenUI sizes itself to the whole window (100dvw x 100dvh); without this it
      runs under the page header and off the right edge. */
   height: 100%;
@@ -729,6 +731,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: var(--surface-card);
 }
 .chat-source:focus {
