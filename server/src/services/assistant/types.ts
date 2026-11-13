@@ -215,11 +215,17 @@ export type Card =
       id: string
       title: string
       note: string
-      spans: { label: string; days: number; now: boolean }[]
+      // `skipped` = the assessment jumped over this stage: said as "Skipped", not "0d".
+      spans: { label: string; days: number; now: boolean; skipped?: boolean }[]
     }
 
-// One bubble of words. 'good' is the green acknowledgement.
-export type Say = { text: string; tone: 'normal' | 'good' }
+// One piece of MarshBot's words, with the form the rules gave it (round 8: the rules pick the
+// format, the AI only rewords). 'normal' = plain words; 'good' = the green acknowledgement;
+// 'lead' = the bold first line of a turn that brings something to do or decide (a hello, an
+// answer and good news have none); 'tick' = one ticked item, neighbours forming one tick list;
+// 'alert' = a message that stands out (the report is overdue).
+// Must match client/src/features/marshbot/types.ts.
+export type Say = { text: string; tone: 'normal' | 'good' | 'lead' | 'tick' | 'alert' }
 
 export type Turn = {
   id: string // stable for the life of the thread
@@ -253,10 +259,25 @@ export type Reply = {
   picksDate: boolean // 'another-visit': calendar, then confirm, then send with `date`
   // Set = this choice only opens something: the button follows the link and no reply is posted.
   link: ItemLink | null
+  // One line under the choices saying what this one leads to: the stage it moves the assessment
+  // on to, or the topic "What else?" brings up next.
+  hint?: string
 }
 
 // One day's (or stage's) conversation. Earlier ones fold away, read-only.
 export type Session = { id: string; startedAt: string; stage: Stage; turns: Turn[] }
+
+// One topic of the stage on the agenda above the conversation (round 8): MarshBot raises
+// one topic at a time, and this shows the whole list, so the engineer sees what is left.
+// 'done' = raised and dealt with, 'open' = raised but its tasks are still open (skipped),
+// 'now' = the one MarshBot waits on, 'next' = still to come.
+// `turnId` is the turn where the topic was raised last (null while it is to come).
+export type AgendaStep = {
+  key: string
+  title: string
+  state: 'done' | 'open' | 'now' | 'next'
+  turnId: string | null
+}
 
 // A fact in the rail's "At a glance".
 export type GlanceFact = {
@@ -283,6 +304,7 @@ export type AssistantThread = {
   // blue = waiting or watching ("1 question for you", "Waiting for your next visit", "<Engineer>'s assessment").
   status: { text: string; tone: 'red' | 'amber' | 'green' | 'blue'; icon: string }
   glance: GlanceFact[] // exactly 3
+  agenda: AgendaStep[] // [] for an admin, and when the stage has one topic
   earlier: Session[] // oldest first, read-only
   session: Session // the conversation now
   replies: Reply[] // for the newest bot turn; [] when nothing is asked

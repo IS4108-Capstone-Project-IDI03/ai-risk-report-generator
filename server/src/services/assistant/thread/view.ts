@@ -7,7 +7,7 @@ import { dayOf, daysBetween, longDay, shortDay } from '../dates'
 import { firstName } from '../phrases'
 import { STAGE_LABELS } from '../stage'
 import {
-  STAGES,
+  type AgendaStep,
   type AssistantThread,
   type GlanceFact,
   type Mood,
@@ -16,11 +16,12 @@ import {
   type Turn,
 } from '../types'
 import { offeredReplies, rebuilt } from './advance'
-import { count, pill } from './cards'
+import { count, pill, stageSpans } from './cards'
 import { topicCtx } from './session'
 import { tasksLeft } from './tasks'
 import { answered, NEXT_VISIT } from './topics-capture'
-import { DEFS } from './topics'
+import { DEFS, STAGE_TOPICS } from './topics'
+import { TOPIC_TITLES } from './words'
 import type { Status, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
 
 // The browser's turn: what is only kept for the engine is left out.
@@ -137,6 +138,51 @@ export function glanceOf(brief: ThreadBrief, today: string): GlanceFact[] {
   }
 }
 
+/**
+ * Returns the stage's topics as the agenda above the conversation: what was raised, what
+ * MarshBot waits on now and what is still to come (a topic with nothing to say is left out).
+ * A raised topic is 'done' only when nothing of it is left: one that would still be raised
+ * today with work in it (its pill not green) stays 'open', so the bar never ticks unfinished
+ * work. Empty with fewer than 2 steps: one topic needs no map.
+ */
+export function agendaOf(session: StoredSession, ctx: TopicCtx): AgendaStep[] {
+  const waiting = session.waiting?.topic
+  const tasks = [
+    ...new Set(session.turns.filter((t) => t.topic === 'todo').flatMap((t) => t.items ?? [])),
+  ]
+  const steps: AgendaStep[] = []
+  for (const key of STAGE_TOPICS[ctx.brief.stage]) {
+    const title = TOPIC_TITLES[key]
+    const raised = ctx.said.includes(key)
+    const live = DEFS[key].build(ctx)
+    // The gaps topic follows its check, as nextTopic (advance.ts) does: coming while the check
+    // runs even though it can't be built yet, and not coming after a check that failed.
+    const check = key === 'gaps' ? ctx.brief.coverage.status : null
+    const coming = !raised && (check === 'running' || (check !== 'failed' && !!live))
+    if (!title || (!raised && !coming && waiting !== key)) continue
+    // A question raised and no longer waited on was answered (a question cut off by new tasks
+    // is un-raised in advance.ts), so it is done even though its blue pill would still show.
+    const left =
+      key === 'todo'
+        ? tasksLeft(ctx, tasks) > 0
+        : !!live && live.kind !== 'question' && live.status.tone !== 'green'
+    const state: AgendaStep['state'] =
+      waiting === key ? 'now' : !raised ? 'next' : left ? 'open' : 'done'
+    // Where the topic was raised last, so the agenda can jump back to it; null while it is
+    // to come (a turn of the same topic from the stage before is not it).
+    const turnId =
+      raised || waiting === key
+        ? (session.turns.filter((t) => t.who === 'bot' && t.topic === key).at(-1)?.id ?? null)
+        : null
+    const same = steps.find((s) => s.title === title)
+    // One step per name: the one MarshBot waits on wins, then one already raised.
+    if (!same) steps.push({ key, title, state, turnId })
+    else if (state === 'now' || (state !== 'next' && same.state === 'next'))
+      Object.assign(same, { state, turnId })
+  }
+  return steps.length > 1 ? steps : []
+}
+
 // The pill under MarshBot's name: tasks to fix first, then what the newest turn waits on.
 function statusOf(
   session: StoredSession,
@@ -229,6 +275,7 @@ export function viewThread(
     mood: archived ? 'idle' : moodOf(status, session.waiting, last, thinking),
     status,
     glance: glanceOf(brief, ctx.today),
+    agenda: archived ? [] : agendaOf(session, ctx),
     earlier: state.earlier.map((s) => sessionOf(s, s.turns.map(shown))),
     session: sessionOf(session, turns.map(shown)),
     // Nothing to answer while the next turn is still being written, or once archived.
@@ -264,17 +311,7 @@ export function adminThread(brief: ThreadBrief, viewerName: string, now: Date): 
       : ''
   }`
   const id = 'admin-1'
-  // Days in each stage reached so far; the current one runs to today.
-  const reached = STAGES.filter((s) => f.stageDates[s])
-  const spans = reached.map((s, n) => {
-    const from = dayOf(new Date(f.stageDates[s]!))
-    const to = reached[n + 1] ? dayOf(new Date(f.stageDates[reached[n + 1]]!)) : today
-    return {
-      label: STAGE_LABELS[s],
-      days: Math.max(0, daysBetween(from, to)),
-      now: s === brief.stage,
-    }
-  })
+  const spans = stageSpans(f.stageDates, brief.stage, today)
   const lane = (state: 'reviewed' | 'decisions' | 'not_started') =>
     sections
       .filter((s) => s.state === state)
@@ -338,6 +375,7 @@ export function adminThread(brief: ThreadBrief, viewerName: string, now: Date): 
       icon: 'user',
     },
     glance: glanceOf(brief, today),
+    agenda: [],
     earlier: [],
     session: {
       id: 'admin',

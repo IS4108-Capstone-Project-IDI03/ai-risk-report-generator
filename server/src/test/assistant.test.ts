@@ -146,6 +146,8 @@ describe('stages (AC 2, AC 4)', () => {
         primary: true,
         picksDate: false,
         link: null,
+        // It moves the stage, so the choice says where to (round 8).
+        hint: "Clicking “Nothing more to add” will move the assessment's status forward to Prepare.",
       },
     ])
 

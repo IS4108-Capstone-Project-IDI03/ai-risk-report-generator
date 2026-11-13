@@ -148,7 +148,7 @@ export function todoTopic(ctx: TopicCtx, items?: string[], fresh = false): Built
   const n = ids.length
   const lead = fresh
     ? `Something new came up that I need you to sort out first.`
-    : `Before we look at what the report still needs, there ${n === 1 ? "'s 1 thing" : `are ${n} things`} I need you to sort out first.`
+    : `Before we look at what the report still needs, there${n === 1 ? "'s 1 thing" : ` are ${n} things`} I need you to sort out first.`
   const said = byPlace(ids.flatMap((id) => ctx.brief.items.find((i) => i.id === id) ?? [])).map(
     taskSentence,
   )
@@ -156,7 +156,7 @@ export function todoTopic(ctx: TopicCtx, items?: string[], fresh = false): Built
   return {
     kind: 'tasks',
     says: [
-      { text: lead, tone: 'normal' },
+      { text: lead, tone: 'lead' },
       { text: said.join(' '), tone: 'normal' },
     ],
     cards: [

@@ -5,8 +5,9 @@
 import type { StoredSession } from '../../../models/assistant-thread.model'
 import { dayOf, daysBetween, inDays, partOfDay, shortDay, weekdayDay, weekdayName } from '../dates'
 import { STAGE_LABELS } from '../stage'
-import type { BriefItem, Reply, Stage } from '../types'
-import { andList, count, lowerFirst } from './cards'
+import type { BriefItem, Reply, Say, Stage } from '../types'
+import { andList, count, lowerFirst, upperFirst } from './cards'
+import { droppedByStageMove } from './session'
 import type { TopicCtx } from './types'
 
 // Where the assessment stands, in one sentence per stage.
@@ -35,13 +36,26 @@ function stageLine(ctx: TopicCtx): string {
   return lines[ctx.brief.stage]
 }
 
-// The report date, when it is close or past: a sentence, never a row.
-function dueLine(ctx: TopicCtx): string {
+// The report date when it matters, never a row: close (within 7 days) it is a sentence at the
+// end of the greeting; past, it is its own message that stands out (round 8, item 13).
+function dueSays(ctx: TopicCtx): { soon: string; overdue: Say[] } {
   const due = ctx.facts.reportDue
-  if (!due || ctx.brief.stage === 'exported') return ''
+  if (!due || ctx.brief.stage === 'exported') return { soon: '', overdue: [] }
   const days = daysBetween(ctx.today, due)
-  if (days < 0) return ` The report is ${count(-days, 'day')} overdue, so let's keep it moving.`
-  return days <= 7 ? ` Just so you know, the report is due ${inDays(days)}.` : ''
+  if (days < 0)
+    return {
+      soon: '',
+      overdue: [
+        {
+          text: `The report is ${count(-days, 'day')} overdue, so let's keep it moving.`,
+          tone: 'alert',
+        },
+      ],
+    }
+  return {
+    soon: days <= 7 ? `Just so you know, the report is due ${inDays(days)}.` : '',
+    overdue: [],
+  }
 }
 
 // "the morning walk", "the Loading Bay 2 recording": how a sorted item is named in the catch-up.
@@ -54,14 +68,20 @@ function named(item: BriefItem): string {
 
 /**
  * Returns the session's opening words: "Good morning, Alex!" and where things
- * stand, or, after an earlier session, what changed since (H1).
+ * stand, or, after an earlier session, what changed since (H1): one sentence for one change, a
+ * tick list for more. A report past its due date follows as a stand-out message.
  */
-export function greetingWords(ctx: TopicCtx, last: StoredSession | null): string {
+export function greetingSays(ctx: TopicCtx, last: StoredSession | null): Say[] {
   const hello = `Good ${partOfDay(ctx.now).toLowerCase()}, ${ctx.first}!`
-  if (!last) return `${hello} ${stageLine(ctx)}${dueLine(ctx)}`
+  const { soon, overdue } = dueSays(ctx)
+  const plain = (...words: string[]): Say[] => [
+    { text: [...words, soon].filter(Boolean).join(' '), tone: 'normal' },
+    ...overdue,
+  ]
+  if (!last) return plain(hello, stageLine(ctx))
   const f = ctx.facts
   // Only what was open in the last session and is resolved now (a), (b), and
-  // never a title an open item still has (c): a reviewed walk's "complete the
+  // never a title an open item still has (c), nor an item the stage moving on dropped (d): a reviewed walk's "complete the
   // fields" gap shares "Morning walk" with the walk still waiting for review, and
   // a skipped task is still open, so neither is claimed as sorted.
   const lastEnd = last.turns.at(-1)?.at ?? last.startedAt
@@ -72,6 +92,7 @@ export function greetingWords(ctx: TopicCtx, last: StoredSession | null): string
         .filter(
           (i) =>
             i.resolvedAt &&
+            !droppedByStageMove(ctx.brief, i) &&
             i.resolvedAt > last.startedAt &&
             i.firstSeenAt <= lastEnd &&
             (i.weight === 'fix_now' || i.weight === 'gap') &&
@@ -81,22 +102,31 @@ export function greetingWords(ctx: TopicCtx, last: StoredSession | null): string
         .map(named),
     ),
   ]
-  const shown = sorted.length > 3 ? [...sorted.slice(0, 2), `${sorted.length - 2} more`] : sorted
+  // Each change is one clause: at most 2 sorted items by name, the rest counted.
+  const more = sorted.length - 2
   const added = f.observations - (last.observations ?? f.observations)
   const clauses = [
-    sorted.length
-      ? `${andList(shown)} ${sorted.length === 1 ? 'is' : sorted.length === 2 ? 'are both' : 'are'} sorted`
-      : '',
+    ...(sorted.length > 3
+      ? [...sorted.slice(0, 2).map((s) => `${s} is sorted`), `${more} more are sorted`]
+      : sorted.map((s) => `${s} is sorted`)),
     added > 0 ? `you added ${count(added, 'more observation')}` : '',
     last.stage !== ctx.brief.stage
       ? `it's moved on to the ${STAGE_LABELS[ctx.brief.stage]} stage`
       : '',
   ].filter(Boolean)
-  if (!clauses.length) return `${hello} ${stageLine(ctx)}${dueLine(ctx)}`
+  if (!clauses.length) return plain(hello, stageLine(ctx))
   const lastDay = dayOf(new Date(last.startedAt))
   const since = daysBetween(lastDay, ctx.today) === 1 ? 'yesterday' : weekdayName(lastDay)
-  const total = added > 0 ? ` That brings you to ${f.observations}.` : ''
-  return `${hello} Since ${since}, ${clauses.join(', and ')}.${total}${dueLine(ctx)}`
+  const total = added > 0 ? `That brings you to ${f.observations}.` : ''
+  if (clauses.length === 1) return plain(`${hello} Since ${since}, ${clauses[0]}.`, total)
+  // The catch-up as a tick list (round 8, item 5): the rules mark each tick, the AI only rewords.
+  const after = [total, soon].filter(Boolean).join(' ')
+  return [
+    { text: `${hello} Here's what has changed since ${since}.`, tone: 'normal' },
+    ...clauses.map((c): Say => ({ text: upperFirst(c), tone: 'tick' })),
+    ...(after ? [{ text: after, tone: 'normal' } as Say] : []),
+    ...overdue,
+  ]
 }
 
 const LABELS: Record<Reply['id'], string> = {
@@ -114,6 +144,47 @@ const LABELS: Record<Reply['id'], string> = {
 /** Returns the engineer's reply as their bubble says it ("Another visit on Fri 20 Nov", as the button). */
 export function replyLabel(reply: Reply['id'], date?: string): string {
   return reply === 'another-visit' && date ? `Another visit on ${weekdayDay(date)}` : LABELS[reply]
+}
+
+/**
+ * A topic's name on the agenda above the conversation and in the "Up next" line. Topics that
+ * share a name are one step: only one of the three ways Capture wraps up is ever raised.
+ */
+export const TOPIC_TITLES: Record<string, string> = {
+  todo: 'To Do',
+  setup: 'Setup',
+  'before-survey': 'Before the Survey',
+  checklist: 'Checklist',
+  tidy: 'To Tidy Up',
+  gaps: 'Gaps',
+  'visit-question': 'Wrap Up',
+  'visit-set': 'Wrap Up',
+  'all-clear': 'Wrap Up',
+  'before-generate': 'Before You Generate',
+  ready: 'Ready to Generate',
+  sections: 'Sections',
+  outline: 'Review',
+  reminders: 'While You Were Away',
+  'draft-again': 'Draft Again',
+  'export-ready': 'Export',
+  exported: 'Exported',
+  rest: 'Also Worth a Look',
+}
+
+// The choices that move the stage on, and where to: said under the choices, so it is clear
+// before the press that it moves the assessment's progress forward (round 8, item 10).
+const MOVES: Partial<Record<Reply['id'], Stage>> = {
+  'nothing-more': 'prepare',
+  'ready-to-generate': 'ready_for_generation',
+}
+
+/** Returns the line under the choices for a reply that moves the stage on, else undefined. */
+export function moveHint(id: Reply['id']): string | undefined {
+  const to = MOVES[id]
+  return (
+    to &&
+    `Clicking “${LABELS[id]}” will move the assessment's status forward to ${STAGE_LABELS[to]}.`
+  )
 }
 
 /** Returns a reply as the choices offer it. */

@@ -79,7 +79,7 @@ function restTopic(ctx: TopicCtx): Built | null {
   if (!items.length) return null
   return {
     kind: 'info',
-    says: [{ text: 'A few more things worth a look when you have a moment.', tone: 'normal' }],
+    says: [{ text: 'A few more things worth a look when you have a moment.', tone: 'lead' }],
     cards: [
       {
         type: 'rows',
