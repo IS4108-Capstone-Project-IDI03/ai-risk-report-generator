@@ -16,7 +16,9 @@ def _waited(monkeypatch, texts: list[str]) -> float:
     monkeypatch.setattr(
         privacy,
         "_client",
-        lambda: httpx.Client(base_url="http://privacy.test", transport=httpx.MockTransport(handler)),
+        lambda: httpx.Client(
+            base_url="http://privacy.test", transport=httpx.MockTransport(handler)
+        ),
     )
     privacy.session({"enabled": True}).mask(texts)
     return seen["timeout"]
