@@ -333,17 +333,35 @@ describe('Source region', () => {
     expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("cuts the page to the region's box", async () => {
+  // Docling's boxes sit tight on a table's top rule and header, so the frame keeps a margin.
+  it("cuts the page to the region's box, with a margin of 8 points", async () => {
     vi.mocked(fetchPassage).mockResolvedValue(TABLE)
     renderPanel(cited())
     const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
-    // 600 x 800 page; box l60 t700 r360 b500 (bottom-left origin) is 300 x 200 points.
-    expect(region.style.aspectRatio).toBe('300 / 200')
     const page = within(region).getByTestId('pdf-page').parentElement!
-    await waitFor(() => expect(page.style.width).toBe('200%'))
-    expect(page.style.left).toBe('-20%')
-    // Its top edge is 800 - 700 = 100 points below the page's top: half the box's height.
-    expect(page.style.top).toBe('-50%')
+    await waitFor(() => expect(page.style.width).not.toBe(''))
+    // 600 x 800 page; box l60 t700 r360 b500 (bottom-left origin), 8 points out on each side:
+    // l52 t708 r368 b492, 316 x 216 points.
+    expect(region.style.aspectRatio).toBe('316 / 216')
+    expect(parseFloat(page.style.width)).toBeCloseTo((600 / 316) * 100)
+    expect(parseFloat(page.style.left)).toBeCloseTo((-52 / 316) * 100)
+    // Its top edge is 800 - 708 = 92 points below the page's top.
+    expect(parseFloat(page.style.top)).toBeCloseTo((-92 / 216) * 100)
+  })
+
+  it('keeps the margin inside the page', async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...TABLE,
+      region: { kind: 'table', boxes: [{ page: 4, l: 0, t: 800, r: 300, b: 600 }] },
+    })
+    renderPanel(cited())
+    const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
+    const page = within(region).getByTestId('pdf-page').parentElement!
+    await waitFor(() => expect(page.style.width).not.toBe(''))
+    // l0 t800 r308 b592: nothing above the page's top or left of its edge.
+    expect(region.style.aspectRatio).toBe('308 / 208')
+    expect(parseFloat(page.style.left)).toBeCloseTo(0)
+    expect(parseFloat(page.style.top)).toBeCloseTo(0)
   })
 
   it("says a picture's description was written by AI, under the picture", async () => {
@@ -377,8 +395,8 @@ describe('Source region', () => {
       'Table on page 4 of the original',
       'Table on page 5 of the original',
     ])
-    // Page 4's two boxes as one: t500 down to b100.
-    expect(frames[0].style.aspectRatio).toBe('300 / 400')
+    // Page 4's two boxes as one, t500 down to b100, with its margin.
+    expect(frames[0].style.aspectRatio).toBe('316 / 416')
   })
 
   it('shows only the text when the passage records no region', async () => {

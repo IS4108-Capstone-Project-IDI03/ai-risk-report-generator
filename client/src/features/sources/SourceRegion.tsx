@@ -17,6 +17,9 @@ const NAMES: Record<RegionKind, string> = { table: 'Table', formula: 'Formula', 
 // on a 2x screen. The whole page is drawn larger in proportion, capped like the PDF tab's.
 const REGION_WIDTH = 720
 const MAX_PAGE = 1600
+// Docling's boxes sit tight on a table's top rule or a formula's ink, so the frame shows this many
+// points more on each side, kept inside the page.
+const MARGIN = 8
 
 type Size = { width: number; height: number }
 
@@ -90,11 +93,23 @@ function boxesByPage(boxes: PageBox[]): PageBox[] {
   return [...byPage.values()].sort((x, y) => x.page - y.page)
 }
 
+/** The box with MARGIN points more on each side, inside the page once its size is known. */
+function withMargin(box: PageBox, page: Size | null): PageBox {
+  return {
+    page: box.page,
+    l: Math.max(0, box.l - MARGIN),
+    b: Math.max(0, box.b - MARGIN),
+    r: page ? Math.min(page.width, box.r + MARGIN) : box.r + MARGIN,
+    t: page ? Math.min(page.height, box.t + MARGIN) : box.t + MARGIN,
+  }
+}
+
 /** One page drawn inside a frame the shape of its box, shifted so only the box shows. */
-function RegionFrame({ box, name }: { box: PageBox; name: string }) {
+function RegionFrame({ box: tight, name }: { box: PageBox; name: string }) {
   const [size, setSize] = useState<Size | null>(null)
   const [failed, setFailed] = useState(false)
   if (failed) return null
+  const box = withMargin(tight, size)
   const width = box.r - box.l
   const height = box.t - box.b
   if (width <= 0 || height <= 0) return null

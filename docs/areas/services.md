@@ -412,12 +412,15 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   draw the region above the passage text (`client/src/features/sources/`:
   `CitedRegion`, `SourceRegion`), with react-pdf as the PDF tab does (`pdfSetup.ts`).
   Review looks the passage up live by its chunk id only for the region; its text stays
-  as the draft was given it. A region that can't be drawn shows nothing. The region is
-  never sent to an AI model.
+  as the draft was given it. The frame shows 8 points (`MARGIN`) more than the box on
+  each side, inside the page, since Docling's boxes sit tight on a table's top rule.
+  A region that can't be drawn shows nothing. The region is never sent to an AI model.
 - **Formulas as math.** `PassageBody` renders the LaTeX the formula reader wrote
-  (`$$…$$`, `\[…\]`, or a line with a command and no run of prose) with KaTeX,
-  lazy-loaded. LaTeX KaTeX rejects, and a formula holding the quoted words, show as
-  written.
+  (`$$…$$`, `\[…\]`, or a line with a command and no run of prose; words inside
+  `\text{}` or `\mathrm{}` are not prose) with KaTeX, lazy-loaded. A formula the text
+  breaks over lines (a brace left open, or the next line starting with `{`) is joined
+  first. LaTeX KaTeX rejects, and a formula holding the quoted words, show as written.
+  A formula ingestion didn't recognise is stored as plain text and stays so.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
