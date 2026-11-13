@@ -81,8 +81,8 @@ export function DetailsContent({
           {(onEditSite || siteReason) && (
             <IconButton
               icon="pencil"
-              label="Edit site"
-              tooltip="Edit site"
+              label="Edit Site"
+              tooltip="Edit Site"
               size="sm"
               className="mb-hit"
               onClick={onEditSite}
@@ -117,11 +117,11 @@ export function DetailsContent({
         </section>
         <section>
           <Label>{record.siteVisitEndDate ? 'Survey ends' : 'Survey'}</Label>
-          <ReportDue date={survey} note={surveyDone ? 'Done' : undefined} />
+          <ReportDue date={survey} note={surveyDone ? 'Done' : undefined} todayLabel="Today" />
         </section>
         <section>
           <Label>Report due</Label>
-          <ReportDue date={record.reportDueDate} />
+          <ReportDue date={record.reportDueDate} todayLabel="Today" />
         </section>
       </div>
       <DetailsContacts contacts={contacts} shown={budget.contacts} links={budget.links} />

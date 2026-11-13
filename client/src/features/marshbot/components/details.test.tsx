@@ -242,10 +242,9 @@ describe('the site map in the panel', () => {
     expect(screen.getByText('Dispatch Hall', { selector: 'b' })).toBeInTheDocument()
     expect(screen.getByText(/Click the map to place/)).toBeInTheDocument()
     expect(screen.getByLabelText('Coordinates')).toBeInTheDocument()
-    // One row: the locate button inside the input's end, a tick and a cross, no text buttons.
-    for (const name of ['Use my location', 'Set pin', 'Cancel'])
+    // The locate button inside the input's end, then Set Pin and Cancel as buttons with words.
+    for (const name of ['Use My Location', 'Set Pin', 'Cancel'])
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
-    expect(screen.queryByText('Set')).not.toBeInTheDocument()
     await vi.waitFor(() => expect(mapClick).toBeDefined())
     await clickMap(1.5, 103.5)
     expect(put.mock.calls[0][0]).toBe('/api/sites/s1/map')
@@ -257,11 +256,11 @@ describe('the site map in the panel', () => {
     open()
     fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '91, 103' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Set pin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set Pin' }))
     expect(await screen.findByText(/latitude from -90 to 90/)).toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set pin' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set Pin' })))
     expect(sent()).toEqual({ block: 'Plant Room', point: { lat: 1.2966, lng: 103.852 } })
     fireEvent.click(row('Loading Bays').getByRole('button', { name: 'Pin on the map' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -339,7 +338,7 @@ describe('the site map in the panel', () => {
     })
     open()
     fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Use my location' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Use My Location' })))
     expect(screen.getByLabelText('Coordinates')).toHaveValue('1.45231, 103.90087')
     expect(put).not.toHaveBeenCalled()
   })
@@ -351,9 +350,24 @@ describe('the site map in the panel', () => {
     expect(await screen.findByText(/map isn’t available/)).toBeInTheDocument()
     expect(screen.queryByText(/Click the map to place/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set pin' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set Pin' })))
     expect(sent()).toEqual({ block: 'Plant Room', point: { lat: 1.2966, lng: 103.852 } })
     expect(onSaved).toHaveBeenCalled()
+  })
+})
+
+describe('the Edit buttons', () => {
+  it('name what they edit', () => {
+    render(<DetailsContent v={workflow()} record={RECORD} onEditSite={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Edit Site' })).toHaveAttribute('title', 'Edit Site')
+  })
+
+  it('stay greyed, not gone, when the site is someone else’s to change', () => {
+    render(<DetailsContent v={workflow()} record={RECORD} siteReason="Two other reports use it." />)
+    expect(screen.getByRole('button', { name: 'Edit Site' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
   })
 })
 

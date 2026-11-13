@@ -3,7 +3,7 @@
 // the site; Open map swaps the content to the site map, and a back arrow returns. Opened by the
 // header's Details button and the rail's client card (AssessmentApp.tsx).
 import { useEffect, useId, useRef, useState } from 'react'
-import { IconButton, Sheet, useIsPhone } from '../../../design-system'
+import { BackButton, IconButton, Sheet, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
@@ -63,20 +63,17 @@ export function DetailsPanel({
       onOpenMap={v.ovMap ? () => setView('map') : undefined}
     />
   )
+  // The round Back button, left of the title (on a phone the sheet puts it after, so `order` moves it).
   const back = (
-    <IconButton
-      icon="chevron-left"
-      label="Back to details"
-      tooltip="Back to details"
-      className="mb-hit"
-      onClick={() => setView('details')}
-    />
+    <span className="mb-back">
+      <BackButton label="Back to Details" onClick={() => setView('details')} />
+    </span>
   )
   const editDetails = edit && (
     <IconButton
       icon="pencil"
-      label="Edit details"
-      tooltip="Edit details"
+      label="Edit Assessment Details"
+      tooltip="Edit Assessment Details"
       className="mb-hit"
       onClick={() => setDialog('details')}
     />
@@ -88,7 +85,7 @@ export function DetailsPanel({
           open={open}
           onClose={onClose}
           title={title}
-          className="mb-details-sheet"
+          className={mapping ? 'mb-details-sheet mb-details-map' : 'mb-details-sheet'}
           headerAction={mapping ? back : editDetails}
         >
           {content}
@@ -139,9 +136,10 @@ export function DetailsPanel({
           site={edit.record.site}
           assessments={edit.site.assessments}
           onClose={() => setDialog(null)}
-          onSaved={(message) => {
+          // The dialog's own message names the site; a toast here stays short and generic.
+          onSaved={() => {
             setDialog(null)
-            void v.siteSaved(message, { toasterId })
+            void v.siteSaved('Site updated', { toasterId })
           }}
         />
       )}
@@ -149,9 +147,9 @@ export function DetailsPanel({
         <EditDetailsDialog
           record={edit.record}
           onClose={() => setDialog(null)}
-          onSaved={(message) => {
+          onSaved={() => {
             setDialog(null)
-            void v.detailsSaved(message, { toasterId })
+            void v.detailsSaved('Details updated', { toasterId })
           }}
         />
       )}
