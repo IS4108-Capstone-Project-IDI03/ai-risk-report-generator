@@ -278,6 +278,28 @@ button.cal-date {
   width: 100%;
   justify-content: center;
 }
+/* A popover clips what hangs outside it, which hid the reason box under a greyed
+   Reschedule. Nothing in the details needs clipping, so they are let out, unless
+   the popover is cut to the window's height and has to scroll (data-cap). */
+.cal-entry-surface:not([data-cap]) {
+  overflow: visible !important;
+}
+/* The reason as a line under the buttons, where a box would not fit. */
+.cal-details-why {
+  display: none;
+  margin: -4px 0 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.4 var(--font-sans);
+  text-align: center;
+}
+.cal-entry-sheet .cal-details-why,
+.cal-entry-surface[data-cap] .cal-details-why {
+  display: block;
+}
+.cal-entry-sheet .ds-reason-box,
+.cal-entry-surface[data-cap] .ds-reason-box {
+  display: none;
+}
 /* The phone sheet's own title names the site. */
 .cal-entry-sheet .cal-details-site {
   display: none;

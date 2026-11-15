@@ -46,6 +46,12 @@ const DUE_LOOK: Record<DueState, { icon: string; color: string }> = {
   done: { icon: 'circle-check', color: 'var(--green-600)' },
 }
 
+// Why Reschedule is greyed out on someone else's assessment.
+const NOT_MINE = {
+  title: "Can't reschedule",
+  text: 'Only the assigned engineer can change these dates.',
+}
+
 // What an entry says about itself, shared by its chip, row and spoken name.
 function describe(item: CalendarItem, kind: EntryKind, ctx: EntryContext) {
   const type = assessmentType(item.type)
@@ -83,6 +89,7 @@ function describe(item: CalendarItem, kind: EntryKind, ctx: EntryContext) {
 /** Returns the details of one assessment: its dates and people, Open assessment and Reschedule. */
 function EntryDetails({ item, ctx }: { item: CalendarItem; ctx: EntryContext }) {
   const type = assessmentType(item.type)
+  const mine = canReschedule(item, ctx.meId)
   return (
     <div className="cal-details">
       <div className="cal-details-head">
@@ -139,18 +146,14 @@ function EntryDetails({ item, ctx }: { item: CalendarItem; ctx: EntryContext }) 
           variant="pill"
           pill
           onClick={() => ctx.onReschedule(item)}
-          disabledReason={
-            canReschedule(item, ctx.meId)
-              ? undefined
-              : {
-                  title: "Can't reschedule",
-                  text: 'Only the assigned engineer can change these dates.',
-                }
-          }
+          disabledReason={mine ? undefined : NOT_MINE}
         >
           {'Reschedule'}
         </Button>
       </div>
+      {/* Where a reason box under the last button would not fit (a phone's sheet, a
+          popover cut to the window's height), the reason is a line here (calendar.css). */}
+      {!mine && <p className="cal-details-why">{NOT_MINE.text}</p>}
     </div>
   )
 }
