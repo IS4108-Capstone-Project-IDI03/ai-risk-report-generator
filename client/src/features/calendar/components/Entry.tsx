@@ -61,9 +61,10 @@ function describe(item: CalendarItem, kind: EntryKind, ctx: EntryContext) {
     return {
       type,
       due: null,
-      // The row's second line, and the chip's (week view), whose icon and colour say the type.
-      line: [type, item.client, who].filter(Boolean).join(' · '),
-      chipLine: [item.client, who].filter(Boolean).join(' · '),
+      // The row's second line, and the chip's (week view), whose icon and colour say the
+      // type. The engineer comes first: a long client name is cut, and must not cut them.
+      line: [who, type, item.client].filter(Boolean).join(' · '),
+      chipLine: [who, item.client].filter(Boolean).join(' · '),
       spoken: [type, item.site, item.client, when, who].filter(Boolean).join(', '),
     }
   }
@@ -71,8 +72,16 @@ function describe(item: CalendarItem, kind: EntryKind, ctx: EntryContext) {
   return {
     type,
     due,
-    line: ['Report due', item.client, who].filter(Boolean).join(' · '),
-    chipLine: `Report due · ${due?.note ?? ''}`,
+    line: [who, 'Report due', item.client].filter(Boolean).join(' · '),
+    // Short enough for a day's column, so it is never cut: "Due in 3 days", "6 days
+    // late", "Finalised". The engineer is in the details and on the survey's bar.
+    chipLine: !due
+      ? 'Report due'
+      : due.state === 'late'
+        ? due.note
+        : due.state === 'done'
+          ? 'Finalised'
+          : `Due ${due.note}`,
     spoken: [
       'Report due',
       item.site,
@@ -284,10 +293,14 @@ export function EntryRow({
   kind,
   ctx,
   where,
+  align = 'left',
   showDate = false,
 }: EntryProps & {
   // Which list it is in: 'late', 'unscheduled' or 'list'.
   where: string
+  // Which edge of the row its details line up with. The side lists sit at the
+  // window's right edge, so theirs open leftwards, over the grid.
+  align?: 'left' | 'right'
   // The side lists give the due date itself, since no day heading does.
   showDate?: boolean
 }) {
@@ -301,7 +314,7 @@ export function EntryRow({
       ctx={ctx}
       where={where}
       label={d.spoken}
-      align="left"
+      align={align}
       className="cal-row"
     >
       {kind === 'survey' ? (

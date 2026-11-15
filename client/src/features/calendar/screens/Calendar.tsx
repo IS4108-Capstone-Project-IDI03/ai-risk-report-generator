@@ -286,6 +286,7 @@ export function Calendar({
                       kind="due"
                       ctx={ctx}
                       where="late"
+                      align="right"
                       showDate
                     />
                   ))
@@ -309,6 +310,7 @@ export function Calendar({
                         kind="survey"
                         ctx={ctx}
                         where="unscheduled"
+                        align="right"
                       />
                       {canReschedule(item, me.id) && (
                         <IconButton

@@ -4,7 +4,7 @@
 /* The calendar, with the late and unscheduled lists beside it. */
 .cal-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 296px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 16px;
   align-items: start;
 }
@@ -25,7 +25,7 @@
   gap: 2px;
 }
 .cal-stepper strong {
-  min-width: 164px;
+  min-width: 152px;
   color: var(--marsh-navy);
   font: 700 16px/1.2 var(--font-sans);
   font-variant-numeric: tabular-nums;
@@ -194,7 +194,9 @@ button.cal-date {
 /* The week view has the height for a site name on two lines. */
 .cal-grid[data-view='week'] .cal-chip-body {
   align-items: flex-start;
-  padding-block: 7px;
+  gap: 5px;
+  /* Narrower at the sides than in the month, so "Due in 10 days" fits a day's column. */
+  padding: 7px 6px;
 }
 .cal-grid[data-view='week'] .cal-chip-text span:first-child {
   display: -webkit-box;
