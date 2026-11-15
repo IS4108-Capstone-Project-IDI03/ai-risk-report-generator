@@ -1059,6 +1059,44 @@ unit-tested in `tests/test_client_intake_eval.py`.
 uv run python -m eval.client_intake.run_eval --split tuning [--only p01,p02] [--privacy on]
 ```
 
+## Client insights summary (S4, gateway, CP-29)
+
+The written summary on a client's Insights tab. The figures on the tab are
+counted by the gateway alone ([database](database.md), "Client insights"); only
+this summary asks a model. It is written in place when the engineer asks (about
+10-15 s), never on opening the tab, and never streamed.
+
+Gateway (`client-insight-summary.service.ts`):
+1. Builds the evidence from the user's own figures: `figures` (F1 observations
+   by category, F2 rating and accepted OFIs by site, F3 change between visits,
+   as lines of text) and `observations` (O1, O2, ...: each latest assessment's
+   observations with words, most severe first, at most 60, each cut to 600
+   characters).
+2. Sends them to `POST /client-insights/summary` with `privacy` from
+   `chatPrivacy()`: notes at one client can name another, so every client, site
+   and person is masked, as chat masks them.
+3. Records the usage (`ai_calls`, feature `client-insights`, for the user).
+4. Numbers the cited sources in the order they are first cited, each with its
+   own words, and saves the summary. Nothing is saved when the call fails or no
+   statement is left.
+
+rag-service (`app/client_insights/summary.py`, prompt `cp29-v1`, `INSIGHTS_MODEL`
+and `INSIGHTS_EFFORT` on `LLM_PROVIDER`):
+1. One `/mask` call covers the client's name, the figures and the observations,
+   before any model call. It fails closed: masking down is 503 and nothing is sent.
+2. One `complete` call returns 3 to 5 statements, each with the labels it rests on.
+3. Real names are put back, then each statement is checked in code. It is left
+   out when it cites no source it was given, breaks the Ask tab's content rules
+   (`ask.content_problem`: first person, advice, a percentage of certainty),
+   holds a placeholder that could not be restored, or uses a number its cited
+   sources don't give (a source's own label, "F3", does not count as a number).
+4. `confidence` is `low` when a statement was left out, `medium` when something
+   is missing or no statement rests on an observation, `high` otherwise. With no
+   statement left the call fails (502), and the gateway answers 503 with the reason.
+
+Not built: an evaluation set for the summary. The checks above are unit tested;
+how often a real summary passes them, and how useful it reads, is not yet measured.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

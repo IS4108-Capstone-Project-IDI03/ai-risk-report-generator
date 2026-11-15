@@ -2468,3 +2468,34 @@ Rejected:
 - Replacing the boolean with a three-value field: every stored record and consumer would need migrating for no gain.
 
 Stories: KB-02, CB-01, CP-30, CP-32, AS-01.
+
+## 2026-11-15 — A client's Insights tab is counted by the gateway; only its summary asks a model, and every statement is checked first
+
+Chose:
+- (CP-29) A fourth tab, Insights, on the client page. Open work stays the tab the page opens on, so the page keeps its job of listing the client's sites and assessments.
+- The figures, the order of the sites, the reasons on each and the What stands out sentences are counted and worded by the gateway (`client-insights.service.ts`, rules `insights-v1`) on read. Nothing is stored for them and no model is asked.
+- A site's figures come from its latest assessment that has observations, not its latest assessment. Without this, booking the next visit would blank the site until capture starts.
+- Sites are ordered by a stated rule (Critical findings, then Priority 1 OFIs, then rating) and each shows its reasons. There is no single attention score.
+- An observation filed under two COPE categories counts in both, so a grid row can add up to more than the site's observations.
+- Change is first visit against latest. Fewer Critical and High findings, or a higher score, is Improved. A change in accepted OFIs is shown as "2 more" or "4 fewer" and not judged.
+- Only the engineer's own assessments are counted, as the client page lists them (CP-18). A knowledge admin's are everyone's.
+- The summary is written by rag-service only when asked, from the figures and the latest assessments' observations (at most 60), in one call under `LLM_PROVIDER`. It is returned whole after every statement is checked: cited to a source it was given, no advice or first person (the Ask tab's `content_problem`), no placeholder left, and no number its cited sources lack. Confidence is worked out from those checks.
+- Masking uses chat's list of every client, site and person, and fails closed.
+- Each write is a new `client_insight_summaries` document for that user and client, with a fingerprint of what the model was given; a different fingerprint on read marks it out of date.
+- An assessment opened from a client's page (any of its tabs) has a round Back in its header, "Back to <client>", on every tab of the assessment. It returns to the client page on the tab it was opened from, and so does the browser's Back. The workflow state keeps `clientReturn: { clientId, tab, reference }` for this; opening the client afresh clears it, so it starts on Open work. An assessment opened from anywhere else has no such Back. Before this an assessment's header had no Back at all, and the client page always reopened on Open work.
+- A finding's link scrolls only the page's own scroller (`.om-scroll`). `scrollIntoView` also moved the app's clipped frame and pushed the screen out of view.
+- A model failure answers 503 with the reason, not 502: the browser reads 502 as the gateway being down and would hide the reason.
+- The grid and the change chart are HTML tables, not Recharts: a shaded table and a dot-on-a-line row are not forms Recharts draws, and as tables every value is already text. The grid's shades are the ink ramp (one blue, light to dark), not the `--chart-*` series colours, which are for telling series apart.
+
+Reason: the client page listed sites and dates but said nothing about risk. Counting in code keeps every figure traceable to its rule; the model is used only where words across many notes help, and only behind checks.
+
+Rejected:
+- A single risk score per site: it would sit beside Marsh's own rating with no agreed basis.
+- Counting every engineer's assessments as nameless totals: it would make trends complete, but changes CP-18's rule that an engineer sees only their own work.
+- Writing the summary when the tab opens: a paid call on every visit, for a block many visits don't need.
+- Streaming the summary: a statement could show before its checks.
+- Letting the model quote its sources: the sources list shows each observation's own words, so there is no quote to verify.
+
+Known limits: trends appear only where one user has two assessments with observations at a site. The summary has unit tests for its checks but no evaluation set. The number check reads digits only, so a number written as a word is not checked. Findings recurring across sites, the weakest Section 4 categories and loss expectancy across OFIs are left for a follow-up.
+
+Stories: CP-29, CP-18, PV-02, AS-01, EV-03.

@@ -36,8 +36,9 @@
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
-  `Undefined`; IN-05). A client intake and a client document (CP-23) also store
-  `null` for the fields they don't have (see docs/areas/database.md).
+  `Undefined`; IN-05). A client intake and a client document (CP-23), and a
+  client's insight summary (CP-29), also store `null` for the fields they don't
+  have (see docs/areas/database.md).
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
@@ -67,6 +68,12 @@
   (`ask/askHighlight.ts`), never a mark in the text, so it adds no version
   and changes no review state. Its anchor is RV-03's (`comments/anchor.ts`):
   change both together.
+- A client's insight summary (CP-29) is saved and shown only after rag-service
+  (`client_insights/summary.py`) has checked every statement: cited, no advice
+  or first person, no number its sources lack. Never show a statement that
+  skipped those checks, and never put the summary into a report. The tab's
+  figures are counted in the gateway (`client-insights.service.ts`), never by a
+  model. See docs/areas/services.md, "Client insights summary".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export
