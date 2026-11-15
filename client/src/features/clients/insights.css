@@ -1,0 +1,745 @@
+/* The client page's Insights tab (CP-29). Used by screens/InsightsTab and the
+   components it calls. Cards, tables and the screen-reader class are
+   clients.css's. Design-system tokens only (docs/design-system-v2.md): the
+   grid's shades are the ink ramp, one blue from light to dark. */
+
+.ci {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ci-basis,
+.ci-sub {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.4 var(--font-sans);
+}
+.ci-sub {
+  font-size: 12px;
+}
+.ci-h {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+}
+.ci-label {
+  margin: 0;
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+}
+.ci-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ci-link {
+  align-self: flex-start;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-600);
+  font: 600 13px/1.3 var(--font-sans);
+  cursor: pointer;
+}
+.ci-link:hover {
+  color: var(--marsh-navy);
+}
+.ci-link:focus-visible,
+.ci-cite:focus-visible,
+.ci-cell:focus-visible,
+.ci-rank-site:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: 2px;
+}
+
+/* ---- Headline figures ---- */
+.ci-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.ci-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+.ci-tile dt {
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+}
+.ci-tile dd {
+  margin: 0;
+}
+.ci-tile-value {
+  color: var(--marsh-navy);
+  font: 700 28px/34px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+.ci-tile-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite-600);
+  font: 500 12px/1.4 var(--font-sans);
+}
+.ci-tile-note[data-tone='danger'] {
+  color: var(--red-600);
+}
+.ci-tile-note[data-tone='warn'] {
+  color: var(--amber-600);
+}
+
+/* ---- A 32 px icon tile, and the tones a finding or reason takes ---- */
+.ci-tile-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.ci-tile-icon[data-tone='neutral'] {
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.ci-tile-icon[data-tone='danger'],
+.ci-reason[data-tone='danger'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.ci-tile-icon[data-tone='good'],
+.ci-reason[data-tone='good'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.ci-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ci-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font: 600 12px/1.5 var(--font-sans);
+  white-space: nowrap;
+}
+.ci-reason[data-tone='warn'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+
+/* ---- What stands out ---- */
+.ci-findings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ci-finding {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+}
+.ci-finding-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ci-finding h3 {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 600 15px/1.35 var(--font-sans);
+}
+.ci-finding p {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ci-finding .ci-link {
+  margin-top: auto;
+}
+/* A share: the fill on a lighter step of the same blue. */
+.ci-meter {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+}
+.ci-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--ink-600);
+}
+.ci-move {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--graphite-600);
+  font: 700 20px/1.2 var(--font-sans);
+}
+.ci-move strong {
+  color: var(--marsh-navy);
+  font-size: 24px;
+}
+
+/* ---- Two blocks side by side, stacked where there is no room ---- */
+.ci-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+.ci-col {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+.ci-col--wide {
+  flex: 3 1 460px;
+}
+/* The grid needs room for five headed columns, so it takes the larger share,
+   and the two stack before a heading would be cut short. */
+.ci-col--grid {
+  flex: 1.25 1 560px;
+}
+.ci-col--change {
+  flex: 1 1 420px;
+}
+.ci-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 20px;
+}
+.ci-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.ci-card-head .ci-h {
+  flex: 1 1 auto;
+}
+.ci-card-head .ci-link {
+  align-self: center;
+}
+
+/* ---- The written summary ---- */
+.ci-written,
+.ci-unwritten,
+.ci-writing,
+.ci-sources-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ci-unwritten {
+  align-items: flex-start;
+}
+.ci-unwritten p,
+.ci-statement,
+.ci-missing {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--graphite-900);
+  font: 400 14px/1.65 var(--font-sans);
+}
+.ci-unwritten p {
+  color: var(--graphite-700);
+}
+.ci-missing {
+  padding: 10px 12px;
+  border-radius: var(--radius-field);
+  background: var(--graphite-50);
+  color: var(--graphite-700);
+  font-size: 13px;
+}
+.ci-cite {
+  min-width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font: 700 12px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  vertical-align: 1px;
+  cursor: pointer;
+}
+.ci-cite[aria-pressed='true'] {
+  background: var(--ai-fg);
+  color: var(--text-inverse);
+}
+.ci-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ci-sources li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-field);
+  background: var(--graphite-50);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.ci-sources li[data-on] {
+  background: var(--ai-bg);
+  box-shadow: inset 0 0 0 1px var(--ai-border);
+}
+.ci-source-n {
+  flex: 0 0 auto;
+  min-width: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font: 700 12px/20px var(--font-sans);
+  text-align: center;
+}
+.ci-sources li[data-on] .ci-source-n {
+  background: var(--ai-fg);
+  color: var(--text-inverse);
+}
+.ci-source-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ci-source-title {
+  color: var(--graphite-900);
+  font: 600 13px/1.4 var(--font-sans);
+}
+.ci-source-quote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  color: var(--graphite-700);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ci-writing-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ai-fg);
+  font: 600 13px/1.4 var(--font-sans);
+}
+.ci-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ai-fg);
+  animation: ci-pulse 1s ease-in-out infinite;
+}
+.ci-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ci-skeleton span {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--graphite-100);
+}
+.ci-skeleton span:nth-child(2) {
+  width: 88%;
+}
+.ci-skeleton span:nth-child(3) {
+  width: 94%;
+}
+.ci-skeleton span:nth-child(4) {
+  width: 62%;
+}
+@keyframes ci-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+/* ---- Sites needing attention ---- */
+.ci-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -8px -8px;
+  padding: 0;
+  list-style: none;
+}
+.ci-rank li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  border-radius: 12px;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+.ci-rank li[data-on] {
+  background: var(--ink-50);
+}
+.ci-rank-site {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ci-rank li:not([data-on]):hover {
+    background: var(--graphite-50);
+  }
+}
+.ci-rank-n {
+  flex: 0 0 16px;
+  padding-top: 7px;
+  color: var(--graphite-600);
+  font: 600 13px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ci-rank-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ci-rank-name {
+  color: var(--graphite-900);
+  font: 600 14px/1.35 var(--font-sans);
+}
+/* A site chosen in the list dims the others, here and in the two charts. */
+.ci [data-dim] {
+  opacity: 0.38;
+}
+
+/* ---- Where the findings are ---- */
+.ci-scroll {
+  overflow-x: auto;
+}
+.ci-grid {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: separate;
+  /* The 2 px of card between cells is what separates them: no borders. */
+  border-spacing: 2px;
+  table-layout: fixed;
+  font: 400 13px/1.3 var(--font-sans);
+}
+.ci-grid thead th {
+  padding: 0 2px 6px;
+  overflow: hidden;
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+  text-align: center;
+  text-overflow: ellipsis;
+}
+.ci-grid thead th:first-child,
+.ci-grid tbody th,
+.ci-grid tfoot th {
+  width: 26%;
+  text-align: left;
+}
+.ci-grid thead th[data-on] {
+  color: var(--marsh-navy);
+  font-weight: 700;
+}
+.ci-grid tbody th {
+  padding-right: 10px;
+  overflow: hidden;
+  color: var(--graphite-900);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ci-grid tbody tr {
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.ci-grid td {
+  padding: 0;
+}
+.ci-grid tfoot th,
+.ci-grid tfoot td {
+  padding-top: 8px;
+  color: var(--graphite-700);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ci-grid tfoot td {
+  text-align: center;
+}
+.ci-cell {
+  display: block;
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--graphite-50);
+  color: var(--graphite-600);
+  font: 600 13px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ci-cell[data-step='1'] {
+  background: var(--ink-50);
+  color: var(--graphite-900);
+}
+.ci-cell[data-step='2'] {
+  background: var(--ink-100);
+  color: var(--graphite-900);
+}
+.ci-cell[data-step='3'] {
+  background: var(--ink-200);
+  color: var(--graphite-900);
+}
+.ci-cell[data-step='4'] {
+  background: var(--ink-300);
+  color: var(--graphite-900);
+}
+.ci-cell[data-step='5'] {
+  background: var(--ink-400);
+  color: var(--graphite-900);
+}
+.ci-cell[data-step='6'] {
+  background: var(--ink-500);
+  color: var(--text-inverse);
+}
+.ci-cell[data-step='7'] {
+  background: var(--ink-600);
+  color: var(--text-inverse);
+}
+/* Chosen, or in the category a finding points at: a navy ring with a white one
+   inside it, so it shows on the darkest cell too. */
+.ci-cell[data-ring] {
+  box-shadow:
+    inset 0 0 0 2px var(--marsh-navy),
+    inset 0 0 0 4px var(--surface-card);
+}
+.ci-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--graphite-600);
+  font: 400 12px/1.3 var(--font-sans);
+}
+.ci-scale-steps {
+  display: flex;
+  gap: 2px;
+}
+.ci-scale .ci-cell {
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  cursor: default;
+}
+.ci-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--radius-field);
+  background: var(--graphite-50);
+  color: var(--graphite-700);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ci-readout > span {
+  flex: 1 1 240px;
+}
+
+/* ---- Change between visits ---- */
+.ci-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--graphite-600);
+  font: 400 12px/1.3 var(--font-sans);
+}
+.ci-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ci-legend .ci-dot {
+  position: static;
+  margin: 0;
+  box-shadow: none;
+}
+.ci-change {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.ci-change th,
+.ci-change td {
+  padding: 10px 0;
+  border-top: 1px solid var(--graphite-100);
+  vertical-align: middle;
+}
+.ci-change-site {
+  width: 34%;
+}
+.ci-change-figures {
+  width: 104px;
+}
+.ci-change tbody th {
+  padding-right: 12px;
+  text-align: left;
+}
+.ci-change tbody td:last-child {
+  text-align: right;
+}
+.ci-change tbody tr {
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.ci-change-name {
+  display: block;
+  overflow: hidden;
+  color: var(--graphite-900);
+  font: 500 13px/1.35 var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ci-change-values {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--graphite-900);
+  font: 600 13px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+/* The axis: a hairline, the bar between the two visits, and a dot for each.
+   8 px each side keeps a dot at either end whole. */
+.ci-track,
+.ci-ticks {
+  position: relative;
+  display: block;
+  height: 28px;
+  margin: 0 8px;
+}
+.ci-track::before {
+  position: absolute;
+  top: 13px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--graphite-200);
+  content: '';
+}
+.ci-span {
+  position: absolute;
+  top: 11px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ink-200);
+  transition:
+    left var(--duration-base) var(--ease-out),
+    width var(--duration-base) var(--ease-out);
+}
+.ci-dot {
+  position: absolute;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--ink-400);
+  /* A ring of the card's own colour, so dots that overlap stay apart. */
+  box-shadow: 0 0 0 2px var(--surface-card);
+  transition: left var(--duration-base) var(--ease-out);
+}
+.ci-dot[data-kind='middle'] {
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--graphite-400);
+}
+.ci-dot[data-kind='latest'] {
+  top: 7px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: var(--ink-700);
+}
+.ci-change tfoot td {
+  padding: 6px 0 0;
+  border-top-color: var(--graphite-200);
+}
+.ci-ticks {
+  height: 16px;
+  color: var(--graphite-600);
+  font: 400 12px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.ci-ticks > span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+/* Phone: room is short, so the cards lose some padding and the change table
+   gives its chart less of the row. */
+@media (max-width: 767px) {
+  .ci-card {
+    padding: 16px;
+  }
+  /* Two figures to a row. */
+  .ci-tiles {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  .ci-tile {
+    padding: 14px 16px;
+  }
+  .ci-change-site {
+    width: 38%;
+  }
+  .ci-change-figures {
+    width: 92px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ci-pulse {
+    animation: none;
+  }
+  .ci-span,
+  .ci-dot {
+    transition: none;
+  }
+}

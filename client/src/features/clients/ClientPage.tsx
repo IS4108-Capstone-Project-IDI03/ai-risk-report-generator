@@ -18,8 +18,10 @@ export type ClientRecordProps = {
   menu: { items: { label: string; onSelect: () => void }[] } | null
   // Starts a new assessment for this client; null when not allowed.
   onNewAssessment: (() => void) | null
-  // Opens one of the engineer's assessments.
-  onOpen: (reference: string, site: string) => void
+  // Opens one of the engineer's assessments; `tab` is the tab it is opened from.
+  onOpen: (reference: string, site: string, tab?: string) => void
+  // The tab to open on when the engineer comes back from an assessment (CP-29).
+  returnTab?: string | null
   // After a change: the work list reloads (its own message is not shown).
   onChanged: (message: string) => void
   notify: (message: string, tone?: string) => void
