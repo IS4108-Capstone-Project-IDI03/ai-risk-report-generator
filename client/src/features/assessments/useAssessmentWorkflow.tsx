@@ -2274,8 +2274,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       })
     // A client's page (CP-18), opened from the Clients list, the work list or
     // an assessment.
+    // Opened afresh, it starts on its first tab: only Back returns to another.
     const openClient = (id: string) =>
-      setState({ screen: 'client', clientPage: id, clientDialog: null, toast: null })
+      setState({
+        screen: 'client',
+        clientPage: id,
+        clientDialog: null,
+        clientReturn: null,
+        toast: null,
+      })
     // A client page's occasional actions (CP-18), behind the header's ⋯:
     // each disabled, with its reason, when it isn't the engineer's to take.
     // A removed client has none; its page offers Restore instead.
@@ -2877,6 +2884,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Its saved record, read again with the work list, so a corrected
       // client, site or detail shows on the document's cover (RV-12 AC3).
       liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
+      // Back to the client page this assessment was opened from (CP-29), on the
+      // tab it was opened from. None when it was opened from anywhere else.
+      backToClient:
+        isAssessment &&
+        s.clientReturn?.reference === s.captureTarget.reference &&
+        canOpen('client', session)
+          ? {
+              label: 'Back to ' + (openRow?.record?.client || 'client'),
+              onClick: () =>
+                setState({
+                  screen: 'client',
+                  clientPage: s.clientReturn!.clientId,
+                  clientDialog: null,
+                  toast: null,
+                }),
+            }
+          : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       // Its assigned engineer exports its report, archived or not (EX-01 AC2).
       canExportReport: isMine && can('reports:export', session),
@@ -3187,10 +3211,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         // Rename client or Remove client, opened from the header's ⋯ menu.
         dialog: s.clientDialog,
         closeDialog: () => setState({ clientDialog: null }),
-        onOpen: (reference: string, site: string) => {
+        // `tab` is the client page's tab it was opened from, kept for its Back (CP-29).
+        onOpen: (reference: string, site: string, tab = 'open') => {
           releaseDraft(reference)
-          setState({ ...openAssessment({ reference, site }, s), toast: null })
+          setState({
+            ...openAssessment({ reference, site }, s),
+            clientReturn: s.clientPage ? { clientId: s.clientPage, tab, reference } : null,
+            toast: null,
+          })
         },
+        // The tab to open on: the one an assessment was opened from, when the
+        // engineer comes back from it (the Back button or the browser's).
+        returnTab: s.clientReturn?.clientId === s.clientPage ? s.clientReturn.tab : null,
         onChanged: (message: string) => {
           void reloadRows()
           toast(message)

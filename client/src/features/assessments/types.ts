@@ -186,6 +186,9 @@ export type WorkflowState = {
   clientPage: string | null
   // The client dialog opened from the client page's ⋯ menu (CP-18).
   clientDialog: 'rename' | 'remove' | null
+  // The client page an assessment was opened from, and the tab it was on
+  // (CP-29): that assessment's Back returns there, on that tab.
+  clientReturn: { clientId: string; tab: string; reference: string } | null
   tab: string
   toast: string | null
   toastTone: string
