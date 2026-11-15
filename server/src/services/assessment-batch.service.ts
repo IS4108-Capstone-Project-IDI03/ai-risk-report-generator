@@ -14,6 +14,8 @@ import type { SessionUser } from './auth.service'
 import {
   dueDateRule,
   dueOnOrAfterVisit,
+  END_DATE_MESSAGE,
+  endOnOrAfterVisit,
   insertWithNextCode,
   objectId,
   optional,
@@ -60,13 +62,7 @@ const newVisitSchema = z
     // database; here it is only read.
     engineerId: z.string().optional(),
   })
-  .refine(
-    (a) => !a.siteVisitEndDate || (!!a.siteVisitDate && a.siteVisitEndDate >= a.siteVisitDate),
-    {
-      message: 'The last survey day must be on or after the site visit date.',
-      path: ['siteVisitEndDate'],
-    },
-  )
+  .refine(endOnOrAfterVisit, { message: END_DATE_MESSAGE, path: ['siteVisitEndDate'] })
   .refine(dueOnOrAfterVisit, dueDateRule)
 
 // A listed site (`id`) or a new one (its details, address included).

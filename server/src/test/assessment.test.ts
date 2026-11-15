@@ -525,6 +525,43 @@ describe('Editing details (RV-10 AC10, AC11)', () => {
     })
   })
 
+  it('moves a survey of several days, and clears its last day when left empty (CP-60)', async () => {
+    const { reference } = await made(body({ siteVisitEndDate: '2026-10-06' }))
+
+    const moved = await edit(reference, {
+      siteVisitDate: '2026-10-12',
+      siteVisitEndDate: '2026-10-14',
+      reportDueDate: '2026-10-26',
+    })
+    expect(moved.status).toBe(204)
+    expect((await api.get('/api/assessments')).body[0]).toMatchObject({
+      siteVisitDate: '2026-10-12',
+      siteVisitEndDate: '2026-10-14',
+      reportDueDate: '2026-10-26',
+    })
+
+    // Edit details and Reschedule always send it, so left out means one day.
+    expect((await edit(reference, { siteVisitEndDate: '' })).status).toBe(204)
+    expect((await api.get('/api/assessments')).body[0].siteVisitEndDate).toBeNull()
+  })
+
+  it('refuses a last survey day before the first, or with no first day (CP-60)', async () => {
+    const { reference } = await made(body({ siteVisitEndDate: '2026-10-06' }))
+    const message = 'The last survey day must be on or after the site visit date.'
+
+    const before = await edit(reference, { siteVisitEndDate: '2026-10-04' })
+    expect(before.status).toBe(400)
+    expect(before.body.fields).toEqual({ siteVisitEndDate: message })
+    const alone = await edit(reference, { siteVisitDate: '', siteVisitEndDate: '2026-10-06' })
+    expect(alone.status).toBe(400)
+    expect(alone.body.fields).toEqual({ siteVisitEndDate: message })
+
+    expect((await api.get('/api/assessments')).body[0]).toMatchObject({
+      siteVisitDate: '2026-10-05',
+      siteVisitEndDate: '2026-10-06',
+    })
+  })
+
   it('keeps an older assessment type unchanged, but a changed type must be one of the three', async () => {
     const { reference } = await made(body())
     // Saved before CP-23's three types, and not yet migrated.

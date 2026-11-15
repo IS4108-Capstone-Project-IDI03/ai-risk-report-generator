@@ -60,6 +60,16 @@ export const dueDateRule = {
   // Checked even when another field is invalid, so every problem is named at once.
   when: ({ value }: { value: unknown }) => typeof value === 'object' && value !== null,
 }
+// A survey over several days ends on or after the day it starts, and needs that day.
+export const endOnOrAfterVisit = (a: { siteVisitDate?: string; siteVisitEndDate?: string }) =>
+  !a.siteVisitEndDate || (!!a.siteVisitDate && a.siteVisitEndDate >= a.siteVisitDate)
+export const END_DATE_MESSAGE = 'The last survey day must be on or after the site visit date.'
+// Its own object, not a copy of dueDateRule: zod rewrites a rule's `message` on first use.
+const endDateRule = {
+  message: END_DATE_MESSAGE,
+  path: ['siteVisitEndDate'],
+  when: dueDateRule.when,
+}
 
 // Request body for PUT /api/assessments/:reference: the visit's own details.
 // The engineer, client and site stay as created (CP-17 AC8), and the site's and
@@ -78,8 +88,12 @@ export const assessmentDetailsSchema = (stored?: string) =>
           VISIT_TYPE_RULE,
         ),
       siteVisitDate: optionalDate('Site visit date'),
+      // The last day of a survey over several days (CP-60), so the calendar can
+      // move one; left out or empty, it is cleared like the other dates.
+      siteVisitEndDate: optionalDate('Last survey day'),
       reportDueDate: optionalDate('Report due date'),
     })
+    .refine(endOnOrAfterVisit, endDateRule)
     .refine(dueOnOrAfterVisit, dueDateRule)
 
 export type AssessmentDetails = z.infer<ReturnType<typeof assessmentDetailsSchema>>
@@ -232,6 +246,7 @@ export async function updateAssessment(
   // 'YYYY-MM-DD' parses as UTC midnight, so the calendar day is kept.
   const optional = {
     siteVisitDate: input.siteVisitDate && new Date(input.siteVisitDate),
+    siteVisitEndDate: input.siteVisitEndDate && new Date(input.siteVisitEndDate),
     reportDueDate: input.reportDueDate && new Date(input.reportDueDate),
   }
   const cleared = Object.keys(optional).filter((key) => !optional[key as keyof typeof optional])

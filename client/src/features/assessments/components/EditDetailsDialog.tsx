@@ -20,6 +20,8 @@ export function EditDetailsDialog({
   const [form, setForm] = useState({
     surveyType: record.surveyType,
     siteVisitDate: record.siteVisitDate ?? '',
+    // Sent with the rest, or saving would clear it (CP-60).
+    siteVisitEndDate: record.siteVisitEndDate ?? '',
     reportDueDate: record.reportDueDate ?? '',
   })
   const { busy, problem, fields, run } = useDialogSave()
@@ -66,6 +68,13 @@ export function EditDetailsDialog({
           value={form.siteVisitDate}
           error={fields.siteVisitDate}
           onChange={set('siteVisitDate')}
+        />
+        <Input
+          label="Survey end"
+          type="date"
+          value={form.siteVisitEndDate}
+          error={fields.siteVisitEndDate}
+          onChange={set('siteVisitEndDate')}
         />
         <Input
           label="Report due"
