@@ -42,6 +42,7 @@ import { Recordings } from './screens/Recordings'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
+import { Calendar } from '../calendar/screens/Calendar'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
 // brings the chart library, which every other screen can skip.
@@ -169,6 +170,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               {!captureOnPhone &&
                 !(v.isClient && !v.routeBlocked) &&
                 !(v.isClients && !v.routeBlocked) &&
+                // The Calendar heads itself with the kit TopBar (CP-60).
+                !(v.isCalendar && !v.routeBlocked) &&
                 !(v.isDashboard && !v.routeBlocked) &&
                 // The Inbox heads itself with the kit TopBar (F-10).
                 !(v.isInbox && !v.routeBlocked) &&
@@ -192,11 +195,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       }}
                     >
                       {/* Opened from a client's page: Back returns there, on the tab it
-                          was opened from (CP-29). Leaving the document editor asks first. */}
-                      {!!v.backToClient && !v.routeBlocked && (
+                          was opened from (CP-29); from the calendar, to the calendar
+                          (CP-60). Leaving the document editor asks first. */}
+                      {!!v.backTo && !v.routeBlocked && (
                         <BackButton
-                          label={v.backToClient.label}
-                          onClick={() => guardLeave(v.backToClient!.onClick)}
+                          label={v.backTo.label}
+                          onClick={() => guardLeave(v.backTo!.onClick)}
                         />
                       )}
                       <div
@@ -206,7 +210,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           // there is one, so the actions wrap under it and never squeeze it.
                           flex: !v.showTopBar
                             ? '1'
-                            : v.backToClient
+                            : v.backTo
                               ? '1 0 calc(100% - 72px)'
                               : '1 0 100%',
                         }}
@@ -388,6 +392,15 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <ClientList
                         {...v.clientList}
                         onStart={v.canEdit ? v.goCreate : undefined}
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell />}
+                      />
+                    )}
+
+                    {v.isCalendar && (
+                      <Calendar
+                        {...v.calendar}
+                        onStart={v.canEdit ? v.calendar.onStart : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
                         bell={!v.showTopBar && <NotificationBell />}
                       />

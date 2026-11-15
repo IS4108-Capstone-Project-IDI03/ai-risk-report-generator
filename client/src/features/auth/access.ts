@@ -18,6 +18,7 @@ export type Screen =
   | 'chat'
   | 'clients'
   | 'client'
+  | 'calendar'
 
 export const SCREEN_PATHS: Record<Screen, string> = {
   inbox: '/inbox',
@@ -33,6 +34,8 @@ export const SCREEN_PATHS: Record<Screen, string> = {
   // see clientIdForPath.
   clients: '/clients',
   client: '/clients',
+  // Surveys and report due dates by month or week (CP-60).
+  calendar: '/calendar',
 }
 
 const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
@@ -50,6 +53,8 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   // Engineers manage the clients and sites of their own assessments (CP-18).
   clients: 'assessments:edit',
   client: 'assessments:edit',
+  // Drawn from the work list (CP-60), so whoever may read that may open it.
+  calendar: 'assessments:view',
 }
 
 // A client's page (CP-18): '/clients/<id>'.

@@ -189,6 +189,8 @@ export type WorkflowState = {
   // The client page an assessment was opened from, and the tab it was on
   // (CP-29): that assessment's Back returns there, on that tab.
   clientReturn: { clientId: string; tab: string; reference: string } | null
+  // The assessment opened from the calendar (CP-60): its Back returns there.
+  calendarReturn: string | null
   tab: string
   toast: string | null
   toastTone: string
@@ -216,6 +218,10 @@ export type WorkflowState = {
     clientId?: string
     clientName?: string
     siteId?: string
+    // The survey day, when opened from a day on the calendar (CP-60).
+    siteVisitDate?: string
+    // Where Cancel goes back to when not the Assessments list (CP-60).
+    returnTo?: 'calendar'
   }
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }

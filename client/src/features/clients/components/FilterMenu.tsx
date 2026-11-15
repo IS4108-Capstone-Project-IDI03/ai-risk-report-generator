@@ -12,6 +12,7 @@ export function FilterMenu({
   choices,
   value,
   onChange,
+  anyLabel,
 }: {
   // The pill's text when nothing is chosen, e.g. "Status".
   name: string
@@ -20,6 +21,8 @@ export function FilterMenu({
   // The chosen value, or '' for any.
   value: string
   onChange: (value: string) => void
+  // The first row's words when "Any <name>" would not read well (the calendar, CP-60).
+  anyLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const chosen = choices.find((c) => c.value === value)
@@ -48,7 +51,7 @@ export function FilterMenu({
       }
     >
       <div className="ds-menu" role="listbox" aria-label={name}>
-        {[{ value: '', label: `Any ${name.toLowerCase()}` }, ...choices].map((c) => (
+        {[{ value: '', label: anyLabel ?? `Any ${name.toLowerCase()}` }, ...choices].map((c) => (
           <button
             key={c.value}
             type="button"
