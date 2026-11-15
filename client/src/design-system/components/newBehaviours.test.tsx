@@ -1,6 +1,7 @@
 // Tests for the CP-23 round 1 components: ReasonBox on Button/IconButton, Sheet, DatePicker.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Button } from './core/Button'
 import { IconButton } from './core/IconButton'
@@ -109,6 +110,24 @@ describe('DatePicker', () => {
     open()
     fireEvent.click(screen.getByText('Today'))
     expect(onChange.mock.calls.at(-1)?.[0]).toBe(new Date().toLocaleDateString('en-CA'))
+  })
+  it('shows a picked day, Clear and Today in the field at once', () => {
+    // As a form holds it: the picked value comes straight back as `value`.
+    function Field() {
+      const [value, setValue] = useState('2027-02-16')
+      return <DatePicker label="End" value={value} onChange={(iso) => setValue(iso)} />
+    }
+    render(<Field />)
+    const box = screen.getByRole('textbox')
+    open()
+    fireEvent.click(screen.getByRole('button', { name: /17 February 2027/ }))
+    expect(box).toHaveValue('17/02/2027')
+    open()
+    fireEvent.click(screen.getByText('Clear'))
+    expect(box).toHaveValue('')
+    open()
+    fireEvent.click(screen.getByText('Today'))
+    expect(box).toHaveValue(new Date().toLocaleDateString('en-GB'))
   })
   it('reports half-typed text as invalid and keeps the text', () => {
     const onChange = vi.fn()

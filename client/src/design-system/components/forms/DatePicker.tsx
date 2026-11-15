@@ -282,11 +282,15 @@ export function DatePicker({
           value={value}
           min={min}
           focusDay={fromButton}
+          // A pick, Today or Clear shows in the field at once. Reported alone, it would
+          // read as the field's own typed text coming back, and the old text would stay.
           onPick={(iso) => {
+            setText(show(iso))
             report(iso)
             setOpen(false)
           }}
           onClear={() => {
+            setText('')
             report('')
             setOpen(false)
           }}
