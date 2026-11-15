@@ -242,7 +242,8 @@ router.post(
   },
 )
 
-// Corrects an assessment's own details, its type and dates (RV-10 AC10): 204
+// Corrects an assessment's own details, its type and dates (RV-10 AC10), the
+// last survey day included (CP-60, the calendar's Reschedule): 204
 // when saved, 400 naming each invalid field (AC11), 403 for anyone but its
 // assigned engineer, 409 once it is archived. Its site and client are
 // corrected through /api/sites and /api/clients (CP-18).

@@ -99,6 +99,7 @@ export const initialState: WorkflowState = {
   clientPage: null,
   clientDialog: null,
   clientReturn: null,
+  calendarReturn: null,
   tab: 'overview',
   toast: null,
   toastTone: 'success',

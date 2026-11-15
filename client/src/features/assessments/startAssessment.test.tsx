@@ -1413,6 +1413,8 @@ it('edits my assessment details over its Overview, keeping its engineer (RV-10 A
   expect(saves[1].body).toEqual({
     surveyType: 'Follow-up visit',
     siteVisitDate: '2026-04-21',
+    // Sent with the rest, so saving never clears it (CP-60).
+    siteVisitEndDate: '',
     reportDueDate: '2026-05-02',
   })
   // The Overview shows the saved details (AC10).

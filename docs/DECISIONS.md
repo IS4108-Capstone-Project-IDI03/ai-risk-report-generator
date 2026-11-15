@@ -2499,3 +2499,33 @@ Rejected:
 Known limits: trends appear only where one user has two assessments with observations at a site. The summary has unit tests for its checks but no evaluation set. The number check reads digits only, so a number written as a word is not checked. Findings recurring across sites, the weakest Section 4 categories and loss expectancy across OFIs are left for a follow-up.
 
 Stories: CP-29, CP-18, PV-02, AS-01, EV-03.
+
+## 2026-11-15 — The Calendar is a screen over the work list, and its own grid
+
+Chose:
+- (CP-60) A Calendar under Work in the sidebar, at `/calendar`, for anyone who may read the work list (`assessments:view`). It shows each assessment's survey days and report due date by month or week.
+- It is drawn from `GET /api/assessments`, the list the Assessments and Clients screens already load. So it shows exactly what its reader may open (an engineer's own, every engineer's for a knowledge admin), and needed no new collection, endpoint or permission.
+- Dates are changed from it through Edit details' own call, `PUT /api/assessments/:reference`, which now also takes the last survey day (`siteVisitEndDate`). A survey of several days could not be moved without it: a start moved past the stored end would leave the end before the start. Left out or empty, it is cleared, as the other two dates are, and Edit details now sends it too.
+- Who may change dates is unchanged: the assigned engineer, and not once archived. For anyone else Reschedule is greyed out with its reason, and the gateway still answers 403.
+- The grid is our own: one CSS grid per week, the days as its columns under every row, and the entries in rows over them, so a survey of several days is one element across its days. Entries are placed in the lowest free row, surveys before report due dates and long before short (`features/calendar/calendar.ts`).
+- A month day shows three entries, then "+N more", which opens that week. The week view has no limit.
+- A survey is a bar in its assessment type's colours. A report due date is a white chip whose icon and words carry its state (late, within 7 days, on track, finalised), as the Report due cell's do, with no fill. The two differ in shape as well as colour, since Follow-up and "within 7 days" are both amber.
+- Under 768 px the month is a list of its days that hold something. Seven columns do not fit 375 px.
+- The view, period and filters are kept per signed-in person while the app stays open (`keptView.ts`), so Back from an assessment finds them. An assessment opened from the calendar gets "Back to calendar" in its header, as CP-29 gave one opened from a client page (`calendarReturn`).
+- New assessment sits beside the bell on this screen at every width, since the toolbar is full with the period, the view and the filters.
+
+Reason: survey and due dates were only columns of a table, so clashes between surveys and weeks with several reports due could not be seen. Everything the calendar needs was already stored and already scoped by role.
+
+Rejected:
+- A calendar library (FullCalendar, react-big-calendar): its look and phone behaviour would not match the design system, and month and week grids of all-day entries are a small amount of date arithmetic that the date picker already half had.
+- Dragging an entry to another day: quick with a mouse, but it needs a keyboard equivalent and a confirm step to stop accidental moves, and Reschedule already covers the task. Left for a follow-up.
+- A new endpoint returning only a date range: the work list is already loaded and is small; it would be the third way to read the same assessments.
+- Keeping the period in the URL: the calendar would then need its own query handling beside the workflow's; a refresh reopening on this month is acceptable.
+- Letting a knowledge admin move any engineer's dates: RV-11 keeps an admin read-only on someone else's assessment.
+
+- Reschedule's date fields are the design system's date picker on a desktop and the phone's own date field on a phone. The picker's phone calendar is a sheet, and a sheet opens behind a dialog (the Reassign dialog's engineer picker met the same thing).
+- An entry's details do not clip what hangs outside them (`.cal-entry-surface`), so the reason box under a greyed Reschedule shows. On a phone's sheet the reason is a line under the button instead, as a box there would be off the screen.
+
+Known limits: the date picker's calendar hangs below the Reschedule dialog rather than inside it, so the dialog (`.cal-reschedule`) does not scroll its overflow. On a narrow desktop the toolbar wraps to two rows. An assessment's finalised report still shows its due date, plainly. The calendar reads "today" from the browser, so a tab left open past midnight keeps yesterday until its next render.
+
+Stories: CP-60, RV-10, RV-11, CP-23, CP-29.

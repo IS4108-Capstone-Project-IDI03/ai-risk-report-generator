@@ -76,9 +76,9 @@ function addDays(isoDay: string, days: number) {
   return day(d)
 }
 
-/** Returns an assessment starting today, its report due two weeks later. */
-export function blankAssessment(): FormAssessment {
-  const today = day()
+/** Returns an assessment starting today, or on `start` (CP-60), its report due two weeks later. */
+export function blankAssessment(start?: string): FormAssessment {
+  const today = start || day()
   return {
     ref: nextRef('a'),
     notSure: [],
@@ -91,7 +91,7 @@ export function blankAssessment(): FormAssessment {
   }
 }
 /** Returns an empty site with one assessment. */
-export function blankSite(choice = ''): FormSite {
+export function blankSite(choice = '', surveyDate?: string): FormSite {
   return {
     ref: nextRef('site'),
     notSure: [],
@@ -102,17 +102,26 @@ export function blankSite(choice = ''): FormSite {
     coordinates: '',
     jurisdiction: 'SG',
     facilityType: '',
-    assessments: [blankAssessment()],
+    assessments: [blankAssessment(surveyDate)],
   }
 }
-/** Returns the form as it opens, optionally on a recorded client and site. */
-export function blankForm(start?: { clientId?: string; clientName?: string; siteId?: string }) {
+/** Returns the form as it opens, optionally on a recorded client and site, or a survey day (CP-60). */
+export function blankForm(start?: {
+  clientId?: string
+  clientName?: string
+  siteId?: string
+  siteVisitDate?: string
+}) {
   const existing = !!start?.clientId
   return {
     clientMode: existing ? 'existing' : 'new',
     client: { id: start?.clientId ?? '', name: start?.clientName ?? '', division: '', notSure: [] },
     // A recorded client starts with no site ticked, unless one was named.
-    sites: existing ? (start?.siteId ? [blankSite(start.siteId)] : []) : [blankSite()],
+    sites: existing
+      ? start?.siteId
+        ? [blankSite(start.siteId, start.siteVisitDate)]
+        : []
+      : [blankSite('', start?.siteVisitDate)],
     documents: [],
   } satisfies Form
 }

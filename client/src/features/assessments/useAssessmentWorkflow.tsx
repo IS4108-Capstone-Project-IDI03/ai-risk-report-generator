@@ -752,6 +752,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
   // The Inbox opens an assessment from a row (F-10), which needs the list to find it.
   const onInbox = state.screen === 'inbox' && canOpen('inbox', session)
+  // The Calendar (CP-60) is drawn from the list.
+  const onCalendar = state.screen === 'calendar' && canOpen('calendar', session)
   const listScreen = onDashboard
     ? 'dashboard'
     : onClientScreen
@@ -760,7 +762,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? 'clients'
         : onInbox
           ? 'inbox'
-          : null
+          : onCalendar
+            ? 'calendar'
+            : null
   const clientPage = useClientPage(onClientScreen ? state.clientPage : null)
   // A refresh inside a workspace needs the list too, for the assessment's own record.
   const needsRows =
@@ -2155,6 +2159,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         label: 'Work',
         items: [
           { value: 'dashboard', label: 'Assessments', icon: 'clipboard-list' },
+          // The same assessments by date (CP-60).
+          { value: 'calendar', label: 'Calendar', icon: 'calendar' },
           // The engineer's clients and their pages (CP-18).
           { value: 'clients', label: 'Clients', icon: IconRegistry.object.client },
         ],
@@ -2885,8 +2891,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // client, site or detail shows on the document's cover (RV-12 AC3).
       liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
       // Back to the client page this assessment was opened from (CP-29), on the
-      // tab it was opened from. None when it was opened from anywhere else.
-      backToClient:
+      // tab it was opened from, or to the calendar (CP-60). None when it was
+      // opened from anywhere else.
+      backTo:
         isAssessment &&
         s.clientReturn?.reference === s.captureTarget.reference &&
         canOpen('client', session)
@@ -2900,7 +2907,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   toast: null,
                 }),
             }
-          : null,
+          : isAssessment &&
+              s.calendarReturn === s.captureTarget.reference &&
+              canOpen('calendar', session)
+            ? {
+                label: 'Back to calendar',
+                onClick: () => setState({ screen: 'calendar', toast: null }),
+              }
+            : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       // Its assigned engineer exports its report, archived or not (EX-01 AC2).
       canExportReport: isMine && can('reports:export', session),
@@ -3023,7 +3037,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // New assessment's two starts (CP-23 screen 2A); the screen opens blank.
       goCreate: (mode: 'form' | 'documents') =>
         setState({ screen: 'create', createStart: { mode } }),
-      cancelForm: () => setState({ screen: 'dashboard' }),
+      // Cancel returns to the Assessments list, or the calendar it was started from (CP-60).
+      cancelForm: () => setState({ screen: s.createStart.returnTo ?? 'dashboard' }),
       // The Overview's Edit details (RV-10 AC10) and Edit site (CP-18), for
       // the engineer's own assessment on the gateway, with whether its site
       // is theirs to change and how many assessments a change reaches.
@@ -3175,6 +3190,32 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isChat: sc === 'chat',
       // The engineer's clients (CP-18), from the work list: loading until it
       // loads, and unavailable when the gateway can't be reached.
+      // The Calendar (CP-60): the work list's saved assessments by date. It
+      // opens one, starts a new one (on a day, when one was picked) and reads
+      // the list again after new dates are saved.
+      isCalendar: sc === 'calendar',
+      calendar: {
+        assessments: rows.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
+        loading: !serverRows && !listFailed,
+        failed: !serverRows && listFailed,
+        me: { id: session.user.id, name: session.user.name },
+        team: session.user.role === 'knowledge_admin',
+        onOpen: (reference: string, site: string) => {
+          releaseDraft(reference)
+          setState({
+            ...openAssessment({ reference, site }, s),
+            calendarReturn: reference,
+            clientReturn: null,
+            toast: null,
+          })
+        },
+        onStart: (mode: 'form' | 'documents', siteVisitDate?: string) =>
+          setState({
+            screen: 'create',
+            createStart: { mode, returnTo: 'calendar', ...(siteVisitDate && { siteVisitDate }) },
+          }),
+        onChanged: () => void reloadRows(),
+      },
       isClients: sc === 'clients',
       clientList: {
         clients: myClients,
@@ -3217,6 +3258,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           setState({
             ...openAssessment({ reference, site }, s),
             clientReturn: s.clientPage ? { clientId: s.clientPage, tab, reference } : null,
+            calendarReturn: null,
             toast: null,
           })
         },
@@ -3498,7 +3540,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // named from the capture session when one is live. New Assessment has
       // none: its Back button already says where it sits (CP-23).
       eyebrow:
-        sc === 'dashboard' || sc === 'clients'
+        sc === 'dashboard' || sc === 'clients' || sc === 'calendar'
           ? 'Risk engineering'
           : sc === 'create'
             ? ''
@@ -3516,21 +3558,23 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? 'Assessments'
           : sc === 'clients'
             ? 'Clients'
-            : sc === 'create'
-              ? 'New Assessment'
-              : sc === 'field'
-                ? captureSite
-                : sc === 'users'
-                  ? 'User accounts'
-                  : sc === 'knowledge'
-                    ? 'Knowledge base'
-                    : sc === 'usage'
-                      ? 'Usage and Costs'
-                      : sc === 'chat'
-                        ? 'Ask the knowledge base'
-                        : sc === 'client'
-                          ? 'Client'
-                          : s.captureTarget.site,
+            : sc === 'calendar'
+              ? 'Calendar'
+              : sc === 'create'
+                ? 'New Assessment'
+                : sc === 'field'
+                  ? captureSite
+                  : sc === 'users'
+                    ? 'User accounts'
+                    : sc === 'knowledge'
+                      ? 'Knowledge base'
+                      : sc === 'usage'
+                        ? 'Usage and Costs'
+                        : sc === 'chat'
+                          ? 'Ask the knowledge base'
+                          : sc === 'client'
+                            ? 'Client'
+                            : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? plural(rows.length, 'assessment') + ' · ' + session.user.name

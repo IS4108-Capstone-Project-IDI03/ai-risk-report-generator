@@ -1,0 +1,495 @@
+/* The Calendar (CP-60). The page, card and toolbar are the Clients list's
+   (clients.css, "one list frame"); only what a calendar adds is here. */
+
+/* The calendar, with the late and unscheduled lists beside it. */
+.cal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+/* Under seven comfortable columns plus the lists, the lists move below. */
+@container cl-content (max-width: 1080px) {
+  .cal-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Toolbar: period, Today and the view on the left; filters and New assessment on the right. */
+.cal-toolbar {
+  min-height: 64px;
+}
+.cal-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cal-stepper strong {
+  min-width: 152px;
+  color: var(--marsh-navy);
+  font: 700 16px/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.cal-toolbar .cal-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* The grid: weekday names, then one grid per week. --cal-lane is an entry's height. */
+.cal-grid {
+  --cal-lane: 24px;
+  border-top: 1px solid var(--graphite-100);
+}
+.cal-grid[data-view='week'] {
+  --cal-lane: 60px;
+}
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.cal-weekdays span {
+  padding: 10px 12px;
+  color: var(--graphite-700);
+  font: 600 12px/1 var(--font-sans);
+}
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 3px;
+  min-height: 148px;
+  border-top: 1px solid var(--graphite-100);
+}
+.cal-grid[data-view='week'] .cal-week {
+  min-height: 440px;
+}
+
+/* A day: a column of its week, under every lane, holding its date and its + button. */
+.cal-day {
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 3px 4px;
+  border-right: 1px solid var(--graphite-100);
+}
+.cal-day:nth-child(7) {
+  border-right: 0;
+}
+.cal-day[data-outside] {
+  background: var(--graphite-25);
+}
+.cal-date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--graphite-900);
+  font: 500 13px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+button.cal-date {
+  cursor: pointer;
+}
+.cal-day[data-outside] .cal-date {
+  color: var(--graphite-600);
+}
+/* Today is ringed, as in the date picker. */
+.cal-day[data-today] .cal-date {
+  box-shadow: inset 0 0 0 1.5px var(--marsh-navy);
+  color: var(--marsh-navy);
+  font-weight: 700;
+}
+.cal-date:focus-visible,
+.cal-more:focus-visible,
+.cal-chip:focus-visible,
+.cal-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+/* New assessment on this day: shown when the day is pointed at or holds focus.
+   !important because IconButton sets its own opacity inline. */
+.cal-add {
+  opacity: 0 !important;
+}
+.cal-day:hover .cal-add,
+.cal-day:focus-within .cal-add {
+  opacity: 1 !important;
+}
+/* No pointer to hover with (a tablet): always there. */
+@media (hover: none) {
+  .cal-add {
+    opacity: 1 !important;
+  }
+}
+
+/* An entry's anchor is the Popover's own wrapper: a grid item here, a block in a list. */
+.cal-entry-anchor > span {
+  flex: 1;
+  min-width: 0;
+}
+.cal-chip {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* A report due date: a white chip, its icon and words in its state's colour, no fill. */
+.cal-chip-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--chip-fg, var(--graphite-700));
+  font: 600 12px/1.2 var(--font-sans);
+}
+/* A survey: a bar in its assessment type's colours. */
+.cal-chip-body[data-kind='survey'] {
+  border-color: transparent;
+  background: var(--chip-bg);
+}
+.cal-chip-body[data-from-earlier] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.cal-chip-body[data-to-later] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.cal-chip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-chip-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-chip-line {
+  font-size: 11px;
+  font-weight: 500;
+}
+/* The week view has the height for a site name on two lines. */
+.cal-grid[data-view='week'] .cal-chip-body {
+  align-items: flex-start;
+  gap: 5px;
+  /* Narrower at the sides than in the month, so "Due in 10 days" fits a day's column. */
+  padding: 7px 6px;
+}
+.cal-grid[data-view='week'] .cal-chip-text span:first-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cal-more {
+  min-width: 0;
+  margin: 0 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--graphite-700);
+  font: 600 12px/1 var(--font-sans);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* An entry's details, in its popover or phone sheet. */
+.cal-details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  color: var(--graphite-900);
+  font: 400 14px/1.35 var(--font-sans);
+}
+.cal-details-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.cal-details-head > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.cal-details-site {
+  color: var(--marsh-navy);
+  font: 700 16px/1.25 var(--font-sans);
+}
+.cal-details-ref {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cal-details dl {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+  margin: 0;
+}
+.cal-details dt {
+  color: var(--graphite-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+.cal-details dd {
+  margin: 0;
+}
+.cal-details-date {
+  font-variant-numeric: tabular-nums;
+}
+.cal-details-contact {
+  display: block;
+}
+.cal-details-actions {
+  display: flex;
+  gap: 8px;
+}
+.cal-details-actions > * {
+  flex: 1;
+}
+.cal-details-actions button {
+  width: 100%;
+  justify-content: center;
+}
+/* A popover clips what hangs outside it, which hid the reason box under a greyed
+   Reschedule. Nothing in the details needs clipping, so they are let out, unless
+   the popover is cut to the window's height and has to scroll (data-cap). */
+.cal-entry-surface:not([data-cap]) {
+  overflow: visible !important;
+}
+/* The reason as a line under the buttons, where a box would not fit. */
+.cal-details-why {
+  display: none;
+  margin: -4px 0 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.4 var(--font-sans);
+  text-align: center;
+}
+.cal-entry-sheet .cal-details-why,
+.cal-entry-surface[data-cap] .cal-details-why {
+  display: block;
+}
+.cal-entry-sheet .ds-reason-box,
+.cal-entry-surface[data-cap] .ds-reason-box {
+  display: none;
+}
+/* The phone sheet's own title names the site. */
+.cal-entry-sheet .cal-details-site {
+  display: none;
+}
+.cal-entry-sheet .cal-details {
+  padding: 4px 0 0;
+}
+.cal-entry-sheet .cal-details-actions {
+  flex-direction: column;
+}
+.cal-entry-sheet .cal-details-actions button {
+  min-height: 48px;
+}
+
+/* An entry as a row: the side lists and the phone's list of days. */
+.cal-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--graphite-900);
+  font: 400 14px/1.3 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.cal-row-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-row-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-row-text span:first-child {
+  font-weight: 600;
+}
+.cal-row-text span:last-child {
+  color: var(--graphite-600);
+  font-size: 12px;
+}
+.cal-row-note {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--graphite-600);
+  font: 500 12px/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.cal-row-note[data-state='late'] {
+  color: var(--red-600);
+}
+.cal-row-note[data-state='soon'] {
+  color: var(--amber-600);
+}
+.cal-due-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-tile);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.cal-date:hover,
+  .cal-more:hover,
+  .cal-row:hover {
+    background: var(--hover-bg);
+  }
+  .cal-chip:hover .cal-chip-body {
+    filter: brightness(0.96);
+  }
+}
+
+/* Beside the calendar: the late reports, and the assessments with no survey date. */
+.cal-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.cal-side-card {
+  padding: 16px 8px 8px;
+}
+.cal-side-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 8px 8px;
+  color: var(--marsh-navy);
+  font: 700 16px/1.2 var(--font-sans);
+}
+.cal-count {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+  color: var(--report-navy);
+  font: 700 12px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.cal-count[data-late] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.cal-side-none {
+  margin: 0;
+  padding: 4px 8px 12px;
+  color: var(--graphite-600);
+  font: 400 14px/1.4 var(--font-sans);
+}
+.cal-side-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cal-side-row > .cal-entry-anchor {
+  flex: 1;
+}
+
+/* A phone lists the month's days instead of the grid. */
+.cal-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 8px;
+  border-top: 1px solid var(--graphite-100);
+}
+.cal-list-day {
+  margin: 0;
+  padding: 16px 8px 4px;
+  color: var(--graphite-700);
+  font: 600 12px/1 var(--font-sans);
+}
+.cal-list-day[data-today] {
+  color: var(--marsh-navy);
+}
+
+/* Reschedule: start and end side by side, the due date under them. A dialog
+   scrolls what overflows it, which would cut off a date field's calendar: this
+   one is short, so its calendars may hang below it. */
+.ds-dialog.cal-reschedule {
+  overflow: visible;
+}
+.cal-reschedule-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cal-reschedule-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 767px) {
+  /* What needs planning comes first on a phone, above the month's days. */
+  .cal-side {
+    order: -1;
+    gap: 0;
+  }
+  .cal-layout {
+    gap: 0;
+  }
+  .cal-stepper strong {
+    min-width: 132px;
+  }
+  .cal-toolbar .cal-pills {
+    margin-left: 0;
+  }
+  .cal-row {
+    min-height: 60px;
+  }
+  .cal-reschedule-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
