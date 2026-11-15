@@ -392,6 +392,12 @@ it('lists the month by day on a phone, and says when the list could not be read'
   expect(within(day).getByRole('button', { name: /^First survey, Tuas Hub/ })).toHaveTextContent(
     '2 days',
   )
+  // Reschedule on a phone uses the phone's own date fields: the date picker's sheet
+  // would open behind the dialog.
+  fireEvent.click(screen.getByRole('button', { name: 'Set dates for Loyang Base' }))
+  const dialog = screen.getByRole('dialog', { name: 'Reschedule Loyang Base' })
+  expect(within(dialog).getByLabelText('Survey start')).toHaveAttribute('type', 'date')
+  expect(within(dialog).queryByRole('button', { name: 'Open calendar' })).not.toBeInTheDocument()
   unmount()
 
   show({ assessments: [], failed: true })

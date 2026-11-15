@@ -2,9 +2,10 @@
 // from the calendar. Saves through Edit details' own call (PUT
 // /api/assessments/:reference), so the same rules apply: only the assigned
 // engineer, and the due date and last survey day on or after the first.
-// Called by screens/Calendar.tsx. Calls Dialog and DatePicker.
+// Called by screens/Calendar.tsx. Calls Dialog and DatePicker (the phone's own date
+// field on a phone).
 import { useRef, useState } from 'react'
-import { Button, DatePicker, Dialog } from '../../../design-system'
+import { Button, DatePicker, Dialog, Input, useIsPhone } from '../../../design-system'
 import { updateAssessment } from '../../assessments/api'
 import { Problem } from '../../clients/ClientDialogs'
 import { useDialogSave } from '../../clients/useDialogSave'
@@ -28,6 +29,10 @@ export function RescheduleDialog({
   const [typed, setTyped] = useState<Partial<Record<Field, boolean>>>({})
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const { busy, problem, fields, run } = useDialogSave()
+  // On a phone the date picker's calendar is a sheet, which opens behind a dialog
+  // (a dialog sits above the whole page). So a phone gets its own date field here,
+  // as Edit details has, which also brings up the phone's date wheel.
+  const phone = useIsPhone()
   // Esc with a date field's calendar open closes that calendar only. The browser
   // also asks the dialog to close on the same key, so that one request is skipped.
   const escForCalendar = useRef(false)
@@ -61,6 +66,28 @@ export function RescheduleDialog({
       onSaved()
     })
   }
+  // One date field: its own check's line, else the gateway's. `min` greys earlier days.
+  const date = (key: Field, label: string, refused?: string, min?: string) =>
+    phone ? (
+      <Input
+        label={label}
+        type="date"
+        value={form[key]}
+        min={min || undefined}
+        error={errors[key] ?? refused}
+        disabled={busy}
+        onChange={(e) => change(key)(e.target.value, {})}
+      />
+    ) : (
+      <DatePicker
+        label={label}
+        value={form[key]}
+        min={min || undefined}
+        onChange={change(key)}
+        error={errors[key] ?? refused}
+        disabled={busy}
+      />
+    )
   return (
     <Dialog
       className="ds-dialog--v2 cal-reschedule"
@@ -88,30 +115,10 @@ export function RescheduleDialog({
       >
         <Problem title="Dates not saved" problem={problem} />
         <div className="cal-reschedule-pair">
-          <DatePicker
-            label="Survey start"
-            value={form.start}
-            onChange={change('start')}
-            error={errors.start ?? fields.siteVisitDate}
-            disabled={busy}
-          />
-          <DatePicker
-            label="Survey end"
-            value={form.end}
-            min={form.start || undefined}
-            onChange={change('end')}
-            error={errors.end ?? fields.siteVisitEndDate}
-            disabled={busy}
-          />
+          {date('start', 'Survey start', fields.siteVisitDate)}
+          {date('end', 'Survey end', fields.siteVisitEndDate, form.start)}
         </div>
-        <DatePicker
-          label="Report due"
-          value={form.due}
-          min={form.start || undefined}
-          onChange={change('due')}
-          error={errors.due ?? fields.reportDueDate}
-          disabled={busy}
-        />
+        {date('due', 'Report due', fields.reportDueDate, form.start)}
       </div>
     </Dialog>
   )
