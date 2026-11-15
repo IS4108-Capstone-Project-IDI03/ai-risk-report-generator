@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
+from app.client_insights.summary import summarise_client
 from app.client_intake.read import read_client_intake
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
@@ -414,6 +415,48 @@ def read_client_intake_route(request: ReadClientIntakeRequest) -> dict:
             _privacy(request),
         )
     # 503, not 502: the gateway tells the engineer client details couldn't be protected (AC19).
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# One figure the gateway counted (CP-29), as lines of text the model may cite by `label`.
+class InsightFigure(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str
+    title: str
+    lines: Annotated[list[str], Field(min_length=1)]
+
+
+# One of the engineer's observations at the client's sites, cited by `label`.
+class InsightObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str
+    site: str
+    location: str | None = None
+    severity: str
+    categories: list[str] = []
+    date: str | None = None
+    text: str
+
+
+class ClientInsightsSummaryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client: str
+    figures: Annotated[list[InsightFigure], Field(min_length=1)]
+    observations: Annotated[list[InsightObservation], Field(min_length=1)]
+    privacy: Privacy | None = None
+
+
+@router.post("/client-insights/summary")
+def client_insights_summary_route(request: ClientInsightsSummaryRequest) -> dict:
+    """Write a short cited summary of a client's insights (CP-29), every statement checked."""
+    try:
+        return summarise_client(
+            request.client, request.figures, request.observations, _privacy(request)
+        )
+    # 503, not 502: the gateway tells the engineer client details couldn't be protected.
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:

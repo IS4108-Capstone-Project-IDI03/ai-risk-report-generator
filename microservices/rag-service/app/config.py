@@ -26,6 +26,11 @@ ASK_EFFORT = os.getenv("ASK_EFFORT", "low")
 # with none left no model is asked. ponytail: a first guess, as CHAT_MIN_RELEVANCE was.
 ASK_MIN_RELEVANCE = float(os.getenv("ASK_MIN_RELEVANCE", "0.1"))
 
+# The written summary on a client's Insights tab (CP-29). Same provider as drafting
+# (LLM_PROVIDER). Medium effort: a few cited sentences, but weighed across several sites.
+INSIGHTS_MODEL = os.getenv("INSIGHTS_MODEL", LLM_MODEL)
+INSIGHTS_EFFORT = os.getenv("INSIGHTS_EFFORT", "medium")
+
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
 # The defaults are the CB-01 model comparison's winner (docs/DECISIONS.md, 2026-10-15).
 CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")
