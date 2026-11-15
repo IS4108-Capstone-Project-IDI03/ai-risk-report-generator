@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express'
+import { getClientInsights, writeInsightSummary } from '../services/client-insight-summary.service'
 import { getClientPage } from '../services/client-page.service'
+import { RagServiceError } from '../services/rag.service'
 import {
   listClientDocuments,
   listDocumentTags,
@@ -127,6 +129,37 @@ router.post(
   },
   documentsTooLarge,
 )
+
+// A summary S4 could not write: 503 with its own reason, as drafting answers.
+// Never 502, which the browser reads as the gateway being down. Rethrows
+// anything else.
+function refuseSummary(error: unknown, res: Response) {
+  if (!(error instanceof RagServiceError)) return refuseClientChange(error, res)
+  res.status(503).json({ error: error.message })
+}
+
+// The client's Insights tab (CP-29): figures across the engineer's sites at
+// the client, with their latest written summary. 403 with no assessment for
+// it, 404 unknown, as the client page.
+router.get('/:id/insights', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    res.json(await getClientInsights(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuseClientChange(error, res)
+  }
+})
+
+// Writes a new summary of those insights (CP-29) and returns it: 201, or 403,
+// 404, 409 nothing to write from or one already being written, 503 with the
+// reason when client details could not be protected (nothing was sent) or the
+// model or its checks failed.
+router.post('/:id/insights/summary', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    res.status(201).json(await writeInsightSummary(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuseSummary(error, res)
+  }
+})
 
 // The client page (CP-18): the engineer's sites at the client, their own
 // visits there, and what they may change. 403 when they have no assessment

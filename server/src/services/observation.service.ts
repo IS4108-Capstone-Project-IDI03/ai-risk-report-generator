@@ -1234,6 +1234,30 @@ export async function listObservations(
   return observations.map((o) => toDto(o, assessment.locations ?? []))
 }
 
+// The observations not deleted of several assessments at once, by assessment
+// id, newest first in each: what a client's insights count across its sites
+// (CP-29). One query, where listObservations would take one per assessment.
+export async function listObservationsOf(
+  assessments: { _id: Types.ObjectId; locations?: ILocation[] }[],
+): Promise<Map<string, ObservationDto[]>> {
+  const byAssessment = new Map<string, ObservationDto[]>(
+    assessments.map((a) => [String(a._id), []]),
+  )
+  if (!assessments.length) return byAssessment
+  const locations = new Map(assessments.map((a) => [String(a._id), a.locations ?? []]))
+  const observations = await ObservationModel.find({
+    assessment: { $in: assessments.map((a) => a._id) },
+    deleted: { $exists: false },
+  })
+    .sort({ createdAt: -1 })
+    .lean<StoredObservation[]>()
+  for (const o of observations) {
+    const key = String(o.assessment)
+    byAssessment.get(key)?.push(toDto(o, locations.get(key) ?? []))
+  }
+  return byAssessment
+}
+
 // The drafting inputs for one COPE category, oldest first, for section
 // generation (GN-01). An observation not categorised yet has a null
 // COPE_dimension, so it is left out until it is categorised (CP-02 AC4), and

@@ -506,3 +506,54 @@ export async function readClientIntake(
   })
   return { result: camelKeys(result) as Record<string, unknown>, usage }
 }
+
+// What the gateway sends rag-service to summarise a client's insights (CP-29),
+// in the shape of POST /client-insights/summary. Must match
+// ClientInsightsSummaryRequest in microservices/rag-service/app/api/routes.py,
+// which refuses unknown fields.
+export type InsightSummaryBody = {
+  client: string
+  figures: { label: string; title: string; lines: string[] }[]
+  observations: {
+    label: string
+    site: string
+    location: string | null
+    severity: string
+    categories: string[]
+    date: string | null
+    text: string
+  }[]
+  privacy: { enabled: boolean; known_entities: unknown[] }
+}
+
+// The summary as S4 checked it: only statements that cite a source it was
+// given and state findings, with real names back.
+export type InsightSummaryResult = {
+  statements: { text: string; citations: string[] }[]
+  missing: string | null
+  confidence: 'high' | 'medium' | 'low'
+  dropped: number
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    privacy: DraftPrivacy
+  }
+  usage: unknown
+}
+
+/**
+ * Asks rag-service to write a client's insight summary (CP-29). Throws
+ * RagServiceError; its `status` is 503 when privacy protection is on and
+ * masking is unavailable, so nothing was sent to the model.
+ */
+export async function requestInsightSummary(
+  body: InsightSummaryBody,
+): Promise<InsightSummaryResult> {
+  return callRag<InsightSummaryResult>('/client-insights/summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
