@@ -841,7 +841,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
-- [ ] **CP-29** — See a client's sites at a glance (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
+- [ ] **CP-29** — Insights tab on the client page (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: an Insights tab on each client's page that analyses its sites, so I can see where the risk is, which sites need attention and whether they are getting better, without opening every assessment.
