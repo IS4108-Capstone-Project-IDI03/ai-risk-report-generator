@@ -2523,6 +2523,9 @@ Rejected:
 - Keeping the period in the URL: the calendar would then need its own query handling beside the workflow's; a refresh reopening on this month is acceptable.
 - Letting a knowledge admin move any engineer's dates: RV-11 keeps an admin read-only on someone else's assessment.
 
+- Reschedule's date fields are the design system's date picker on a desktop and the phone's own date field on a phone. The picker's phone calendar is a sheet, and a sheet opens behind a dialog (the Reassign dialog's engineer picker met the same thing).
+- An entry's details do not clip what hangs outside them (`.cal-entry-surface`), so the reason box under a greyed Reschedule shows. On a phone's sheet the reason is a line under the button instead, as a box there would be off the screen.
+
 Known limits: the date picker's calendar hangs below the Reschedule dialog rather than inside it, so the dialog (`.cal-reschedule`) does not scroll its overflow. On a narrow desktop the toolbar wraps to two rows. An assessment's finalised report still shows its due date, plainly. The calendar reads "today" from the browser, so a tab left open past midnight keeps yesterday until its next render.
 
 Stories: CP-60, RV-10, RV-11, CP-23, CP-29.
