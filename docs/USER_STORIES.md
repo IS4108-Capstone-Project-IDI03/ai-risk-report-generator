@@ -880,6 +880,41 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 15 Nov 2026 (DECISIONS 2026-11-15). The figures and every sentence but the summary are counted and worded by the gateway (`insights-v1`); only the summary asks a model (`cp29-v1`). Not in this story: findings recurring across sites from checklist answers, the weakest Section 4 categories across sites, and loss expectancy before and after the OFIs (a follow-up); an evaluation set for the summary; a knowledge admin's cross-engineer management of clients (CP-44).
   </details>
 
+- [ ] **CP-60** — Calendar of surveys and report due dates (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: a calendar I open every day that shows my surveys and report due dates by month or week, so I can plan site surveys around each other and see which reports are coming due, without reading dates off the Assessments list.
+
+  Viewing
+
+  1. Given assessments assigned to me, when I open Calendar from the sidebar, then the month shows each survey on its days, a survey of several days as one bar across them, and each report due date on its day, with today marked. Archived assessments are not shown.
+  2. Given a report due date, when it is shown, then it reads as late, due within 7 days, on track or finalised, counted as the Report due column counts it. A finalised report is never late.
+  3. Given the month, when I step back or forward, choose Today or switch to Week, then that period shows. A day's date opens its week.
+  4. Given a day in the month holds more than three entries, when I view it, then three show with "+N more", which opens that week, where every entry shows.
+  5. Given the calendar, when I filter to survey dates or report due dates only, or to one assessment type, then only those show, and the lists beside it and the count follow the type.
+  6. Given reports past due, or assessments with no survey date, when I view the calendar, then each is listed beside it, the late ones oldest first with how late they are. The footer's late count opens the month of the oldest late report.
+
+  Opening and planning
+
+  7. Given an entry, when I choose it, then I see the assessment's site, client, reference, type, status, survey days, report due date and site contacts, and can open the assessment. Its Back returns to the calendar on the same period and filters.
+  8. Given an assessment assigned to me, when I choose Reschedule and save a new survey start, survey end or report due date, then they are saved and show on the calendar, the Assessments list and the assessment's Overview.
+  9. Given a survey end before its start, a survey end with no start, or a report due date before the survey start, when I save, then the field says what to pick and nothing is saved.
+  10. Given an assessment with no survey date, when I choose Set dates on it, then the same form opens and its saved dates put it on the calendar.
+  11. Given a day, when I choose its +, then New Assessment opens with that day as the survey start, and Cancel returns to the calendar.
+
+  Who sees what
+
+  12. Given I am a risk engineer, when I view the calendar, then only assessments assigned to me show. A knowledge admin sees every engineer's, each entry naming its engineer, and can filter to one engineer.
+  13. Given an assessment assigned to someone else, when I view its entry, then Reschedule is greyed out with the reason, and the gateway refuses the change from anyone but its assigned engineer.
+
+  Phone and keyboard
+
+  14. Given a phone, when I open the calendar, then the month is a list of its days that hold something, with the late and unscheduled lists above it, and an entry's details open as a sheet.
+  15. Given a keyboard, when I am on the month, then the arrow keys move between days from one tab stop, and every entry is a button whose name says what it is, where and when.
+
+  Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
+  </details>
+
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 

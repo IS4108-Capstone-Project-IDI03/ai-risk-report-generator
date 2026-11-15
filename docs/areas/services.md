@@ -1097,6 +1097,20 @@ and `INSIGHTS_EFFORT` on `LLM_PROVIDER`):
 Not built: an evaluation set for the summary. The checks above are unit tested;
 how often a real summary passes them, and how useful it reads, is not yet measured.
 
+## Calendar (client, CP-60)
+
+The Calendar (`/calendar`, `client/src/features/calendar/`) has no service of its own. It is drawn
+in the browser from the work list, `GET /api/assessments`, which the gateway already scopes by role,
+so it adds no endpoint, collection or model call.
+
+- **Reads:** each assessment's `siteVisitDate`, `siteVisitEndDate`, `reportDueDate`, `status`,
+  `engineer` and `siteContacts`. Archived assessments are left out. `calendar.ts` holds the dates and
+  the layout (weeks from Monday, entries in lanes, the report due states) as pure functions.
+- **Writes:** Reschedule saves through `PUT /api/assessments/:reference` (RV-10), sending the type
+  unchanged and all three dates. Only the assigned engineer may, and not once archived (403, 409).
+- **New assessment on a day** opens the New Assessment form (CP-23) with that day as the first
+  assessment's survey start; nothing is created until the form is.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

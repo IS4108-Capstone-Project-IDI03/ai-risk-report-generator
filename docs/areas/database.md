@@ -251,8 +251,10 @@ admins assign under RV-11.
 
 `PUT /api/assessments/:reference` corrects an assessment's own details (RV-10
 AC10): its visit type (`surveyType`, one of the three above, or its saved older
-type left unchanged, so an assessment not yet migrated can still be edited) and its site visit and
-report due dates, with the same validation as creating one (AC11). The engineer, client and site are not editable: they stay as the
+type left unchanged, so an assessment not yet migrated can still be edited) and its site visit,
+last survey day (`siteVisitEndDate`, CP-60) and
+report due dates, with the same validation as creating one (AC11). A date left out or sent empty is
+cleared, so a caller sends all three; the calendar's Reschedule and Edit details both do. The engineer, client and site are not editable: they stay as the
 assessment was created (CP-17 AC8). The site's details and its client's name
 change for all their assessments at once, through `/api/sites` and
 `/api/clients` (CP-28, below); a `site` sent here is ignored. A new site's
