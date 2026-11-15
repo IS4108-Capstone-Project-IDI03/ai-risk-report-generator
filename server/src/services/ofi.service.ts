@@ -107,6 +107,25 @@ async function listFor(assessment: { _id: Types.ObjectId; siteVisitDate?: Date }
   }
 }
 
+// The priority of each accepted OFI of several assessments, by assessment id
+// (CP-29): what a client's insights count. Suggestions are never in a report
+// (AC3), so they are never counted.
+export async function acceptedOfiPriorities(
+  assessments: Types.ObjectId[],
+): Promise<Map<string, string[]>> {
+  const byAssessment = new Map<string, string[]>()
+  if (!assessments.length) return byAssessment
+  const ofis = await ReportOfiModel.find(
+    { assessment: { $in: assessments }, state: 'accepted' },
+    'assessment priority',
+  ).lean()
+  for (const o of ofis) {
+    const key = String(o.assessment)
+    byAssessment.set(key, [...(byAssessment.get(key) ?? []), o.priority])
+  }
+  return byAssessment
+}
+
 export async function listOfis(reference: string) {
   const assessment = await AssessmentModel.findOne({ reference }).lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)

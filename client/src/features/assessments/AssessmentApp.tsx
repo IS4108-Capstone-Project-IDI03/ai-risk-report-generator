@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
 import {
+  BackButton,
   Button,
   Dialog,
   EmptyState,
@@ -190,7 +191,26 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         paddingBottom: '16px',
                       }}
                     >
-                      <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
+                      {/* Opened from a client's page: Back returns there, on the tab it
+                          was opened from (CP-29). Leaving the document editor asks first. */}
+                      {!!v.backToClient && !v.routeBlocked && (
+                        <BackButton
+                          label={v.backToClient.label}
+                          onClick={() => guardLeave(v.backToClient!.onClick)}
+                        />
+                      )}
+                      <div
+                        style={{
+                          minWidth: '0',
+                          // On a phone the title takes the row, less Back's width when
+                          // there is one, so the actions wrap under it and never squeeze it.
+                          flex: !v.showTopBar
+                            ? '1'
+                            : v.backToClient
+                              ? '1 0 calc(100% - 72px)'
+                              : '1 0 100%',
+                        }}
+                      >
                         {!!v.eyebrow && (
                           <div
                             style={{

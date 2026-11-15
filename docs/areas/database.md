@@ -322,6 +322,79 @@ shows only under the Archived filter, and refuses a new capture session (409).
 rules (assigned engineer only; 409 when it is not archived). The `reportStatus` and
 capture sessions were kept, so the assessment returns with the status it had.
 
+## Client insights (CP-29)
+
+The client page's Insights tab. Nothing new is stored for its figures: they are
+counted on read by `client-insights.service.ts` (rules `insights-v1`) from the
+assessments, observations, accepted OFIs and Section 4 scores above. No model is
+asked for them.
+
+`GET /api/clients/:id/insights` (`assessments:edit`; 403 with no assessment for
+the client, 404 unknown, as the client page) returns:
+
+- `totals`: sites, assessments, observations, uncategorised, Critical, High,
+  accepted OFIs, those at Priority 1 or 2, late reports and the latest one.
+- `byCategory` and each site's `cells`: observations per COPE category in
+  C-O-P-E order, then not categorised (`category: null`), each with its
+  Critical and High counts. An observation filed under two categories counts in
+  both.
+- `sites`, worst first: Critical findings, then Priority 1 OFIs, then rating
+  (unrated last), then Critical and High together, then name. Each has its
+  `reasons` (the words and tone of each chip), its `rating` (null until all
+  seven Section 4 scores are entered, never a guess), its `visits` (oldest
+  first) and `change` (Critical and High findings, first visit against latest).
+- `findings`, at most three: the most common category (only with five or more
+  observations and no tie), the site that got worse the most, the one that
+  improved the most, and the site with the most severe findings when no change
+  already names it. Each is a sentence written by code.
+- `empty` (no site has an observation), `summary` and `canSummarise` (below).
+
+What is counted:
+
+- Only the signed-in user's own assessments, as the client page lists them; a
+  knowledge admin's are everyone's. A colleague's work is never counted or named.
+- Archived assessments and removed sites are left out.
+- A site's figures come from its **latest assessment with observations**, so a
+  visit still to come, with nothing captured, does not blank what the last one
+  found. A site whose assessments have none shows zeros and "No observations yet".
+- Deleted observations and suggested OFIs are never counted.
+- A report is late when its assessment is not finalised and its due day has passed.
+
+### `client_insight_summaries`
+
+The written summary on that tab: one document per write, never changed. Each has:
+
+- `client`, and `userId`: who asked. It is written from their assessments, and
+  only they read it back (the tab shows their latest).
+- `statements[]`: `text` and `citations` (the numbers of the sources it rests on).
+- `sources[]`: `n`, `kind` (`observation` or `figure`), `title`, `meta`, `quote`
+  (the observation's own words, or the figure's lines, never the model's), and
+  for an observation its `observationId` and its assessment's `reference`.
+- `missing` (what the evidence did not cover, or null) and `confidence`
+  (`high`, `medium` or `low`, worked out from the checks, never asked of the model).
+- `basis`: how many observations, accepted OFIs and ratings it was written from.
+- `fingerprint`: a hash of the figures and observations the model was given. A
+  different one on read means `outOfDate: true`.
+- `provenance`: provider, model, effort, `prompt_version` (`cp29-v1`),
+  `rules_version`, `generated_at` and `privacy: { enabled, masked_count }`.
+- `metadata` with the five required fields: `source_type:
+  'client_insight_summary'`, `effective_date` (when it was written), and
+  `jurisdiction`, `facility_type` and `COPE_dimension` all `null`: a client has
+  no jurisdiction or facility type of its own, and a summary is not one finding.
+  A documented exception to the metadata rule (CLAUDE.md), as a whole-client
+  document's is.
+
+`POST /api/clients/:id/insights/summary` (`assessments:edit`) writes one and
+returns it: 201, or 403, 404, 409 when there is no observation with words to
+write from or one is already being written for this user and client, 503 with
+the reason when client details could not be masked (nothing was sent) or the
+model or its checks failed. It is never part of a report or its export. See
+[services](services.md), "Client insights summary".
+
+`npm --prefix server run seed:cp29` adds a demo client, Harbourline Logistics,
+with five sites, repeat visits, observations, accepted OFIs and scores
+(`seed:cp29:remove` removes only it). Run `npm run seed` first.
+
 ## Client intakes and client documents (CP-23)
 
 An engineer can start a new assessment from the documents a client sent (PDF,

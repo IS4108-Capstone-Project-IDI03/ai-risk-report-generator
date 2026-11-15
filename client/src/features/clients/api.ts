@@ -230,3 +230,114 @@ export async function listClientInfo(signal?: AbortSignal): Promise<Map<string, 
     list.map((c) => [c.id, { division: c.division ?? null, rename: c.rename, remove: c.remove }]),
   )
 }
+
+// ---- Insights (CP-29): what the client's sites add up to, and its written summary ----
+
+export type InsightTone = 'danger' | 'warn' | 'good' | 'neutral'
+
+// One category's observations at a site; `category` null is not yet categorised.
+export type InsightCell = { category: string | null; count: number; critical: number; high: number }
+
+// One of a site's assessments that has observations.
+export type InsightVisit = {
+  reference: string
+  siteVisitDate: string | null
+  surveyType: string
+  observations: number
+  criticalHigh: number
+  ofis: number
+  score: number | null
+  rating: string | null
+}
+
+export type InsightSite = {
+  id: string
+  name: string
+  facilityType: string
+  jurisdiction: string
+  // The assessment its figures come from: the latest with observations.
+  reference: string
+  siteVisitDate: string | null
+  status: AssessmentStatus
+  observations: number
+  critical: number
+  high: number
+  uncategorised: number
+  cells: InsightCell[]
+  ofis: { accepted: number; priority1: number; priority2: number }
+  // Null until all seven Section 4 scores are entered.
+  rating: { score: number; rating: string } | null
+  reasons: { text: string; tone: InsightTone }[]
+  // Oldest first.
+  visits: InsightVisit[]
+  change: 'improved' | 'worse' | 'same' | null
+}
+
+export type InsightFinding = {
+  kind: 'category' | 'worse' | 'improved' | 'severe'
+  tone: InsightTone
+  title: string
+  detail: string
+  siteId: string | null
+  category: string | null
+  share: { count: number; total: number } | null
+  change: { from: number; to: number; period: string | null } | null
+}
+
+export type InsightSource = {
+  n: number
+  kind: 'observation' | 'figure'
+  title: string
+  meta: string | null
+  quote: string
+  observationId: string | null
+  reference: string | null
+}
+
+// The summary the model drafted from the figures and the engineer's observations.
+export type InsightSummary = {
+  id: string
+  statements: { text: string; citations: number[] }[]
+  missing: string | null
+  confidence: 'high' | 'medium' | 'low'
+  sources: InsightSource[]
+  basis: { observations: number; ofis: number; ratings: number }
+  writtenAt: string
+  // The observations or figures changed since it was written.
+  outOfDate: boolean
+}
+
+export type ClientInsights = {
+  rulesVersion: string
+  // No site has an observation yet.
+  empty: boolean
+  totals: {
+    sites: number
+    assessments: number
+    observations: number
+    uncategorised: number
+    critical: number
+    high: number
+    ofisAccepted: number
+    ofisPriority12: number
+    reportsLate: number
+    latest: { site: string; days: number } | null
+  }
+  byCategory: InsightCell[]
+  // Worst first.
+  sites: InsightSite[]
+  findings: InsightFinding[]
+  summary: InsightSummary | null
+  canSummarise: boolean
+}
+
+/** Returns the client's insights, with the user's latest summary. */
+export async function getClientInsights(id: string, signal?: AbortSignal): Promise<ClientInsights> {
+  return (await request<ClientInsights>('GET', `${clientPath(id)}/insights`, undefined, signal))
+    .data
+}
+
+/** Writes a new summary of the client's insights; returns it. */
+export async function writeInsightSummary(id: string): Promise<InsightSummary> {
+  return (await request<InsightSummary>('POST', `${clientPath(id)}/insights/summary`)).data
+}

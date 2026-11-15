@@ -140,6 +140,18 @@ date, and old names stay masked from AI providers. Edit details is a dialog
 over the Overview with the visit's own details: assessment type, site visit
 date and report due.
 
+The client's page also has an Insights tab (CP-29): what the engineer's sites
+at that client add up to. Headline figures, what stands out, the sites needing
+attention with the reasons for each, where the findings are by COPE category,
+and how each site changed between its first and latest visit. The gateway
+counts and words all of it from the engineer's own assessments
+(`GET /api/clients/:id/insights`), using each site's latest assessment with
+observations; no model is asked. Write summary asks S4 for a few cited
+statements about the client (set `ANTHROPIC_API_KEY`), with client details
+masked first; every statement is checked before it is shown, and the summary is
+never part of a report. `npm --prefix server run seed:cp29` adds a demo client
+to try it on.
+
 Before the visit, the assessment's Checklist tab generates a pre-survey
 checklist (CP-30): one item per subsection of Marsh's template (Sections
 6-12), and items from the knowledge-base standards that apply to the site's

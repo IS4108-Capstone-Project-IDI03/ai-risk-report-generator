@@ -1,5 +1,6 @@
 // A loaded client page (CP-23, boards 06 and 07): header with tabs, Back, the
-// removed callout, the tab's content and the facts panel, and the dialogs for
+// removed callout, the tab's content (Open work, Sites, Documents, and CP-29's
+// Insights) and the facts panel, and the dialogs for
 // the client and its sites. Called by ClientPage. Calls the tab screens;
 // restores and dialog saves reload the page, the work list and show a toast.
 import { useState, type ReactNode } from 'react'
@@ -18,6 +19,7 @@ import { RemovedCallout } from '../components/RemovedCallout'
 import { plural } from '../formatClient'
 import { useClientDocuments } from '../useClientDocuments'
 import { DocumentsTab } from './DocumentsTab'
+import { InsightsTab } from './InsightsTab'
 import { OpenWorkTab } from './OpenWorkTab'
 import { SitesTab } from './SitesTab'
 import type { ClientRecordProps } from '../ClientPage'
@@ -28,7 +30,8 @@ type Open =
   | { kind: 'remove'; site: ClientPageSite }
   | { kind: 'restoreName'; site: ClientPageSite }
 
-type TabId = 'open' | 'sites' | 'documents'
+const TABS = ['open', 'sites', 'documents', 'insights'] as const
+type TabId = (typeof TABS)[number]
 
 export function ClientRecord({
   page,
@@ -40,9 +43,14 @@ export function ClientRecord({
   menu,
   onNewAssessment,
   onOpen,
+  returnTab,
   onChanged,
 }: ClientRecordProps & { page: Page; onClients: () => void; bell?: ReactNode }) {
-  const [tab, setTab] = useState<TabId>('open')
+  // Open work, unless the engineer is coming back from an assessment opened on
+  // another tab (CP-29): then that tab, so Back returns to where they were.
+  const [tab, setTab] = useState<TabId>(TABS.find((t) => t === returnTab) ?? 'open')
+  // An assessment opened from here remembers the tab it was opened from.
+  const openVisit = (reference: string, site: string) => onOpen(reference, site, tab)
   const [open, setOpen] = useState<Open | null>(null)
   const [busy, setBusy] = useState(false)
   const [details, setDetails] = useState(false)
@@ -107,7 +115,8 @@ export function ClientRecord({
     return item ? { ...rule, open: () => item.onSelect() } : null
   }
   const documentCount = docs.documents?.length ?? page.documents
-  const showFacts = tab !== 'documents'
+  // The facts panel sits beside the lists; Documents and Insights take the full width.
+  const showFacts = tab === 'open' || tab === 'sites'
 
   return (
     <>
@@ -126,6 +135,7 @@ export function ClientRecord({
               { value: 'open', label: 'Open work', count: facts.open },
               { value: 'sites', label: 'Sites', count: listed.length },
               { value: 'documents', label: 'Documents', count: documentCount },
+              { value: 'insights', label: 'Insights' },
             ]}
             value={tab}
             onChange={(t) => setTab(t as TabId)}
@@ -138,18 +148,19 @@ export function ClientRecord({
           <div className="cl-main">
             {/* Keyed by tab so each switch replays the 180 ms fade-and-rise (board 17 · 1). */}
             <div key={tab} className="cl-panel">
-              {tab === 'open' && <OpenWorkTab page={page} onOpen={onOpen} />}
+              {tab === 'open' && <OpenWorkTab page={page} onOpen={openVisit} />}
               {tab === 'sites' && (
                 <SitesTab
                   page={page}
                   busy={busy}
-                  onOpen={onOpen}
+                  onOpen={openVisit}
                   onEdit={(site) => setOpen({ kind: 'edit', site })}
                   onRemove={(site) => setOpen({ kind: 'remove', site })}
                   onRestore={restoreOne}
                 />
               )}
               {tab === 'documents' && <DocumentsTab clientId={page.id} docs={docs} />}
+              {tab === 'insights' && <InsightsTab clientId={page.id} onOpen={openVisit} />}
             </div>
           </div>
           {showFacts && (

@@ -841,6 +841,45 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
+- [ ] **CP-29** — Insights tab on the client page (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: an Insights tab on each client's page that analyses its sites, so I can see where the risk is, which sites need attention and whether they are getting better, without opening every assessment.
+
+  Viewing
+
+  1. Given a client I have assessments for, when I open its page and choose Insights, then I see its number of sites and assessments, observations, Critical and High findings, Priority 1 and 2 OFIs and late reports. Open work stays the tab the page opens on.
+  2. Given observations at several sites, when I view the tab, then What stands out names the most common COPE category with its share, the site that got worse the most and the site that improved the most between visits, each linking to the block that shows it.
+  3. Given a client with several sites, when I view Sites needing attention, then the sites are listed worst first (Critical findings, then Priority 1 OFIs, then rating), each with the reasons it sits there, and each opens the assessment its figures come from.
+  4. Given observations in several categories, when I view Where the findings are, then a grid shows each site's observations by COPE category and uncategorised, with the count printed in every cell, and choosing a cell says how many are Critical and High.
+  5. Given a site with two or more visits, when I view Change between visits, then I see its first visit against its latest for Critical and High findings, accepted OFIs or risk quality score, marked Improved or Worse. A site with one visit reads First visit, and a change in OFIs is not judged.
+
+  Counting
+
+  6. Given a site with several assessments, when its figures are shown, then they come from its latest assessment that has observations, so a visit still to come does not blank them.
+  7. Given deleted observations, suggested OFIs, archived assessments or removed sites, when the figures are shown, then none of them is counted.
+  8. Given a site whose Section 4 scores are incomplete, when its rating is shown, then it reads Rating not entered, never 0.
+  9. Given fewer than five observations, or two categories tied, when What stands out is shown, then no category is called the most common. Given no observation at all, the tab says there is nothing to analyse.
+
+  The written summary
+
+  10. Given observations with notes or transcripts, when I choose Write summary, then a few statements about the client are drafted by the model, each citing the observations or figures it rests on, with the sources listed under them. Nothing is written until I ask.
+  11. Given a statement cites no source it was given, gives advice, uses "I" or "we", or uses a number its sources don't give, when the summary is checked, then that statement is not shown, and the summary's confidence is Low.
+  12. Given protection is on, when the summary is written, then client, site and staff names reach the model only as placeholders and show as real names in the summary. If the privacy service is unavailable, nothing is sent and I am told why.
+  13. Given the observations or figures changed since the summary was written, when I open the tab, then it is marked out of date and I can write it again. A summary is never part of a report or its export.
+
+  Charts
+
+  14. Given the grid or the change chart is shown, when I read it with a screen reader or without colour, then every value is also text.
+
+  Who sees what
+
+  15. Given another engineer has assessments for the same client, when I view the tab, then none of their figures is included, and a knowledge admin sees every engineer's. A summary is read back only by the user who wrote it.
+  16. Given a client I have no assessment for, when I request its insights or a summary, then it is refused.
+
+  Built 15 Nov 2026 (DECISIONS 2026-11-15). The figures and every sentence but the summary are counted and worded by the gateway (`insights-v1`); only the summary asks a model (`cp29-v1`). Not in this story: findings recurring across sites from checklist answers, the weakest Section 4 categories across sites, and loss expectancy before and after the OFIs (a follow-up); an evaluation set for the summary; a knowledge admin's cross-engineer management of clients (CP-44).
+  </details>
+
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
