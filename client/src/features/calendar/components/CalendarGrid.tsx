@@ -131,6 +131,7 @@ export function CalendarGrid({
                 item={entry.item}
                 kind={entry.kind}
                 ctx={ctx}
+                week={week.start}
                 twoLines={tall}
                 fromEarlier={entry.fromEarlier}
                 toLater={entry.toLater}

@@ -163,7 +163,8 @@ type EntryProps = {
 }
 
 // The trigger and its details. `where` keeps two triggers for one entry apart
-// (a late report is on the grid and in the side list), so only the pressed one opens.
+// (a late report is on the grid and in the side list; a long survey is in several
+// weeks of the grid), so only the pressed one opens.
 function EntryPop({
   entryKey,
   item,
@@ -219,12 +220,16 @@ export function EntryChip({
   item,
   kind,
   ctx,
+  week,
   style,
   align,
   twoLines,
   fromEarlier,
   toLater,
 }: EntryProps & {
+  // The Monday of the week it is drawn in. A survey over several weeks is one bar in
+  // each, and only the bar pressed opens its details.
+  week: string
   style: CSSProperties
   align: 'left' | 'right'
   // The week view's taller chip, with a second line.
@@ -240,7 +245,7 @@ export function EntryChip({
       entryKey={entryKey}
       item={item}
       ctx={ctx}
-      where="grid"
+      where={`grid:${week}`}
       label={d.spoken}
       align={align}
       className="cal-chip"

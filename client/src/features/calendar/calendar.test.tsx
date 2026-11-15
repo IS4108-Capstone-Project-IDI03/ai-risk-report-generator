@@ -205,6 +205,25 @@ it('opens an entry on its details, and from there the assessment', () => {
   expect(onOpen).toHaveBeenCalledWith('RPT-1', 'Tuas Hub')
 })
 
+it('opens one set of details for a survey drawn across several weeks', () => {
+  show({
+    assessments: [
+      assessment('RPT-1', 'Tuas Hub', {
+        siteVisitDate: '2026-11-03',
+        siteVisitEndDate: '2026-11-20',
+      }),
+    ],
+  })
+  // One bar in each of the three weeks it covers.
+  const bars = within(grid()).getAllByRole('button', { name: /^First survey, Tuas Hub/ })
+  expect(bars).toHaveLength(3)
+  fireEvent.click(bars[1])
+  expect(screen.getAllByRole('dialog', { name: 'Tuas Hub' })).toHaveLength(1)
+  // Another of its bars moves the details there, still one.
+  fireEvent.click(bars[2])
+  expect(screen.getAllByRole('dialog', { name: 'Tuas Hub' })).toHaveLength(1)
+})
+
 it('reschedules from an entry: refuses dates out of order, then saves all three and reloads', async () => {
   const saves: { url: string; body: unknown }[] = []
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
