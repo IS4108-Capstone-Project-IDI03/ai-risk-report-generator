@@ -107,7 +107,7 @@ export function DetailsDocuments({
   useEffect(() => {
     const root = block.current
     const addControl = () =>
-      root?.querySelector<HTMLElement>('.ds-add-row, [aria-label="Add a Client Document"]')
+      root?.querySelector<HTMLElement>('.ds-add-row, .ds-icon-button--shaded')
     if (busy) {
       keepFocus.current = !!addControl() && document.activeElement === addControl()
       return
@@ -156,8 +156,9 @@ export function DetailsDocuments({
   const plus = add && (docs.length > 0 || links) && (
     <IconAction
       icon="plus"
-      label="Add a Client Document"
-      tooltip="Add a Client Document"
+      label="Add Document"
+      // Shaded: a bare plus beside the heading did not read as a button (round 10).
+      shaded
       // The label is wider than the icon: it ends at the icon's right edge, inside the panel.
       placement="top-end"
       className="mb-hit"
@@ -193,7 +194,7 @@ export function DetailsDocuments({
       {docs.length === 0 &&
         (add ? (
           <AddRow loading={add.busy} onClick={pick}>
-            Add a Client Document
+            Add Document
           </AddRow>
         ) : (
           <p className="mb-none">None yet</p>

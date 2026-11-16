@@ -29,6 +29,23 @@
 .ds-icon-button:not(:disabled):not([aria-disabled='true']):active {
   transform: scale(0.97);
 }
+/* Shaded (IconAction `shaded`): a soft grey disc at rest, a step darker on hover and press. */
+.ds-icon-button.ds-icon-button--shaded {
+  background: var(--graphite-100);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-icon-button.ds-icon-button--shaded[data-ghost]:not(:disabled):not(
+      [aria-disabled='true']
+    ):hover {
+    background: var(--graphite-200);
+    box-shadow: none;
+  }
+}
+.ds-icon-button.ds-icon-button--shaded[data-ghost]:not(:disabled):not(
+    [aria-disabled='true']
+  ):active {
+  background: var(--graphite-200);
+}
 .ds-icon-button[data-ghost]:not(:disabled):not([aria-disabled='true']):active {
   background: var(--hover-bg);
 }

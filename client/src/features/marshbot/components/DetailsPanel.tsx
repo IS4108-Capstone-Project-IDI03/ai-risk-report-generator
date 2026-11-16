@@ -1,9 +1,9 @@
 // The assessment's Details (AS-06 boards 06, D1, D3): a side panel from the right over a dimmed
-// page on a computer, a bottom sheet on a phone. Its Edit Details button opens the dialog; Edit
+// page on a computer, a bottom sheet on a phone. Its Edit Details icon opens the dialog; Edit
 // Site sits by the site; Open Map swaps the content to the site map, and a back arrow returns.
 // Opened by the header's Details button and the rail's client card (AssessmentApp.tsx).
 import { useEffect, useId, useRef, useState } from 'react'
-import { BackButton, Button, IconAction, Sheet, useIsPhone } from '../../../design-system'
+import { BackButton, IconAction, Sheet, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
@@ -71,16 +71,16 @@ export function DetailsPanel({
       <BackButton label="Back to Details" onClick={() => setView('details')} />
     </span>
   )
-  // The one way in to the details dialog: a button with words, not an icon to hunt for.
+  // The way in to the details dialog: the same icon button as Edit Site (round 10), named by its
+  // tooltip. `bottom`: it sits at the panel's top edge.
   const editDetails = edit && (
-    <Button
-      variant="pill"
-      iconLeft="pencil"
-      className="ds-press mb-hit"
+    <IconAction
+      icon="pencil"
+      label="Edit Details"
+      placement="bottom"
+      className="mb-hit"
       onClick={() => setDialog('details')}
-    >
-      Edit Details
-    </Button>
+    />
   )
   return (
     <>

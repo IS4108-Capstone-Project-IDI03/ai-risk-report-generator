@@ -543,11 +543,15 @@ describe('the panel header', () => {
       />,
     )
 
-  it('has one clear Edit Details button, and a Close with a real tooltip', () => {
+  it('has Edit Details as an icon named by its tooltip, like Edit Site, and a Close with a real tooltip', () => {
     serveDocuments([])
     panel()
+    // Round 10: no words on the button; the same icon button as Edit Site.
     const edit = screen.getByRole('button', { name: 'Edit Details' })
-    expect(edit).toHaveTextContent('Edit Details')
+    expect(edit).toHaveTextContent('')
+    fireEvent.mouseEnter(edit.parentElement!)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Edit Details')
+    fireEvent.mouseLeave(edit.parentElement!)
     const close = screen.getByRole('button', { name: 'Close' })
     expect(close).not.toHaveAttribute('title')
     fireEvent.mouseEnter(close.parentElement!)
@@ -618,15 +622,15 @@ describe('adding a client document from the panel', () => {
       target: { files: [new File(['x'], name, { type: 'application/pdf' })] },
     })
 
-  it('shows a dashed Add a Client Document row where there are none, only to someone who may edit', async () => {
+  it('shows a dashed Add Document row where there are none, only to someone who may edit', async () => {
     serve(() => Response.json({}))
     show()
-    expect(await screen.findByRole('button', { name: 'Add a Client Document' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Add Document' })).toBeInTheDocument()
     cleanup()
     serveDocuments([])
     render(<DetailsContent v={workflow()} record={RECORD} />)
     await screen.findAllByText('None yet')
-    expect(screen.queryByRole('button', { name: 'Add a Client Document' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Document' })).not.toBeInTheDocument()
   })
 
   it('uploads to this assessment, lists it, and says so in one toast inside the panel', async () => {
@@ -651,7 +655,7 @@ describe('adding a client document from the panel', () => {
       return Promise.resolve(Response.json(listed ? [NEW] : []))
     })
     show()
-    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await screen.findByRole('button', { name: 'Add Document' })
     await act(async () => choose())
     const post = calls.find((c) => c.init?.method === 'POST')!
     expect(post.url).toBe('/api/clients/c1/documents')
@@ -666,10 +670,10 @@ describe('adding a client document from the panel', () => {
     let finish: (r: Response) => void = () => {}
     serve(() => new Promise<Response>((resolve) => (finish = resolve)))
     show()
-    const add = await screen.findByRole('button', { name: 'Add a Client Document' })
+    const add = await screen.findByRole('button', { name: 'Add Document' })
     add.focus()
     await act(async () => choose())
-    const busy = screen.getByRole('button', { name: 'Add a Client Document' })
+    const busy = screen.getByRole('button', { name: 'Add Document' })
     // aria-disabled, not disabled: a disabled button would drop the keyboard user's focus.
     expect(busy).not.toBeDisabled()
     expect(busy).toHaveAttribute('aria-disabled', 'true')
@@ -680,7 +684,7 @@ describe('adding a client document from the panel', () => {
     fireEvent.click(busy)
     expect(opened).not.toHaveBeenCalled()
     await act(async () => finish(Response.json({ files: [] }, { status: 201 })))
-    expect(screen.getByRole('button', { name: 'Add a Client Document' })).not.toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Add Document' })).not.toHaveAttribute(
       'aria-disabled',
     )
   })
@@ -700,14 +704,16 @@ describe('adding a client document from the panel', () => {
       return Promise.resolve(Response.json(listed ? [NEW] : []))
     })
     show()
-    const row = await screen.findByRole('button', { name: 'Add a Client Document' })
+    const row = await screen.findByRole('button', { name: 'Add Document' })
     expect(row).toHaveClass('ds-add-row')
     row.focus()
     await act(async () => choose())
     await vi.waitFor(() => expect(screen.getByText('Fire Plan.pdf')).toBeInTheDocument())
     // The row has gone and the plus beside the heading took its place, with the keyboard on it.
-    const plus = screen.getByRole('button', { name: 'Add a Client Document' })
+    const plus = screen.getByRole('button', { name: 'Add Document' })
     expect(plus).not.toHaveClass('ds-add-row')
+    // Shaded, so it reads as a button and not a stray plus (round 10).
+    expect(plus).toHaveClass('ds-icon-button--shaded')
     await vi.waitFor(() => expect(plus).toHaveFocus())
   })
 
@@ -726,10 +732,10 @@ describe('adding a client document from the panel', () => {
       return Promise.resolve(Response.json(listed ? [NEW] : []))
     })
     show()
-    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await screen.findByRole('button', { name: 'Add Document' })
     await act(async () => choose())
     await vi.waitFor(() => expect(screen.getByText('Fire Plan.pdf')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Add a Client Document' })).not.toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Add Document' })).not.toHaveFocus()
   })
 
   it('shows the result in the app’s own toaster when the panel was closed while the files went up', async () => {
@@ -744,7 +750,7 @@ describe('adding a client document from the panel', () => {
         </dialog>
       </>,
     )
-    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await screen.findByRole('button', { name: 'Add Document' })
     await act(async () => choose())
     // The panel closes: its dialog, its toaster and its content all unmount.
     view.rerender(<Toaster />)
@@ -767,7 +773,7 @@ describe('adding a client document from the panel', () => {
       ),
     )
     show()
-    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await screen.findByRole('button', { name: 'Add Document' })
     await act(async () => choose('a.zip'))
     expect(await screen.findByText('a.zip not uploaded')).toBeInTheDocument()
     expect(screen.getByText('Can’t read .zip files.')).toBeInTheDocument()
@@ -778,7 +784,7 @@ describe('adding a client document from the panel', () => {
       throw new TypeError('Failed to fetch')
     })
     show()
-    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await screen.findByRole('button', { name: 'Add Document' })
     await act(async () => choose())
     expect(await screen.findByText('Upload failed')).toBeInTheDocument()
   })
@@ -790,6 +796,6 @@ describe('adding a client document from the panel', () => {
       'section',
     )!
     expect(within(docs).getByText('5')).toBeInTheDocument()
-    expect(within(docs).getByRole('button', { name: 'Add a Client Document' })).toBeInTheDocument()
+    expect(within(docs).getByRole('button', { name: 'Add Document' })).toBeInTheDocument()
   })
 })

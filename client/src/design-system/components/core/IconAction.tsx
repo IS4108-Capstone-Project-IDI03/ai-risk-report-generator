@@ -1,7 +1,7 @@
 // A round icon action with its tooltip (v2 section 2, "Icons first for actions"): a 32 px round
 // icon button that names its action on hover and focus, or, when blocked, greys out and explains
 // why in a reason box instead. With `href` it is the same button as a link that opens in a new
-// tab. AS-06's Details panel uses it for close, directions, add and edit.
+// tab. AS-06's Details panel uses it for close, directions, add (shaded) and edit.
 // Called by feature screens. Calls IconButton, Icon, Tooltip.
 import type * as React from 'react'
 import { Icon } from './Icon'
@@ -18,6 +18,9 @@ export type IconActionProps = {
   // Where the tooltip sits; bottom for a control at the top edge of a scrolling box.
   placement?: string
   size?: 'sm' | 'md'
+  // A soft grey disc behind the icon, for an action that must read as a button on its own (an
+  // add beside a heading). Plain ones stay bare until hovered.
+  shaded?: boolean
   disabled?: boolean
   // Blocked but focusable: the reason box replaces the tooltip.
   disabledReason?: Reason
@@ -38,6 +41,7 @@ export function IconAction({
   tooltip = label,
   placement = 'top',
   size = 'sm',
+  shaded = false,
   disabled,
   disabledReason,
   loading = false,
@@ -46,9 +50,11 @@ export function IconAction({
   className,
   style,
 }: IconActionProps) {
+  // `shaded` is a class, on the button and on the link form alike.
+  const classes = `${shaded ? 'ds-icon-button--shaded ' : ''}${className ?? ''}`.trim()
   const link = href ? (
     <a
-      className={`ds-icon-button ds-icon-link${className ? ' ' + className : ''}`}
+      className={`ds-icon-button ds-icon-link${classes ? ' ' + classes : ''}`}
       data-ghost=""
       href={href}
       target="_blank"
@@ -72,7 +78,7 @@ export function IconAction({
       onClick={loading ? undefined : onClick}
       // Clears the native title so it never stacks on the tooltip.
       title={undefined}
-      className={className}
+      className={classes || undefined}
       style={{ borderRadius: 999, ...style }}
     />
   )

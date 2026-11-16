@@ -22,9 +22,10 @@
 .mb-panel-head > span {
   align-items: center;
 }
-/* The phone sheet's title row: the Edit Details button sits a little apart from the close tick. */
-.mb-details-sheet .ds-sheet-head > button.ds-press {
-  margin-right: 4px;
+/* The phone sheet's title row: the Edit Details icon keeps 6 px from the close tick, so its
+   44 px tap area (.mb-hit) ends where the tick's begins instead of covering its edge. */
+.mb-details-sheet .ds-sheet-head .mb-hit {
+  margin-right: 6px;
 }
 /* The Back button leads the title, in the sheet's header too (its title comes first in the DOM). */
 .mb-back {
@@ -397,11 +398,6 @@ button.mb-place-main {
   }
   .mb-headactions {
     gap: 18px;
-  }
-  /* The sheet's Edit Details button is a full 44px (a narrow desktop window has no coarse pointer
-     for the design system's own 44px rule); min-height beats the Button's inline height. */
-  .mb-details-sheet .ds-sheet-head > button.ds-press {
-    min-height: 44px;
   }
   .mb-placebar {
     --mb-tap: 44px;
