@@ -21,6 +21,7 @@ export function DocumentGroup({
   onChangeStatus,
   onDelete,
   onReview,
+  onPassages,
   canManage,
 }: {
   group: Group
@@ -33,6 +34,7 @@ export function DocumentGroup({
   onChangeStatus: (document: KnowledgeDocument) => void
   onDelete: (document: KnowledgeDocument) => void
   onReview: (document: KnowledgeDocument) => void
+  onPassages: (document: KnowledgeDocument) => void
   // Off for a risk engineer, who browses read-only (IN-17).
   canManage: boolean
 }) {
@@ -67,6 +69,7 @@ export function DocumentGroup({
             onChangeStatus={() => onChangeStatus(d)}
             onDelete={() => onDelete(d)}
             onReview={() => onReview(d)}
+            onPassages={() => onPassages(d)}
             canManage={canManage}
           />
         ))

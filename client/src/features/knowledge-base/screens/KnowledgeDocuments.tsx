@@ -15,6 +15,7 @@ import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
 import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
+import { PassagesDialog } from '../components/PassagesDialog'
 import { NO_FILTERS, type Filters } from '../documentFilters'
 
 const GROUPS: Group[] = [
@@ -114,6 +115,7 @@ export function KnowledgeDocuments({
   const [historyOf, setHistoryOf] = useState<KnowledgeDocument | null>(null)
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
   const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
+  const [passagesOf, setPassagesOf] = useState<KnowledgeDocument | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -342,6 +344,7 @@ export function KnowledgeDocuments({
                   onChangeStatus={setChangingStatus}
                   onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
+                  onPassages={setPassagesOf}
                   canManage={canManage}
                 />
               )
@@ -350,6 +353,7 @@ export function KnowledgeDocuments({
         )}
       </div>
 
+      {passagesOf && <PassagesDialog document={passagesOf} onClose={() => setPassagesOf(null)} />}
       {historyOf && (
         <EditHistoryDialog
           document={historyOf}

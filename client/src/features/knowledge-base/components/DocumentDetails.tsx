@@ -28,6 +28,7 @@ export function DocumentDetails({
   onHistory,
   onChangeStatus,
   onDelete,
+  onPassages,
   canManage,
 }: {
   id: string
@@ -36,6 +37,8 @@ export function DocumentDetails({
   onHistory: () => void
   onChangeStatus: () => void
   onDelete: () => void
+  // Opens the document's passages (IN-17); for everyone.
+  onPassages: () => void
   // Off for a risk engineer: the details show, no action that changes them (IN-17).
   canManage: boolean
 }) {
@@ -106,6 +109,9 @@ export function DocumentDetails({
           onClick={onHistory}
         >
           Edit history
+        </Button>
+        <Button variant="ghost" size="sm" iconLeft="list" onClick={onPassages}>
+          View passages
         </Button>
         {canManage && !d.withdrawn && (
           <Button

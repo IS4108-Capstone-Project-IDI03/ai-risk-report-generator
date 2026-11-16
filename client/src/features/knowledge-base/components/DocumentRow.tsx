@@ -21,6 +21,7 @@ export function DocumentRow({
   onChangeStatus,
   onDelete,
   onReview,
+  onPassages,
   canManage,
 }: {
   document: KnowledgeDocument
@@ -33,6 +34,7 @@ export function DocumentRow({
   onChangeStatus: () => void
   onDelete: () => void
   onReview: () => void
+  onPassages: () => void
   // Off for a risk engineer: no Review link, no actions in the details (IN-17).
   canManage: boolean
 }) {
@@ -119,6 +121,7 @@ export function DocumentRow({
               onHistory={onHistory}
               onChangeStatus={onChangeStatus}
               onDelete={onDelete}
+              onPassages={onPassages}
               canManage={canManage}
             />
           </td>

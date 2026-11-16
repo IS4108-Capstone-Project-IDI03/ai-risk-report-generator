@@ -879,3 +879,74 @@
 .kb-request-picker > label:has(input:checked) {
   background: var(--surface-selected);
 }
+
+/* A document's passages (IN-17, components/PassagesDialog.tsx): one row per
+   passage, its heading trail and pages, then a two-line excerpt; an open row
+   shows the full text. */
+.kb-passages {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kb-passages > li {
+  padding: 12px 0;
+}
+.kb-passages > li:first-child {
+  padding-top: 0;
+}
+.kb-passages > li + li {
+  border-top: 1px solid var(--border-subtle);
+}
+.kb-passage-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kb-passage-toggle > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+.kb-passage-head {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.kb-passage-head strong {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.kb-passage-head small {
+  font-family: var(--font-mono);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  color: var(--text-muted);
+}
+.kb-passage-excerpt,
+.kb-passage-text {
+  margin: 6px 0 0 23px;
+  color: var(--text-secondary);
+}
+.kb-passage-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.kb-passage-body {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

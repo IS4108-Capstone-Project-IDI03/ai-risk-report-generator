@@ -280,6 +280,27 @@ export function uploadKnowledgeDocument(
   })
 }
 
+// One passage of a document as the knowledge base lists it (IN-17), in reading order.
+export type DocumentPassage = {
+  id: string
+  text: string
+  // The heading trail, outermost first; empty when the passage has none.
+  headings: string[]
+  section: string | null
+  pageStart: number | null
+  pageEnd: number | null
+  status: string | null
+}
+
+// Returns a document's passages, as search holds them (IN-17).
+export async function listDocumentPassages(
+  id: string,
+  signal?: AbortSignal,
+): Promise<DocumentPassage[]> {
+  const path = `/api/knowledge-documents/${encodeURIComponent(id)}/passages`
+  return (await request<{ passages: DocumentPassage[] }>(path, { signal })).passages
+}
+
 // One passage in the side-by-side comparison (IN-07).
 export type Passage = {
   id: string

@@ -3,9 +3,19 @@
 // document. The gateway is a stubbed fetch.
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+
+// jsdom has no <dialog> methods; the Passages dialog needs them.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 
 const base = {
   issuingBody: 'NFPA',
@@ -55,13 +65,54 @@ const FM = {
   fileUrl: '/api/knowledge-documents/fm/file',
 }
 
+const LONG_TEXT =
+  'Sprinklers shall be installed throughout the premises, including concealed spaces ' +
+  'above ceilings, except where this standard permits their omission.'
+const PASSAGES = [
+  {
+    id: 'nfpa:0',
+    text: LONG_TEXT,
+    headings: ['Chapter 8 Installation', '8.1 Basic requirements'],
+    section: 'Not applicable',
+    pageStart: 12,
+    pageEnd: 13,
+    status: 'active',
+  },
+  {
+    id: 'nfpa:1',
+    text: 'Ceiling pockets shall be protected.',
+    headings: [],
+    section: 'Not applicable',
+    pageStart: 14,
+    pageEnd: 14,
+    status: 'active',
+  },
+]
+
 const requested: string[] = []
-function mockGateway(documents: object[]) {
+// Answers the list with `documents` and a document's passages with `passages`
+// (a status number makes that call fail).
+function mockGateway(documents: object[], passages: object[] | number = PASSAGES) {
   vi.stubGlobal('fetch', (url: string) => {
     requested.push(url)
+    if (url.endsWith('/passages')) {
+      return Promise.resolve(
+        typeof passages === 'number'
+          ? Response.json({ error: 'The passages could not be loaded.' }, { status: passages })
+          : Response.json({ passages }),
+      )
+    }
     const answer = url === '/api/knowledge-documents/ingested' ? documents : []
     return Promise.resolve(Response.json(answer))
   })
+}
+
+// Opens a document's details, then its passages.
+async function openPassages(title: string) {
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
+  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  fireEvent.click(within(details).getByRole('button', { name: 'View passages' }))
+  return screen.getByRole('dialog', { name: 'Passages' })
 }
 
 afterEach(() => {
@@ -135,5 +186,55 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
     expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
     expect(window.location.pathname).toBe('/admin/knowledge-base')
     expect(requested.some((url) => url.endsWith('/comparison'))).toBe(false)
+  })
+})
+
+describe("A document's passages (IN-17)", () => {
+  it('lists them in reading order with their heading trail and pages', async () => {
+    mockGateway([NFPA])
+    await openAsEngineer()
+
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    const items = await within(dialog).findAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toHaveTextContent('Chapter 8 Installation › 8.1 Basic requirements')
+    expect(items[0]).toHaveTextContent('Pages 12–13')
+    expect(items[1]).toHaveTextContent('Page 14')
+    expect(requested).toContain('/api/knowledge-documents/nfpa/passages')
+  })
+
+  it('shows a passage in full when it is opened', async () => {
+    mockGateway([NFPA])
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    const first = await within(dialog).findByRole('button', { name: /^Chapter 8 Installation/ })
+    expect(first).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(first)
+
+    expect(first).toHaveAttribute('aria-expanded', 'true')
+    expect(within(dialog).getByText(LONG_TEXT)).toBeVisible()
+  })
+
+  it('says so when a document has no passages', async () => {
+    mockGateway([NFPA], [])
+    await openAsEngineer()
+
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    expect(await within(dialog).findByText('No passages in search')).toBeVisible()
+  })
+
+  it('explains a failed load and tries again', async () => {
+    mockGateway([NFPA], 503)
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    expect(await within(dialog).findByText('Passages not loaded')).toBeVisible()
+    mockGateway([NFPA])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }))
+
+    expect(await within(dialog).findAllByRole('listitem')).toHaveLength(2)
   })
 })
