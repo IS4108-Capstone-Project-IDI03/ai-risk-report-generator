@@ -191,7 +191,7 @@ export function useAsk(reference: string, enabled: boolean) {
       } catch (error: unknown) {
         // Already gone (deleted in another tab): it leaves the list as well.
         if (!(error instanceof GatewayError && error.status === 404))
-          throw new Error(problemOf(error, 'deleted'))
+          throw new Error(problemOf(error, 'deleted'), { cause: error })
       }
       const left = conversations.filter((c) => c.id !== id)
       setConversations(left)

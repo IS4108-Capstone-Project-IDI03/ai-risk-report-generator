@@ -45,6 +45,8 @@ const asAdmin = signedInAs(app, admin)
 
 const REFERENCE = 'RPT-2026-0412'
 const base = `/api/assessments/${REFERENCE}/ask`
+// An observation is always at one of the assessment's locations.
+const PUMP_ROOM = new Types.ObjectId()
 const TRACE = {
   story: 'AS-01',
   provider: 'anthropic',
@@ -98,6 +100,9 @@ async function seedAssessment() {
     site: site._id,
     surveyType: 'First survey',
     engineer: engineer._id,
+    locations: [
+      { _id: PUMP_ROOM, name: 'Pump room', floor: 'Basement 1', key: 'pump room|basement 1' },
+    ],
   })
   const session = await CaptureSessionModel.create({ assessment: assessment._id })
   const valve = await ObservationModel.create({
@@ -107,6 +112,7 @@ async function seedAssessment() {
     note: 'B1 sprinkler control valve found shut.',
     recordings: [],
     severity: 'high',
+    location: PUMP_ROOM,
     metadata: {
       source_type: 'observation',
       jurisdiction: 'SG',
