@@ -642,6 +642,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // the proposal's locations and Save adds to the proposal, not the assessment.
   const [proposalTarget, setProposalTarget] = useState<ProposalCaptureTarget | null>(null)
   const place = placeQuery(state, !!proposalTarget)
+  // The observation that a MarshBot link on the Overview opened, while it is the one open. Its own
+  // Back then goes back in history (to the Overview, where the link was) instead of to the
+  // Observations tab; one opened from that tab, or another stepped to, keeps the tab's Back.
+  const [obsViaOverview, setObsViaOverview] = useState<string | null>(null)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- forget it once another is open
+    if (obsViaOverview && state.obsOpen !== obsViaOverview) setObsViaOverview(null)
+  }, [state.obsOpen, obsViaOverview])
   useEffect(() => {
     // A client's page (CP-18) has the client in its path.
     const path =
@@ -660,9 +668,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       if (url === here) return void (urlSynced.current = true)
       const fromOverview = overviewNav.push
       overviewNav.push = false
-      if (urlSynced.current && (window.location.pathname !== path || fromOverview))
+      if (urlSynced.current && (window.location.pathname !== path || fromOverview)) {
         window.history.pushState(null, '', url)
-      else window.history.replaceState(null, '', url)
+        // Only when the link itself opened an observation: one left open from the Observations
+        // tab must keep its own Back.
+        if (fromOverview && state.tab === 'observations' && state.obsOpen)
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- noted as the link opens it
+          setObsViaOverview(state.obsOpen)
+      } else window.history.replaceState(null, '', url)
     }
     urlSynced.current = true
   }, [state.screen, state.clientPage, place])
@@ -3318,7 +3331,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({ obsOpen: key, ...(!step && { obsFrom: null }) }),
       // Back from an observation's page: to All Photos or All Handwritten Pages if it came from there.
       closeObs: () =>
-        setState(s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null }),
+        obsViaOverview && s.obsOpen === obsViaOverview
+          ? // Opened from an Overview link: back to the Overview, as the browser's Back does.
+            window.history.back()
+          : setState(
+              s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null },
+            ),
+      obsViaOverview,
       obsFrom: s.obsFrom ?? null,
       obsCountLabel: obsRows.length
         ? filtersActive(s.of)

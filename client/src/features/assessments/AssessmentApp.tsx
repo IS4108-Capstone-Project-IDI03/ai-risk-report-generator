@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   Button,
+  clampedTitle,
   Dialog,
   EmptyState,
   IconRegistry,
@@ -222,6 +223,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           </div>
                         )}
                         <h1
+                          // A very long site name stops at 2 lines (AS-06 round 9): without the
+                          // clamp it ran to 4 or 5 and pushed the tabs and the screen down. The
+                          // full name stays on hover, only while it is cut short.
+                          onPointerEnter={clampedTitle(
+                            typeof v.title === 'string' && !v.routeBlocked ? v.title : undefined,
+                          )}
                           style={{
                             margin: '0',
                             fontSize: 'clamp(23px,2.4vw,32px)',
@@ -231,6 +238,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             color: 'var(--text-primary)',
                             overflowWrap: 'anywhere',
                             textWrap: 'pretty',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
                           }}
                         >
                           {v.routeBlocked ? 'Access restricted' : v.title}

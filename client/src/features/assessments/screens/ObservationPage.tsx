@@ -58,13 +58,15 @@ export function ObservationPage({
   const next = at >= 0 ? order[at + 1] : undefined
   // Back names the screen it really returns to.
   const backLabel =
-    v.obsFrom === 'photos'
-      ? 'All Photos'
-      : v.obsFrom === 'scans'
-        ? 'All Handwritten Pages'
-        : o.deleted
-          ? 'Deleted observations'
-          : 'Observations'
+    v.obsViaOverview === o.key
+      ? 'Overview'
+      : v.obsFrom === 'photos'
+        ? 'All Photos'
+        : v.obsFrom === 'scans'
+          ? 'All Handwritten Pages'
+          : o.deleted
+            ? 'Deleted observations'
+            : 'Observations'
   const hasRecordings = o.recordings.length > 0 || o.hasAudio
   // Suggest categories lives in the category menu: the first reading, or a new one.
   const proposal = o.proposal

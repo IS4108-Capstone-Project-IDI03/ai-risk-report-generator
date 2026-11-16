@@ -167,6 +167,60 @@ describe('Back after a link opened another tab', () => {
     })
   })
 
+  describe('the observation page’s own Back', () => {
+    const q = (name: string) => new URLSearchParams(window.location.search).get(name)
+    const openFromLink = (result: ReturnType<typeof open>['result']) =>
+      act(() =>
+        openOverviewLink(
+          { tab: 'observations', params: { obs: 'o1', media: 'r1' } },
+          {
+            reference: 'RPT-2026-0411',
+            setTab: result.current.setTab,
+            showObservation: result.current.showObservation,
+            openDetails: vi.fn(),
+            goTo: vi.fn(),
+          },
+        ),
+      )
+
+    it('returns to the Overview when the observation was opened from a MarshBot link', async () => {
+      const { result } = open()
+      const before = window.history.length
+      openFromLink(result)
+      expect(q('obs')).toBe('o1')
+      expect(window.history.length).toBe(before + 1)
+      expect(result.current.obsViaOverview).toBe('o1')
+      act(() => result.current.closeObs())
+      await waitFor(() => expect(result.current.tab).toBe('overview'))
+      expect(q('tab')).toBe('overview')
+      expect(q('obs')).toBeNull()
+    })
+
+    it('goes to the Observations tab, as before, when it was opened from that tab', async () => {
+      const { result } = open()
+      act(() => result.current.setTab('observations'))
+      act(() => result.current.openObs('o2'))
+      expect(q('obs')).toBe('o2')
+      expect(result.current.obsViaOverview).toBeNull()
+      const before = window.history.length
+      act(() => result.current.closeObs())
+      await waitFor(() => expect(q('obs')).toBeNull())
+      expect(q('tab')).toBe('observations')
+      expect(result.current.tab).toBe('observations')
+      expect(window.history.length).toBe(before)
+    })
+
+    it('forgets the link once another observation is stepped to, so Back goes to the list', async () => {
+      const { result } = open()
+      openFromLink(result)
+      act(() => result.current.openObs('o3', true))
+      await waitFor(() => expect(result.current.obsViaOverview).toBeNull())
+      act(() => result.current.closeObs())
+      await waitFor(() => expect(q('obs')).toBeNull())
+      expect(q('tab')).toBe('observations')
+    })
+  })
+
   it('still only rewrites the entry for the tab strip, so Back leaves the screen', () => {
     const { result } = open()
     const before = window.history.length
