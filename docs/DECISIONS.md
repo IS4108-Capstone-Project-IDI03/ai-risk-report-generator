@@ -2529,3 +2529,26 @@ Rejected:
 Known limits: the date picker's calendar hangs below the Reschedule dialog rather than inside it, so the dialog (`.cal-reschedule`) does not scroll its overflow. On a narrow desktop the toolbar wraps to two rows. An assessment's finalised report still shows its due date, plainly. The calendar reads "today" from the browser, so a tab left open past midnight keeps yesterday until its next render.
 
 Stories: CP-60, RV-10, RV-11, CP-23, CP-29.
+
+## 2026-11-13 — Ask conversations are one document each, holding their questions; the old questions are moved into them
+
+Chose:
+- (AS-03) `assistant_conversations` holds one document per conversation, per assessment and per user, with its questions and answers as `turns`, replacing AS-01's `assessment_questions` (one document per question). One read opens a conversation, one delete removes it with everything in it, and the five metadata fields sit once on the conversation. Asked on 13 Nov.
+- `migrate:ask-conversations` moves the questions saved before: each user's questions on an assessment become one conversation (split past 100), named from the first, each question keeping its id; the provider, model and prompt version are read from its trace. The old collection is dropped only once every question is found in a conversation, so the script is safe to re-run. Asked on 13 Nov.
+- A picker above the Ask tab (a `Select`, latest first by when a question was last asked), with New conversation and Delete beside it, so older conversations can be reopened. The tab opens on the latest. Asked on 13 Nov.
+- Each question still stands alone (AS-01's decision): S4 is sent no earlier turns, so a turn can be replayed and scored on its own, and nothing changes in rag-service, the prompt or masking. Asked on 13 Nov.
+- New conversation saves nothing: the conversation is created with its first question (`POST …/ask` without `conversation`), so empty conversations never pile up. Its name is the first question, trimmed to 60 characters, as a saved chat's is (CB-03).
+- At most 100 questions a conversation (409, "Start a new conversation."), keeping a document with its sources and traces far below MongoDB's 16 MB. The question is pushed only while there is room, so two sent at once never overfill it; the conversation is checked before the question counts against the limits.
+- AC3's fields sit on each turn as well as in the trace: `sources`, `provider`, `model`, `promptVersion`, `askedAt` and `answeredAt`, so the evaluation harness can select and replay answers without reading traces. They come from S4's trace, never from gateway code, so the provider is still only `LLM_PROVIDER`'s.
+- "Private to that user" includes knowledge admins: another user's conversation answers 404, as a deleted one does (as saved chats, CB-03 AC7), although an admin can open the assessment.
+- Archived (AC5): reading stays open; asking a question and deleting a conversation answer 409 with the cause and next step. This reverses AS-01, which let an archived assessment be asked about. The tab shows a note in the question box's place, and Ask about this (AS-02) is greyed out with the reason.
+- AC4 is held in two places: the gateway's export never reads the collection, and a client test follows `document/export/`'s imports to show nothing there imports `ask/`.
+
+Rejected:
+- Keeping `assessment_questions` with a `conversation` reference, as chat keeps its messages (CB-03): two collections to keep in step on every delete and two reads per conversation, for questions that are never read alone.
+- Sending the last few turns with each question so follow-ups work: it changes rag-service, the prompt, masking and how a turn is replayed. Left for a later story if engineers need it.
+- Creating a conversation when New conversation is pressed: every press would leave an empty one in the list.
+
+Known limits: a conversation's name is not editable. Deleting is permanent, with no undo; the paid calls stay in `ai_calls`. An answer still being written when its conversation is deleted is discarded when it ends.
+
+Stories: AS-03, AS-01, AS-02, CB-03, EV-01.

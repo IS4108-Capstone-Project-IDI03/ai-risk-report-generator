@@ -12,22 +12,32 @@
 // and those sources from the saved draft, so S4 is told only what the draft
 // holds. Nothing in the report is written: asking adds no version and changes
 // no review state (AS-02 AC5).
+//
+// Questions are kept in conversations (AS-03, `assistant_conversations`): per
+// assessment and per user, private to that user. The tab opens on the latest;
+// a question without a conversation starts one, and one can be deleted. On an
+// archived assessment they are only read: asking or deleting answers 409.
+// Each answer is saved with the sources it cited, the provider, model and
+// prompt version, and when it was asked and answered, for the evaluation
+// harness (AC3). Nothing here reaches the export (AC4).
 import { Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
 import {
-  AssessmentQuestionModel,
-  type AssessmentQuestionDocument,
+  AssistantConversationModel,
+  MAX_CONVERSATION_QUESTIONS,
+  type AssistantConversationDocument,
+  type ConfidenceLevel,
   type IAnswerStatement,
-  type IAssessmentQuestion,
+  type IConversationTurn,
   type IQuestionPassage,
   type QuestionStatus,
-} from '../models/assessment-question.model'
+} from '../models/assistant-conversation.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls } from './ai-usage.service'
 import { opensAssessment } from './assessment.service'
-import { AssessmentNotFoundError } from './capture-session.service'
+import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { addChatSpend, checkChatLimits, PER_DAY, PER_MINUTE } from './chat-limits.service'
 import { selectedStandardIds } from './checklist.service'
 import { anchorSchema, CannotOpenAssessmentError } from './comment.service'
@@ -95,6 +105,8 @@ export const questionSchema = z.object({
     .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.'),
   // Text selected in the draft that the question is about (AS-02).
   passage: passageSchema.optional(),
+  // The conversation it goes into (AS-03); without one, it starts another.
+  conversation: z.string().max(64).optional(),
 })
 
 // The chat's limits on questions a minute and a day (CB-01) count Ask's
@@ -107,6 +119,27 @@ export class QuestionLimitError extends Error {
   ) {
     super(reason)
     this.name = 'QuestionLimitError'
+  }
+}
+
+// A conversation that is not this user's on this assessment, or no longer
+// exists: another user's looks the same as a deleted one (AS-03 AC1). 404.
+export class ConversationNotFoundError extends Error {
+  readonly reason = 'this conversation was deleted'
+  readonly next = 'Start a new conversation.'
+  constructor() {
+    super('This conversation could not be found.')
+    this.name = 'ConversationNotFoundError'
+  }
+}
+
+// A conversation holding its most questions (AS-03): the next starts another. 409.
+export class ConversationFullError extends Error {
+  readonly reason = `this conversation holds ${MAX_CONVERSATION_QUESTIONS} questions, the most it can`
+  readonly next = 'Start a new conversation.'
+  constructor() {
+    super(`A conversation holds at most ${MAX_CONVERSATION_QUESTIONS} questions.`)
+    this.name = 'ConversationFullError'
   }
 }
 
@@ -142,18 +175,33 @@ type OpenedAssessment = {
   _id: Types.ObjectId
   reference: string
   site: Pick<ISite, 'jurisdiction' | 'facilityType'>
+  archived: boolean
 }
 
 // The assessment, for anyone who can open its report: its assigned engineer
-// or a knowledge admin (as comments, RV-03). Archived ones can be asked about:
-// asking changes nothing in the report.
-async function openToAsk(reference: string, user: SessionUser): Promise<OpenedAssessment> {
-  const assessment = await AssessmentModel.findOne({ reference }, 'reference engineer site')
+// or a knowledge admin (as comments, RV-03). To write (ask a question, delete
+// a conversation), it must not be archived: an archived assessment's
+// conversations are only read (AS-03 AC5).
+async function openToAsk(
+  reference: string,
+  user: SessionUser,
+  write = false,
+): Promise<OpenedAssessment> {
+  const assessment = await AssessmentModel.findOne(
+    { reference },
+    'reference engineer site archivedAt',
+  )
     .populate<{ site: ISite | null }>('site', 'jurisdiction facilityType')
     .lean()
   if (!assessment?.site) throw new AssessmentNotFoundError(reference)
   if (!opensAssessment(user, assessment.engineer)) throw new CannotOpenAssessmentError()
-  return { _id: assessment._id, reference: assessment.reference, site: assessment.site }
+  if (write && assessment.archivedAt) throw new AssessmentArchivedError(reference)
+  return {
+    _id: assessment._id,
+    reference: assessment.reference,
+    site: assessment.site,
+    archived: !!assessment.archivedAt,
+  }
 }
 
 // What S4 may search for this assessment (AC3), and the names the prompt gives
@@ -223,8 +271,18 @@ export type AnswerDto = {
   // The cited sources, with their documents' details now (as RV-01).
   passages: SourcePassageDto[]
   observations: FieldObservationDto[]
-  confidence: IAssessmentQuestion['confidence']
+  confidence: ConfidenceLevel | null
   error: { step: string; cause: string; at: Date } | null
+}
+
+// A conversation as the Ask tab's picker lists it (AS-03 AC2).
+export type ConversationDto = {
+  id: string
+  title: string
+  startedAt: Date
+  lastAskedAt: Date
+  // How many questions it holds.
+  questions: number
 }
 
 // A source S4 saved: a passage's text and Chroma labels, or an observation.
@@ -274,7 +332,7 @@ function sourceDtos(
 }
 
 // The saved questions with their sources resolved, in two queries for them all.
-async function toDtos(questions: AssessmentQuestionDocument[]): Promise<AnswerDto[]> {
+async function toDtos(questions: IConversationTurn[]): Promise<AnswerDto[]> {
   const all = questions.flatMap((q) => Object.entries(q.sources ?? {})) as [string, SavedSource][]
   const documentIds = all.flatMap(([ref, s]) =>
     ref.startsWith('O:') ? [] : [documentIdOf(ref, s)],
@@ -288,7 +346,7 @@ async function toDtos(questions: AssessmentQuestionDocument[]): Promise<AnswerDt
     id: String(q._id),
     question: q.question,
     passage: passageDto(q.passage),
-    askedAt: q.createdAt,
+    askedAt: q.askedAt,
     status: q.status,
     statements: q.statements,
     missing: q.missing,
@@ -298,27 +356,134 @@ async function toDtos(questions: AssessmentQuestionDocument[]): Promise<AnswerDt
   }))
 }
 
-// The questions this user asked about the assessment, oldest first, with the
-// scope a new one is searched in. Only the asker reads their own.
-export async function listQuestions(
+// A conversation's name: its first question, trimmed to 60 characters, as a
+// saved chat is named (CB-03). No AI call.
+export function conversationTitle(question: string): string {
+  const words = question.replace(/\s+/g, ' ').trim()
+  return words.length > 60 ? `${words.slice(0, 59).trimEnd()}…` : words
+}
+
+// The conversation's id, if it could be one: anything else is not found.
+const conversationId = (id: string) => (/^[0-9a-f]{24}$/i.test(id) ? new Types.ObjectId(id) : null)
+
+// Only this user's conversations on this assessment (AS-03 AC1).
+const ownedBy = (assessment: OpenedAssessment, user: SessionUser) => ({
+  assessment: assessment._id,
+  userId: new Types.ObjectId(user.id),
+})
+
+type ConversationHead = Pick<
+  AssistantConversationDocument,
+  '_id' | 'title' | 'createdAt' | 'lastAskedAt'
+> & { questions: number }
+
+const conversationDto = (c: ConversationHead): ConversationDto => ({
+  id: String(c._id),
+  title: c.title,
+  startedAt: c.createdAt,
+  lastAskedAt: c.lastAskedAt,
+  questions: c.questions,
+})
+
+// This user's conversations on the assessment, latest first, without their
+// questions: at most 100.
+async function conversationsOf(
+  assessment: OpenedAssessment,
+  user: SessionUser,
+): Promise<ConversationDto[]> {
+  const heads = await AssistantConversationModel.aggregate<ConversationHead>([
+    { $match: ownedBy(assessment, user) },
+    { $sort: { lastAskedAt: -1, _id: -1 } },
+    { $limit: 100 },
+    {
+      $project: {
+        title: 1,
+        createdAt: 1,
+        lastAskedAt: 1,
+        questions: { $size: { $ifNull: ['$turns', []] } },
+      },
+    },
+  ])
+  return heads.map(conversationDto)
+}
+
+// One of this user's conversations with its questions, oldest first.
+async function conversationWithQuestions(
+  assessment: OpenedAssessment,
+  user: SessionUser,
+  id: string,
+): Promise<{ conversation: ConversationDto; questions: AnswerDto[] }> {
+  const _id = conversationId(id)
+  const found = _id
+    ? await AssistantConversationModel.findOne({
+        _id,
+        ...ownedBy(assessment, user),
+      }).lean<AssistantConversationDocument>()
+    : null
+  if (!found) throw new ConversationNotFoundError()
+  return {
+    conversation: conversationDto({ ...found, questions: found.turns.length }),
+    questions: await toDtos(found.turns),
+  }
+}
+
+// What the Ask tab opens on (AS-03 AC2): this user's conversations on the
+// assessment, latest first, the latest with its questions, whether they are
+// only read (archived, AC5), and the scope a new question searches. Only the
+// asker reads their own.
+export async function listConversations(
   reference: string,
   user: SessionUser,
-): Promise<{ scope: AskScopeDto; questions: AnswerDto[] }> {
+): Promise<{
+  scope: AskScopeDto
+  archived: boolean
+  conversations: ConversationDto[]
+  conversation: ConversationDto | null
+  questions: AnswerDto[]
+}> {
   const assessment = await openToAsk(reference, user)
-  const [scope, questions] = await Promise.all([
+  const [scope, conversations] = await Promise.all([
     scopeOf(assessment),
-    AssessmentQuestionModel.find({
-      assessment: assessment._id,
-      userId: new Types.ObjectId(user.id),
-    })
-      .sort({ createdAt: 1, _id: 1 })
-      .limit(100)
-      .lean<AssessmentQuestionDocument[]>(),
+    conversationsOf(assessment, user),
   ])
+  const [latest] = conversations
+  const opened = latest
+    ? await conversationWithQuestions(assessment, user, latest.id).catch((error: unknown) => {
+        // Deleted between the two reads (in another tab): none is open.
+        if (error instanceof ConversationNotFoundError) return null
+        throw error
+      })
+    : null
   return {
     scope: scopeDto(assessment, scope),
-    questions: await toDtos(questions),
+    archived: assessment.archived,
+    conversations: opened ? conversations : conversations.slice(1),
+    conversation: opened?.conversation ?? null,
+    questions: opened?.questions ?? [],
   }
+}
+
+// One of this user's conversations, picked in the Ask tab (AS-03 AC2). 404
+// for another user's or one deleted.
+export async function openConversation(reference: string, user: SessionUser, id: string) {
+  const assessment = await openToAsk(reference, user)
+  return conversationWithQuestions(assessment, user, id)
+}
+
+// Deletes one of this user's conversations for good, with its questions and
+// answers (AS-03 AC2). Nothing in the report changes (AC4). 409 on an
+// archived assessment (AC5), 404 for another user's or one already deleted.
+export async function deleteConversation(
+  reference: string,
+  user: SessionUser,
+  id: string,
+): Promise<void> {
+  const assessment = await openToAsk(reference, user, true)
+  const _id = conversationId(id)
+  const { deletedCount } = _id
+    ? await AssistantConversationModel.deleteOne({ _id, ...ownedBy(assessment, user) })
+    : { deletedCount: 0 }
+  if (!deletedCount) throw new ConversationNotFoundError()
 }
 
 function scopeDto(
@@ -450,7 +615,10 @@ async function passageContext(
 
 // A question checked, within the limits, and saved, ready to be answered.
 export type PreparedQuestion = {
-  saved: AssessmentQuestionDocument
+  // The conversation it went into (AS-03), as the picker lists it, and the
+  // question as saved there.
+  conversation: ConversationDto
+  saved: IConversationTurn
   assessment: OpenedAssessment
   userId: string
   body: object
@@ -458,17 +626,86 @@ export type PreparedQuestion = {
   documents: Map<string, KnowledgeDocumentDto>
 }
 
-// Checks who may ask and the limits, then saves the question before S4 is
-// asked, so it is kept even if the answer fails (as chat does, CB-03). A
-// question about a selected passage (AS-02) is sent with it, and saved with
-// its anchor; the report itself is only read.
+// Whether a question can go into this user's conversation: 404 when it is not
+// theirs or was deleted, 409 when it is full (AS-03). Checked before the
+// question counts against the limits.
+async function checkConversation(
+  assessment: OpenedAssessment,
+  user: SessionUser,
+  id: string,
+): Promise<Types.ObjectId> {
+  const _id = conversationId(id)
+  const [found] = _id
+    ? await AssistantConversationModel.aggregate<{ questions: number }>([
+        { $match: { _id, ...ownedBy(assessment, user) } },
+        { $project: { questions: { $size: { $ifNull: ['$turns', []] } } } },
+      ])
+    : []
+  if (!found) throw new ConversationNotFoundError()
+  if (found.questions >= MAX_CONVERSATION_QUESTIONS) throw new ConversationFullError()
+  return _id!
+}
+
+// Saves the question as the conversation's next one, or as the first of a new
+// conversation (AS-03), and returns that conversation as the picker lists it.
+// The push only matches while there is room, so two questions sent at once
+// never take a conversation past its most.
+async function saveQuestion(
+  assessment: OpenedAssessment,
+  user: SessionUser,
+  into: Types.ObjectId | null,
+  turn: IConversationTurn,
+): Promise<ConversationDto> {
+  if (!into) {
+    const started = await AssistantConversationModel.create({
+      ...ownedBy(assessment, user),
+      title: conversationTitle(turn.question),
+      lastAskedAt: turn.askedAt,
+      turns: [turn],
+      metadata: {
+        source_type: 'assistant_conversation',
+        jurisdiction: assessment.site.jurisdiction,
+        facility_type: assessment.site.facilityType,
+        COPE_dimension: 'all',
+        effective_date: turn.askedAt,
+      },
+    })
+    return conversationDto({ ...started.toObject(), questions: 1 })
+  }
+  const added = await AssistantConversationModel.findOneAndUpdate(
+    {
+      _id: into,
+      ...ownedBy(assessment, user),
+      [`turns.${MAX_CONVERSATION_QUESTIONS - 1}`]: { $exists: false },
+    },
+    { $push: { turns: turn }, $set: { lastAskedAt: turn.askedAt } },
+    {
+      returnDocument: 'after',
+      projection: { title: 1, createdAt: 1, lastAskedAt: 1, 'turns._id': 1 },
+    },
+  ).lean<
+    Pick<AssistantConversationDocument, '_id' | 'title' | 'createdAt' | 'lastAskedAt' | 'turns'>
+  >()
+  if (added) return conversationDto({ ...added, questions: added.turns.length })
+  // Deleted, or filled, since it was checked.
+  const still = await AssistantConversationModel.exists({ _id: into, ...ownedBy(assessment, user) })
+  throw still ? new ConversationFullError() : new ConversationNotFoundError()
+}
+
+// Checks who may ask, that the assessment is not archived (AS-03 AC5), the
+// conversation and the limits, then saves the question before S4 is asked, so
+// it is kept even if the answer fails (as chat does, CB-03). Without a
+// conversation it starts one. A question about a selected passage (AS-02) is
+// sent with it, and saved with its anchor; the report itself is only read.
 export async function prepareQuestion(
   reference: string,
   user: SessionUser,
   question: string,
   passage?: PassageInput,
+  conversation?: string,
 ): Promise<PreparedQuestion> {
-  const assessment = await openToAsk(reference, user)
+  const assessment = await openToAsk(reference, user, true)
+  const into = conversation ? await checkConversation(assessment, user, conversation) : null
   const refused = checkChatLimits(user.id, [question])
   if (refused) {
     // The chat's replies speak as the chatbot; Ask states the cause instead (AC5).
@@ -484,22 +721,24 @@ export async function prepareQuestion(
   const scope = await scopeOf(assessment)
   const about = passage ? await passageContext(assessment, passage, scope.observations) : null
   const { jurisdiction, facilityType } = assessment.site
-  const saved = (
-    await AssessmentQuestionModel.create({
-      assessment: assessment._id,
-      userId: new Types.ObjectId(user.id),
-      question,
-      passage: about?.saved ?? null,
-      status: 'answering',
-      metadata: {
-        source_type: 'assessment_question',
-        jurisdiction,
-        facility_type: facilityType,
-        COPE_dimension: 'all',
-        effective_date: new Date(),
-      },
-    })
-  ).toObject() as AssessmentQuestionDocument
+  const saved: IConversationTurn = {
+    _id: new Types.ObjectId(),
+    question,
+    passage: about?.saved ?? null,
+    status: 'answering',
+    statements: [],
+    missing: [],
+    sources: {},
+    confidence: null,
+    error: null,
+    provider: null,
+    model: null,
+    promptVersion: null,
+    askedAt: new Date(),
+    answeredAt: null,
+    trace: null,
+  }
+  const kept = await saveQuestion(assessment, user, into, saved)
   // Every document S4 may cite, each once: those in scope, and those the
   // selected passage cites.
   const documents = new Map(
@@ -519,7 +758,7 @@ export async function prepareQuestion(
     privacy: await privacyFor(assessment.reference),
     ...(about && { passage: about.body }),
   }
-  return { saved, assessment, userId: user.id, body, documents }
+  return { conversation: kept, saved, assessment, userId: user.id, body, documents }
 }
 
 // The events S4 streams for one answer (rag-service orchestrator.ask).
@@ -533,7 +772,7 @@ type AskEvent =
         statements?: IAnswerStatement[]
         missing?: string[]
         sources?: Record<string, unknown>
-        confidence?: IAssessmentQuestion['confidence']
+        confidence?: ConfidenceLevel | null
         error?: { step: string; cause: string; at: string } | null
         usage?: unknown
         trace?: Record<string, unknown>
@@ -560,6 +799,9 @@ function splitEvents(pending: string): [AskEvent[], string] {
   }
   return [events, rest]
 }
+
+// A trace's value as text, or null (AS-03 AC3).
+const textOf = (value: unknown) => (typeof value === 'string' && value ? value : null)
 
 const statusOf = (error: unknown, statements: number): QuestionStatus =>
   !error ? 'complete' : statements ? 'stopped' : 'failed'
@@ -642,6 +884,7 @@ export async function answerQuestion(
   }
   const error = result?.error ? { ...result.error, at: new Date(result.error.at) } : failure
   const kept = result?.statements ?? statements
+  const trace = result?.trace ?? null
   const update = {
     status: statusOf(error, kept.length),
     statements: kept,
@@ -649,17 +892,26 @@ export async function answerQuestion(
     sources: result?.sources ?? streamed,
     confidence: result?.confidence ?? null,
     error,
-    trace: result?.trace ?? null,
+    // What wrote it and when it ended, for the evaluation harness (AS-03 AC3).
+    provider: textOf(trace?.provider),
+    model: textOf(trace?.model),
+    promptVersion: textOf(trace?.prompt_version),
+    answeredAt: new Date(),
+    trace,
   }
-  const stored = await AssessmentQuestionModel.findByIdAndUpdate(saved._id, update, {
-    returnDocument: 'after',
+  // Into its conversation, by the question's id. A conversation deleted while
+  // its answer was written stays deleted: nothing matches.
+  await AssistantConversationModel.updateOne(
+    { _id: prepared.conversation.id, 'turns._id': saved._id },
+    {
+      $set: Object.fromEntries(
+        Object.entries(update).map(([field, value]) => [`turns.$.${field}`, value]),
+      ),
+    },
+  ).catch((problem: unknown) => {
+    console.error('Could not save the answer to a question:', problem)
   })
-    .lean<AssessmentQuestionDocument>()
-    .catch((problem: unknown) => {
-      console.error('Could not save the answer to a question:', problem)
-      return null
-    })
   if (signal.aborted) return
-  const [answer] = await toDtos([stored ?? { ...saved, ...update }])
+  const [answer] = await toDtos([{ ...saved, ...update }])
   send({ type: 'result', answer })
 }

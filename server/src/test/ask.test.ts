@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { AssessmentModel } from '../models/assessment.model'
-import { AssessmentQuestionModel } from '../models/assessment-question.model'
+import { AssistantConversationModel } from '../models/assistant-conversation.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
 import { ChecklistModel } from '../models/checklist.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -21,7 +21,8 @@ import { useMemoryMongo } from './memory-mongo'
 
 // Asking a question about an assessment (AS-01): who may ask, what S4 is told
 // to search, and the answer streamed on, recorded and saved with its trace.
-// S4 stands in as a stubbed fetch.
+// S4 stands in as a stubbed fetch. Questions are kept in conversations
+// (AS-03): see ask-conversations.test.ts.
 
 useMemoryMongo()
 
@@ -76,7 +77,13 @@ const STATEMENT = {
   text: 'The B1 sprinkler control valve was found shut.',
   citations: [{ ref: 'O:OBS', kind: 'observation', quote: null, verified: true }],
 }
-const TRACE = { story: 'AS-01', prompt_version: 'as01-v1', pipeline: ['retrieve'] }
+const TRACE = {
+  story: 'AS-01',
+  provider: 'anthropic',
+  model: 'claude-opus-5-5',
+  prompt_version: 'as01-v1',
+  pipeline: ['retrieve'],
+}
 const event = (e: object) => `data: ${JSON.stringify(e)}\n\n`
 
 // S4's stream for one answer: steps, a statement, then the result.
@@ -207,6 +214,10 @@ const checklist = (assessment: Types.ObjectId, standards: { id: string; title: s
     },
   })
 
+// Every question saved, in every conversation, oldest first.
+const savedQuestions = async () =>
+  (await AssistantConversationModel.find().sort({ createdAt: 1 }).lean()).flatMap((c) => c.turns)
+
 // The events a streamed response holds.
 const eventsOf = (text: string) =>
   text
@@ -228,7 +239,7 @@ describe('who may ask (AC7)', () => {
     // A risk engineer the assessment is not assigned to cannot open it.
     expect((await asColleague.get(base)).status).toBe(403)
     expect((await asColleague.post(base).send({ question: 'Valve?' })).status).toBe(403)
-    expect(await AssessmentQuestionModel.countDocuments()).toBe(0)
+    expect(await AssistantConversationModel.countDocuments()).toBe(0)
   })
 
   it('refuses an empty question before anything is saved or asked', async () => {
@@ -306,10 +317,11 @@ describe('asking (AC2, AC3, AC6)', () => {
     expect(shown.passages[0]).toMatchObject({ id: 'C:fm:4', kind: 'standard', pageStart: 4 })
 
     // Saved with its trace (AC6), and its paid calls recorded for the report.
-    const [saved] = await AssessmentQuestionModel.find().lean()
+    const [saved] = await savedQuestions()
     expect(saved.status).toBe('complete')
     expect(saved.trace).toEqual(TRACE)
-    expect(saved.metadata.source_type).toBe('assessment_question')
+    const [conversation] = await AssistantConversationModel.find().lean()
+    expect(conversation.metadata.source_type).toBe('assistant_conversation')
     const calls = await AiCallModel.find().sort({ feature: 1 }).lean()
     expect(calls.map((c) => [c.feature, c.reportId])).toEqual([
       ['ask', REFERENCE],
@@ -394,7 +406,7 @@ describe('failures (AC8)', () => {
     expect(result.answer.status).toBe('failed')
     expect(result.answer.error).toMatchObject({ cause: 'the answer service could not be reached' })
     expect(Date.parse(result.answer.error.at)).not.toBeNaN()
-    const [saved] = await AssessmentQuestionModel.find().lean()
+    const [saved] = await savedQuestions()
     expect(saved.status).toBe('failed')
   })
 
@@ -626,7 +638,7 @@ describe('asking about a selected passage (AS-02)', () => {
       citations: [valveRef, standardRef],
       findings: ['0.0'],
     }
-    const [saved] = await AssessmentQuestionModel.find().lean()
+    const [saved] = await savedQuestions()
     expect(saved.passage).toMatchObject(passage)
     expect(eventsOf(res.text).at(-1).answer.passage).toEqual(passage)
     const listed = await asEngineer.get(base)
@@ -691,7 +703,7 @@ describe('asking about a selected passage (AS-02)', () => {
     const events = eventsOf(res.text)
     expect(events.find((e) => e.type === 'statement').differs).toBe(true)
     expect(events.at(-1).answer.statements[0].differs).toBe(true)
-    const [saved] = await AssessmentQuestionModel.find().lean()
+    const [saved] = await savedQuestions()
     expect(saved.statements[0].differs).toBe(true)
   })
 
@@ -715,6 +727,6 @@ describe('asking about a selected passage (AS-02)', () => {
     )
     expect((await ask({ ...ON_VALVE, end: 99 })).status).toBe(400)
     expect(sent).not.toHaveBeenCalled()
-    expect(await AssessmentQuestionModel.countDocuments()).toBe(0)
+    expect(await AssistantConversationModel.countDocuments()).toBe(0)
   })
 })

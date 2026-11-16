@@ -42,6 +42,8 @@ export type AskTools = {
   onPanel: () => void
   panelOpen: boolean
   labelOf: (sectionId: string) => string
+  // Why nothing can be asked (an archived assessment, AS-03 AC5).
+  blocked?: Reason
 }
 
 // The document editor's formatting toolbar (AC6) with undo and redo (AC7),
@@ -187,7 +189,8 @@ export function DocumentToolbar({
           name: 'Ask about this',
           icon: IconRegistry.editor.ask,
           keys: ['Mod', 'Alt', 'K'],
-          reason: askTarget && 'reason' in askTarget ? askTarget.reason : undefined,
+          reason:
+            ask.blocked ?? (askTarget && 'reason' in askTarget ? askTarget.reason : undefined),
           run: ask.onAsk,
         },
         {

@@ -15,6 +15,8 @@
 // - A file that cannot be made says why, with Retry; nothing is simulated (AC11).
 // - Comment threads (RV-03) never reach the file; while any are open, how
 //   many is shown as a reminder, which does not block the export (RV-03 AC9).
+// - Ask conversations (AS-03) never reach the file either: nothing here or in
+//   document/export/ reads them (AS-03 AC4).
 import { useCallback, useEffect, useState } from 'react'
 import {
   Button,

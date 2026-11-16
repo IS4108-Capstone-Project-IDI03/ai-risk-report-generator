@@ -7,7 +7,7 @@ import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import { DocumentAsk } from '../ask/DocumentAsk'
 import { editorPassage, type AskPassage } from '../ask/passage'
 import { isAskShortcut } from '../ask/shortcut'
-import type { AskWorkflow } from '../ask/useAsk'
+import { READ_ONLY, type AskWorkflow } from '../ask/useAsk'
 import { rangeOf } from '../comments/anchor'
 import type { Stamp } from '../comments/api'
 import { CommentAnchors } from '../comments/commentMarks'
@@ -251,6 +251,11 @@ function DocumentBody({
   // of the Ask panel, or the reason it can't is said under the toolbar.
   const askAboutSelection = () => {
     if (!ask || !editor) return
+    // An archived assessment's conversations are only read (AS-03 AC5).
+    if (ask.archived) {
+      setAskHint(`${READ_ONLY.title}. ${READ_ONLY.text}`)
+      return
+    }
     const { from, to } = editor.state.selection
     const target = editorPassage(editor.state.doc, from, to, labelOf)
     if ('reason' in target) {
@@ -551,6 +556,7 @@ function DocumentBody({
                       onPanel: () => (askOpen ? setAskOpen(false) : openAsk()),
                       panelOpen: askOpen,
                       labelOf,
+                      blocked: ask.archived ? READ_ONLY : undefined,
                     }
                   : undefined
               }

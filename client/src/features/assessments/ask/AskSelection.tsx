@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Button } from '../../../design-system'
+import { Button, type Reason } from '../../../design-system'
 import type { CommentAnchor } from '../comments/api'
 import { passageBlocks, selectionOffsets } from './draftSelection'
 import { passageAt, passageIn, type AskPassage, type AskTarget, type PassageText } from './passage'
@@ -24,14 +24,17 @@ const prefersReducedMotion = () =>
 // (AS-02 AC1): a button by the selection, or Ctrl+Alt+K (Cmd+Option+K),
 // which never clashes with Comment's Ctrl+Alt+M. Where the selection can't be
 // asked about, the button is greyed out with the reason, which the shortcut
-// says aloud. Also marks a passage asked about earlier, when the Ask tab
-// links back to it (AC3). `host` is the draft's positioned box.
+// says aloud; so is any selection while `blocked` (an archived assessment's
+// conversations are only read, AS-03 AC5). Also marks a passage asked about
+// earlier, when the Ask tab links back to it (AC3). `host` is the draft's
+// positioned box.
 export function AskSelection({
   host,
   text,
   label,
   onAsk,
   shown,
+  blocked,
 }: {
   host: React.RefObject<HTMLElement | null>
   text: PassageText
@@ -39,12 +42,16 @@ export function AskSelection({
   onAsk: (passage: AskPassage) => void
   // The passage the Ask tab last linked back to, if in this section.
   shown: CommentAnchor | null
+  // Why nothing can be asked now, whatever is selected.
+  blocked?: Reason
 }) {
   const [offer, setOffer] = useState<Offer | null>(null)
-  // The latest handler, so the listeners below stay put from render to render.
+  // The latest handler and block, so the listeners below stay put from render to render.
   const asked = useRef(onAsk)
+  const stopped = useRef(blocked)
   useEffect(() => {
     asked.current = onAsk
+    stopped.current = blocked
   })
 
   // The selection, read on each change and on the shortcut. Set up again only
@@ -80,7 +87,7 @@ export function AskSelection({
       const now = read()
       if (!now) return
       event.preventDefault()
-      if ('passage' in now.target) {
+      if ('passage' in now.target && !stopped.current) {
         setOffer(null)
         asked.current(now.target.passage)
       } else setOffer({ ...now, pressed: true })
@@ -120,7 +127,7 @@ export function AskSelection({
   }, [host, text, shown])
 
   if (!offer) return null
-  const reason = 'reason' in offer.target ? offer.target.reason : undefined
+  const reason = blocked ?? ('reason' in offer.target ? offer.target.reason : undefined)
   return (
     <div className="rv-ask-offer" style={{ top: offer.top, left: offer.left }}>
       <Button
@@ -133,7 +140,7 @@ export function AskSelection({
         // Keeps the selection while the button is pressed.
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
-          if (!('passage' in offer.target)) return
+          if (reason || !('passage' in offer.target)) return
           setOffer(null)
           onAsk(offer.target.passage)
         }}

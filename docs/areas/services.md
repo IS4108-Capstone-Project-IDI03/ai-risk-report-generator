@@ -1200,11 +1200,14 @@ The review workspace's right inspector has two tabs, Evidence and Ask
 assessment's own evidence, with citations.
 
 1. The tab reads `GET /api/assessments/:reference/ask` once when the
-   workspace opens: the user's own earlier questions and answers on the
-   assessment (oldest first, at most 100) and the scope a new one searches.
+   workspace opens: the user's own conversations on the assessment (AS-03),
+   the latest with its questions and answers (oldest first), and the scope a
+   new one searches. See [Conversations](#conversations-as-03) below.
 2. A question is one `POST /api/assessments/:reference/ask` with
-   `{ question }` (1 to 1,000 characters). Its answer streams back as
-   server-sent events on that request: `question` (the saved id), `step`
+   `{ question }` (1 to 1,000 characters), and `conversation` to go into the
+   one on screen. Its answer streams back as
+   server-sent events on that request: `question` (the saved id and the
+   conversation it went into), `step`
    (`retrieve`, then `generate`), each checked `statement` with the sources
    it cites (so a citation opens while the answer is still written, and after
    it stops), any `missing` line, then `result` with the saved answer. The tab never polls, so the
@@ -1213,7 +1216,8 @@ assessment's own evidence, with citations.
    the user can open the assessment (its assigned engineer or a knowledge
    admin), counts the question against the chat's limits (10 a minute, 200
    a day, $2 a day, shared with CB-01; over one it answers 429 with the
-   cause, time and next step), and saves the question before asking S4.
+   cause, time and next step), and saves the question in its conversation
+   before asking S4.
 4. It builds S4's request (`POST /assessments/ask`) itself, never from the
    browser:
    - `observations`: every observation not deleted with something recorded
@@ -1262,8 +1266,9 @@ assessment's own evidence, with citations.
    it; Medium otherwise.
 7. The gateway records the usage for the report (`ai_calls`: `ask` for the
    model call, `retrieval` for Cohere), adds its cost to the user's daily
-   chat spend, saves the answer and trace in `assessment_questions` (see
-   [database](database.md#assessment-questions-as-01)), and sends the
+   chat spend, saves the answer, its provider, model and times, and the
+   trace into the question's turn in `assistant_conversations` (see
+   [database](database.md#ask-conversations-as-01-as-03)), and sends the
    browser the saved answer, its passages with their documents' details now
    (as RV-01), without the usage or trace.
 
@@ -1347,6 +1352,52 @@ words, as RV-03 does, and once they are gone the message says "Text deleted".
 Asking writes nothing to the report (AC5): no version, no review log entry, no
 mark in the editor's text (`ask/askHighlight.ts` draws decorations only).
 
+### Conversations (AS-03)
+
+The Ask tab's questions are kept in conversations
+(`assistant_conversations`, see
+[database](database.md#ask-conversations-as-01-as-03)): per assessment and per
+user, private to that user, so an engineer can pick up where they left off
+and the team can evaluate the answers.
+
+- **Opening**: `GET …/ask` returns the user's conversations, latest first by
+  when a question was last asked, and the latest with its questions. The tab
+  opens on it; with none yet, the tab is empty and no picker shows.
+- **Picker** (`AskPanel.tsx`, `ConversationBar`): a `Select` named
+  "Conversation" above the tab lists each by its first question and when it
+  was last asked ("Was the B1 valve shut? · 14:02", a day before today as
+  "11 Nov 14:02"). Choosing one reads `GET …/ask/conversations/:id`. Beside it,
+  New conversation (`plus`) empties the tab; nothing is saved until its first
+  question, which `POST …/ask` without `conversation` saves as a new
+  conversation, named from it and listed first. Delete conversation
+  (`trash-2`) asks first in a dialog naming it and how many questions go
+  with it; `DELETE …/ask/conversations/:id` deletes it for good and the
+  latest left opens, or a new one when none is left. While an answer is
+  written the three are greyed out with the reason, as the answer belongs to
+  the conversation on screen.
+- **One question at a time into one conversation**: the gateway checks the
+  conversation is the user's (404 otherwise, as one deleted) and has room
+  (at most 100 questions; 409 "Start a new conversation.") before the
+  question counts against the limits, then pushes it on only while there is
+  room, so two at once never overfill it.
+- **Each question stays stand-alone**: S4 is sent no earlier turns, as AS-01
+  decided; a conversation is kept for reading back and for the evaluation
+  harness, and each turn can be replayed on its own.
+- **For the evaluation harness** (AC3): each turn keeps its cited `sources`,
+  `provider`, `model` and `promptVersion` (from S4's trace), `askedAt`,
+  `answeredAt` and the whole trace. The browser gets none of these but the
+  sources and when it was asked.
+- **Archived** (AC5): the list says `archived: true`; the tab shows every
+  conversation and its answers, with a note in the question box's place
+  ("This assessment is archived, so its conversations are read only. Restore
+  the assessment to ask about it again."), and no New conversation, Delete or
+  Ask again. Ask about this (AS-02) is greyed out with that reason. The
+  gateway refuses asking and deleting with 409.
+- **Never in the report** (AC4): the export (`document/export/`) imports
+  nothing from `ask/` (a test follows its imports), and the gateway's export
+  reads no conversation. Asking, starting or deleting a conversation adds no
+  version and changes no review state.
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
@@ -1362,7 +1413,8 @@ file. Nothing is stored: the file is the gateway's answer.
    returns `openThreads`, the comment threads still open (RV-03), shown as a
    reminder that never blocks the export; no comment reaches the file, as
    threads are kept apart from the text and the export's editor has no
-   comment marks.
+   comment marks. Nor does any Ask conversation (AS-03 AC4): they are kept
+   apart in `assistant_conversations`, which the export never reads.
 2. **Save** pending edits (`client/.../pendingSaves.ts`): the document editor's
    next save and Appendix A's queue. One that fails stops the export.
 3. **Lay out** (`client/.../document/export/`): `ExportPages` draws the report
