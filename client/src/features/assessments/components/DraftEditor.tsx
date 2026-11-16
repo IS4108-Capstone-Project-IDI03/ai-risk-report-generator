@@ -17,7 +17,7 @@ import type {
   ReviewDraft,
   ReviewSection,
 } from '../api'
-import { markedText, unsupportedIn, unsupportedRanges } from '../ask/aiText'
+import { markedText, unsupportedIn, unsupportedRanges } from '../aiText'
 import { AskSelection } from '../ask/AskSelection'
 import { askBlockAttrs } from '../ask/draftSelection'
 import { contentText, type AskPassage, type PassageText } from '../ask/passage'

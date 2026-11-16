@@ -78,7 +78,8 @@
   or deleted; only standards in the drafting set (`drafting-set.service.ts`)
   may be cited. Keep `section-document.ts` (`currentDocument`,
   `unsupportedAiText`) in step with the client's `documentContent.ts` and
-  `ask/aiText.ts`. See docs/areas/database.md, "Proposed text".
+  `aiText.ts` (kept out of `ask/`: the export reaches it through the document
+  editor's plugins). See docs/areas/database.md, "Proposed text".
 - A client's insight summary (CP-29) is saved and shown only after rag-service
   (`client_insights/summary.py`) has checked every statement: cited, no advice
   or first person, no number its sources lack. Never show a statement that

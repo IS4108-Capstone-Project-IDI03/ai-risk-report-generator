@@ -129,7 +129,8 @@ export interface IAssistantConversation {
   updatedAt: Date
 }
 
-const citationSchema = new Schema<IAnswerCitation>(
+// Also a proposed sentence's citations (AS-04, report-text-proposal.model.ts).
+export const citationSchema = new Schema<IAnswerCitation>(
   {
     ref: { type: String, required: true },
     kind: { type: String, enum: ['observation', 'standard', 'report'], required: true },

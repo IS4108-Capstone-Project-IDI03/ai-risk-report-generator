@@ -1258,7 +1258,7 @@ section's current version, not from `status`: a version restored from the
 history can bring it back. A sentence is still unsupported while it is in a
 paragraph of its proposal's text word for word with no citation marker
 straight after it (`section-document.ts` `unsupportedAiText`, the client's
-`ask/aiText.ts`). `GET …/review` gives each section `aiDrafts` (each
+`aiText.ts`). `GET …/review` gives each section `aiDrafts` (each
 insertion awaiting Accept: `{ id, kind, request, unsupported, insertedAt,
 insertedBy }`) and `review.aiText` (`{ pending, unsupported }`), and adds the
 passages and observations inserted text cites to its `sources` and

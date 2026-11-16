@@ -1,5 +1,5 @@
 import { Schema, Types, model } from 'mongoose'
-import type { IAnswerCitation } from './assistant-conversation.model'
+import { citationSchema, type IAnswerCitation } from './assistant-conversation.model'
 import { COPE_DIMENSIONS, type CopeDimension, type IStamp } from './observation.model'
 import type { SectionDocument } from './report-section-version.model'
 
@@ -172,7 +172,7 @@ const reportTextProposalSchema = new Schema<IReportTextProposal>(
         new Schema<IProposedSentence>(
           {
             text: { type: String, required: true },
-            citations: { type: [Schema.Types.Mixed], default: [] },
+            citations: [citationSchema],
             supported: { type: Boolean, required: true },
             paragraph: { type: Number, required: true, min: 0 },
           },

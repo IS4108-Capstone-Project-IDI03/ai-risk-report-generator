@@ -1456,7 +1456,7 @@ S4 may cite and what happens to the answer.
   workspace }`; the section is Needs review (AC2).
 - **In the section**: the review workspace draws the text in violet with an AI
   draft badge, who inserted it when and what was asked, each sentence still
-  unsupported underlined and badged (`ask/aiText.ts`: still in the text word for
+  unsupported underlined and badged (`aiText.ts`: still in the text word for
   word with no citation marker straight after it). Accept (`…/accept`) saves a
   version without the mark, refused while a sentence is unsupported; Delete
   (`…/delete`) one without the text. Undo (`…/undo`, in the card while nothing

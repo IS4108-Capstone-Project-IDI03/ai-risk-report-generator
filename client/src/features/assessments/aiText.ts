@@ -7,9 +7,13 @@
 // straight after it (AC3). Giving it a citation, rewording it or deleting it
 // resolves it. The same rule as the gateway's
 // server/src/services/section-document.ts unsupportedAiText: keep in step.
-import type { DocumentInline, SectionDocument } from '../api'
-import { MARKER } from '../comments/anchor'
-import { textBlocksIn, tidy } from '../documentContent'
+//
+// It is kept out of ask/ because the document editor's plugins use it, and the
+// export reaches those: nothing the export imports may come from the Ask tab
+// (AS-03 AC4, conversations.test.tsx).
+import type { DocumentInline, SectionDocument } from './api'
+import { MARKER } from './comments/anchor'
+import { textBlocksIn, tidy } from './documentContent'
 
 // A paragraph's text as the section's text holds it: its words, and each
 // citation marker as U+FFFC.

@@ -313,6 +313,9 @@ const sevenOf = async () =>
   (await asEngineer.get(`/api/assessments/${REFERENCE}/review`)).body.sections.find(
     (s: { id: string }) => s.id === '7',
   )
+// A block of a version's text, by what it is keyed on: a finding or AI text.
+type Keyed = { finding?: string | null; ai?: string | null }
+
 const versionsOf = () =>
   ReportSectionVersionModel.find({ sectionId: '7' }).sort({ version: 1 }).lean()
 
@@ -331,7 +334,7 @@ describe('asking for text (AC1, AC4)', () => {
 
     const proposal = await draftSeven(seeded)
 
-    const [body] = sent as [Record<string, any>]
+    const [body] = sent as [Record<string, unknown>]
     expect(body.propose).toEqual({
       kind: 'draft',
       section_id: '7',
@@ -396,7 +399,7 @@ describe('asking for text (AC1, AC4)', () => {
     })
 
     expect(res.status).toBe(200)
-    const [body] = sent as [Record<string, any>]
+    const [body] = sent as [Record<string, unknown>]
     expect(body.propose).toMatchObject({ kind: 'rewrite', section_id: '7' })
     // The whole paragraph the selection is in, with what it cites.
     expect(body.passage).toMatchObject({ text: FRAME, citations: [seeded.cite], findings: [] })
@@ -512,11 +515,8 @@ describe('Insert and Undo (AC2)', () => {
 
     expect(replaced.status).toBe(200)
     const [version] = await versionsOf()
-    expect(version.document.subsections[0].blocks.map((b: any) => b.finding ?? b.ai)).toEqual([
-      '0.0',
-      proposal.id,
-      '0.2',
-    ])
+    const blocks = version.document.subsections[0].blocks as Keyed[]
+    expect(blocks.map((b) => b.finding ?? b.ai)).toEqual(['0.0', proposal.id, '0.2'])
     // The finding replaced left the text, as one deleted in the document editor.
     const [rejected] = await ReviewAuditModel.find().lean()
     expect(rejected).toMatchObject({ finding: '0.1', action: 'reject', inDocument: true })

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ReviewSection, ReviewWorkspace as Workspace, SourcePassage } from '../api'
 import { ReviewWorkspace } from '../screens/ReviewWorkspace'
-import { markedText, unsupportedIn, unsupportedRanges } from './aiText'
+import { markedText, unsupportedIn, unsupportedRanges } from '../aiText'
 import type { AskAnswer, Proposal } from './api'
 
 // AS-04: drafting or rewriting text for a section from the Ask tab, and
