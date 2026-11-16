@@ -37,21 +37,12 @@ export function DetailsHeading({
 export function DetailsLink({ children, ...rest }: Omit<ComponentProps<typeof Button>, 'variant'>) {
   return (
     <Button
-      variant="link"
-      size="sm"
+      variant="link-navy"
+      size="xs"
+      pill
       iconRight="chevron-right"
-      className="ds-press mb-hit"
-      // 28px, not the Button's 32: three of these rows must fit the panel without scrolling.
-      // Navy, like the client name, in rest and on hover (the Button's own link blue is brighter).
-      // The 6px of padding, taken back by an equal negative margin, give the focus ring room: it
-      // reads as a pill round the words and the chevron, and nothing moves.
-      style={{
-        height: 28,
-        color: 'var(--marsh-navy)',
-        padding: '0 6px',
-        margin: '0 -6px',
-        borderRadius: 999,
-      }}
+      // mb-link-row (details.css) takes back the xs link's 6px padding, so nothing moves.
+      className="ds-press mb-hit mb-link-row"
       {...rest}
     >
       {children}

@@ -57,6 +57,13 @@
   line-height: 1;
 }
 
+/* A heading row's text link (DetailsLink): the Button's xs link keeps 6px either side, so its
+   focus ring reads as a pill round the words and chevron; an equal negative margin leaves the
+   words where they were. */
+.mb-link-row {
+  margin-inline: -6px;
+}
+
 /* A heading's count sits beside its label; its actions (add, See All) sit together at the right. */
 .mb-headleft {
   display: inline-flex;

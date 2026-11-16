@@ -1,8 +1,8 @@
 // The bar under the site map while a pin is placed (AS-06, board D3): Coordinates in one wide
 // input with a locate button inside its right end (fills the input, saves nothing), then Set Pin
 // and Cancel. One row; on a narrow phone the buttons wrap under the input. Called by SiteMapPanel.tsx.
-import { useState } from 'react'
-import { Button, IconAction, Input } from '../../../design-system'
+import { useEffect, useRef, useState } from 'react'
+import { Button, IconAction, Input, useIsPhone } from '../../../design-system'
 import { formatCoordinates } from '../../assessments/googleMaps'
 import { BLOCK_RANGE_METRES, currentPosition } from '../../assessments/myLocation'
 
@@ -26,6 +26,15 @@ export function PlacingBar({
   busy: boolean
 }) {
   const [finding, setFinding] = useState(false)
+  // Opening the bar puts the cursor in Coordinates, so the engineer can type or paste at once. Not
+  // on a phone or any touch screen (a tablet is wider than a phone): focus there would pop the
+  // keyboard up over the map.
+  const field = useRef<HTMLDivElement>(null)
+  const phone = useIsPhone()
+  useEffect(() => {
+    const touch = window.matchMedia?.('(pointer: coarse)').matches
+    if (!phone && !touch) field.current?.querySelector('input')?.focus()
+  }, [phone])
   // Puts where the engineer is into the input, to check and set; it saves nothing itself.
   const locate = async () => {
     setFinding(true)
@@ -48,7 +57,7 @@ export function PlacingBar({
   }
   return (
     <div className="mb-placebar">
-      <div className="mb-placebar-field">
+      <div ref={field} className="mb-placebar-field">
         <Input
           label="Coordinates"
           placeholder="1.452310, 103.900870"

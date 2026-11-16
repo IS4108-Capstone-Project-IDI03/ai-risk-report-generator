@@ -346,6 +346,46 @@ describe('the site map in the panel', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent(/^Remove Pin$/)
   })
 
+  it('moves focus into Coordinates when the bar opens, and back to the row’s button when it closes', async () => {
+    open()
+    const pin = row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' })
+    // Clicked without being focused first, as in Safari, which does not focus a clicked button.
+    fireEvent.click(pin)
+    expect(screen.getByLabelText('Coordinates')).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await vi.waitFor(() =>
+      expect(
+        row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+      ).toHaveFocus(),
+    )
+    // After a save the bar closes the same way.
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
+    fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set Pin' })))
+    await vi.waitFor(() => expect(screen.queryByLabelText('Coordinates')).not.toBeInTheDocument())
+    await vi.waitFor(() =>
+      expect(
+        row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+      ).toHaveFocus(),
+    )
+  })
+
+  it('leaves the keyboard alone on a phone, where focusing Coordinates would pop it up', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('max-width: 767px'),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+    open()
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
+    expect(screen.getByLabelText('Coordinates')).not.toHaveFocus()
+  })
+
   it('moves and removes a pin', async () => {
     open()
     await act(async () =>
@@ -519,6 +559,27 @@ describe('the panel header', () => {
     panel()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }))
     expect(screen.getByRole('dialog', { name: 'Edit Assessment Details' })).toBeInTheDocument()
+  })
+
+  it('closes on a click on the backdrop, but not when a text drag began inside the panel', () => {
+    serveDocuments([])
+    const onClose = vi.fn()
+    render(
+      <DetailsPanel
+        v={{ ...editable(), liveRecord: RECORD } as AssessmentWorkflow}
+        open
+        onClose={onClose}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Details' })
+    // Press in the panel, release on the backdrop (a text selection that ran too far).
+    fireEvent.pointerDown(screen.getByRole('heading', { name: 'Details' }))
+    fireEvent.click(dialog)
+    expect(onClose).not.toHaveBeenCalled()
+    // Press and release on the backdrop.
+    fireEvent.pointerDown(dialog)
+    fireEvent.click(dialog)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('offers no Edit Details to someone who may not edit', () => {

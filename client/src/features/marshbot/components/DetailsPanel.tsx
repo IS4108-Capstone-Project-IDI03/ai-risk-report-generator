@@ -33,6 +33,7 @@ export function DetailsPanel({
     close()
   }
   const titleId = useId()
+  const pressedOnBackdrop = useRef(false)
   // What had focus when the panel opened. The panel unmounts rather than closing, so the
   // browser doesn't return focus by itself: without this it would drop to the page's top.
   const opener = useRef<HTMLElement | null>(null)
@@ -116,8 +117,16 @@ export function DetailsPanel({
               e.currentTarget.querySelector('.ds-popover') &&
               e.preventDefault()
             }
-            // A click on the dimmed backdrop (the dialog's own box, outside the panel) closes it.
-            onClick={(e) => e.target === e.currentTarget && onClose()}
+            // A click on the dimmed backdrop (the dialog's own box, outside the panel) closes it,
+            // but only when the press began there too: without this a text selection dragged out
+            // of the panel would close it on release.
+            onPointerDown={(e) => (pressedOnBackdrop.current = e.target === e.currentTarget)}
+            // A press on the backdrop released inside the panel still clicks the dialog itself
+            // (the two share only that ancestor), so the release must be on the backdrop too.
+            onPointerUp={(e) => {
+              if (e.target !== e.currentTarget) pressedOnBackdrop.current = false
+            }}
+            onClick={(e) => e.target === e.currentTarget && pressedOnBackdrop.current && onClose()}
           >
             <div className="mb-panel-sheet">
               <header className="mb-panel-head">

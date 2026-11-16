@@ -3,7 +3,7 @@
 // scrolls by itself. A pin is placed from the bar under the map (PlacingBar). Everything the old
 // Geolocation card did, same logic (assessments/components/siteMapEdit.ts).
 // Called by DetailsPanel.tsx. Calls SiteMapView.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon, IconAction } from '../../../design-system'
 import { useSiteMapEdit, type UndoAction } from '../../assessments/components/siteMapEdit'
 import { SiteMapView } from '../../assessments/components/SiteMapView'
@@ -25,6 +25,29 @@ export function SiteMapPanel({
   const edit = useSiteMapEdit(map.site, map.buildings, onSaved)
   const { rows, placing, saving } = edit
   const panel = useRef<HTMLDivElement>(null)
+  // The row button that opened the bar. When the bar closes (Cancel, or after a save) focus goes
+  // back to it, or to that row's button if a save swapped it, so the keyboard is not lost.
+  const opener = useRef<string | null>(null)
+  const barWasOpen = useRef(false)
+  const closing = !placing
+  useEffect(() => {
+    if (!closing) {
+      barWasOpen.current = true
+      return
+    }
+    // Not while a save is still running: the row buttons are disabled until it ends, and a
+    // disabled button can't take focus (it would be lost with the bar).
+    if (saving || !barWasOpen.current || !opener.current) return
+    barWasOpen.current = false
+    const name = opener.current
+    // Found by the row's name, not kept from the press: a save swaps the button, and Safari
+    // does not focus a clicked button, so there is no focused element to remember.
+    const back = [...(panel.current?.querySelectorAll('li.mb-place') ?? [])]
+      .find((li) => li.getAttribute('aria-label') === name)
+      ?.querySelector<HTMLElement>('.mb-place-actions button:not([disabled])')
+    // No scroll: on a phone the sheet has just been scrolled to the map and the new pin.
+    back?.focus({ preventScroll: true })
+  }, [closing, saving])
   const [focus, setFocus] = useState<Coordinates | null>(null)
   const [locating, setLocating] = useState(false)
   const [locateProblem, setLocateProblem] = useState<string | null>(null)
@@ -76,7 +99,7 @@ export function SiteMapPanel({
                     height: 36,
                     color: 'var(--marsh-navy)',
                     background: 'var(--surface-card)',
-                    boxShadow: '0 2px 8px rgb(0 15 71 / 0.18)',
+                    boxShadow: 'var(--shadow-md)',
                   }}
                   loading={locating}
                   onClick={() => void showMe()}
@@ -125,6 +148,7 @@ export function SiteMapPanel({
               current={placing?.key === row.key}
               onCentre={() => row.point && setFocus({ ...row.point })}
               onPlace={() => {
+                opener.current = row.name
                 setLocateProblem(null)
                 edit.start(row)
                 // On a phone the sheet scrolls: bring the map and the bar back into view, or a

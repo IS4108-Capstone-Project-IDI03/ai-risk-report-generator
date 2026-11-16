@@ -84,19 +84,9 @@ export function DetailsContent({
           {/* The client's name opens its page (CP-18), where the engineer may manage it. */}
           {openClient ? (
             <Button
-              variant="link"
+              variant="link-navy"
+              size="title"
               className="ds-press mb-hit"
-              // Keeps the name's look (a 16px navy title that wraps); the Button gives the link.
-              style={{
-                height: 'auto',
-                fontSize: 16,
-                fontWeight: 700,
-                lineHeight: 1.3,
-                textAlign: 'left',
-                whiteSpace: 'normal',
-                overflowWrap: 'anywhere',
-                color: 'var(--marsh-navy)',
-              }}
               onClick={openClient}
             >
               {record.client}
