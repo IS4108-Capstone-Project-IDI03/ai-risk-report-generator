@@ -159,6 +159,11 @@
   white-space: nowrap;
 }
 .mbt-status[data-status='done'] {
+  /* Same 32 px box as .mbt-tick, so every card's done mark sits in the same place. */
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  padding-right: 0;
   color: var(--green-600);
 }
 /* "Transcribing" sits centred in the slot, right under the button of the row above. */
@@ -453,21 +458,22 @@
 }
 
 /* A row too narrow for name, bar, count and arrow side by side (under 420 px of row: the name
-   would get under 150 px) puts the count on a second line under the area's name; the bar and the
-   arrow span both. It follows the card's own width, not the window's: with the sidebar and the
-   rail open the thread is narrow far above phone widths. The bar column gives way (40 px at least)
-   before the name does. */
+   would get under 150 px) is two lines: the area's name and its arrow, then the count and the
+   bar, which takes the rest of the line so even a 16-segment bar keeps segments of 6 px or more.
+   It follows the card's own width, not the window's: with the sidebar and the rail open the
+   thread is narrow far above phone widths. */
 .mbt-bars {
   container: bars / inline-size;
 }
 @container bars (max-width: 419px) {
   .mbt-bars li {
-    grid-template-columns: minmax(0, 1fr) clamp(40px, 25%, 72px) 44px;
+    grid-template-columns: auto minmax(0, 1fr) 44px;
     grid-template-areas:
-      'area bar end'
-      'count bar end';
+      'area area end'
+      'count bar bar';
     column-gap: 10px;
-    padding: 4px 0;
+    row-gap: 2px;
+    padding: 4px 0 8px;
   }
   .mbt-bars li > :nth-child(1) {
     grid-area: area;
@@ -484,8 +490,16 @@
   .mbt-bars-count {
     font-size: 12px;
     text-align: left;
-    /* Under the name, past its icon (15 px + 8 px gap). */
-    padding-left: 23px;
+  }
+}
+/* Under 260 px of row the count would leave the bar too short: the bar gets its own line. */
+@container bars (max-width: 259px) {
+  .mbt-bars li {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      'area end'
+      'count count'
+      'bar bar';
   }
 }
 

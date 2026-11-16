@@ -8,7 +8,8 @@ import { TurnContext, useMarshBot } from '../../context'
 import type { CardRow } from '../../types'
 import { DoneTick } from './DoneTick'
 
-// "Done" with a solid green tick, or a spinner with "Transcribing", where the button was. A status that
+// The solid green tick for "Done" (the same mark the rows cards end in; the word is for screen
+// readers only), or a spinner with "Transcribing", where the button was. A status that
 // replaces the pressed Try Again (`takeFocus`) keeps keyboard focus, which would otherwise fall to
 // the page's top with the button; it stays the same element as the row's later states.
 function Status({
@@ -27,11 +28,16 @@ function Status({
   return (
     <span ref={self} className="mbt-status" data-status={status} role="status" tabIndex={-1}>
       {status === 'busy' ? (
-        <span className="mbt-spinner" aria-hidden="true" />
+        <>
+          <span className="mbt-spinner" aria-hidden="true" />
+          {label}
+        </>
       ) : (
-        <DoneTick size={16} />
+        <>
+          <DoneTick />
+          <span className="mbt-sr">{label}</span>
+        </>
       )}
-      {label}
     </span>
   )
 }

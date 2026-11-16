@@ -3,7 +3,7 @@
 // the left (a stage bar on a phone), the thread on the right, with the action slot under
 // MarshBot's newest turn. Called by assessments/screens/Overview.tsx. Calls useThread.ts and
 // components/thread/.
-import { useState, useSyncExternalStore } from 'react'
+import { useRef, useState, useSyncExternalStore } from 'react'
 import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
 import { STAGE_LABEL } from '../../assessments/format'
@@ -12,9 +12,11 @@ import { Rail } from '../components/Rail'
 import { Actions } from '../components/thread/Actions'
 import { Agenda } from '../components/thread/Agenda'
 import { Thread } from '../components/thread/Thread'
+import { useReveal } from '../components/thread/useReveal'
 import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
+import { useNarrowArea } from '../useNarrowArea'
 import { useThread, type ThreadState } from '../useThread'
 import '../marshbot.css'
 import '../components/thread/thread.css'
@@ -83,6 +85,9 @@ function newestCta(thread: AssistantThread) {
   return turn?.cards.map((c) => ('cta' in c ? c.cta : null)).find((c) => c) ?? null
 }
 
+// The pill while a first open's messages are still being written (see `shown` below).
+const TYPING: AssistantThread['status'] = { text: 'Typing…', tone: 'blue', icon: 'ellipsis' }
+
 function Conversation({
   thread,
   reply,
@@ -91,13 +96,35 @@ function Conversation({
 }: { thread: AssistantThread } & Pick<ThreadState, 'reply'> & Omit<Props, 'reference'>) {
   const phone = useIsPhone()
   const short = useShortWindow()
+  // The rail folds into the stage bar on a phone, in a short window, or when the Overview's own
+  // area is too narrow for the rail and a readable conversation (the app's sidebar is open).
+  const area = useRef<HTMLDivElement>(null)
+  const narrow = useNarrowArea(area)
+  const stacked = phone || short || narrow
   // The engineer's reply on its way, shown as their bubble until the answer comes back.
   const [pending, setPending] = useState<string | null>(null)
   // Replies the gateway took: each one moves focus to MarshBot's newest turn (Thread.tsx).
   const [answered, setAnswered] = useState(0)
   const [busy, setBusy] = useState<Set<string>>(() => new Set())
-  // Pushed turns with no message on screen yet (Thread.tsx): the agenda does not name their topic.
-  const [waiting, setWaiting] = useState<string[]>([])
+  // The queue that shows pushed turns one message at a time (useReveal.ts). Run here, not in the
+  // Thread, so the agenda and the rail can wait for the message too.
+  const reveal = useReveal(thread, !!pending)
+  // Pushed turns with no message on screen yet: the agenda does not name their topic.
+  const waiting = [...reveal.fresh].filter(reveal.hidden)
+  // The status pill and MarshBot's face wait for the newest message: they hold what was last
+  // shown while MarshBot writes or the queue still has messages to show. Without this the pill
+  // names a topic before its message is out. The stage and the numbers are facts: never held.
+  const holding = !reveal.instant && (thread.thinking || reveal.pending)
+  const look = `${thread.status.text}|${thread.status.tone}|${thread.status.icon}|${thread.mood}`
+  // A first open has nothing shown yet to hold: the pill says MarshBot is typing until its
+  // messages are out, never what they are about to say.
+  const [shown, setShown] = useState(() =>
+    holding
+      ? { look: '', status: TYPING, mood: 'thinking' as const }
+      : { look, status: thread.status, mood: thread.mood },
+  )
+  if (!holding && shown.look !== look) setShown({ look, status: thread.status, mood: thread.mood })
+  const railThread = holding ? { ...thread, status: shown.status, mood: shown.mood } : thread
 
   // a. A choice: one with a link only opens it (nothing is posted, the question stays). Any other
   //    is their bubble at once with the slot gone, then the answer and a toast for what changed.
@@ -144,11 +171,16 @@ function Conversation({
   const bot: MarshBot = { thread, openLink, retry, busy }
   return (
     <MarshBotContext.Provider value={bot}>
-      <div className="mb" data-admin={thread.viewer === 'admin' || undefined}>
-        {phone || short ? (
-          <PhoneStageBar thread={thread} onOpen={openDetails} />
+      <div
+        ref={area}
+        className="mb"
+        data-admin={thread.viewer === 'admin' || undefined}
+        data-stacked={stacked || undefined}
+      >
+        {stacked ? (
+          <PhoneStageBar thread={railThread} onOpen={openDetails} />
         ) : (
-          <Rail thread={thread} openDetails={openDetails} />
+          <Rail thread={railThread} openDetails={openDetails} />
         )}
         <section className="mbt" aria-label="MarshBot">
           <Agenda
@@ -164,7 +196,7 @@ function Conversation({
             pending={pending}
             answered={answered}
             actions={actions}
-            onHidden={setWaiting}
+            reveal={reveal}
           />
         </section>
       </div>

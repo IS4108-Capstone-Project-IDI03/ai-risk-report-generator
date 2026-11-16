@@ -25,3 +25,8 @@ export const MESSAGE_GAP_MS = 1500
 // The choices under a pushed turn are their own beat: they appear this long after its last message
 // (shorter than a message's gap: nothing is being typed, so the dots are not shown).
 export const ACTIONS_MS = 600
+
+// The Overview's area (the page minus the app sidebar) needs this much to keep the rail: the
+// rail's 248 px (marshbot.css .mb-rail) and a conversation of about 560 px. Narrower, the rail
+// folds into the stage bar on top (useNarrowArea.ts).
+export const RAIL_AREA_MIN = 248 + 560

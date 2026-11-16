@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Toaster } from '../../design-system'
 import { MarshBotOverview } from './screens/MarshBotOverview'
-import { Thread } from './components/thread/Thread'
+import { ThreadHarness as Thread } from './testHarness'
 import {
   REF,
   THREAD_URL,
@@ -159,7 +159,12 @@ describe('MarshBot Overview', () => {
   it('shows Done where the buttons were and a green acknowledgement, with no action slot', async () => {
     show(bothDone)
     expect(await screen.findByText(/Nice work, Alex!/)).toBeTruthy()
-    expect(screen.getAllByText('Done')).toHaveLength(2)
+    // A finished row ends in the solid green tick (the rows cards' look), not a "Done" label; the
+    // word stays for a screen reader, and the row keeps its state line under the title.
+    const ticks = document.querySelectorAll('.mbt-status[data-status="done"] .mbt-stick')
+    expect(ticks).toHaveLength(2)
+    for (const word of screen.getAllByText('Done')) expect(word.className).toBe('mbt-sr')
+    expect(screen.getByText('Recording transcribed')).toBeTruthy()
     expect(document.querySelector('.mbt-bubble[data-tone="good"]')).toBeTruthy()
     expect(screen.queryByRole('group', { name: 'Your reply' })).toBeNull()
     expect(screen.getByRole('img', { name: 'MarshBot, pleased' })).toBeTruthy()

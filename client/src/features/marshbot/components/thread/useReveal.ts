@@ -3,7 +3,8 @@
 // after the typing dots, each next one 1.5 s after the one before, and the choices are a beat of
 // their own after the last message. Turns there when the screen opened, and everything under
 // reduced motion or in a hidden tab, show at once.
-// Called by Thread.tsx. Read by Flow.tsx through context.ts's RevealContext.
+// Called by screens/MarshBotOverview.tsx, which hands it to Thread.tsx and uses it to hold the
+// status pill. Read by Flow.tsx through context.ts's RevealContext.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ACTIONS_MS, FIRST_MESSAGE_MS, MESSAGE_GAP_MS } from '../../settings'
 import type { AssistantThread } from '../../types'
@@ -11,6 +12,8 @@ import type { AssistantThread } from '../../types'
 export type Reveal = {
   // The pushed bot turns, oldest first.
   fresh: Set<string>
+  // True when everything shows at once (reduced motion, or a hidden tab): no queue, no hold.
+  instant: boolean
   // True while messages wait to be shown: the typing dots stay.
   pending: boolean
   // True until the choices' own beat after the last message: they are held back.
@@ -126,5 +129,5 @@ export function useReveal(thread: AssistantThread, replying: boolean): Reveal {
     return () => clearTimeout(timer)
   }, [unknown])
 
-  return { fresh: new Set(fresh), pending, held, shows, hidden, register }
+  return { fresh: new Set(fresh), instant, pending, held, shows, hidden, register }
 }

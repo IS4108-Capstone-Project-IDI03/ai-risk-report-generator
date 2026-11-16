@@ -15,7 +15,7 @@ import { BotTurn } from './BotTurn'
 import { EngineerBubble } from './EngineerBubble'
 import { ScrolledAway } from './ScrolledAway'
 import { SessionTurns } from './SessionTurns'
-import { useReveal } from './useReveal'
+import type { Reveal } from './useReveal'
 
 // MarshBot's newest saved turn on screen, where focus goes once a reply's buttons are gone (not
 // the typing dots: they leave, and focus would fall to the page's top with them).
@@ -28,27 +28,24 @@ const newestTurn = (column: HTMLElement | null) =>
 /** Returns the scrolling thread; `pending` is the engineer's reply on its way, `answered` counts
     the replies the gateway took (each moves focus to the newest turn), and `actions` are the
     buttons of the action slot (null when there is nothing to press); they wait until the last
-    pushed message is out and their own beat has passed. `onHidden` hears which pushed turns have no message out yet. */
+    pushed message is out and their own beat has passed. `reveal` is the queue
+    (useReveal.ts, run by the screen): the bot turns already there when it opened draw at once,
+    later ones arrive one message at a time. */
 export function Thread({
   thread,
   pending,
   answered,
   actions: due,
-  onHidden,
+  reveal,
 }: {
   thread: AssistantThread
   pending: string | null
   answered: number
   actions: ReactNode | null
-  onHidden?: (turnIds: string[]) => void
+  reveal: Reveal
 }) {
   const [showEarlier, setShowEarlier] = useState(false)
-  // The bot turns already there when the screen opened draw at once; later ones arrive one
-  // message at a time.
-  const reveal = useReveal(thread, !!pending)
   const actions = reveal.held ? null : due
-  const waitingIds = [...reveal.fresh].filter(reveal.hidden).join()
-  useLayoutEffect(() => onHidden?.(waitingIds ? waitingIds.split(',') : []), [onHidden, waitingIds])
   const phone = useIsPhone()
   const scroller = useRef<HTMLDivElement>(null)
   const column = useRef<HTMLDivElement>(null)

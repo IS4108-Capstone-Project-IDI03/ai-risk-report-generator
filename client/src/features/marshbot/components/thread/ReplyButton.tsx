@@ -27,6 +27,9 @@ export function ReplyButton({
       pill
       iconLeft={reply.icon && ICON_NAME.test(reply.icon) ? reply.icon : undefined}
       iconRight={reply.link ? 'chevron-right' : undefined}
+      // ds-press is the Button's own class (press feedback, the 44 px tap area), kept because
+      // className here replaces it; mbt-reply lets a long label wrap on a phone (thread.css).
+      className="ds-press mbt-reply"
       onClick={onClick}
       // The calendar's Popover adds aria-expanded and aria-controls through here.
       {...aria}

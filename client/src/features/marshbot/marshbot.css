@@ -577,27 +577,27 @@
     height: auto;
   }
 }
-@media (max-width: 767px), (max-height: 559px) {
-  .mb {
-    flex-direction: column;
-  }
-  .mb-phonebar {
-    flex: none;
-    display: flex;
-    position: relative;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    min-height: 76px;
-    padding: 12px 16px;
-    border: 0;
-    border-bottom: 1px solid var(--graphite-200);
-    background: var(--surface-card);
-    font: inherit;
-    text-align: left;
-    color: var(--graphite-600);
-    cursor: pointer;
-  }
+/* The rail folded into the stage bar on top: a phone, a short window, or an Overview too narrow
+   for the rail (the screen sets data-stacked from those three, MarshBotOverview.tsx). */
+.mb[data-stacked] {
+  flex-direction: column;
+}
+.mb[data-stacked] .mb-phonebar {
+  flex: none;
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--graphite-200);
+  background: var(--surface-card);
+  font: inherit;
+  text-align: left;
+  color: var(--graphite-600);
+  cursor: pointer;
 }
 .mb-phonebar-main {
   flex: 1;

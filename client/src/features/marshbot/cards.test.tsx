@@ -1,7 +1,7 @@
 // MarshBot's cards on their own (AS-06 round 7): the outline's note and attention rules, no quote
 // on a row, and every stage in Time in Each Stage with a text alternative. Cards are drawn
 // straight inside a stand-in MarshBot context: no gateway, no network.
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MarshBotContext } from './context'
@@ -190,7 +190,7 @@ describe('rows card', () => {
     )
     expect(screen.getByRole('button', { name: help })).toBeTruthy()
     // The help is a sentence: its tooltip wraps instead of running off the card on one line.
-    fireEvent.focus(screen.getByRole('button', { name: help }))
+    act(() => screen.getByRole('button', { name: help }).focus())
     expect(screen.getByRole('tooltip').style.whiteSpace).toBe('normal')
     expect(screen.getByRole('tooltip').style.maxWidth).toBe('280px')
   })
@@ -298,6 +298,12 @@ describe('reply button', () => {
     expect(screen.getByRole('button').style.background).toContain('--surface-card')
     rerender(<ReplyButton reply={choice()} onClick={vi.fn()} />)
     expect(screen.getByRole('button').style.background).toContain('--ink-50')
+  })
+
+  it('keeps the press class and adds the one that lets a long label wrap on a phone', () => {
+    render(<ReplyButton reply={choice({ label: 'A very long choice' })} onClick={vi.fn()} />)
+    expect(screen.getByRole('button').classList.contains('ds-press')).toBe(true)
+    expect(screen.getByRole('button').classList.contains('mbt-reply')).toBe(true)
   })
 })
 

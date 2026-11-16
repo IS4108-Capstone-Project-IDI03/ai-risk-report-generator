@@ -5,6 +5,7 @@
 // On a phone only the current topic keeps its name, and the steps are not buttons: they would be
 // too small to tap, and the thread is one flick long there. Called by
 // screens/MarshBotOverview.tsx. Reads the turn ids SessionTurns.tsx puts on the page.
+import { useEffect, useRef } from 'react'
 import { Icon, useIsPhone } from '../../../../design-system'
 import { turnAnchor } from '../../format'
 import type { AgendaStep } from '../../types'
@@ -32,13 +33,40 @@ function jumpTo(turnId: string) {
 /** Returns the agenda bar; nothing when the stage has a single topic. */
 export function Agenda({ steps, stage }: { steps: AgendaStep[]; stage: string }) {
   const phone = useIsPhone()
+  // The steps never wrap: too many for the bar scroll sideways, and the current one is brought into
+  // view (an engineer on step 4 of 5 would otherwise open to the first two).
+  const list = useRef<HTMLOListElement>(null)
+  const nowKey = steps.find((s) => s.state === 'now')?.key
+  useEffect(() => {
+    const ol = list.current
+    if (!ol) return
+    const fit = () => {
+      // The stage's name goes when the steps don't fit beside it: at some widths it was cut to
+      // "CAPT…" while the steps scrolled sideways. Measured with the name shown, then hidden.
+      const bar = ol.closest('.mbt-agenda')
+      bar?.removeAttribute('data-tight')
+      if (ol.scrollWidth > ol.clientWidth) bar?.setAttribute('data-tight', '')
+      const current = ol.querySelector<HTMLElement>('[aria-current="step"]')
+      if (current) ol.scrollLeft = current.offsetLeft + current.offsetWidth - ol.clientWidth
+    }
+    fit()
+    // Again when the bar's width changes (a resized window, the rail folding away): without this
+    // the current step was cut off at the right until the next reload.
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(fit)
+    // The bar, not the list: once the steps fit, the list keeps its width however wide the bar
+    // gets, and the stage's name would never be measured back in.
+    watch.observe(ol.parentElement ?? ol)
+    return () => watch.disconnect()
+    // `steps.length`: a bar that went away and came back is a new list to fit and to watch.
+  }, [nowKey, phone, steps.length])
   if (!steps.length) return null
   return (
     <nav className="mbt-agenda" aria-label={`MarshBot’s topics in ${stage}`}>
       <div className="mbt-agenda-in">
         {/* The steps belong to this stage; a phone leaves the name out (the stage bar has it). */}
         <span className="mbt-agenda-stage">{stage}</span>
-        <ol>
+        <ol ref={list}>
           {steps.map((step) => {
             const inside = (
               <>

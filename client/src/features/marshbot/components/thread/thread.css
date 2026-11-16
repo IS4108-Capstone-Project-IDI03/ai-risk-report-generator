@@ -494,6 +494,25 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
     margin: -14px;
   }
 }
+/* Phone: a choice's label may wrap to 2 lines inside its pill instead of running past the pill's
+   edge: the button grows with it (2 lines of 18 px plus 4 px above and below is 44 px). A short
+   label is one line and looks as before: 36 px, or 44 px on a touch screen (kit.css). The inline
+   height, padding and no-wrap come from the Button, hence !important. */
+@media (max-width: 767px) {
+  .mbt .mbt-reply {
+    height: auto !important;
+    max-width: 100%;
+    padding: 4px 14px !important;
+    line-height: 18px !important;
+    white-space: normal !important;
+    text-align: center;
+  }
+}
+@media (max-width: 767px) and (pointer: fine) {
+  .mbt .mbt-reply {
+    min-height: 36px;
+  }
+}
 /* Phone: the page scrolls, the thread runs full width, the scrolled-away bar is fixed to the
    screen's foot. */
 @media (max-width: 767px) {
@@ -815,9 +834,27 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
   line-height: 20px;
   color: var(--graphite-600);
 }
+/* The stage's name is left out where it would only be cut short or said twice: in a bar under
+   640 px (it showed as "CAPT…" beside a rail that already names the stage), and when the rail is
+   folded into the stage bar on top, which names it too. */
+.mbt-agenda-in {
+  container: agenda / inline-size;
+}
+@container agenda (max-width: 640px) {
+  .mbt-agenda-stage {
+    display: none;
+  }
+}
+.mb[data-stacked] .mbt-agenda-stage,
+.mbt-agenda[data-tight] .mbt-agenda-stage {
+  display: none;
+}
 /* The stage's name, the bar's label: the topics after it belong to this stage. */
+/* It is never cut short: when the steps don't fit beside it the name goes (data-tight, set by
+   Agenda.tsx), and only then do the steps scroll sideways (.mbt-agenda ol). */
 .mbt-agenda-stage {
   flex: none;
+  white-space: nowrap;
   padding-right: 20px;
   border-right: 1px solid var(--graphite-200);
   font-size: 12px;
@@ -828,19 +865,28 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
   color: var(--marsh-navy);
 }
 .mbt-agenda ol {
-  flex: 1;
+  /* The steps on one line; wider than the bar, they scroll sideways with no scrollbar showing
+     (Agenda.tsx keeps the current one in view). `position` makes it each step's offset parent. */
+  position: relative;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.mbt-agenda ol::-webkit-scrollbar {
+  display: none;
 }
 .mbt-agenda li {
   position: relative;
   isolation: isolate;
   display: inline-flex;
+  flex: none;
   align-items: center;
   min-width: 0;
 }
@@ -907,7 +953,8 @@ button.mbt-agenda-step:focus-visible::before {
   opacity: 1;
   background: none;
   outline: 2px solid var(--border-focus);
-  outline-offset: 0;
+  /* Inside the step: the bar scrolls sideways, which would cut an outer ring off at its ends. */
+  outline-offset: -2px;
 }
 .mbt-agenda-mark {
   flex: none;
@@ -985,9 +1032,6 @@ button.mbt-agenda-step:focus-visible::before {
   .mbt-agenda-stage,
   .mbt-agenda li[data-state='now']::after {
     display: none;
-  }
-  .mbt-agenda ol {
-    flex-wrap: nowrap;
   }
   /* Nothing to tap here on a phone (Agenda.tsx), so the bar is slimmer. */
   .mbt-agenda-step {
