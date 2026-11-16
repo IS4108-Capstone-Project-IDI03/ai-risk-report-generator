@@ -82,6 +82,7 @@ export function KnowledgeDocuments({
   onAdd,
   onNeedReview,
   onReview,
+  canManage,
 }: {
   // The document a notification opened (F-10), marked once and scrolled into view.
   focused?: string | null
@@ -91,6 +92,8 @@ export function KnowledgeDocuments({
   onNeedReview: (count: number) => void
   // Opens a document's Review page (IN-07), keeping the filters for the way back.
   onReview: (id: string, filters: Filters) => void
+  // Off for a risk engineer, who browses read-only (IN-17).
+  canManage: boolean
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -173,7 +176,11 @@ export function KnowledgeDocuments({
     <section className="kb-docs" aria-labelledby="kb-docs-title">
       <header className="kb-docs-head">
         <h2 id="kb-docs-title">All documents</h2>
-        <p>Browse every document in the knowledge base and fix their details.</p>
+        <p>
+          {canManage
+            ? 'Browse every document in the knowledge base and fix their details.'
+            : 'Browse every document in the knowledge base.'}
+        </p>
       </header>
 
       {unreachable && (
@@ -191,7 +198,7 @@ export function KnowledgeDocuments({
       )}
 
       {/* Placeholder for the app-wide notification feature (IN-05). */}
-      {needReview.length > 0 && (
+      {canManage && needReview.length > 0 && (
         <div role="status" aria-label="Documents to review">
           <ReviewBanner
             documents={needReview}
@@ -279,9 +286,11 @@ export function KnowledgeDocuments({
             title="The knowledge base is empty"
             description="Documents appear here once an upload finishes ingesting."
             action={
-              <Button variant="secondary" iconLeft="upload" onClick={onAdd}>
-                Add documents
-              </Button>
+              canManage ? (
+                <Button variant="secondary" iconLeft="upload" onClick={onAdd}>
+                  Add documents
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -315,6 +324,7 @@ export function KnowledgeDocuments({
                   onChangeStatus={setChangingStatus}
                   onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
+                  canManage={canManage}
                 />
               )
             })}
