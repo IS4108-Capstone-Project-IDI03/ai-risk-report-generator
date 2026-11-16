@@ -1328,7 +1328,11 @@ when each was entered. It only moves forward: each re-check stores the furthest
 stage the data proves (`services/assistant/stage.ts`), never an earlier one.
 Archived stays separate (`archivedAt`), and the derived `status` used before
 AS-06 is unchanged. `npm run migrate:stages` works the stage out once for
-assessments made before AS-06.
+assessments made before AS-06. Ready to export needs the export check clear and
+no open comment thread (`exportClear` in `stage.ts`): an open comment keeps the
+assessment in Review, and the Review outline and the rail never count a section
+with open comments as reviewed (its row is "Open Comments" and the words name
+it and its count).
 
 **Re-check.** `recheckAssessment(reference)` (`recheck.service.ts`) loads the
 assessment's data once, advances the stage, runs every check in
@@ -1343,7 +1347,9 @@ coverage). It runs:
 - once a day for date-based items (`scheduleDailyAssessmentChecks`, 00:05
   Singapore).
 Changes within 2 seconds are checked together (BullMQ job id
-`as-check-<ref>-<window>`).
+`as-check-<ref>-<window>`). A failed recording or page that stops being raised
+is stamped `facts.outcome`: `removed` when the engineer deleted it (its row
+says "Recording removed" / "Page removed"), else `done`.
 
 **Conversation.** `assistant_threads` keeps one thread per (assessment,
 assigned engineer): today's session and up to 10 earlier ones. The engine in
@@ -1352,10 +1358,33 @@ now and an event (open, changed, reply) and returns the turns to add. A session
 is one day (or a stage that moved on after a 30-minute pause) and opens with a
 greeting or a catch-up. MarshBot raises one topic at a time per stage
 (`thread/topics.ts`, `STAGE_TOPICS`) and waits: a "To Do" topic until its rows
-are done or skipped ("Skip for now" names what stays in To Do), a question for
+are done or skipped ("Skip for now" names what stays in To Do; its words are a
+numbered list, one step per place, when there are 2 or more), a question for
 its own replies, any other topic offers "What else?" while another topic is
-waiting. Survey day passed asks "Another visit", "Add observations" (opens
-Observations) or "That's everything". Exported with sections changed since says
+waiting. The Setup card keeps one row per detail (Report Due Date, Site
+Contacts, Client Documents) that ticks in place with its value; with nothing
+missing, MarshBot says so and asks "Ready to move on to Prepare?" with one
+choice, "Move on to Prepare" (`to-prepare`, same effect as "Nothing more to
+add"). When something it listed is sorted (`thread/reactions.ts`), it posts one
+`noticed` turn: what it saw, in words for each kind of item (never an item's
+title as a label), and what is left (Setup names it, To Do and Gaps count it,
+Before the Survey counts it or says nothing is left until the survey day,
+Review names the findings and comments that hold it), with the waiting topic's
+button (e.g. Open Review) while something is left. The last Setup detail turns
+that turn into the Prepare question; fewer open comments are said too ("1
+comment is resolved"). Each item is said once (`seen:<id>` in `said`), and the
+next day's catch-up skips it. When the coverage check runs again after the
+gaps were raised, a `recheck` turn says what cleared, any new gaps and what is
+still open (a gaps card of a new kind comes with it); a check that fails then
+gets one `recheck-failed` turn; the typing dots show while it runs. None of
+this is said once the stage has moved past Capture. A stage move says which
+stage and why, both under an open session ("… has moved on to the Review
+stage now that all 11 sections are drafted.") and in the answer to a choice
+that moved it ("Thanks! Setup is confirmed, so I've moved this on to the
+Prepare stage."). Turns from before a stage move keep the cards they showed
+then (`frozen`), and a row that is no longer open ticks with "Done". Survey day passed asks "Another visit", "Add observations" (opens
+Observations) or "That's everything"; the first two carry their own icon
+(`reply.icon`: `calendar`, `plus`). Exported with sections changed since says
 which, shows the "Changed Since Export" card and one "Export Again" choice that
 opens the Export tab; nothing is asked. The gaps turn gives "Not Covered" and
 "Thin" each its own lead-in bubble, then a closing bubble; such a turn keeps
@@ -1364,7 +1393,7 @@ now item is raised at once. Cards in today's session are rebuilt from the brief
 on every read (a fixed row ticks in place); earlier sessions are frozen. Turns'
 words never change. The rules give every piece of words its form (`Say.tone`):
 plain, good news (green), the lead line, a tick (a catch-up with 2 or more
-changes is a tick list) or a stand-out message (the report is overdue; a
+changes is a tick list), a numbered step or a stand-out message (the report is overdue; a
 report due within 7 days is a sentence at the end of the greeting). `thread.service.ts` loads and saves the thread (one advance
 per thread at a time, `lock.ts`); a re-check that changed the brief advances it
 only when the Overview is open (a live event stream) and the engineer opened it
@@ -1397,19 +1426,23 @@ engineer, sees the stage and progress only, never the engineer's activity.
 closed (503 when privacy-service is down):
 - `POST /assistant/coverage` finds checklist items no observation covers and
   observations too thin for their section. It starts when the Overview opens
-  and the evidence changed, at most every 5 minutes, from the first checklist
+  and the evidence changed, at most once a minute, from the first checklist
   and categorised observation until Review. The "gaps" topic waits for it
-  (typing dots) and raises its result as "Not Covered" and "Thin". Model
+  (typing dots) and raises its result as "Not Covered" and "Thin", each card
+  with a `help` line on what clears a row. Model
   `ASSISTANT_COVERAGE_MODEL`.
 - `POST /assistant/wording` rewords each new bot turn once as an OpenUI Lang
-  program (`Reply`, `Lead`, `Say`, `Ticks`, `Alert`, `Card`). The rules pick
+  program (`Reply`, `Lead`, `Say`, `Ticks`, `Steps`, `Alert`, `Card`). The rules pick
   the format and the AI only words it: each piece is sent with its form, and a
   card as its id and kind only (nothing a card shows is sent). The gateway
-  (`wording.service.ts`) waits at most 4 s and keeps a program only when it has
+  (`wording.service.ts`) never words the greeting (it shows at once in its rule
+  words), waits at most 4 s for the other new turns, and keeps a program only
+  when it has
   the same pieces in the same order as the gateway's own program for the turn
   (`programOf`; a run of plain words counts as one), so the AI can't add, drop
-  or move a lead line, a tick, a green or stand-out message or a card. Each
-  part (the lead line, the stand-out message, each tick, a run of plain words)
+  or move a lead line, a tick, a step, a green or stand-out message or a card.
+  Each part (the lead line, the stand-out message, each tick or step, a run of
+  plain words)
   is then checked against the rule words it rewords: the same numbers; the
   same names (the viewer's first name, the site, areas, sections, places); the
   same stage, weekday and month names; no tick, list mark or pictograph typed
