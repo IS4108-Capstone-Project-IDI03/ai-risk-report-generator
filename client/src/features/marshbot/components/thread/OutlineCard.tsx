@@ -22,11 +22,13 @@ const LOOK: Record<OutlineState, { icon?: string; tone: string | null; word: str
   new: { icon: 'circle-dashed', tone: null, word: 'Not Started' },
 }
 
-// A row's side note, or nothing. The state icon and the key already say "Scores", "3 questions",
-// "2 comments"; only a note that says something else stays ("Waits on 4"). Without this rule every
-// row would repeat its own state beside it.
+// A row's side note, or nothing. The state icon and the key already say "Scores" and "3 questions";
+// only a note that says something else stays: "Waits on 4", and a comment count ("2 comments"),
+// since the key says only "Open Comments" and the number is new. Without this rule every row would
+// repeat its own state beside it.
+const COMMENTS = /^\d+ comments?$/i
 function sideNote(note: string | null) {
-  return note && /^waits\b/i.test(note) ? note : null
+  return note && (/^waits\b/i.test(note) || COMMENTS.test(note)) ? note : null
 }
 
 // Where a row needs the engineer: amber for questions, figures and decisions, red for a failure.
@@ -67,7 +69,12 @@ function Line({ item, word, items }: { item: OutlineItem; word: string; items: O
         {item.title}
         <span className="mbt-sr">{`, ${word}${note ? ',' : ''}`}</span>
       </span>
-      {note && <span className="mbt-ol-note">{note}</span>}
+      {note && (
+        // The comment count is amber: it is what holds the section back.
+        <span className="mbt-ol-note" data-tone={COMMENTS.test(note) ? 'amber' : undefined}>
+          {note}
+        </span>
+      )}
     </>
   )
   return (

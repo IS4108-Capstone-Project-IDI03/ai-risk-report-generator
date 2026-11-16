@@ -664,6 +664,31 @@ describe('MarshBot Overview', () => {
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
+  // Round 9 rehearsal: a second quick reply ("Generate anyway") pulled the mark down under itself.
+  it('keeps the mark above the answer to the reply that moved the stage when another reply follows fast', async () => {
+    const reply = turn({ who: 'engineer', says: [{ text: 'That’s everything', tone: 'normal' }] })
+    const moved = turn({ says: [{ text: 'Moved it on.', tone: 'good' }] })
+    const again = turn({ who: 'engineer', says: [{ text: 'Generate anyway', tone: 'normal' }] })
+    const after = turn({ says: [{ text: 'Sure.', tone: 'normal' }] })
+    show(
+      thread({
+        stage: 'ready_for_generation',
+        stageDates: {
+          ...surveyDay.stageDates,
+          ready_for_generation: new Date(Date.parse(reply.at) + 900).toISOString(),
+        },
+        session: { ...surveyDay.session, turns: [reply, moved, again, after] },
+        replies: [],
+      }),
+    )
+    const mark = (await screen.findByText('Ready for generation', { selector: 'b' })).closest('p')
+    const order = [mark!, screen.getByText('Moved it on.'), screen.getByText('Generate anyway')]
+    for (let i = 1; i < order.length; i++)
+      expect(
+        order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
   it('leaves out the mark of a stage the same press jumped over', async () => {
     const reply = turn({ who: 'engineer', says: [{ text: 'Skip it all', tone: 'normal' }] })
     const moved = turn({ says: [{ text: 'Moved it on.', tone: 'good' }] })

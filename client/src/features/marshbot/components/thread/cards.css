@@ -25,6 +25,14 @@
   min-height: 22px;
   padding: 12px 16px 10px;
 }
+/* The title and its (?); also the anchor of the help bubble (CardShell.tsx). */
+.mbt-card-title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .mbt-card-head h3 {
   margin: 0;
   font-size: 14.5px;
@@ -406,7 +414,9 @@
 }
 .mbt-bars li {
   display: grid;
-  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 64px 32px;
+  /* The count column fits "12 of 12 answered" on one line; the name gives way before the bar
+     (48 px at least) does. */
+  grid-template-columns: minmax(0, 200px) minmax(48px, 1fr) 124px 32px;
   column-gap: 16px;
   align-items: center;
   min-height: 38px;
@@ -440,6 +450,43 @@
 .mbt-bars-end {
   display: flex;
   justify-content: center;
+}
+
+/* A row too narrow for name, bar, count and arrow side by side (under 420 px of row: the name
+   would get under 150 px) puts the count on a second line under the area's name; the bar and the
+   arrow span both. It follows the card's own width, not the window's: with the sidebar and the
+   rail open the thread is narrow far above phone widths. The bar column gives way (40 px at least)
+   before the name does. */
+.mbt-bars {
+  container: bars / inline-size;
+}
+@container bars (max-width: 419px) {
+  .mbt-bars li {
+    grid-template-columns: minmax(0, 1fr) clamp(40px, 25%, 72px) 44px;
+    grid-template-areas:
+      'area bar end'
+      'count bar end';
+    column-gap: 10px;
+    padding: 4px 0;
+  }
+  .mbt-bars li > :nth-child(1) {
+    grid-area: area;
+  }
+  .mbt-bars li > :nth-child(2) {
+    grid-area: bar;
+  }
+  .mbt-bars li > :nth-child(3) {
+    grid-area: count;
+  }
+  .mbt-bars li > :nth-child(4) {
+    grid-area: end;
+  }
+  .mbt-bars-count {
+    font-size: 12px;
+    text-align: left;
+    /* Under the name, past its icon (15 px + 8 px gap). */
+    padding-left: 23px;
+  }
 }
 
 /* --- Outline: every item in two columns, the key in the free cell under the right one --- */
@@ -565,6 +612,13 @@
   font-size: 12.5px;
   text-align: right;
   color: var(--graphite-600);
+}
+/* A comment count beside a row's title: amber, on one line. */
+.mbt-ol-note[data-tone='amber'] {
+  font-weight: 600;
+  white-space: nowrap;
+  /* amber-700: 4.5:1 or more on the row's hover wash too. */
+  color: var(--amber-700);
 }
 /* The key: one compact line, icons the row icons' size and centred on their words. */
 .mbt-ol-key {
@@ -834,13 +888,6 @@
   }
   .mbt-bars {
     padding: 2px 12px 8px;
-  }
-  .mbt-bars li {
-    grid-template-columns: minmax(0, 1fr) 72px 44px;
-    column-gap: 10px;
-  }
-  .mbt-bars-count {
-    display: none;
   }
   .mbt-ol-lead .mbt-segs {
     flex-basis: 100%;

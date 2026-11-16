@@ -96,6 +96,8 @@ function Conversation({
   // Replies the gateway took: each one moves focus to MarshBot's newest turn (Thread.tsx).
   const [answered, setAnswered] = useState(0)
   const [busy, setBusy] = useState<Set<string>>(() => new Set())
+  // Pushed turns with no message on screen yet (Thread.tsx): the agenda does not name their topic.
+  const [waiting, setWaiting] = useState<string[]>([])
 
   // a. A choice: one with a link only opens it (nothing is posted, the question stays). Any other
   //    is their bubble at once with the slot gone, then the answer and a toast for what changed.
@@ -149,8 +151,21 @@ function Conversation({
           <Rail thread={thread} openDetails={openDetails} />
         )}
         <section className="mbt" aria-label="MarshBot">
-          <Agenda steps={thread.agenda ?? []} stage={STAGE_LABEL[thread.stage]} />
-          <Thread thread={thread} pending={pending} answered={answered} actions={actions} />
+          <Agenda
+            steps={(thread.agenda ?? []).map((s) =>
+              s.turnId && waiting.includes(s.turnId)
+                ? { ...s, state: 'next' as const, turnId: null }
+                : s,
+            )}
+            stage={STAGE_LABEL[thread.stage]}
+          />
+          <Thread
+            thread={thread}
+            pending={pending}
+            answered={answered}
+            actions={actions}
+            onHidden={setWaiting}
+          />
         </section>
       </div>
     </MarshBotContext.Provider>

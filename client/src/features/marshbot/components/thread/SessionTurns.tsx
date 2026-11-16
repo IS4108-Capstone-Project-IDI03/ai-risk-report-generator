@@ -6,7 +6,7 @@ import { useContext, type ReactNode } from 'react'
 import { Icon } from '../../../../design-system'
 import { STAGE_LABEL } from '../../../assessments/format'
 import { clock, sessionTime, turnAnchor } from '../../format'
-import { MarshBotContext, TurnContext } from '../../context'
+import { MarshBotContext, RevealContext, TurnContext } from '../../context'
 import { MILESTONE_SLACK_MS, TURN_GAP_MS } from '../../settings'
 import { STAGES, type Session, type Stage } from '../../types'
 import { BotTurn } from './BotTurn'
@@ -44,6 +44,7 @@ export function SessionTurns({
 }) {
   const newest = session.turns.findLast((t) => t.who === 'bot')
   const dates = useContext(MarshBotContext)?.thread.stageDates
+  const reveal = useContext(RevealContext)
   // `since` is the last turn of the session before: a stage reached in that session was marked
   // there (within the slack of its reply), so it is not marked again above today's greeting.
   const from = since ? Date.parse(since) + MILESTONE_SLACK_MS : Date.parse(session.startedAt)
@@ -60,8 +61,15 @@ export function SessionTurns({
     // calls it Skipped; gateway cards.ts stageSpans), so it gets no mark: it never happened.
     const next = reached[reached.indexOf(stage) + 1]
     if (next && Date.parse(dates![next]!) === at) continue
-    const reply = session.turns.findLastIndex(
-      (t) => t.who === 'engineer' && Math.abs(Date.parse(t.at) - at) <= MILESTONE_SLACK_MS,
+    // The reply nearest the stage's date: a second quick reply ("Generate anyway", seconds after
+    // "That's everything") is within the slack too, and would otherwise pull the mark under itself.
+    const off = (i: number) => Math.abs(Date.parse(session.turns[i].at) - at)
+    const reply = session.turns.reduce(
+      (best, t, i) =>
+        t.who === 'engineer' && off(i) <= MILESTONE_SLACK_MS && (best < 0 || off(i) < off(best))
+          ? i
+          : best,
+      -1,
     )
     const turn = session.turns.find(
       (t, i) => t.who === 'bot' && (reply >= 0 ? i > reply : Date.parse(t.at) >= at),
@@ -76,12 +84,17 @@ export function SessionTurns({
         const gap = before && Date.parse(turn.at) - Date.parse(before.at) >= TURN_GAP_MS
         // The first of a run of MarshBot's turns; the ones after it sit under the same face.
         const heads = !before || gap || before.who === 'engineer'
+        // A pushed turn whose first message is not out yet: no divider or milestone either.
+        const waits = reveal?.hidden(turn.id) ?? false
         return (
           <TurnContext.Provider key={turn.id} value={{ turn, past }}>
-            {gap && <p className="mbt-divider">{clock(turn.at)}</p>}
-            {marks.get(turn.id)?.map((stage) => (
-              <Milestone key={stage} stage={stage} fresh={!!fresh?.has(turn.id)} />
-            ))}
+            {gap && !waits && <p className="mbt-divider">{clock(turn.at)}</p>}
+            {!waits &&
+              marks
+                .get(turn.id)
+                ?.map((stage) => (
+                  <Milestone key={stage} stage={stage} fresh={!!fresh?.has(turn.id)} />
+                ))}
             {turn.who === 'engineer' ? (
               <EngineerBubble text={turn.says[0]?.text ?? ''} />
             ) : (
@@ -93,6 +106,7 @@ export function SessionTurns({
                 named={heads}
                 faced={heads || before.mood !== turn.mood}
                 fresh={fresh?.has(turn.id)}
+                hidden={waits}
               >
                 <TurnBody turn={turn} />
                 {turn === newest && slot}

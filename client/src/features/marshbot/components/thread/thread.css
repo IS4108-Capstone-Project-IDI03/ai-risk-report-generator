@@ -278,11 +278,15 @@
   animation: mbt-rise var(--duration-slow) var(--ease-out) both;
 }
 
-/* A turn pushed in while the screen is open arrives piece by piece, 120 ms apart (board 12);
-   one already there when the screen opened draws at once. */
+/* A turn pushed in while the screen is open arrives one message at a time (useReveal.ts draws
+   each when its turn comes, so each rises as it mounts, with no stagger of its own); one already
+   there when the screen opened draws at once. */
 .mbt-turn[data-fresh] .mbt-in {
   animation: mbt-rise var(--duration-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 120ms);
+}
+/* A pushed turn with no message out yet: kept mounted, not drawn. */
+.mbt-turn[hidden] {
+  display: none;
 }
 @keyframes mbt-rise {
   from {
@@ -293,7 +297,7 @@
 
 /* The action slot under the newest turn's last bubble or card: 8 px below it, flush with the
    bubbles, 8 px between buttons, wrapping on a phone. In a turn that just arrived it fades in
-   after the pieces (opacity only: a transform would trap the calendar's fixed popover). */
+   once the last message is out (opacity only: a transform would trap the calendar's fixed popover). */
 .mbt-actions {
   position: relative;
   display: flex;
@@ -311,7 +315,7 @@
   pointer-events: none;
 }
 .mbt-turn[data-fresh] .mbt-actions {
-  animation: mbt-fade var(--duration-slow) var(--ease-out) 360ms both;
+  animation: mbt-fade var(--duration-slow) var(--ease-out) both;
 }
 @keyframes mbt-fade {
   from {
@@ -649,6 +653,25 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
 }
 .mbt-session[data-past] .mbt-list-mark {
   opacity: 0.55;
+}
+
+/* The numbered list inside the bubble (Capture To Do's steps): a real <ol>, its numbers in the
+   bubble's own text colour and line, wrapping cleanly because each item is a block of its own. */
+.mbt-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+  padding: 0 0 0 24px;
+  list-style: decimal;
+}
+.mbt-steps li {
+  min-width: 0;
+  padding-left: 4px;
+}
+.mbt-steps li::marker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* A message that stands out (the report is overdue): the same bubble, in the amber warning tint,

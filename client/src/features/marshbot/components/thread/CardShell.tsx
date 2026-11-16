@@ -31,14 +31,26 @@ export function CardShell({
     // A named group, not a region: a long history would otherwise be a long list of landmarks.
     <div className="mbt-card" role="group" data-wide={wide || undefined} aria-label={title}>
       <header className="mbt-card-head">
-        <h3>{title}</h3>
-        {help && (
-          <Tooltip label={help}>
-            <button type="button" className="mbt-help" aria-label={help}>
-              <Icon name="circle-help" size={16} />
-            </button>
-          </Tooltip>
-        )}
+        {/* The title and its (?): the anchor of the help bubble, so it starts at the title's left edge. */}
+        <div className="mbt-card-title">
+          <h3>{title}</h3>
+          {help && (
+            // A full sentence: it wraps at 280 px and opens under the title from its left edge (the
+            // wrapper is static, so .mbt-card-title is its anchor), inside the card at every width.
+            // `tap`: a phone has no hover, and iOS does not focus a tapped button.
+            <Tooltip
+              label={help}
+              placement="bottom-start"
+              maxWidth={280}
+              tap
+              style={{ position: 'static' }}
+            >
+              <button type="button" className="mbt-help" aria-label={help}>
+                <Icon name="circle-help" size={16} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
         {note && <Note text={note} />}
       </header>
       {children}

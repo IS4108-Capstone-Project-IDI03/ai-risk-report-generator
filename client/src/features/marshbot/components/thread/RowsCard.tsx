@@ -11,7 +11,7 @@ export function RowsCard({ card }: { card: Extract<Card, { type: 'rows' }> }) {
   // Nothing to draw (an old saved "Export again" answer, whose card held only its button).
   if (!card.rows.length && !card.ticks.length) return null
   return (
-    <CardShell title={card.title} note={card.note}>
+    <CardShell title={card.title} note={card.note} help={card.help}>
       {card.rows.map((r) => (
         <CardRow key={r.id} row={r} />
       ))}

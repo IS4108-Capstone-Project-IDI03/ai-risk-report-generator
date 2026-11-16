@@ -5,11 +5,11 @@
 // (thread.css .mbt-flow). Called by BotTurn.tsx. Calls library.tsx.
 import { Renderer } from 'openui-lang-v1'
 import { Component, useState, type ReactNode } from 'react'
-import { FailContext, SlotContext } from '../../context'
+import { FailContext } from '../../context'
 import { marshbotLibrary, programCards } from '../../library'
 import type { Card, Say, Turn } from '../../types'
 import { Alert } from './Alert'
-import { LeadLine, TickList, Words } from './Bubble'
+import { LeadLine, StepList, TickList, Words } from './Bubble'
 import { CardView } from './CardView'
 import { Flow, type PieceKind } from './Flow'
 
@@ -31,22 +31,19 @@ class ProgramBoundary extends Component<
   }
 }
 
-// Cards drawn after everything else, from slot `from` on.
-function Cards({ cards, from }: { cards: Turn['cards']; from: number }) {
-  return cards.map((card, i) => (
-    <SlotContext.Provider key={card.id} value={{ index: from + i, tail: false }}>
-      <CardView card={card} />
-    </SlotContext.Provider>
-  ))
+// Cards drawn after everything else.
+function Cards({ cards }: { cards: Turn['cards'] }) {
+  return cards.map((card) => <CardView key={card.id} card={card} />)
 }
 
 // The fallback draws what the program would: the lead line, plain words and a run of ticks in one
-// bubble, good news in a green one, an alert in its own, then every card.
-type Piece = { say: Say } | { ticks: string[] } | { card: Card }
+// bubble, good news in a green one, an alert in its own, then every card. A run of steps is one
+// numbered list.
+type Piece = { say: Say } | { ticks: string[] } | { steps: string[] } | { card: Card }
 const kindOf = (p: Piece): PieceKind =>
   'card' in p
     ? 'alone'
-    : 'ticks' in p
+    : 'ticks' in p || 'steps' in p
       ? 'normal'
       : p.say.tone === 'alert'
         ? 'alert'
@@ -54,14 +51,16 @@ const kindOf = (p: Piece): PieceKind =>
           ? 'good'
           : 'normal'
 
-// The says in order, with neighbouring ticks gathered into one list.
+// The says in order, with neighbouring ticks (or steps) gathered into one list.
 function piecesOf(turn: Turn): Piece[] {
   const out: Piece[] = []
   for (const say of turn.says) {
     const last = out.at(-1)
-    if (say.tone !== 'tick') out.push({ say })
-    else if (last && 'ticks' in last) last.ticks.push(say.text)
-    else out.push({ ticks: [say.text] })
+    if (say.tone === 'tick' || say.tone === 'step') {
+      const key = say.tone === 'tick' ? 'ticks' : 'steps'
+      if (last && key in last) (last as Record<string, string[]>)[key].push(say.text)
+      else out.push({ [key]: [say.text] } as Piece)
+    } else out.push({ say })
   }
   return [...out, ...turn.cards.map((card) => ({ card }))]
 }
@@ -76,6 +75,8 @@ function Plain({ turn }: { turn: Turn }) {
           <CardView card={p.card} />
         ) : 'ticks' in p ? (
           <TickList items={p.ticks} />
+        ) : 'steps' in p ? (
+          <StepList items={p.steps} />
         ) : p.say.tone === 'alert' ? (
           <Alert text={p.say.text} />
         ) : p.say.tone === 'lead' ? (
@@ -111,7 +112,7 @@ export function TurnBody({ turn }: { turn: Turn }) {
           />
         </ProgramBoundary>
       </FailContext.Provider>
-      <Cards cards={extra} from={drawn.length + turn.says.length} />
+      <Cards cards={extra} />
     </div>
   )
 }

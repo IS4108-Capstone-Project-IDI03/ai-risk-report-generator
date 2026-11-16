@@ -33,7 +33,7 @@ export function BarsCard({ card }: { card: Extract<Card, { type: 'bars' }> }) {
               label={`${a.area}: ${a.covered} of ${a.total}`}
             />
             <span className="mbt-bars-count" aria-hidden="true">
-              {`${a.covered} of ${a.total}`}
+              {`${a.covered} of ${a.total} answered`}
             </span>
             <span className="mbt-bars-end">
               {!a.low ? (

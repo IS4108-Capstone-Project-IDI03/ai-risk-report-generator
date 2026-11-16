@@ -16,3 +16,12 @@ export const TURN_GAP_MS = 2 * 60_000
 // A reply that moves the stage is stamped up to this long before or after the stage's own date
 // (the gateway stamps the turns first): close enough to be the reply that moved it.
 export const MILESTONE_SLACK_MS = 10_000
+
+// New bot messages appear one at a time (components/thread/useReveal.ts): the first this long after
+// the typing dots appeared (at once if it arrives later), each next one this long after the one
+// before.
+export const FIRST_MESSAGE_MS = 700
+export const MESSAGE_GAP_MS = 1500
+// The choices under a pushed turn are their own beat: they appear this long after its last message
+// (shorter than a message's gap: nothing is being typed, so the dots are not shown).
+export const ACTIONS_MS = 600

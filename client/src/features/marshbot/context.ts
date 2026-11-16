@@ -3,6 +3,7 @@
 // and components/thread/TurnBody.tsx; read by the cards and by library.tsx's Say and Card.
 import { createContext, useContext } from 'react'
 import type { AssistantThread, CardRow, ItemLink, Turn } from './types'
+import type { Reveal } from './components/thread/useReveal'
 
 export type MarshBot = {
   thread: AssistantThread
@@ -25,12 +26,11 @@ export function useMarshBot(): MarshBot {
 // The turn being drawn, so Card("<id>") finds its card. `past`: an earlier session, read-only.
 export const TurnContext = createContext<{ turn: Turn; past: boolean } | null>(null)
 
-// A piece's place in its turn: its index staggers a pushed turn's entrance, and the first
-// bubble carries the tail towards MarshBot's face.
-export const SlotContext = createContext<{ index: number; tail: boolean }>({
-  index: 0,
-  tail: false,
-})
+// A piece's place in its turn: the first bubble carries the tail towards MarshBot's face.
+export const SlotContext = createContext<{ tail: boolean }>({ tail: false })
+
+// The one-message-at-a-time queue for pushed turns (useReveal.ts); null = everything shows at once.
+export const RevealContext = createContext<Reveal | null>(null)
 
 // Called when a piece throws, so the turn falls back to its plain says and cards.
 export const FailContext = createContext<() => void>(() => {})

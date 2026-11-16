@@ -97,6 +97,8 @@ export type Card =
       id: string
       title: string
       note: string | null
+      // Shown in a (?) beside the title: what clears a row (Thin, Not Covered).
+      help?: string
       rows: CardRow[]
       ticks: TickCell[]
       cta: { label: string; link: ItemLink } | null
@@ -171,14 +173,14 @@ export type Card =
 // server/src/services/assistant/types.ts): 'normal' = plain words; 'good' = the green
 // acknowledgement; 'lead' = the bold first line of a message; 'tick' = one ticked item
 // (neighbouring ticks form one tick list); 'alert' = a message that stands out (the report is
-// overdue).
-export type Say = { text: string; tone: 'normal' | 'good' | 'lead' | 'tick' | 'alert' }
+// overdue); 'step' = one numbered list item (neighbouring steps form one numbered list).
+export type Say = { text: string; tone: 'normal' | 'good' | 'lead' | 'tick' | 'alert' | 'step' }
 
 export type Turn = {
   id: string // stable for the life of the thread
   who: 'bot' | 'engineer'
   at: string // ISO
-  // What the turn is about: 'greeting', 'todo', 'checklist', 'gaps', 'visit-question', 'reply', 'ack', …
+  // What the turn is about: 'greeting', 'todo', 'checklist', 'gaps', 'visit-question', 'reply', 'ack', 'noticed', 'recheck', …
   topic: string
   mood: Mood // MarshBot's face beside this turn (bot turns)
   says: Say[] // an engineer turn has exactly one
@@ -193,6 +195,7 @@ export type Turn = {
 export type Reply = {
   id:
     | 'nothing-more'
+    | 'to-prepare' // Setup is complete: "Move on to Prepare"; works like 'nothing-more'
     | 'ready-to-generate'
     | 'another-visit'
     | 'add-observations'
@@ -206,6 +209,8 @@ export type Reply = {
   picksDate: boolean // 'another-visit': calendar, then confirm, then send with `date`
   // Set = this choice only opens something: the button follows the link and no reply is posted.
   link: ItemLink | null
+  // A lucide icon name drawn at the button's left (e.g. 'calendar', 'plus'); the server sets it.
+  icon?: string | null
   // One line under the choices saying what this one leads to: the stage it moves the assessment
   // on to, or the topic "What else?" brings up next.
   hint?: string

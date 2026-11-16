@@ -1,8 +1,8 @@
 // One card of a turn, by its type (AS-06): tasks, rows, checklist, bars, outline, lanes or time
 // in stage, in its place in the turn so a pushed turn's pieces arrive one after another. A card
 // that throws asks the turn for its plain fallback. Drawn by library.tsx's Card and TurnBody.tsx.
-import { Component, useContext, type CSSProperties, type ReactNode } from 'react'
-import { FailContext, SlotContext, TurnContext } from '../../context'
+import { Component, useContext, type ReactNode } from 'react'
+import { FailContext, TurnContext } from '../../context'
 import type { Card } from '../../types'
 import { BarsCard } from './BarsCard'
 import { ChecklistCard } from './ChecklistCard'
@@ -51,10 +51,9 @@ function view(card: Card) {
 
 /** Returns the card in its slot of the turn. */
 export function CardView({ card }: { card: Card }) {
-  const slot = useContext(SlotContext)
   const onFail = useContext(FailContext)
   return (
-    <div className="mbt-slot mbt-in" style={{ '--i': slot.index } as CSSProperties}>
+    <div className="mbt-slot mbt-in">
       <CardBoundary onFail={onFail}>{view(card)}</CardBoundary>
     </div>
   )

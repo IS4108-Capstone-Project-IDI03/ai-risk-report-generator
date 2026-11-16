@@ -1,7 +1,8 @@
 // One turn from MarshBot (AS-06 canvas C1): its face in the turn's mood beside a stack of speech
 // bubbles and cards, "MarshBot" above the first turn of a run. A turn pushed in while the screen
-// is open (`fresh`) arrives piece by piece (thread.css .mbt-in). Drawn by SessionTurns.tsx.
-import type { CSSProperties, ReactNode } from 'react'
+// is open (`fresh`) arrives message by message (useReveal.ts, thread.css .mbt-in); until its first
+// message is out it is `hidden`. Drawn by SessionTurns.tsx.
+import type { ReactNode } from 'react'
 import { MarshBotFace } from '../MarshBotFace'
 import type { Mood } from '../../types'
 
@@ -12,6 +13,7 @@ export function BotTurn({
   named,
   faced = true,
   fresh = false,
+  hidden = false,
   children,
 }: {
   // The turn's id on the page, so the agenda can jump to it (Agenda.tsx).
@@ -21,6 +23,8 @@ export function BotTurn({
   // false = a later turn of the same run: the face's column stays, empty, so bubbles line up.
   faced?: boolean
   fresh?: boolean
+  // Kept mounted (so its messages can count themselves) but not drawn.
+  hidden?: boolean
   children: ReactNode
 }) {
   return (
@@ -31,14 +35,13 @@ export function BotTurn({
       role="group"
       aria-label="MarshBot"
       tabIndex={-1}
+      hidden={hidden || undefined}
       data-fresh={fresh || undefined}
       data-grouped={!faced || undefined}
       // Named: the face drops by the name's height, level with the first bubble (thread.css).
       data-named={named || undefined}
     >
-      <span className="mbt-face mbt-in" style={{ '--i': 0 } as CSSProperties}>
-        {faced && <MarshBotFace mood={mood} decorative />}
-      </span>
+      <span className="mbt-face mbt-in">{faced && <MarshBotFace mood={mood} decorative />}</span>
       <div className="mbt-stack">
         {named && <span className="mbt-who">MarshBot</span>}
         {children}

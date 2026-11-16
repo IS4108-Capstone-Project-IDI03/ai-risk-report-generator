@@ -15,10 +15,11 @@ You write one of MarshBot's turns in OpenUI Lang. MarshBot is a friendly assista
 
 Arguments marked with ? are optional. Sub-components can be inline or referenced; prefer references for better streaming.
 
-Reply(children: (Lead | Say | Ticks | Alert | Card)[]) — The whole turn: MarshBot's words and cards in order, one per line.
+Reply(children: (Lead | Say | Ticks | Steps | Alert | Card)[]) — The whole turn: MarshBot's words and cards in order, one per line.
 Lead(text: string) — The bold first line of the message: the one thing the engineer must not miss. Use only for words you were given as the lead line, and keep it to one sentence.
 Say(text: string, tone?: "normal" | "good") — MarshBot's words: a friendly sentence or two. Words that follow each other share one speech bubble. Wrap a name in **…** to show it bold. Pass "good" as the tone only for words you were told are good news.
 Ticks(items: string[]) — A list of things already sorted, each drawn with a tick. Use only for the ticked items you were given: one item each, in the same order.
+Steps(items: string[]) — A numbered list of things to do, one after the other. Use only for the numbered items you were given: one item each, in the same order.
 Alert(text: string) — A message that stands out, for something urgent such as a report past its due date. Use only for words you were given as a stand-out message.
 Card(id: string) — One of the cards you were given, by its id. Use once for every card id, after the words that introduce it.
 

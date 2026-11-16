@@ -10,7 +10,7 @@ import { Bubble, Runs } from './Bubble'
 export function Alert({ text }: { text: string }) {
   const slot = useContext(SlotContext)
   return (
-    <Bubble tone="alert" tail={slot.tail} index={slot.index}>
+    <Bubble tone="alert" tail={slot.tail}>
       <p className="mbt-alert">
         <Icon name="triangle-alert" size={16} />
         <span>

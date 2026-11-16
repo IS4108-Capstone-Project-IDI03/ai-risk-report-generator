@@ -1,10 +1,10 @@
 // MarshBot's words (AS-06 canvas C1; one message per turn, round 8): a run of words shares ONE
 // speech bubble (white, green for good news, amber for a stand-out message), the first of a turn
 // with a tail towards the face. Inside it: an optional lead line (the takeaway), paragraphs and a
-// tick list. A name wrapped in **…** shows bold, and opens the thing it names when one of the
-// turn's cards lists it. Drawn by Flow.tsx for library.tsx's Lead, Say and Ticks, by Alert.tsx,
+// tick list or a numbered list. A name wrapped in **…** shows bold, and opens the thing it names when one of the
+// turn's cards lists it. Drawn by Flow.tsx for library.tsx's Lead, Say, Ticks and Steps, by Alert.tsx,
 // and for TurnBody's fallback.
-import { useContext, type CSSProperties, type ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { Icon } from '../../../../design-system'
 import { MarshBotContext, TurnContext } from '../../context'
 import type { Card, ItemLink } from '../../types'
@@ -100,25 +100,31 @@ export function TickList({ items }: { items: string[] }) {
   )
 }
 
-/** Returns one speech bubble round `children`; `index` is its place in the turn's entrance. */
+/** Returns the steps as a numbered list, in the order given, inside the bubble. */
+export function StepList({ items }: { items: string[] }) {
+  return (
+    <ol className="mbt-steps">
+      {items.map((item, i) => (
+        <li key={i}>
+          <Runs text={item} />
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** Returns one speech bubble round `children`. */
 export function Bubble({
   tone,
   tail,
-  index,
   children,
 }: {
   tone: 'normal' | 'good' | 'alert'
   tail: boolean
-  index: number
   children: ReactNode
 }) {
   return (
-    <div
-      className="mbt-bubble mbt-in"
-      data-tone={tone}
-      data-tail={tail || undefined}
-      style={{ '--i': index } as CSSProperties}
-    >
+    <div className="mbt-bubble mbt-in" data-tone={tone} data-tail={tail || undefined}>
       {children}
     </div>
   )

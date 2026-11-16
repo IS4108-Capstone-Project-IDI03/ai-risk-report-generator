@@ -1,16 +1,18 @@
 // MarshBot's cards on their own (AS-06 round 7): the outline's note and attention rules, no quote
 // on a row, and every stage in Time in Each Stage with a text alternative. Cards are drawn
 // straight inside a stand-in MarshBot context: no gateway, no network.
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MarshBotContext } from './context'
 import { CardRow } from './components/thread/CardRow'
 import { OutlineCard } from './components/thread/OutlineCard'
+import { BarsCard } from './components/thread/BarsCard'
+import { ReplyButton } from './components/thread/ReplyButton'
 import { RowsCard } from './components/thread/RowsCard'
 import { StageTimeCard } from './components/thread/StageTimeCard'
 import { recordingRow, thread } from './testThreads'
-import type { Card, OutlineItem, OutlineState } from './types'
+import type { Card, OutlineItem, OutlineState, Reply } from './types'
 
 afterEach(cleanup)
 
@@ -56,6 +58,28 @@ describe('outline card', () => {
     for (const gone of ['Scores', '3 questions', '4 findings left']) {
       expect(screen.queryByText(gone)).toBeNull()
     }
+  })
+
+  it('shows a comment count in amber beside the title, and still drops a note that repeats the state', () => {
+    inBot(
+      <OutlineCard
+        card={outline([
+          item('1', 'wait', '2 comments'),
+          item('2', 'wait', '1 comment'),
+          item('3', 'question', '3 questions'),
+        ])}
+      />,
+    )
+    for (const note of ['2 comments', '1 comment']) {
+      expect(screen.getByText(note).getAttribute('data-tone')).toBe('amber')
+      expect(screen.getByText(note).className).toBe('mbt-ol-note')
+    }
+    expect(screen.queryByText('3 questions')).toBeNull()
+  })
+
+  it('keeps a "Waits" note quiet, not amber', () => {
+    inBot(<OutlineCard card={outline([item('1', 'new', 'Waits on 4'), item('2', 'ok')])} />)
+    expect(screen.getByText('Waits on 4').getAttribute('data-tone')).toBeNull()
   })
 
   it('washes the rows that need the engineer, and a lone undrafted row nothing waits on', () => {
@@ -146,6 +170,134 @@ describe('rows card', () => {
       />,
     )
     expect(container.innerHTML).toBe('')
+  })
+
+  it('draws the card’s help as a (?) beside its title', () => {
+    const help = 'A row clears once its note gives a report writer something specific.'
+    inBot(
+      <RowsCard
+        card={{
+          type: 'rows',
+          id: 'thin',
+          title: 'Thin',
+          note: '1 area',
+          help,
+          rows: [{ ...recordingRow, id: 'thin:1' }],
+          ticks: [],
+          cta: null,
+        }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: help })).toBeTruthy()
+    // The help is a sentence: its tooltip wraps instead of running off the card on one line.
+    fireEvent.focus(screen.getByRole('button', { name: help }))
+    expect(screen.getByRole('tooltip').style.whiteSpace).toBe('normal')
+    expect(screen.getByRole('tooltip').style.maxWidth).toBe('280px')
+  })
+
+  it('opens the help on a tap, from the title’s left edge, and closes it on a press elsewhere', () => {
+    const help = 'A row clears once its note gives a report writer something specific.'
+    inBot(
+      <RowsCard
+        card={{
+          type: 'rows',
+          id: 'thin',
+          title: 'Thin',
+          note: '1 area',
+          help,
+          rows: [{ ...recordingRow, id: 'thin:1' }],
+          ticks: [],
+          cta: null,
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: help }))
+    const tip = screen.getByRole('tooltip')
+    expect([tip.style.top, tip.style.left]).toEqual(['calc(100% + 6px)', '0px'])
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+})
+
+describe('bars card', () => {
+  const bars: Extract<Card, { type: 'bars' }> = {
+    type: 'bars',
+    id: 'bars',
+    answered: 19,
+    total: 24,
+    areas: [
+      {
+        area: 'Fire Protection',
+        icon: 'flame',
+        covered: 7,
+        total: 12,
+        low: true,
+        link: { tab: 'checklist' },
+      },
+      {
+        area: 'Electrical',
+        icon: 'zap',
+        covered: 12,
+        total: 12,
+        low: false,
+        link: { tab: 'checklist' },
+      },
+    ],
+  }
+
+  it('reads each bar’s count as "N of M answered", in a line of its own', () => {
+    const { container } = inBot(<BarsCard card={bars} />)
+    const counts = [...container.querySelectorAll('.mbt-bars-count')].map((c) => c.textContent)
+    expect(counts).toEqual(['7 of 12 answered', '12 of 12 answered'])
+    // The bar itself keeps its short spoken label.
+    expect(screen.getByRole('img', { name: 'Fire Protection: 7 of 12' })).toBeTruthy()
+  })
+})
+
+// The icon names drawn inside a button, left to right (the Icon sets its glyph as a CSS mask).
+const iconsIn = (button: HTMLElement) =>
+  [...button.querySelectorAll('span[style*="mask"]')].map(
+    (i) => /icons\/([\w-]+)\.svg/.exec(i.getAttribute('style') ?? '')?.[1],
+  )
+const choice = (over: Partial<Reply> = {}): Reply => ({
+  id: 'another-visit',
+  label: 'I need another visit',
+  primary: false,
+  picksDate: false,
+  link: null,
+  ...over,
+})
+
+describe('reply button', () => {
+  it('draws the choice’s icon at its left, and the chevron at its right for a link', () => {
+    const { rerender } = render(
+      <ReplyButton reply={choice({ icon: 'calendar' })} onClick={vi.fn()} />,
+    )
+    expect(iconsIn(screen.getByRole('button'))).toEqual(['calendar'])
+    rerender(
+      <ReplyButton
+        reply={choice({ id: 'add-observations', icon: 'plus', link: { tab: 'observations' } })}
+        onClick={vi.fn()}
+      />,
+    )
+    expect(iconsIn(screen.getByRole('button'))).toEqual(['plus', 'chevron-right'])
+  })
+
+  it('draws no icon for a name that is not an icon name, and does not crash', () => {
+    render(<ReplyButton reply={choice({ icon: '../x.svg?' })} onClick={vi.fn()} />)
+    expect(iconsIn(screen.getByRole('button'))).toEqual([])
+  })
+
+  it('draws a choice that only opens another tab as the secondary button, others tonal', () => {
+    const { rerender } = render(
+      <ReplyButton
+        reply={choice({ id: 'add-observations', link: { tab: 'observations' } })}
+        onClick={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button').style.background).toContain('--surface-card')
+    rerender(<ReplyButton reply={choice()} onClick={vi.fn()} />)
+    expect(screen.getByRole('button').style.background).toContain('--ink-50')
   })
 })
 

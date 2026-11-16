@@ -1,11 +1,13 @@
 // The conversation (AS-06 canvas C1 to C13, H1, H2, round 7 R7-C1 to C8): earlier sessions folded
 // behind an "Earlier" pill, then today's session with the action slot under MarshBot's newest
-// turn, the engineer's reply while it is sent, and the typing dots while MarshBot writes. It opens
-// on the newest turn, is the only part of the Overview that scrolls, and follows new turns down to
+// turn, the engineer's reply while it is sent, and the typing dots while MarshBot writes. A turn
+// pushed in shows one message at a time (useReveal.ts), with the dots between and the choices
+// last. It opens on the newest turn, is the only part of the Overview that scrolls, and follows new turns down to
 // their very end. Scrolled away, the slot's buttons wait in a sticky bar (ScrolledAway.tsx).
 // Called by screens/MarshBotOverview.tsx.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon, useIsPhone } from '../../../../design-system'
+import { RevealContext } from '../../context'
 import { weekDay } from '../../format'
 import type { AssistantThread } from '../../types'
 import { TypingDots } from '../TypingDots'
@@ -13,33 +15,40 @@ import { BotTurn } from './BotTurn'
 import { EngineerBubble } from './EngineerBubble'
 import { ScrolledAway } from './ScrolledAway'
 import { SessionTurns } from './SessionTurns'
-
-const botTurnIds = (thread: AssistantThread) =>
-  thread.session.turns.filter((t) => t.who === 'bot').map((t) => t.id)
+import { useReveal } from './useReveal'
 
 // MarshBot's newest saved turn on screen, where focus goes once a reply's buttons are gone (not
 // the typing dots: they leave, and focus would fall to the page's top with them).
 const newestTurn = (column: HTMLElement | null) =>
-  [...(column?.querySelectorAll<HTMLElement>('.mbt-live .mbt-session .mbt-turn') ?? [])].at(-1)
+  [
+    ...(column?.querySelectorAll<HTMLElement>('.mbt-live .mbt-session .mbt-turn:not([hidden])') ??
+      []),
+  ].at(-1)
 
 /** Returns the scrolling thread; `pending` is the engineer's reply on its way, `answered` counts
     the replies the gateway took (each moves focus to the newest turn), and `actions` are the
-    buttons of the action slot (null when there is nothing to press). */
+    buttons of the action slot (null when there is nothing to press); they wait until the last
+    pushed message is out and their own beat has passed. `onHidden` hears which pushed turns have no message out yet. */
 export function Thread({
   thread,
   pending,
   answered,
-  actions,
+  actions: due,
+  onHidden,
 }: {
   thread: AssistantThread
   pending: string | null
   answered: number
   actions: ReactNode | null
+  onHidden?: (turnIds: string[]) => void
 }) {
   const [showEarlier, setShowEarlier] = useState(false)
-  // The bot turns already there when the screen opened draw at once; later ones arrive animated.
-  const [known] = useState(() => new Set(botTurnIds(thread)))
-  const fresh = new Set(botTurnIds(thread).filter((id) => !known.has(id)))
+  // The bot turns already there when the screen opened draw at once; later ones arrive one
+  // message at a time.
+  const reveal = useReveal(thread, !!pending)
+  const actions = reveal.held ? null : due
+  const waitingIds = [...reveal.fresh].filter(reveal.hidden).join()
+  useLayoutEffect(() => onHidden?.(waitingIds ? waitingIds.split(',') : []), [onHidden, waitingIds])
   const phone = useIsPhone()
   const scroller = useRef<HTMLDivElement>(null)
   const column = useRef<HTMLDivElement>(null)
@@ -144,11 +153,14 @@ export function Thread({
     [],
   )
 
+  // The dots sit under the pushed turn on screen without a face of their own.
+  const lastOut = thread.session.turns.findLast((t) => !reveal.hidden(t.id))
+  const underLast = !pending && lastOut?.who === 'bot' && reveal.fresh.has(lastOut.id)
   const earlier = thread.earlier
   const lastEarlier = earlier.at(-1)
   const count = earlier.reduce((n, s) => n + s.turns.length, 0)
   return (
-    <>
+    <RevealContext.Provider value={reveal}>
       {/* First in the DOM, so Tab reaches the bar and arrow before every card; they are laid out
           over the foot of the conversation (thread.css), so nothing moves. */}
       <ScrolledAway
@@ -212,7 +224,7 @@ export function Thread({
           <div className="mbt-live" role="log" aria-label="Conversation with MarshBot">
             <SessionTurns
               session={thread.session}
-              fresh={fresh}
+              fresh={reveal.fresh}
               since={lastEarlier?.turns.at(-1)?.at}
               slot={
                 actions && (
@@ -225,8 +237,8 @@ export function Thread({
               }
             />
             {pending && <EngineerBubble text={pending} sending />}
-            {thread.thinking && (
-              <BotTurn mood="thinking" named={false} fresh>
+            {(thread.thinking || reveal.pending) && (
+              <BotTurn mood="thinking" named={false} faced={!underLast} fresh>
                 {/* While it reads the notes against the checklist, the dots say so (the pill's words). */}
                 <TypingDots
                   label={thread.status.icon === 'clock' ? `${thread.status.text}…` : undefined}
@@ -237,6 +249,6 @@ export function Thread({
           <div ref={end} className="mbt-endmark" />
         </div>
       </div>
-    </>
+    </RevealContext.Provider>
   )
 }

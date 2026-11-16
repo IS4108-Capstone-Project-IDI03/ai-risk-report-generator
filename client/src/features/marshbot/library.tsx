@@ -1,7 +1,7 @@
 // A MarshBot turn as an OpenUI 1.1.0 library (AS-06), under the npm alias openui-lang-v1 so the
 // knowledge chatbot can stay on 0.4.1. The rules set the FORM of a turn (which line leads, which
 // items are ticked, which message stands out); the wording AI rewords each piece as the same
-// kind of component (Lead, Say, Ticks, Alert) and places each card (Card). The gateway checks
+// kind of component (Lead, Say, Ticks, Steps, Alert) and places each card (Card). The gateway checks
 // every number and name in the words; each card is drawn once, by id, from the turn (context.ts).
 // Rendered by components/thread/TurnBody.tsx.
 // The rag-service's prompt copy, microservices/rag-service/app/assistant/marshbot_components.txt,
@@ -10,7 +10,7 @@
 import { createLibrary, createParser, defineComponent, type ElementNode } from 'openui-lang-v1'
 import { z } from 'zod'
 import { Alert as AlertBubble } from './components/thread/Alert'
-import { LeadLine, TickList, Words } from './components/thread/Bubble'
+import { LeadLine, StepList, TickList, Words } from './components/thread/Bubble'
 import { CardById } from './components/thread/CardView'
 import { Flow, type PieceKind } from './components/thread/Flow'
 import type { Turn } from './types'
@@ -40,6 +40,14 @@ const Ticks = defineComponent({
   component: ({ props }) => <TickList items={props.items} />,
 })
 
+const Steps = defineComponent({
+  name: 'Steps',
+  description:
+    'A numbered list of things to do, one after the other. Use only for the numbered items you were given: one item each, in the same order.',
+  props: z.object({ items: z.array(z.string()) }),
+  component: ({ props }) => <StepList items={props.items} />,
+})
+
 const Alert = defineComponent({
   name: 'Alert',
   description:
@@ -56,7 +64,7 @@ const Card = defineComponent({
   component: ({ props }) => <CardById id={props.id} />,
 })
 
-// Lead, plain Say and Ticks share one white bubble (green for good news); an alert has its own
+// Lead, plain Say, Ticks and Steps share one white bubble (green for good news); an alert has its own
 // bubble and a card stands alone.
 const kindOf = (node: ElementNode): PieceKind =>
   node.typeName === 'Card'
@@ -71,7 +79,7 @@ const Reply = defineComponent({
   name: 'Reply',
   description: "The whole turn: MarshBot's words and cards in order, one per line.",
   props: z.object({
-    children: z.array(z.union([Lead.ref, Say.ref, Ticks.ref, Alert.ref, Card.ref])),
+    children: z.array(z.union([Lead.ref, Say.ref, Ticks.ref, Steps.ref, Alert.ref, Card.ref])),
   }),
   // Its own column: OpenUI wraps the whole program in a plain div (thread.css .mbt-flow).
   component: ({ props, renderNode }) => (
@@ -79,9 +87,9 @@ const Reply = defineComponent({
   ),
 })
 
-/** The MarshBot turn library: Reply, Lead, Say, Ticks, Alert and Card. */
+/** The MarshBot turn library: Reply, Lead, Say, Ticks, Steps, Alert and Card. */
 export const marshbotLibrary = createLibrary({
-  components: [Reply, Lead, Say, Ticks, Alert, Card],
+  components: [Reply, Lead, Say, Ticks, Steps, Alert, Card],
   root: 'Reply',
 })
 
