@@ -818,10 +818,13 @@
 }
 /* The close button floats in the corner: only the title keeps room for it, so the helper
    text runs the full width (round 15). */
+/* Sticky (styles.css): 10 px of padding under the helper text, given back by the margin, so
+   what scrolls under the header passes a clean edge and the resting layout is unchanged. */
 .ds-dialog--v2 .ds-dialog-header {
   display: block;
-  position: relative;
-  padding: 22px 24px 0;
+  position: sticky;
+  padding: 22px 24px 10px;
+  margin-bottom: -10px;
 }
 /* .ds-dialog.ds-dialog--v2: styles.css's .ds-dialog h2 loads after this file and would win. */
 .ds-dialog.ds-dialog--v2 h2 {
@@ -931,4 +934,25 @@
 .ds-dialog .ds-dialog-header,
 .ds-dialog .ds-swap {
   animation: ds-fade-in 160ms var(--ease-out);
+}
+/* The sticky header's hairline fades in over the first 16 px of scrolling, where the browser
+   can tie an animation to scrolling; elsewhere it stays without one. */
+@supports (animation-timeline: scroll()) {
+  .ds-dialog .ds-dialog-header {
+    animation:
+      ds-fade-in 160ms var(--ease-out),
+      ds-dialog-rule linear both;
+    animation-timeline: auto, scroll(nearest);
+    animation-range:
+      normal,
+      0 16px;
+  }
+}
+@keyframes ds-dialog-rule {
+  from {
+    box-shadow: 0 1px 0 transparent;
+  }
+  to {
+    box-shadow: 0 1px 0 var(--border-subtle);
+  }
 }
