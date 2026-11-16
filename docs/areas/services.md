@@ -1436,7 +1436,7 @@ closed (503 when privacy-service is down):
   the format and the AI only words it: each piece is sent with its form, and a
   card as its id and kind only (nothing a card shows is sent). The gateway
   (`wording.service.ts`) never words the greeting (it shows at once in its rule
-  words), waits at most 4 s for the other new turns, and keeps a program only
+  words), waits at most 4.5 s for the other new turns, and keeps a program only
   when it has
   the same pieces in the same order as the gateway's own program for the turn
   (`programOf`; a run of plain words counts as one), so the AI can't add, drop
@@ -1448,7 +1448,9 @@ closed (503 when privacy-service is down):
   same stage, weekday and month names; no tick, list mark or pictograph typed
   into the words; and bold only on a name the rules wrote in that part, with
   every `**` closed. Otherwise the turn is drawn from its rule words in the
-  same format. rag-service also leaves out a turn whose masked value runs
+  same format. The prompt tells the AI never to add the viewer's name: without
+  the greeting in the batch it put "Sure, Alex!" into the next turn, and the
+  name check refused 20 of 66 turns (round 9). rag-service also leaves out a turn whose masked value runs
   across a sentence end (a mis-read name), so it keeps its rule words. Known
   limit: inside one part a number is not tied to the word beside it. Model
   `ASSISTANT_WORDING_MODEL`.

@@ -24,6 +24,7 @@ export const ASSISTANT = {
   keepResolved: 50,
   // Earlier sessions kept on a conversation thread.
   keepSessions: 10,
-  // The wording AI gets this long per turn; after it the template words stand.
-  wordingTimeoutMs: 4_000,
+  // The wording AI gets this long per turn; after it the template words stand. Round 9 measure:
+  // median 2.1 s, p90 2.6-3.0 s, and a few slow calls at 4.0-4.3 s that 4 s turned away.
+  wordingTimeoutMs: 4_500,
 }

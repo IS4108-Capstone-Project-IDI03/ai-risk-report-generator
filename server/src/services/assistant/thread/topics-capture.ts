@@ -328,7 +328,7 @@ export const gapsHeld = (ctx: TopicCtx) =>
  * says so in words. Null before any check finished, and while another visit
  * holds the gaps (AC 5).
  */
-export function gapsTopic(ctx: TopicCtx): Built | null {
+export function gapsTopic(ctx: TopicCtx, more = false): Built | null {
   if (!ctx.brief.coverage.checkedAt || gapsHeld(ctx)) return null
   const uncovered = new Set(ctx.brief.coverage.uncovered)
   const raised = new Set(
@@ -368,6 +368,12 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
         : `${thin.length} observations are too thin to support their sections.`
       : '',
   ].filter(Boolean)
+  // Still on survey day (or before it): the visit question only comes once the day has passed.
+  const end = ctx.facts.surveyEnd
+  const onSite = ctx.brief.stage === 'capture' && !!end && end >= ctx.today
+  // The gaps end the day's topics only when nothing else is left to raise (`more`, from topics.ts):
+  // without this check "That's everything" was followed by a "What else?" with more to show.
+  const last = onSite && !more
   const says: Say[] = [
     // The first lead-in is the turn's bold line; the second sits between the two cards.
     ...leads.map((text, n) => ({
@@ -378,11 +384,25 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
       text: "None of this blocks you today, but it's quicker to sort out while you're still on site.",
       tone: 'normal',
     },
+    // Until the survey day is over the gaps are the last topic: without this line the thread just
+    // stopped, with no word on what comes next (the visit question waits for the day to pass).
+    ...(last
+      ? [
+          {
+            text: "That's everything from me for now. Once your survey day is over, I'll check in about wrapping up.",
+            tone: 'normal' as const,
+          },
+        ]
+      : []),
   ]
   return {
     kind: 'info',
     says,
-    order: [...leads.flatMap(() => ['say', 'card'] as const), 'say'],
+    order: [
+      ...leads.flatMap(() => ['say', 'card'] as const),
+      'say',
+      ...(last ? (['say'] as const) : []),
+    ],
     cards: [
       ...(missed.length
         ? [

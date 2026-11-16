@@ -114,7 +114,7 @@ export const DEFS: Record<string, TopicDef> = {
   'visit-set': def(visitSetTopic),
   checklist: def(checklistTopic, CHECKLIST_KINDS),
   tidy: def(tidyTopic, TIDY_KINDS),
-  gaps: def(gapsTopic, GAPS_KINDS),
+  gaps: def((ctx) => gapsTopic(ctx, !!restTopic(ctx)), GAPS_KINDS),
   'all-clear': def(allClearTopic),
   'before-generate': def(beforeGenerateTopic, BLOCKER_KINDS),
   ready: def(readyTopic, BLOCKER_KINDS),
@@ -126,5 +126,5 @@ export const DEFS: Record<string, TopicDef> = {
   exported: def(exportedTopic, EXPORTED_KINDS),
   rest: def(restTopic),
   // A re-check turn that showed a gaps card of a new kind rebuilds it like the gaps topic's.
-  recheck: def(gapsTopic),
+  recheck: def((ctx) => gapsTopic(ctx)),
 }

@@ -228,14 +228,20 @@ export function sortedSays(
   items: BriefItem[],
   left: string,
   more: string[] = [],
+  nth = 0,
 ): Say[] {
   const clauses = [...new Set([...items.map((i) => sortedClause(ctx, i)), ...more])]
   const said =
     clauses.length > 3 ? [...clauses.slice(0, 2), `${clauses.length - 2} more are sorted`] : clauses
-  return [
-    { text: `Thanks, ${ctx.first}! I can see ${andList(said)}.`, tone: 'good' },
-    ...(left ? [{ text: left, tone: 'normal' } as Say] : []),
-  ]
+  // The session's first reaction thanks the engineer by name; later ones take turns with two
+  // shorter openers. Five reactions in a row that all began "Thanks, Alex! I can see that" read
+  // like a script (round 9 re-walk).
+  const seenIt = andList(said)
+  const text =
+    nth === 0
+      ? `Thanks, ${ctx.first}! I can see ${seenIt}.`
+      : `${nth % 2 ? 'Got it' : 'Great'}, ${seenIt}.`
+  return [{ text, tone: 'good' }, ...(left ? [{ text: left, tone: 'normal' } as Say] : [])]
 }
 
 // Why the assessment reached each stage, as the signals stage.ts reads prove it (round 9, item E).

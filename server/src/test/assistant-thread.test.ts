@@ -464,7 +464,8 @@ describe('reacting to a fix (round 9, C)', () => {
       // One of the two comments resolved: said, with what is still open.
       const one = run(after, review(true, 1), { type: 'changed' }, LATER)
       expect(one.added[0].says.map((x) => x.text)).toEqual([
-        'Thanks, Alex! I can see 1 comment is resolved.',
+        // The session's second reaction: a shorter opener, so they don't all start alike.
+        'Got it, 1 comment is resolved.',
         "Fire Protection still has 1 open comment, so the report stays in Review until it's resolved.",
       ])
     })
@@ -521,6 +522,22 @@ describe('what else and the coverage check', () => {
     return { b, first }
   }
 
+  it('does not say "That\'s everything" after the gaps while another topic is still to come', () => {
+    const uncovered = item('coverage.uncovered:11', 'coverage-uncovered', 'gap', {
+      title: 'Security',
+    })
+    // A gap no Capture topic speaks for: "A few more things" follows the gaps.
+    const other = item('other:1', 'unclaimed-kind', 'gap', { title: 'Something else' })
+    const { b, first } = atChecklist(
+      { status: 'done', checkedAt: LATER, uncovered: ['Security.0'] },
+      [uncovered, other],
+    )
+    const next = run(first, b, { type: 'reply', reply: 'what-else' }, LATER)
+    expect(topics(next.added)).toEqual(['reply', 'gaps'])
+    expect(next.added[1].says.map((x) => x.text).join(' ')).not.toMatch(/everything from me/)
+    expect(view(next, b, LATER).replies.map((r) => r.id)).toEqual(['what-else'])
+  })
+
   it('"What else?" brings the gaps: not covered and thin (C5)', () => {
     const thin = item('coverage.thin:o1:8', 'coverage-thin', 'gap', {
       title: 'Loading Bay 2',
@@ -547,17 +564,20 @@ describe('what else and the coverage check', () => {
       "Sure! I also read your observations against the checklist itself, and 1 checklist item isn't mentioned anywhere yet.",
       '1 observation is too thin to support its section.',
       "None of this blocks you today, but it's quicker to sort out while you're still on site.",
+      // On survey day the gaps are the last topic, so the turn says what comes next.
+      "That's everything from me for now. Once your survey day is over, I'll check in about wrapping up.",
     ])
     const [notCovered, thinCard] = next.added[1].cards
     // Drawn in that order even when the wording AI writes nothing.
     expect(next.added[1].program).toBe(
       [
-        'root = Reply([p0, p1, p2, p3, p4])',
+        'root = Reply([p0, p1, p2, p3, p4, p5])',
         `p0 = Lead(${JSON.stringify(next.added[1].says[0].text)})`,
         `p1 = Card("${notCovered.id}")`,
         'p2 = Say("1 observation is too thin to support its section.")',
         `p3 = Card("${thinCard.id}")`,
         `p4 = Say(${JSON.stringify(next.added[1].says[2].text)})`,
+        `p5 = Say(${JSON.stringify(next.added[1].says[3].text)})`,
       ].join('\n'),
     )
     expect(notCovered).toMatchObject({
@@ -1725,6 +1745,37 @@ describe('the journey made legible (round 8)', () => {
       const card = view(after, ready, LATER).session.turns.find((t) => t.topic === 'tidy')!.cards[0]
       expect(rowsOf(card).map((r) => [r.title, r.end.type])).toEqual([['Morning walk', 'open']])
       expect(says(after, ready)[0].text).not.toMatch(/sorted/)
+    })
+
+    // Round 9 re-check: "Sure, happy to help!" then "Sure!" one answer later read like a script.
+    it('opens only the first "What else?" answer of a session with "Sure!"', () => {
+      const gaps = [
+        item('walk.fields:w1', 'walk-fields', 'gap', { title: 'Morning walk' }),
+        item('coverage.uncovered:11', 'coverage-uncovered', 'gap', { title: 'Security' }),
+      ]
+      const capture = brief({
+        items: gaps,
+        coverage: { ...NO_COVERAGE, status: 'done', checkedAt: LATER, uncovered: ['Security.0'] },
+      })
+      const opened = run(EMPTY, capture, { type: 'open' })
+      const tidy = run(opened, capture, { type: 'reply', reply: 'what-else' })
+      expect(topics(tidy.added)).toEqual(['reply', 'tidy'])
+      expect(tidy.added[1].says[0].text).toMatch(/^Sure! /)
+      const more = run(tidy, capture, { type: 'reply', reply: 'what-else' })
+      expect(topics(more.added)).toEqual(['reply', 'gaps'])
+      expect(more.added[1].says[0].text).not.toMatch(/^Sure/)
+      // The marker belongs to the session: a stage move the same day keeps it, a new day drops it.
+      const ready = movedTo('ready_for_generation', LATER, gaps)
+      const moved = run(more, ready, { type: 'changed' }, LATER)
+      expect(moved.session!.said.filter((k) => k === 'sure')).toEqual(['sure'])
+      // The next day's first answer may open with it again.
+      const nextDay = run(
+        tidy,
+        capture,
+        { type: 'reply', reply: 'what-else' },
+        new Date('2026-11-15T02:00:00Z'),
+      )
+      expect(nextDay.added[1].says[0].text).toMatch(/^Sure! /)
     })
 
     it('keeps the Sections outline as it was when Review starts with questions still open', () => {

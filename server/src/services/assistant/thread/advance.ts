@@ -198,7 +198,15 @@ export function advance(
     const turn = built.after?.length
       ? post('bot', 'question', built.mood, { says: built.after })
       : main
-    s.said = [...new Set([...s.said, key, ...(built.items ?? []).map((id) => `item:${id}`)])]
+    // 'sure': the opener is spent only by an answer that really began with it.
+    s.said = [
+      ...new Set([
+        ...s.said,
+        key,
+        ...(says === built.says ? [] : ['sure']),
+        ...(built.items ?? []).map((id) => `item:${id}`),
+      ]),
+    ]
     s.waiting = {
       topic: key,
       turnId: turn.id,
@@ -231,13 +239,16 @@ export function advance(
       // The conversation carries on: what was said and asked comes along.
       const { waiting, said } = session
       earlier = [...earlier, session].slice(-ASSISTANT.keepSessions)
-      session = { ...newSession(brief, now), waiting, said }
+      // Not the "Sure!" marker: a new day's first answer may open with it again.
+      session = { ...newSession(brief, now), waiting, said: said.filter((k) => k !== 'sure') }
     }
     // b. The stage moved on under this session: its topics start over (a reply's answer says so).
     if (session.stage !== brief.stage) {
       session.stage = brief.stage
       session.turns.forEach((t) => (t.frozen = true))
-      session.said = session.said.filter((k) => k.startsWith('item:') || k.startsWith('seen:'))
+      session.said = session.said.filter(
+        (k) => k.startsWith('item:') || k.startsWith('seen:') || k === 'sure',
+      )
       session.waiting = null
       if (event.type !== 'reply') {
         say('moved', movedWords(ctx()), false)
@@ -362,7 +373,8 @@ export function advance(
       !c.open.some(SETUP_KINDS) &&
       !w.replies.some((r) => r.id === 'to-prepare')
     const turn = post('bot', 'noticed', 'pleased', {
-      says: sortedSays(c, sorted, left, more),
+      // How many reactions this session has had picks the opener, so they don't all start alike.
+      says: sortedSays(c, sorted, left, more, s.turns.filter((t) => t.topic === 'noticed').length),
       cards: ctaCards(w, c, left),
     })
     if (setupDone) s.waiting = { ...w, turnId: turn.id, replies: DEFS.setup.build(c)!.replies! }
@@ -383,7 +395,11 @@ export function advance(
         : []
     post('engineer', 'reply', 'idle', { says: [{ text: replyLabel(id, date), tone: 'normal' }] })
     s.waiting = null
-    if (id === 'what-else') return raiseNext('Sure!')
+    if (id === 'what-else') {
+      // "Sure!" opens only the first answer of a session (a stage move keeps the marker, a new day
+      // drops it): again one answer later it reads like a script.
+      return raiseNext(s.said.includes('sure') ? undefined : 'Sure!')
+    }
     if (id === 'generate-anyway') {
       s.said.push('generate-anyway')
       const ready = DEFS.ready.build(ctx())

@@ -9,7 +9,7 @@ from pathlib import Path
 from app.generation.generator import PLACEHOLDER_RULE
 
 COVERAGE_PROMPT_VERSION = "as06-cov-v3"
-WORDING_PROMPT_VERSION = "as06-word-v10"
+WORDING_PROMPT_VERSION = "as06-word-v11"
 
 COVERAGE_SYSTEM = f"""You check an engineer's site observations against the pre-survey checklist \
 of a commercial property risk assessment.
@@ -68,8 +68,10 @@ name of a place, area or section in **…**, in every piece, and wrap nothing el
 comparison, a ranking or a judgement the words did not make.
 - Draw every card exactly once with Card(id). Never describe what a card shows; the card shows it.
 - Words marked as good news keep the "good" tone: Say(text, "good"). No other words take it.
-- Warm and plain. A greeting may open with "Good morning, <name>!". No jokes, no cute or edgy \
-phrasing, no emojis. Do not start every sentence with "I". Use British spelling.
+- Never add the viewer's name, not even to a short opener such as "Sure!" or "Thanks!": use \
+it only where a piece's words already do.
+- Warm and plain. No jokes, no cute or edgy phrasing, no emojis. Do not start every sentence \
+with "I". Use British spelling.
 - Start with `root = Reply([...])` on the first line, then one statement per line.
 - {PLACEHOLDER_RULE}
 
