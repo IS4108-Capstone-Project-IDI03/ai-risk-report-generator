@@ -4,7 +4,7 @@
 // Geolocation card did, same logic (assessments/components/siteMapEdit.ts).
 // Called by DetailsPanel.tsx. Calls SiteMapView.
 import { useRef, useState } from 'react'
-import { Icon, IconButton } from '../../../design-system'
+import { Icon, IconAction } from '../../../design-system'
 import { useSiteMapEdit, type UndoAction } from '../../assessments/components/siteMapEdit'
 import { SiteMapView } from '../../assessments/components/SiteMapView'
 import { directionsUrl, type Coordinates } from '../../assessments/googleMaps'
@@ -62,26 +62,26 @@ export function SiteMapPanel({
                 </span>
               </p>
             ) : (
-              <IconButton
-                icon="locate-fixed"
-                label="Show My Location"
-                tooltip="Show My Location"
-                className="mb-hit"
-                // Round, white, floating on the map; its tap area grows to 44 px on a phone (mb-hit).
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  bottom: 10,
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  color: 'var(--marsh-navy)',
-                  background: 'var(--surface-card)',
-                  boxShadow: '0 2px 8px rgb(0 15 71 / 0.18)',
-                }}
-                disabled={locating}
-                onClick={() => void showMe()}
-              />
+              <span className="mb-locate">
+                <IconAction
+                  icon="locate-fixed"
+                  label="Show My Location"
+                  // The map clips anything past its box: the tooltip grows leftwards from the button.
+                  placement="top-end"
+                  size="md"
+                  className="mb-hit"
+                  // Round, white, floating on the map; its tap area grows to 44 px on a phone (mb-hit).
+                  style={{
+                    width: 36,
+                    height: 36,
+                    color: 'var(--marsh-navy)',
+                    background: 'var(--surface-card)',
+                    boxShadow: '0 2px 8px rgb(0 15 71 / 0.18)',
+                  }}
+                  loading={locating}
+                  onClick={() => void showMe()}
+                />
+              </span>
             )
           }
           onPick={edit.pick}

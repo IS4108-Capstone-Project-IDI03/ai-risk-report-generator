@@ -2,7 +2,7 @@
 // a small pin after each pinned one, and Open map. Called by DetailsContent.tsx.
 import { Icon } from '../../../design-system'
 import type { PlaceRow } from '../../assessments/components/siteMapEdit'
-import { DetailsHeading } from './DetailsHeading'
+import { DetailsHeading, DetailsLink } from './DetailsHeading'
 
 /** Returns the block; `shown` is how many places fit, and `links` makes it one row with just Open Map. */
 export function DetailsPlaces({
@@ -17,12 +17,7 @@ export function DetailsPlaces({
   onOpenMap: () => void
 }) {
   const more = rows.length - shown
-  const open = (
-    <button type="button" className="mb-textlink mb-hit" onClick={onOpenMap}>
-      Open Map
-      <Icon name="chevron-right" size={14} />
-    </button>
-  )
+  const open = <DetailsLink onClick={onOpenMap}>Open Map</DetailsLink>
   if (links)
     return (
       <section>

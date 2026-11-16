@@ -1,7 +1,7 @@
 // One place in the Details panel's site map list (AS-06, board D3): a navy badge, its name and
 // coordinates, and icon buttons when it is pinned; a grey badge, its name and one Pin button
 // when it is not. Called by SiteMapPanel.tsx.
-import { Icon, IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import { directionsUrl, formatCoordinates } from '../../assessments/googleMaps'
 import type { PlaceRow } from '../../assessments/components/siteMapEdit'
 
@@ -48,34 +48,31 @@ export function SiteMapPlace({
       )}
       <span className="mb-place-actions">
         {point && (
-          <a
-            className="ds-icon-button mb-iconlink mb-hit"
-            data-ghost=""
+          <IconAction
+            icon="navigation"
+            label={`Directions to ${row.name}`}
+            tooltip="Directions"
+            placement="bottom"
+            className="mb-hit"
             href={directionsUrl(point)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Directions"
-            title="Directions"
-          >
-            <Icon name="navigation" size={14} />
-          </a>
+          />
         )}
         {canEdit && point && (
           <>
-            <IconButton
+            <IconAction
               icon="move"
-              label="Move pin"
-              tooltip="Move pin"
-              size="sm"
+              label={`Move Pin for ${row.name}`}
+              tooltip="Move Pin"
+              placement="bottom"
               className="mb-hit"
               disabled={busy}
               onClick={onPlace}
             />
-            <IconButton
+            <IconAction
               icon="trash-2"
-              label="Remove pin"
-              tooltip="Remove pin"
-              size="sm"
+              label={`Remove Pin for ${row.name}`}
+              tooltip="Remove Pin"
+              placement="bottom-end"
               className="mb-hit"
               disabled={busy}
               onClick={onRemove}
@@ -83,11 +80,11 @@ export function SiteMapPlace({
           </>
         )}
         {canEdit && !point && (
-          <IconButton
+          <IconAction
             icon="map-pin-plus"
-            label="Pin on the map"
-            tooltip="Pin on the map"
-            size="sm"
+            label={`Pin on the Map for ${row.name}`}
+            tooltip="Pin on the Map"
+            placement="bottom-end"
             className="mb-hit"
             disabled={busy}
             onClick={onPlace}

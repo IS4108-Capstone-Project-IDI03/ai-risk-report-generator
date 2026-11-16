@@ -556,24 +556,6 @@
     opacity: 0.4;
   }
 }
-/* A quiet text link with a chevron (Details' See all, board 06). */
-.mb-textlink {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--marsh-navy);
-  font: 600 13px/1 var(--font-sans);
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mb-textlink:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-}
 .mb-sr {
   position: absolute;
   width: 1px;
@@ -901,21 +883,6 @@
   }
   .mb-client:active {
     transform: none;
-  }
-}
-/* The client's name in Details, a link to the client's page. */
-.mb-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mb-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 3px;
   }
 }
 

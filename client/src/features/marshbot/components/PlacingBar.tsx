@@ -2,7 +2,7 @@
 // input with a locate button inside its right end (fills the input, saves nothing), then Set Pin
 // and Cancel. One row; on a narrow phone the buttons wrap under the input. Called by SiteMapPanel.tsx.
 import { useState } from 'react'
-import { Button, IconButton, Input } from '../../../design-system'
+import { Button, IconAction, Input } from '../../../design-system'
 import { formatCoordinates } from '../../assessments/googleMaps'
 import { BLOCK_RANGE_METRES, currentPosition } from '../../assessments/myLocation'
 
@@ -40,6 +40,12 @@ export function PlacingBar({
       setFinding(false)
     }
   }
+  // Enter and the Set Pin button share one rule: nothing to set, or a save already under way,
+  // sets nothing (without it a double Enter would send two saves).
+  const blank = !typed.trim()
+  const set = () => {
+    if (!busy && !blank) onSet()
+  }
   return (
     <div className="mb-placebar">
       <div className="mb-placebar-field">
@@ -52,36 +58,42 @@ export function PlacingBar({
           value={typed}
           style={{ paddingRight: TAP }}
           onChange={(e) => onTyped(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && onSet()}
+          onKeyDown={(e) => e.key === 'Enter' && set()}
         />
-        <IconButton
-          icon="locate-fixed"
-          label="Use My Location"
-          tooltip="Use My Location"
-          className="mb-hit mb-placebar-locate"
-          disabled={busy || finding}
-          style={{ width: TAP, height: TAP, color: 'var(--marsh-navy)' }}
-          onClick={() => void locate()}
-        />
+        {/* The wrapper sits inside the input's right end; the tooltip's own box would otherwise
+            become the button's anchor. */}
+        <span className="mb-placebar-locate">
+          <IconAction
+            icon="locate-fixed"
+            label="Use My Location"
+            // Ends at the input's right edge, so the label never runs past the window.
+            placement="top-end"
+            size="md"
+            className="mb-hit"
+            loading={finding}
+            disabled={busy}
+            style={{ width: TAP, height: TAP, color: 'var(--marsh-navy)' }}
+            onClick={() => void locate()}
+          />
+        </span>
       </div>
       <div className="mb-placebar-actions">
         <Button
           variant="primary"
           pill
-          size="sm"
           className="ds-press mb-hit"
-          disabled={busy || !typed.trim()}
-          onClick={onSet}
+          disabled={busy}
+          // Greyed but focusable, with the reason (design system v2); busy is plainly disabled.
+          disabledReason={
+            !busy && blank
+              ? { title: 'Can’t set yet', text: 'Type or find the coordinates first.' }
+              : undefined
+          }
+          onClick={set}
         >
           Set Pin
         </Button>
-        <Button
-          variant="pill"
-          size="sm"
-          className="ds-press mb-hit"
-          disabled={busy}
-          onClick={onCancel}
-        >
+        <Button variant="pill" className="ds-press mb-hit" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
       </div>

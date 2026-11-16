@@ -1399,34 +1399,34 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   expect(within(panel).getByText('First survey')).toBeInTheDocument()
 
   // Cancel closes it over the panel, changing nothing.
-  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Assessment Details' }))
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Details' }))
   fireEvent.click(
-    within(screen.getByRole('dialog', { name: 'Edit details' })).getByRole('button', {
+    within(screen.getByRole('dialog', { name: 'Edit Assessment Details' })).getByRole('button', {
       name: 'Cancel',
     }),
   )
-  expect(screen.queryByRole('dialog', { name: 'Edit details' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Edit Assessment Details' })).not.toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true')
 
-  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Assessment Details' }))
+  fireEvent.click(within(panel).getByRole('button', { name: 'Edit Details' }))
   // Only this visit's own details, from the saved ones: the site and client
   // change for all their assessments elsewhere (CP-18), and the engineer stays.
-  const dialog = screen.getByRole('dialog', { name: 'Edit details' })
-  expect(within(dialog).getByLabelText(/Assessment type/)).toHaveValue('Property risk survey')
-  expect(within(dialog).getByLabelText(/Site visit date/)).toHaveValue('2026-04-21')
-  expect(within(dialog).getByLabelText(/Report due/)).toHaveValue('2026-05-02')
+  const dialog = screen.getByRole('dialog', { name: 'Edit Assessment Details' })
+  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Property risk survey')
+  expect(within(dialog).getByLabelText(/Survey Date/)).toHaveValue('21/04/2026')
+  expect(within(dialog).getByLabelText(/Report Due Date/)).toHaveValue('02/05/2026')
   expect(within(dialog).queryByLabelText(/Site name/)).not.toBeInTheDocument()
   expect(within(dialog).queryByLabelText(/^Client/)).not.toBeInTheDocument()
 
-  fireEvent.change(within(dialog).getByLabelText(/Assessment type/), {
+  fireEvent.change(within(dialog).getByLabelText(/Assessment Type/), {
     target: { value: 'Follow-up visit' },
   })
   // A rejected save names the problem beside its field and keeps the changes (AC11).
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   expect(await within(dialog).findByText(/on or after the site visit date/)).toBeInTheDocument()
-  expect(within(dialog).getByLabelText(/Assessment type/)).toHaveValue('Follow-up visit')
+  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Follow-up visit')
 
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   await screen.findByText('Details updated')
   expect(saves[1].body).toEqual({
     surveyType: 'Follow-up visit',
@@ -1434,7 +1434,7 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
     reportDueDate: '2026-05-02',
   })
   // Details shows the saved details (AC10).
-  expect(screen.queryByRole('dialog', { name: 'Edit details' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Edit Assessment Details' })).not.toBeInTheDocument()
   await vi.waitFor(() =>
     expect(
       within(screen.getByRole('dialog', { name: 'Details' })).getByText('Follow-up'),
@@ -1547,9 +1547,7 @@ it('says why a colleague’s site can’t be changed, and opens the client’s p
     expect(edit).toHaveAccessibleDescription(new RegExp(OTHERS))
     expect(within(siteCard).queryByText(OTHERS, { selector: 'p, div' })).not.toBeInTheDocument()
     // Edit details is still the engineer's.
-    expect(
-      within(panel).getByRole('button', { name: 'Edit Assessment Details' }),
-    ).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Edit Details' })).toBeInTheDocument()
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Straits Logistics' }))
     expect(
@@ -1623,8 +1621,7 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     const panel = openDetails()
     expect(within(panel).getByText('Malaysia')).toBeInTheDocument()
     expect(within(panel).getByText('Alex Rowe')).toBeInTheDocument()
-    for (const name of ['Edit Assessment Details', 'Edit Site', 'Archive'])
-      expect(has(name)).toBe(false)
+    for (const name of ['Edit Details', 'Edit Site', 'Archive']) expect(has(name)).toBe(false)
     fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     // The report tabs are there to read.
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent)
@@ -1650,8 +1647,7 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
   it('does everything an engineer does on their own', async () => {
     await open(SANA)
     const panel = openDetails()
-    for (const name of ['Edit Assessment Details', 'Edit Site', 'Archive'])
-      expect(has(name)).toBe(true)
+    for (const name of ['Edit Details', 'Edit Site', 'Archive']) expect(has(name)).toBe(true)
     fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     tab(/^Checklist/)
     expect(await screen.findByRole('button', { name: 'Generate checklist' })).toBeInTheDocument()

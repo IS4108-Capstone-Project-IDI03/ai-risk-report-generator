@@ -1,9 +1,9 @@
 // The Details panel's Site contacts block (AS-06, boards D1, D2): the first few, and See all
 // (only when there are more) opens a small list over the panel. Called by DetailsContent.tsx.
 import { useState } from 'react'
-import { Icon, Popover } from '../../../design-system'
+import { Popover } from '../../../design-system'
 import { initials } from '../../clients/components/ClientAvatar'
-import { DetailsHeading } from './DetailsHeading'
+import { DetailsHeading, DetailsLink } from './DetailsHeading'
 
 type Contact = { name: string; role: string | null }
 
@@ -43,15 +43,9 @@ export function DetailsContacts({
       ariaLabel="Site Contacts"
       surfaceClassName="mb-contacts-pop"
       trigger={
-        <button
-          type="button"
-          className="mb-textlink mb-hit"
-          aria-label="See All Site Contacts"
-          onClick={() => setOpen(!open)}
-        >
+        <DetailsLink aria-label="See All Site Contacts" onClick={() => setOpen(!open)}>
           See All
-          <Icon name="chevron-right" size={14} />
-        </button>
+        </DetailsLink>
       }
     >
       <div className="mb-contacts-list">

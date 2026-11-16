@@ -177,13 +177,15 @@ export const documentFileUrl = (id: string) =>
 // Same file with ?download=1: the server answers "attachment", so the browser saves it.
 export const documentDownloadUrl = (id: string) => `${documentFileUrl(id)}?download=1`
 
-/** Uploads files to a client's documents; returns what became of each file. */
+/** Uploads files to a client's documents (to `placement`, the whole client when left out); returns what became of each file. */
 export async function uploadClientDocuments(
   clientId: string,
   files: File[],
+  placement?: Placement,
 ): Promise<UploadedFile[]> {
   const form = new FormData()
   for (const file of files) form.append('file', file)
+  if (placement) form.append('placement', JSON.stringify(placement))
   try {
     return (
       await request<{ files: UploadedFile[] }>('POST', `${clientPath(clientId)}/documents`, form)

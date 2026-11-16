@@ -3,7 +3,14 @@
 // budget each (site contacts, client documents, site map) so the panel never scrolls. Called by
 // DetailsPanel.tsx. Calls DetailsContacts, DetailsDocuments, DetailsPlaces and useDetailsBudget.
 import { useRef, type ReactNode } from 'react'
-import { AssessmentTypeTile, Chip, IconButton, ReportDue, useIsPhone } from '../../../design-system'
+import {
+  AssessmentTypeTile,
+  Button,
+  Chip,
+  IconAction,
+  ReportDue,
+  useIsPhone,
+} from '../../../design-system'
 import type { Assessment } from '../../assessments/api'
 import { rowsOf } from '../../assessments/components/siteMapEdit'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
@@ -11,7 +18,7 @@ import { ClientAvatar, initials } from '../../clients/components/ClientAvatar'
 import { assessmentType, country } from '../../clients/formatClient'
 import { daysBetween, today } from '../format'
 import { DetailsContacts } from './DetailsContacts'
-import { DetailsDocuments, useDocuments } from './DetailsDocuments'
+import { DetailsDocuments, useAddDocuments, useDocuments } from './DetailsDocuments'
 import { DetailsPlaces } from './DetailsPlaces'
 import { useDetailsBudget } from './useDetailsBudget'
 import './details.css'
@@ -34,6 +41,7 @@ export function DetailsContent({
   onEditSite,
   siteReason,
   onOpenMap,
+  toasterId,
 }: {
   v: AssessmentWorkflow
   record: DetailedRecord
@@ -43,8 +51,11 @@ export function DetailsContent({
   siteReason?: string | null
   // Swaps the panel to the site map (SiteMapPanel); absent for a sample assessment with no map.
   onOpenMap?: () => void
+  // The toaster that shows what adding a document did (the panel's own on a computer).
+  toasterId?: string
 }) {
-  const docs = useDocuments(record)
+  const { docs, reload } = useDocuments(record)
+  const adding = useAddDocuments(record, toasterId, reload)
   const contacts = record.siteContacts ?? []
   const places = v.ovMap ? rowsOf(v.ovMap.site, v.ovMap.buildings) : []
   // Each block's budget shrinks until nothing scrolls (a phone's sheet scrolls, so it keeps all).
@@ -53,7 +64,13 @@ export function DetailsContent({
   const budget = useDetailsBudget(
     root,
     !phone,
-    [contacts.length, Array.isArray(docs) ? docs.length : docs, places.length].join(),
+    // `edit` is in the key: the add row, for someone who may edit, is a taller empty block.
+    [
+      contacts.length,
+      Array.isArray(docs) ? docs.length : docs,
+      places.length,
+      v.ovEdit ? 'edit' : 'read',
+    ].join(),
   )
   const survey = record.siteVisitEndDate ?? record.siteVisitDate
   const surveyDone = !!survey && daysBetween(today(), survey) < 0
@@ -66,9 +83,24 @@ export function DetailsContent({
         <div>
           {/* The client's name opens its page (CP-18), where the engineer may manage it. */}
           {openClient ? (
-            <button type="button" className="mb-details-name mb-link mb-hit" onClick={openClient}>
+            <Button
+              variant="link"
+              className="ds-press mb-hit"
+              // Keeps the name's look (a 16px navy title that wraps); the Button gives the link.
+              style={{
+                height: 'auto',
+                fontSize: 16,
+                fontWeight: 700,
+                lineHeight: 1.3,
+                textAlign: 'left',
+                whiteSpace: 'normal',
+                overflowWrap: 'anywhere',
+                color: 'var(--marsh-navy)',
+              }}
+              onClick={openClient}
+            >
               {record.client}
-            </button>
+            </Button>
           ) : (
             <div className="mb-details-name">{record.client}</div>
           )}
@@ -79,19 +111,20 @@ export function DetailsContent({
         <div className="mb-labelrow">
           <Label>Site</Label>
           {(onEditSite || siteReason) && (
-            <IconButton
-              icon="pencil"
-              label="Edit Site"
-              tooltip="Edit Site"
-              size="sm"
-              className="mb-hit"
-              onClick={onEditSite}
-              disabledReason={
-                onEditSite || !siteReason
-                  ? undefined
-                  : { title: 'Can’t edit this site', text: siteReason }
-              }
-            />
+            <span className="mb-edit-site">
+              {/* Nudged 4px right (details.css) so its glyph sits under the header X. */}
+              <IconAction
+                icon="pencil"
+                label="Edit Site"
+                className="mb-hit"
+                onClick={onEditSite}
+                disabledReason={
+                  onEditSite || !siteReason
+                    ? undefined
+                    : { title: 'Can’t edit this site', text: siteReason }
+                }
+              />
+            </span>
           )}
         </div>
         <div className="mb-value">{record.site.name}</div>
@@ -131,6 +164,8 @@ export function DetailsContent({
           shown={budget.documents}
           links={budget.links}
           onSeeAll={clientFact?.documents}
+          // Only someone who may edit this assessment adds to it.
+          add={v.ovEdit ? adding : undefined}
         />
       )}
       {onOpenMap && v.ovMap && (

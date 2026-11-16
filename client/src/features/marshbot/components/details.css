@@ -19,6 +19,13 @@
 .mb-panel-head h2 {
   flex: 1;
 }
+.mb-panel-head > span {
+  align-items: center;
+}
+/* The phone sheet's title row: the Edit Details button sits a little apart from the close tick. */
+.mb-details-sheet .ds-sheet-head > button.ds-press {
+  margin-right: 4px;
+}
 /* The Back button leads the title, in the sheet's header too (its title comes first in the DOM). */
 .mb-back {
   order: -1;
@@ -48,6 +55,26 @@
 }
 .mb-bigrow .mb-none {
   line-height: 1;
+}
+
+/* A heading's count sits beside its label; its actions (add, See All) sit together at the right. */
+.mb-headleft {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mb-headactions {
+  display: inline-flex;
+  align-items: center;
+  /* The links' focus ring padding (6px each side, taken back by margin) must not reach the neighbour. */
+  gap: 10px;
+}
+/* The panel's header X is 40px and Edit Site 32px, both flush right: the pencil moves 4px so the
+   two glyphs share one centre. Its size and tap area are unchanged. */
+.mb-panel-sheet .mb-edit-site {
+  display: inline-flex;
+  margin-right: 4px;
 }
 
 /* "None yet", the documents line, and "+N more": plain grey text, one line. */
@@ -93,6 +120,7 @@
   flex-direction: column;
 }
 .mb-doc-detail {
+  margin-top: 2px; /* a name that wraps to two lines must not touch it */
   font-size: 12px;
   line-height: 16px;
   color: var(--graphite-600);
@@ -255,17 +283,22 @@
   flex: 1 1 200px;
   min-width: 0;
 }
-/* The small buttons centre on the 40px input beside them. */
+/* Set Pin and Cancel are 40px, level with the input beside them. */
 .mb-placebar-actions {
   display: flex;
   gap: 8px;
-  margin-bottom: calc((40px - var(--control-height-sm)) / 2);
 }
-/* Doubled class: on a phone .mb-hit sets position: relative, which would drop it out of the input. */
-.mb-placebar .mb-placebar-locate.mb-placebar-locate {
+/* The locate button's wrapper (its tooltip is the button's anchor) sits inside the input's end. */
+.mb-placebar .mb-placebar-locate {
   position: absolute;
   right: 0;
   bottom: calc((40px - var(--mb-tap, 40px)) / 2);
+}
+/* The round locate button, floating on the map. */
+.mb-locate {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
 }
 .mb-mapproblem {
   display: flex;
@@ -339,20 +372,10 @@ button.mb-place-main {
 .mb-place-actions {
   display: inline-flex;
 }
-.mb-iconlink {
-  border: 0; /* the app's link underline would show as a border under the arrow */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-height-sm);
-  height: var(--control-height-sm);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-}
 /* A phone, or any touch screen: every control has a 44px hit area without growing. The sheet's
    scroller (and the places list) would clip a control's tap box where it meets the content
    edge, so it bleeds 8px past it (the content stays where it was); the keys of a row sit 44px apart so their boxes
-   don't overlap; the client name takes its box as real padding. */
+   don't overlap. */
 @media (max-width: 767px), (pointer: coarse) {
   .mb-details-sheet .ds-sheet-body {
     margin-inline: -8px;
@@ -362,12 +385,16 @@ button.mb-place-main {
     margin-inline: -8px;
     padding-inline: 8px;
   }
-  .mb-details-client .mb-details-name {
-    padding-block: 11px 15px;
-    margin-block: -11px -15px;
-  }
   .mb-place-actions {
     gap: 12px;
+  }
+  .mb-headactions {
+    gap: 18px;
+  }
+  /* The sheet's Edit Details button is a full 44px (a narrow desktop window has no coarse pointer
+     for the design system's own 44px rule); min-height beats the Button's inline height. */
+  .mb-details-sheet .ds-sheet-head > button.ds-press {
+    min-height: 44px;
   }
   .mb-placebar {
     --mb-tap: 44px;
@@ -400,4 +427,12 @@ button.mb-place-main {
   right: min(200px, 50%) !important;
   bottom: 16px !important;
   transform: translateX(50%) !important;
+}
+
+/* A place's row: hovering the part that pans the map shades the row (design system v2: hover by
+   background). Only where a pointer can hover. */
+@media (hover: hover) and (pointer: fine) {
+  .mb-place:not([data-current]):has(> button.mb-place-main:hover) {
+    background: var(--graphite-100);
+  }
 }

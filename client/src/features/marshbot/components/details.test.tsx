@@ -3,13 +3,15 @@
 // assessments/components/SiteMapCard.test.tsx.
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadGoogleMaps } from '../../assessments/googleMaps'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
+import { DetailsPanel } from './DetailsPanel'
 import { toast, Toaster } from '../../../design-system'
 import { DetailsToaster } from './DetailsToaster'
 import { DETAILS_TOASTER } from './detailsToast'
+import { PlacingBar } from './PlacingBar'
 import { SiteMapPanel } from './SiteMapPanel'
 
 vi.mock('../../assessments/googleMaps', async (original) => ({
@@ -92,6 +94,15 @@ const showDetails = (record = RECORD, v = workflow(), onOpenMap = vi.fn()) => {
   return { onOpenMap }
 }
 
+beforeAll(() => {
+  // jsdom has no native modal implementation.
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 beforeEach(() => {
   mapClick = undefined
   vi.mocked(loadGoogleMaps).mockResolvedValue(fakeMaps() as never)
@@ -137,6 +148,14 @@ describe('the Details blocks', () => {
     const map = screen.getByRole('heading', { name: 'Site Map' }).closest('section')!
     expect(within(map).getAllByRole('img', { name: 'Pinned' })).toHaveLength(2)
     expect(within(map).queryByText(/pinned/i)).not.toBeInTheDocument()
+  })
+
+  it('draws every text link in the heading rows in Marsh navy', async () => {
+    serveDocuments(DOCS)
+    showDetails()
+    await screen.findByRole('heading', { name: 'Client Documents' })
+    for (const name of [/See All Site Contacts/, /Open Map/])
+      expect(screen.getByRole('button', { name })).toHaveStyle({ color: 'var(--marsh-navy)' })
   })
 
   it('lists every contact in a small list over the panel, and Escape closes it', async () => {
@@ -217,12 +236,11 @@ describe('the site map in the panel', () => {
   it('gives a pinned place its coordinates and three icon buttons, an unpinned one a single Pin button', () => {
     open()
     expect(row('Site').getByText('1.4521, 103.9012')).toBeInTheDocument()
-    for (const name of ['Directions', 'Move pin', 'Remove pin'])
-      expect(
-        row('Site').getByRole(name === 'Directions' ? 'link' : 'button', { name }),
-      ).toBeInTheDocument()
+    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toBeInTheDocument()
+    for (const name of ['Move Pin for Site', 'Remove Pin for Site'])
+      expect(row('Site').getByRole('button', { name })).toBeInTheDocument()
     expect(
-      row('Cold Store Block').getByRole('button', { name: 'Pin on the map' }),
+      row('Cold Store Block').getByRole('button', { name: 'Pin on the Map for Cold Store Block' }),
     ).toBeInTheDocument()
     expect(row('Cold Store Block').queryByText(/not pinned/i)).not.toBeInTheDocument()
     // Pinned places come first, the rest follow.
@@ -238,7 +256,9 @@ describe('the site map in the panel', () => {
 
   it('places a pin from the map: a hint, one bar under the map, then saved', async () => {
     const { onSaved } = open()
-    fireEvent.click(row('Dispatch Hall').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Dispatch Hall').getByRole('button', { name: 'Pin on the Map for Dispatch Hall' }),
+    )
     expect(screen.getByText('Dispatch Hall', { selector: 'b' })).toBeInTheDocument()
     expect(screen.getByText(/Click the map to place/)).toBeInTheDocument()
     expect(screen.getByLabelText('Coordinates')).toBeInTheDocument()
@@ -254,7 +274,9 @@ describe('the site map in the panel', () => {
 
   it('takes pasted coordinates, says what is wrong with bad ones, and cancels', async () => {
     open()
-    fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '91, 103' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set Pin' }))
     expect(await screen.findByText(/latitude from -90 to 90/)).toBeInTheDocument()
@@ -262,29 +284,77 @@ describe('the site map in the panel', () => {
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Set Pin' })))
     expect(sent()).toEqual({ block: 'Plant Room', point: { lat: 1.2966, lng: 103.852 } })
-    fireEvent.click(row('Loading Bays').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Loading Bays').getByRole('button', { name: 'Pin on the Map for Loading Bays' }),
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByLabelText('Coordinates')).not.toBeInTheDocument()
   })
 
-  it('keeps Set Pin disabled until there are coordinates to set', () => {
+  it('keeps Set Pin greyed, focusable and explained until there are coordinates to set', () => {
     open()
-    fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
     const setPin = screen.getByRole('button', { name: 'Set Pin' })
-    expect(setPin).toBeDisabled()
+    expect(setPin).toHaveAttribute('aria-disabled', 'true')
+    expect(setPin).not.toBeDisabled()
+    expect(setPin).toHaveAccessibleDescription('Can’t set yet. Type or find the coordinates first.')
+    fireEvent.click(setPin)
+    expect(put).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
-    expect(setPin).toBeEnabled()
+    // The reason's wrapper comes and goes with it, so the button is looked up again.
+    expect(screen.getByRole('button', { name: 'Set Pin' })).not.toHaveAttribute('aria-disabled')
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '  ' } })
-    expect(setPin).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Set Pin' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  describe('the bar’s Enter key', () => {
+    const bar = (typed: string, busy: boolean) => {
+      const onSet = vi.fn()
+      render(
+        <PlacingBar
+          typed={typed}
+          onTyped={vi.fn()}
+          onSet={onSet}
+          onCancel={vi.fn()}
+          onProblem={vi.fn()}
+          busy={busy}
+        />,
+      )
+      fireEvent.keyDown(screen.getByLabelText('Coordinates'), { key: 'Enter' })
+      return onSet
+    }
+    it('sets the pin when there are coordinates', () => {
+      expect(bar('1.2966, 103.852', false)).toHaveBeenCalledTimes(1)
+    })
+    it('does nothing on an empty field', () => {
+      expect(bar('  ', false)).not.toHaveBeenCalled()
+    })
+    it('does nothing while a save is under way, so a double Enter sends one', () => {
+      expect(bar('1.2966, 103.852', true)).not.toHaveBeenCalled()
+    })
+  })
+
+  it('names each place in the button’s own name, and keeps the tooltip to the action', () => {
+    open()
+    const remove = row('Administration').getByRole('button', {
+      name: 'Remove Pin for Administration',
+    })
+    expect(remove).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(remove.parentElement!)
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/^Remove Pin$/)
   })
 
   it('moves and removes a pin', async () => {
     open()
     await act(async () =>
-      fireEvent.click(row('Administration').getByRole('button', { name: 'Remove pin' })),
+      fireEvent.click(
+        row('Administration').getByRole('button', { name: 'Remove Pin for Administration' }),
+      ),
     )
     expect(sent()).toEqual({ block: 'Administration', point: null })
-    fireEvent.click(row('Site').getByRole('button', { name: 'Move pin' }))
+    fireEvent.click(row('Site').getByRole('button', { name: 'Move Pin for Site' }))
     await vi.waitFor(() => expect(mapClick).toBeDefined())
     await clickMap(1.46, 103.91)
     expect(sent()).toEqual({ coordinates: { lat: 1.46, lng: 103.91 } })
@@ -293,7 +363,9 @@ describe('the site map in the panel', () => {
   it('says a removal and offers Undo, which puts the pin back where it was', async () => {
     const { onSaved } = open()
     await act(async () =>
-      fireEvent.click(row('Administration').getByRole('button', { name: 'Remove pin' })),
+      fireEvent.click(
+        row('Administration').getByRole('button', { name: 'Remove Pin for Administration' }),
+      ),
     )
     expect(onSaved).toHaveBeenLastCalledWith(
       'Pin removed',
@@ -308,7 +380,7 @@ describe('the site map in the panel', () => {
 
   it('says a move as a move', async () => {
     const { onSaved } = open()
-    fireEvent.click(row('Site').getByRole('button', { name: 'Move pin' }))
+    fireEvent.click(row('Site').getByRole('button', { name: 'Move Pin for Site' }))
     await vi.waitFor(() => expect(mapClick).toBeDefined())
     await clickMap(1.46, 103.91)
     expect(onSaved).toHaveBeenLastCalledWith('Pin moved', undefined)
@@ -316,12 +388,12 @@ describe('the site map in the panel', () => {
 
   it('shows directions but no changes to someone who may not edit', () => {
     open({ canEdit: false })
-    expect(row('Site').getByRole('link', { name: 'Directions' })).toHaveAttribute(
+    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toHaveAttribute(
       'href',
       'https://www.google.com/maps/dir/?api=1&destination=1.4521,103.9012',
     )
     expect(
-      screen.queryByRole('button', { name: /Move pin|Remove pin|Pin on the map/ }),
+      screen.queryByRole('button', { name: /Move Pin|Remove Pin|Pin on the Map/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -348,7 +420,9 @@ describe('the site map in the panel', () => {
       },
     })
     open()
-    fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Use My Location' })))
     expect(screen.getByLabelText('Coordinates')).toHaveValue('1.45231, 103.90087')
     expect(put).not.toHaveBeenCalled()
@@ -357,7 +431,9 @@ describe('the site map in the panel', () => {
   it('says the map is unavailable without the click hint, and the bar still works', async () => {
     vi.mocked(loadGoogleMaps).mockResolvedValue(null)
     const { onSaved } = open()
-    fireEvent.click(row('Plant Room').getByRole('button', { name: 'Pin on the map' }))
+    fireEvent.click(
+      row('Plant Room').getByRole('button', { name: 'Pin on the Map for Plant Room' }),
+    )
     expect(await screen.findByText(/map isn’t available/)).toBeInTheDocument()
     expect(screen.queryByText(/Click the map to place/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Coordinates'), { target: { value: '1.2966, 103.852' } })
@@ -368,9 +444,12 @@ describe('the site map in the panel', () => {
 })
 
 describe('the Edit buttons', () => {
-  it('name what they edit', () => {
+  it('name what they edit, in a real tooltip rather than a native title', () => {
     render(<DetailsContent v={workflow()} record={RECORD} onEditSite={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Edit Site' })).toHaveAttribute('title', 'Edit Site')
+    const edit = screen.getByRole('button', { name: 'Edit Site' })
+    expect(edit).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(edit.parentElement!)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Edit Site')
   })
 
   it('stay greyed, not gone, when the site is someone else’s to change', () => {
@@ -407,5 +486,249 @@ describe('toasts raised from the panel', () => {
     expect(screen.getAllByText('Pin removed')).toHaveLength(1)
     fireEvent.click(button)
     expect(undo).toHaveBeenCalled()
+  })
+})
+
+// Who may edit: the panel's own check (ovEdit), as the Edit Details button uses.
+const EDIT = { record: RECORD, site: { allowed: true, assessments: 1, reason: null } }
+const editable = (over: Record<string, unknown> = {}) => workflow({ ovEdit: EDIT, ...over })
+
+describe('the panel header', () => {
+  const panel = (v = editable()) =>
+    render(
+      <DetailsPanel
+        v={{ ...v, liveRecord: RECORD } as AssessmentWorkflow}
+        open
+        onClose={vi.fn()}
+      />,
+    )
+
+  it('has one clear Edit Details button, and a Close with a real tooltip', () => {
+    serveDocuments([])
+    panel()
+    const edit = screen.getByRole('button', { name: 'Edit Details' })
+    expect(edit).toHaveTextContent('Edit Details')
+    const close = screen.getByRole('button', { name: 'Close' })
+    expect(close).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(close.parentElement!)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Close')
+  })
+
+  it('opens the Edit Assessment Details dialog from that button', () => {
+    serveDocuments([])
+    panel()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }))
+    expect(screen.getByRole('dialog', { name: 'Edit Assessment Details' })).toBeInTheDocument()
+  })
+
+  it('offers no Edit Details to someone who may not edit', () => {
+    serveDocuments([])
+    panel(workflow())
+    expect(screen.queryByRole('button', { name: 'Edit Details' })).not.toBeInTheDocument()
+  })
+})
+
+describe('adding a client document from the panel', () => {
+  const NEW = {
+    ...DOCS[0],
+    id: 'd9',
+    name: 'Fire Plan.pdf',
+    placement: { kind: 'assessment', assessmentId: 'a1' },
+  }
+  const calls: { url: string; init?: RequestInit }[] = []
+  function serve(post: () => Response | Promise<Response>) {
+    calls.length = 0
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      calls.push({ url, init })
+      return Promise.resolve(init?.method === 'POST' ? post() : Response.json([]))
+    })
+  }
+  const show = () =>
+    render(
+      <>
+        <dialog open>
+          <DetailsToaster />
+          <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
+        </dialog>
+      </>,
+    )
+  const choose = (name = 'Fire Plan.pdf') =>
+    fireEvent.change(screen.getByLabelText('Choose client documents to add'), {
+      target: { files: [new File(['x'], name, { type: 'application/pdf' })] },
+    })
+
+  it('shows a dashed Add a Client Document row where there are none, only to someone who may edit', async () => {
+    serve(() => Response.json({}))
+    show()
+    expect(await screen.findByRole('button', { name: 'Add a Client Document' })).toBeInTheDocument()
+    cleanup()
+    serveDocuments([])
+    render(<DetailsContent v={workflow()} record={RECORD} />)
+    await screen.findAllByText('None yet')
+    expect(screen.queryByRole('button', { name: 'Add a Client Document' })).not.toBeInTheDocument()
+  })
+
+  it('uploads to this assessment, lists it, and says so in one toast inside the panel', async () => {
+    let listed = false
+    serve(() => {
+      listed = true
+      return Response.json(
+        { files: [{ name: NEW.name, status: 'kept', document: NEW }] },
+        { status: 201 },
+      )
+    })
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      calls.push({ url, init })
+      if (init?.method === 'POST')
+        return Promise.resolve(
+          Response.json(
+            { files: [{ name: NEW.name, status: 'kept', document: NEW }] },
+            { status: 201 },
+          ),
+        )
+      listed = listed || false
+      return Promise.resolve(Response.json(listed ? [NEW] : []))
+    })
+    show()
+    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await act(async () => choose())
+    const post = calls.find((c) => c.init?.method === 'POST')!
+    expect(post.url).toBe('/api/clients/c1/documents')
+    expect((post.init!.body as FormData).get('placement')).toBe(
+      JSON.stringify({ kind: 'assessment', assessmentId: 'a1' }),
+    )
+    expect(await screen.findByText('1 document uploaded')).toBeInTheDocument()
+    expect(screen.getAllByText('1 document uploaded')).toHaveLength(1)
+  })
+
+  it('shows the add row busy: still focusable, but it ignores presses while the files go up', async () => {
+    let finish: (r: Response) => void = () => {}
+    serve(() => new Promise<Response>((resolve) => (finish = resolve)))
+    show()
+    const add = await screen.findByRole('button', { name: 'Add a Client Document' })
+    add.focus()
+    await act(async () => choose())
+    const busy = screen.getByRole('button', { name: 'Add a Client Document' })
+    // aria-disabled, not disabled: a disabled button would drop the keyboard user's focus.
+    expect(busy).not.toBeDisabled()
+    expect(busy).toHaveAttribute('aria-disabled', 'true')
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    expect(busy).toHaveFocus()
+    const picker = screen.getByLabelText('Choose client documents to add')
+    const opened = vi.spyOn(picker, 'click')
+    fireEvent.click(busy)
+    expect(opened).not.toHaveBeenCalled()
+    await act(async () => finish(Response.json({ files: [] }, { status: 201 })))
+    expect(screen.getByRole('button', { name: 'Add a Client Document' })).not.toHaveAttribute(
+      'aria-disabled',
+    )
+  })
+
+  it('puts focus back on the add control that replaces the add row once the first document is in', async () => {
+    let listed = false
+    vi.stubGlobal('fetch', (_: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        listed = true
+        return Promise.resolve(
+          Response.json(
+            { files: [{ name: NEW.name, status: 'kept', document: NEW }] },
+            { status: 201 },
+          ),
+        )
+      }
+      return Promise.resolve(Response.json(listed ? [NEW] : []))
+    })
+    show()
+    const row = await screen.findByRole('button', { name: 'Add a Client Document' })
+    expect(row).toHaveClass('ds-add-row')
+    row.focus()
+    await act(async () => choose())
+    await vi.waitFor(() => expect(screen.getByText('Fire Plan.pdf')).toBeInTheDocument())
+    // The row has gone and the plus beside the heading took its place, with the keyboard on it.
+    const plus = screen.getByRole('button', { name: 'Add a Client Document' })
+    expect(plus).not.toHaveClass('ds-add-row')
+    await vi.waitFor(() => expect(plus).toHaveFocus())
+  })
+
+  it('leaves focus alone when it was not on the add control', async () => {
+    let listed = false
+    vi.stubGlobal('fetch', (_: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        listed = true
+        return Promise.resolve(
+          Response.json(
+            { files: [{ name: NEW.name, status: 'kept', document: NEW }] },
+            { status: 201 },
+          ),
+        )
+      }
+      return Promise.resolve(Response.json(listed ? [NEW] : []))
+    })
+    show()
+    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await act(async () => choose())
+    await vi.waitFor(() => expect(screen.getByText('Fire Plan.pdf')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Add a Client Document' })).not.toHaveFocus()
+  })
+
+  it('shows the result in the app’s own toaster when the panel was closed while the files went up', async () => {
+    let finish: (r: Response) => void = () => {}
+    serve(() => new Promise<Response>((resolve) => (finish = resolve)))
+    const view = render(
+      <>
+        <Toaster />
+        <dialog open>
+          <DetailsToaster />
+          <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
+        </dialog>
+      </>,
+    )
+    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await act(async () => choose())
+    // The panel closes: its dialog, its toaster and its content all unmount.
+    view.rerender(<Toaster />)
+    await act(async () =>
+      finish(
+        Response.json(
+          { files: [{ name: NEW.name, status: 'kept', document: NEW }] },
+          { status: 201 },
+        ),
+      ),
+    )
+    expect(await screen.findByText('1 document uploaded')).toBeInTheDocument()
+  })
+
+  it('says why when a file is refused, with the same words as the client page', async () => {
+    serve(() =>
+      Response.json(
+        { files: [{ name: 'a.zip', status: 'refused', reason: 'Can’t read .zip files.' }] },
+        { status: 400 },
+      ),
+    )
+    show()
+    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await act(async () => choose('a.zip'))
+    expect(await screen.findByText('a.zip not uploaded')).toBeInTheDocument()
+    expect(screen.getByText('Can’t read .zip files.')).toBeInTheDocument()
+  })
+
+  it('says it failed when the gateway cannot be reached', async () => {
+    serve(() => {
+      throw new TypeError('Failed to fetch')
+    })
+    show()
+    await screen.findByRole('button', { name: 'Add a Client Document' })
+    await act(async () => choose())
+    expect(await screen.findByText('Upload failed')).toBeInTheDocument()
+  })
+
+  it('counts the documents on the heading, and keeps the add action on the heading row once there are some', async () => {
+    serveDocuments(DOCS)
+    render(<DetailsContent v={editable()} record={RECORD} />)
+    const docs = (await screen.findByRole('heading', { name: 'Client Documents' })).closest(
+      'section',
+    )!
+    expect(within(docs).getByText('5')).toBeInTheDocument()
+    expect(within(docs).getByRole('button', { name: 'Add a Client Document' })).toBeInTheDocument()
   })
 })

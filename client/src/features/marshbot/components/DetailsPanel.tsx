@@ -1,9 +1,9 @@
 // The assessment's Details (AS-06 boards 06, D1, D3): a side panel from the right over a dimmed
-// page on a computer, a bottom sheet on a phone. Its pencil opens Edit details; Edit site sits by
-// the site; Open map swaps the content to the site map, and a back arrow returns. Opened by the
-// header's Details button and the rail's client card (AssessmentApp.tsx).
+// page on a computer, a bottom sheet on a phone. Its Edit Details button opens the dialog; Edit
+// Site sits by the site; Open Map swaps the content to the site map, and a back arrow returns.
+// Opened by the header's Details button and the rail's client card (AssessmentApp.tsx).
 import { useEffect, useId, useRef, useState } from 'react'
-import { BackButton, IconButton, Sheet, useIsPhone } from '../../../design-system'
+import { BackButton, Button, IconAction, Sheet, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
@@ -61,6 +61,7 @@ export function DetailsPanel({
       onEditSite={edit?.site.allowed ? () => setDialog('site') : undefined}
       siteReason={edit && !edit.site.allowed ? edit.site.reason : null}
       onOpenMap={v.ovMap ? () => setView('map') : undefined}
+      toasterId={toasterId}
     />
   )
   // The round Back button, left of the title (on a phone the sheet puts it after, so `order` moves it).
@@ -69,14 +70,16 @@ export function DetailsPanel({
       <BackButton label="Back to Details" onClick={() => setView('details')} />
     </span>
   )
+  // The one way in to the details dialog: a button with words, not an icon to hunt for.
   const editDetails = edit && (
-    <IconButton
-      icon="pencil"
-      label="Edit Assessment Details"
-      tooltip="Edit Assessment Details"
-      className="mb-hit"
+    <Button
+      variant="pill"
+      iconLeft="pencil"
+      className="ds-press mb-hit"
       onClick={() => setDialog('details')}
-    />
+    >
+      Edit Details
+    </Button>
   )
   return (
     <>
@@ -122,7 +125,14 @@ export function DetailsPanel({
                 <h2 id={titleId}>{title}</h2>
                 <span>
                   {!mapping && editDetails}
-                  <IconButton icon="x" label="Close" tooltip="Close" onClick={onClose} />
+                  <IconAction
+                    icon="x"
+                    label="Close"
+                    size="md"
+                    placement="bottom"
+                    className="mb-hit"
+                    onClick={onClose}
+                  />
                 </span>
               </header>
               <div className="mb-panel-body">{content}</div>
