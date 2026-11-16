@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
 import {
   AIDraftBlock,
   Badge,
@@ -9,6 +9,7 @@ import {
   type Reason,
 } from '../../../design-system'
 import type {
+  AiDraft,
   DocumentBlock,
   DocumentHeading,
   DocumentInline,
@@ -16,6 +17,7 @@ import type {
   ReviewDraft,
   ReviewSection,
 } from '../api'
+import { markedText, unsupportedIn, unsupportedRanges } from '../ask/aiText'
 import { AskSelection } from '../ask/AskSelection'
 import { askBlockAttrs } from '../ask/draftSelection'
 import { contentText, type AskPassage, type PassageText } from '../ask/passage'
@@ -48,13 +50,24 @@ type Citing = {
 
 // Asking about text selected in the draft (AS-02): what Ask about this does,
 // how the report heads the section, and the passage the Ask tab last went back
-// to, to mark in the draft.
+// to, to mark in the draft. With `onRewrite` (the assigned engineer, AS-04),
+// Rewrite this beside it puts the passage in the Ask tab to be rewritten.
 export type DraftAsk = {
   label: string
   onAsk: (passage: AskPassage) => void
+  onRewrite?: (passage: AskPassage) => void
   shown: CommentAnchor | null
   // Why nothing can be asked (an archived assessment, AS-03 AC5).
   blocked?: Reason
+}
+
+// The engineer's decisions on AI-drafted text from the Ask tab (AS-04), for
+// the assigned engineer only: Accept keeps it as theirs, Delete takes it out.
+export type AiTextActions = {
+  // The proposal whose text is being decided on, if any; the others wait.
+  busy: string | null
+  onAccept: (id: string) => void
+  onDelete: (id: string) => void
 }
 
 // Where a block of the draft's text is in its section's text (AS-02).
@@ -248,11 +261,157 @@ function Finding({
   )
 }
 
+// A paragraph of AI-drafted text, its sentences still unsupported marked
+// (AS-04 AC3): each one's words, then an Unsupported badge, which a selection
+// reads as no text (draftSelection.ts). Formatting and citation markers are
+// drawn as in the engineer's own text.
+function AiWords({
+  content,
+  ranges,
+  cite,
+}: {
+  content: DocumentInline[]
+  ranges: [number, number][]
+  cite: (id: string) => React.ReactNode
+}) {
+  const shown: React.ReactNode[] = []
+  let offset = 0
+  for (const [i, c] of content.entries()) {
+    if (c.type === 'cite') {
+      shown.push(<Fragment key={i}>{cite(c.id)}</Fragment>)
+      offset += 1
+      continue
+    }
+    const start = offset
+    const end = offset + c.text.length
+    const cuts = [
+      ...new Set([start, end, ...ranges.flat().filter((at) => at > start && at < end)]),
+    ].sort((a, b) => a - b)
+    for (let j = 0; j + 1 < cuts.length; j++) {
+      const from = cuts[j]
+      const to = cuts[j + 1]
+      let words: React.ReactNode = c.text.slice(from - start, to - start)
+      if (c.marks?.includes('underline')) words = <u>{words}</u>
+      if (c.marks?.includes('italic')) words = <em>{words}</em>
+      if (c.marks?.includes('bold')) words = <strong>{words}</strong>
+      const inside = ranges.some(([a, b]) => from >= a && to <= b)
+      shown.push(
+        inside ? (
+          <mark key={`${i}.${j}`} className="rv-statement-text rv-ai-unsupported">
+            {words}
+          </mark>
+        ) : (
+          <span key={`${i}.${j}`} className="rv-statement-text">
+            {words}
+          </span>
+        ),
+      )
+      if (ranges.some(([, b]) => b === to))
+        shown.push(
+          <span key={`${i}.${j}.flag`} className="rv-flag">
+            <Badge tone="moderate" icon="triangle-alert">
+              Unsupported
+            </Badge>
+          </span>,
+        )
+    }
+    offset = end
+  }
+  return <>{shown}</>
+}
+
+// One paragraph of text drafted from the Ask tab and inserted (AS-04 AC2), in
+// violet until the engineer accepts it. Under its first paragraph: who
+// inserted it when, and Accept and Delete for the assigned engineer; Accept is
+// greyed out while a sentence is unsupported (AC3).
+function AiParagraph({
+  paragraph,
+  draft,
+  first,
+  still,
+  cite,
+  attrs,
+  actions,
+}: {
+  paragraph: DocumentParagraph
+  draft: AiDraft | undefined
+  first: boolean
+  // Its proposal's sentences still unsupported, anywhere in its text.
+  still: string[]
+  cite: (id: string) => React.ReactNode
+  attrs: Record<string, string>
+  actions?: AiTextActions
+}) {
+  const ranges = unsupportedRanges(markedText(paragraph.content), still)
+  const id = paragraph.ai!
+  const busy = actions?.busy != null
+  return (
+    <div
+      role="group"
+      aria-label="AI-drafted text"
+      className={'rv-ai-text' + (still.length ? ' is-flagged' : '')}
+    >
+      <p className="rv-statement rv-ai-words" {...attrs}>
+        <AiWords content={paragraph.content} ranges={ranges} cite={cite} />
+      </p>
+      {first && (
+        <div className="rv-finding-bar">
+          <Badge tone="ai" icon="sparkles">
+            AI draft
+          </Badge>
+          {draft && (
+            <span className="rv-finding-by">
+              {draft.insertedBy.name} · {formatDayYearTime(new Date(draft.insertedAt))}
+            </span>
+          )}
+          <span className="rv-finding-gap" />
+          {actions && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconLeft={IconRegistry.action.discard}
+                aria-label="Delete the AI-drafted text"
+                disabled={busy}
+                onClick={() => actions.onDelete(id)}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={IconRegistry.action.accept}
+                aria-label="Accept the AI-drafted text"
+                disabled={busy}
+                disabledReason={
+                  still.length
+                    ? {
+                        title: 'Unsupported sentences',
+                        text: `${plural(still.length, 'sentence')} ${still.length === 1 ? 'has' : 'have'} no supporting source. Give each a citation in the document editor, or delete ${still.length === 1 ? 'it' : 'them'}, first.`,
+                      }
+                    : undefined
+                }
+                loading={actions.busy === id}
+                onClick={() => actions.onAccept(id)}
+              >
+                Accept
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {first && draft && <p className="rv-finding-note rv-ai-asked">Asked: “{draft.request}”</p>}
+    </div>
+  )
+}
+
 function DraftSubsection({
   sub,
   blocks,
   claims: all,
   actions,
+  ai,
+  flaggedAi,
   ...citing
 }: Citing & {
   sub: ReviewDraft['subsections'][number]
@@ -261,6 +420,9 @@ function DraftSubsection({
   // Every finding in the draft, by which those in `blocks` are shown.
   claims: Claim[]
   actions?: FindingActions
+  // Draws AI-drafted text awaiting Accept (AS-04), and which of it is flagged.
+  ai: (id: string, paragraph: DocumentParagraph) => React.ReactNode
+  flaggedAi: Set<string>
 }) {
   const byKey = new Map(all.map((c) => [c.key, c]))
   const claims = textBlocksIn(blocks).flatMap((b) => (b.finding && byKey.get(b.finding)) || [])
@@ -315,22 +477,31 @@ function DraftSubsection({
             blocks={others}
             cite={citeMark(citing, null)}
             finding={finding}
+            ai={ai}
             attrs={blockAttrs(citing.askText)}
           />
         )}
       </>
     )
   }
-  const cited = [...new Set(claims.flatMap((c) => c.citations))]
+  // AI-drafted text from the Ask tab awaiting Accept (AS-04) keeps the box violet.
+  const aiBlocks = textBlocksIn(blocks).filter((b) => b.type === 'paragraph' && b.ai)
+  const aiIds = aiBlocks.map((b) => (b as DocumentParagraph).ai!)
+  const cited = [
+    ...new Set([
+      ...claims.flatMap((c) => c.citations),
+      ...aiBlocks.flatMap((b) => b.content.flatMap((c) => (c.type === 'cite' ? [c.id] : []))),
+    ]),
+  ]
   const pending = claims.filter((c) => c.review.state === 'pending')
-  const unsupported = pending.some((c) => !c.supported)
+  const unsupported = pending.some((c) => !c.supported) || aiIds.some((id) => flaggedAi.has(id))
   return (
     <AIDraftBlock
       heading={sub.heading}
       // AI chrome while a finding waits for a decision; neutral once the
       // engineer has accepted or edited every one (the words are theirs).
       status={
-        pending.length
+        pending.length || aiIds.length
           ? unsupported
             ? 'flagged'
             : 'draft'
@@ -353,6 +524,7 @@ function DraftSubsection({
         blocks={blocks}
         cite={citeMark(citing, null)}
         finding={finding}
+        ai={ai}
         attrs={blockAttrs(citing.askText)}
       />
     </AIDraftBlock>
@@ -366,7 +538,10 @@ function DraftSubsection({
 // Edit and Reject (RV-02); rejected findings are left out. `header` holds the
 // section's review controls; a replacement draft is shown read-only. Version
 // history (RV-06) opens the section's versions in its place. With `ask`,
-// selecting the draft's text offers Ask about this (AS-02).
+// selecting the draft's text offers Ask about this (AS-02), and Rewrite this
+// for the assigned engineer (AS-04). Text drafted from the Ask tab and inserted
+// shows in violet, its unsupported sentences marked, with Accept and Delete
+// for the assigned engineer (`aiActions`, AS-04).
 export function DraftEditor({
   section,
   position,
@@ -379,6 +554,7 @@ export function DraftEditor({
   header,
   figures,
   ask,
+  aiActions,
   ...citing
 }: Omit<Citing, 'sectionId' | 'askText'> & {
   section: ReviewSection
@@ -399,6 +575,7 @@ export function DraftEditor({
   // inside Marsh's per-level tables, so they are not listed again below.
   figures?: React.ReactNode | ((drafted: Map<string, React.ReactNode>) => React.ReactNode)
   ask?: DraftAsk
+  aiActions?: AiTextActions
 }) {
   const { draft, review } = section
   // The box "Ask about this" sits in, by the selection.
@@ -421,11 +598,36 @@ export function DraftEditor({
   const askText = useMemo(() => contentText(section.id, content), [section.id, content])
   const saved = section.document
   const byKey = new Map(claims.map((c) => [c.key, c]))
+  // Text drafted from the Ask tab awaiting Accept (AS-04): each insertion,
+  // and its sentences still unsupported.
+  const aiDrafts = section.aiDrafts ?? []
+  const stillUnsupported = unsupportedIn(content, aiDrafts)
+  const flaggedAi = new Set(stillUnsupported.keys())
+  // The first paragraph of each insertion, in the section's order, carries its bar.
+  const firstAi = new Set<DocumentParagraph>()
+  const barred = new Set<string>()
+  for (const b of textBlocksIn([...content.intro, ...content.subsections.flatMap((x) => x.blocks)]))
+    if (b.type === 'paragraph' && b.ai && !barred.has(b.ai)) {
+      barred.add(b.ai)
+      firstAi.add(b)
+    }
+  const ai = (id: string, paragraph: DocumentParagraph) => (
+    <AiParagraph
+      paragraph={paragraph}
+      draft={aiDrafts.find((d) => d.id === id)}
+      first={firstAi.has(paragraph)}
+      still={stillUnsupported.get(id) ?? []}
+      cite={citeMark(citing, null)}
+      attrs={blockAttrs(askText)(paragraph)}
+      actions={aiActions}
+    />
+  )
   const blocksOf = (blocks: DocumentBlock[]) => (
     <WrittenBlocks
       blocks={blocks}
       cite={citeMark(citing, null)}
       attrs={blockAttrs(askText)}
+      ai={ai}
       finding={(key, words, heading) => {
         const claim = byKey.get(key)
         return claim ? (
@@ -458,6 +660,22 @@ export function DraftEditor({
       Last saved in the document {formatDayTime(new Date(saved.savedAt))} by {saved.savedBy.name}
     </p>
   )
+  // AI-drafted text to review (AS-04 AC2, AC3), above the section's text.
+  const unsupportedAi = [...stillUnsupported.values()].reduce((n, s) => n + s.length, 0)
+  const aiNotice = aiDrafts.length > 0 && (
+    <Callout
+      tone={unsupportedAi ? 'warning' : 'info'}
+      title={
+        aiDrafts.length === 1
+          ? 'AI-drafted text to review'
+          : `${aiDrafts.length} pieces of AI-drafted text to review`
+      }
+    >
+      Text drafted from the Ask tab is in violet until you accept it.{' '}
+      {unsupportedAi > 0 &&
+        `${plural(unsupportedAi, 'sentence')} of it ${unsupportedAi === 1 ? 'has' : 'have'} no supporting source and ${unsupportedAi === 1 ? 'is' : 'are'} marked Unsupported: give each a citation in the document editor, or delete it. Until then the report can't be exported.`}
+    </Callout>
+  )
   const setAside = saved && !saved.current && (
     <Callout
       tone="info"
@@ -489,6 +707,7 @@ export function DraftEditor({
             text={askText}
             label={ask.label}
             onAsk={ask.onAsk}
+            onRewrite={ask.onRewrite}
             shown={ask.shown?.sectionId === section.id ? ask.shown : null}
             blocked={ask.blocked}
           />
@@ -533,6 +752,7 @@ export function DraftEditor({
           // Not drafted, but written in the document editor (RV-08 AC3).
           <>
             {documentLine}
+            {aiNotice}
             <Callout tone="info" title="Written by you">
               This section was not drafted: its text is yours, from the document editor. Draft it on
               the Generation tab only to replace it with an AI draft to review.
@@ -560,6 +780,7 @@ export function DraftEditor({
             {documentLine}
             {header}
             {setAside}
+            {aiNotice}
             {review.changesSinceDraft > 0 && (
               <Callout tone="warning" title="This draft is out of date">
                 {describeChanges(review.changeCounts)} since it was drafted. Redraft it on the
@@ -609,6 +830,8 @@ export function DraftEditor({
                   blocks={content.subsections[i]?.blocks ?? []}
                   claims={claims}
                   actions={actions}
+                  ai={ai}
+                  flaggedAi={flaggedAi}
                   sectionId={section.id}
                   askText={askText}
                   {...citing}

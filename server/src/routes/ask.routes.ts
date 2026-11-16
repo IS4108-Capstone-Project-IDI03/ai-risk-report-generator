@@ -5,8 +5,13 @@
 // is a 401 (requireAuth). A conversation is its asker's alone: another user's
 // answers 404, as one deleted does. On an archived assessment conversations
 // are only read: asking and deleting answer 409 (AS-03 AC5).
+// A request for text for a section (AS-04: `propose`) also needs
+// `reports:generate` and the assigned engineer (403), on an assessment
+// neither archived nor finalised (409).
 import { Router, type Response } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
+import { hasPermission } from '../services/permissions.service'
+import { NotAssignedError } from '../services/assessment.service'
 import {
   answerQuestion,
   ConversationFullError,
@@ -24,6 +29,9 @@ import {
   AssessmentNotFoundError,
 } from '../services/capture-session.service'
 import { CannotOpenAssessmentError } from '../services/comment.service'
+import { RagServiceError } from '../services/rag.service'
+import { UnknownSectionError } from '../services/section.service'
+import { ProposalRefusedError } from '../services/text-proposal.service'
 import { fieldErrors } from './field-errors'
 
 const router = Router({ mergeParams: true })
@@ -45,9 +53,13 @@ const stated = (error: string, cause: string, next: string) => ({
 // 409 once it is archived or the conversation is full, 429 over the question
 // limits. Rethrows anything else.
 function refuse(error: unknown, res: Response) {
-  if (error instanceof CannotOpenAssessmentError) {
+  if (error instanceof CannotOpenAssessmentError || error instanceof NotAssignedError) {
     res.status(403).json({ error: error.message })
-  } else if (error instanceof AssessmentNotFoundError) {
+  } else if (error instanceof ProposalRefusedError) {
+    res
+      .status(error.status)
+      .json({ ...stated(error.message, error.reason, error.next), code: error.code })
+  } else if (error instanceof AssessmentNotFoundError || error instanceof UnknownSectionError) {
     res.status(404).json({ error: error.message })
   } else if (error instanceof ConversationNotFoundError) {
     res.status(404).json(stated(error.message, error.reason, error.next))
@@ -65,6 +77,11 @@ function refuse(error: unknown, res: Response) {
     res.status(409).json(stated(error.message, error.reason, error.next))
   } else if (error instanceof QuestionLimitError) {
     res.status(429).json(stated(error.reason, error.reason, error.next))
+  } else if (error instanceof RagServiceError) {
+    // A proposal reads the section's template from S4 before it is asked (AS-04).
+    res
+      .status(503)
+      .json(stated(error.message, 'the answer service could not be reached', 'Ask again.'))
   } else {
     throw error
   }
@@ -110,21 +127,35 @@ router.delete(
 // Asks one question: `{ question }`, or `{ question, passage }` about text
 // selected in the draft (AS-02: its anchor, citations and findings), with
 // `conversation` to go into one of the user's conversations; without it, the
-// question starts a new one (AS-03). The answer streams as server-sent events
+// question starts a new one (AS-03). `propose` asks for text for a section
+// instead (AS-04): `{ kind: 'draft', sectionId }`, or `{ kind: 'rewrite' }`
+// with the passage to rewrite. The answer streams as server-sent events
 // (`question` with the conversation it is in, `step`, `statement`, `missing`,
-// then `result` with the saved answer). One request per question and no
-// polling (AS-01 AC8).
+// a proposal's `target`, then `result` with the saved answer). One request
+// per question and no polling (AS-01 AC8).
 router.post('/', requirePermission('reports:ask'), async (req, res) => {
   const parsed = questionSchema.safeParse(req.body)
   if (!parsed.success) {
     res.status(400).json({ error: 'The question was not sent.', fields: fieldErrors(parsed.error) })
     return
   }
+  // Text for the report is drafted only by those who draft it (AS-04 AC5).
+  if (parsed.data.propose && !hasPermission(res.locals.user!.role, 'reports:generate')) {
+    res.status(403).json({ error: 'Only risk engineers can draft text into a report.' })
+    return
+  }
   let prepared: PreparedQuestion
   try {
     const reference = (req.params as Params).reference
-    const { question, passage, conversation } = parsed.data
-    prepared = await prepareQuestion(reference, res.locals.user!, question, passage, conversation)
+    const { question, passage, conversation, propose } = parsed.data
+    prepared = await prepareQuestion(
+      reference,
+      res.locals.user!,
+      question,
+      passage,
+      conversation,
+      propose,
+    )
   } catch (error: unknown) {
     refuse(error, res)
     return

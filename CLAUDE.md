@@ -68,6 +68,17 @@
   (`ask/askHighlight.ts`), never a mark in the text, so it adds no version
   and changes no review state. Its anchor is RV-03's (`comments/anchor.ts`):
   change both together.
+- Text drafted from the Ask tab (AS-04) enters a section only by Insert or
+  Replace (`text-proposal.service.ts`), as a new version whose paragraphs
+  carry `ai: <proposal id>` until the engineer accepts them; never write it
+  into a section any other way. The review workspace and the export read
+  inserted text's sources from `report_text_proposals`, never from
+  `assistant_conversations`. A sentence proposed without a source stays
+  `supported: false` and blocks Accept and the export until given a citation
+  or deleted; only standards in the drafting set (`drafting-set.service.ts`)
+  may be cited. Keep `section-document.ts` (`currentDocument`,
+  `unsupportedAiText`) in step with the client's `documentContent.ts` and
+  `ask/aiText.ts`. See docs/areas/database.md, "Proposed text".
 - A client's insight summary (CP-29) is saved and shown only after rag-service
   (`client_insights/summary.py`) has checked every statement: cited, no advice
   or first person, no number its sources lack. Never show a statement that

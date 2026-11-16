@@ -13,6 +13,12 @@
 // holds. Nothing in the report is written: asking adds no version and changes
 // no review state (AS-02 AC5).
 //
+// A request for text for a section (AS-04, "Draft text" or "Rewrite this") is
+// asked the same way, by the assigned engineer only: text-proposal.service
+// says what S4 is told of the section, S4 drafts only from the observations
+// and the drafting set, and the proposal is kept in `report_text_proposals`
+// for Insert or Replace. Asking for it writes nothing to the report.
+//
 // Questions are kept in conversations (AS-03, `assistant_conversations`): per
 // assessment and per user, private to that user. The tab opens on the latest;
 // a question without a conversation starts one, and one can be deleted. On an
@@ -39,13 +45,12 @@ import { recordAiCalls } from './ai-usage.service'
 import { opensAssessment } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { addChatSpend, checkChatLimits, PER_DAY, PER_MINUTE } from './chat-limits.service'
-import { selectedStandardIds } from './checklist.service'
 import { anchorSchema, CannotOpenAssessmentError } from './comment.service'
 import { UNDRAFTED_PARTS } from './report-document.service'
 import { entriesFor, foldFindings } from './review-decision.service'
+import { documentName, selectedStandards } from './drafting-set.service'
 import {
   findKnowledgeDocuments,
-  listApplicableStandards,
   listIngestedDocuments,
   type KnowledgeDocumentDto,
 } from './knowledge-document.service'
@@ -53,6 +58,17 @@ import { locationText } from './location.service'
 import { captureTimes, listObservations } from './observation.service'
 import { privacyFor } from './privacy.service'
 import { openAskStream, RagServiceError } from './rag.service'
+import {
+  assessmentToPropose,
+  finishProposal,
+  proposalContext,
+  proposalDtos,
+  proposeSchema,
+  startProposal,
+  type ProposalContext,
+  type ProposalDto,
+  type ProposeInput,
+} from './text-proposal.service'
 import { toPassage, type FieldObservationDto, type SourcePassageDto } from './review.service'
 import {
   handwritingOf,
@@ -97,17 +113,36 @@ const passageSchema = z.strictObject({
 })
 export type PassageInput = z.infer<typeof passageSchema>
 
-export const questionSchema = z.object({
-  question: z
-    .string('Type a question to ask.')
-    .trim()
-    .min(1, 'Type a question to ask.')
-    .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.'),
-  // Text selected in the draft that the question is about (AS-02).
-  passage: passageSchema.optional(),
-  // The conversation it goes into (AS-03); without one, it starts another.
-  conversation: z.string().max(64).optional(),
-})
+export const questionSchema = z
+  .object({
+    question: z
+      .string('Type a question to ask.')
+      .trim()
+      .min(1, 'Type a question to ask.')
+      .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.'),
+    // Text selected in the draft that the question is about (AS-02), or that a
+    // rewrite rewrites (AS-04).
+    passage: passageSchema.optional(),
+    // The conversation it goes into (AS-03); without one, it starts another.
+    conversation: z.string().max(64).optional(),
+    // Text for a section instead of an answer (AS-04): a draft for the section
+    // named, or a rewrite of the passage.
+    propose: proposeSchema.optional(),
+  })
+  .superRefine((q, ctx) => {
+    if (q.propose?.kind === 'rewrite' && !q.passage)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select the text to rewrite.',
+        path: ['passage'],
+      })
+    if (q.propose?.kind === 'draft' && !q.propose.sectionId)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Open one of Sections 4 to 12 to draft text into it.',
+        path: ['propose', 'sectionId'],
+      })
+  })
 
 // The chat's limits on questions a minute and a day (CB-01) count Ask's
 // questions too, so one user's spend stays capped across both. Refused before
@@ -142,21 +177,6 @@ export class ConversationFullError extends Error {
     this.name = 'ConversationFullError'
   }
 }
-
-const STANDARD_TYPES = new Set(['fm_standard', 'nfpa_standard', 'local_standard'])
-
-// A document's name as the prompt shows it: "FM Global 2-81 (2026)" for a
-// standard, else its title. As rag-service's app/chat/answer.py names them.
-function documentName(d: KnowledgeDocumentDto): string {
-  if (!d.standardNumber) return d.title
-  const name = d.issuingBody ? `${d.issuingBody} ${d.standardNumber}` : d.standardNumber
-  return d.edition ? `${name} (${d.edition})` : name
-}
-
-// Whether search can return a standard's passages: finished, not withdrawn and
-// with no Unconfirmed details (KB-01, IN-05).
-const searchable = (d: KnowledgeDocumentDto) =>
-  d.status === 'complete' && !d.withdrawn && d.unconfirmed.length === 0
 
 // An observation as S4's Ask request takes it: any of the assessment's with
 // something recorded, categorised or not (null).
@@ -208,20 +228,19 @@ async function openToAsk(
 // each document.
 async function scopeOf(assessment: OpenedAssessment) {
   const { jurisdiction, facilityType } = assessment.site
-  const [stored, selected, documents] = await Promise.all([
+  const [stored, documents] = await Promise.all([
     listObservations(assessment.reference),
-    selectedStandardIds(assessment._id),
     listIngestedDocuments(),
   ])
   // The latest checklist's standards (CP-30) are the ones selected on the
   // assessment; before any checklist, every standard that applies to the site.
-  const chosen =
-    selected ?? (await listApplicableStandards(facilityType, jurisdiction)).map((d) => d.id)
   // Built from knowledge_documents now, so a standard withdrawn since the
-  // checklist was made is no longer searched.
-  const wanted = new Set(chosen)
-  const standards = documents.filter(
-    (d) => wanted.has(d.id) && searchable(d) && STANDARD_TYPES.has(d.sourceType ?? ''),
+  // checklist was made is no longer searched. For text proposed for a section
+  // (AS-04) they are its drafting set.
+  const { standards, fromChecklist } = await selectedStandards(
+    assessment._id,
+    assessment.site,
+    documents,
   )
   const inScope = (value: string | null, site: string) => value === site || value === 'all'
   const reports = documents.filter(
@@ -244,7 +263,7 @@ async function scopeOf(assessment: OpenedAssessment) {
       location: o.location && locationText(o.location),
       standard: o.standard,
     }))
-  return { observations, standards, reports, fromChecklist: selected !== null }
+  return { observations, standards, reports, fromChecklist }
 }
 
 // What the Ask tab says it searches, so the engineer knows the scope (AC3).
@@ -264,6 +283,8 @@ export type AnswerDto = {
   question: string
   // The passage it is about (AS-02), or null.
   passage: IQuestionPassage | null
+  // The text proposed for a section (AS-04), or null for a question.
+  proposal: ProposalDto | null
   askedAt: Date
   status: QuestionStatus
   statements: IAnswerStatement[]
@@ -337,15 +358,17 @@ async function toDtos(questions: IConversationTurn[]): Promise<AnswerDto[]> {
   const documentIds = all.flatMap(([ref, s]) =>
     ref.startsWith('O:') ? [] : [documentIdOf(ref, s)],
   )
-  const [documents, captured] = await Promise.all([
+  const [documents, captured, proposals] = await Promise.all([
     findKnowledgeDocuments(documentIds.filter((id): id is string => !!id)),
     captureTimes(all.filter(([ref]) => ref.startsWith('O:')).map(([ref]) => ref.slice(2))),
+    proposalDtos(questions.map((q) => q.proposal)),
   ])
   const byId = new Map(documents.map((d) => [d.id, d]))
   return questions.map((q) => ({
     id: String(q._id),
     question: q.question,
     passage: passageDto(q.passage),
+    proposal: (q.proposal && proposals.get(String(q.proposal))) || null,
     askedAt: q.askedAt,
     status: q.status,
     statements: q.statements,
@@ -624,6 +647,8 @@ export type PreparedQuestion = {
   body: object
   // The documents S4 may cite, by id, for each statement's sources as it streams.
   documents: Map<string, KnowledgeDocumentDto>
+  // The proposal it asks for (AS-04), or null for a question.
+  proposal: Types.ObjectId | null
 }
 
 // Whether a question can go into this user's conversation: 404 when it is not
@@ -703,8 +728,11 @@ export async function prepareQuestion(
   question: string,
   passage?: PassageInput,
   conversation?: string,
+  propose?: ProposeInput,
 ): Promise<PreparedQuestion> {
   const assessment = await openToAsk(reference, user, true)
+  // Text for a section is the assigned engineer's to ask for (AS-04 AC5).
+  const proposing = propose ? await assessmentToPropose(reference, user) : null
   const into = conversation ? await checkConversation(assessment, user, conversation) : null
   const refused = checkChatLimits(user.id, [question])
   if (refused) {
@@ -719,12 +747,19 @@ export async function prepareQuestion(
         : new QuestionLimitError('the question is too long', 'Shorten it and ask again.')
   }
   const scope = await scopeOf(assessment)
-  const about = passage ? await passageContext(assessment, passage, scope.observations) : null
+  const asked: ProposalContext | null =
+    proposing && propose
+      ? await proposalContext(proposing, propose, passage, scope.standards, scope.observations)
+      : null
+  const about =
+    passage && !asked ? await passageContext(assessment, passage, scope.observations) : null
   const { jurisdiction, facilityType } = assessment.site
+  const proposal = asked ? new Types.ObjectId() : null
   const saved: IConversationTurn = {
     _id: new Types.ObjectId(),
     question,
-    passage: about?.saved ?? null,
+    passage: (asked ? asked.saved : about?.saved) ?? null,
+    proposal,
     status: 'answering',
     statements: [],
     missing: [],
@@ -739,10 +774,15 @@ export async function prepareQuestion(
     trace: null,
   }
   const kept = await saveQuestion(assessment, user, into, saved)
+  if (asked && proposing && proposal)
+    await startProposal(proposal, proposing, user, asked, question, kept.id, saved._id)
   // Every document S4 may cite, each once: those in scope, and those the
-  // selected passage cites.
+  // selected passage cites. A proposal cites no past report (AS-04 AC4).
   const documents = new Map(
-    [...scope.standards, ...scope.reports, ...(about?.documents ?? [])].map((d) => [d.id, d]),
+    [...scope.standards, ...(asked ? [] : scope.reports), ...(about?.documents ?? [])].map((d) => [
+      d.id,
+      d,
+    ]),
   )
   const body = {
     question,
@@ -751,14 +791,19 @@ export async function prepareQuestion(
       jurisdiction,
       facility_type: facilityType,
     },
-    observations: [...scope.observations, ...(about?.observations ?? [])],
+    observations: [
+      ...scope.observations,
+      ...(about?.observations ?? []),
+      ...(asked?.observations ?? []),
+    ],
     standard_ids: scope.standards.map((d) => d.id),
     documents: [...documents.values()].map((d) => ({ id: d.id, name: documentName(d) })),
     // The gateway decides protection (PV-02), as for drafting.
     privacy: await privacyFor(assessment.reference),
     ...(about && { passage: about.body }),
+    ...(asked && { propose: asked.propose, ...(asked.passage && { passage: asked.passage }) }),
   }
-  return { conversation: kept, saved, assessment, userId: user.id, body, documents }
+  return { conversation: kept, saved, assessment, userId: user.id, body, documents, proposal }
 }
 
 // The events S4 streams for one answer (rag-service orchestrator.ask).
@@ -766,6 +811,8 @@ type AskEvent =
   | { type: 'step'; step: string; found?: unknown }
   | ({ type: 'statement'; sources?: Record<string, unknown> } & IAnswerStatement)
   | { type: 'missing'; text: string }
+  // Where a draft's text fits, as the model named it (AS-04).
+  | { type: 'target'; subsection: unknown }
   | {
       type: 'result'
       value: {
@@ -774,6 +821,7 @@ type AskEvent =
         sources?: Record<string, unknown>
         confidence?: ConfidenceLevel | null
         error?: { step: string; cause: string; at: string } | null
+        target?: unknown
         usage?: unknown
         trace?: Record<string, unknown>
       }
@@ -825,6 +873,7 @@ export async function answerQuestion(
   const streamed: Record<string, unknown> = {}
   let result: Extract<AskEvent, { type: 'result' }>['value'] | null = null
   let failure: { step: string; cause: string; at: Date } | null = null
+  let target: unknown = null
   try {
     const stream = await openAskStream(prepared.body, signal)
     const decoder = new TextDecoder()
@@ -839,18 +888,26 @@ export async function answerQuestion(
           continue
         }
         if (event.type === 'statement') {
-          // A line naming where the passage's sources disagree (AS-02 AC4).
-          const differs = event.differs === true ? { differs: true } : {}
-          statements.push({ text: event.text, citations: event.citations, ...differs })
+          // A line naming where the passage's sources disagree (AS-02 AC4), or a
+          // sentence of proposed text, supported or not, in its paragraph (AS-04).
+          const marked = {
+            ...(event.differs === true && { differs: true }),
+            ...(typeof event.supported === 'boolean' && { supported: event.supported }),
+            ...(typeof event.paragraph === 'number' && { paragraph: event.paragraph }),
+          }
+          statements.push({ text: event.text, citations: event.citations, ...marked })
           Object.assign(streamed, event.sources)
           // With its sources, so a citation opens while the answer is written (AC2).
           send({
             type: 'statement',
             text: event.text,
             citations: event.citations,
-            ...differs,
+            ...marked,
             ...sourceDtos(event.sources ?? {}, prepared.documents),
           })
+        } else if (event.type === 'target') {
+          target = event.subsection
+          send({ type: 'target', subsection: event.subsection })
         } else if (event.type === 'missing') {
           missing.push(event.text)
           send(event)
@@ -911,6 +968,20 @@ export async function answerQuestion(
   ).catch((problem: unknown) => {
     console.error('Could not save the answer to a question:', problem)
   })
+  // The proposed text, kept for Insert or Replace (AS-04).
+  if (prepared.proposal)
+    await finishProposal(prepared.proposal, {
+      statements: update.statements,
+      missing: update.missing,
+      sources: update.sources,
+      target: result?.target ?? target,
+      failed: !!error,
+      provider: update.provider,
+      model: update.model,
+      promptVersion: update.promptVersion,
+    }).catch((problem: unknown) => {
+      console.error('Could not save proposed text:', problem)
+    })
   if (signal.aborted) return
   const [answer] = await toDtos([{ ...saved, ...update }])
   send({ type: 'result', answer })

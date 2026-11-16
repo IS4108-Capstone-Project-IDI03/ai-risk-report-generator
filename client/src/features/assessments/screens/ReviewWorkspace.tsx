@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
+import { Button, Callout, EmptyState, IconRegistry, toast } from '../../../design-system'
 import {
   bulkAccept,
   decideFinding,
@@ -37,6 +37,8 @@ import {
   type InspectorTab,
 } from '../components/ReviewInspector'
 import { READ_ONLY, useAsk } from '../ask/useAsk'
+import { applyProposal, ProposalRefusedError } from '../ask/api'
+import type { AskDrafting } from '../ask/AskPanel'
 import { contentText, passageAt, type AskPassage } from '../ask/passage'
 import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
@@ -92,8 +94,10 @@ function replacementView(section: ReviewSection): ReviewSection {
   return {
     ...section,
     draft: replacement.draft,
-    // The saved draft's document edits name its findings, not these.
+    // The saved draft's document edits name its findings, not these; nor is
+    // AI-drafted text inserted into them (AS-04) part of it.
     document: null,
+    aiDrafts: [],
     sources: replacement.sources,
     observations: replacement.observations,
     review: {
@@ -204,6 +208,8 @@ export function ReviewWorkspace({
   const [askedRef, setAskedRef] = useState<string | null>(null)
   // The passage an answer last went back to, marked in the draft (AS-02 AC3).
   const [shownPassage, setShownPassage] = useState<CommentAnchor | null>(null)
+  // AI-drafted text being accepted or deleted (AS-04), by its proposal.
+  const [aiBusy, setAiBusy] = useState<string | null>(null)
   // Brings a source opened from an answer into view, also when the panel sits
   // below the draft (tablet) or the sheet just closed (phone).
   useEffect(() => {
@@ -351,6 +357,13 @@ export function ReviewWorkspace({
     setInspectorTab('ask')
     if (phone) setAskSheet(true)
   }
+  // "Rewrite this" (AS-04 AC1): the same, with the passage to be rewritten.
+  const rewriteAbout = (passage: AskPassage) => {
+    ask.rewrite(passage)
+    setShownPassage(null)
+    setInspectorTab('ask')
+    if (phone) setAskSheet(true)
+  }
   // Back to a passage asked about: its part opens, the passage marked there.
   const showPassage = (passage: AskPassage) => {
     const { sectionId } = passage.anchor
@@ -383,6 +396,7 @@ export function ReviewWorkspace({
           onSheet: setAskSheet,
           locate: locatePassage,
           onShowPassage: showPassage,
+          drafting: drafting(),
         }
       : undefined
   // A source opened from an answer, in a part with no draft to cite it.
@@ -418,6 +432,38 @@ export function ReviewWorkspace({
   const next = sections[index + 1]
   // The part the rail marks as open.
   const railId = selected && OPENING.has(selected) ? selected : (saved?.id ?? '')
+  // Drafting text into the report from the Ask tab (AS-04): for the assigned
+  // engineer only (AC5), into the section open when it is one of Sections 4
+  // to 12. Once text is inserted, replaced or undone, the workspace shows the
+  // section's new version, on that section.
+  const drafting = (): AskDrafting | undefined => {
+    if (!canReview || ask.archived) return undefined
+    const open = sections.find((s) => s.id === railId)
+    return {
+      target: open ? { sectionId: open.id, label: `${open.id}. ${open.title}` } : null,
+      onApplied: (after, proposal, item) => {
+        keep(after)
+        setHistoryOpen(false)
+        if (proposal.sectionId !== railId) select(proposal.sectionId)
+        if (proposal.status === 'inserted')
+          toast.success(
+            `${proposal.kind === 'draft' ? 'Inserted into' : 'Replaced in'} ${proposal.label}`,
+            {
+              description: 'It stays AI draft until you accept it.',
+              action: {
+                label: 'Undo',
+                onClick: () =>
+                  void ask.apply(item, 'undo').then((undone) => {
+                    if (undone) keep(undone.workspace)
+                  }),
+              },
+            },
+          )
+        else if (proposal.status === 'undone')
+          toast.success('Undone', { description: `The text before is back in ${proposal.label}.` })
+      },
+    }
+  }
   const rail = (
     <ReviewSectionRail
       sections={sections}
@@ -722,6 +768,26 @@ export function ReviewWorkspace({
     keep(await save())
     setDialog(null)
   }
+  // Accepts or deletes AI-drafted text in the section (AS-04), showing why if
+  // it is refused; the Ask tab's proposal shows where it now stands.
+  const settleAi = async (id: string, action: 'accept' | 'delete') => {
+    setAiBusy(id)
+    setProblem(null)
+    try {
+      const done = await applyProposal(reference, id, action)
+      keep(done.workspace)
+      ask.refreshProposal(done.proposal)
+    } catch (error: unknown) {
+      setProblem(
+        error instanceof ProposalRefusedError
+          ? `${error.reason.charAt(0).toUpperCase()}${error.reason.slice(1)}. ${error.next}`
+          : error instanceof Error
+            ? error.message
+            : 'The decision was not saved.',
+      )
+    }
+    setAiBusy(null)
+  }
   const regenerate = async (instruction: string) => {
     setDialog(null)
     setRegenerating((ids) => new Set(ids).add(sectionId))
@@ -789,8 +855,20 @@ export function ReviewWorkspace({
             ? {
                 label: `${saved.id}. ${saved.title}`,
                 onAsk: askAbout,
+                // Rewrite this (AS-04): the assigned engineer only.
+                onRewrite: canReview && !ask.archived ? rewriteAbout : undefined,
                 shown: shownPassage,
                 blocked: ask.archived ? READ_ONLY : undefined,
+              }
+            : undefined
+        }
+        // Accept and Delete on AI-drafted text (AS-04), for the assigned engineer.
+        aiActions={
+          canReview && showing === 'saved'
+            ? {
+                busy: aiBusy,
+                onAccept: (id) => void settleAi(id, 'accept'),
+                onDelete: (id) => void settleAi(id, 'delete'),
               }
             : undefined
         }

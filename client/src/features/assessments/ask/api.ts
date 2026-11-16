@@ -5,7 +5,7 @@
 // streams back as server-sent events; the tab never polls, so the idle
 // sign-out (F-07) still applies.
 import { GatewayError, reportSessionEnded, request } from '../api'
-import type { FieldObservation, SourcePassage } from '../api'
+import type { FieldObservation, ReviewWorkspace, SourcePassage } from '../api'
 import { passageBody, type AskPassage } from './passage'
 
 export type AskCitation = {
@@ -23,6 +23,10 @@ export type AskStatement = {
   citations: AskCitation[]
   // Names where the sources behind a selected passage disagree (AS-02 AC4).
   differs?: boolean
+  // A sentence of text proposed for a section (AS-04): false when no source
+  // supports it, and the paragraph it is in, from 0.
+  supported?: boolean
+  paragraph?: number
 }
 export type Confidence = 'high' | 'medium' | 'low'
 export type AskFailure = { step: string; cause: string; at: string }
@@ -32,6 +36,8 @@ export type AskAnswer = {
   question: string
   // The passage selected in the draft that it is about (AS-02), or null.
   passage: AskPassage | null
+  // Text proposed for a section (AS-04), or null (absent) for a question.
+  proposal?: Proposal | null
   askedAt: string
   status: 'answering' | 'complete' | 'stopped' | 'failed'
   statements: AskStatement[]
@@ -40,6 +46,41 @@ export type AskAnswer = {
   observations: FieldObservation[]
   confidence: Confidence | null
   error: AskFailure | null
+}
+
+// What a request for text asks for (AS-04): new text for a section, or a
+// rewrite of the passage sent with it.
+export type ProposeRequest = { kind: 'draft'; sectionId: string } | { kind: 'rewrite' }
+
+// One sentence of proposed text: its words, the citations that count, whether
+// it has any (else it is marked unsupported, AC3), and its paragraph.
+export type ProposedSentence = {
+  text: string
+  citations: AskCitation[]
+  supported: boolean
+  paragraph: number
+}
+
+// Text drafted or rewritten for a section from the Ask tab (AS-04), as the
+// gateway keeps it (server/src/services/text-proposal.service.ts).
+export type Proposal = {
+  id: string
+  kind: 'draft' | 'rewrite'
+  sectionId: string
+  // The section as the report heads it, e.g. "7. Construction".
+  label: string
+  // A draft: the subsections it can go at the end of, and the one it goes in
+  // (-1: before the first; none offered for a section with no subsections).
+  choices: { index: number; heading: string }[]
+  subsection: number | null
+  // A rewrite: the paragraphs it replaces, as they read when it was proposed.
+  before: string | null
+  sentences: ProposedSentence[]
+  status: 'drafting' | 'proposed' | 'failed' | 'inserted' | 'accepted' | 'deleted' | 'undone'
+  inserted: { at: string; by: { id: string; name: string }; version: number } | null
+  settled: { action: 'accepted' | 'deleted' | 'undone'; at: string } | null
+  // Whether Undo can still restore the section's text from before it.
+  canUndo: boolean
 }
 
 // What a question is searched in (AC3), as the tab states it.
@@ -138,6 +179,8 @@ export type AskEvent =
       observations?: FieldObservation[]
     } & AskStatement)
   | { type: 'missing'; text: string }
+  // The subsection a draft's text fits, as the model named it (AS-04).
+  | { type: 'target'; subsection: number | null }
   | { type: 'result'; answer: AskAnswer }
 
 // A question refused before it was answered (429 over the limits; 409 on an
@@ -159,7 +202,8 @@ export class AskRefusedError extends Error {
 /**
  * Asks one question, about a selected passage when given (AS-02), in the
  * conversation given, else as the first of a new one (AS-03); `onEvent` gets
- * each event as it arrives. Resolves when the stream ends.
+ * each event as it arrives. Resolves when the stream ends. With `propose`, it
+ * asks for text for a section instead (AS-04).
  */
 export async function askQuestion(
   reference: string,
@@ -168,6 +212,7 @@ export async function askQuestion(
   signal?: AbortSignal,
   passage?: AskPassage | null,
   conversation?: string | null,
+  propose?: ProposeRequest | null,
 ): Promise<void> {
   let response: Response
   try {
@@ -178,6 +223,7 @@ export async function askQuestion(
         question,
         ...(passage && { passage: passageBody(passage) }),
         ...(conversation && { conversation }),
+        ...(propose && { propose }),
       }),
       signal,
     })
@@ -228,4 +274,60 @@ export async function askQuestion(
   }
   pending += decoder.decode()
   flush(true)
+}
+
+// What can be done with proposed text (AS-04): Insert (a draft) or Replace (a
+// rewrite) puts it in its section as AI draft; Undo restores the text before;
+// Accept keeps it as the engineer's own; Delete takes it out again.
+export type ProposalAction = 'insert' | 'replace' | 'undo' | 'accept' | 'delete'
+
+// A proposal action the gateway refused, with its cause and next step, as the
+// tab states a failure (AS-01 AC8). `code` is `stale` when the section changed
+// since the text was proposed (AC6): it is then drafted again.
+export class ProposalRefusedError extends Error {
+  readonly reason: string
+  readonly next: string
+  readonly at: string
+  readonly code: string | null
+  constructor(reason: string, next: string, at: string, code: string | null) {
+    super(reason)
+    this.name = 'ProposalRefusedError'
+    this.reason = reason
+    this.next = next
+    this.at = at
+    this.code = code
+  }
+}
+
+/**
+ * Inserts, replaces, undoes, accepts or deletes proposed text (AS-04): the
+ * proposal as it now stands and the review workspace with the section's new
+ * version. Throws ProposalRefusedError with the cause and next step when the
+ * gateway refuses, else GatewayError.
+ */
+export async function applyProposal(
+  reference: string,
+  id: string,
+  action: ProposalAction,
+  body: { subsection?: number } = {},
+): Promise<{ proposal: Proposal; workspace: ReviewWorkspace }> {
+  try {
+    return (
+      await request<{ proposal: Proposal; workspace: ReviewWorkspace }>(
+        'POST',
+        `/api/assessments/${encodeURIComponent(reference)}/proposals/${encodeURIComponent(id)}/${action}`,
+        body,
+      )
+    ).data
+  } catch (error: unknown) {
+    const detail = error instanceof GatewayError ? error.detail : {}
+    if (typeof detail.cause === 'string' && typeof detail.next === 'string')
+      throw new ProposalRefusedError(
+        detail.cause,
+        detail.next,
+        typeof detail.at === 'string' ? detail.at : new Date().toISOString(),
+        typeof detail.code === 'string' ? detail.code : null,
+      )
+    throw error
+  }
 }

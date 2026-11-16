@@ -51,6 +51,10 @@ export interface IAnswerStatement {
   // Set on a line naming where the sources behind a selected passage disagree
   // (AS-02 AC4): each figure with its source, never choosing between them.
   differs?: boolean
+  // A sentence of text proposed for a section (AS-04): whether a source
+  // supports it (false: kept, marked unsupported) and its paragraph, from 0.
+  supported?: boolean
+  paragraph?: number
 }
 
 // The passage a question was asked about (AS-02): its anchor in the section's
@@ -70,6 +74,9 @@ export interface IConversationTurn {
   question: string
   // The passage it is about, or null for a question about the whole assessment.
   passage: IQuestionPassage | null
+  // A request for text for a section (AS-04), "Draft text" or "Rewrite this":
+  // its proposal in report_text_proposals. Absent or null for a question.
+  proposal?: Types.ObjectId | null
   status: QuestionStatus
   statements: IAnswerStatement[]
   // What evidence the answer says is missing (AS-01 AC4).
@@ -160,6 +167,7 @@ const turnSchema = new Schema<IConversationTurn>(
   {
     question: { type: String, required: true, maxlength: 1000 },
     passage: { type: passageSchema, default: null },
+    proposal: { type: Schema.Types.ObjectId, default: null },
     status: { type: String, enum: QUESTION_STATUSES, default: 'answering' },
     statements: {
       type: [
@@ -168,6 +176,8 @@ const turnSchema = new Schema<IConversationTurn>(
             text: { type: String, required: true },
             citations: [citationSchema],
             differs: { type: Boolean },
+            supported: { type: Boolean },
+            paragraph: { type: Number },
           },
           { _id: false },
         ),

@@ -2552,3 +2552,29 @@ Rejected:
 Known limits: a conversation's name is not editable. Deleting is permanent, with no undo; the paid calls stay in `ai_calls`. An answer still being written when its conversation is deleted is discarded when it ends.
 
 Stories: AS-03, AS-01, AS-02, CB-03, EV-01.
+
+## 2026-11-16 — Text drafted from the Ask tab goes into a section as a version, marked AI draft by its proposal, until the engineer accepts it
+
+Chose:
+- (AS-04) A request for text is asked like a question, in the same conversation and through the same orchestrator run (retrieve → assemble → generate → guardrail), with the same masking and provider: `POST …/ask` with `propose`. "Draft text" (a button beside Ask) drafts new text for the section open; "Rewrite this" (beside Ask about this, and in the document editor's toolbar) rewrites the passage selected. Two buttons, not a guess from the wording. Asked on 16 Nov.
+- The proposal is kept in its own collection, `report_text_proposals`, and the turn points to it. Once inserted it is part of the report's record: the review workspace reads the passages and observations inserted text cites from there, never from `assistant_conversations` (which the export may not read, AS-03), and deleting a conversation leaves inserted text with its sources.
+- Insert puts a draft at the end of a subsection: the model names the one the text fits (`Subsection:` first line), and the engineer can choose another in the card. Replace swaps the whole paragraphs the selection is in (plain paragraphs of one subsection, or items of one list; a sub-heading is not rewritten), so a rewrite never leaves half of a sentence behind. Asked on 16 Nov.
+- Insert and Replace save the section's next version (RV-08) through the same checks as a save, the new paragraphs carrying `ai: <proposal id>`. The section is then Needs review (AC2). A finding a rewrite replaces leaves the text as one deleted in the document editor does: a `reject` entry marked `inDocument`. Undo restores the text from before as the next version, naming what it restored as a version-history restore does, so a replaced finding comes back.
+- Accept, on the violet text in the review workspace, saves a version without the `ai` mark: the text is then the engineer's own. Delete saves one without the text. Editing it in the document editor keeps it AI draft. Asked on 16 Nov.
+- A sentence with no citation that counts is kept and marked unsupported, not dropped as an answer's is (AC3): the engineer sees what the evidence did not support. A citation counts if it names evidence the model was given and, for a standard, its quote is found in the passage. Whether a sentence is still unsupported is read from the text: still there word for word with no citation marker straight after it. Giving it a citation (a marker pasted after it), rewording or deleting it resolves it. Accept is refused while one is unsupported, and the export is blocked by it and by any AI text not yet accepted.
+- The drafting set (AC4) is the standards selected on the assessment, as AS-01 reads them (latest checklist, else every standard that applies): only their passages are searched, and past reports are neither searched nor given, even one the rewritten paragraphs cite. Insert checks the set again, so a checklist made since cannot slip in a standard it dropped.
+- AC5: requests for text, Insert, Replace, Undo, Accept and Delete need `reports:generate` and the assigned engineer. Knowledge admins have held `reports:generate` since RV-11 (on their own assessments), so the assigned-engineer check is what hides these from an admin on someone else's assessment. A finalised report (`reportStatus: 'finalised'`) and an archived one answer 409.
+- AC6: a proposal records the section's newest version, saved draft and a signature of its text when it was made. Any difference on Insert (a save, a redraft, a finding reworded or rejected in the review workspace) answers 409 `stale`, and the card offers Draft again. Undo likewise refuses once the section changed after the insert.
+- In the document editor, Insert, Replace and Undo wait for unsaved changes to be saved, then the document reopens with the new version; Rewrite this asks for the document to be saved first, as a rewrite starts from the saved text. Asked on 16 Nov.
+- `PROPOSE_EFFORT` (default medium) on Ask's model: report text needs more care than a short answer. Prompt `as04-v1` carries the drafting guide (`drafting-skill.md`) for the report's voice. The trace's `story` is `AS-04`; its `propose` block holds the kind, section and subsection chosen, never the words.
+
+Reason: the engineer wants to write faster from the same evidence without losing the report's rule that every statement is cited and reviewed. Going through a saved version keeps the text history (RV-06), the review log (RV-02) and the export's checks (EX-01) as they are, with one more mark on a paragraph.
+
+Rejected:
+- Detecting a draft request from the question's wording: a question like "Draft a summary?" would surprise the engineer either way.
+- Inserting at the cursor in the document editor only: the review workspace has no cursor, and the gateway would have to trust a document the browser built.
+- Treating any edit or save of the inserted text as reviewed: an unrelated save elsewhere in the section would clear it.
+- Keeping proposals only in the conversation: the export and review workspace would have to read a collection that is private to one user and may be deleted.
+- Dropping unsupported sentences, as an answer does: AC3 asks for them to be marked and to block the export.
+
+Stories: AS-04, AS-01, AS-02, AS-03, RV-02, RV-06, RV-08, EX-01.

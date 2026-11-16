@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Reason } from '../../../design-system'
-import { GatewayError } from '../api'
+import { GatewayError, type ReviewWorkspace } from '../api'
 import {
+  applyProposal,
   askQuestion,
   AskRefusedError,
   deleteConversation,
   listQuestions,
   openConversation,
+  ProposalRefusedError,
   type AskAnswer,
   type AskConversation,
   type AskEvent,
   type AskScope,
+  type Proposal,
+  type ProposalAction,
+  type ProposeRequest,
 } from './api'
 import type { AskPassage } from './passage'
 
@@ -25,6 +30,12 @@ export type AskItem = AskAnswer & {
   // The step being run while it is answered: searching, then writing.
   step: 'retrieve' | 'generate' | null
   failure: ShownFailure | null
+  // A request for text for a section (AS-04), shown as proposed text while
+  // it is written, before its proposal arrives; null for a question.
+  requested: ProposeRequest | null
+  // Why the last Insert, Replace or Undo on it was refused, and whether the
+  // section changed since it was proposed (AC6): it is then drafted again.
+  refusal: (ShownFailure & { stale: boolean }) | null
 }
 
 // Why nothing can be asked on an archived assessment (AS-03 AC5): its
@@ -55,11 +66,19 @@ function refusal(error: GatewayError): [cause: string, next: string] {
 }
 
 function shown(answer: AskAnswer, key = answer.id): AskItem {
+  const proposal = answer.proposal ?? null
   return {
     ...answer,
+    proposal,
     key,
     step: null,
     failure: answer.error ? { cause: answer.error.cause, at: answer.error.at, next: NEXT } : null,
+    requested: proposal
+      ? proposal.kind === 'draft'
+        ? { kind: 'draft', sectionId: proposal.sectionId }
+        : { kind: 'rewrite' }
+      : null,
+    refusal: null,
   }
 }
 
@@ -83,7 +102,8 @@ function problemOf(error: unknown, doing: 'opened' | 'deleted'): string {
 // by the review workspace, so an answer keeps streaming while the engineer
 // moves between sections, and into the document editor. `about` is the
 // passage chosen with "Ask about this" (AS-02), asked about with the next
-// question.
+// question; or, chosen with "Rewrite this" (`rewriting`, AS-04), the passage
+// the next request rewrites. `apply` inserts, replaces or undoes proposed text.
 export function useAsk(reference: string, enabled: boolean) {
   const [items, setItems] = useState<AskItem[]>([])
   const [scope, setScope] = useState<AskScope | null>(null)
@@ -91,7 +111,19 @@ export function useAsk(reference: string, enabled: boolean) {
   const [reason, setReason] = useState<string | null>(null)
   const running = useRef<AbortController | null>(null)
   const [busy, setBusy] = useState(false)
-  const [about, setAbout] = useState<AskPassage | null>(null)
+  const [about, setPassage] = useState<AskPassage | null>(null)
+  const [rewriting, setRewriting] = useState(false)
+  // A passage to ask about (AS-02), or to rewrite (AS-04).
+  const setAbout = useCallback((passage: AskPassage | null) => {
+    setPassage(passage)
+    setRewriting(false)
+  }, [])
+  const rewrite = useCallback((passage: AskPassage) => {
+    setPassage(passage)
+    setRewriting(true)
+  }, [])
+  // The proposed text being inserted, replaced or undone, by its item's key.
+  const [applying, setApplying] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [conversations, setConversations] = useState<AskConversation[]>([])
   const [conversation, setConversation] = useState<AskConversation | null>(null)
@@ -204,7 +236,11 @@ export function useAsk(reference: string, enabled: boolean) {
   )
 
   const ask = useCallback(
-    async (question: string, passage: AskPassage | null = null) => {
+    async (
+      question: string,
+      passage: AskPassage | null = null,
+      propose: ProposeRequest | null = null,
+    ) => {
       if (running.current || opening.current) return
       const controller = new AbortController()
       running.current = controller
@@ -229,6 +265,9 @@ export function useAsk(reference: string, enabled: boolean) {
           error: null,
           step: 'retrieve',
           failure: null,
+          proposal: null,
+          requested: propose,
+          refusal: null,
         },
       ])
       const fail = (cause: string, next = NEXT, at = new Date().toISOString()) =>
@@ -259,6 +298,8 @@ export function useAsk(reference: string, enabled: boolean) {
             text: event.text,
             citations: event.citations,
             ...(event.differs && { differs: true }),
+            ...(typeof event.supported === 'boolean' && { supported: event.supported }),
+            ...(typeof event.paragraph === 'number' && { paragraph: event.paragraph }),
           }
           update((item) => ({
             ...item,
@@ -274,7 +315,15 @@ export function useAsk(reference: string, enabled: boolean) {
         }
       }
       try {
-        await askQuestion(reference, question, onEvent, controller.signal, passage, current.current)
+        await askQuestion(
+          reference,
+          question,
+          onEvent,
+          controller.signal,
+          passage,
+          current.current,
+          propose,
+        )
         if (!finished) fail('the answer ended before it was finished')
       } catch (error: unknown) {
         if (controller.signal.aborted) fail('the answer was stopped before it finished')
@@ -292,6 +341,87 @@ export function useAsk(reference: string, enabled: boolean) {
 
   const stop = useCallback(() => running.current?.abort(), [])
 
+  // Inserts, replaces or undoes an item's proposed text (AS-04): the item
+  // shows the proposal as it now stands, which is returned with the review
+  // workspace holding the section's new version, for the caller to show. A
+  // refusal is shown on the item with its cause and next step, and returns null.
+  const apply = useCallback(
+    async (
+      item: AskItem,
+      action: Extract<ProposalAction, 'insert' | 'replace' | 'undo'>,
+      subsection?: number,
+    ): Promise<{ workspace: ReviewWorkspace; proposal: Proposal } | null> => {
+      if (!item.proposal) return null
+      setApplying(item.key)
+      const update = (change: Partial<AskItem>) =>
+        setItems((list) => list.map((i) => (i.key === item.key ? { ...i, ...change } : i)))
+      update({ refusal: null })
+      try {
+        const done = await applyProposal(
+          reference,
+          item.proposal.id,
+          action,
+          subsection === undefined ? {} : { subsection },
+        )
+        update({ proposal: done.proposal })
+        return done
+      } catch (error: unknown) {
+        const at = new Date().toISOString()
+        update({
+          refusal:
+            error instanceof ProposalRefusedError
+              ? {
+                  cause: error.reason,
+                  next: error.next,
+                  at: error.at,
+                  stale: error.code === 'stale',
+                }
+              : error instanceof GatewayError && error.status === null
+                ? {
+                    cause: 'the gateway could not be reached',
+                    next: 'Try again.',
+                    at,
+                    stale: false,
+                  }
+                : error instanceof GatewayError && error.status === 403
+                  ? {
+                      cause: 'only the assigned engineer can put text into this report',
+                      next: 'Ask the assigned engineer.',
+                      at,
+                      stale: false,
+                    }
+                  : {
+                      cause: 'the gateway refused it',
+                      next: 'Reload the page and try again.',
+                      at,
+                      stale: false,
+                    },
+        })
+        return null
+      } finally {
+        setApplying(null)
+      }
+    },
+    [reference],
+  )
+
+  // A proposal as it now stands after a decision made outside the tab (Accept
+  // or Delete on its text in the section, AS-04), on the items showing it.
+  const refreshProposal = useCallback((proposal: Proposal) => {
+    setItems((list) =>
+      list.map((i) => (i.proposal?.id === proposal.id ? { ...i, proposal, refusal: null } : i)),
+    )
+  }, [])
+
+  // Drafts an item's text again (AS-04 AC6): the same request, on the
+  // section as it is now, as a new item.
+  const redraft = useCallback(
+    (item: AskItem) => {
+      if (item.requested) void ask(item.question, item.passage ?? null, item.requested)
+    },
+    [ask],
+  )
+
   return {
     items,
     scope,
@@ -302,6 +432,12 @@ export function useAsk(reference: string, enabled: boolean) {
     stop,
     about,
     setAbout,
+    rewriting,
+    rewrite,
+    apply,
+    applying,
+    redraft,
+    refreshProposal,
     archived,
     conversations,
     conversation,

@@ -240,6 +240,102 @@
 .ask-missing-label {
   font-weight: var(--weight-semibold);
 }
+/* Text proposed for a section (AS-04): a rewrite's paragraphs before, quoted
+   behind a 2px rule as a passage is, then the text after in the report's
+   serif; each sentence with no supporting source underlined in amber and
+   badged (AC3). The section is unchanged until Insert or Replace. */
+.ask-before {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ask-before-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.ask-before-text {
+  margin: 0;
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ask-proposed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ask-proposed-text {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  overflow-wrap: anywhere;
+  animation: askIn 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.ask-proposed-text .rv-cite {
+  margin-left: 2px;
+}
+.ask-unsupported {
+  text-decoration: underline;
+  text-decoration-color: var(--status-moderate-fg);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.ask-unsupported .rv-flag {
+  margin-left: var(--space-2);
+  vertical-align: 1px;
+}
+.ask-proposal-note {
+  margin: 0;
+  color: var(--status-moderate-fg);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.ask-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ask-proposal-into {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+.ask-proposal-where {
+  font-size: var(--text-caption-size);
+}
+.ask-proposal-gap {
+  flex: 1;
+}
+.ask-proposal-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.ask-proposal-status > span:nth-child(2) {
+  flex: 1;
+  min-width: 160px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-proposed-text {
+    animation: none;
+  }
+}
 .ask-sources {
   display: flex;
   flex-direction: column;
@@ -316,10 +412,15 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-2);
-  max-width: min(320px, 100%);
+  max-width: min(340px, 100%);
   animation: askIn 120ms cubic-bezier(0.2, 0, 0.2, 1);
 }
-.rv-ask-offer > :first-child {
+.rv-ask-offer-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.rv-ask-offer-buttons > * {
   box-shadow: 0 12px 32px rgb(0 15 71 / 0.16);
 }
 .rv-ask-hint {

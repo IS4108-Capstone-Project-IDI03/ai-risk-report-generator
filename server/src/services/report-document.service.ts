@@ -18,6 +18,7 @@ import type { SessionUser } from './auth.service'
 import { AssessmentModel } from '../models/assessment.model'
 import type { CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
+import { ReportTextProposalModel } from '../models/report-text-proposal.model'
 import {
   DOCUMENT_MARKS,
   ReportSectionVersionModel,
@@ -28,7 +29,7 @@ import { AssessmentNotFoundError } from './capture-session.service'
 import { isDuplicateKeyError } from './mongo-errors'
 import { MAX_FINDING_LENGTH, recordDocumentEdits, StaleDraftError } from './review-decision.service'
 import { assessmentToDraft, sectionDrafts, templateSection, type Draft } from './section.service'
-import { plainText, textBlocksOf, textLength } from './section-document'
+import { aiIdsIn, plainText, textBlocksOf, textLength } from './section-document'
 
 export type { SectionDocument } from '../models/report-section-version.model'
 
@@ -73,6 +74,11 @@ const paragraphSchema = z.strictObject({
   finding: z
     .string()
     .regex(/^\d+\.\d+$/)
+    .nullish(),
+  // AI-drafted text inserted from the Ask tab, awaiting Accept (AS-04): its proposal.
+  ai: z
+    .string()
+    .regex(/^[0-9a-f]{24}$/)
     .nullish(),
   content: z.array(inlineSchema).max(MAX_BLOCKS),
 })
@@ -125,6 +131,10 @@ function checkShape(document: SectionDocument, draft: Draft | null) {
   })
   const keys = new Set<string>()
   for (const block of textBlocksOf(document)) {
+    if (block.finding && block.ai)
+      throw new DocumentShapeError(
+        `Finding ${block.finding} is marked as AI-drafted text too. Reload the document and save again.`,
+      )
     if (!block.finding) continue
     const [i, j] = block.finding.split('.').map(Number)
     if (!draft?.subsections[i]?.statements[j] || keys.has(block.finding))
@@ -225,12 +235,38 @@ export async function saveSectionDocument(
   return await writeSectionVersion(reference, sectionId, input, user, async () => input.document)
 }
 
+// AI-drafted text in a section's document (AS-04) must name a proposal that was
+// inserted into this section (or the one being inserted now): one saved back
+// from the document editor, or brought back by restoring a version, always
+// does. Anything else is refused (400).
+async function checkAiText(
+  document: SectionDocument,
+  assessment: Types.ObjectId,
+  sectionId: string,
+  inserting: string | null,
+) {
+  const ids = aiIdsIn(document).filter((id) => id !== inserting)
+  if (!ids.length) return
+  const found = await ReportTextProposalModel.countDocuments({
+    _id: { $in: ids },
+    assessment,
+    sectionId,
+    insertion: { $ne: null },
+  })
+  if (found !== ids.length)
+    throw new DocumentShapeError(
+      'AI-drafted text in this section names a proposal that was never inserted into it. Reload the document and save again.',
+    )
+}
+
 // Adds the section's next version, built on its saved draft (`draftId`) and
 // newest version (`baseVersion`) as the engineer saw them, else nothing is
 // saved (409). `documentOf` gives the text from the saved draft: the
 // document editor's (RV-08), or an earlier version's carried onto it, for a
 // restore (RV-06), which `restoredFrom` names on the version and on every
-// review log entry the restore makes. Shared by saving and restoring.
+// review log entry the restore makes. Shared by saving and restoring, and by
+// inserting AI-drafted text from the Ask tab (AS-04), whose proposal
+// `inserting` names.
 export async function writeSectionVersion(
   reference: string,
   sectionId: string,
@@ -238,6 +274,7 @@ export async function writeSectionVersion(
   user: SessionUser,
   documentOf: (draft: Draft | null, assessment: Types.ObjectId) => Promise<SectionDocument>,
   restoredFrom: string | null = null,
+  inserting: string | null = null,
 ): Promise<SectionVersionDto> {
   const assessment = await assessmentToDraft(reference, user)
   const { draft, cope } = await savedDraftOf(assessment._id, sectionId)
@@ -250,6 +287,7 @@ export async function writeSectionVersion(
 
   const document = await documentOf(draft, assessment._id)
   checkShape(document, draft)
+  await checkAiText(document, assessment._id, sectionId, inserting)
 
   const at = new Date()
   // Section 2's statements are not reviewed one by one (GN-07): only 4-12 log.

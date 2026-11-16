@@ -278,6 +278,10 @@ export function buildReportDocument({
         if (section) return describeCitation(section, citation)
         return citation.startsWith('S:') ? `Section ${citation.slice(2)}` : 'Source'
       },
+      // Each insertion of AI-drafted text's sentences proposed with no source (AS-04).
+      aiUnsupported: new Map(
+        workspace.sections.flatMap((s) => (s.aiDrafts ?? []).map((d) => [d.id, d.unsupported])),
+      ),
     },
   }
 }
