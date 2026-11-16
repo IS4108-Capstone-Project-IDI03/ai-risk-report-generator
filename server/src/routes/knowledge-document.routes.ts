@@ -15,6 +15,7 @@ import {
   KnowledgeDocumentWrongStateError,
   KnowledgeDocumentNotFoundError,
   listIngestedDocuments,
+  listKnowledgeDocumentPassages,
   listKnowledgeDocuments,
   reinstateKnowledgeDocument,
   RejectedFileError,
@@ -179,6 +180,16 @@ router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res
     const { id, name } = res.locals.user!
     await retryIngestion(req.params.id, { id, name })
     res.status(202).end()
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// A document's passages in reading order, for the knowledge base browser (IN-17).
+// Answers: 200 `{ passages }` · 404 unknown · 503 ingestion down.
+router.get('/:id/passages', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json({ passages: await listKnowledgeDocumentPassages(req.params.id) })
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

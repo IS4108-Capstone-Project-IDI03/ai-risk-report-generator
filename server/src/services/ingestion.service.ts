@@ -201,6 +201,27 @@ export type ComparisonRow = {
   differs: boolean
 }
 
+// One passage as the knowledge base browser lists it (IN-17).
+export type DocumentPassage = {
+  id: string
+  text: string
+  headings: string[]
+  section: string | null
+  pageStart: number | null
+  pageEnd: number | null
+  status: string | null
+}
+
+// Returns a document's passages in reading order (IN-17).
+export async function listPassages(id: string): Promise<DocumentPassage[]> {
+  const answer = await callIngestion<{ passages: DocumentPassage[] }>(
+    `/documents/${id}/passages`,
+    'GET',
+    'The passages could not be loaded. Try again shortly.',
+  )
+  return answer.passages
+}
+
 // Returns the aligned passages of a document and the one it matches (IN-07 AC7).
 export async function getComparison(id: string, otherId: string): Promise<ComparisonRow[]> {
   const answer = await callIngestion<{ rows: ComparisonRow[] }>(

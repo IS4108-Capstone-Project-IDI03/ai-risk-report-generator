@@ -21,9 +21,11 @@ import { enqueueIngestion, requeueIngestion, removeIngestionJob } from './ingest
 import {
   IngestionUnavailableError,
   labelDocument,
+  listPassages,
   matchDocument,
   relabelPassages,
   whyPdfCannotOpen,
+  type DocumentPassage,
   type LabelAnswer,
 } from './ingestion.service'
 import { ingestionPrivacy, type IngestionPrivacy } from './privacy.service'
@@ -875,6 +877,15 @@ export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumen
   const document = await KnowledgeDocumentModel.findById(id).lean()
   if (!document) throw new KnowledgeDocumentNotFoundError()
   return (await toDtos([document]))[0]
+}
+
+// A document's passages in reading order, for the knowledge base browser (IN-17).
+// Throws KnowledgeDocumentNotFoundError before asking the ingestion service.
+export async function listKnowledgeDocumentPassages(id: string): Promise<DocumentPassage[]> {
+  if (!isValidObjectId(id) || !(await KnowledgeDocumentModel.exists({ _id: id }))) {
+    throw new KnowledgeDocumentNotFoundError()
+  }
+  return listPassages(id)
 }
 
 /**
