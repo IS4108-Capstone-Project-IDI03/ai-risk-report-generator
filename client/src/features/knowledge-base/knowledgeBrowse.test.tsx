@@ -42,6 +42,19 @@ const UNREVIEWED = {
   facilityType: null,
 }
 
+const FM = {
+  ...base,
+  id: 'fm',
+  title: 'FM 2-0 Installation guidelines',
+  issuingBody: 'FM Global',
+  standardNumber: '2-0',
+  edition: '2024',
+  sourceType: 'fm_standard',
+  jurisdiction: 'all',
+  effectiveDate: '2024-01-01',
+  fileUrl: '/api/knowledge-documents/fm/file',
+}
+
 const requested: string[] = []
 function mockGateway(documents: object[]) {
   vi.stubGlobal('fetch', (url: string) => {
@@ -99,5 +112,28 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
       screen.queryByRole('button', { name: /^Needs review: NFPA 13 sprinkler standard 2025/ }),
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('status', { name: 'Documents to review' })).not.toBeInTheDocument()
+  })
+
+  it('filters the list by source type', async () => {
+    mockGateway([FM, NFPA])
+    await openAsEngineer()
+    expect(await screen.findByRole('button', { name: /^FM 2-0 Installation/ })).toBeVisible()
+
+    fireEvent.change(screen.getByLabelText('Source type'), { target: { value: 'nfpa_standard' } })
+
+    expect(screen.getByRole('button', { name: /^NFPA 13 sprinkler standard/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^FM 2-0 Installation/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Showing 1 of 2 documents')
+  })
+
+  it('shows the list, not the Review page, when an engineer opens a Review link', async () => {
+    mockGateway([UNREVIEWED])
+    window.history.replaceState(null, '', '/admin/knowledge-base/review/nfpa-2025')
+    render(<App />)
+    await signIn('risk_engineer')
+
+    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+    expect(window.location.pathname).toBe('/admin/knowledge-base')
+    expect(requested.some((url) => url.endsWith('/comparison'))).toBe(false)
   })
 })

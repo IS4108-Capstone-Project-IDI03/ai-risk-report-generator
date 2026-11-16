@@ -10,7 +10,8 @@ import { listIngestedDocuments, listKnowledgeRequests } from './api'
 import { knowledgeTab } from './openTab'
 import { needsReview } from './display'
 import { AddDocuments } from './screens/AddDocuments'
-import { KnowledgeDocuments, type Filters } from './screens/KnowledgeDocuments'
+import { NO_FILTERS, type Filters } from './documentFilters'
+import { KnowledgeDocuments } from './screens/KnowledgeDocuments'
 import { Requests } from './screens/Requests'
 import { ReviewDocument } from './screens/ReviewDocument'
 import './knowledge-base.css'
@@ -112,12 +113,19 @@ export function KnowledgeBase({
   }
   // A tab chosen from elsewhere may be one only an admin has (openKnowledgeTab).
   const shown = canManage ? tab : 'documents'
-  if (reviewId) {
+  // Reviewing a match is the admin's (IN-07): an engineer's Review link opens the list,
+  // and the address says so.
+  const reviewing = canManage ? reviewId : null
+  useEffect(() => {
+    if (reviewId && !canManage)
+      window.history.replaceState(window.history.state, '', SCREEN_PATHS.knowledge)
+  }, [reviewId, canManage])
+  if (reviewing) {
     return (
       <div className="kb">
         <ReviewDocument
-          key={reviewId}
-          id={reviewId}
+          key={reviewing}
+          id={reviewing}
           onBack={() => closeReview()}
           onDecided={(message) => {
             setDecided((n) => n + 1)
@@ -171,9 +179,7 @@ export function KnowledgeBase({
           narrow={narrow}
           onCompleted={setCompleted}
           // From Add documents the list has no filters to keep.
-          onReview={(id) =>
-            openReview(id, { title: '', jurisdiction: '', facilityType: '', status: '' })
-          }
+          onReview={(id) => openReview(id, NO_FILTERS)}
         />
       )}
     </div>

@@ -15,6 +15,7 @@ import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
 import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
+import { NO_FILTERS, type Filters } from '../documentFilters'
 
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
@@ -36,6 +37,14 @@ const FACILITY_FILTER = [
   { value: 'all', label: 'All facility types' },
   ...FACILITY_TYPES,
 ]
+// The groups' source types (IN-17); an unconfirmed one matches no value here.
+const SOURCE_FILTER = [
+  { value: '', label: 'Any source type' },
+  ...GROUPS.filter((g) => g.sourceType).map((g) => ({
+    value: g.sourceType as string,
+    label: g.title,
+  })),
+]
 const STATUS_FILTER = [
   { value: '', label: 'Any status' },
   { value: 'active', label: 'Active' },
@@ -50,7 +59,6 @@ const hasStatus = (d: KnowledgeDocument, status: string) =>
     : status === 'needs_review'
       ? needsReview(d)
       : !d.withdrawn && !needsReview(d)
-const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
 // gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
@@ -65,11 +73,13 @@ function titleMatches(title: string, query: string) {
   return true
 }
 
-export type Filters = typeof NO_FILTERS
-
 // The filters the admin left the list with, kept in the browser's history
 // entry by KnowledgeBase.tsx so the way back from a Review page restores them.
-const restoredFilters = (): Filters | null => window.history.state?.kbFilters ?? null
+// Merged over NO_FILTERS: an entry saved before a filter existed lacks its key.
+const restoredFilters = (): Filters | null => {
+  const saved = window.history.state?.kbFilters
+  return saved ? { ...NO_FILTERS, ...saved } : null
+}
 
 // What the Edit details dialog opens on: the document, and the version being
 // restored, if any (AC10).
@@ -134,6 +144,7 @@ export function KnowledgeDocuments({
   const shown = (documents ?? []).filter(
     (d) =>
       titleMatches(d.title, filters.title) &&
+      (!filters.sourceType || d.sourceType === filters.sourceType) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
       (!filters.status || hasStatus(d, filters.status)),
@@ -218,6 +229,13 @@ export function KnowledgeDocuments({
             placeholder="Search titles"
             value={filters.title}
             onChange={(e) => setFilters({ ...filters, title: e.target.value })}
+          />
+          <Select
+            size="sm"
+            aria-label="Source type"
+            options={SOURCE_FILTER}
+            value={filters.sourceType}
+            onChange={(e) => setFilters({ ...filters, sourceType: e.target.value })}
           />
           <Select
             size="sm"
