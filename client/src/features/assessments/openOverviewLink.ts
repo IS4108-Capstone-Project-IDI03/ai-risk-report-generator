@@ -4,6 +4,18 @@
 import type { ItemLink } from '../marshbot/types'
 import { openSiteWalkReview } from '../site-walk/openReview'
 
+// Set while a link opens another tab. The URL sync in useAssessmentWorkflow.tsx then adds a
+// history entry instead of rewriting the Overview's, so Back returns to the Overview. The tab strip
+// never sets it, so it keeps rewriting. Kept outside React like site-walk/openReview.ts.
+export const overviewNav = { push: false }
+
+// Marks the navigation that follows as one that starts from an Overview link. The timer clears it
+// when the link changed nothing (already on that tab), so a later tab click isn't taken for one.
+function markFromOverview() {
+  overviewNav.push = true
+  setTimeout(() => (overviewNav.push = false), 0)
+}
+
 /** What a link needs from the workflow and the app; `goTo` keeps the link's params for its tab. */
 export type LinkTargets = {
   reference: string
@@ -17,7 +29,11 @@ export type LinkTargets = {
 export function openOverviewLink(link: ItemLink, t: LinkTargets) {
   const { walk, obs, details } = link.params ?? {}
   if (details) return t.openDetails()
-  if (walk) return openSiteWalkReview(t.reference, walk)
+  if (walk) {
+    markFromOverview()
+    return openSiteWalkReview(t.reference, walk)
+  }
+  markFromOverview()
   if (obs) {
     // `media` (a recording or page) is scrolled to once the observation is open.
     t.goTo(link)

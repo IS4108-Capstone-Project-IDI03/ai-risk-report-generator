@@ -89,6 +89,7 @@ import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import type { Cope, Severity } from '../site-walk/api'
 import { siteWalkReview } from '../site-walk/openReview'
+import { overviewNav } from './openOverviewLink'
 import { reportAssessmentMissing } from './openAssessment'
 import { useActivity } from '../marshbot/useActivity'
 import type { Priority } from '../marshbot/types'
@@ -610,6 +611,21 @@ function placeFromUrl(): Partial<WorkflowState> {
   }
 }
 
+/**
+ * Returns the place the URL names after Back or Forward. The URL knows only an assessment's
+ * reference, so when it is still the assessment that is open (Back from a tab a MarshBot link
+ * opened, AS-06 round 9) its loaded site name and the Recent list are kept. Without this the page
+ * title went blank: the work list that fills the name in is not read again.
+ */
+export function placeAfterBack(
+  previous: Pick<WorkflowState, 'captureTarget' | 'recent'>,
+  place: ReturnType<typeof placeFromUrl>,
+) {
+  return place.captureTarget?.reference === previous.captureTarget.reference
+    ? { ...place, captureTarget: previous.captureTarget, recent: previous.recent }
+    : place
+}
+
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The screen comes from the URL (F-05), so a screen can be linked to and
   // reopened after signing in; '/' opens the role's home screen.
@@ -639,9 +655,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const url = path + place
       const here = window.location.pathname + window.location.search
       // A new screen is a history entry; a new tab or observation on the same
-      // screen only rewrites it, so Back still leaves the screen.
+      // screen only rewrites it, so Back still leaves the screen. A MarshBot link from the
+      // Overview is the exception: it adds one, so Back returns to the Overview.
       if (url === here) return void (urlSynced.current = true)
-      if (urlSynced.current && window.location.pathname !== path)
+      const fromOverview = overviewNav.push
+      overviewNav.push = false
+      if (urlSynced.current && (window.location.pathname !== path || fromOverview))
         window.history.pushState(null, '', url)
       else window.history.replaceState(null, '', url)
     }
@@ -653,7 +672,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       updateState((previous) => ({
         ...previous,
         screen: screenForPath(window.location.pathname, session),
-        ...placeFromUrl(),
+        ...placeAfterBack(previous, placeFromUrl()),
         clientPage: clientIdForPath(window.location.pathname),
         navOpen: false,
         toast: null,
