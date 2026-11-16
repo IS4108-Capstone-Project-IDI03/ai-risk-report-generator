@@ -1,8 +1,11 @@
 // Tests for the CP-23 round 1 components: ReasonBox on Button/IconButton, Sheet, DatePicker.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Button } from './core/Button'
+import { AddRow } from './display/AddRow'
+import { IconAction } from './core/IconAction'
 import { IconButton } from './core/IconButton'
 import { Sheet } from './feedback/Sheet'
 import { DatePicker } from './forms/DatePicker'
@@ -30,6 +33,61 @@ describe('disabled with a reason', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent(reason.text)
     fireEvent.click(b)
     expect(onClick).not.toHaveBeenCalled()
+  })
+  // jsdom lays nothing out, so the rectangles are faked: the dialog is 400 x 300 and the box,
+  // opened below the button, ends at `boxRight` and `boxBottom`.
+  function showReasonInDialog(boxRight: number, boxBottom: number) {
+    cleanup()
+    // jsdom's window is 0 wide; a 1000px one keeps the window out of the way.
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1000)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(1000)
+    const rect = (right: number, bottom: number) =>
+      ({ top: 0, left: 0, right, bottom, width: right, height: bottom }) as DOMRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.tagName === 'DIALOG' ? rect(400, 300) : rect(boxRight, boxBottom)
+    })
+    render(
+      <dialog open>
+        <Button disabledReason={reason}>Save</Button>
+      </dialog>,
+    )
+    fireEvent.focus(screen.getByRole('button', { name: 'Save' }))
+    const box = screen.getByRole('tooltip')
+    vi.restoreAllMocks()
+    return box
+  }
+  it('keeps the reason box inside a dialog that would clip it: right-aligned and above', () => {
+    const box = showReasonInDialog(500, 340)
+    expect(box).toHaveAttribute('data-flip')
+    expect(box).toHaveAttribute('data-up')
+  })
+  it('right-aligns a box that fits but would hang past the dialog’s content edge', () => {
+    // Ends 10px inside the dialog, but past its 24px padding: it lines up with the button instead.
+    expect(showReasonInDialog(390, 200)).toHaveAttribute('data-flip')
+    // Well inside the content edge: left where it is.
+    expect(showReasonInDialog(300, 200)).not.toHaveAttribute('data-flip')
+  })
+  it('IconAction and AddRow keep focus while busy, and ignore presses', () => {
+    const press = vi.fn()
+    render(
+      <>
+        <IconAction icon="plus" label="Add" loading onClick={press} />
+        <AddRow loading onClick={press}>
+          Add more
+        </AddRow>
+      </>,
+    )
+    for (const name of ['Add', 'Add more']) {
+      const b = screen.getByRole('button', { name })
+      expect(b).not.toBeDisabled()
+      expect(b).toHaveAttribute('aria-disabled', 'true')
+      b.focus()
+      expect(b).toHaveFocus()
+      fireEvent.click(b)
+    }
+    expect(press).not.toHaveBeenCalled()
   })
   it('IconButton shows the reason on hover and stays inert', async () => {
     const onClick = vi.fn()
@@ -109,6 +167,20 @@ describe('DatePicker', () => {
     open()
     fireEvent.click(screen.getByText('Today'))
     expect(onChange.mock.calls.at(-1)?.[0]).toBe(new Date().toLocaleDateString('en-CA'))
+  })
+  // Codex, AS-06 round 9: the field kept the old date on screen while the form held the new one.
+  it('shows the picked day, and nothing after Clear, when the parent echoes the value', () => {
+    function Held() {
+      const [value, setValue] = useState('2027-02-16')
+      return <DatePicker label="End" value={value} onChange={setValue} />
+    }
+    render(<Held />)
+    open()
+    fireEvent.click(screen.getByRole('button', { name: /17 February 2027/ }))
+    expect(screen.getByRole('textbox')).toHaveValue('17/02/2027')
+    open()
+    fireEvent.click(screen.getByText('Clear'))
+    expect(screen.getByRole('textbox')).toHaveValue('')
   })
   it('reports half-typed text as invalid and keeps the text', () => {
     const onChange = vi.fn()

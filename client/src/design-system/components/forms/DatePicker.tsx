@@ -25,6 +25,10 @@ export type DatePickerProps = {
   name?: string
   // Id of another element that describes the field (joined with the hint/error line's id).
   describedBy?: string
+  // For a field inside a modal <dialog>: the calendar floats on a phone too (a sheet portalled to
+  // the body would open behind the dialog's top layer), and it is placed against the window, so
+  // the dialog's own scrolling box can't clip it.
+  noSheet?: boolean
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -183,6 +187,7 @@ export function DatePicker({
   disabled,
   name,
   describedBy: extraDescribedBy,
+  noSheet,
 }: DatePickerProps) {
   const uid = useId()
   // On a phone the calendar is a centred card that takes focus, so the text can't be typed
@@ -235,6 +240,8 @@ export function DatePicker({
         ariaLabel={label ?? 'Choose a date'}
         align="left"
         sheetCentred
+        noSheet={noSheet}
+        fixed={noSheet}
         style={{ display: 'flex' }}
         trigger={
           <span className="ds-field ds-datepicker-field" data-error={error ? '' : undefined}>
@@ -286,11 +293,15 @@ export function DatePicker({
           value={value}
           min={min}
           focusDay={fromButton}
+          // A pick, Today or Clear shows at once: the parent echoing the value back would otherwise
+          // keep the old text (only TYPED text survives an echo), and Save would send a date unseen.
           onPick={(iso) => {
+            setText(show(iso))
             report(iso)
             setOpen(false)
           }}
           onClear={() => {
+            setText('')
             report('')
             setOpen(false)
           }}

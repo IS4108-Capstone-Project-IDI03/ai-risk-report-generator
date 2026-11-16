@@ -431,6 +431,50 @@
   }
 }
 
+/* A busy add row: the plus turns into the spinner and the row stops answering. */
+.ds-add-row:disabled,
+.ds-add-row[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* A busy icon button: its icon turns into the spinner. */
+.ds-icon-button[aria-busy='true'] {
+  cursor: progress;
+}
+.ds-icon-button[aria-busy='true'] > [role='presentation'] {
+  animation: dsSpin 0.9s linear infinite;
+}
+/* An icon action that opens a link: the same round 32 px look as the button, without the
+   link underline or border. */
+.ds-icon-button.ds-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+/* Count pill (v2 section 3): the grey pill the tabs use for a count. */
+.ds-count-pill {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 /* Table footer */
 .ds-table-footer {
   display: flex;
@@ -703,6 +747,12 @@
   }
 }
 
+/* A date field in a v2 dialog fills its column, like the selects and inputs beside it (AS-06
+   round 9, Edit Assessment Details). Elsewhere it keeps its own width. */
+.ds-dialog--v2 .ds-datepicker-field {
+  flex: 1;
+}
+
 /* Report due, compact on a phone (R12): 14 px icon beside the date. */
 @media (max-width: 767px) {
   .ds-due > span[aria-hidden='true'] {
@@ -786,6 +836,17 @@
   .ds-dialog--v2 .ds-dialog-footer button {
     flex: 1;
     min-height: 44px;
+  }
+  /* The corner close is a 44 px target on a narrow window too, not only on a touch screen
+     (IconButton sets its size inline, hence !important). */
+  .ds-dialog--v2 .ds-dialog-header > button {
+    width: 44px !important;
+    height: 44px !important;
+    top: 12px;
+    right: 12px;
+  }
+  .ds-dialog.ds-dialog--v2 h2 {
+    padding-right: 44px;
   }
 }
 @media (pointer: coarse) {

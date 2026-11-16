@@ -65,6 +65,14 @@
   right: 0;
   transform-origin: top right;
 }
+.ds-reason-box[data-up] {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+.ds-reason-box[data-up][data-flip] {
+  transform-origin: bottom right;
+}
 .ds-sr-only {
   position: absolute;
   width: 1px;
