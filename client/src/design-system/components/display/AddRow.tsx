@@ -22,7 +22,7 @@ export function AddRow({ children, loading = false, onClick, ...rest }: AddRowPr
       aria-busy={loading || undefined}
     >
       {loading ? (
-        <Icon name="loader-circle" size={16} style={{ animation: 'dsSpin 0.9s linear infinite' }} />
+        <Icon name="loader-circle" size={16} className="ds-spin" />
       ) : (
         <Icon name="plus" size={16} />
       )}

@@ -15,11 +15,13 @@ export type ButtonProps = Omit<
   | 'children'
   | 'style'
 > & {
-  // Also: `create` (navy pill with the v2 shadow) and `pill` (grey secondary pill).
+  // Also: `create` (navy pill with the v2 shadow), `pill` (grey secondary pill) and `link-navy`
+  // (the quiet link in Marsh navy, for links inside a navy-titled panel).
   variant?: string
   // Rounds any variant to a pill (radius 999).
   pill?: boolean
-  size?: 'sm' | 'md' | 'lg'
+  // `xs` is a 28 px compact row link; `title` is a link set as a 16 px bold title that wraps.
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'title'
   iconLeft?: string
   iconRight?: string
   disabled?: boolean
@@ -31,7 +33,35 @@ export type ButtonProps = Omit<
   style?: React.CSSProperties
 }
 import { useState } from 'react'
-const SIZES = {
+// `link` is the padding a link variant keeps (links have none by default), `wrap` lets the label
+// wrap over lines, `weight` and `lineHeight` override the button defaults.
+type Size = {
+  height: string
+  padding: string
+  font: string
+  icon: number
+  link?: string
+  wrap?: boolean
+  weight?: number
+  lineHeight?: number
+}
+const SIZES: Record<string, Size> = {
+  xs: {
+    height: '28px',
+    padding: '0 8px',
+    font: 'var(--text-small-size)',
+    icon: 14,
+    link: '0 6px',
+  },
+  title: {
+    height: 'auto',
+    padding: '0',
+    font: '16px',
+    icon: 16,
+    wrap: true,
+    weight: 700,
+    lineHeight: 1.3,
+  },
   sm: {
     height: 'var(--control-height-sm)',
     padding: '0 10px',
@@ -137,6 +167,12 @@ function palette(variant: string, hover: boolean, active: boolean) {
         color: 'var(--text-link)',
         border: '1px solid transparent',
       }
+    case 'link-navy':
+      return {
+        background: 'transparent',
+        color: 'var(--marsh-navy)',
+        border: '1px solid transparent',
+      }
     default:
       return {
         background: active
@@ -167,6 +203,7 @@ function Button({
   const [hover, setHover] = useState(false)
   const [active, setActive] = useState(false)
   const s = SIZES[size] || SIZES.md
+  const isLink = variant === 'link' || variant === 'link-navy'
   const blocked = disabled || !!disabledReason
   const p = palette(variant, hover && !blocked, active && !blocked)
   return (
@@ -201,12 +238,14 @@ function Button({
             gap: 'var(--space-3)',
             boxSizing: 'border-box',
             height: s.height,
-            padding: variant === 'link' ? 0 : s.padding,
+            padding: isLink ? (s.link ?? 0) : s.padding,
             width: fullWidth ? '100%' : undefined,
             fontFamily: 'var(--font-sans)',
             fontSize: s.font,
-            fontWeight: 'var(--weight-medium)',
-            lineHeight: 1,
+            fontWeight: s.weight ?? 'var(--weight-medium)',
+            lineHeight: s.lineHeight ?? 1,
+            textAlign: s.wrap ? 'left' : undefined,
+            overflowWrap: s.wrap ? 'anywhere' : undefined,
             letterSpacing: '0.005em',
             borderRadius:
               pill || variant === 'create' || variant === 'pill'
@@ -218,19 +257,15 @@ function Button({
             boxShadow: variant === 'create' ? 'var(--shadow-create)' : 'none',
             // Press feedback is CSS (.ds-press:active in kit.css): scale 0.97, none with reduced motion.
             transition: 'var(--transition-control), transform var(--duration-fast) var(--ease-out)',
-            textDecoration: variant === 'link' && hover ? 'underline' : 'none',
-            whiteSpace: 'nowrap',
+            textDecoration: isLink && hover ? 'underline' : 'none',
+            whiteSpace: s.wrap ? 'normal' : 'nowrap',
             ...p,
             ...style,
           }}
           {...rest}
         >
           {loading ? (
-            <Icon
-              name={'loader-circle'}
-              size={s.icon}
-              style={{ animation: 'dsSpin 0.9s linear infinite' }}
-            />
+            <Icon name={'loader-circle'} size={s.icon} className="ds-spin" />
           ) : iconLeft ? (
             <Icon name={iconLeft} size={s.icon} />
           ) : null}

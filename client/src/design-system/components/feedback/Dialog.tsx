@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { IconButton } from '../core/IconButton'
+import { useIsPhone } from './Sheet'
 
 export type DialogProps = {
   className?: string
@@ -49,6 +50,10 @@ export function Dialog({
   style,
 }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null)
+  // The close button is a 44 px target on a phone; its size is set inline by IconButton, so the
+  // Dialog gives it the size itself.
+  const phone = useIsPhone()
+  const closeSize = phone ? { width: 44, height: 44 } : undefined
   const titleId = useId()
   const descriptionId = useId()
   useEffect(() => {
@@ -98,7 +103,9 @@ export function Dialog({
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          {onClose && <IconButton icon="x" label="Close" size="sm" onClick={onClose} />}
+          {onClose && (
+            <IconButton icon="x" label="Close" size="sm" style={closeSize} onClick={onClose} />
+          )}
         </header>
       ) : onClose ? (
         <IconButton
@@ -106,6 +113,7 @@ export function Dialog({
           icon="x"
           label="Close"
           size="sm"
+          style={closeSize}
           onClick={onClose}
         />
       ) : null}

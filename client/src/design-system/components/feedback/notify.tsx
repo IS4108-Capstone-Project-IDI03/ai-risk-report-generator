@@ -54,12 +54,7 @@ export function Toaster({ id, className }: { id?: string; className?: string } =
         success: <SuccessIcon />,
         error: <Icon name="circle-alert" size={18} color="var(--red-600)" />,
         loading: (
-          <Icon
-            name="loader-circle"
-            size={18}
-            color="var(--marsh-navy)"
-            style={{ animation: 'dsSpin 0.9s linear infinite' }}
-          />
+          <Icon name="loader-circle" size={18} color="var(--marsh-navy)" className="ds-spin" />
         ),
       }}
       toastOptions={{

@@ -442,7 +442,8 @@
 .ds-icon-button[aria-busy='true'] {
   cursor: progress;
 }
-.ds-icon-button[aria-busy='true'] > [role='presentation'] {
+.ds-icon-button[aria-busy='true'] > [role='presentation'],
+.ds-spin {
   animation: dsSpin 0.9s linear infinite;
 }
 /* An icon action that opens a link: the same round 32 px look as the button, without the
@@ -588,6 +589,11 @@
   flex: 0 0 auto;
 }
 .ds-topbar-title h1 {
+  /* At most two lines, then an ellipsis: a very long site name must not push the screen down. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   min-width: 0;
   overflow-wrap: anywhere;
   margin: 2px 0 0;
@@ -660,9 +666,23 @@
   .ds-filter-pill:active:not(:disabled) {
     transform: none;
   }
-  .ds-reading-tick,
-  .ds-reading-spin {
+  .ds-reading-tick {
     animation: none;
+  }
+  /* index.css switches every animation off under reduced motion, so a spinner would freeze into
+     a static ring and nothing would say the work is running. These spinners pulse instead: a slow
+     fade (v2 section 8: reduced motion is fades only). !important with a class beats the global
+     `* { animation: none !important }` by specificity, whatever the import order. */
+  .ds-spin,
+  .ds-reading-spin,
+  .mbt-spinner,
+  .ds-icon-button[aria-busy='true'] > [role='presentation'] {
+    animation: dsPulse 1.6s ease-in-out infinite !important;
+  }
+}
+@keyframes dsPulse {
+  50% {
+    opacity: 0.35;
   }
 }
 
@@ -837,11 +857,8 @@
     flex: 1;
     min-height: 44px;
   }
-  /* The corner close is a 44 px target on a narrow window too, not only on a touch screen
-     (IconButton sets its size inline, hence !important). */
+  /* The corner close is 44 px here (Dialog sizes it), so it sits a little further into the corner. */
   .ds-dialog--v2 .ds-dialog-header > button {
-    width: 44px !important;
-    height: 44px !important;
     top: 12px;
     right: 12px;
   }

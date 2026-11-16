@@ -1,5 +1,5 @@
 // Tests for the CP-23 round 1 components: ReasonBox on Button/IconButton, Sheet, DatePicker.
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -68,6 +68,30 @@ describe('disabled with a reason', () => {
     expect(showReasonInDialog(390, 200)).toHaveAttribute('data-flip')
     // Well inside the content edge: left where it is.
     expect(showReasonInDialog(300, 200)).not.toHaveAttribute('data-flip')
+  })
+  it('IconAction says its tooltip once: no description when the name already holds its words', () => {
+    render(
+      <>
+        <IconAction icon="x" label="Close" />
+        <IconAction icon="trash-2" label="Remove Pin for Site" tooltip="Remove Pin" />
+      </>,
+    )
+    const [close, remove] = screen.getAllByRole('button')
+    act(() => close.focus())
+    expect(close).not.toHaveAttribute('aria-describedby')
+    act(() => close.blur())
+    act(() => remove.focus())
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Remove Pin')
+    expect(remove).not.toHaveAttribute('aria-describedby')
+  })
+  it('draws every busy spinner with the one `ds-spin` class, so reduced motion can pulse it', () => {
+    const { container } = render(
+      <>
+        <Button loading>Save</Button>
+        <AddRow loading>Add</AddRow>
+      </>,
+    )
+    expect(container.querySelectorAll('.ds-spin')).toHaveLength(2)
   })
   it('IconAction and AddRow keep focus while busy, and ignore presses', () => {
     const press = vi.fn()
@@ -181,6 +205,48 @@ describe('DatePicker', () => {
     open()
     fireEvent.click(screen.getByText('Clear'))
     expect(screen.getByRole('textbox')).toHaveValue('')
+  })
+  it('closes the calendar when focus leaves the field and the calendar, not when it moves inside', () => {
+    render(
+      <>
+        <DatePicker label="End" value="2027-02-16" onChange={vi.fn()} />
+        <input aria-label="Next field" />
+      </>,
+    )
+    const box = screen.getByRole('textbox', { name: 'End' })
+    fireEvent.click(box)
+    expect(screen.getByRole('dialog', { name: 'End' })).toBeInTheDocument()
+    // Focus moving into the calendar's own buttons keeps it open.
+    fireEvent.blur(box, { relatedTarget: screen.getByRole('button', { name: /17 February 2027/ }) })
+    expect(screen.getByRole('dialog', { name: 'End' })).toBeInTheDocument()
+    // Tab on to the next field closes it.
+    fireEvent.blur(box, { relatedTarget: screen.getByRole('textbox', { name: 'Next field' }) })
+    expect(screen.queryByRole('dialog', { name: 'End' })).not.toBeInTheDocument()
+  })
+  // Codex, round 9: closing on blur pulled focus back to the calendar button.
+  it('closes when focus leaves the calendar for the next field, and leaves focus there', () => {
+    render(
+      <>
+        <DatePicker label="End" value="2027-02-16" onChange={vi.fn()} />
+        <input aria-label="Next field" />
+      </>,
+    )
+    open()
+    const day = screen.getByRole('button', { name: /17 February 2027/ })
+    day.focus()
+    const next = screen.getByLabelText('Next field')
+    // Real focus moving on, as Tab from the calendar's last button does.
+    act(() => next.focus())
+    expect(screen.queryByRole('dialog', { name: 'End' })).not.toBeInTheDocument()
+    expect(next).toHaveFocus()
+  })
+  it('closes the calendar when Tab leaves the typed field', () => {
+    render(<DatePicker label="End" value="" onChange={vi.fn()} />)
+    const box = screen.getByRole('textbox')
+    fireEvent.click(box)
+    expect(screen.getByRole('dialog', { name: 'End' })).toBeInTheDocument()
+    fireEvent.keyDown(box, { key: 'Tab' })
+    expect(screen.queryByRole('dialog', { name: 'End' })).not.toBeInTheDocument()
   })
   it('reports half-typed text as invalid and keeps the text', () => {
     const onChange = vi.fn()
