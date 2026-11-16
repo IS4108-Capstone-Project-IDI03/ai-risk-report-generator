@@ -254,6 +254,23 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a passage is plain text, when it is ingested, then it records no region.
   </details>
 
+- [ ] **IN-17** — Browse the knowledge base and its passages (risk engineer, Should, deps: KB-01, IN-07)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see which documents the knowledge base holds and the passages search draws from, so I can judge what an answer or a draft rests on.
+
+  Engineers browse read-only; adding and changing documents stays with the knowledge admin (`knowledge:manage`, KB-01). Passages can't be edited here: amending passages arrives with manual entry (IN-18), for manually entered documents only. See `docs/areas/services.md` (Browsing a knowledge document's passages).
+
+  1. Given I am a risk engineer, when I open the navigation, then Knowledge base is offered, and it opens on the Documents list.
+  2. Given I am a risk engineer, when I open the Knowledge base, then I don't see Add documents or Requests, and a document's details offer no Edit details, Withdraw, Reinstate or Delete.
+  3. Given a document needs review and I am a risk engineer, when I view the list, then it is marked Needs review but offers no Review page, and opening a Review link shows the list instead.
+  4. Given documents of different source types, when I filter by one source type, then only documents of that type are listed.
+  5. Given a document has finished ingesting, when I open its passages, then I see each passage in reading order with its heading trail, pages and a short excerpt, and a passage that isn't active is marked Needs review or Withdrawn.
+  6. Given I open one passage, when it expands, then I see its full text, with valid LaTeX shown as math.
+  7. Given a document has no passages, or they can't be loaded, when I open its passages, then I see a message saying so, and after a failed load I can try again.
+  8. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)

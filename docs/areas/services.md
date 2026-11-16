@@ -572,7 +572,7 @@ details and history back and answers 503, as it does for any failed relabel.
 ## Correcting a knowledge document (KB-01)
 
 1. The Documents tab lists `GET /api/knowledge-documents/ingested` and filters
-   by country and facility type in the browser.
+   by source type (IN-17), country, facility type and status in the browser.
 2. Edit details sends the full details to `PUT /api/knowledge-documents/:id`.
    The gateway validates them as at upload, refuses a document that is not
    active (409), keeps a copy of the old details and saves the new ones.
@@ -603,6 +603,26 @@ details and history back and answers 503, as it does for any failed relabel.
 4. Retrieval skips withdrawn passages: the RAG service's `retrieve()` always
    excludes `status: withdrawn` (and `needs_review`, IN-05), so `/retrieve` and `/generate` both skip them.
    Reinstating brings them back without uploading again.
+
+## Browsing a knowledge document's passages (IN-17)
+
+Engineers and admins (`knowledge:view`) see the Knowledge base's Documents list;
+only admins (`knowledge:manage`) see Add documents, Requests, the Review page and
+the actions that change a document. The client hides them, and the gateway
+refuses them (403) whatever the client shows.
+
+1. A document's details offer View passages, which reads
+   `GET /api/knowledge-documents/:id/passages`. The gateway answers 404 for an
+   unknown document without calling the ingestion service, and 503 when it is
+   down.
+2. The gateway calls the ingestion service's `GET /documents/{id}/passages`. It
+   reads the document's passages from Chroma by `doc_id` (no vectors) and returns
+   `{ "passages": [{ id, text, headings, section, pageStart, pageEnd, status }] }`
+   in reading order: chunk number, then table, picture and `:partN` passages as
+   the chunker wrote them (the order `matching.py` uses). A document with nothing
+   indexed returns an empty list.
+3. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
+   document are never edited; amending passages comes with manual entry (IN-18).
 
 ## Report section drafting (S4, GN-01)
 
