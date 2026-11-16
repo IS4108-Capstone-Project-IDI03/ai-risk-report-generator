@@ -8,7 +8,8 @@
 // bold, italic and underline. A citation marker is an inline atom naming its
 // source, so it moves with the words around it and is deleted only as a
 // whole. A paragraph taken from the draft carries its finding as
-// `<section>:<subsection>.<statement>`.
+// `<section>:<subsection>.<statement>`; one drafted from the Ask tab and not
+// yet accepted, its proposal as `<section>:<id>` (AS-04).
 import { Extension, mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { Placeholder } from '@tiptap/extensions'
@@ -227,6 +228,27 @@ const FindingAttribute = Extension.create({
   ],
 })
 
+// Text drafted from the Ask tab and inserted, awaiting the engineer's Accept
+// (AS-04): its proposal, as `<section>:<proposal id>`. Carried to both halves
+// of a split paragraph, whose words are still AI-drafted, and kept on a copy
+// pasted back in (the tidy-up drops it in another section).
+const AiAttribute = Extension.create({
+  name: 'aiAttribute',
+  addGlobalAttributes: () => [
+    {
+      types: ['paragraph'],
+      attributes: {
+        ai: {
+          default: null,
+          keepOnSplit: true,
+          parseHTML: (element) => element.getAttribute('data-ai'),
+          renderHTML: (attrs) => (attrs.ai ? { 'data-ai': attrs.ai } : {}),
+        },
+      },
+    },
+  ],
+})
+
 // Everything the document editor is built from, bar the review plugins.
 export const documentExtensions = [
   StarterKit.configure({
@@ -254,6 +276,7 @@ export const documentExtensions = [
   ListItem,
   Citation,
   FindingAttribute,
+  AiAttribute,
   ProgramRows,
   Placeholder.configure({
     includeChildren: true,

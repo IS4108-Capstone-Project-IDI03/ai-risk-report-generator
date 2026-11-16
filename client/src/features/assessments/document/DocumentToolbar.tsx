@@ -36,9 +36,10 @@ export type CommentTools = {
 
 // Asking about the selected text (AS-02): Ask about this, and the panel with
 // the questions asked and their answers. `labelOf` heads a section as the
-// report does.
+// report does. `onRewrite` (the assigned engineer, AS-04) offers Rewrite this.
 export type AskTools = {
   onAsk: () => void
+  onRewrite?: () => void
   onPanel: () => void
   panelOpen: boolean
   labelOf: (sectionId: string) => string
@@ -193,6 +194,19 @@ export function DocumentToolbar({
             ask.blocked ?? (askTarget && 'reason' in askTarget ? askTarget.reason : undefined),
           run: ask.onAsk,
         },
+        ...(ask.onRewrite
+          ? [
+              {
+                name: 'Rewrite this',
+                icon: IconRegistry.editor.rewrite,
+                keys: [],
+                reason:
+                  ask.blocked ??
+                  (askTarget && 'reason' in askTarget ? askTarget.reason : undefined),
+                run: ask.onRewrite,
+              },
+            ]
+          : []),
         {
           name: 'Ask about this assessment',
           icon: IconRegistry.editor.askPanel,

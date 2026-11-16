@@ -565,7 +565,7 @@ with the same list.
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
-| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only) | yes | yes |
+| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only) | yes | yes |
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
@@ -1029,7 +1029,9 @@ each save or restore adds a version. Each version has:
   subsection (all of it in a section without subsections); `subsections` are
   the draft's, in order, each `{ heading, blocks }`, a table's always empty.
   A block is a `paragraph` (`content`, and `finding` as
-  `<subsection>.<statement>` when it came from the draft), a `heading` (the
+  `<subsection>.<statement>` when it came from the draft, or `ai`, the
+  `_id` of the [proposal](#proposed-text-as-04) whose text it is while that
+  text awaits the engineer's Accept, AS-04; never both), a `heading` (the
   engineer's sub-heading, with `finding` too when it is a finding set as a
   sub-heading) or a `bulletList` / `orderedList` of paragraphs.
   Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
@@ -1171,9 +1173,10 @@ Each turn:
 |---|---|
 | `_id` | the question's id (kept from `assessment_questions` by the migration) |
 | `question` | as asked, at most 1,000 characters |
-| `passage` | the text selected in the draft that the question is about (AS-02), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
+| `proposal` | a request for text for a section (AS-04): the `_id` of its [proposal](#proposed-text-as-04); `null` for a question |
+| `passage` | the text selected in the draft that the question is about (AS-02), or rewritten (AS-04), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
 | `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
-| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs? }`: `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
 | `missing` | what evidence the answer says is missing (AS-01 AC4) |
 | `sources` | the cited sources as S4 returned them, by `ref` (AS-03 AC3): a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
 | `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
@@ -1208,7 +1211,7 @@ Each turn:
 | `GET /api/assessments/:reference/ask` | `{ scope, archived, conversations, conversation, questions }`: the user's conversations, latest first (at most 100), each `{ id, title, startedAt, lastAskedAt, questions }` (a count); the latest, and its questions oldest first; whether the assessment is archived; and what a new question searches. |
 | `GET /api/assessments/:reference/ask/conversations/:id` | `{ conversation, questions }` for one of the user's conversations. |
 | `DELETE /api/assessments/:reference/ask/conversations/:id` | Deletes it for good. 204. |
-| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation? }`: asks into that conversation, or starts a new one without it. Server-sent events, the first (`question`) naming the conversation it went into. |
+| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). Server-sent events, the first (`question`) naming the conversation it went into. |
 
 All need `reports:ask` and an assessment the caller can open (403
 otherwise); 404 for an unknown assessment, or a conversation that is not the
@@ -1216,6 +1219,68 @@ user's or was deleted; 409 once the assessment is archived (asking and
 deleting) or when the conversation is full; 429 over the question limits.
 A conversation's 404, the 409s and the 429 also carry the `cause`, `at` and
 `next` step the tab shows.
+
+## Proposed text (AS-04)
+
+`report_text_proposals` (`server/src/models/report-text-proposal.model.ts`)
+holds text drafted or rewritten for one of Sections 4 to 12 from the Ask tab:
+one document per request, made by `text-proposal.service.ts`. The turn that
+asked for it in `assistant_conversations` points to it (`proposal`). It belongs
+to the report once inserted: the review workspace reads the sources inserted
+text cites from here (never from the conversation, which the export may not
+read), and deleting a conversation leaves it. Only its asker sees and inserts
+it; the assigned engineer accepts or deletes its text in the section.
+
+| Field | Meaning |
+|---|---|
+| `assessment`, `sectionId` (`4`-`12`), `label` | the section, and how the report heads it ("10. Exposures") |
+| `kind` | `draft` (new text) or `rewrite` (of the paragraphs a selection is in) |
+| `userId`, `conversation`, `turn` | who asked, and where |
+| `request` | what was asked, at most 1,000 characters |
+| `choices`, `subsection` | a draft: the subsections it can go at the end of (`{ index, heading }`, none for a section with no draft: its text before any subsection, `-1`), and the one it goes in, as the model suggested or the engineer chose |
+| `replaces` | a rewrite: `{ from, to, words, citations }`, the text blocks it replaces (their order in the section's text), their words then, and what they cite in the drafting set; else `null` |
+| `base` | `{ version, draft, signature }`: the section's newest version (0 for none), saved draft and a SHA-256 of its text when it was proposed. Insert refuses (409 `stale`) once any differs (AC6) |
+| `status` | `drafting`, then `proposed` (with text) or `failed`; `inserted` once in the section; then `accepted`, `deleted` or `undone` |
+| `sentences` | `{ text, citations, supported, paragraph }`: each sentence, the citations that count (as an answer's), `supported: false` with none (AC3), and its paragraph from 0 |
+| `missing` | what evidence S4 said was missing; not part of the text |
+| `sources` | the cited sources as S4 returned them, by citation ID: a standard passage's text and Chroma labels, or an observation as it was sent |
+| `provider`, `model`, `promptVersion` | what wrote it, from S4's trace (`as04-v1`) |
+| `insertion` | `{ version, previous, signature, at, by }`: the version Insert or Replace made, the section's text just before (what Undo restores), a signature of the text it made (Undo refuses once it differs), who and when; `null` until inserted |
+| `settled` | `{ action, at, by }`: the last Accept (`accepted`), Delete (`deleted`) or Undo (`undone`); `null` before |
+| `metadata` | the five required fields: `source_type: 'report_text_proposal'`, the site's `jurisdiction` and `facility_type`, the section's one category (else `all`) as `COPE_dimension`, and `effective_date` (when proposed) |
+
+Indexes `{ assessment, userId }` and `{ assessment, sectionId, 'insertion.at' }`.
+
+Inserted text is a section version's paragraphs marked `ai: <proposal _id>`
+(see [Report section versions](#report-section-versions-rv-08-rv-06)), each
+sentence then its citation markers. Whether text awaits Accept is read from the
+section's current version, not from `status`: a version restored from the
+history can bring it back. A sentence is still unsupported while it is in a
+paragraph of its proposal's text word for word with no citation marker
+straight after it (`section-document.ts` `unsupportedAiText`, the client's
+`aiText.ts`). `GET …/review` gives each section `aiDrafts` (each
+insertion awaiting Accept: `{ id, kind, request, unsupported, insertedAt,
+insertedBy }`) and `review.aiText` (`{ pending, unsupported }`), and adds the
+passages and observations inserted text cites to its `sources` and
+`observations`. Either count makes the section `needs_review`; text awaiting
+Accept is not "Edited by you".
+
+| Route | Does |
+| --- | --- |
+| `POST /api/assessments/:reference/ask` | with `propose: { kind: 'draft', sectionId }`, or `{ kind: 'rewrite' }` and a `passage`: asks for text (`reports:generate` too, and the assigned engineer). The turn's answer carries `proposal`. |
+| `POST /api/assessments/:reference/proposals/:id/insert` | `{ subsection? }`: a draft's text at the end of its subsection, as the section's next version. |
+| `POST /api/assessments/:reference/proposals/:id/replace` | a rewrite's text in place of the paragraphs it rewrote. |
+| `POST /api/assessments/:reference/proposals/:id/undo` | the section's text from before the insert, as its next version (`restoredFrom` the version or draft it was), while nothing changed since. |
+| `POST /api/assessments/:reference/proposals/:id/accept` | the text kept as the engineer's (no `ai` mark), refused while a sentence is unsupported. |
+| `POST /api/assessments/:reference/proposals/:id/delete` | the text taken out. |
+
+The proposal routes need `reports:generate` and the assigned engineer (403),
+on an assessment neither archived nor finalised (409); insert, replace and
+undo also the proposal's asker (404 otherwise). Each answers `{ proposal,
+workspace }`. Refusals carry `cause`, `next`, `at` and `code`: `stale` (the
+section changed since; AC6), `drafting-set` (a standard it cites is no longer
+selected; AC4), `unsupported` (Accept with a sentence unsupported; AC3),
+`state`, `target`, `moved` or `finalised`.
 
 ## Opportunities for Improvement (GN-05)
 

@@ -27,12 +27,14 @@ const prefersReducedMotion = () =>
 // says aloud; so is any selection while `blocked` (an archived assessment's
 // conversations are only read, AS-03 AC5). Also marks a passage asked about
 // earlier, when the Ask tab links back to it (AC3). `host` is the draft's
-// positioned box.
+// positioned box. With `onRewrite` (the assigned engineer, AS-04), Rewrite
+// this beside it puts the passage in the Ask tab to be rewritten.
 export function AskSelection({
   host,
   text,
   label,
   onAsk,
+  onRewrite,
   shown,
   blocked,
 }: {
@@ -40,6 +42,7 @@ export function AskSelection({
   text: PassageText
   label: string
   onAsk: (passage: AskPassage) => void
+  onRewrite?: (passage: AskPassage) => void
   // The passage the Ask tab last linked back to, if in this section.
   shown: CommentAnchor | null
   // Why nothing can be asked now, whatever is selected.
@@ -54,6 +57,8 @@ export function AskSelection({
     stopped.current = blocked
   })
 
+  // How wide the buttons by the selection are, to keep them inside the draft.
+  const offerWidth = onRewrite ? 300 : 168
   // The selection, read on each change and on the shortcut. Set up again only
   // when the section's text changes.
   useEffect(() => {
@@ -69,7 +74,7 @@ export function AskSelection({
       const target = passageIn(text, offsets.start, offsets.end, label)
       const at = range.getBoundingClientRect()
       const bounds = box.getBoundingClientRect()
-      const left = Math.max(0, Math.min(at.left - bounds.left, bounds.width - 168))
+      const left = Math.max(0, Math.min(at.left - bounds.left, bounds.width - offerWidth))
       return { target, top: at.bottom - bounds.top + 6, left }
     }
     let frame = 0
@@ -99,7 +104,7 @@ export function AskSelection({
       document.removeEventListener('selectionchange', changed)
       window.removeEventListener('keydown', press)
     }
-  }, [host, text, label])
+  }, [host, text, label, offerWidth])
 
   // A passage linked back to from the Ask tab: marked in the draft and
   // scrolled to, once each time it is chosen.
@@ -130,23 +135,41 @@ export function AskSelection({
   const reason = blocked ?? ('reason' in offer.target ? offer.target.reason : undefined)
   return (
     <div className="rv-ask-offer" style={{ top: offer.top, left: offer.left }}>
-      <Button
-        variant="secondary"
-        size="sm"
-        iconLeft="message-circle-question"
-        aria-keyshortcuts={ASK_KEYS.aria}
-        title={reason ? undefined : `Ask about this (${ASK_KEYS.label})`}
-        disabledReason={reason}
-        // Keeps the selection while the button is pressed.
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
-          if (reason || !('passage' in offer.target)) return
-          setOffer(null)
-          onAsk(offer.target.passage)
-        }}
-      >
-        Ask about this
-      </Button>
+      <div className="rv-ask-offer-buttons">
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft="message-circle-question"
+          aria-keyshortcuts={ASK_KEYS.aria}
+          title={reason ? undefined : `Ask about this (${ASK_KEYS.label})`}
+          disabledReason={reason}
+          // Keeps the selection while the button is pressed.
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            if (reason || !('passage' in offer.target)) return
+            setOffer(null)
+            onAsk(offer.target.passage)
+          }}
+        >
+          Ask about this
+        </Button>
+        {onRewrite && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft="pen-line"
+            disabledReason={reason}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (reason || !('passage' in offer.target)) return
+              setOffer(null)
+              onRewrite(offer.target.passage)
+            }}
+          >
+            Rewrite this
+          </Button>
+        )}
+      </div>
       {reason && offer.pressed && (
         <p className="rv-ask-hint" role="status">
           {reason.title}. {reason.text}

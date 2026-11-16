@@ -65,7 +65,11 @@ const findingAttr = (sectionId: string, finding: string | null | undefined) =>
 
 const paragraphJSON = (sectionId: string, p: DocumentParagraph): JSONContent => ({
   type: 'paragraph',
-  attrs: { finding: findingAttr(sectionId, p.finding) },
+  attrs: {
+    finding: findingAttr(sectionId, p.finding),
+    // AI-drafted text awaiting Accept (AS-04), held as the finding is.
+    ...(p.ai && { ai: findingAttr(sectionId, p.ai) }),
+  },
   ...(p.content.length && { content: inlineJSON(p.content) }),
 })
 
@@ -128,18 +132,19 @@ export function toEditorJSON(sections: EditorSection[]): JSONContent {
   }
 }
 
-// The finding a block came from, without its section; undefined for none.
-const findingOf = (node: PMNode) => {
-  const finding = node.attrs.finding as string | null
-  return finding ? finding.slice(finding.indexOf(':') + 1) : undefined
-}
+// The finding a block came from, or the proposal of AI-drafted text it holds
+// (AS-04), without its section; undefined for none.
+const withoutSection = (value: unknown) =>
+  typeof value === 'string' && value ? value.slice(value.indexOf(':') + 1) : undefined
+const findingOf = (node: PMNode) => withoutSection(node.attrs.finding)
 
 // A paragraph as saved; null when it holds nothing.
 function paragraphOf(node: PMNode): DocumentParagraph | null {
   const content = inlineOf(node)
   if (!plainText(content) && !content.some((c) => c.type === 'cite')) return null
   const finding = findingOf(node)
-  return { type: 'paragraph', ...(finding && { finding }), content }
+  const ai = finding ? undefined : withoutSection(node.attrs.ai)
+  return { type: 'paragraph', ...(finding && { finding }), ...(ai && { ai }), content }
 }
 
 // The text blocks of a section or subsection as saved, empty ones left out.

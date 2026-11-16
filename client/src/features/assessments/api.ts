@@ -1122,6 +1122,9 @@ export type ReviewSection = {
     // Changed or written in the document editor (RV-08), shown as Edited by
     // you beside Needs review.
     editedInDocument?: boolean
+    // AI-drafted text from the Ask tab awaiting Accept, and how many of its
+    // sentences are still unsupported (AS-04); absent from a gateway before it.
+    aiText?: { pending: number; unsupported: number }
   }
   // The saved draft's findings by state (RV-02).
   findings: FindingCounts
@@ -1134,6 +1137,21 @@ export type ReviewSection = {
   history: ReviewHistoryEntry[]
   // Its newest version from the document editor (RV-08), or null.
   document?: SectionVersion | null
+  // Text drafted from the Ask tab awaiting Accept, in the order it is in the
+  // section's text (AS-04); absent from a gateway before it.
+  aiDrafts?: AiDraft[]
+}
+
+// Text drafted from the Ask tab and inserted into a section, still awaiting
+// the engineer's Accept (AS-04): its proposal, what was asked, the sentences
+// proposed with no supporting source, and who inserted it when.
+export type AiDraft = {
+  id: string
+  kind: 'draft' | 'rewrite'
+  request: string
+  unsupported: string[]
+  insertedAt: string
+  insertedBy: { id: string; name: string }
 }
 
 export type ReviewWorkspace = {
@@ -1251,6 +1269,9 @@ export type DocumentInline =
 export type DocumentParagraph = {
   type: 'paragraph'
   finding?: string | null
+  // Text drafted from the Ask tab and inserted, awaiting the engineer's Accept
+  // (AS-04): its proposal's id. Never on a finding.
+  ai?: string | null
   content: DocumentInline[]
 }
 // A sub-heading: one the engineer added, or a finding they set as one.

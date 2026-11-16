@@ -1398,6 +1398,77 @@ and the team can evaluate the answers.
   reads no conversation. Asking, starting or deleting a conversation adds no
   version and changes no review state.
 
+### Drafting and rewriting text (AS-04)
+
+The assigned engineer can have the Ask tab draft text for a section, or
+rewrite a passage, then put it into the report (DECISIONS 2026-11-16). It is
+asked like a question, in the same conversation and through the same S4 run,
+so masking, provider, limits and the trace are AS-01's; what differs is what
+S4 may cite and what happens to the answer.
+
+- **Asking**: Draft text, beside Ask, sends `POST …/ask` with `{ question,
+  propose: { kind: 'draft', sectionId } }` for the section open (Sections 4 to
+  12; in the document editor, the one the cursor is in). Rewrite this, beside
+  Ask about this (and in the document editor's toolbar, once saved), puts the
+  passage in the question box to be rewritten; the request is then `{ question,
+  passage, propose: { kind: 'rewrite' } }`, the question saying how (empty:
+  "Rewrite this passage."). Both need `reports:generate` and the assigned
+  engineer (403), on an assessment neither archived nor finalised (409).
+- **What S4 is told** (`text-proposal.service.ts` `proposalContext`): the
+  section's text now, built as the editors build it (`section-document.ts`
+  `currentDocument`, the same as the client's `documentContent.ts`). A draft
+  sends the subsections it can go in (not tables, not Section 6's programmes);
+  a rewrite checks the passage is still at its offsets (409 `moved` otherwise),
+  widens it to the paragraphs it is in (plain paragraphs of one subsection, or
+  items of one list; a sub-heading refuses with 400) and sends their words as
+  the passage, with the sources they cite: observations, and standards in the
+  drafting set; never a past report. `standard_ids` are the drafting set (the
+  standards selected on the assessment, `drafting-set.service.ts`); no past
+  report is named.
+- **S4** (`orchestrator.ask` with `propose`, prompt and checks in
+  `app/generation/propose.py`, `as04-v1`, `PROPOSE_EFFORT` on `ASK_MODEL`):
+  searches the drafting set only, keeps up to 12 observations and 8 standard
+  passages, and writes in the drafting guide's voice: a draft's first line
+  `Subsection: <heading>` (streamed as `target`), then one sentence per line,
+  a blank line between paragraphs. Each sentence is checked before it streams:
+  content rules as an answer's (a line breaking one is dropped); a citation
+  counts only if it names evidence given and, for a standard, its quote is
+  found; a sentence left with none is kept with `supported: false` (AC3), not
+  dropped. Each statement carries its `paragraph`. The trace's `story` is
+  `AS-04`, with a `propose` block and the guardrail's `unsupported` and
+  `uncounted_citations`.
+- **Kept**: the gateway saves the proposal in `report_text_proposals` (see
+  [database](database.md#proposed-text-as-04)) with what the section was when
+  it was made (newest version, saved draft, text signature), and the turn
+  points to it. The Ask tab shows it as a card: a rewrite's paragraphs before,
+  then the text, each sentence with its citations and any unsupported one
+  marked; Insert (with Insert into, when the section has several
+  subsections) or Replace. Nothing in the report changes (AC1).
+- **Insert / Replace** (`POST /api/assessments/:reference/proposals/:id/insert`
+  `{ subsection? }`, `…/replace`): refused 409 `stale` when the section's
+  version, saved draft or text differs from when it was proposed (AC6; the card
+  offers Draft again), 409 `drafting-set` when a standard it cites left the
+  drafting set (AC4). Otherwise the section's next version holds the text as
+  paragraphs marked `ai: <proposal id>`, each sentence then its citation
+  markers, at the end of the subsection (a draft) or in place of the paragraphs
+  it rewrote (a rewrite; a finding among them is logged `reject`, `inDocument`,
+  as one deleted in the document editor). The answer is `{ proposal,
+  workspace }`; the section is Needs review (AC2).
+- **In the section**: the review workspace draws the text in violet with an AI
+  draft badge, who inserted it when and what was asked, each sentence still
+  unsupported underlined and badged (`aiText.ts`: still in the text word for
+  word with no citation marker straight after it). Accept (`…/accept`) saves a
+  version without the mark, refused while a sentence is unsupported; Delete
+  (`…/delete`) one without the text. Undo (`…/undo`, in the card while nothing
+  changed since) restores the text from before as the next version, named as a
+  restore (`version:<n>` or `draft:<id>`), bringing back a finding a rewrite
+  replaced. The document editor shows it violet too (`dm-ai-text`, its
+  unsupported sentences decorated), keeps the mark through edits and splits,
+  and drops it on a copy pasted into another section. A save naming a proposal
+  never inserted into the section is refused (400).
+- **Export**: `exportBlockers` lists a section with AI text awaiting Accept or
+  with an unsupported sentence of it (AC3).
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
@@ -1408,7 +1479,9 @@ file. Nothing is stored: the file is the gateway's answer.
    only a complete report goes. Section 2 drafted and current; an accepted
    OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
    each draft no new draft waiting, every finding decided, none unsupported,
-   out of date or citing a withdrawn source (DECISIONS 2026-11-05). Each
+   out of date or citing a withdrawn source (DECISIONS 2026-11-05); and no
+   text drafted from the Ask tab awaiting Accept, nor any of its sentences
+   unsupported (AS-04, [Drafting and rewriting text](#drafting-and-rewriting-text-as-04)). Each
    blocker names its section and where it is finished (`where`). It also
    returns `openThreads`, the comment threads still open (RV-03), shown as a
    reminder that never blocks the export; no comment reaches the file, as

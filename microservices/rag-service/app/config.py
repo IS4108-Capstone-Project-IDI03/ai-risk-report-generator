@@ -25,6 +25,9 @@ ASK_EFFORT = os.getenv("ASK_EFFORT", "low")
 # Below this rerank relevance score a candidate is left out of the answer's evidence, and
 # with none left no model is asked. ponytail: a first guess, as CHAT_MIN_RELEVANCE was.
 ASK_MIN_RELEVANCE = float(os.getenv("ASK_MIN_RELEVANCE", "0.1"))
+# Drafting or rewriting text for a section from the Ask tab (AS-04): the same provider and
+# model as an answer, at medium effort, since the words may go into the report.
+PROPOSE_EFFORT = os.getenv("PROPOSE_EFFORT", "medium")
 
 # The written summary on a client's Insights tab (CP-29). Same provider as drafting
 # (LLM_PROVIDER). Medium effort: a few cited sentences, but weighed across several sites.

@@ -16,6 +16,7 @@ import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
 import commentRoutes from './routes/comment.routes'
 import askRoutes from './routes/ask.routes'
+import proposalRoutes from './routes/proposal.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
@@ -66,6 +67,7 @@ app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
 // Comment threads on the report (RV-03).
 app.use('/api/assessments/:reference/comments', requireAuth, commentRoutes)
 app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
+app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)

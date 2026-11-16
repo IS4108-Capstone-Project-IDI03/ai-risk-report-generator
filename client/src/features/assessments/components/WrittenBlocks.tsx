@@ -31,26 +31,31 @@ export function RichWords({
 
 // A section's text from the document editor (RV-08): paragraphs, sub-headings
 // and lists. A block taken from the draft is drawn by `finding` when given,
-// told whether it was set as a sub-heading; otherwise, like the engineer's
-// own, as text, which `flagged` can mark unsupported. `attrs` adds attributes
-// to a block of text drawn here, e.g. where it is in its section's text for
-// asking about a selection (AS-02).
+// told whether it was set as a sub-heading; AI-drafted text awaiting Accept
+// (AS-04) by `ai` when given; otherwise, like the engineer's own, as text,
+// which `flagged` can mark unsupported. `attrs` adds attributes to a block of
+// text drawn here, e.g. where it is in its section's text for asking about a
+// selection (AS-02).
 export function WrittenBlocks({
   blocks,
   cite,
   finding,
+  ai,
   flagged,
   attrs,
 }: {
   blocks: DocumentBlock[]
   cite?: (id: string) => React.ReactNode
   finding?: (key: string, content: DocumentInline[], heading: boolean) => React.ReactNode
+  ai?: (id: string, paragraph: DocumentParagraph) => React.ReactNode
   flagged?: (key: string | null | undefined) => boolean
   attrs?: (block: DocumentParagraph | DocumentHeading) => Record<string, string>
 }) {
   const paragraph = (p: DocumentParagraph) =>
     p.finding && finding ? (
       finding(p.finding, p.content, false)
+    ) : p.ai && ai ? (
+      ai(p.ai, p)
     ) : (
       <p
         className={'rv-statement rv-written' + (flagged?.(p.finding) ? ' is-unsupported' : '')}

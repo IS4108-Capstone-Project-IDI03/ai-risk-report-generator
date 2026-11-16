@@ -1,15 +1,20 @@
 // The document editor's review plugins (RV-08):
 // - the structure guard keeps the report's sections, fixed headings, notices
 //   and locked parts where they are, whatever is typed, deleted or pasted;
-// - the tidy-up keeps each finding in one paragraph of its own section, and
-//   a paragraph to write in in every section without subsections;
+// - the tidy-up keeps each finding in one paragraph of its own section, AI-
+//   drafted text from the Ask tab (AS-04) in its own section, and a paragraph
+//   to write in in every section without subsections;
 // - the review decorations draw citation numbers, AI styling on passages
 //   still in the draft's words (AC12) and the flag on a passage that is
-//   unsupported, cites a withdrawn source, or has lost a citation (AC10, AC11).
+//   unsupported, cites a withdrawn source, or has lost a citation (AC10, AC11);
+//   and violet on AI-drafted text awaiting Accept, its unsupported sentences
+//   marked (AS-04 AC2, AC3).
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { unsupportedRanges } from '../aiText'
+import { MARKER } from '../comments/anchor'
 import { citesOf, signature } from '../documentContent'
 import { inlineOf } from './convert'
 
@@ -77,6 +82,11 @@ const tidyUp = new Plugin({
             tr.setNodeAttribute(offset + 1 + pos, 'finding', null)
           else seen.add(finding)
         }
+        // AI-drafted text (AS-04) pasted into another section is the engineer's
+        // there; a finding is never AI-drafted text too.
+        const ai = node.attrs.ai as string | null | undefined
+        if (ai && (finding || !ai.startsWith(`${section.attrs.id as string}:`)))
+          tr.setNodeAttribute(offset + 1 + pos, 'ai', null)
         return false
       })
     })
@@ -103,6 +113,28 @@ export type ReviewContext = {
   passages: Map<string, PassageInfo>
   // A citation in words, for its marker's accessible name.
   describe: (sectionId: string, citation: string) => string
+  // The sentences each insertion of AI-drafted text was proposed with no
+  // source, by proposal (AS-04): marked while still in its text unsupported.
+  aiUnsupported?: Map<string, string[]>
+}
+
+const UNSUPPORTED: PassageFlag = {
+  label: 'Unsupported',
+  detail:
+    'This AI-drafted sentence has no supporting source. Give it a citation, or delete it: until then the report cannot be exported.',
+}
+
+// A paragraph's text as the section's text holds it (a citation marker as
+// U+FFFC), and the editor position of each of its characters.
+function paragraphText(node: PMNode, at: number): { text: string; pos: number[] } {
+  let text = ''
+  const pos: number[] = []
+  node.forEach((child, offset) => {
+    const words = child.isText ? (child.text ?? '') : MARKER
+    for (let i = 0; i < words.length; i++) pos.push(at + 1 + offset + (child.isText ? i : 0))
+    text += words
+  })
+  return { text, pos }
 }
 
 const DELETED_CITATION: PassageFlag = {
@@ -158,6 +190,27 @@ function reviewDecorations(doc: PMNode, context: ReviewContext): DecorationSet {
           }),
         )
         return false
+      }
+      // AI-drafted text awaiting Accept (AS-04): violet, its sentences still
+      // unsupported marked and flagged (AC2, AC3).
+      const ai = node.type.name === 'paragraph' ? (node.attrs.ai as string | null) : null
+      if (ai) {
+        decorations.push(Decoration.node(at, at + node.nodeSize, { class: 'dm-ai dm-ai-text' }))
+        const id = ai.slice(ai.indexOf(':') + 1)
+        const { text, pos } = paragraphText(node, at)
+        for (const [from, to] of unsupportedRanges(text, context.aiUnsupported?.get(id) ?? [])) {
+          decorations.push(
+            Decoration.inline(pos[from], pos[to - 1] + 1, { class: 'dm-ai-unsupported' }),
+          )
+          decorations.push(
+            Decoration.widget(pos[to - 1] + 1, () => flagWidget(UNSUPPORTED), {
+              side: 1,
+              ignoreSelection: true,
+              key: `${ai}:${from}:unsupported`,
+            }),
+          )
+        }
+        return true
       }
       if (!node.isTextblock || !node.attrs.finding) return true
       const info = context.passages.get(node.attrs.finding as string)

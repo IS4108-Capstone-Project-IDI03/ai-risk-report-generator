@@ -1537,6 +1537,21 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 13 Nov 2026 (DECISIONS 2026-11-13). One document per conversation holds its questions as `turns` (at most 100). The questions saved before, in `assessment_questions`, are moved by `migrate:ask-conversations`, one conversation per user and assessment. Older conversations are opened from a picker above the tab, which holds New conversation and Delete. Each question still stands alone: no earlier turns are sent to the model. "Private" includes knowledge admins: another user's conversation answers 404. On an archived assessment, asking a question is refused too, unlike AS-01, which let one ask.
   </details>
 
+- [ ] **AS-04** — Draft or rewrite text into the report (risk engineer, AI and Machine Learning, 5 pts, deps: AS-01, AS-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, have the assistant draft new text or rewrite a selected passage that I can insert into a section, so that I write faster while every sentence stays cited and reviewable.
+
+  1. A draft request, such as "Draft a paragraph on flood exposure from the observations", returns a proposal in the panel. So does a rewrite request on a selected passage, shown as before and after. The report stays unchanged until Insert or Replace.
+  2. Inserted text enters the section as AI draft, in violet chrome, with its citation markers. The section saves a new version and returns to needs review. Undo restores the previous text.
+  3. Any sentence without a supporting source is marked unsupported and blocks export through `exportBlockers` until resolved.
+  4. Only standards in the assessment's drafting set can be cited.
+  5. Insert and Replace require `reports:generate`, so only risk engineers see them; they are hidden for knowledge admins. Finalised or archived reports return 409.
+  6. If the section changed after the proposal was made, Insert asks to regenerate the proposal rather than overwrite the section.
+
+  Built 16 Nov 2026 (DECISIONS 2026-11-16). "Draft text" beside Ask drafts for the section open (Sections 4 to 12); "Rewrite this" beside Ask about this, and in the document editor's toolbar, rewrites the whole paragraphs the selection is in. A draft goes at the end of the subsection the model suggests, or one the engineer chooses. The text is kept as a proposal (`report_text_proposals`); Insert or Replace saves the section's next version with it marked AI draft until the engineer accepts it in the review workspace (Accept, or Delete); Undo restores the version before. A sentence is resolved once given a citation, reworded or deleted; Accept waits for that. The drafting set is the standards selected on the assessment, as AS-01 reads them; past reports are never cited. Since RV-11 knowledge admins hold `reports:generate` too, so the assigned-engineer check is what hides Insert and Replace from them. In the document editor, Insert waits for unsaved changes to be saved.
+  </details>
+
 ## E8 — Evaluation Harness
 
 - [ ] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 4)

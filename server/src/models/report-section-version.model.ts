@@ -25,10 +25,13 @@ export type DocumentInline =
   { type: 'text'; text: string; marks?: DocumentMark[] } | { type: 'cite'; id: string }
 // A paragraph, on its own or as a list item. `finding` is the drafted
 // finding it came from, as `<subsection>.<statement>` of the version's draft;
-// absent on text the engineer wrote.
+// absent on text the engineer wrote. `ai` (AS-04) marks text drafted from the
+// Ask tab and inserted, awaiting the engineer's Accept: the `_id` of its
+// proposal in `report_text_proposals`. A paragraph is never both.
 export type DocumentParagraph = {
   type: 'paragraph'
   finding?: string | null
+  ai?: string | null
   content: DocumentInline[]
 }
 export type DocumentBlock =

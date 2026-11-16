@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
+import { Button, Callout, Dialog, IconRegistry, toast } from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
+import type { AskDrafting } from '../ask/AskPanel'
 import { DocumentAsk } from '../ask/DocumentAsk'
 import { editorPassage, type AskPassage } from '../ask/passage'
 import { isAskShortcut } from '../ask/shortcut'
@@ -38,6 +39,9 @@ import '../document/document.css'
 import '../document/page/pages.css'
 import '../comments/comments.css'
 import '../ask/ask.css'
+
+// The sections text is drafted into from the Ask panel (AS-04).
+const DRAFTABLE = /^(1[0-2]|[4-9])$/
 
 const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: 'All changes saved',
@@ -267,6 +271,60 @@ function DocumentBody({
     ask.setAbout(target.passage)
     openAsk()
   }
+  // Rewrite this (AS-04 AC1): as Ask about this, the passage going into the
+  // Ask panel to be rewritten. A rewrite starts from the saved text, so the
+  // document must be saved first.
+  const rewriteSelection = () => {
+    if (!ask || !editor || readOnly) return
+    if (status !== 'saved') {
+      setAskHint(
+        'Save the document first. Rewrite this starts from the saved text, so save, then select the text again.',
+      )
+      return
+    }
+    const { from, to } = editor.state.selection
+    const target = editorPassage(editor.state.doc, from, to, labelOf)
+    if ('reason' in target) {
+      setAskHint(`${target.reason.title}. ${target.reason.text}`)
+      return
+    }
+    setAskHint(null)
+    setAskMarks(editor.view, { shown: null })
+    ask.rewrite(target.passage)
+    openAsk()
+  }
+  // Drafting text into the report from the Ask panel (AS-04), for the
+  // assigned engineer: into the section the cursor is in, when it is one of
+  // Sections 4 to 12. Insert, Replace and Undo build on the saved text, so
+  // they wait for unsaved changes to be saved; the document then reopens with
+  // the section's new version.
+  const drafting: AskDrafting | undefined =
+    ask && !readOnly && !ask.archived
+      ? {
+          target: DRAFTABLE.test(current) ? { sectionId: current, label: labelOf(current) } : null,
+          blocked:
+            status === 'saved'
+              ? undefined
+              : {
+                  title: 'Unsaved changes',
+                  text: 'Save the document first: the text goes in on top of the saved text.',
+                },
+          onApplied: (_workspace, proposal) => {
+            toast.success(
+              proposal.status === 'undone'
+                ? 'Undone'
+                : `${proposal.kind === 'draft' ? 'Inserted into' : 'Replaced in'} ${proposal.label}`,
+              {
+                description:
+                  proposal.status === 'undone'
+                    ? `The text before is back in ${proposal.label}.`
+                    : 'It stays AI draft until you accept it in the review workspace.',
+              },
+            )
+            onReload()
+          },
+        }
+      : undefined
   // Back to a passage asked about (AC3): marked and scrolled to; the panel
   // steps aside where it covers the text.
   const showAsked = (passage: AskPassage) => {
@@ -553,6 +611,7 @@ function DocumentBody({
                 ask
                   ? {
                       onAsk: askAboutSelection,
+                      onRewrite: drafting ? rewriteSelection : undefined,
                       onPanel: () => (askOpen ? setAskOpen(false) : openAsk()),
                       panelOpen: askOpen,
                       labelOf,
@@ -644,6 +703,7 @@ function DocumentBody({
                 ask={ask}
                 overlay={!room}
                 onShowPassage={showAsked}
+                drafting={drafting}
                 onClose={() => {
                   setAskOpen(false)
                   setAskMarks(editor.view, { shown: null })

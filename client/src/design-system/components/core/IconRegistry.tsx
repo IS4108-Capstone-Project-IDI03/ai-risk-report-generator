@@ -46,6 +46,8 @@ const registry = {
     // Asking about the selected text, and the Ask panel (AS-02).
     ask: 'message-circle-question',
     askPanel: 'message-circle-more',
+    // Rewriting the selected text from the Ask panel (AS-04).
+    rewrite: 'pen-line',
   },
   status: {
     notStarted: {

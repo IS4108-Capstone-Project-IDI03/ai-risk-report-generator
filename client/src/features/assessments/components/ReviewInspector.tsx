@@ -1,5 +1,5 @@
 import { Button, Dialog, Tabs } from '../../../design-system'
-import { AskPanel } from '../ask/AskPanel'
+import { AskPanel, type AskDrafting } from '../ask/AskPanel'
 import type { AskPassage } from '../ask/passage'
 import type { AskItem, AskWorkflow } from '../ask/useAsk'
 import type { CommentAnchor } from '../comments/api'
@@ -23,6 +23,9 @@ export type InspectorAsk = {
   // it in the draft (AS-02 AC3).
   locate?: (anchor: CommentAnchor) => boolean | undefined
   onShowPassage?: (passage: AskPassage) => void
+  // Drafting text into the report from the tab (AS-04): only for whoever may
+  // put text into it, the assigned engineer.
+  drafting?: AskDrafting
 }
 
 // The review workspace's right inspector: the evidence panel and, beside it,
@@ -58,6 +61,7 @@ export function ReviewInspector({
       autoFocus={sheet}
       locate={ask.locate}
       onShowPassage={ask.onShowPassage}
+      drafting={ask.drafting}
     />
   )
   if (phone)

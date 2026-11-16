@@ -2,7 +2,14 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
@@ -595,24 +602,51 @@ class AskPassage(BaseModel):
     findings: Annotated[list[AskFinding], Field(max_length=200)] = []
 
 
+# A subsection of the section that drafted text can go in (AS-04): its index in the section,
+# as the gateway counts them, and its heading.
+class AskSubsection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    index: Annotated[int, Field(ge=-1, le=50)]
+    heading: Annotated[str, StringConstraints(max_length=300)]
+
+
+# Text for one of Sections 4 to 12 instead of an answer (AS-04): new text to insert ("draft"),
+# with the subsections it can go in, or a rewrite of the request's passage ("rewrite"), whose
+# words are then the paragraphs to rewrite.
+class AskPropose(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["draft", "rewrite"]
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[4-9])$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+    subsections: Annotated[list[AskSubsection], Field(max_length=50)] = []
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: Question
     assessment: Assessment
     observations: list[AskObservation] = []
     # The standards selected on the assessment, as the gateway read them from
-    # knowledge_documents (AC3): only their passages are searched.
+    # knowledge_documents (AC3): only their passages are searched. For a proposal (AS-04)
+    # they are its drafting set, the only standards it may cite.
     standard_ids: list[str] = []
     documents: list[AskDocument] = []
     privacy: Privacy | None = None
     passage: AskPassage | None = None
+    propose: AskPropose | None = None
+
+    @model_validator(mode="after")
+    def _rewrite_has_passage(self):
+        if self.propose and self.propose.kind == "rewrite" and self.passage is None:
+            raise ValueError("A rewrite needs the passage to rewrite.")
+        return self
 
 
 @router.post("/assessments/ask")
 def ask_assessment(request: AskRequest) -> StreamingResponse:
     """Stream one cited answer to a question about an assessment (AS-01), or about a passage
-    selected in its draft (AS-02), through the orchestrator: retrieve, assemble, generate,
-    guardrail. Its last event is the result."""
+    selected in its draft (AS-02), or text proposed for a section (AS-04), through the
+    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
     events = ask_events(
         request.question,
         request.assessment,
@@ -621,6 +655,7 @@ def ask_assessment(request: AskRequest) -> StreamingResponse:
         {d.id: d.name for d in request.documents},
         privacy=_privacy(request),
         passage=request.passage,
+        propose=request.propose,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 
