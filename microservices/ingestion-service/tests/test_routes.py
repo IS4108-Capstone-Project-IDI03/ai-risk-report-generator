@@ -150,3 +150,45 @@ def test_match_is_409_unless_the_document_is_complete(monkeypatch):
     in07_fakes(monkeypatch, new)
 
     assert client.post(f"/documents/{new['_id']}/match").status_code == 409
+
+
+# --- IN-17: list a document's passages for the knowledge base browser.
+
+
+def test_listing_passages_returns_only_that_documents_passages_in_reading_order(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    passages.add("other", [[1, 0, 0]])
+    for passage_id, text, meta in [
+        ("doc:10", "Ten", {"headings": ["Chapter 8", "8.15"], "status": "active"}),
+        ("doc:2:part1", "Two, second part", {"status": "active"}),
+        ("doc:2", "Two", {"section": "Not applicable", "status": "needs_review"}),
+    ]:
+        passages.rows[passage_id] = {
+            "text": text,
+            "meta": {"doc_id": "doc", "page_start": 3, "page_end": 4, **meta},
+            "vector": [1, 0, 0],
+        }
+
+    response = client.get("/documents/doc/passages")
+
+    assert response.status_code == 200
+    listed = response.json()["passages"]
+    assert [p["id"] for p in listed] == ["doc:2", "doc:2:part1", "doc:10"]
+    assert listed[0] == {
+        "id": "doc:2",
+        "text": "Two",
+        "headings": [],
+        "section": "Not applicable",
+        "pageStart": 3,
+        "pageEnd": 4,
+        "status": "needs_review",
+    }
+    assert listed[2]["headings"] == ["Chapter 8", "8.15"]
+
+
+def test_listing_passages_of_a_document_with_none_returns_an_empty_list(monkeypatch):
+    in07_fakes(monkeypatch)
+
+    response = client.get("/documents/nothing-indexed/passages")
+
+    assert response.json() == {"passages": []}

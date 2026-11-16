@@ -178,6 +178,16 @@ def delete_passages(doc_id: str) -> dict:
     return {"passagesDeleted": len(ids)}
 
 
+@router.get("/documents/{doc_id}/passages")
+def list_passages(doc_id: str) -> dict:
+    """Return a document's passages in reading order, for the knowledge base browser (IN-17).
+
+    Reads the index only: an unknown document has no passages. The gateway checks the
+    document exists.
+    """
+    return {"passages": matching.document_passages(doc_id)}
+
+
 @router.get("/documents/{doc_id}/comparison/{other_id}")
 def comparison(doc_id: str, other_id: str) -> dict:
     """Return the two documents' passages side by side, new document first (IN-07)."""

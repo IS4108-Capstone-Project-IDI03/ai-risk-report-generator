@@ -263,6 +263,27 @@ def _passages(doc_id: str) -> list[dict]:
     return sorted(rows, key=lambda r: _reading_order(r["id"]))
 
 
+def document_passages(doc_id: str) -> list[dict]:
+    """Return a document's passages in reading order, without vectors (IN-17 browser)."""
+    collection = passages_collection()
+    if collection is None:
+        return []
+    found = get_all(collection, where={"doc_id": doc_id}, include=["documents", "metadatas"])
+    rows = [
+        {
+            "id": id_,
+            "text": text,
+            "headings": meta.get("headings") or [],
+            "section": meta.get("section"),
+            "pageStart": meta.get("page_start"),
+            "pageEnd": meta.get("page_end"),
+            "status": meta.get("status"),
+        }
+        for id_, text, meta in zip(found["ids"], found["documents"], found["metadatas"])
+    ]
+    return sorted(rows, key=lambda r: _reading_order(r["id"]))
+
+
 def _public(passage: dict) -> dict:
     return {k: passage[k] for k in ("id", "text", "pageStart", "pageEnd")}
 
