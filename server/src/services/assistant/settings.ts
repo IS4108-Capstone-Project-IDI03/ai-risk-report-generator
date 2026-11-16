@@ -1,8 +1,9 @@
 // MarshBot's numbers in one place (AS-06). Focus's work-left days are in
 // focus.service.ts (FOCUS_WORK_DAYS).
 export const ASSISTANT = {
-  // The coverage check (AC 7) runs at most this often while evidence keeps changing.
-  coverageMinIntervalMs: 5 * 60_000,
+  // The coverage check (AC 7) runs at most this often while evidence keeps changing. A minute
+  // (round 9, item J): at 5 minutes the gaps looked frozen after an edit.
+  coverageMinIntervalMs: 60_000,
   // "Read" (Architecture 5): this share of the items, each on screen this long.
   readShare: 0.8,
   readMs: 2_000,

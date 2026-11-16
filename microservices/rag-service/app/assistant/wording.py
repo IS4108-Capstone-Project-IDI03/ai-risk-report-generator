@@ -61,6 +61,7 @@ def _part_line(part: dict, text: str | None) -> str:
             "lead": "Lead line, Lead(text)",
             "good": 'Words, good news, Say(text, "good")',
             "tick": "Ticked item, one item of Ticks([...])",
+            "step": "Numbered item, one item of Steps([...])",
             "alert": "Stand-out message, Alert(text)",
         }.get(part.get("tone"), "Words, Say(text)")
         return f"- {kind}: {text}"

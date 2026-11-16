@@ -1,7 +1,7 @@
 // MarshBot's coverage check (AS-06 AC 7): asks rag-service which checklist
 // items no observation covers and which observations are too thin for their
 // section. Runs in the background when the Overview opens, from the first
-// checklist and observation until Review, at most every 5 minutes while the
+// checklist and observation until Review, at most once a minute while the
 // evidence keeps changing; a check held back by that interval, or one that
 // failed, runs again once it ends while the Overview is open. Called by
 // brief.service.ts and its own delayed job. Calls rag.service.ts, then

@@ -84,24 +84,29 @@ export function partsOf(
 
 /**
  * Returns the turn as an OpenUI program in its own words and order, each piece in the form the
- * rules gave it (Lead, Say, Ticks, Alert, Card). It is the format every AI wording must keep
+ * rules gave it (Lead, Say, Ticks, Steps, Alert, Card). It is the format every AI wording must keep
  * (wording.service.ts), and it is set on a turn whose words sit between its cards: without it,
  * a turn the wording AI didn't word would draw every bubble before every card (the browser's
  * fallback).
  */
 export function programOf(turn: StoredTurn): string {
   const calls: string[] = []
-  // A run of ticks is one tick list.
-  let ticks: string[] | null = null
+  // A run of ticks is one tick list, and a run of steps one numbered list.
+  let run = null as { tone: string; items: string[] } | null
+  const LISTS: Record<string, string> = { tick: 'Ticks', step: 'Steps' }
   for (const p of partsOf(turn)) {
     const text = p.type === 'say' ? JSON.stringify(p.say.text) : ''
-    if (p.type === 'say' && p.say.tone === 'tick') {
-      if (!ticks) calls.push('')
-      ticks = [...(ticks ?? []), text]
-      calls[calls.length - 1] = `Ticks([${ticks.join(', ')}])`
+    const list = p.type === 'say' ? LISTS[p.say.tone] : undefined
+    if (p.type === 'say' && list) {
+      if (run?.tone !== p.say.tone) {
+        calls.push('')
+        run = { tone: p.say.tone, items: [] }
+      }
+      run.items.push(text)
+      calls[calls.length - 1] = `${list}([${run.items.join(', ')}])`
       continue
     }
-    ticks = null
+    run = null
     if (p.type === 'card') calls.push(`Card(${JSON.stringify(p.card.id)})`)
     else if (p.say.tone === 'lead') calls.push(`Lead(${text})`)
     else if (p.say.tone === 'alert') calls.push(`Alert(${text})`)

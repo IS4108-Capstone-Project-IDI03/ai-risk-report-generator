@@ -18,6 +18,7 @@ import { raise } from '../services/assistant/item'
 import type { BriefFacts } from '../services/assistant/phrases'
 import { areaHealth, sectionStates } from '../services/assistant/progress'
 import { mergeItems, type StoredBrief } from '../services/assistant/recheck.service'
+import { exportClear } from '../services/assistant/stage'
 import type { BriefItem } from '../services/assistant/types'
 
 const NOW = new Date('2026-11-14T02:00:00Z')
@@ -128,10 +129,11 @@ describe('coverageDue', () => {
     ['no checklist', brief('capture', {}, { hasChecklist: false }), false],
     ['no categorised observation', brief('capture', {}, { categorisedObservations: 0 }), false],
     ['evidence already checked', brief('capture', { fingerprint: 'new' }), false],
-    ['checked 2 minutes ago', brief('capture', { checkedAt: minutesAgo(2) }), false],
-    ['checked 6 minutes ago', brief('capture', { checkedAt: minutesAgo(6) }), true],
-    ['running', brief('capture', { status: 'running', startedAt: minutesAgo(1) }), false],
-    ['stuck running', brief('capture', { status: 'running', startedAt: minutesAgo(6) }), true],
+    // A minute between runs (round 9, item J).
+    ['checked 30 seconds ago', brief('capture', { checkedAt: minutesAgo(0.5) }), false],
+    ['checked 2 minutes ago', brief('capture', { checkedAt: minutesAgo(2) }), true],
+    ['running', brief('capture', { status: 'running', startedAt: minutesAgo(0.5) }), false],
+    ['stuck running', brief('capture', { status: 'running', startedAt: minutesAgo(2) }), true],
   ])('%s', (_, b, due) => expect(coverageDue(b, NOW)).toBe(due))
 })
 
@@ -175,6 +177,12 @@ describe('after Ready to export (#6, #7)', () => {
     expect(exported(null)).toEqual([])
     expect(exported([{ sectionId: '7', title: '7', where: 'review', reason: 'x' }])).toEqual([])
     expect(exported([]).map((i) => i.id)).toEqual(['exported.stale'])
+  })
+  it('keeps the assessment in Review while a comment thread is open (round 9, I)', () => {
+    const thread = (status: string) => ({ status }) as CheckContext['threads'][number]
+    expect(exportClear([], [thread('resolved')])).toBe(true)
+    expect(exportClear([], [thread('open'), thread('resolved')])).toBe(false)
+    expect(exportClear(null, [])).toBe(false)
   })
 })
 

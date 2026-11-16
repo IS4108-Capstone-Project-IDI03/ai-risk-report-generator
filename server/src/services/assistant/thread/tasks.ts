@@ -4,7 +4,7 @@
 // Called by topics.ts and advance.ts.
 import { count, lowerFirst, opens, row, upperFirst } from './cards'
 import type { Built, TopicCtx } from './types'
-import type { BriefItem, CardRow, ItemLink } from '../types'
+import type { BriefItem, CardRow, ItemLink, Say } from '../types'
 
 /** Returns whether an item belongs in "To do": Fix now, but never the report date (the greeting says that). */
 export const isTask = (i: BriefItem) => i.weight === 'fix_now' && i.kind !== 'report-due'
@@ -45,12 +45,12 @@ function taskRow(ctx: TopicCtx, id: string): CardRow | null {
   if (state === 'done') {
     const walk = id.startsWith('walk.ready:') ? id.slice('walk.ready:'.length) : null
     const made = walk ? (ctx.facts.walkObservations?.[walk] ?? Number(item.facts.proposed ?? 0)) : 0
+    // A failed one the engineer deleted is removed, not read (recheck.service.ts sets the outcome).
+    const removed = item.facts.outcome === 'removed'
     const detail = walk
       ? `${count(made, 'observation')} created`
       : media
-        ? page
-          ? 'Page read'
-          : 'Recording transcribed'
+        ? `${page ? 'Page' : 'Recording'} ${removed ? 'removed' : page ? 'read' : 'transcribed'}`
         : 'Sorted'
     return row(id, item.icon, 'green', item.title, detail, done())
   }
@@ -125,16 +125,22 @@ export function byPlace(items: BriefItem[]): { item: BriefItem; n: number }[] {
   return [...groups.values()]
 }
 
-// The sentence that says what a task (or `n` alike from one place) is and what to do.
-function taskSentence({ item, n }: { item: BriefItem; n: number }): string {
-  const what = (one: string, many: string) => (n === 1 ? `A ${one}` : `${n} ${many}`)
+// The sentence that says what a task (or `n` alike from one place) is and what to do, led by the
+// place in bold, so each numbered step starts with where it is (round 9, item F).
+// `again`: an earlier step was the same kind, so this one takes the short form instead of the
+// same long sentence word for word (round 9, item 15).
+function taskSentence({ item, n }: { item: BriefItem; n: number }, again: boolean): string {
+  const place = `**${item.title}**`
+  const them = n === 1 ? 'it' : 'them'
   if (item.id.startsWith('walk.ready:'))
-    return `Your ${lowerFirst(item.title)} has finished processing, and I've turned it into ${count(Number(item.facts.proposed ?? 0), 'proposed observation')} for you to review.`
+    return `${place} has finished processing, and I've turned it into ${count(Number(item.facts.proposed ?? 0), 'proposed observation')} for you to review.`
   if (item.kind === 'failed-recording')
-    return `${what('recording', 'recordings')} from ${item.title} couldn't be transcribed. That's usually a hiccup on our side, so give ${n === 1 ? 'it' : 'them'} another try and I'll tell you how it goes.`
+    return `${place} has ${n === 1 ? 'a recording' : `${n} recordings`} that couldn't be transcribed${again ? ' either.' : `. That's usually a hiccup on our side, so give ${them} another try and I'll tell you how it goes.`}`
   if (item.kind === 'failed-page')
-    return `${what('handwritten page', 'handwritten pages')} from ${item.title} couldn't be read. Give ${n === 1 ? 'it' : 'them'} another try and I'll tell you how it goes.`
-  return item.fact
+    return `${place} has ${n === 1 ? 'a handwritten page' : `${n} handwritten pages`} that couldn't be read${again ? ' either.' : `. Give ${them} another try and I'll tell you how it goes.`}`
+  return item.fact.startsWith(item.title)
+    ? `${place}${item.fact.slice(item.title.length)}`
+    : `${place}: ${item.fact}`
 }
 
 /**
@@ -150,14 +156,19 @@ export function todoTopic(ctx: TopicCtx, items?: string[], fresh = false): Built
     ? `Something new came up that I need you to sort out first.`
     : `Before we look at what the report still needs, there${n === 1 ? "'s 1 thing" : ` are ${n} things`} I need you to sort out first.`
   const said = byPlace(ids.flatMap((id) => ctx.brief.items.find((i) => i.id === id) ?? [])).map(
-    taskSentence,
+    (g, n, all) =>
+      taskSentence(
+        g,
+        all.slice(0, n).some((e) => e.item.kind === g.item.kind),
+      ),
   )
   const left = rows.filter((r) => r.end.type !== 'status' || r.end.status !== 'done').length
   return {
     kind: 'tasks',
+    // One numbered step per place; a single place is one plain sentence, not a list of 1.
     says: [
       { text: lead, tone: 'lead' },
-      { text: said.join(' '), tone: 'normal' },
+      ...said.map((text): Say => ({ text, tone: said.length > 1 ? 'step' : 'normal' })),
     ],
     cards: [
       {
@@ -179,17 +190,24 @@ export function todoTopic(ctx: TopicCtx, items?: string[], fresh = false): Built
 export const tasksLeft = (ctx: TopicCtx, ids: string[]) =>
   ids.filter((id) => liveOf(ctx, id).state !== 'done').length
 
+/** Returns how a done task is said ("Loading Bay 2 came through"), or null for one that is not a task. */
+export function doneClause(ctx: TopicCtx, item: BriefItem): string | null {
+  const walk = item.id.startsWith('walk.ready:') ? item.id.slice('walk.ready:'.length) : null
+  if (walk) {
+    const made = ctx.facts.walkObservations?.[walk] ?? Number(item.facts.proposed ?? 0)
+    return `the ${lowerFirst(item.title)} is in with ${count(made, 'new observation')}`
+  }
+  const media = item.kind === 'failed-recording' || item.kind === 'failed-page'
+  if (media && item.facts.outcome === 'removed')
+    return `the failed ${item.kind === 'failed-page' ? 'page' : 'recording'} from ${item.title} has been removed`
+  return isTask(item) ? `${item.title} came through` : null
+}
+
 /** Returns MarshBot's "Nice work" for tasks that are all done (canvas C3). */
 export function ackWords(ctx: TopicCtx, ids: string[]): string {
   const clauses = ids.flatMap((id) => {
     const item = ctx.brief.items.find((i) => i.id === id)
-    if (!item) return []
-    const walk = id.startsWith('walk.ready:') ? id.slice('walk.ready:'.length) : null
-    if (walk) {
-      const made = ctx.facts.walkObservations?.[walk] ?? Number(item.facts.proposed ?? 0)
-      return [`the ${lowerFirst(item.title)} is in with ${count(made, 'new observation')}`]
-    }
-    return [`${item.title} came through`]
+    return (item && doneClause(ctx, item)) ?? []
   })
   // Two recordings from one place come through as one clause.
   const unique = [...new Set(clauses)]

@@ -31,6 +31,7 @@ export class InvalidReplyError extends Error {
 export const replySchema = z.object({
   replyId: z.enum([
     'nothing-more',
+    'to-prepare',
     'ready-to-generate',
     'another-visit',
     'export-again',
@@ -96,6 +97,7 @@ async function applyReply(
     AssistantViewerModel.updateOne({ assessment, user: user.id }, update, { upsert: true })
   switch (reply) {
     case 'nothing-more':
+    case 'to-prepare':
       await AssessmentModel.updateOne(
         { _id: assessment },
         { $set: { setupConfirmedAt: new Date() } },

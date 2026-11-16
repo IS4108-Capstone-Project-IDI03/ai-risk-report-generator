@@ -68,13 +68,15 @@ def test_each_piece_is_named_by_the_form_the_rules_gave_it(monkeypatch):
     parts = [
         {"type": "say", "text": "2 things to sort out first.", "tone": "lead"},
         {"type": "say", "text": "The morning walk is sorted", "tone": "tick"},
+        {"type": "say", "text": "**Loading Bay 2** has a recording to try again.", "tone": "step"},
         {"type": "say", "text": "The report is 2 days overdue.", "tone": "alert"},
         {"type": "card", "id": "t1-todo", "card": "tasks", "title": "To Do"},
     ]
     request = {**REQUEST, "messages": [{"id": "t1", "text": "", "parts": parts}]}
     kit = (
-        'root = Reply([l, t, a, b])\nl = Lead("Sort 2 things first.")\n'
-        't = Ticks(["The morning walk is sorted"])\na = Alert("2 days overdue.")\n'
+        'root = Reply([l, t, s, a, b])\nl = Lead("Sort 2 things first.")\n'
+        't = Ticks(["The morning walk is sorted"])\n'
+        's = Steps(["Try **Loading Bay 2** again."])\na = Alert("2 days overdue.")\n'
         'b = Card("t1-todo")'
     )
 
@@ -82,6 +84,10 @@ def test_each_piece_is_named_by_the_form_the_rules_gave_it(monkeypatch):
 
     assert "- Lead line, Lead(text): 2 things to sort out first." in sent[0]["user"]
     assert "- Ticked item, one item of Ticks([...]): The morning walk is sorted" in sent[0]["user"]
+    assert (
+        "- Numbered item, one item of Steps([...]): **Loading Bay 2** has a recording to try again."
+        in sent[0]["user"]
+    )
     assert "- Stand-out message, Alert(text): The report is 2 days overdue." in sent[0]["user"]
     # A card is its id and kind only: nothing a card shows is sent to the model.
     assert '- Card("t1-todo"), a tasks card\n' in sent[0]["user"] + "\n"
@@ -116,7 +122,7 @@ def test_a_bad_escape_still_answers_with_the_usage(monkeypatch):
 def test_the_components_come_from_the_generated_prompt():
     from app.assistant.wording import COMPONENTS
 
-    assert COMPONENTS == {"Reply", "Lead", "Say", "Ticks", "Alert", "Card"}
+    assert COMPONENTS == {"Reply", "Lead", "Say", "Ticks", "Steps", "Alert", "Card"}
 
 
 def test_a_component_name_inside_a_string_is_only_text(monkeypatch):

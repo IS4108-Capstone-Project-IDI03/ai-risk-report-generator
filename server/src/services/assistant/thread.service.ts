@@ -1,6 +1,7 @@
 // MarshBot's saved conversation (AS-06 rounds 5-6): loads the engineer's thread,
 // runs the engine (thread/advance.ts) for an open, a change or a reply, saves
-// what changed, then has the wording AI write the new turns once, outside the lock.
+// what changed, then has the wording AI write the new turns once, outside the lock
+// (the greeting is never worded: it shows at once).
 // Called by brief.service.ts (GET), replies.service.ts and recheck.service.ts
 // (after a re-check). Calls thread/, wording.service.ts and bus.ts.
 import type { Types } from 'mongoose'
@@ -139,7 +140,9 @@ export function advanceThread(
     )
     if (!result.added.length) return loaded
     // b. The new bot turns wait for their words, which come after this returns.
-    const bots = result.added.filter((t) => t.who === 'bot')
+    // The greeting is shown at once in its rule words, never worded: its own call took longer
+    // than the turn was worth waiting for (round 9 Check, item B). The rest are worded once.
+    const bots = result.added.filter((t) => t.who === 'bot' && t.topic !== 'greeting')
     bots.forEach((t) => writing.add(t.id))
     publishBriefChanged(reference, now.toISOString())
     if (bots.length) inBackground('wording', word(reference, loaded, bots))

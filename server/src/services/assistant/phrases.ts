@@ -37,6 +37,8 @@ export type BriefFacts = {
   // Counts for the ticked rows (round 5): client documents, reviewed walks,
   // transcribed recordings, and the observations each reviewed walk created.
   documents: number
+  // Site contacts on the assessment (round 9, the Setup card's value); absent on older briefs.
+  siteContacts?: number
   walksReviewed: number
   recordingsTranscribed: number
   walkObservations: Record<string, number>

@@ -25,7 +25,7 @@ import { TOPIC_TITLES } from './words'
 import type { Status, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
 
 // The browser's turn: what is only kept for the engine is left out.
-const shown = ({ items: _items, order: _order, ...turn }: StoredTurn): Turn => turn
+const shown = ({ items: _items, order: _order, frozen: _frozen, ...turn }: StoredTurn): Turn => turn
 const sessionOf = (s: StoredSession, turns: Turn[]): Session => ({
   id: s.id,
   startedAt: s.startedAt,
@@ -67,7 +67,8 @@ export function glanceOf(brief: ThreadBrief, today: string): GlanceFact[] {
     total ? `${covered} of ${total}` : 'Not made',
     total && covered === total ? 'green' : total ? 'normal' : 'amber',
   )
-  const reviewed = brief.sections.filter((s) => s.state === 'reviewed').length
+  // A section with an open comment is not counted reviewed: it holds the stage in Review (round 9, I).
+  const reviewed = brief.sections.filter((s) => s.state === 'reviewed' && !s.openComments).length
   const sections = brief.sections.length || 11
   switch (brief.stage) {
     case 'setup':
@@ -263,8 +264,13 @@ export function viewThread(
   const ctx = topicCtx(brief, viewer, now, session, state.earlier.length > 0)
   const pending = session.turns.some((t) => writing.has(t.id))
   const turns = session.turns.filter((t) => !writing.has(t.id)).map((t) => rebuilt(t, ctx))
+  // The dots also show while the coverage check runs again after the gaps were raised: its
+  // result comes as a re-check turn (round 9, item J).
   const thinking =
-    !archived && (pending || (session.waiting?.topic === 'gaps' && !session.waiting.turnId))
+    !archived &&
+    (pending ||
+      (session.waiting?.topic === 'gaps' && !session.waiting.turnId) ||
+      (session.said.includes('gaps') && brief.coverage.status === 'running'))
   const status: Status = archived
     ? { text: 'Archived', tone: 'blue', icon: 'archive' }
     : statusOf(session, turns, ctx, thinking)
@@ -289,7 +295,8 @@ export function adminThread(brief: ThreadBrief, viewerName: string, now: Date): 
   const f = brief.facts
   const today = dayOf(now)
   const sections = brief.sections
-  const reviewed = sections.filter((s) => s.state === 'reviewed').length
+  // As in the engineer's view: an open comment keeps a section from counting as reviewed (item 4).
+  const reviewed = sections.filter((s) => s.state === 'reviewed' && !s.openComments).length
   const progress = [
     sections.length
       ? `${reviewed} of ${sections.length} sections are reviewed`
@@ -336,7 +343,7 @@ export function adminThread(brief: ThreadBrief, viewerName: string, now: Date): 
     says: [{ text, tone: 'normal' }],
     cards: [
       // No lanes card when no section is open: the words and the stage times say it.
-      ...(sections.some((s) => s.state !== 'reviewed')
+      ...(reviewed < sections.length
         ? [
             {
               type: 'lanes' as const,

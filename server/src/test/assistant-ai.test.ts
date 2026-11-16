@@ -164,6 +164,27 @@ describe('checking a wording program', () => {
       expect(checkedProgram(ok, formed)).toBe(ok)
     })
 
+    it('keeps numbered steps one for one, and drops a changed count or steps turned into words (round 9, F)', () => {
+      const stepped = {
+        ...turn,
+        says: [
+          { text: '2 things to sort out first.', tone: 'lead' },
+          { text: '**Loading Bay 2** has a recording to try again.', tone: 'step' },
+          { text: '**Morning walk** is ready to review.', tone: 'step' },
+        ],
+      } as unknown as Turn
+      const steps = (items: string[]) =>
+        kit(['Lead("Sort 2 things first.")', `Steps(${JSON.stringify(items)})`])
+      const ok = steps([
+        'Give the recording from **Loading Bay 2** another try.',
+        'The **Morning walk** is waiting for your review.',
+      ])
+      expect(checkedProgram(ok, stepped)).toBe(ok)
+      expect(checkedProgram(steps(['Loading Bay 2 and the Morning walk.']), stepped)).toBeNull()
+      const said = kit(['Lead("Sort 2 things first.")', 'Say("Loading Bay 2 and Morning walk.")'])
+      expect(checkedProgram(said, stepped)).toBeNull()
+    })
+
     it('drops a program that adds a Lead, Ticks or Alert the rules did not write', () => {
       expect(checkedProgram(kit(['Lead("Sort these.")', 'Say("Hello.")']), turn)).toBeNull()
       expect(checkedProgram(kit(['Say("Hello.")', 'Ticks(["The walk"])']), turn)).toBeNull()
@@ -419,17 +440,19 @@ describe('wording a turn', () => {
     const { engineer } = await people()
     const a = await assessment(engineer._id)
     await observation(a._id, (await session(a._id))._id, { failed: true })
+    // The fake words every turn it is sent; the greeting is never sent (round 9 Check, item B).
     rag.wording = () => {
       const call = rag.calls.filter((c) => c.path === '/assistant/wording').at(-1)!.body as {
         messages: { id: string; parts: { type: string; id?: string }[] }[]
       }
-      const [greeting, todo] = call.messages
-      const card = todo.parts.find((p) => p.type === 'card')!.id
+      const program = (m: (typeof call.messages)[number]) => {
+        const card = m.parts.find((p) => p.type === 'card')?.id
+        return card
+          ? `root = Reply([a, b, c])\na = Lead("There is 1 thing to sort out first.")\nb = Say("A recording from Loading Bay 2 needs another try.")\nc = Card("${card}")`
+          : 'root = Reply([a])\na = Say("Good morning, Alex! 99 things.")'
+      }
       return json({
-        programs: {
-          [greeting.id]: 'root = Reply([a])\na = Say("Good morning, Alex! 99 things.")',
-          [todo.id]: `root = Reply([a, b, c])\na = Lead("There is 1 thing to sort out first.")\nb = Say("A recording from Loading Bay 2 needs another try.")\nc = Card("${card}")`,
-        },
+        programs: Object.fromEntries(call.messages.map((m) => [m.id, program(m)])),
         usage: [
           {
             feature: 'assistant-wording',
@@ -443,19 +466,23 @@ describe('wording a turn', () => {
     }
     const api = signedInAs(app, engineer)
 
-    await api.get(url)
+    // The greeting shows in the first answer, in its rule words, while the rest are worded.
+    const opened = thread(await api.get(url))
+    expect(opened.session.turns.map((x) => x.topic)).toEqual(['greeting'])
     await settleBackground()
     const t = thread(await api.get(url))
     const [greeting, todo] = t.session.turns
-    // 99 was never said: the greeting keeps its template words.
     expect(greeting.program).toBeNull()
     expect(todo.program).toMatch(/^root = Reply\(\[a, b, c\]\)/)
-    const sent = rag.calls.find((c) => c.path === '/assistant/wording')!.body as {
-      messages: { parts: { type: string }[] }[]
-    }
-    expect(sent.messages[1].parts.map((p) => p.type)).toEqual(['say', 'say', 'card'])
+    const calls = rag.calls
+      .filter((c) => c.path === '/assistant/wording')
+      .map((c) => c.body as { messages: { id: string; parts: { type: string }[] }[] })
+    // One call, for the turns after the greeting.
+    expect(calls.map((c) => c.messages.map((m) => m.id))).toEqual([[todo.id]])
+    const sent = calls.find((c) => c.messages[0].id === todo.id)!
+    expect(sent.messages[0].parts.map((p) => p.type)).toEqual(['say', 'say', 'card'])
     // A card goes as its id and kind only, with no title.
-    expect(sent.messages[1].parts[2]).toEqual({
+    expect(sent.messages[0].parts[2]).toEqual({
       type: 'card',
       id: expect.stringMatching(/-todo$/),
       card: 'tasks',
@@ -538,19 +565,19 @@ describe('the coverage check (AC 7)', () => {
     const failed = t.session.turns.filter((x) => x.says.some((s) => s.text === COVERAGE_FAILED))
     expect(failed).toHaveLength(1)
     expect(t.replies).toEqual([])
-    // Not retried within five minutes.
+    // Not retried within the minute.
     expect(rag.calls.filter((c) => c.path === '/assistant/coverage')).toHaveLength(1)
   })
 
-  it('runs once the 5 minutes are up when evidence changed in between, while the Overview is open (#5)', async () => {
+  it('runs once the minute is up when evidence changed in between, while the Overview is open (#5, round 9 J)', async () => {
     const { api } = await capturing()
     await api.get(url)
     await settleBackground()
     const coverageCalls = () => rag.calls.filter((c) => c.path === '/assistant/coverage')
     expect(coverageCalls()).toHaveLength(1)
 
-    // A minute later the evidence changes: held back by the interval, not run.
-    vi.setSystemTime(new Date('2026-11-14T02:01:00Z'))
+    // 30 seconds later the evidence changes: held back by the interval, not run.
+    vi.setSystemTime(new Date('2026-11-14T02:00:30Z'))
     const [a] = await AssessmentModel.find()
     const [s] = await CaptureSessionModel.find()
     await observation(a._id, s._id)
@@ -561,7 +588,7 @@ describe('the coverage check (AC 7)', () => {
     expect(await coverageWhenDue(REF)).toBe(false)
 
     // The delayed job, once the interval is over, runs it and saves the result.
-    vi.setSystemTime(new Date('2026-11-14T02:05:30Z'))
+    vi.setSystemTime(new Date('2026-11-14T02:01:05Z'))
     rag.coverage = () => json({ uncovered: [], thin: [], usage: [] })
     expect(await coverageWhenDue(REF)).toBe(true)
     expect(coverageCalls()).toHaveLength(2)

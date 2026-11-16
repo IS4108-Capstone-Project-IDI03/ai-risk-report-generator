@@ -251,6 +251,7 @@ export const OUTLINE_KINDS = kinds('review-items')
 const REVIEW_LABELS: Partial<Record<OutlineState, string>> = {
   ok: 'Reviewed',
   wait: 'Decisions to Make',
+  question: 'Open Comments',
   new: 'Not Started',
 }
 const REVIEW_STATE = { reviewed: 'ok', decisions: 'wait', not_started: 'new' } as const
@@ -260,10 +261,51 @@ function reviewItems(ctx: TopicCtx): OutlineItem[] {
   return ctx.brief.sections.map((s) => ({
     no: s.sectionId,
     title: s.title,
-    state: REVIEW_STATE[s.state],
+    // A reviewed section with an open comment is not done: it holds the stage in Review (round 9, I).
+    state: s.state === 'reviewed' && s.openComments ? 'question' : REVIEW_STATE[s.state],
     note: s.openComments ? count(s.openComments, 'comment') : null,
     link: { tab: 'review', params: { section: s.sectionId } },
   }))
+}
+
+/**
+ * Returns what holds the review, by section: findings to decide and open comments ("Fire
+ * Protection has 3 findings to decide and 2 open comments, so the report stays in Review until
+ * they're all dealt with"), or '' when neither is left (round 9, items I and 10). After Review
+ * they are to sort out before the export; `still` says "still has" for a reaction.
+ */
+export function heldWords(ctx: TopicCtx, reopened: boolean, still = false): string {
+  const pending = ctx.open.find((i) => i.id === 'review.pending')
+  const pendingIn = String(pending?.facts.sections ?? '')
+    .split(',')
+    .filter(Boolean)
+  const pendingN = Number(pending?.facts.count ?? 0)
+  const title = (id: string) =>
+    ctx.brief.sections.find((x) => x.sectionId === id)?.title ?? partTitle(id)
+  // Each section's open work; findings are counted per section only when they sit in one.
+  const parts = new Map<string, string[]>()
+  const add = (id: string, what: string) => parts.set(id, [...(parts.get(id) ?? []), what])
+  if (pendingIn.length === 1) add(pendingIn[0], `${count(pendingN, 'finding')} to decide`)
+  for (const x of ctx.brief.sections)
+    if (x.openComments) add(x.sectionId, count(x.openComments, 'open comment'))
+  const clauses = [...parts].map(
+    ([id, what]) => `${title(id)} ${still ? 'still has' : 'has'} ${andList(what)}`,
+  )
+  if (pendingIn.length > 1)
+    clauses.unshift(
+      `${count(pendingN, 'finding')} to decide are in ${andList(pendingIn.map(title))}`,
+    )
+  if (!clauses.length) return ''
+  const comments = ctx.brief.sections.reduce((n, x) => n + x.openComments, 0)
+  const it = pendingN + comments === 1 ? 'it' : 'them'
+  const until = !pendingN
+    ? `${it === 'it' ? "it's" : "they're"} resolved`
+    : !comments
+      ? `${it === 'it' ? "it's" : "they're"} decided`
+      : "they're all dealt with"
+  return reopened
+    ? `${andList(clauses)}, so ${pendingN ? `sort ${it} out` : `resolve ${it}`} before you export.`
+    : `${andList(clauses)}, so the report stays in Review until ${until}.`
 }
 
 /** Review (S6): every section's review state. After Review only when work reopened. */
@@ -273,6 +315,7 @@ export function outlineTopic(ctx: TopicCtx): Built | null {
   if (!items.length || (reopened && !ctx.open.some(OUTLINE_KINDS) && !ctx.rebuild)) return null
   const reviewed = items.filter((i) => i.state === 'ok').length
   const left = items.length - reviewed
+  const comments = heldWords(ctx, reopened)
   return {
     kind: 'info',
     says: [
@@ -282,6 +325,7 @@ export function outlineTopic(ctx: TopicCtx): Built | null {
           : `${reviewed} of ${items.length} sections are fully reviewed${left ? `, so ${count(left, 'section')} still ${left === 1 ? 'needs' : 'need'} you` : ''}.`,
         tone: 'lead',
       },
+      ...(comments ? [{ text: comments, tone: 'normal' as const }] : []),
     ],
     cards: [
       outlineCard(

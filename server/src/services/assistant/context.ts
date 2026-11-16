@@ -31,7 +31,7 @@ import { dayOf } from './dates'
 import { fingerprintOf } from './item'
 import { decodeKey } from './activity'
 import { areaHealth, PARTS } from './progress'
-import { advanceStage, deriveStage, laterStage, stageIndex } from './stage'
+import { advanceStage, deriveStage, exportClear, laterStage, stageIndex } from './stage'
 import type { AreaHealth, Stage } from './types'
 
 export type Thread = IReportCommentThread & { _id: Types.ObjectId }
@@ -206,7 +206,7 @@ export async function loadContext(
       ? blockersFrom({ workspace, summary, ofis, assessment })
       : null
   if (inReview && !blockers) unavailable.push('blockers')
-  signals.exportClear = !!blockers && blockers.length === 0
+  signals.exportClear = exportClear(blockers, threads)
   const stage = await advanceStage(assessment, deriveStage(signals, stored), now)
 
   const coverage = brief?.coverage ?? NO_COVERAGE

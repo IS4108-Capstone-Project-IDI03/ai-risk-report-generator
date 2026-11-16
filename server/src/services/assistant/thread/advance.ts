@@ -16,10 +16,28 @@ import {
   withIds,
 } from './session'
 import { ackWords, isTask, liveOf, sorryWords, tasksLeft, todoTopic } from './tasks'
-import { coverageFailedTopic } from './topics-capture'
+import {
+  commentsClause,
+  ctaCards,
+  gapsChange,
+  leftWords,
+  RECHECK_FAILED,
+  recheckSays,
+  sortedThisSession,
+} from './reactions'
+import { coverageFailedTopic, SETUP_KINDS } from './topics-capture'
 import { DEFS, STAGE_TOPICS } from './topics'
 import type { Built, Event, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
-import { answerWords, greetingSays, moveHint, offer, replyLabel, TOPIC_TITLES } from './words'
+import {
+  answerWords,
+  greetingSays,
+  moveHint,
+  movedWords,
+  offer,
+  replyLabel,
+  sortedSays,
+  TOPIC_TITLES,
+} from './words'
 
 export type AdvanceInput = { brief: ThreadBrief; viewer: ThreadViewer; now: Date }
 
@@ -76,7 +94,8 @@ export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Re
 const asDone = (r: CardRow): CardRow =>
   r.end.type === 'tick' || (r.end.type === 'status' && r.end.status === 'done')
     ? r
-    : { ...r, tone: 'green', bad: false, end: { type: 'tick' } }
+    : // Its words say done too: "Not read yet" beside a tick read as stale (round 9, item 8).
+      { ...r, tone: 'green', bad: false, detail: 'Done', end: { type: 'tick' } }
 
 // One stored card brought up to date: its rows as the brief has them now, and a
 // row that has gone (fixed) kept in place, ticked. Without this, a fixed row
@@ -99,7 +118,9 @@ function merged(old: Card, live: Card | undefined, dropped: Set<string>): Card {
  */
 export function rebuilt(turn: StoredTurn, ctx: TopicCtx): StoredTurn {
   const topic = turn.who === 'bot' ? DEFS[turn.topic] : undefined
-  if (!topic || !turn.cards.length) return turn
+  // A turn from before the stage moved on keeps what it showed then (round 9, item 12): without
+  // this, the Review card above the move ticked to 11 of 11 beside the new Ready to export one.
+  if (!topic || !turn.cards.length || turn.frozen) return turn
   // A card of a topic this stage no longer raises stays as it was when the stage moved on, if the
   // move dropped its items. Without this, `merged` ticks every dropped row as done (the Setup
   // card's "Not set" rows) and an outline rebuilds as all ready (Sections with questions open).
@@ -116,6 +137,13 @@ export function rebuilt(turn: StoredTurn, ctx: TopicCtx): StoredTurn {
       ),
     ),
   }
+}
+
+// The open comment threads now, and as counted when MarshBot last advanced (null before that).
+const openComments = (c: TopicCtx) => c.brief.sections.reduce((n, x) => n + x.openComments, 0)
+const commentsSaid = (s: StoredSession) => {
+  const mark = s.said.find((k) => k.startsWith('comments:'))
+  return mark ? Number(mark.slice('comments:'.length)) : null
 }
 
 /** Returns the conversation after `event` and the turns it added (none when nothing is new). */
@@ -208,14 +236,11 @@ export function advance(
     // b. The stage moved on under this session: its topics start over (a reply's answer says so).
     if (session.stage !== brief.stage) {
       session.stage = brief.stage
-      session.said = session.said.filter((k) => k.startsWith('item:'))
+      session.turns.forEach((t) => (t.frozen = true))
+      session.said = session.said.filter((k) => k.startsWith('item:') || k.startsWith('seen:'))
       session.waiting = null
       if (event.type !== 'reply') {
-        say(
-          'moved',
-          `${brief.facts.site} has moved on to the next stage, so here's where it stands now.`,
-          false,
-        )
+        say('moved', movedWords(ctx()), false)
         raiseNext()
       }
     }
@@ -229,6 +254,7 @@ export function advance(
   function react() {
     const s = session!
     const c = ctx()
+    noticed(c)
     const fresh = c.open.filter((i) => isTask(i) && !s.said.includes(`item:${i.id}`))
     if (fresh.length) {
       // A question the new tasks cut off is asked again after them.
@@ -264,6 +290,7 @@ export function advance(
     if (w?.kind === 'tasks') {
       if (tasksLeft(c, w.items)) return
       say('ack', ackWords(c, w.items), true)
+      seen(w.items)
       raiseNext()
     } else if (
       w?.turnId &&
@@ -293,6 +320,52 @@ export function advance(
         if (w) raiseNext()
       }
     }
+  }
+
+  // Marks items as said sorted, so neither this session nor the next day's catch-up says them again.
+  function seen(ids: string[]) {
+    session!.said = [...new Set([...session!.said, ...ids.map((id) => `seen:${id}`)])]
+  }
+
+  // c1. Something MarshBot listed was sorted (round 9, item C): one turn with what it saw and what
+  // is still left, without changing what it waits on, and the waiting topic's button while
+  // something is left there. When that was the last Setup detail, the same turn asks to move on to
+  // Prepare and the choices switch to "Move on to Prepare" (item D). A coverage check that ran
+  // again (or failed) after the gaps were raised gets its own turn (item J); gap rows cleared
+  // without one (an item marked "Not seen") are said with the rest.
+  function noticed(c: TopicCtx) {
+    const s = session!
+    const w = s.waiting
+    const gaps = gapsChange(s, c)
+    if (gaps?.failed)
+      post('bot', 'recheck-failed', 'concerned', {
+        says: [{ text: RECHECK_FAILED, tone: 'normal' }],
+      })
+    else if (gaps?.ran)
+      post('bot', 'recheck', gaps.cleared.length ? 'pleased' : 'idle', {
+        says: recheckSays(gaps),
+        cards: gaps.cards,
+      })
+    // Every task done: the "Nice work" names those, so only the rest is said here (item 5).
+    const allDone = w?.kind === 'tasks' && !tasksLeft(c, w.items)
+    const sorted = sortedThisSession(s, c).filter((i) => !(allDone && w!.items.includes(i.id)))
+    const comments = commentsClause(commentsSaid(s), openComments(c))
+    const more = [
+      ...(gaps && !gaps.ran && !gaps.failed ? gaps.cleared : []),
+      ...(comments ? [comments] : []),
+    ]
+    if (!sorted.length && !more.length) return
+    seen(sorted.map((i) => i.id))
+    const left = allDone ? '' : leftWords(w, c)
+    const setupDone =
+      w?.topic === 'setup' &&
+      !c.open.some(SETUP_KINDS) &&
+      !w.replies.some((r) => r.id === 'to-prepare')
+    const turn = post('bot', 'noticed', 'pleased', {
+      says: sortedSays(c, sorted, left, more),
+      cards: ctaCards(w, c, left),
+    })
+    if (setupDone) s.waiting = { ...w, turnId: turn.id, replies: DEFS.setup.build(c)!.replies! }
   }
 
   // d. A reply: the engineer's bubble, MarshBot's answer, then the next topic.
@@ -336,9 +409,15 @@ export function advance(
   }
 
   if (!session) return { earlier, session, added }
-  // e. The cards of this session as they stand now, kept as the snapshot an earlier session shows.
+  // e. The cards of this session as they stand now, kept as the snapshot an earlier session shows,
+  // and the open comments counted now, so the next change can say how many were resolved.
   const now_ = ctx()
   session.turns = session.turns.map((t) => rebuilt(t, now_))
+  if (brief.sections.length)
+    session.said = [
+      ...session.said.filter((k) => !k.startsWith('comments:')),
+      `comments:${openComments(now_)}`,
+    ]
   session.observations = brief.facts.observations
   return { earlier, session, added }
 }

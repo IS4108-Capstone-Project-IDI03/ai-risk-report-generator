@@ -152,6 +152,8 @@ export type Card =
       rows: CardRow[]
       ticks: TickCell[]
       cta: { label: string; link: ItemLink } | null
+      // What clears a row, behind the card's (?) (round 9, item J: the Gaps cards).
+      help?: string
     }
   // The checklist: areas that need more opened up, the rest as ticks (canvas 4).
   | {
@@ -223,9 +225,10 @@ export type Card =
 // format, the AI only rewords). 'normal' = plain words; 'good' = the green acknowledgement;
 // 'lead' = the bold first line of a turn that brings something to do or decide (a hello, an
 // answer and good news have none); 'tick' = one ticked item, neighbours forming one tick list;
-// 'alert' = a message that stands out (the report is overdue).
+// 'alert' = a message that stands out (the report is overdue); 'step' = one numbered item,
+// neighbours forming one numbered list (round 9).
 // Must match client/src/features/marshbot/types.ts.
-export type Say = { text: string; tone: 'normal' | 'good' | 'lead' | 'tick' | 'alert' }
+export type Say = { text: string; tone: 'normal' | 'good' | 'lead' | 'tick' | 'alert' | 'step' }
 
 export type Turn = {
   id: string // stable for the life of the thread
@@ -246,6 +249,7 @@ export type Turn = {
 export type Reply = {
   id:
     | 'nothing-more'
+    | 'to-prepare' // every Setup detail is in: "Move on to Prepare", works like 'nothing-more'
     | 'ready-to-generate'
     | 'another-visit'
     | 'add-observations'
@@ -259,6 +263,8 @@ export type Reply = {
   picksDate: boolean // 'another-visit': calendar, then confirm, then send with `date`
   // Set = this choice only opens something: the button follows the link and no reply is posted.
   link: ItemLink | null
+  // A lucide icon drawn at the button's left (round 9, item K), e.g. 'calendar', 'plus'.
+  icon?: string
   // One line under the choices saying what this one leads to: the stage it moves the assessment
   // on to, or the topic "What else?" brings up next.
   hint?: string

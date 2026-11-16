@@ -18,7 +18,7 @@ import { partsOf, programOf } from './thread/session'
  * Must match client/src/features/marshbot/ (the drift test reads rag-service's
  * app/assistant/marshbot_components.txt, generated from the client's library).
  */
-export const MARSHBOT_COMPONENTS = ['Reply', 'Lead', 'Say', 'Ticks', 'Alert', 'Card']
+export const MARSHBOT_COMPONENTS = ['Reply', 'Lead', 'Say', 'Ticks', 'Steps', 'Alert', 'Card']
 const STRING = String.raw`"(?:[^"\\]|\\.)*"`
 // A string literal's text, or null for one JSON can't read (e.g. `\'`): without this, one bad
 // escape from the AI would throw and lose the wording of every turn, not just this one.
@@ -73,7 +73,7 @@ const mentions = (text: string, name: string, exact = false) =>
     exact ? '' : 'i',
   ).test(text)
 
-// One piece of a turn as a program writes it: its kind ("Lead", "Say", "Say:good", "Ticks:3",
+// One piece of a turn as a program writes it: its kind ("Lead", "Say", "Say:good", "Ticks:3", "Steps:2",
 // "Alert", "Card:<id>") and the words it shows (null for a string JSON can't read).
 type Piece = { kind: string; words: (string | null)[] }
 // The only calls a piece may be: a component of the library with its words as string literals
@@ -86,6 +86,7 @@ const FORMS = {
   card: one('Card'),
   say: new RegExp(String.raw`^Say\(\s*(${STRING})\s*(?:,\s*(${STRING})\s*)?\)$`),
   ticks: new RegExp(String.raw`^Ticks\(\s*\[\s*(${STRING}(?:\s*,\s*${STRING})*)\s*\]\s*\)$`),
+  steps: new RegExp(String.raw`^Steps\(\s*\[\s*(${STRING}(?:\s*,\s*${STRING})*)\s*\]\s*\)$`),
 }
 function pieceOf(call: string): Piece | null {
   let m: RegExpExecArray | null
@@ -97,9 +98,12 @@ function pieceOf(call: string): Piece | null {
     if (tone !== 'good' && tone !== 'normal') return null
     return { kind: tone === 'good' ? 'Say:good' : 'Say', words: [literal(m[1])] }
   }
-  if ((m = FORMS.ticks.exec(call))) {
-    const items = m[1].match(new RegExp(STRING, 'g')) ?? []
-    return { kind: `Ticks:${items.length}`, words: items.map(literal) }
+  for (const list of ['ticks', 'steps'] as const) {
+    if ((m = FORMS[list].exec(call))) {
+      const items = m[1].match(new RegExp(STRING, 'g')) ?? []
+      const name = list === 'ticks' ? 'Ticks' : 'Steps'
+      return { kind: `${name}:${items.length}`, words: items.map(literal) }
+    }
   }
   return null
 }

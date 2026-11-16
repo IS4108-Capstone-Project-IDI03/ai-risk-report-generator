@@ -2,6 +2,7 @@
 // assessment, stages that only move forward, replies, another visit,
 // dismissals, the admin's view, the export hook and the stage migration.
 // rag-service is faked (assistant-fixtures.ts).
+import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
@@ -9,6 +10,8 @@ import { AssistantActivityModel } from '../models/assistant-activity.model'
 import { AssistantBriefModel } from '../models/assistant-brief.model'
 import { AssistantThreadModel } from '../models/assistant-thread.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
+import { ClientDocumentModel } from '../models/client-document.model'
+import { ObservationModel } from '../models/observation.model'
 import { settleBackground } from '../services/assistant/background'
 import { recordExport } from '../services/assistant/brief.service'
 import { oneAtATime } from '../services/assistant/lock'
@@ -159,7 +162,7 @@ describe('stages (AC 2, AC 4)', () => {
     const after = thread(await api.get(url))
     expect(after.session.turns.slice(3, 5).map((x) => [x.who, x.says[0].text])).toEqual([
       ['engineer', 'Nothing more to add'],
-      ['bot', "Thanks! I've moved this on to the Prepare stage."],
+      ['bot', "Thanks! Setup is confirmed, so I've moved this on to the Prepare stage."],
     ])
     // Asked once: the same reply again is refused.
     expect((await api.post(`${url}/replies`).send({ replyId: 'nothing-more' })).status).toBe(409)
@@ -169,6 +172,38 @@ describe('stages (AC 2, AC 4)', () => {
     await CaptureSessionModel.deleteOne({ _id: s._id })
     expect(thread(await api.get(url)).stage).toBe('capture')
     expect((await AssessmentModel.findById(a._id).lean())?.stage).toBe('capture')
+  })
+
+  it('asks to move on to Prepare once every Setup detail is in, and moves on that choice (round 9, D)', async () => {
+    const { engineer } = await people()
+    const a = await assessment(engineer._id, { siteContacts: [{ name: 'Mei Tan' }] })
+    await ClientDocumentModel.create({
+      client: new Types.ObjectId(),
+      placement: { kind: 'assessment', assessment: a._id },
+      name: 'Scope.pdf',
+      contentType: 'application/pdf',
+      size: 3,
+      sha256: 'abc',
+      key: 'client-documents/x.pdf',
+      uploaded: { at: new Date(), by: { id: String(engineer._id), name: 'Alex Rowe' } },
+      metadata: { source_type: 'client_document', effective_date: new Date() },
+    })
+    const api = signedInAs(app, engineer)
+    const first = await opened(api)
+    expect(first.stage).toBe('setup')
+    expect(first.replies).toEqual([
+      {
+        id: 'to-prepare',
+        label: 'Move on to Prepare',
+        primary: true,
+        picksDate: false,
+        link: null,
+        hint: "Clicking “Move on to Prepare” will move the assessment's status forward to Prepare.",
+      },
+    ])
+    const replied = await api.post(`${url}/replies`).send({ replyId: 'to-prepare' })
+    expect(replied.status).toBe(200)
+    expect(thread(replied).stage).toBe('prepare')
   })
 
   it('takes a press when MarshBot only added its own turns since, and refuses an unknown turn (round 7, item 9; review #46)', async () => {
@@ -439,6 +474,25 @@ describe('re-checks', () => {
     await expect(recheckAssessment(REF)).rejects.toThrow('Mongo blinked')
     spy.mockRestore()
     await expect(recheckAssessment('RPT-0000')).resolves.toBeUndefined()
+  })
+
+  it('mark a failed recording the engineer deleted as removed, and one that came through as done (round 9, G)', async () => {
+    const { engineer } = await people()
+    const a = await assessment(engineer._id)
+    const s = await session(a._id)
+    const deleted = await observation(a._id, s._id, { failed: true })
+    const retried = await observation(a._id, s._id, { failed: true })
+    const idOf = (o: typeof deleted) => `capture.failed-recording:${o.id}:${o.recordings[0]._id}`
+    await refreshBrief(REF)
+    await ObservationModel.updateOne({ _id: deleted._id }, { $set: { recordings: [] } })
+    await ObservationModel.updateOne(
+      { _id: retried._id },
+      { $set: { 'recordings.0.transcription.status': 'transcribed' } },
+    )
+    const stored = await refreshBrief(REF)
+    const outcome = (o: typeof deleted) =>
+      stored?.items.find((i) => i.id === idOf(o))?.facts.outcome
+    expect([outcome(deleted), outcome(retried)]).toEqual(['removed', 'done'])
   })
 
   it("keep a check's open items while rag-service can't be read (#12)", async () => {

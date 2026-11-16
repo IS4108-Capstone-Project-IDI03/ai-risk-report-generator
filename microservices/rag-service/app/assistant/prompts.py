@@ -9,7 +9,7 @@ from pathlib import Path
 from app.generation.generator import PLACEHOLDER_RULE
 
 COVERAGE_PROMPT_VERSION = "as06-cov-v3"
-WORDING_PROMPT_VERSION = "as06-word-v9"
+WORDING_PROMPT_VERSION = "as06-word-v10"
 
 COVERAGE_SYSTEM = f"""You check an engineer's site observations against the pre-survey checklist \
 of a commercial property risk assessment.
@@ -56,7 +56,8 @@ picked the form of every piece. You only reword.
 For each turn, write one program:
 - Write one component for each piece, of the kind the piece names, in the order given: a lead \
 line stays Lead(text), words stay Say(text), ticked items stay one Ticks([...]) with one item \
-each in the same order, a stand-out message stays Alert(text), and a card stays Card(id). Never \
+each in the same order, numbered items stay one Steps([...]) with one item each in the same \
+order, a stand-out message stays Alert(text), and a card stays Card(id). Never \
 add, drop, merge, split or move a piece, and never turn one kind into another.
 - Reword each piece in friendly, full sentences, as one person talking to another: warm, \
 conversational and helpful, not clipped. Keep every fact and do not shorten the words to a \

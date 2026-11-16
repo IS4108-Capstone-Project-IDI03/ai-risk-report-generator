@@ -3,11 +3,22 @@
 // answer to it. Friendly full sentences, digits for numbers (rule 3).
 // Called by advance.ts.
 import type { StoredSession } from '../../../models/assistant-thread.model'
-import { dayOf, daysBetween, inDays, partOfDay, shortDay, weekdayDay, weekdayName } from '../dates'
+import {
+  dayOf,
+  daysBetween,
+  inDays,
+  longDay,
+  partOfDay,
+  shortDay,
+  weekdayDay,
+  weekdayName,
+} from '../dates'
+import { PARTS, partTitle } from '../progress'
 import { STAGE_LABELS } from '../stage'
 import type { BriefItem, Reply, Say, Stage } from '../types'
 import { andList, count, lowerFirst, upperFirst } from './cards'
 import { droppedByStageMove } from './session'
+import { doneClause } from './tasks'
 import type { TopicCtx } from './types'
 
 // Where the assessment stands, in one sentence per stage.
@@ -58,6 +69,8 @@ function dueSays(ctx: TopicCtx): { soon: string; overdue: Say[] } {
   }
 }
 
+// The kinds the catch-up names by their place ("the morning walk is sorted").
+const NAMED_KINDS = ['failed-recording', 'failed-page', 'site-walks']
 // "the morning walk", "the Loading Bay 2 recording": how a sorted item is named in the catch-up.
 function named(item: BriefItem): string {
   if (item.kind === 'failed-recording') return `the ${item.title} recording`
@@ -97,18 +110,21 @@ export function greetingSays(ctx: TopicCtx, last: StoredSession | null): Say[] {
             i.firstSeenAt <= lastEnd &&
             (i.weight === 'fix_now' || i.weight === 'gap') &&
             i.kind !== 'report-due' &&
-            !openTitles.has(i.title.toLowerCase()),
+            !openTitles.has(i.title.toLowerCase()) &&
+            // Already said as sorted in that session (round 9, item C): not claimed twice.
+            !last.said.includes(`seen:${i.id}`),
         )
-        .map(named),
+        // A task by its place; anything else in words, never by an item's label (round 9, item 9).
+        .map((i) =>
+          NAMED_KINDS.includes(i.kind) ? `${named(i)} is sorted` : sortedClause(ctx, i),
+        ),
     ),
   ]
   // Each change is one clause: at most 2 sorted items by name, the rest counted.
   const more = sorted.length - 2
   const added = f.observations - (last.observations ?? f.observations)
   const clauses = [
-    ...(sorted.length > 3
-      ? [...sorted.slice(0, 2).map((s) => `${s} is sorted`), `${more} more are sorted`]
-      : sorted.map((s) => `${s} is sorted`)),
+    ...(sorted.length > 3 ? [...sorted.slice(0, 2), `${more} more are sorted`] : sorted),
     added > 0 ? `you added ${count(added, 'more observation')}` : '',
     last.stage !== ctx.brief.stage
       ? `it's moved on to the ${STAGE_LABELS[ctx.brief.stage]} stage`
@@ -129,8 +145,129 @@ export function greetingSays(ctx: TopicCtx, last: StoredSession | null): Say[] {
   ]
 }
 
+// The section titles of a review item's `facts.sections` ("Fire Protection", or "3 sections").
+function sectionsOf(ctx: TopicCtx, item: BriefItem): string {
+  const ids = String(item.facts.sections ?? '')
+    .split(',')
+    .filter(Boolean)
+  const title = (id: string) =>
+    ctx.brief.sections.find((x) => x.sectionId === id)?.title ?? partTitle(id)
+  return ids.length > 2 ? count(ids.length, 'section') : andList(ids.map(title))
+}
+
+// A review item, as what was done ("all 3 findings in Fire Protection are decided").
+function reviewClause(ctx: TopicCtx, item: BriefItem): string {
+  const n = Number(item.facts.count ?? 0)
+  const where = sectionsOf(ctx, item)
+  const one = n === 1
+  switch (item.id) {
+    case 'review.pending':
+      return one
+        ? `the finding in ${where} is decided`
+        : `all ${n} findings in ${where} are decided`
+    case 'review.unsupported':
+      return `the unsupported ${one ? 'statement' : 'statements'} in ${where} ${one ? 'is' : 'are'} resolved`
+    case 'review.withdrawn':
+      return `the withdrawn ${one ? 'source' : 'sources'} in ${where} ${one ? 'is' : 'are'} no longer cited`
+    case 'review.replacements':
+      return `the new ${one ? 'draft' : 'drafts'} in ${where} ${one ? 'is' : 'are'} dealt with`
+    default:
+      return `the open ${one ? 'comment' : 'comments'} on ${where} ${one ? 'is' : 'are'} resolved`
+  }
+}
+
+// How each kind of item is said once it is sorted (round 9, items C and 9): what was done, in
+// words, never the item's title as a label ("Findings to Decide is sorted").
+const CLAUSES: Record<string, (ctx: TopicCtx, i: BriefItem) => string> = {
+  'area-gaps': (_, i) => `every checklist item in ${i.title} is answered now`,
+  'blank-page': (_, i) => `the blank page from ${i.title} is dealt with`,
+  'checklist-missing': () => 'the checklist is made',
+  'checklist-read': () => "you've read through the checklist",
+  'draft-questions': (_, i) => `the questions on ${i.title} are answered`,
+  'figures-missing': (_, i) =>
+    `the ${i.id.endsWith(':4') ? 'scores' : 'figures'} for ${i.title} are entered`,
+  'new-standard': (_, i) => `the new standard ${i.title} is dealt with`,
+  'no-accepted-ofi': () => 'an opportunity for improvement is accepted',
+  'not-drafted': () => 'every section is drafted',
+  'out-of-date': (_, i) => `${i.title} is up to date again`,
+  'review-items': reviewClause,
+  'survey-passed-empty': () => 'capture has started',
+  'thin-sections': (_, i) => `${i.title} has enough observations to draft from now`,
+  uncategorised: () => 'every observation has a category now',
+  'uncited-items': () => 'every checklist item cites a standard now',
+  'unsure-words': (_, i) => `the unsure words from ${i.title} are checked`,
+  'walk-fields': (_, i) => `the proposed observations from the ${lowerFirst(i.title)} are complete`,
+}
+
+// How one sorted item is said, with its real value where it has one (round 9, item C).
+function sortedClause(ctx: TopicCtx, item: BriefItem): string {
+  const f = ctx.facts
+  if (item.id === 'setup.report-due')
+    return f.reportDue
+      ? `the report due date is set to ${longDay(f.reportDue)}`
+      : 'the report due date is set'
+  if (item.id === 'setup.site-contacts')
+    return f.siteContacts
+      ? `${count(f.siteContacts, 'site contact')} ${f.siteContacts === 1 ? 'is' : 'are'} added`
+      : 'the site contacts are added'
+  if (item.id === 'setup.client-documents')
+    return f.documents
+      ? `${count(f.documents, 'client document')} ${f.documents === 1 ? 'is' : 'are'} uploaded`
+      : 'the client documents are uploaded'
+  // A kind with no words of its own is counted, never named by its label.
+  return CLAUSES[item.kind]?.(ctx, item) ?? doneClause(ctx, item) ?? '1 more thing is sorted'
+}
+
+/**
+ * Returns MarshBot's words when the engineer sorts something it listed (round 9, item C): what it
+ * saw (its items, then `more` clauses such as cleared gaps), at most 2 by name and the rest
+ * counted, then `left` (what is still left) when given.
+ */
+export function sortedSays(
+  ctx: TopicCtx,
+  items: BriefItem[],
+  left: string,
+  more: string[] = [],
+): Say[] {
+  const clauses = [...new Set([...items.map((i) => sortedClause(ctx, i)), ...more])]
+  const said =
+    clauses.length > 3 ? [...clauses.slice(0, 2), `${clauses.length - 2} more are sorted`] : clauses
+  return [
+    { text: `Thanks, ${ctx.first}! I can see ${andList(said)}.`, tone: 'good' },
+    ...(left ? [{ text: left, tone: 'normal' } as Say] : []),
+  ]
+}
+
+// Why the assessment reached each stage, as the signals stage.ts reads prove it (round 9, item E).
+const REASONS: Record<Stage, (f: TopicCtx['facts']) => string> = {
+  setup: () => 'it was created',
+  prepare: (f) => (f.hasChecklist ? 'its checklist is made' : 'Setup is confirmed'),
+  capture: (f) =>
+    f.anotherVisit
+      ? 'another visit is booked'
+      : f.observations
+        ? `${count(f.observations, 'observation')} ${f.observations === 1 ? 'is' : 'are'} in`
+        : 'capture has started',
+  ready_for_generation: () => 'capture is marked as done',
+  generate: (f) =>
+    f.draftedParts
+      ? `${count(f.draftedParts, 'section')} ${f.draftedParts === 1 ? 'is' : 'are'} drafted`
+      : 'work on the report has started',
+  review: (f) =>
+    f.allDrafted ? `all ${PARTS.length} sections are drafted` : 'the first review decision is in',
+  ready_to_export: () => 'nothing blocks the export any more',
+  exported: () => 'the report is exported',
+}
+
+/** Returns what MarshBot says when the stage moves on under an open session: which stage, and why. */
+export function movedWords(ctx: TopicCtx): string {
+  const stage = ctx.brief.stage
+  return `${ctx.facts.site} has moved on to the ${STAGE_LABELS[stage]} stage now that ${REASONS[stage](ctx.facts)}. Here's where it stands now.`
+}
+
 const LABELS: Record<Reply['id'], string> = {
   'nothing-more': 'Nothing more to add',
+  'to-prepare': 'Move on to Prepare',
   'ready-to-generate': "That's everything",
   'another-visit': 'Another visit',
   'add-observations': 'Add observations',
@@ -175,6 +312,7 @@ export const TOPIC_TITLES: Record<string, string> = {
 // before the press that it moves the assessment's progress forward (round 8, item 10).
 const MOVES: Partial<Record<Reply['id'], Stage>> = {
   'nothing-more': 'prepare',
+  'to-prepare': 'prepare',
   'ready-to-generate': 'ready_for_generation',
 }
 
@@ -209,10 +347,18 @@ export function answerWords(
 ): { text: string; good: boolean } | null {
   const site = ctx.facts.site
   switch (reply) {
+    // A move the engineer made says the stage and why, like any other (round 9, items E and 13).
     case 'nothing-more':
-      return { text: "Thanks! I've moved this on to the Prepare stage.", good: true }
+    case 'to-prepare':
+      return {
+        text: "Thanks! Setup is confirmed, so I've moved this on to the Prepare stage.",
+        good: true,
+      }
     case 'ready-to-generate':
-      return { text: `Great! I've moved ${site} on to Ready for generation.`, good: true }
+      return {
+        text: `Great! That's everything from site, so I've moved ${site} on to Ready for generation.`,
+        good: true,
+      }
     case 'another-visit':
       return {
         text: `Done! The survey now ends on ${shortDay(date ?? ctx.today)}, and ${site} stays in the Capture stage until then. I'll hold the gaps until you're back from site. Add whatever you gather on the day.`,

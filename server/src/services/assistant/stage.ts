@@ -29,9 +29,17 @@ export type StageSignals = {
   readyToGenerate: boolean // told MarshBot, or completed the capture session
   generationWork: boolean // any draft, OFI, summary, figures or figure proposal
   reviewStarted: boolean // a review decision, or all parts drafted
-  exportClear: boolean // exportBlockers is empty
+  exportClear: boolean // exportClear() below: no export blockers and no open comment
   exported: boolean
 }
+
+/**
+ * Returns whether the report may go to Ready to export: the export check read (`blockers` not
+ * null) finds nothing, and no comment thread is open. An open comment keeps it in Review (round 9,
+ * item I): without this, Ready to export fired with 2 comments still waiting.
+ */
+export const exportClear = (blockers: unknown[] | null, threads: { status: string }[]) =>
+  !!blockers && blockers.length === 0 && !threads.some((t) => t.status === 'open')
 
 /**
  * Returns the furthest stage the signals prove. Ready to export also needs the

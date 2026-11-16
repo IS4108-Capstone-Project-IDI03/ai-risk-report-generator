@@ -19,33 +19,66 @@ export function answered(areas: AreaHealth[]) {
 }
 
 export const SETUP_KINDS = kinds('setup-details')
-/** Setup (S1): what's missing in amber, what's set ticked, then the question as its own bubble. */
+
+// The Setup details checks/setup-details.ts raises, each with its value once set. Each keeps one
+// row with its item id, so the row ticks in place with the real value instead of keeping
+// "Not set" beside a tick (round 9, item B).
+const setupDetails = (f: TopicCtx['facts']) => [
+  {
+    id: 'setup.report-due',
+    icon: 'calendar',
+    title: 'Report Due Date',
+    value: f.reportDue ? longDay(f.reportDue) : 'Set',
+  },
+  {
+    id: 'setup.site-contacts',
+    icon: 'users',
+    title: 'Site Contacts',
+    // A brief saved before round 9 has no contact count.
+    value: f.siteContacts ? count(f.siteContacts, 'contact') : 'Added',
+  },
+  {
+    id: 'setup.client-documents',
+    icon: 'file-text',
+    title: 'Client Documents',
+    value: `${f.documents ?? 0} uploaded`,
+  },
+]
+
+/** Setup (S1): every detail as a row (missing in amber, set ticked), then the question as its own bubble. */
 export function setupTopic(ctx: TopicCtx): Built {
   const f = ctx.facts
   const missing = ctx.open.filter(SETUP_KINDS)
-  const rows = missing.map((i) =>
-    row(
-      i.id,
-      i.icon,
-      'amber',
-      i.title,
-      i.id === 'setup.report-due' ? 'Not set' : 'None yet',
-      opens(i.link!),
-    ),
-  )
+  const rows = setupDetails(f).map((d) => {
+    const open = missing.find((i) => i.id === d.id)
+    return open
+      ? row(
+          d.id,
+          open.icon,
+          'amber',
+          open.title,
+          d.id === 'setup.report-due' ? 'Not set' : 'None yet',
+          opens(open.link!),
+        )
+      : tickRow(d.id, d.icon, d.title, d.value)
+  })
   const ticks = [
     tick('Site', f.site),
     ...(f.surveyStart ? [tick('Survey Date', longDay(f.surveyStart))] : []),
     ...(f.engineerName ? [tick('Engineer', f.engineerName)] : []),
   ]
   const n = missing.length
-  const reply: Reply = {
-    id: 'nothing-more',
-    label: 'Nothing more to add',
-    primary: true,
-    picksDate: false,
-    link: null,
-  }
+  // Nothing missing: MarshBot says so and asks to move on (round 9, item D); the stage still
+  // moves only on the choice.
+  const reply: Reply = n
+    ? {
+        id: 'nothing-more',
+        label: 'Nothing more to add',
+        primary: true,
+        picksDate: false,
+        link: null,
+      }
+    : { id: 'to-prepare', label: 'Move on to Prepare', primary: true, picksDate: false, link: null }
   return {
     kind: 'question',
     says: n
@@ -62,13 +95,13 @@ export function setupTopic(ctx: TopicCtx): Built {
             tone: 'normal',
           },
         ]
-      : [],
+      : [{ text: 'Every Setup detail is in.', tone: 'good' }],
     cards: [
       {
         type: 'rows',
         id: 'setup',
         title: 'Setup',
-        note: `${ticks.length} of ${ticks.length + n} set`,
+        note: `${ticks.length + rows.length - n} of ${ticks.length + rows.length} set`,
         rows,
         ticks,
         cta: null,
@@ -76,15 +109,20 @@ export function setupTopic(ctx: TopicCtx): Built {
     ],
     after: [
       {
-        text: "Anything more to add, or still to come from the client? If not, I'll move this on to Prepare.",
+        text: n
+          ? "Anything more to add, or still to come from the client? If not, I'll move this on to Prepare."
+          : SETUP_DONE_QUESTION,
         tone: 'normal',
       },
     ],
     replies: [reply],
-    mood: 'idle',
+    mood: n ? 'idle' : 'pleased',
     status: n ? { text: `${count(n, 'detail')} missing`, tone: 'amber', icon: 'info' } : QUESTION,
   }
 }
+
+/** The question once every Setup detail is in (round 9, item D). */
+export const SETUP_DONE_QUESTION = 'Ready to move on to Prepare?'
 
 export const BEFORE_SURVEY_KINDS = kinds(
   'checklist-read',
@@ -111,7 +149,8 @@ export function beforeSurveyTopic(ctx: TopicCtx): Built | null {
           opens(i.link!),
         )
       : i.id === 'prepare.checklist-ready'
-        ? tickRow(i.id, 'list-checks', 'Site Checklist', 'Read through')
+        ? // The unread row's id: one Site Checklist row that ticks in place (round 9, item 8).
+          tickRow('prepare.checklist-read', 'list-checks', 'Site Checklist', 'Read through')
         : i.kind === 'new-standard'
           ? row(
               i.id,
@@ -133,11 +172,11 @@ export function beforeSurveyTopic(ctx: TopicCtx): Built | null {
   const others = items.filter((i) => i.kind !== 'checklist-read').length
   const words = [
     unread
-      ? 'Have a read through the checklist before you go, so you know what to look for on site.'
+      ? 'Have a read through the checklist before the survey, so you know what to look for on site.'
       : '',
     read ? "You've read the checklist, so you're set." : '',
     others
-      ? `There ${others === 1 ? 'is' : 'are'}${unread || read ? ' also' : ''} ${count(others, 'thing')} to look at before you go.`
+      ? `There ${others === 1 ? 'is' : 'are'}${unread || read ? ' also' : ''} ${count(others, 'thing')} to look at before the survey.`
       : '',
   ].filter(Boolean)
   return {
@@ -175,13 +214,15 @@ export function checklistTopic(ctx: TopicCtx): Built | null {
   const fine = areas.filter((a) => !a.thin)
   const { covered, total } = answered(areas)
   const link = (area: string) => ({ tab: 'checklist' as const, params: { area } })
-  const names = thin.map((a) => a.area)
+  const unanswered = areas.filter((a) => a.covered < a.total)
   const clauses = thin.map((a) =>
     a.covered ? `${a.area} is only at ${a.covered} of ${a.total}` : `${a.area} has nothing yet`,
   )
   const need = thin.length === 1 ? '1 needs' : `${thin.length} need`
   const text = ctx.catchUp
-    ? `${fine.length ? 'Only ' : ''}${andList(names)} still ${thin.length === 1 ? 'needs' : 'need'} more.`
+    ? // The noun and the numbers each needs: they are checklist areas, never "sections" (round 9, H).
+      // Every area with an item still open, not only the thin ones, so the count is true (item 6).
+      `${count(unanswered.length, 'checklist area')} still ${unanswered.length === 1 ? 'has' : 'have'} unanswered checklist items: ${andList(unanswered.map((a) => `${a.total - a.covered} in ${a.area}`))}.`
     : `I've lined your ${count(ctx.facts.observations, 'observation')} up against this site's checklist. ${
         fine.length
           ? `${count(fine.length, 'area is', 'areas are')} in good shape, but ${need} more before you leave: `
@@ -276,6 +317,10 @@ export const GAPS_KINDS = kinds('coverage-uncovered', 'coverage-thin')
 export const COVERAGE_FAILED =
   "I tried to read your observations against the checklist, but that check didn't go through just now. Everything above is still up to date. I'll try again in a few minutes and tell you what I find."
 
+/** Returns whether another visit is booked and not yet past, which holds the gaps until then (AC 5). */
+export const gapsHeld = (ctx: TopicCtx) =>
+  ctx.facts.anotherVisit && !!ctx.facts.surveyEnd && ctx.facts.surveyEnd >= ctx.today
+
 /**
  * Gaps (C5): checklist items no observation mentions, and notes too thin for
  * their section, from the last coverage check that finished (its result is
@@ -284,9 +329,7 @@ export const COVERAGE_FAILED =
  * holds the gaps (AC 5).
  */
 export function gapsTopic(ctx: TopicCtx): Built | null {
-  const f = ctx.facts
-  const held = f.anotherVisit && !!f.surveyEnd && f.surveyEnd >= ctx.today
-  if (!ctx.brief.coverage.checkedAt || held) return null
+  if (!ctx.brief.coverage.checkedAt || gapsHeld(ctx)) return null
   const uncovered = new Set(ctx.brief.coverage.uncovered)
   const raised = new Set(
     ctx.open.filter((i) => i.kind === 'coverage-uncovered').map((i) => i.title),
@@ -348,6 +391,7 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
               id: 'not-covered',
               title: 'Not Covered',
               note: count(missed.length, 'checklist item'),
+              help: 'A row clears once an observation records it, or the checklist item is marked “Not seen” or “Not applicable”.',
               rows: missed.map((o) =>
                 row(
                   o.id,
@@ -370,6 +414,7 @@ export function gapsTopic(ctx: TopicCtx): Built | null {
               id: 'thin',
               title: 'Thin',
               note: count(thin.length, 'observation'),
+              help: 'A row clears once its note gives a report writer something specific: equipment, numbers, places or conditions.',
               rows: thin.map((i) =>
                 row(i.id, i.icon, 'amber', i.title, String(i.facts.reason ?? ''), opens(i.link!)),
               ),
@@ -397,15 +442,24 @@ export const coverageFailedTopic = (): Built => ({
   status: { text: 'Checking again', tone: 'blue', icon: 'clock' },
 })
 
-// Another visit, more to add from this one (opens Observations, posts nothing), or done (round 7, item 25).
+// Another visit, more to add from this one (opens Observations, posts nothing), or done (round 7,
+// item 25). The first two have their own icons so they don't look alike (round 9, item K).
 const VISIT_REPLIES: Reply[] = [
-  { id: 'another-visit', label: 'Another visit', primary: false, picksDate: true, link: null },
+  {
+    id: 'another-visit',
+    label: 'Another visit',
+    primary: false,
+    picksDate: true,
+    link: null,
+    icon: 'calendar',
+  },
   {
     id: 'add-observations',
     label: 'Add observations',
     primary: false,
     picksDate: false,
     link: { tab: 'observations' },
+    icon: 'plus',
   },
   {
     id: 'ready-to-generate',

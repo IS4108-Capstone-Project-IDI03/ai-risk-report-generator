@@ -47,6 +47,31 @@ export function mergeItems(stored: BriefItem[], raised: RaisedItem[], now: Date)
   return [...open, ...resolved]
 }
 
+// The items with `facts.outcome` on each failed recording or page resolved at `at`: 'removed'
+// when the engineer deleted it, else 'done' (it came through). Without this, a deleted one read
+// "Recording transcribed" on its Done row (round 9, item G).
+function withOutcomes(
+  items: BriefItem[],
+  observations: CheckContext['observations'],
+  at: string,
+): BriefItem[] {
+  const kept = new Set(
+    observations.flatMap((o) => [...o.recordings, ...o.pages].map((m) => `${o.id}:${m.id}`)),
+  )
+  return items.map((i) =>
+    i.resolvedAt === at && (i.kind === 'failed-recording' || i.kind === 'failed-page')
+      ? {
+          ...i,
+          // The id is "capture.failed-<kind>:<observationId>:<mediaId>".
+          facts: {
+            ...i.facts,
+            outcome: kept.has(i.id.split(':').slice(1).join(':')) ? 'done' : 'removed',
+          },
+        }
+      : i,
+  )
+}
+
 // The plain facts the messages are written from.
 function factsOf(ctx: CheckContext): BriefFacts {
   const a = ctx.assessment
@@ -78,6 +103,7 @@ function factsOf(ctx: CheckContext): BriefFacts {
     evidenceFingerprint: ctx.evidenceFingerprint,
     captureStarted: ctx.captureStarted,
     documents: ctx.documents,
+    siteContacts: a.siteContacts?.length ?? 0,
     walksReviewed: ctx.walks.filter((w) => w.status === 'created').length,
     recordingsTranscribed: ctx.observations
       .flatMap((o) => o.recordings)
@@ -138,10 +164,14 @@ async function refresh(reference: string): Promise<StoredBrief | null> {
   const fields = {
     reference,
     stage: ctx.stage,
-    items: mergeItems(
-      stored?.items ?? [],
-      raisedItems(stored?.items ?? [], runChecks(ctx), ctx.unavailable),
-      now,
+    items: withOutcomes(
+      mergeItems(
+        stored?.items ?? [],
+        raisedItems(stored?.items ?? [], runChecks(ctx), ctx.unavailable),
+        now,
+      ),
+      ctx.observations,
+      now.toISOString(),
     ),
     areas: ctx.areas,
     // The outline is drawn from the review workspace: kept as it was while that can't be read.

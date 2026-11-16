@@ -125,4 +125,6 @@ export const DEFS: Record<string, TopicDef> = {
   'export-ready': def(exportReadyTopic),
   exported: def(exportedTopic, EXPORTED_KINDS),
   rest: def(restTopic),
+  // A re-check turn that showed a gaps card of a new kind rebuilds it like the gaps topic's.
+  recheck: def(gapsTopic),
 }
