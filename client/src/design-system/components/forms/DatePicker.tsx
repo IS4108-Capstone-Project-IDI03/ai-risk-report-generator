@@ -242,6 +242,8 @@ export function DatePicker({
         sheetCentred
         noSheet={noSheet}
         fixed={noSheet}
+        // Tab or Shift+Tab out of the field and the calendar closes it, and focus stays where it went.
+        closeOnFocusOut
         style={{ display: 'flex' }}
         trigger={
           <span className="ds-field ds-datepicker-field" data-error={error ? '' : undefined}>
@@ -282,6 +284,9 @@ export function DatePicker({
                 onChange={(e) =>
                   onType(e.target.value, e.target.selectionStart === e.target.value.length)
                 }
+                // Tab after typing goes on to the next field: without this it stepped into the
+                // open calendar's buttons, which stayed over the fields below.
+                onKeyDown={(e) => e.key === 'Tab' && setOpen(false)}
               />
             </span>
           </span>

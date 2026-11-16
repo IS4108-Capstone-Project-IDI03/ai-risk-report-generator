@@ -35,6 +35,10 @@ export type PopoverProps = {
   // Placed against the window, below the trigger or above it when there is more room, so a
   // scrolling box round the trigger can't clip it (MarshBot's reply slot, AS-06).
   fixed?: boolean
+  // Closes when Tab takes focus out of the trigger and the surface, and leaves focus where the
+  // user took it (a calendar over a form: without this, Tab out left it open over the next fields,
+  // or closing it by hand pulled focus back to the trigger).
+  closeOnFocusOut?: boolean
 }
 
 // A small floating surface anchored to a trigger. It owns the overlay
@@ -58,6 +62,7 @@ export function Popover({
   sheetCancel = false,
   sheetClassName,
   fixed = false,
+  closeOnFocusOut = false,
 }: PopoverProps) {
   const asSheet = useIsPhone() && !noSheet
   const anchor = useRef<HTMLDivElement>(null)
@@ -222,7 +227,7 @@ export function Popover({
       focusMoved.current = true
       closeRef.current(false)
     }
-    if (fixed) box?.addEventListener('focusout', onFocusOut)
+    if (fixed || closeOnFocusOut) box?.addEventListener('focusout', onFocusOut)
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('mousedown', onPointerDown)
     return () => {
@@ -230,7 +235,7 @@ export function Popover({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('mousedown', onPointerDown)
     }
-  }, [open, asSheet, isTop, fixed])
+  }, [open, asSheet, isTop, fixed, closeOnFocusOut])
 
   // Return focus to the trigger once the surface is gone, so a keyboard user
   // who closed with Escape lands back on the control they opened from. The
@@ -298,6 +303,9 @@ export function Popover({
           <div
             ref={surface}
             data-state={open ? 'open' : 'closed'}
+            // While it fades out it is out of reach: without this, Tab from a date field could
+            // land on the closing calendar's buttons, which then unmount and drop the focus.
+            inert={!open}
             id={surfaceId}
             role="dialog"
             aria-label={ariaLabel}
