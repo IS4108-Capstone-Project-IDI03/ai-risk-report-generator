@@ -55,10 +55,10 @@ export function SitesTab({
       listed.flatMap((s) => s.visits.filter((v) => v.status !== 'archived').map(visitStage)),
     ),
   ].map((value) => {
-    const { icon, fg } = statusLook(value)
+    const { icon, fg, ink } = statusLook(value)
     // A stage key or (with no stage) a status key.
     const label = STAGE_LABEL[value as Stage] ?? STATUS_LABEL[value as keyof typeof STATUS_LABEL]
-    return { value, label, icon, color: fg }
+    return { value, label, icon, color: ink ?? fg }
   })
 
   return (

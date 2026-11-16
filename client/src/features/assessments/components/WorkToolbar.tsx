@@ -80,8 +80,8 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
             name="Stage"
             // Each stage wears the icon and colour of its pill, so the two read as one thing.
             choices={v.stageOptions.map((value) => {
-              const { icon, fg } = statusLook(value)
-              return { value, label: value, icon, color: fg }
+              const { icon, fg, ink } = statusLook(value)
+              return { value, label: value, icon, color: ink ?? fg }
             })}
             value={v.stageFilter}
             onChoose={v.setStageFilter}

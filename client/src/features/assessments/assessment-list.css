@@ -754,6 +754,20 @@
     justify-content: center;
     gap: 0;
   }
+  /* By client: "Ready to export" is wider than the stage slot beside the date (6 px over at
+     375 px, more on a narrower phone or an admin's rows), so on those rows the stage runs on
+     under the date, as it does in the All view. Without this it ran over the date's icon. */
+  .at-list[data-grouped] .at-row:has(.ds-pill[data-status='ready_to_export']) {
+    grid-template-areas:
+      'tile main due actions'
+      'tile status status actions';
+  }
+  .at-list[data-grouped][data-engineer] .at-row:has(.ds-pill[data-status='ready_to_export']) {
+    grid-template-areas:
+      'tile main due actions'
+      'tile status status actions'
+      'tile engineer engineer actions';
+  }
   /* All view: the first band holds tile, ID, due and Archive, all centred in it (the same
      x as By client). "Client › Site" then runs under the ID to the right gutter (two lines
      at most), then the pill. */
@@ -841,16 +855,4 @@
   .at-topnew button[aria-haspopup] > span:last-child {
     display: none !important; /* the chevron */
   }
-}
-
-/* A stage's name can be long ("Ready for generation"): in a narrow column the pill wraps to a
-   second line instead of running over its neighbours. */
-.at-status .ds-pill {
-  height: auto;
-  min-height: 26px;
-  max-width: 100%;
-  padding-block: 4px;
-  line-height: 1.2;
-  white-space: normal;
-  text-align: left;
 }

@@ -7,6 +7,7 @@ import { Button } from './core/Button'
 import { AddRow } from './display/AddRow'
 import { IconAction } from './core/IconAction'
 import { IconButton } from './core/IconButton'
+import { StatusPill, statusLook } from './display/StatusPill'
 import { Sheet } from './feedback/Sheet'
 import { DatePicker } from './forms/DatePicker'
 
@@ -123,6 +124,39 @@ describe('disabled with a reason', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('6 open assessments')
     fireEvent.click(b)
     expect(onClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('status looks', () => {
+  it('gives every stage an icon colour that shows on a white menu', () => {
+    // Exported is white on its solid green pill; a Stage filter draws the icon alone, where
+    // white on white was invisible (round 10).
+    const stages = [
+      'setup',
+      'prepare',
+      'capture',
+      'ready_for_generation',
+      'generate',
+      'review',
+      'ready_to_export',
+      'exported',
+      'archived',
+    ]
+    for (const stage of stages) {
+      const { fg, ink } = statusLook(stage)
+      expect(ink ?? fg, stage).not.toBe('var(--graphite-0)')
+    }
+    expect(statusLook('exported').fg).toBe('var(--graphite-0)')
+  })
+  it('draws the one long stage name on two lines, and every other stage on one', () => {
+    // "Ready for generation" on one line made its pill far wider than the rest (round 10); the
+    // two-line label is its own element so the pill can hug the words.
+    const { container, rerender } = render(<StatusPill status="ready_for_generation" />)
+    expect(screen.getByText('Ready for generation')).toHaveClass('ds-pill-lines')
+    expect(container.querySelector('.ds-pill')).toHaveAttribute('data-lines', '2')
+    rerender(<StatusPill status="ready_to_export" />)
+    expect(container.querySelector('.ds-pill-lines')).toBeNull()
+    expect(container.querySelector('.ds-pill')).not.toHaveAttribute('data-lines')
   })
 })
 

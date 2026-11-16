@@ -13,6 +13,19 @@
   white-space: nowrap;
   box-sizing: border-box;
 }
+/* A stage name too long for one line ("Ready for generation") takes two, and the pill hugs the
+   words (min-content): left to wrap by itself it kept its column's full width, a 168 px blob.
+   The corners keep a one-line pill's curve. */
+.ds-pill[data-lines] {
+  height: auto;
+  padding-block: 4px;
+  border-radius: 13px;
+}
+.ds-pill-lines {
+  width: min-content;
+  line-height: 14px;
+  white-space: normal;
+}
 
 /* Date cell (Report due, Next survey): the icon is centred on the two lines (round 13). */
 .ds-due {

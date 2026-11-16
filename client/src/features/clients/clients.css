@@ -566,13 +566,3 @@
 .cl-clients .cl-line-1 {
   overflow: visible;
 }
-
-/* A stage's name can be long ("Ready for generation"): the pill wraps in its column (AS-06). */
-.cl-assess .ds-pill {
-  height: auto;
-  min-height: 26px;
-  max-width: 100%;
-  padding-block: 4px;
-  line-height: 1.2;
-  white-space: normal;
-}

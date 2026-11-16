@@ -582,7 +582,8 @@
     padding: 0 10px;
     font-size: 12px;
   }
-  .ds-pill > span {
+  /* The pill's icon, not the two-line label beside it. */
+  .ds-pill > span:not(.ds-pill-lines) {
     width: 12px !important;
     height: 12px !important;
   }

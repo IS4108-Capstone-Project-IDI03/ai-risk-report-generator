@@ -533,11 +533,20 @@
   .cl-assess:not([data-site]) td[data-label='Type'] {
     padding-left: 0;
   }
-  .cl-assess .ds-pill {
+  .cl-assess .ds-pill,
+  .cl-assess .ds-pill[data-lines] {
     height: auto;
     padding: 0;
     background: none !important;
     box-shadow: none !important;
+    /* With no pill behind it the text takes the stage's own colour: Exported is white on its
+       solid pill, and was invisible here. */
+    color: var(--ds-pill-ink) !important;
+  }
+  /* No pill to keep compact here, so a long stage name runs on one line. */
+  .cl-assess .ds-pill-lines {
+    width: auto;
+    white-space: nowrap;
   }
   .cl-assess td[data-label='Report due'] .ds-due {
     font-size: 13px;

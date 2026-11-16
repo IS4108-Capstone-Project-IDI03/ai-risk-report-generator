@@ -1,5 +1,6 @@
 // Status pill (CP-23, board 01): icon + word for an assessment's status.
 // Called by the Assessments, Clients and client-page tables. Calls Icon.
+import type { CSSProperties } from 'react'
 import { Icon } from '../core/Icon'
 
 export type StatusPillProps = {
@@ -10,7 +11,9 @@ export type StatusPillProps = {
 // Colours per status; fg/bg are design-system tokens (v2 section 6).
 const STATUSES: Record<
   string,
-  { label: string; icon: string; fg: string; bg: string; bd?: string }
+  // `ink`: the colour for the icon on a plain surface (a filter menu), where it differs from `fg`.
+  // `lines`: the label as the pill draws it on two lines; the space that may break is the plain one.
+  { label: string; icon: string; fg: string; bg: string; bd?: string; ink?: string; lines?: string }
 > = {
   not_started: {
     label: 'Not started',
@@ -54,6 +57,8 @@ const STATUSES: Record<
   capture: { label: 'Capture', icon: 'mic', fg: 'var(--ink-600)', bg: 'var(--ink-50)' },
   ready_for_generation: {
     label: 'Ready for generation',
+    // Too long for one line beside the other stages: "Ready for" over "generation".
+    lines: 'Ready\u00a0for generation',
     icon: 'zap',
     fg: 'var(--teal-600)',
     bg: 'var(--teal-50)',
@@ -76,6 +81,8 @@ const STATUSES: Record<
     icon: 'circle-check',
     fg: 'var(--graphite-0)',
     bg: 'var(--green-600)',
+    // White on the solid pill; on a white menu that icon was invisible (round 10).
+    ink: 'var(--green-600)',
   },
   archived: {
     label: 'Archived',
@@ -86,11 +93,13 @@ const STATUSES: Record<
   },
 }
 
+// "Ready for generation" and "ready_for_generation" are the same status.
+const keyOf = (status: string) => status.trim().toLowerCase().replace(/\s+/g, '_')
+
 /** Returns a status's label, icon and colours; an unknown status is plain grey with its own text. */
 export function statusLook(status: string) {
-  const key = status.trim().toLowerCase().replace(/\s+/g, '_')
   return (
-    STATUSES[key] ?? {
+    STATUSES[keyOf(status)] ?? {
       label: status,
       icon: 'circle',
       fg: 'var(--graphite-700)',
@@ -106,14 +115,21 @@ export function StatusPill({ status }: StatusPillProps) {
   return (
     <span
       className="ds-pill"
-      style={{
-        color: s.fg,
-        background: s.bg,
-        boxShadow: s.bd ? `inset 0 0 0 1px ${s.bd}` : undefined,
-      }}
+      // Lets a tight phone row give a long stage name its own line (assessment-list.css).
+      data-status={keyOf(status)}
+      data-lines={s.lines ? 2 : undefined}
+      style={
+        {
+          color: s.fg,
+          background: s.bg,
+          boxShadow: s.bd ? `inset 0 0 0 1px ${s.bd}` : undefined,
+          // The colour to use where a screen draws the status without its pill (a phone row).
+          '--ds-pill-ink': s.ink ?? s.fg,
+        } as CSSProperties
+      }
     >
       <Icon name={s.icon} size={14} />
-      {s.label}
+      {s.lines ? <span className="ds-pill-lines">{s.lines}</span> : s.label}
     </span>
   )
 }
