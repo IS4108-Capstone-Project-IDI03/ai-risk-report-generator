@@ -1,56 +1,119 @@
 // Questions about an assessment in the review workspace's Ask tab (AS-01),
-// mounted at /api/assessments/:reference/ask. Both need `reports:ask` (both
-// roles, F-05) and an assessment the caller can open: its assigned engineer or
-// a knowledge admin (403 otherwise). No session is a 401 (requireAuth).
+// kept in conversations (AS-03), mounted at /api/assessments/:reference/ask.
+// All need `reports:ask` (both roles, F-05) and an assessment the caller can
+// open: its assigned engineer or a knowledge admin (403 otherwise). No session
+// is a 401 (requireAuth). A conversation is its asker's alone: another user's
+// answers 404, as one deleted does. On an archived assessment conversations
+// are only read: asking and deleting answer 409 (AS-03 AC5).
 import { Router, type Response } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
 import {
   answerQuestion,
-  listQuestions,
+  ConversationFullError,
+  ConversationNotFoundError,
+  deleteConversation,
+  listConversations,
+  openConversation,
   prepareQuestion,
   QuestionLimitError,
   type PreparedQuestion,
   questionSchema,
 } from '../services/assessment-ask.service'
-import { AssessmentNotFoundError } from '../services/capture-session.service'
+import {
+  AssessmentArchivedError,
+  AssessmentNotFoundError,
+} from '../services/capture-session.service'
 import { CannotOpenAssessmentError } from '../services/comment.service'
 import { fieldErrors } from './field-errors'
 
 const router = Router({ mergeParams: true })
 
 type Params = { reference: string }
+type ConversationParams = Params & { conversationId: string }
+
+// The cause, when and the next step of a refusal, as the tab states it
+// (AS-01 AC8): "Answer stopped at 14:02: <cause>. <next>"
+const stated = (error: string, cause: string, next: string) => ({
+  error,
+  cause,
+  next,
+  at: new Date(),
+})
 
 // Answers a refused request with its status: 403 when the caller cannot open
-// the assessment, 404 when there is none, 429 over the question limits (with
-// the cause, when, and the next step, AC8). Rethrows anything else.
+// the assessment, 404 when there is none or the conversation is not theirs,
+// 409 once it is archived or the conversation is full, 429 over the question
+// limits. Rethrows anything else.
 function refuse(error: unknown, res: Response) {
   if (error instanceof CannotOpenAssessmentError) {
     res.status(403).json({ error: error.message })
   } else if (error instanceof AssessmentNotFoundError) {
     res.status(404).json({ error: error.message })
-  } else if (error instanceof QuestionLimitError) {
+  } else if (error instanceof ConversationNotFoundError) {
+    res.status(404).json(stated(error.message, error.reason, error.next))
+  } else if (error instanceof AssessmentArchivedError) {
     res
-      .status(429)
-      .json({ error: error.reason, cause: error.reason, next: error.next, at: new Date() })
+      .status(409)
+      .json(
+        stated(
+          error.message,
+          'the assessment is archived, so its conversations are read only',
+          'Restore the assessment to ask about it again.',
+        ),
+      )
+  } else if (error instanceof ConversationFullError) {
+    res.status(409).json(stated(error.message, error.reason, error.next))
+  } else if (error instanceof QuestionLimitError) {
+    res.status(429).json(stated(error.reason, error.reason, error.next))
   } else {
     throw error
   }
 }
 
-// The user's own questions on the assessment, oldest first, and what a new
-// one searches: `{ scope, questions }`.
+// What the tab opens on (AS-03 AC2): the user's own conversations on the
+// assessment, latest first, the latest with its questions, whether they are
+// only read, and what a new question searches:
+// `{ scope, archived, conversations, conversation, questions }`.
 router.get('/', requirePermission('reports:ask'), async (req, res) => {
   try {
-    res.json(await listQuestions((req.params as Params).reference, res.locals.user!))
+    res.json(await listConversations((req.params as Params).reference, res.locals.user!))
   } catch (error: unknown) {
     refuse(error, res)
   }
 })
 
+// One of the user's conversations with its questions: `{ conversation, questions }`.
+router.get('/conversations/:conversationId', requirePermission('reports:ask'), async (req, res) => {
+  const { reference, conversationId } = req.params as ConversationParams
+  try {
+    res.json(await openConversation(reference, res.locals.user!, conversationId))
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
+
+// Deletes one of the user's conversations for good (AS-03 AC2): 204.
+router.delete(
+  '/conversations/:conversationId',
+  requirePermission('reports:ask'),
+  async (req, res) => {
+    const { reference, conversationId } = req.params as ConversationParams
+    try {
+      await deleteConversation(reference, res.locals.user!, conversationId)
+      res.status(204).end()
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
 // Asks one question: `{ question }`, or `{ question, passage }` about text
-// selected in the draft (AS-02: its anchor, citations and findings). The
-// answer streams as server-sent events (`step`, `statement`, `missing`, then
-// `result` with the saved answer). One request per question and no polling (AC8).
+// selected in the draft (AS-02: its anchor, citations and findings), with
+// `conversation` to go into one of the user's conversations; without it, the
+// question starts a new one (AS-03). The answer streams as server-sent events
+// (`question` with the conversation it is in, `step`, `statement`, `missing`,
+// then `result` with the saved answer). One request per question and no
+// polling (AS-01 AC8).
 router.post('/', requirePermission('reports:ask'), async (req, res) => {
   const parsed = questionSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -60,8 +123,8 @@ router.post('/', requirePermission('reports:ask'), async (req, res) => {
   let prepared: PreparedQuestion
   try {
     const reference = (req.params as Params).reference
-    const { question, passage } = parsed.data
-    prepared = await prepareQuestion(reference, res.locals.user!, question, passage)
+    const { question, passage, conversation } = parsed.data
+    prepared = await prepareQuestion(reference, res.locals.user!, question, passage, conversation)
   } catch (error: unknown) {
     refuse(error, res)
     return
@@ -82,7 +145,8 @@ router.post('/', requirePermission('reports:ask'), async (req, res) => {
     type: 'question',
     id: String(prepared.saved._id),
     question: prepared.saved.question,
-    askedAt: prepared.saved.createdAt,
+    askedAt: prepared.saved.askedAt,
+    conversation: prepared.conversation,
   })
   await answerQuestion(prepared, upstream.signal, send)
   res.end()

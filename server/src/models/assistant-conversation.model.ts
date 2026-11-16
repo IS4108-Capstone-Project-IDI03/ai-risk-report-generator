@@ -1,15 +1,26 @@
 import { Schema, Types, model } from 'mongoose'
 import { SECTION_ID, type ICommentAnchor } from './report-comment.model'
 
-// Questions asked about an assessment in the review workspace's Ask tab, each
-// with its answer (AS-01). One document per question: the engineer's own
-// conversation about that assessment, read back when the tab opens again.
-// A question can be about a passage selected in the draft (AS-02): it then
-// keeps where that passage is, as a comment thread's anchor (RV-03), so the
-// tab links back to it, or says "Text deleted" once it is gone.
-// Each holds the trace of the run that answered it (retrieve, assemble,
-// generate, guardrail), so the evaluation harness can score answers later.
-// See docs/areas/database.md, "Assessment questions".
+// The Ask tab's conversations (AS-03): one engineer's questions about one
+// assessment and their answers (AS-01), each perhaps about a passage selected
+// in the draft (AS-02), in the order asked. One document per conversation,
+// holding its questions as `turns`, so the tab reopens on the latest one and
+// the engineer can pick up where they left off.
+// Private to its user: every read and write is scoped to `userId` and the
+// assessment, so another user's conversation looks like it does not exist
+// (knowledge admins included). On an archived assessment it is only read.
+// Never part of the report (AC4): the export reads none of it, and asking or
+// deleting adds no version and changes no review state.
+// Each answer keeps the sources it cited, the provider, model and prompt
+// version that wrote it, when it was asked and answered, and the run's trace,
+// so the evaluation harness can replay and score it (AC3).
+// Written by services/assessment-ask.service.ts. See docs/areas/database.md,
+// "Ask conversations".
+
+// The most questions one conversation holds (AC2); the engineer then starts a
+// new one. Keeps a conversation, with its sources and traces, well inside
+// MongoDB's 16 MB document limit.
+export const MAX_CONVERSATION_QUESTIONS = 100
 
 // `answering` from when the question is saved until its answer ends;
 // `complete` once it ended; `stopped` when it was cut off part-way (the
@@ -53,34 +64,55 @@ export interface IQuestionPassage {
   findings: string[]
 }
 
-export interface IAssessmentQuestion {
-  assessment: Types.ObjectId
-  // Who asked: only they read it back.
-  userId: Types.ObjectId
+// One question and its answer.
+export interface IConversationTurn {
+  _id: Types.ObjectId
   question: string
   // The passage it is about, or null for a question about the whole assessment.
   passage: IQuestionPassage | null
   status: QuestionStatus
   statements: IAnswerStatement[]
-  // What evidence the answer says is missing (AC4).
+  // What evidence the answer says is missing (AS-01 AC4).
   missing: string[]
-  // The cited sources as S4 returned them, by citation ID: a passage's text and
-  // Chroma labels, or an observation as it was sent. Read with the documents'
-  // details now, as the review workspace reads a draft's sources.
+  // The cited sources as S4 returned them, by citation ID (AC3): a passage's
+  // text and Chroma labels, or an observation as it was sent. Read with the
+  // documents' details now, as the review workspace reads a draft's sources.
   sources: Record<string, unknown>
-  // Worked out from the answer's checks, never asked of the model (AC5); null
-  // when nothing was answered.
+  // Worked out from the answer's checks, never asked of the model; null when
+  // nothing was answered.
   confidence: ConfidenceLevel | null
-  // Why the answer stopped, at which step and when (AC8); null if it did not.
+  // Why the answer stopped, at which step and when; null if it did not.
   error: { step: string; cause: string; at: Date } | null
-  // The run's trace (AC6): pipeline steps, provider, model, prompt version,
-  // what was searched and retrieved, the guardrail's results, timings and
-  // whether client details were masked. Never the masked text or the mapping.
+  // What wrote the answer (AC3), as S4's trace names it: the provider from
+  // LLM_PROVIDER, the model and the prompt version. Null until the answer ends,
+  // or when S4 never said (it could not be reached).
+  provider: string | null
+  model: string | null
+  promptVersion: string | null
+  // When it was asked, and when its answer ended (null while answering).
+  askedAt: Date
+  answeredAt: Date | null
+  // The run's trace (AS-01 AC6): pipeline steps, provider, model, prompt
+  // version, what was searched and retrieved, the guardrail's results, timings
+  // and whether client details were masked. Never the masked text or the mapping.
   trace: Record<string, unknown> | null
-  // Required on every document (see CLAUDE.md). A question covers the whole
-  // assessment, so COPE_dimension is 'all'.
+}
+
+export interface IAssistantConversation {
+  assessment: Types.ObjectId
+  // Who asked: only they read it, and only they can delete it.
+  userId: Types.ObjectId
+  // The first question, trimmed to 60 characters (no AI call).
+  title: string
+  // When its last question was asked: the Ask tab opens on the latest (AC2).
+  lastAskedAt: Date
+  // Its questions, oldest first; at most MAX_CONVERSATION_QUESTIONS.
+  turns: IConversationTurn[]
+  // Required on every document (see CLAUDE.md). A conversation covers the
+  // whole assessment, so COPE_dimension is 'all'; effective_date is when it
+  // was started.
   metadata: {
-    source_type: 'assessment_question'
+    source_type: 'assistant_conversation'
     jurisdiction: string
     facility_type: string
     COPE_dimension: 'all'
@@ -124,10 +156,8 @@ const passageSchema = new Schema<IQuestionPassage>(
   { _id: false },
 )
 
-const assessmentQuestionSchema = new Schema<IAssessmentQuestion>(
+const turnSchema = new Schema<IConversationTurn>(
   {
-    assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true },
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     question: { type: String, required: true, maxlength: 1000 },
     passage: { type: passageSchema, default: null },
     status: { type: String, enum: QUESTION_STATUSES, default: 'answering' },
@@ -158,24 +188,40 @@ const assessmentQuestionSchema = new Schema<IAssessmentQuestion>(
       ),
       default: null,
     },
+    provider: { type: String, default: null },
+    model: { type: String, default: null },
+    promptVersion: { type: String, default: null },
+    askedAt: { type: Date, required: true },
+    answeredAt: { type: Date, default: null },
     trace: { type: Schema.Types.Mixed, default: null },
+  },
+  { minimize: false },
+)
+
+const assistantConversationSchema = new Schema<IAssistantConversation>(
+  {
+    assessment: { type: Schema.Types.ObjectId, ref: 'Assessment', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    lastAskedAt: { type: Date, required: true },
+    turns: { type: [turnSchema], default: [] },
     metadata: {
-      source_type: { type: String, enum: ['assessment_question'], required: true },
+      source_type: { type: String, enum: ['assistant_conversation'], required: true },
       jurisdiction: { type: String, required: true },
       facility_type: { type: String, required: true },
       COPE_dimension: { type: String, enum: ['all'], required: true },
       effective_date: { type: Date, required: true },
     },
   },
-  { timestamps: true, collection: 'assessment_questions', minimize: false },
+  { timestamps: true, collection: 'assistant_conversations', minimize: false },
 )
 
-// One user's questions on one assessment, oldest first.
-assessmentQuestionSchema.index({ assessment: 1, userId: 1, createdAt: 1 })
+// One user's conversations on one assessment, latest first.
+assistantConversationSchema.index({ assessment: 1, userId: 1, lastAskedAt: -1 })
 
-export const AssessmentQuestionModel = model<IAssessmentQuestion>(
-  'AssessmentQuestion',
-  assessmentQuestionSchema,
+export const AssistantConversationModel = model<IAssistantConversation>(
+  'AssistantConversation',
+  assistantConversationSchema,
 )
 
-export type AssessmentQuestionDocument = IAssessmentQuestion & { _id: Types.ObjectId }
+export type AssistantConversationDocument = IAssistantConversation & { _id: Types.ObjectId }

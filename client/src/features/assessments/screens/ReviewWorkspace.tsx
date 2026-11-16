@@ -36,7 +36,7 @@ import {
   type InspectorAsk,
   type InspectorTab,
 } from '../components/ReviewInspector'
-import { useAsk } from '../ask/useAsk'
+import { READ_ONLY, useAsk } from '../ask/useAsk'
 import { contentText, passageAt, type AskPassage } from '../ask/passage'
 import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
@@ -786,7 +786,12 @@ export function ReviewWorkspace({
         // waiting to be accepted, which is not the report's text yet.
         ask={
           canAsk && showing === 'saved'
-            ? { label: `${saved.id}. ${saved.title}`, onAsk: askAbout, shown: shownPassage }
+            ? {
+                label: `${saved.id}. ${saved.title}`,
+                onAsk: askAbout,
+                shown: shownPassage,
+                blocked: ask.archived ? READ_ONLY : undefined,
+              }
             : undefined
         }
         // Sections 4 and 5's figures (GN-03); saving them reloads the workspace, so

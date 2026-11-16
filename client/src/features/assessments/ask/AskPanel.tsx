@@ -4,18 +4,23 @@ import {
   Button,
   Callout,
   ConfidenceIndicator,
+  Dialog,
   EmptyState,
   EvidenceCitation,
   Icon,
   IconButton,
+  Select,
   Textarea,
+  toast,
+  type Reason,
 } from '../../../design-system'
 import type { FieldObservation, SourcePassage } from '../api'
 import type { CommentAnchor } from '../comments/api'
 import { CitationMark } from '../components/CitationMark'
+import { useSave } from '../components/useSave'
 import { formatTimeOfDay } from '../format'
 import { excerpt, pageLocator, severityLabel } from '../reviewDisplay'
-import type { AskCitation } from './api'
+import type { AskCitation, AskConversation } from './api'
 import { quotedWords, type AskPassage } from './passage'
 import type { AskItem, AskWorkflow } from './useAsk'
 import './ask.css'
@@ -305,6 +310,133 @@ function Answer({
   )
 }
 
+// Why the conversation can't be changed while an answer is written.
+const ANSWERING: Reason = {
+  title: 'An answer is being written',
+  text: 'Wait for it to finish, or stop it, to change conversation.',
+}
+
+// The conversation picker (AS-03 AC2): this user's conversations on the
+// assessment, latest first, by first question and when last asked, with New
+// conversation and Delete beside it. Shown once there is one. On an archived
+// assessment they are only read (AC5): it only switches between them.
+function ConversationBar({ ask, onDelete }: { ask: AskWorkflow; onDelete: () => void }) {
+  const { conversations, conversation } = ask
+  if (!conversations.length) return null
+  const options = [
+    // A new conversation is listed once its first question is asked.
+    ...(conversation ? [] : [{ value: '', label: 'New conversation' }]),
+    ...conversations.map((c) => ({
+      value: c.id,
+      label: `${c.title} · ${formatTimeOfDay(new Date(c.lastAskedAt))}`,
+    })),
+  ]
+  const blocked = ask.busy ? ANSWERING : undefined
+  return (
+    <div className="ask-conversations" role="group" aria-label="Conversations">
+      <div className="ask-conversation-pick">
+        <Select
+          aria-label="Conversation"
+          size="sm"
+          value={conversation?.id ?? ''}
+          options={options}
+          disabled={ask.busy || ask.switching}
+          onChange={(event) => {
+            if (event.target.value) void ask.open(event.target.value)
+          }}
+        />
+      </div>
+      {!ask.archived && (
+        <>
+          <IconButton
+            icon="plus"
+            size="sm"
+            variant="outline"
+            label="New conversation"
+            tooltip="New conversation"
+            // Already a new, empty one: there is nothing more to start.
+            disabled={!conversation && ask.items.length === 0}
+            disabledReason={blocked}
+            onClick={ask.startNew}
+          />
+          {conversation && (
+            <IconButton
+              icon="trash-2"
+              size="sm"
+              variant="outline"
+              label="Delete conversation"
+              tooltip="Delete this conversation"
+              style={blocked ? undefined : { color: 'var(--red-600)' }}
+              disabledReason={blocked}
+              onClick={onDelete}
+            />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function deletedWhat(questions: number) {
+  if (questions === 0) return 'It is deleted for good.'
+  const what =
+    questions === 1 ? 'Its question and answer are' : `Its ${questions} questions and answers are`
+  return `${what} deleted for good and can't be opened again.`
+}
+
+// The confirmation before a conversation is deleted (AS-03 AC2), with what
+// goes with it. Cancel is the safe choice; a delete that fails keeps the
+// dialog open with the reason.
+function DeleteConversationDialog({
+  conversation,
+  questions,
+  onDelete,
+  onClose,
+}: {
+  conversation: AskConversation
+  questions: number
+  onDelete: () => Promise<void>
+  onClose: () => void
+}) {
+  const { busy, problem, run } = useSave()
+  // Focus starts on Cancel, not on the Close button a native dialog picks
+  // first (as a saved chat's delete, CB-03). Set one tick after it opens.
+  const buttons = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const timer = setTimeout(() => buttons.current?.querySelector('button')?.focus(), 0)
+    return () => clearTimeout(timer)
+  }, [])
+  return (
+    <Dialog
+      title="Delete this conversation?"
+      width={480}
+      onClose={busy ? undefined : onClose}
+      footer={
+        <span ref={buttons} className="ask-delete-actions">
+          <Button variant="secondary" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="danger" iconLeft="trash-2" loading={busy} onClick={() => run(onDelete)}>
+            Delete conversation
+          </Button>
+        </span>
+      }
+    >
+      <div className="ask-delete">
+        {problem && (
+          <div role="alert">
+            <Callout tone="warning" title="Conversation not deleted">
+              {problem}
+            </Callout>
+          </div>
+        )}
+        <p className="ask-delete-title">{conversation.title}</p>
+        <p>{deletedWhat(questions)} Nothing in the report changes.</p>
+      </div>
+    </Dialog>
+  )
+}
+
 // What a new question searches (AC3), in a sentence.
 function scopeLine(ask: AskWorkflow) {
   const scope = ask.scope
@@ -322,11 +454,14 @@ function scopeLine(ask: AskWorkflow) {
 }
 
 // The Ask tab (AS-01): this engineer's questions about the assessment and
-// their cited answers, newest last, then the question box. Without the
-// gateway (`ask` null, e.g. the sample assessment) it says it is unavailable
-// and why (AC7). A question about a passage selected in the draft (AS-02)
-// quotes it, in the question box and above the question once asked; `locate`
-// says whether its text is still there and `onShowPassage` goes back to it.
+// their cited answers, newest last, then the question box. Questions are kept
+// in conversations (AS-03): the tab opens on the latest, the picker above
+// opens another, starts a new one or deletes one after confirming; on an
+// archived assessment they are only read. Without the gateway (`ask` null,
+// e.g. the sample assessment) it says it is unavailable and why (AC7). A
+// question about a passage selected in the draft (AS-02) quotes it, in the
+// question box and above the question once asked; `locate` says whether its
+// text is still there and `onShowPassage` goes back to it.
 export function AskPanel({
   ask,
   unavailable,
@@ -346,6 +481,8 @@ export function AskPanel({
 }) {
   const [question, setQuestion] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
+  // The conversation whose delete is being confirmed (AS-03 AC2).
+  const [deleting, setDeleting] = useState<AskConversation | null>(null)
   const thread = useRef<HTMLOListElement>(null)
   // Holds the question box, to focus it: the shared Textarea takes no ref.
   const box = useRef<HTMLDivElement>(null)
@@ -385,6 +522,7 @@ export function AskPanel({
   // Asks a question, about `passage` when given: the one in the question box
   // unless asked again.
   const send = (text: string, passage: AskPassage | null = about) => {
+    if (ask.switching || ask.archived) return
     const trimmed = text.trim()
     if (!trimmed) {
       setProblem('Type a question to ask.')
@@ -412,12 +550,24 @@ export function AskPanel({
 
   return (
     <div className="ask-panel">
+      <ConversationBar ask={ask} onDelete={() => setDeleting(ask.conversation)} />
+      {ask.problem && (
+        <div role="alert">
+          <Callout tone="warning" title="Conversation not opened">
+            {ask.problem}
+          </Callout>
+        </div>
+      )}
       <div className="ask-intro">
         <h3 className="rv-label">Ask about this assessment</h3>
         <p className="rv-muted">{scopeLine(ask)}</p>
       </div>
       {ask.state === 'loading' ? (
         <p className="rv-muted">Loading earlier questions…</p>
+      ) : ask.switching ? (
+        <p className="rv-muted" role="status">
+          Opening the conversation…
+        </p>
       ) : count === 0 ? (
         <p className="rv-muted ask-empty">
           Answers cite the observations, standards and past reports they rest on, and say what
@@ -439,75 +589,104 @@ export function AskPanel({
                 current={current}
                 onCite={onCite}
                 onAskAgain={send}
-                canAsk={!ask.busy}
+                canAsk={!ask.busy && !ask.archived}
               />
             </li>
           ))}
         </ol>
       )}
-      <form
-        className="ask-composer"
-        aria-label="Ask a question"
-        onSubmit={(event) => {
-          event.preventDefault()
-          send(question)
-        }}
-      >
-        {about && (
-          <PassageQuote
-            passage={about}
-            heading={`Asking about ${about.label}`}
-            onRemove={() => {
-              ask.setAbout(null)
-              focusBox()
-            }}
-          />
-        )}
-        <div ref={box}>
-          <Textarea
-            label="Question"
-            name="question"
-            rows={3}
-            value={question}
-            maxLength={MAX_QUESTION}
-            placeholder={
-              about
-                ? 'e.g. Where does this figure come from?'
-                : 'e.g. Which observations concern the sprinkler control valves?'
-            }
-            error={problem ?? undefined}
-            onChange={(event) => {
-              setQuestion(event.target.value)
-              if (problem) setProblem(null)
-            }}
-            onKeyDown={(event) => {
-              // Enter asks; Shift+Enter starts a new line.
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault()
-                if (!ask.busy) send(question)
-              }
-            }}
-          />
-        </div>
-        <div className="ask-composer-actions">
-          <span className="rv-muted ask-hint">Enter to ask, Shift+Enter for a new line</span>
-          {ask.busy ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              iconLeft="square"
-              onClick={ask.stop}
-            >
-              Stop
-            </Button>
-          ) : (
-            <Button type="submit" variant="primary" size="sm" iconLeft="sparkles">
-              Ask
-            </Button>
+      {ask.archived ? (
+        // Read only (AS-03 AC5): the gateway refuses new questions too (409).
+        <p className="ask-readonly" role="note">
+          <Icon name="archive" size={14} color="var(--text-muted)" />
+          <span>
+            This assessment is archived, so its conversations are read only. Restore the assessment
+            to ask about it again.
+          </span>
+        </p>
+      ) : (
+        <form
+          className="ask-composer"
+          aria-label="Ask a question"
+          onSubmit={(event) => {
+            event.preventDefault()
+            send(question)
+          }}
+        >
+          {about && (
+            <PassageQuote
+              passage={about}
+              heading={`Asking about ${about.label}`}
+              onRemove={() => {
+                ask.setAbout(null)
+                focusBox()
+              }}
+            />
           )}
-        </div>
-      </form>
+          <div ref={box}>
+            <Textarea
+              label="Question"
+              name="question"
+              rows={3}
+              value={question}
+              maxLength={MAX_QUESTION}
+              placeholder={
+                about
+                  ? 'e.g. Where does this figure come from?'
+                  : 'e.g. Which observations concern the sprinkler control valves?'
+              }
+              error={problem ?? undefined}
+              onChange={(event) => {
+                setQuestion(event.target.value)
+                if (problem) setProblem(null)
+              }}
+              onKeyDown={(event) => {
+                // Enter asks; Shift+Enter starts a new line.
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  if (!ask.busy) send(question)
+                }
+              }}
+            />
+          </div>
+          <div className="ask-composer-actions">
+            <span className="rv-muted ask-hint">Enter to ask, Shift+Enter for a new line</span>
+            {ask.busy ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                iconLeft="square"
+                onClick={ask.stop}
+              >
+                Stop
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                iconLeft="sparkles"
+                disabled={ask.switching}
+              >
+                Ask
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
+      {deleting && (
+        <DeleteConversationDialog
+          conversation={deleting}
+          questions={deleting.id === ask.conversation?.id ? count : deleting.questions}
+          onDelete={async () => {
+            await ask.remove(deleting.id)
+            setDeleting(null)
+            toast.success('Conversation deleted')
+          }}
+          onClose={() => setDeleting(null)}
+        />
+      )}
     </div>
   )
 }

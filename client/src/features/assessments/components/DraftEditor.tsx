@@ -6,6 +6,7 @@ import {
   Callout,
   EmptyState,
   IconRegistry,
+  type Reason,
 } from '../../../design-system'
 import type {
   DocumentBlock,
@@ -52,6 +53,8 @@ export type DraftAsk = {
   label: string
   onAsk: (passage: AskPassage) => void
   shown: CommentAnchor | null
+  // Why nothing can be asked (an archived assessment, AS-03 AC5).
+  blocked?: Reason
 }
 
 // Where a block of the draft's text is in its section's text (AS-02).
@@ -487,6 +490,7 @@ export function DraftEditor({
             label={ask.label}
             onAsk={ask.onAsk}
             shown={ask.shown?.sectionId === section.id ? ask.shown : null}
+            blocked={ask.blocked}
           />
         )}
         <div className="rv-editor-bar">

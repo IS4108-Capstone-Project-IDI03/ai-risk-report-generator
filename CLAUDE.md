@@ -74,6 +74,13 @@
   skipped those checks, and never put the summary into a report. The tab's
   figures are counted in the gateway (`client-insights.service.ts`), never by a
   model. See docs/areas/services.md, "Client insights summary".
+- Ask conversations (AS-03) live in `assistant_conversations`, one document
+  per conversation with its questions as `turns`, scoped to their user and
+  assessment: another user's, an admin's included, answers 404 as if it did
+  not exist. Nothing in the export (`document/export/`, `export.service.ts`)
+  may read them, and on an archived assessment asking and deleting answer
+  409. S4 is never sent earlier turns: each question stands alone. See
+  docs/areas/database.md, "Ask conversations".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export

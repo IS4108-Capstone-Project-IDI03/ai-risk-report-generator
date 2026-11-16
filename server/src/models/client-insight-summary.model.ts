@@ -1,5 +1,5 @@
 import { Schema, Types, model } from 'mongoose'
-import { CONFIDENCE_LEVELS, type ConfidenceLevel } from './assessment-question.model'
+import { CONFIDENCE_LEVELS, type ConfidenceLevel } from './assistant-conversation.model'
 
 // A written summary of a client's insights (CP-29): a few statements the model
 // drafted from the engineer's own observations and the figures counted from

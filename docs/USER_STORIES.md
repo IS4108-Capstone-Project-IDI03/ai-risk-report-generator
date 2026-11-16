@@ -1506,7 +1506,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Technical terms (the first wording, 9 Nov): AC1 stacks below 1080px and uses `ds-dialog-sheet` below 760px. AC2's citations are `EvidenceCitation`s. AC3 filters the standards through `knowledge_documents` and searches them by Chroma `doc_id`; a past report marked `all` matches any country or facility type. AC6 masks the text sent to Cohere and the model as draft generation does, takes the provider from `LLM_PROVIDER`, runs the S4 orchestrator (retrieve → assemble → generate → guardrail) and leaves one trace. AC7 adds a `reports:ask` permission for both roles: no session gets 401, no permission gets 403. AC8 makes each question one streamed request with no polling, so F-07's idle sign-out still applies. AC wording simplified 12 Nov 2026; the meaning is unchanged.
 
-  Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
+  Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`, in conversations in `assistant_conversations` since AS-03), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
   </details>
 
 - [ ] **AS-02** — Ask about a selected passage (risk engineer, Software, 3 pts, deps: AS-01, RV-03, Sprint 5)
@@ -1521,6 +1521,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Asking about a passage never changes the section's text, version or review state.
 
   Built 12 Nov 2026 (DECISIONS 2026-11-12). "The editor" is both the review workspace's draft editor (Sections 4 to 12: a button by the selection opens the Ask tab) and the document editor (beside Comment, with an Ask panel in the comments list's place); the shortcut is Ctrl+Alt+K (Cmd+Option+K). A passage's citations are those of every block it is in; the gateway reads the findings and the cited sources from the saved draft. A disagreement is its own line, "Sources disagree:", citing both sources, and makes the answer Medium at most. A passage is at most 4,000 characters.
+  </details>
+
+- [ ] **AS-03** — Keep conversation history (risk engineer, Data Engineering, deps: AS-01)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, have my questions and answers kept with the assessment, so that I can pick up where I left off and the team can evaluate answer quality.
+
+  1. Conversations are stored in a new `assistant_conversations` collection, per assessment and per user, and are private to that user. Documents include the metadata fields CLAUDE.md requires.
+  2. Reopening the Ask tab shows the latest conversation. New conversation starts another, and Delete removes one after confirmation.
+  3. Each answer stores the sources it cited, the provider, the model and timestamps, so EV runs can replay and score it.
+  4. Conversations never reach the PDF or Word export, and add no version or review state.
+  5. On an archived assessment, conversations are read-only (409 on writes).
+
+  Built 13 Nov 2026 (DECISIONS 2026-11-13). One document per conversation holds its questions as `turns` (at most 100). The questions saved before, in `assessment_questions`, are moved by `migrate:ask-conversations`, one conversation per user and assessment. Older conversations are opened from a picker above the tab, which holds New conversation and Delete. Each question still stands alone: no earlier turns are sent to the model. "Private" includes knowledge admins: another user's conversation answers 404. On an archived assessment, asking a question is refused too, unlike AS-01, which let one ask.
   </details>
 
 ## E8 — Evaluation Harness

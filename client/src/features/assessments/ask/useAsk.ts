@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Reason } from '../../../design-system'
 import { GatewayError } from '../api'
 import {
   askQuestion,
   AskRefusedError,
+  deleteConversation,
   listQuestions,
+  openConversation,
   type AskAnswer,
+  type AskConversation,
   type AskEvent,
   type AskScope,
 } from './api'
@@ -21,6 +25,13 @@ export type AskItem = AskAnswer & {
   // The step being run while it is answered: searching, then writing.
   step: 'retrieve' | 'generate' | null
   failure: ShownFailure | null
+}
+
+// Why nothing can be asked on an archived assessment (AS-03 AC5): its
+// conversations are only read. Shown on Ask about this (AS-02).
+export const READ_ONLY: Reason = {
+  title: 'Read only',
+  text: 'This assessment is archived. Restore it to ask about it again.',
 }
 
 const NEXT = 'Ask again.'
@@ -52,13 +63,27 @@ function shown(answer: AskAnswer, key = answer.id): AskItem {
   }
 }
 
-// The Ask tab's state for one assessment (AS-01): this user's earlier
-// questions and answers, read once when the workspace opens, and the question
-// being answered. `available` is false without the gateway (AC7): the tab then
-// says why. Kept by the review workspace, so an answer keeps streaming while
-// the engineer moves between sections, and into the document editor. `about`
-// is the passage chosen with "Ask about this" (AS-02), asked about with the
-// next question.
+// Why a conversation could not be opened or deleted, with the next step.
+function problemOf(error: unknown, doing: 'opened' | 'deleted'): string {
+  if (error instanceof GatewayError && error.status === null)
+    return `The conversation could not be ${doing}: the gateway could not be reached. Try again.`
+  if (error instanceof GatewayError && error.status === 404)
+    return `The conversation could not be ${doing}: it was deleted. Reload the page.`
+  if (error instanceof GatewayError && error.status === 409)
+    return `The conversation could not be ${doing}: the assessment is archived, so its conversations are read only.`
+  return `The conversation could not be ${doing}. Try again.`
+}
+
+// The Ask tab's state for one assessment (AS-01): this user's conversations
+// about it (AS-03), read once when the workspace opens, which opens on the
+// latest; the questions and answers of the one on screen; and the question
+// being answered. `conversation` is null for a new conversation, saved with
+// its first question. `archived` makes them read only (AS-03 AC5).
+// `available` is false without the gateway (AC7): the tab then says why. Kept
+// by the review workspace, so an answer keeps streaming while the engineer
+// moves between sections, and into the document editor. `about` is the
+// passage chosen with "Ask about this" (AS-02), asked about with the next
+// question.
 export function useAsk(reference: string, enabled: boolean) {
   const [items, setItems] = useState<AskItem[]>([])
   const [scope, setScope] = useState<AskScope | null>(null)
@@ -67,6 +92,21 @@ export function useAsk(reference: string, enabled: boolean) {
   const running = useRef<AbortController | null>(null)
   const [busy, setBusy] = useState(false)
   const [about, setAbout] = useState<AskPassage | null>(null)
+  const [archived, setArchived] = useState(false)
+  const [conversations, setConversations] = useState<AskConversation[]>([])
+  const [conversation, setConversation] = useState<AskConversation | null>(null)
+  // The conversation on screen, for a question asked before React re-renders.
+  const current = useRef<string | null>(null)
+  // A conversation being opened from the picker, and why one could not be.
+  const opening = useRef<AbortController | null>(null)
+  const [switching, setSwitching] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+
+  const show = useCallback((next: AskConversation | null, questions: AskAnswer[]) => {
+    current.current = next?.id ?? null
+    setConversation(next)
+    setItems(questions.map((answer) => shown(answer)))
+  }, [])
 
   useEffect(() => {
     if (!enabled) return
@@ -74,7 +114,9 @@ export function useAsk(reference: string, enabled: boolean) {
     listQuestions(reference, controller.signal).then(
       (list) => {
         setScope(list.scope)
-        setItems(list.questions.map((answer) => shown(answer)))
+        setArchived(list.archived)
+        setConversations(list.conversations)
+        show(list.conversation, list.questions)
         setState('ready')
       },
       (error: unknown) => {
@@ -90,17 +132,80 @@ export function useAsk(reference: string, enabled: boolean) {
       },
     )
     return () => controller.abort()
-  }, [reference, enabled])
+  }, [reference, enabled, show])
 
-  // Stops the answer being written when the workspace closes.
+  // Stops the answer being written, and a conversation being opened, when
+  // the workspace closes.
   useEffect(() => {
     const answer = running
-    return () => answer.current?.abort()
+    const loading = opening
+    return () => {
+      answer.current?.abort()
+      loading.current?.abort()
+    }
   }, [])
+
+  // Opens one of the user's conversations, picked in the tab (AS-03 AC2).
+  // Not while an answer is written: it belongs to the one on screen.
+  const open = useCallback(
+    async (id: string) => {
+      if (running.current || id === current.current) return
+      opening.current?.abort()
+      const controller = new AbortController()
+      opening.current = controller
+      setSwitching(true)
+      setProblem(null)
+      try {
+        const found = await openConversation(reference, id, controller.signal)
+        if (controller.signal.aborted) return
+        show(found.conversation, found.questions)
+      } catch (error: unknown) {
+        if (controller.signal.aborted) return
+        setProblem(problemOf(error, 'opened'))
+      }
+      opening.current = null
+      setSwitching(false)
+    },
+    [reference, show],
+  )
+
+  // New conversation (AS-03 AC2): the tab empties, and the next question
+  // starts another conversation. Nothing is saved until then.
+  const startNew = useCallback(() => {
+    if (running.current) return
+    opening.current?.abort()
+    opening.current = null
+    setSwitching(false)
+    setProblem(null)
+    show(null, [])
+  }, [show])
+
+  // Deletes a conversation for good (AS-03 AC2), once the engineer confirmed.
+  // Throws the reason it was not, for the confirmation to show. The latest
+  // left opens in its place, or a new one once none is left.
+  const remove = useCallback(
+    async (id: string) => {
+      if (running.current) return
+      try {
+        await deleteConversation(reference, id)
+      } catch (error: unknown) {
+        // Already gone (deleted in another tab): it leaves the list as well.
+        if (!(error instanceof GatewayError && error.status === 404))
+          throw new Error(problemOf(error, 'deleted'), { cause: error })
+      }
+      const left = conversations.filter((c) => c.id !== id)
+      setConversations(left)
+      if (current.current !== id) return
+      show(null, [])
+      const [latest] = left
+      if (latest) await open(latest.id)
+    },
+    [reference, conversations, open, show],
+  )
 
   const ask = useCallback(
     async (question: string, passage: AskPassage | null = null) => {
-      if (running.current) return
+      if (running.current || opening.current) return
       const controller = new AbortController()
       running.current = controller
       setBusy(true)
@@ -138,6 +243,14 @@ export function useAsk(reference: string, enabled: boolean) {
         if (event.type === 'question') {
           const id = event.id
           update((item) => ({ ...item, id, askedAt: event.askedAt }))
+          // The conversation it went into: a new one now has its id and name,
+          // and is listed first as the latest (AS-03 AC2).
+          const saved = event.conversation
+          if (saved) {
+            current.current = saved.id
+            setConversation(saved)
+            setConversations((list) => [saved, ...list.filter((c) => c.id !== saved.id)])
+          }
         } else if (event.type === 'step') {
           const step = event.step === 'generate' ? 'generate' : 'retrieve'
           update((item) => ({ ...item, step }))
@@ -161,7 +274,7 @@ export function useAsk(reference: string, enabled: boolean) {
         }
       }
       try {
-        await askQuestion(reference, question, onEvent, controller.signal, passage)
+        await askQuestion(reference, question, onEvent, controller.signal, passage, current.current)
         if (!finished) fail('the answer ended before it was finished')
       } catch (error: unknown) {
         if (controller.signal.aborted) fail('the answer was stopped before it finished')
@@ -179,7 +292,25 @@ export function useAsk(reference: string, enabled: boolean) {
 
   const stop = useCallback(() => running.current?.abort(), [])
 
-  return { items, scope, state, reason, busy, ask, stop, about, setAbout }
+  return {
+    items,
+    scope,
+    state,
+    reason,
+    busy,
+    ask,
+    stop,
+    about,
+    setAbout,
+    archived,
+    conversations,
+    conversation,
+    switching,
+    problem,
+    open,
+    startNew,
+    remove,
+  }
 }
 
 export type AskWorkflow = ReturnType<typeof useAsk>

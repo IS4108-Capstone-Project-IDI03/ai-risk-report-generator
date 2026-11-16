@@ -569,7 +569,7 @@ with the same list.
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
-| `reports:ask` | `GET` and `POST /api/assessments/:reference/ask` (AS-01): asking about an assessment in the review workspace's Ask tab and reading one's own earlier answers; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
+| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03): asking about an assessment in the review workspace's Ask tab, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -1143,38 +1143,79 @@ unknown assessment, thread or comment; 409 once the assessment is archived.
 threads are still open, which the Export tab shows as a reminder that never
 blocks the export (AC9).
 
-## Assessment questions (AS-01)
+## Ask conversations (AS-01, AS-03)
 
-`assessment_questions` (`server/src/models/assessment-question.model.ts`)
-holds the questions asked in the review workspace's Ask tab, one document
-per question with its answer. They are the asker's own conversation about
-that assessment: only they read them back (`GET /api/assessments/:reference/ask`,
-oldest first). Each holds the trace of the run that answered it, for the
-evaluation harness.
+`assistant_conversations` (`server/src/models/assistant-conversation.model.ts`)
+holds the questions asked in the review workspace's Ask tab, kept in
+conversations (AS-03): one document per conversation, per assessment and per
+user, holding its questions with their answers as `turns`, oldest first. A
+conversation is its asker's alone: every read and write is scoped to `userId`
+and the assessment, so another user's (a knowledge admin's included) answers
+404, the same as one deleted. The tab opens on the latest (`lastAskedAt`).
+Questions saved before AS-03, one document each in `assessment_questions`,
+are moved here by `npm --prefix server run migrate:ask-conversations`
+(one-off, safe to re-run): each user's questions on an assessment become one
+conversation, and the old collection is dropped once every question is in one.
 
 | Field | Meaning |
 |---|---|
-| `assessment`, `userId` | the assessment, and who asked |
+| `assessment`, `userId` | the assessment, and whose conversation it is |
+| `title` | its first question, whitespace collapsed and trimmed to 60 characters with "…" (no AI call) |
+| `lastAskedAt` | when its last question was asked: the latest conversation is the one the tab opens on |
+| `turns` | its questions, oldest first, at most 100 (`MAX_CONVERSATION_QUESTIONS`; a question into a full one is 409 and the tab says to start a new one). Each is below |
+| `metadata` | the five required fields: `source_type: 'assistant_conversation'`, the site's `jurisdiction` and `facility_type`, `COPE_dimension: 'all'` (a conversation covers the whole assessment) and `effective_date` (when it was started) |
+
+Each turn:
+
+| Field | Meaning |
+|---|---|
+| `_id` | the question's id (kept from `assessment_questions` by the migration) |
 | `question` | as asked, at most 1,000 characters |
 | `passage` | the text selected in the draft that the question is about (AS-02), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
 | `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
 | `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs? }`: `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
-| `missing` | what evidence the answer says is missing (AC4) |
-| `sources` | the cited sources as S4 returned them, by `ref`: a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
+| `missing` | what evidence the answer says is missing (AS-01 AC4) |
+| `sources` | the cited sources as S4 returned them, by `ref` (AS-03 AC3): a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
 | `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
 | `error` | `{ step, cause, at }` when it stopped, else `null` |
-| `trace` | the run (AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
-| `metadata` | the five required fields: `source_type: 'assessment_question'`, the site's `jurisdiction` and `facility_type`, `COPE_dimension: 'all'` (a question covers the whole assessment) and `effective_date` (when asked) |
+| `provider`, `model`, `promptVersion` | what wrote the answer (AS-03 AC3), from its trace's `provider` (S4's `LLM_PROVIDER`), `model` and `prompt_version`; `null` while answering, or when S4 was never reached |
+| `askedAt`, `answeredAt` | when it was asked, and when its answer ended (`null` while answering) |
+| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
 
-- The question is saved before S4 is asked, so it is kept even if the
-  answer fails; the answer, sources, confidence, error and trace are written
-  once the stream ends.
-- Asking about a passage only reads the report: it adds no version to
+- A question is saved (pushed onto its conversation, or as the first of a
+  new one) before S4 is asked, so it is kept even if the answer fails; the
+  answer, sources, provider, model, times and trace are written into the
+  same turn once the stream ends. A conversation deleted while an answer is
+  written stays deleted.
+- The evaluation harness can replay a turn from its `question`, `passage`
+  and the trace's `scope`, and score it against its `statements`, `sources`
+  and `guardrail` (AS-03 AC3).
+- Never part of the report (AS-03 AC4): the export reads nothing here, and
+  asking, starting or deleting a conversation adds no version to
   `report_section_versions`, no entry to `review_audit_log`, and nothing to
   `report_comment_threads` (AS-02 AC5).
-- Its paid calls go to `ai_calls` with the assessment's `reportId`
-  (feature `ask`, and `retrieval` for Cohere).
-- Index `{ assessment, userId, createdAt }`.
+- On an archived assessment conversations are only read: asking and deleting
+  answer 409 (AS-03 AC5).
+- Deleting a conversation is permanent and deletes its questions and answers.
+  Its paid calls stay in `ai_calls` (feature `ask`, and `retrieval` for
+  Cohere, with the assessment's `reportId`).
+- The browser never gets a turn's `provider`, `model`, `promptVersion`,
+  `answeredAt` or `trace`.
+- Index `{ assessment, userId, lastAskedAt: -1 }`.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/ask` | `{ scope, archived, conversations, conversation, questions }`: the user's conversations, latest first (at most 100), each `{ id, title, startedAt, lastAskedAt, questions }` (a count); the latest, and its questions oldest first; whether the assessment is archived; and what a new question searches. |
+| `GET /api/assessments/:reference/ask/conversations/:id` | `{ conversation, questions }` for one of the user's conversations. |
+| `DELETE /api/assessments/:reference/ask/conversations/:id` | Deletes it for good. 204. |
+| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation? }`: asks into that conversation, or starts a new one without it. Server-sent events, the first (`question`) naming the conversation it went into. |
+
+All need `reports:ask` and an assessment the caller can open (403
+otherwise); 404 for an unknown assessment, or a conversation that is not the
+user's or was deleted; 409 once the assessment is archived (asking and
+deleting) or when the conversation is full; 429 over the question limits.
+A conversation's 404, the 409s and the 429 also carry the `cause`, `at` and
+`next` step the tab shows.
 
 ## Opportunities for Improvement (GN-05)
 
