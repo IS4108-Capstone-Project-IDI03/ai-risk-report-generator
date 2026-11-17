@@ -12,6 +12,7 @@ import re
 import numpy as np
 from chromadb.errors import NotFoundError
 
+from app import outline
 from app.labelling.config import STANDARDS
 from app.labelling.decide import normalise
 from app.pipeline.indexer import get_all
@@ -263,18 +264,52 @@ def _passages(doc_id: str) -> list[dict]:
     return sorted(rows, key=lambda r: _reading_order(r["id"]))
 
 
-def document_passages(doc_id: str, offset: int = 0, limit: int = 25) -> dict:
-    """Return one page of a document's passages in reading order, and how many it has (IN-17).
+def _overlaps(meta: dict, page_from: int | None, page_to: int | None) -> bool:
+    """Whether a passage's pages overlap the range; one with no page never matches a range."""
+    if page_from is None and page_to is None:
+        return True
+    start, end = meta.get("page_start"), meta.get("page_end")
+    if start is None:
+        return False
+    end = end if end is not None else start
+    return (page_from is None or end >= page_from) and (page_to is None or start <= page_to)
 
-    Reads every passage's metadata (no text, no vectors) to order and count them, then the
-    text of the page's passages only: a standard has a thousand or more.
+
+def document_passages(
+    doc_id: str,
+    offset: int = 0,
+    limit: int = 25,
+    chapter: str | None = None,
+    section: str | None = None,
+    page_from: int | None = None,
+    page_to: int | None = None,
+) -> dict:
+    """Return one page of a document's passages in reading order, the total and the outline (IN-17).
+
+    Reads every passage's metadata (no text, no vectors) to order, outline, filter and count
+    them, then the text of the page's passages only: a standard has a thousand or more.
+    `chapter` and `section` are names from the outline (see app/outline.py); the page range
+    keeps passages that overlap it.
     """
+    empty = {
+        "total": 0,
+        "passages": [],
+        "outline": {"by": "section", "chapters": [], "sections": []},
+    }
     collection = passages_collection()
     if collection is None:
-        return {"total": 0, "passages": []}
+        return empty
     found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
     ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
-    page = ordered[offset : offset + limit]
+    by, where = outline.places([meta for _, meta in ordered])
+    rows = list(zip(ordered, where))
+    in_chapter = [row for row in rows if chapter is None or row[1][0] == chapter]
+    chosen = [
+        (id_, meta)
+        for (id_, meta), (_, part) in in_chapter
+        if (section is None or part == section) and _overlaps(meta, page_from, page_to)
+    ]
+    page = chosen[offset : offset + limit]
     texts = {}
     if page:
         read = collection.get(ids=[id_ for id_, _ in page], include=["documents"])
@@ -292,7 +327,18 @@ def document_passages(doc_id: str, offset: int = 0, limit: int = 25) -> dict:
         }
         for n, (id_, meta) in enumerate(page)
     ]
-    return {"total": len(ordered), "passages": passages}
+    sections = (
+        outline.counts([part for _, (_, part) in in_chapter]) if chapter and by == "clause" else []
+    )
+    return {
+        "total": len(chosen),
+        "passages": passages,
+        "outline": {
+            "by": by,
+            "chapters": outline.counts([name for _, (name, _) in rows]),
+            "sections": sections,
+        },
+    }
 
 
 def _public(passage: dict) -> dict:

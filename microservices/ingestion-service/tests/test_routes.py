@@ -193,7 +193,11 @@ def test_listing_passages_of_a_document_with_none_returns_an_empty_list(monkeypa
 
     response = client.get("/documents/nothing-indexed/passages")
 
-    assert response.json() == {"total": 0, "passages": []}
+    assert response.json() == {
+        "total": 0,
+        "passages": [],
+        "outline": {"by": "section", "chapters": [], "sections": []},
+    }
 
 
 def seed_passages(passages, count, doc="doc"):
@@ -243,3 +247,109 @@ def test_listing_passages_refuses_a_page_size_over_100_or_a_negative_offset(monk
 
     assert client.get("/documents/doc/passages?limit=101").status_code == 422
     assert client.get("/documents/doc/passages?offset=-1").status_code == 422
+
+
+# A standard's passages as NFPA 25 stores them: a junk trail (page header, watermark, edition
+# mark) before the one real heading, clause numbers with change markers (Δ, N, *).
+JUNK = ["25 NFPA ®", "EDUFIRE", "3e"]
+STANDARD = [
+    ("std:0", "Contents", 1, 1),
+    ("std:1", "Chapter  1      Administration", 2, 2),
+    ("std:2", "1.1 Scope.", 2, 2),
+    ("std:3", "Δ 1.2.3* Purpose.", 3, 3),
+    ("std:4", "Notes:", 3, 3),
+    ("std:5", "N8.6.1 Component  Replacement.", 5, 6),
+    ("std:6", "A.8.6.1 Explanatory material.", 9, 9),
+    ("std:7", "Δ Table  A.8.6.1 Continued", None, None),
+]
+
+
+def seed_standard(passages):
+    for passage_id, heading, start, end in STANDARD:
+        meta = {"doc_id": "std", "headings": [*JUNK, heading]}
+        if start is not None:
+            meta |= {"page_start": start, "page_end": end}
+        passages.rows[passage_id] = {"text": heading, "meta": meta, "vector": [1, 0, 0]}
+
+
+def listed_ids(query=""):
+    return [p["id"] for p in client.get(f"/documents/std/passages{query}").json()["passages"]]
+
+
+def test_the_outline_lists_chapters_from_clause_numbers_in_reading_order(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_standard(passages)
+
+    outline = client.get("/documents/std/passages").json()["outline"]
+
+    # Before the first chapter is front matter (""); a heading without a clause number
+    # ("Notes:", a table continued) stays in the clause before it.
+    assert outline == {
+        "by": "clause",
+        "chapters": [
+            {"name": "", "count": 1},
+            {"name": "1", "count": 4},
+            {"name": "8", "count": 1},
+            {"name": "A", "count": 2},
+        ],
+        "sections": [],
+    }
+
+
+def test_a_chapter_narrows_the_list_and_lists_its_sections(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_standard(passages)
+
+    body = client.get("/documents/std/passages?chapter=1").json()
+
+    assert body["total"] == 4
+    assert [p["id"] for p in body["passages"]] == ["std:1", "std:2", "std:3", "std:4"]
+    # The chapter's heading itself comes before its first section ("").
+    assert body["outline"]["sections"] == [
+        {"name": "", "count": 1},
+        {"name": "1.1", "count": 1},
+        {"name": "1.2", "count": 2},
+    ]
+    assert listed_ids("?chapter=1&section=1.2") == ["std:3", "std:4"]
+    assert listed_ids("?chapter=A&section=A.8") == ["std:6", "std:7"]
+
+
+def test_a_page_range_keeps_passages_that_overlap_it(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_standard(passages)
+
+    # std:5 runs over pages 5 and 6, so either edge finds it; std:7 has no page.
+    assert listed_ids("?pageFrom=3&pageTo=5") == ["std:3", "std:4", "std:5"]
+    assert listed_ids("?pageFrom=6") == ["std:5", "std:6"]
+    assert listed_ids("?pageTo=1") == ["std:0"]
+    assert listed_ids("?chapter=1&pageFrom=3") == ["std:3", "std:4"]
+
+
+def test_a_page_range_that_ends_before_it_starts_is_refused(monkeypatch):
+    in07_fakes(monkeypatch)
+
+    assert client.get("/documents/std/passages?pageFrom=5&pageTo=4").status_code == 422
+    assert client.get("/documents/std/passages?pageFrom=0").status_code == 422
+
+
+def test_a_document_without_clause_numbers_is_outlined_by_its_report_sections(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    for n, section in enumerate(["Purpose and Scope", "Fire Protection", "Fire Protection"]):
+        passages.rows[f"rep:{n}"] = {
+            "text": f"Report text {n}",
+            "meta": {"doc_id": "rep", "section": section, "headings": ["Site visit"]},
+            "vector": [1, 0, 0],
+        }
+
+    body = client.get("/documents/rep/passages").json()
+    narrowed = client.get("/documents/rep/passages?chapter=Fire%20Protection").json()
+
+    assert body["outline"] == {
+        "by": "section",
+        "chapters": [
+            {"name": "Purpose and Scope", "count": 1},
+            {"name": "Fire Protection", "count": 2},
+        ],
+        "sections": [],
+    }
+    assert [p["id"] for p in narrowed["passages"]] == ["rep:1", "rep:2"]

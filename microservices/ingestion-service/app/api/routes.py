@@ -183,13 +183,20 @@ def list_passages(
     doc_id: str,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    chapter: str | None = None,
+    section: str | None = None,
+    page_from: Annotated[int | None, Query(alias="pageFrom", ge=1)] = None,
+    page_to: Annotated[int | None, Query(alias="pageTo", ge=1)] = None,
 ) -> dict:
-    """Return one page of a document's passages in reading order, and the total (IN-17).
+    """Return one page of a document's passages in reading order, the total and its outline (IN-17).
 
-    Reads the index only: an unknown document has no passages. The gateway checks the
+    Filters by the outline's chapter and section and by a page range (passages that overlap
+    it). Reads the index only: an unknown document has no passages. The gateway checks the
     document exists.
     """
-    return matching.document_passages(doc_id, offset, limit)
+    if page_from is not None and page_to is not None and page_from > page_to:
+        raise HTTPException(422, "The page range ends before it starts.")
+    return matching.document_passages(doc_id, offset, limit, chapter, section, page_from, page_to)
 
 
 @router.get("/documents/{doc_id}/comparison/{other_id}")
