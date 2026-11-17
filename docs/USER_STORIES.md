@@ -265,10 +265,15 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   2. Given I am a risk engineer, when I open the Knowledge base, then I don't see Add documents or Requests, and a document's details offer no Edit details, Withdraw, Reinstate or Delete.
   3. Given a document needs review and I am a risk engineer, when I view the list, then it is marked Needs review but offers no Review page, and opening a Review link shows the list instead.
   4. Given documents of different source types, when I filter by one source type, then only documents of that type are listed.
-  5. Given a document has finished ingesting, when I open its passages, then I see each passage in reading order with its heading trail, pages and a short excerpt, and a passage that isn't active is marked Needs review or Withdrawn.
-  6. Given I open one passage, when it expands, then I see its full text, with valid LaTeX shown as math.
-  7. Given a document has no passages, or they can't be loaded, when I open its passages, then I see a message saying so, and after a failed load I can try again.
-  8. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
+  5. Given a document has finished ingesting, when I open its passages, then I see a table of 25 at a time in reading order, each row with its place in the document, its nearest heading, a short excerpt, its type (Text, Table, Formula or Picture, with text a model wrote marked Generated) and its pages, and I can move between pages with Previous and Next.
+  6. Given a standard, when I choose a chapter, then only that chapter's passages are listed from its first page, and I can then choose one of its sections; each chapter and section is named by its own heading, with how many passages it holds. Given a past report, then I filter by its template sections instead.
+  7. Given I enter a page range, when it is valid, then only passages on those pages are listed; given it ends before it starts, then I am told so and the list doesn't change.
+  8. Given an active document, when I type words into Search this document, then its best matching passages are listed, best first, within the chapter, section and pages I chose; when I empty the search, the whole document is listed again.
+  9. Given a document needs review or is withdrawn, when I open its passages, then a note says they aren't used in answers or search, and searching it isn't offered.
+  10. Given I open one passage, when it expands, then I see its full text with valid LaTeX shown as math, the region of the original page for a table, formula or picture once one is recorded (KB-02), and its passage ID.
+  11. Given a document has no passages, nothing matches my filters, or the passages can't be loaded, when I open its passages, then I see a message saying so, with Clear filters when nothing matches and Try again after a failed load.
+  12. Given any dialog that has a close button, when I click outside it, then it closes, and a text selection dragged out of it doesn't close it; when its content scrolls, its header and close button stay at the top.
+  13. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
   </details>
 
 ## E3 — Knowledge Base & Online RAG Pipeline

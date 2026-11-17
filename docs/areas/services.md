@@ -611,17 +611,53 @@ only admins (`knowledge:manage`) see Add documents, Requests, the Review page an
 the actions that change a document. The client hides them, and the gateway
 refuses them (403) whatever the client shows.
 
-1. A document's details offer View passages, which reads
-   `GET /api/knowledge-documents/:id/passages`. The gateway answers 404 for an
-   unknown document without calling the ingestion service, and 503 when it is
-   down.
-2. The gateway calls the ingestion service's `GET /documents/{id}/passages`. It
-   reads the document's passages from Chroma by `doc_id` (no vectors) and returns
-   `{ "passages": [{ id, text, headings, section, pageStart, pageEnd, status }] }`
-   in reading order: chunk number, then table, picture and `:partN` passages as
-   the chunker wrote them (the order `matching.py` uses). A document with nothing
-   indexed returns an empty list.
-3. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
+1. A document's details offer View passages: a table, one page of 25 at a time
+   (`PassagesDialog.tsx`). It reads `GET /api/knowledge-documents/:id/passages`
+   with `offset`, `limit` (1–100), `chapter`, `section`, `pageFrom`/`pageTo` and
+   `q`. The gateway (`knowledge-passages.service.ts`) checks them with zod (400
+   for a bad value or a range that ends before it starts, before any service is
+   asked), answers 404 for an unknown document without calling a service, and 503
+   when a service is down.
+2. **Listing.** The gateway calls the ingestion service's
+   `GET /documents/{id}/passages` (`matching.document_passages`). It reads every
+   passage's metadata for the document (no text, no vectors), orders them in
+   reading order (chunk number, then table, picture and `:partN` passages, as
+   `matching.py` orders them), outlines, filters and counts them, then reads the
+   text of that page's passages only. It answers
+   `{ total, passages: [{ id, position, text, headings, section, pageStart, pageEnd,
+   status, kind, generated }], outline: { by, chapters, sections } }`:
+   - `position` is the passage's place in the whole document, filtered or not;
+   - `kind` is `table`, `formula` or `picture` from the recorded region, a
+     described picture or the id (`:table:`, `:picture:`), else `text`;
+     `generated` marks text a model wrote (IN-13);
+   - a page range keeps passages whose pages overlap it; a passage with no page
+     never matches one.
+3. **Outline** (`app/outline.py`). Docling's heading trails don't nest reliably
+   (in NFPA 25 every trail starts with the page header and a watermark; see
+   `.claude/plans/ingestion-data-fixes.md`, D1), so only the nearest heading is
+   read. A clause number ("8.6 …", "Δ 12.4.1", "N12.3.17", "4.1.5*", "A.8.6.1")
+   sets the chapter (`8`, or annex `A`) and section (`8.6`, `A.8`); "Chapter 8 …"
+   and "Annex A …" start a chapter; any other heading stays in the clause before
+   it, and passages before the first chapter are front matter (`""`). That gives
+   `by: "clause"`, with `chapters` and, once a chapter is chosen, its `sections`,
+   each `{ name, count, title }`. A title comes only from the chapter's or
+   section's own heading ("Chapter 8 Installation", an "N.0" heading, "8.6 …"),
+   never a sub-clause; else it is null. A document with no clause numbers (a past
+   report) is `by: "section"`: its chapters are the passages' template `section`
+   values, with no second level. Computed on each read, so no re-ingestion.
+4. **Search by words.** With `q`, the gateway asks rag-service's keyword search
+   (`POST /passages/search`, `document_ids: [id]`, the best 30; local ranking, no
+   paid call, so nothing is masked) and then the same ingestion listing with
+   `ids` in rank order, so a search is paged, filtered and outlined like a
+   listing. The keyword search skips passages that aren't active, so a search of
+   a document that needs review or is withdrawn answers 409 instead of looking
+   empty; the client offers no search box then. The client searches 300 ms after
+   typing stops and cancels a request still running.
+5. **Opening a passage** shows its full text (`PassageBody`) and, for a table,
+   formula or picture, the region of the original page through the chat's
+   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Today only described
+   pictures record a region (`IN-__`; D2 in the ingestion fixes plan).
+6. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
    document are never edited; amending passages comes with manual entry (IN-18).
 
 ## Report section drafting (S4, GN-01)
