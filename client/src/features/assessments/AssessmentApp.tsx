@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   BackButton,
   Button,
+  clampedTitle,
   Dialog,
   EmptyState,
   IconRegistry,
@@ -22,6 +23,7 @@ import { guardLeave } from './leaveGuard'
 import { ScreenMotion } from './ScreenMotion'
 import { AssessmentActions } from './components/AssessmentActions'
 import { siteWalkReview } from '../site-walk/openReview'
+import { DetailsPanel } from '../marshbot/components/DetailsPanel'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { NewAssessment } from '../new-assessment/screens/NewAssessment'
@@ -43,6 +45,7 @@ import { UserAccounts } from '../accounts/UserAccounts'
 import { Settings } from '../settings/Settings'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
+import type { ItemLink } from '../marshbot/types'
 import { Calendar } from '../calendar/screens/Calendar'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
@@ -71,6 +74,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     ),
   }))
   const captureOnPhone = v.isField && v.phone && !v.routeBlocked
+  // The assessment's Details panel (AS-06 board 06), from the header or MarshBot's client card.
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const openDetails = v.liveRecord ? () => setDetailsOpen(true) : undefined
+  // A MarshBot link's place in the tab it opened (a checklist area, a report section), kept
+  // while that tab stays open so it opens there; leaving the tab forgets it.
+  const [goTo, setGoTo] = useState<ItemLink | null>(null)
+  if (goTo && v.tab !== goTo.tab) setGoTo(null)
   // Going somewhere else asks first while the document editor has unsaved
   // changes (RV-08 AC14); choosing where you already are does not.
   const leave = (staying: boolean, go: () => void) => (staying ? go() : guardLeave(go))
@@ -239,6 +249,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           </div>
                         )}
                         <h1
+                          // A very long site name stops at 2 lines (AS-06 round 9): without the
+                          // clamp it ran to 4 or 5 and pushed the tabs and the screen down. The
+                          // full name stays on hover, only while it is cut short.
+                          onPointerEnter={clampedTitle(
+                            typeof v.title === 'string' && !v.routeBlocked ? v.title : undefined,
+                          )}
                           style={{
                             margin: '0',
                             fontSize: 'clamp(23px,2.4vw,32px)',
@@ -248,6 +264,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             color: 'var(--text-primary)',
                             overflowWrap: 'anywhere',
                             textWrap: 'pretty',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
                           }}
                         >
                           {v.routeBlocked ? 'Access restricted' : v.title}
@@ -299,6 +319,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             capture for history asks first (RV-08). */}
                             <AssessmentActions
                               onHistory={() => guardLeave(v.showVersionHistory)}
+                              onDetails={openDetails}
                               onArchive={v.canArchive ? v.openArchive : undefined}
                             />
                           </>
@@ -431,7 +452,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isOverview && <Overview v={v} />}
+                    {v.isOverview && (
+                      <Overview v={v} openDetails={() => setDetailsOpen(true)} goTo={setGoTo} />
+                    )}
 
                     {v.isChecklist &&
                       (v.liveReference ? (
@@ -440,6 +463,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           canGenerate={v.canDraftSections}
                           answering={v.checklistTabAnswering}
                           onViewObservation={v.showObservation}
+                          area={goTo?.params?.area}
+                          item={goTo?.params?.item}
                         />
                       ) : (
                         <div style={{ padding: '24px' }}>
@@ -451,7 +476,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         </div>
                       ))}
 
-                    {v.isObservations && <Observations v={v} />}
+                    {v.isObservations && <Observations v={v} media={goTo?.params?.media} />}
 
                     {v.isPhotos && <Photos v={v} />}
 
@@ -466,6 +491,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           canDraft={v.canDraftSections}
                           onCapture={v.canCapture ? v.goField : undefined}
                           onReview={v.goReview}
+                          openSection={goTo?.params?.section}
                         />
                       ) : (
                         <Generation v={v} />
@@ -484,6 +510,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           panelStyle={v.reviewEvidenceStyle}
                           onGenerate={() => v.setTab('generate')}
                           historyRequest={v.reviewHistory}
+                          openSection={goTo?.params?.section}
                           canAsk={v.canAsk}
                         />
                       ) : (
@@ -548,6 +575,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             onClose={v.closeArchive}
             width={440}
           ></Dialog>
+          {v.isAssessment && (
+            <DetailsPanel v={v} open={detailsOpen} onClose={() => setDetailsOpen(false)} />
+          )}
           {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}
           <Toaster />
           {!!v.toast && (

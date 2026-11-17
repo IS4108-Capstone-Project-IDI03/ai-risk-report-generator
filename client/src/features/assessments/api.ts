@@ -2,6 +2,7 @@
 // to the gateway in development.
 
 import type { Coordinates } from './googleMaps'
+import type { Priority, Stage } from '../marshbot/types'
 
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
@@ -30,6 +31,10 @@ export type Assessment = {
   siteContacts?: { name: string; role: string | null }[]
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
+  // Where it stands in the work (AS-06) and why it is urgent, if it is. Absent from a
+  // sample (offline) row, which then shows its status.
+  stage?: Stage
+  priority?: Priority | null
   // When its latest capture session started; null before capture starts.
   captureStartedAt: string | null
   createdAt: string

@@ -53,13 +53,13 @@ export function FormActionBar({
           <Icon
             name="loader-circle"
             size={18}
+            className={primaryLoading ? 'ds-spin' : undefined}
             style={{
               position: 'absolute',
               inset: 0,
               margin: 'auto',
               opacity: primaryLoading ? 1 : 0,
               transition: swap,
-              animation: primaryLoading ? 'dsSpin 0.9s linear infinite' : undefined,
             }}
           />
         </span>

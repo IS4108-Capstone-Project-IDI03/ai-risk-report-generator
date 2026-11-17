@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.12
+# Risk Report Generator design system, v2.13
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -119,6 +119,8 @@ The canvas drew green as #1f7a45; code uses the existing `--green-600` (#2f7049)
 
 Numbers that line up (dates, counts, refs) use `font-variant-numeric: tabular-nums`.
 
+**Conversation text** (MarshBot): every word in a message, its cards included, is one size, 14 / 20 (`--mbt-size`, `--mbt-leading` in `thread.css`). Bold marks only names and key words, never a whole line or message.
+
 ## 5. Shape and size
 
 | Thing                    | Value                                                                          |
@@ -136,12 +138,13 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 ## 6. Components (all drawn in the artifact)
 
 - **Buttons:** primary navy pill (New assessment, Create), secondary pill (`--graphite-100` fill: filters, Documents · 3), icon buttons (section 2).
-- **Status pills:** Draft (violet), Not started (grey dashed circle), Under review (amber), Archived (outline). Icon + word.
+- **Status pills:** Draft (violet), Not started (grey dashed circle), Under review (amber), Archived (outline). Icon + word. A long label (the stage "Ready for generation") draws on two lines that hug its words (`StatusPill` `lines`, `data-lines="2"`), never one wide pill. On a white menu the icon takes the pill's `ink` colour, so a pale one (Exported's green tick) stays visible.
 - **Chips:** jurisdiction (blue, globe icon), facility (teal, building icon). Plain, no border. A client's division is plain text (facts panel, Clients table's second line), not a chip.
 - **New badge:** green tint, green text, 12 / 700.
 - **Tag pill:** fixed width so every row matches: 164 px in tables, wider in the documents popover (sized in Build so a long "Site · Assessment" fits). Tag icon first, chevron last; long text ends in … with the full name on hover.
 - **Date cell** (`ReportDue`): calendar icon 8 px from the date, centred on its two lines; date 14 / 500; a 12 px second line, at most two lines. Report due: late = calendar-x and red "N days late"; within 7 days = calendar-clock and amber "in N days"; on track = grey "in N days"; none = grey "Not set". Next survey uses the same cell with its site as the second line (`note`), never late; in the Clients list it drops the icon (`icon={false}`) so a long site name can't push it away. No coloured fills.
 - **Segmented control:** First survey / Resurvey / Follow-up, each with its icon and wearing its assessment-type colour; the white thumb slides to the choice and the tile beside "Assessment N" follows it. Sits on the "Assessment N" header line.
+- **Shaded icon action** (`IconAction` `shaded`): a round icon button on a `--graphite-100` disc, `--graphite-200` on hover and press. For an add action once its list has items (Add Document in the Details panel), beside plain icon siblings such as Edit Site. Like controls in one panel share one style: no labelled pill beside icon buttons.
 - **Back button:** a round 36 px button beside the page title: `#eef1f6` at rest, `#e3e8ef` on hover, scale 0.96 pressed, navy focus ring.
 - **Reason box:** a small white box (popover look) tied to one control: a short title and one line saying why. Opens 150 ms after the pointer rests, on focus, or on tap. Use it instead of a plain tooltip whenever the answer is "why not".
 - **Date picker** (`DatePicker`): a dd/mm/yyyy field; a click or tap anywhere on it opens the calendar (popover on desktop, centred card on a phone) while focus stays in the field, so typing still works. Typing adds the slashes (8 digits fill it; "1/" pads to "01/") with the rest of the mask shown faintly; number pad on phones. Calendar: month arrows, Today, Clear, days before a minimum greyed, today ringed, 44 px cells on phones, full keyboard.
@@ -255,6 +258,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.10 (15 Nov 2026, CP-60): the Calendar grid, its entries, and its side lists and phone day list (section 6), built from a clickable mock; to add to the canvas.
   - v2.11 (16 Nov 2026, AS-03): the Ask tab's conversation picker, New conversation, the delete confirmation and the archived note (section 6), built without a board; to approve on the canvas.
   - v2.12 (16 Nov 2026, AS-04): Draft text and Rewrite this, the proposed-text card with Insert, Replace and Undo, and AI-drafted text in a section with Accept and Delete (section 6), built without a board; to approve on the canvas.
+  - v2.13 (18 Nov 2026, AS-06 and AS-07): one-size conversation text with bold for names only; two-line stage pill and the pill icon's ink colour on white menus; shaded icon action.
 
 ## 10. When this file says nothing
 

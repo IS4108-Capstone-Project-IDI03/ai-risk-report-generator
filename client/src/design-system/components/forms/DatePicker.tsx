@@ -25,6 +25,10 @@ export type DatePickerProps = {
   name?: string
   // Id of another element that describes the field (joined with the hint/error line's id).
   describedBy?: string
+  // For a field inside a modal <dialog>: the calendar floats on a phone too (a sheet portalled to
+  // the body would open behind the dialog's top layer), and it is placed against the window, so
+  // the dialog's own scrolling box can't clip it.
+  noSheet?: boolean
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -57,7 +61,8 @@ function maskTyped(raw: string): string {
 }
 
 /** Returns a calendar for the month of `focus`; Monday first, six weeks, days before min disabled. */
-function Calendar({
+// Exported for MarshBot's "I need another visit" (AS-06 board 04), which opens it straight from a button.
+export function Calendar({
   value,
   min,
   onPick,
@@ -67,7 +72,8 @@ function Calendar({
   value: string
   min?: string
   onPick: (iso: string) => void
-  onClear: () => void
+  // Left out for a calendar with no Today and Clear footer (MarshBot's another-visit pick, AS-06).
+  onClear?: () => void
   // False when opened by a click on the text: focus stays there so typing still works.
   focusDay: boolean
 }) {
@@ -155,14 +161,16 @@ function Calendar({
           )
         })}
       </div>
-      <div className="ds-cal-foot">
-        <button type="button" disabled={!!min && today < min} onClick={() => onPick(today)}>
-          Today
-        </button>
-        <button type="button" onClick={onClear}>
-          Clear
-        </button>
-      </div>
+      {onClear && (
+        <div className="ds-cal-foot">
+          <button type="button" disabled={!!min && today < min} onClick={() => onPick(today)}>
+            Today
+          </button>
+          <button type="button" onClick={onClear}>
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -179,6 +187,7 @@ export function DatePicker({
   disabled,
   name,
   describedBy: extraDescribedBy,
+  noSheet,
 }: DatePickerProps) {
   const uid = useId()
   // On a phone the calendar is a centred card that takes focus, so the text can't be typed
@@ -231,6 +240,10 @@ export function DatePicker({
         ariaLabel={label ?? 'Choose a date'}
         align="left"
         sheetCentred
+        noSheet={noSheet}
+        fixed={noSheet}
+        // Tab or Shift+Tab out of the field and the calendar closes it, and focus stays where it went.
+        closeOnFocusOut
         style={{ display: 'flex' }}
         trigger={
           <span className="ds-field ds-datepicker-field" data-error={error ? '' : undefined}>
@@ -271,6 +284,9 @@ export function DatePicker({
                 onChange={(e) =>
                   onType(e.target.value, e.target.selectionStart === e.target.value.length)
                 }
+                // Tab after typing goes on to the next field: without this it stepped into the
+                // open calendar's buttons, which stayed over the fields below.
+                onKeyDown={(e) => e.key === 'Tab' && setOpen(false)}
               />
             </span>
           </span>

@@ -19,6 +19,7 @@ import { DocumentRow } from '../components/DocumentRow'
 import { FilterMenu } from '../components/FilterMenu'
 import { plural } from '../formatClient'
 import type { useClientDocuments } from '../useClientDocuments'
+import { toastUploadResults } from '../uploadToast'
 import { useDocumentTags } from '../useDocumentTags'
 import { ACCEPT } from '../../new-assessment/reading'
 
@@ -50,23 +51,10 @@ export function DocumentsTab({
     setUploading(true)
     try {
       const results = await docs.upload(files)
-      const kept = results.filter((r) => r.status === 'kept').length
       const ids = results.flatMap((r) => (r.status === 'kept' ? [r.document.id] : []))
       setFresh(ids)
       setTimeout(() => setFresh([]), 1300)
-      const refused = results.flatMap((r) => (r.status === 'refused' ? [r] : []))
-      if (kept) toast.success(`${plural(kept, 'document')} uploaded`)
-      if (refused.length)
-        toast.error(
-          refused.length === 1
-            ? `${refused[0].name} not uploaded`
-            : `${refused.length} files not uploaded`,
-          {
-            description: refused
-              .map((r) => (refused.length === 1 ? r.reason : `${r.name}: ${r.reason}`))
-              .join(' '),
-          },
-        )
+      toastUploadResults(results)
     } catch {
       toast.error('Upload failed', { description: 'Check your connection and try again.' })
     }

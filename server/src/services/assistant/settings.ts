@@ -1,0 +1,33 @@
+// MarshBot's numbers in one place (AS-06). Focus's work-left days are in
+// focus.service.ts (FOCUS_WORK_DAYS).
+export const ASSISTANT = {
+  // The coverage check (AC 7) runs at most this often while evidence keeps changing. A minute
+  // (round 9, item J): at 5 minutes the gaps looked frozen after an edit.
+  coverageMinIntervalMs: 60_000,
+  // "Read" (Architecture 5): this share of the items, each on screen this long.
+  readShare: 0.8,
+  readMs: 2_000,
+  // The checklist also counts as read after this much engaged time per item, however far it was
+  // scrolled (round 11): a 48-item skim of 2.5 minutes reached only half the items above.
+  checklistMsPerItem: 1_000,
+  // The checklist reminder starts this many days before the survey (AC 8).
+  checklistReminderDays: 3,
+  // A report due within this many days raises "due soon".
+  dueSoonDays: 7,
+  // An area with fewer than this share of its checklist items answered is thin.
+  thinShare: 0.5,
+  // A section decided in less engaged time than this, while less than
+  // `mostlySeenShare` of its findings were on screen, went by quickly (AC 10).
+  quickDecisionMs: 60_000,
+  mostlySeenShare: 0.5,
+  // An Overview opened this recently counts as open: the conversation moves on
+  // in the background, and a stage move this soon after the last turn keeps the session.
+  sameVisitMs: 30 * 60_000,
+  // Resolved items kept on the brief, for the catch-up and the tick-off.
+  keepResolved: 50,
+  // Earlier sessions kept on a conversation thread.
+  keepSessions: 10,
+  // The wording AI gets this long per turn; after it the template words stand. Round 9 measure:
+  // median 2.1 s, p90 2.6-3.0 s, and a few slow calls at 4.0-4.3 s that 4 s turned away.
+  wordingTimeoutMs: 4_500,
+}

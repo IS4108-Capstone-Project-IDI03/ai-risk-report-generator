@@ -16,6 +16,31 @@ describe('app shell', () => {
     expect(onClick).toHaveBeenCalled()
   })
 
+  it('TopBar gives the whole title on hover only while the two-line clamp cuts it', () => {
+    const long = 'A very long site name that the clamp will cut'
+    // jsdom has no layout: the heading's heights are set by hand (3 lines of text in 2 lines' room).
+    const heights = (scroll: number) =>
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return this.tagName === 'H1' ? scroll : 0
+      })
+    const cut = heights(115)
+    const client = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(77)
+    const { rerender } = render(<TopBar title={long} />)
+    // Measured when the pointer comes over the heading, so it is right after a resize.
+    fireEvent.pointerEnter(screen.getByRole('heading', { level: 1 }))
+    expect(screen.getByRole('heading', { level: 1 }).getAttribute('title')).toBe(long)
+    // Shown in full: no title, so a screen reader does not read the heading twice.
+    cut.mockRestore()
+    const whole = heights(38)
+    rerender(<TopBar title="Clients" />)
+    fireEvent.pointerEnter(screen.getByRole('heading', { level: 1 }))
+    expect(screen.getByRole('heading', { level: 1 }).hasAttribute('title')).toBe(false)
+    whole.mockRestore()
+    client.mockRestore()
+  })
+
   it('TopBar shows the Back button only when given a back action', () => {
     const { rerender } = render(<TopBar title="Clients" />)
     expect(screen.queryByRole('button', { name: /Back/ })).toBeNull()

@@ -20,6 +20,13 @@ vi.mock('../features/auth/api', async (importOriginal) => {
   }
 })
 
+// jsdom never matches `:focus-visible`, which is how Tooltip tells keyboard focus from the focus a
+// click gives. In tests any real focus (`element.focus()`) counts as keyboard focus.
+const matches = Element.prototype.matches
+Element.prototype.matches = function (this: Element, selector: string) {
+  return matches.call(this, selector.replace(':focus-visible', ':focus'))
+} as typeof matches
+
 afterEach(() => {
   // The screen follows the URL (F-05); jsdom keeps it between tests.
   window.history.replaceState(null, '', '/')

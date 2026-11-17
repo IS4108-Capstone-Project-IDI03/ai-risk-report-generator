@@ -1,0 +1,145 @@
+{
+ "id": "thin-03",
+ "split": "tune",
+ "kind": "thin",
+ "source": "office5 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-OFFICE-5",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "What the site is used for, its operating hours and occupancy",
+   "key": "8/Overview"
+  },
+  {
+   "id": "c04",
+   "area": "10",
+   "text": "Natural Catastrophe Exposures",
+   "key": "10/Natural Catastrophe Exposures"
+  }
+ ],
+ "observations": [
+  {
+   "id": "off5-17",
+   "COPE_dimension": "Exposure",
+   "note": "low lying area, PUB flood map - in flood prone zone. flood barriers at carpark ramp, manual, deployed by security on heavy rain warning. no flood since 2010 per FM",
+   "severity": "moderate",
+   "location": "Basements"
+  },
+  {
+   "id": "brief-3",
+   "COPE_dimension": [
+    "Construction"
+   ],
+   "note": "riser door 1 hr rated, closed and latched, cable gap sealed",
+   "severity": "low",
+   "location": "L2 riser"
+  },
+  {
+   "id": "off5-7",
+   "COPE_dimension": "Construction",
+   "note": "internal stairs L27-29, L34-35, L40-41, L45-46. smoke det activated 2hr roller shutters round each stair",
+   "severity": "moderate",
+   "location": "Tenant floors"
+  },
+  {
+   "id": "off5-8",
+   "COPE_dimension": "Occupancy",
+   "note": "carpark all 3 bsmts, 351 lots + 6 accessible",
+   "severity": "low",
+   "location": "Basements"
+  },
+  {
+   "id": "off5-ok-2",
+   "COPE_dimension": "Occupancy",
+   "note": "tenant fit-out works on L30 under hot work permit, fire watch posted, extinguisher at hand",
+   "severity": "moderate",
+   "location": "Office floors"
+  },
+  {
+   "id": "thin-3-1",
+   "COPE_dimension": [
+    "Construction"
+   ],
+   "note": "construction looks fine",
+   "severity": "low",
+   "location": "Podium"
+  },
+  {
+   "id": "off5-5",
+   "COPE_dimension": "Construction",
+   "note": "so the office floors are open plan, no separation within a floor except the utility rooms. elec rooms are 2 hour walls and floors with 2 hour doors, and every elec room we went into had the cable penetrations sealed",
+   "severity": "low",
+   "location": "Electrical rooms"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-3-1"
+  ]
+ }
+}

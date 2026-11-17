@@ -1,0 +1,169 @@
+{
+ "id": "mixed6be5-01",
+ "split": "test",
+ "kind": "coverage",
+ "source": "mixed6be5 report notes, areas 6, 8",
+ "assessment": {
+  "reference": "EVAL-S6-MIXED",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  },
+  {
+   "id": "c05",
+   "area": "8",
+   "text": "How waste and effluent are collected, stored and treated, and where combustible waste builds up",
+   "key": "8/Waste and effluent treatment"
+  }
+ ],
+ "observations": [
+  {
+   "id": "6be5-1",
+   "COPE_dimension": "Construction",
+   "note": "bldgs in good condition. structural inspection every 5 yrs by PE civil, report to BCA",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "6be5-2",
+   "COPE_dimension": "Occupancy",
+   "note": "planned preventive maint w some predictive. 3rd party LEWs. annual IR thermography LT boards, annual shutdown, PD test + DGA transformers, annual genset load test. no-load test monthly for one bldg, quarterly for another. genset maint programme needs improving",
+   "severity": "moderate",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "6be5-3",
+   "COPE_dimension": "Occupancy",
+   "note": "AHUs maintained by in-house contractors per manufacturer recommendation",
+   "severity": "low",
+   "location": "Plant rooms"
+  },
+  {
+   "id": "6be5-4",
+   "COPE_dimension": "Protection",
+   "note": "FP impairment managed via isolation only. no formal impairment programme",
+   "severity": "moderate",
+   "location": "Fire command centre"
+  },
+  {
+   "id": "6be5-5",
+   "COPE_dimension": "Protection",
+   "note": "service contract for FP equipment. monthly fire pump servicing, quarterly gaseous system, monthly water monitor + IR flame detectors, monthly smoke detector testing (100% annually), monthly fire roller shutter testing",
+   "severity": "low",
+   "location": "Fire pump room"
+  },
+  {
+   "id": "6be5-7",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good in most areas",
+   "severity": "low",
+   "location": "Whole building"
+  }
+ ],
+ "removed_observations": [
+  "6be5-6"
+ ],
+ "links": {
+  "6be5-1": [
+   "c01"
+  ],
+  "6be5-2": [
+   "c01",
+   "c02",
+   "c04"
+  ],
+  "6be5-3": [
+   "c01"
+  ],
+  "6be5-4": [
+   "c01"
+  ],
+  "6be5-5": [
+   "c01"
+  ],
+  "6be5-7": [
+   "c01"
+  ],
+  "6be5-6": [
+   "c02",
+   "c03",
+   "c05"
+  ]
+ },
+ "gold": {
+  "uncovered": [
+   "c03",
+   "c05"
+  ],
+  "thin": []
+ }
+}

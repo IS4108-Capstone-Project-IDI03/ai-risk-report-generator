@@ -1,0 +1,146 @@
+{
+ "id": "thin-10",
+ "split": "check",
+ "kind": "thin",
+ "source": "mall2 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-MALL-2",
+  "jurisdiction": "SG",
+  "facility_type": "Shopping mall"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "7",
+   "text": "Fire walls and separations, and whether openings in them are protected",
+   "key": "7/Compartmentalization and Fire Divisions"
+  },
+  {
+   "id": "c02",
+   "area": "7",
+   "text": "Walls, roof, frame and floors, with their materials and combustibility; building age, height and any alterations",
+   "key": "7/Construction Narrative"
+  },
+  {
+   "id": "c03",
+   "area": "7",
+   "text": "Each building's construction class, floor area, storeys and year built",
+   "key": "7/Construction Table"
+  },
+  {
+   "id": "c04",
+   "area": "7",
+   "text": "Combustible roof or wall panels, insulation and linings, and where they are",
+   "key": "7/Details on Combustible Construction"
+  }
+ ],
+ "observations": [
+  {
+   "id": "mall2-6",
+   "COPE_dimension": "Construction",
+   "note": "4hr roller shutters at all MRT entrances + links to nbr malls. residences access separated from retail by brick wall - site team not sure if fire rated",
+   "severity": "moderate",
+   "location": "Connections"
+  },
+  {
+   "id": "mall2-5",
+   "COPE_dimension": "Construction",
+   "note": "ok so in the basements the atriums and the escalator voids have the two hour fabric shutters, they drop on fire alarm, so each basement level is its own compartment except the utility rooms",
+   "severity": "low",
+   "location": "Retail basements"
+  },
+  {
+   "id": "mall2-3",
+   "COPE_dimension": "Construction",
+   "note": "mall ext RC or glass on steel frame, freeform curved glass + metal facade. residences RC / curtain glass on steel. nothing combustible seen",
+   "severity": "low",
+   "location": "Facade"
+  },
+  {
+   "id": "mall2-2",
+   "COPE_dimension": "Construction",
+   "note": "mostly RC cols/beams/slabs, some steel w sprayed fireproofing. RC flat roof. partitions drywall or lightweight conc panels",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "mall2-1",
+   "COPE_dimension": "Construction",
+   "note": "mall opened 2009. bsmt link to MRT + links to nbr malls. site 21,731m2, GFA 125,621m2, NLA 58,340m2. residences ~35,000m2 GFA",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "thin-10-2",
+   "COPE_dimension": [
+    "Protection"
+   ],
+   "note": "extinguishers ok mostly",
+   "severity": "low",
+   "location": "Office floors"
+  },
+  {
+   "id": "thin-10-1",
+   "COPE_dimension": [
+    "Protection"
+   ],
+   "note": "alarm panel - checked",
+   "severity": "low",
+   "location": "Fire command centre"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-10-1",
+   "thin-10-2"
+  ]
+ }
+}

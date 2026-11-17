@@ -52,6 +52,7 @@ import {
 } from '../documentContent'
 import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
+import { useActivity } from '../../marshbot/useActivity'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
@@ -137,6 +138,7 @@ export function ReviewWorkspace({
   panelStyle,
   onGenerate,
   historyRequest = 0,
+  openSection,
   canAsk = false,
 }: {
   reference: string
@@ -158,6 +160,8 @@ export function ReviewWorkspace({
   // Counts each time Version history is chosen from the assessment's ⋯ menu
   // (RV-06); a new count opens the version history. 0 for none.
   historyRequest?: number
+  // The part to open on, from a MarshBot link (AS-06), e.g. '9'; the first drafted when left out.
+  openSection?: string
   // May ask questions about the assessment in the inspector's Ask tab (AS-01):
   // anyone who can open it with `reports:ask`.
   canAsk?: boolean
@@ -170,7 +174,7 @@ export function ReviewWorkspace({
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
   const accepted = Array.isArray(ofis?.accepted) ? ofis.accepted : []
   const waiting = Array.isArray(ofis?.suggestions) ? ofis.suggestions.length : 0
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(openSection ?? null)
   const [focus, setFocus] = useState<ReviewFocus>(NOTHING)
   const [view, setView] = useState<DraftView>('saved')
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
@@ -198,6 +202,12 @@ export function ReviewWorkspace({
   // The document opens to edit for the assigned engineer, and read only, to
   // comment on, for anyone else who can comment (RV-03 AC7).
   const canOpenDocument = canReview || canComment
+  // AS-06 (AC 10): the assigned engineer opening Review, and their time on the section shown
+  // and which findings they saw. An admin who only reads is not counted.
+  // `sections` can be missing while a workspace is still loading; without `?.` Review would crash.
+  const shownId = selected ?? workspace?.sections?.find((s) => s.draft)?.id ?? null
+  useActivity(reference, 'review', canReview)
+  useActivity(reference, 'section:' + shownId, canReview && !!shownId && !documentAt, true)
   // The Ask tab (AS-01), kept here so an answer keeps streaming from section to section.
   const ask = useAsk(reference, canAsk)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('evidence')

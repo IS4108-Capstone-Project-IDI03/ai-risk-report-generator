@@ -2,6 +2,7 @@
 // Called by every screen. A screen's Back is the round BackButton at the left of the
 // title block (board 24). Calls BackButton.
 import type * as React from 'react'
+import { clampedTitle } from './clampedTitle'
 import { BackButton } from './BackButton'
 import './shell.css'
 
@@ -43,7 +44,10 @@ export function TopBar({
       <div className="ds-topbar-main">
         {eyebrow ? <div className="ds-topbar-eyebrow">{eyebrow}</div> : null}
         <div className="ds-topbar-title">
-          <h1>{title}</h1>
+          {/* The title wraps to two lines at most (kit.css); the full text stays in `title`. */}
+          <h1 onPointerEnter={clampedTitle(typeof title === 'string' ? title : undefined)}>
+            {title}
+          </h1>
           {titleItems}
         </div>
         {helper ? <p className="ds-topbar-helper">{helper}</p> : null}

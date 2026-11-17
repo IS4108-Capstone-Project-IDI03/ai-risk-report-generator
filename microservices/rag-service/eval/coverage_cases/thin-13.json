@@ -1,0 +1,161 @@
+{
+ "id": "thin-13",
+ "split": "test",
+ "kind": "thin",
+ "source": "office-a332 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-S6-OFFICE",
+  "jurisdiction": "SG",
+  "facility_type": "Office"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Fuels on site (gas, oil, LPG), how much is stored and where, and their emergency shut-offs",
+   "key": "8/Fuels and energy supplies"
+  },
+  {
+   "id": "c04",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  },
+  {
+   "id": "c05",
+   "area": "12",
+   "text": "Business Continuity / Disaster Recovery Planning",
+   "key": "12/Business Continuity / Disaster Recovery Planning"
+  }
+ ],
+ "observations": [
+  {
+   "id": "thin-13-2",
+   "COPE_dimension": [
+    "Exposure"
+   ],
+   "note": "no real exposure issues",
+   "severity": "low",
+   "location": "Whole site"
+  },
+  {
+   "id": "a332-6",
+   "COPE_dimension": "Occupancy",
+   "note": "underground bulk diesel tank tops up day tanks of 3 gensets. day tanks bunded, leak detection to FCC. diesel piping in 2hr containment. licensed under SCDF petroleum & flammable materials licence",
+   "severity": "low",
+   "location": "Basement 3"
+  },
+  {
+   "id": "a332-1",
+   "COPE_dimension": "Construction",
+   "note": "bldg in good condition. structural inspection every 5 yrs by PE civil, report to BCA",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "a332-11",
+   "COPE_dimension": "Occupancy",
+   "note": "facility technicians do daily morning inspections",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "brief-13",
+   "COPE_dimension": [
+    "Protection"
+   ],
+   "note": "duty pump on auto, jockey pump on auto, weekly churn log signed to date",
+   "severity": "low",
+   "location": "B1 fire pump room"
+  },
+  {
+   "id": "thin-13-1",
+   "COPE_dimension": [
+    "Exposure"
+   ],
+   "note": "neighbour is close",
+   "severity": "low",
+   "location": "Site boundary"
+  },
+  {
+   "id": "a332-14",
+   "COPE_dimension": "Exposure",
+   "note": "BCP established at corporate level",
+   "severity": "low",
+   "location": "Management office"
+  },
+  {
+   "id": "a332-2",
+   "COPE_dimension": "Occupancy",
+   "note": "planned preventive + predictive maint by 3rd party LEWs. annual IR thermography LT/HT boards, transformers, DBs, risers. annual shutdown maint, PD test + DGA on transformers, annual load test gensets, quarterly no-load test, annual lightning test. bldg opened 2025 so first DGA/PD test due Jun 2026",
+   "severity": "low",
+   "location": "Electrical rooms"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-13-1",
+   "thin-13-2"
+  ]
+ }
+}

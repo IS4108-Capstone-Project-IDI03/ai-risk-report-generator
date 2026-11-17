@@ -27,11 +27,8 @@ export function UploadRow({ upload }: { upload: Upload }) {
         <span className="kb-size">{fileSize(file.size)}</span>
         {state === 'uploading' && (
           <span className="kb-reading" role="status">
-            <Icon
-              name="loader-circle"
-              size={14}
-              style={{ animation: 'dsSpin 0.9s linear infinite' }}
-            />
+            {/* The shared class, so it pulses instead of freezing under reduced motion. */}
+            <Icon name="loader-circle" size={14} className="ds-spin" />
             Reading document details…
           </span>
         )}

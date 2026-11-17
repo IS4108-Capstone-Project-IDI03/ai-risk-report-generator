@@ -1,0 +1,916 @@
+/* MarshBot Overview (AS-06 canvas P6, boards 06, 11, 12): the page split, the rail (MarshBot,
+   stages, at a glance, client card), the phone stage bar and the Details panel. The thread and
+   its cards are in components/thread/thread.css and cards.css. Values from the canvas sources
+   (r4.css, r7.css, r8.css) on design-system v2 tokens; motion from board 12. */
+
+/* Page split: the rail on the left, the thread on the right; both fill the workspace's height,
+   and only the thread scrolls. */
+.mb {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--graphite-50);
+  font-family: var(--font-sans);
+}
+.mb-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px 32px;
+  color: var(--graphite-600);
+  font-size: 14px;
+}
+.mb-failed p {
+  margin: 0;
+}
+
+/* --- Rail (248 px, round 7; the conversation gets the rest): a long status pill wraps to a second
+   line beside the face (.mb-bot-id .mb-status). It never scrolls and
+   nothing in it overlaps. As the height runs out (rail size queries at the end of this block):
+   the header and stage rows tighten (44 to 36 px) and the facts' rows to 36 px, then "At a
+   Glance" steps aside, then the stage rows go to 32 px; below that the Overview shows the phone's
+   stage bar instead (MarshBotOverview.tsx, SHORT_WINDOW). --- */
+.mb-rail {
+  width: 248px;
+  flex: none;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--surface-card);
+  border-right: 1px solid var(--graphite-200);
+  container: rail / size;
+}
+.mb-rail-in {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px 12px;
+}
+.mb-bot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  /* Tight, so a usual status ("1 question for you") keeps to one line in the 248 px rail. */
+  gap: 8px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+/* The name, and directly under it the status pill. */
+.mb-bot-id {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.mb-bot-id b {
+  font-size: 16px;
+  line-height: 21px;
+  color: var(--marsh-navy);
+}
+.mb-face {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--graphite-0) 0,
+    var(--ink-50) 62%,
+    var(--ink-100) 100%
+  );
+}
+.mb-face--sm {
+  width: 52px;
+  height: 52px;
+}
+.mb-face-svg {
+  width: 84%;
+  height: 84%;
+}
+.mb-face-mood {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.mb-face-mood[data-on] {
+  opacity: 1;
+}
+.mb-face-light {
+  transition: fill var(--duration-base) var(--ease-out);
+}
+/* The idle blink: the eyes squash for 140 ms. */
+.mb-face-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 70ms ease-out;
+}
+.mb-face-svg[data-blink] .mb-face-eyes {
+  transform: scaleY(0.12);
+}
+
+/* MarshBot's status pill: no dot, an icon, one line that never wraps (r2.css .mood). */
+.mb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 9px 0 8px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.mb-status > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* In the rail the pill may take two lines in its column, never overflow it; the phone bar keeps one. */
+.mb-bot-id .mb-status {
+  height: auto;
+  min-height: 26px;
+  padding-block: 4px;
+  border-radius: 13px;
+  line-height: 18px;
+  white-space: normal;
+  /* Two even lines ("10 sections / to do"), never one word left alone. */
+  text-wrap: balance;
+}
+.mb-status[data-tone='red'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.mb-status[data-tone='amber'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.mb-status[data-tone='green'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+/* Stages, packed: 44 px rows, the current one taller for its date; the line runs through the dots. */
+.mb-stages {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-stage {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.mb-stage[data-state='now'] {
+  height: 58px;
+}
+/* The grey line, and over it the green one, which grows down as a stage moves on. */
+.mb-stage::before,
+.mb-stage::after {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--graphite-200);
+}
+.mb-stage::after {
+  background: var(--green-600);
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform var(--duration-slow) var(--ease-in-out);
+}
+.mb-stage:first-child::before,
+.mb-stage:first-child::after {
+  top: 50%;
+}
+.mb-stage:last-child::before,
+.mb-stage:last-child::after {
+  bottom: 50%;
+}
+.mb-stage[data-state='done']::after {
+  transform: scaleY(1);
+}
+.mb-stage[data-state='now']::after {
+  transform: scaleY(0.5);
+}
+.mb-stage[data-state='now']:first-child::after {
+  transform: scaleY(0);
+}
+.mb-stage-band {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 10px;
+  align-content: center;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 12px;
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+.mb-stage[data-state='now'] .mb-stage-band {
+  background: var(--ink-50);
+}
+/* On the name's line only (the date sits under the name), so the dot is centred on the name. */
+.mb-stage-dot {
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  border: 2px solid var(--graphite-300);
+  color: transparent;
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    border-width var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+.mb-stage[data-state='done'] .mb-stage-dot {
+  background: var(--green-600);
+  border-color: var(--green-600);
+  color: var(--text-inverse);
+}
+.mb-stage[data-state='now'] .mb-stage-dot {
+  border: 6px solid var(--marsh-navy);
+}
+.mb-stage-name {
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--graphite-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-stage[data-state='done'] .mb-stage-name {
+  color: var(--graphite-900);
+}
+.mb-stage[data-state='now'] .mb-stage-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.mb-stage-date {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+  animation: mb-fade var(--duration-fast) var(--ease-out);
+}
+.mb-stage-date b {
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mb-stage-date[data-tone='soon'],
+.mb-stage-date[data-tone='soon'] b {
+  color: var(--amber-600);
+}
+.mb-stage-date[data-tone='late'],
+.mb-stage-date[data-tone='late'] b {
+  color: var(--red-600);
+}
+/* A date that just changed holds the "just changed" blue tint for 1 s, then fades (board 12). */
+.mb-stage-date[data-changed] {
+  animation:
+    mb-fade var(--duration-fast) var(--ease-out),
+    mb-tint 1260ms linear;
+}
+
+/* At a Glance: the stage's 3 facts share the height the stages leave. */
+.mb-glance {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.mb-glance-in {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-glance h2 {
+  flex: none;
+  margin: 0 0 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+.mb-glance dl {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.mb-glance-row {
+  flex: 1 1 40px;
+  min-height: 36px;
+  max-height: 60px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 0 6px;
+}
+.mb-glance-row + .mb-glance-row {
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-glance-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.mb-glance dt {
+  font-size: 13px;
+  color: var(--graphite-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-glance dd {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--graphite-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mb-glance dd[data-tone='amber'] {
+  color: var(--amber-600);
+}
+.mb-glance dd[data-tone='red'] {
+  color: var(--red-600);
+}
+.mb-glance dd[data-tone='green'] {
+  color: var(--green-600);
+}
+
+/* Client card, pinned at the foot: a real button that opens Details. */
+.mb-client {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  margin-top: auto;
+  padding: 8px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.05);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+.mb-client .client-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.mb-client-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-client-name,
+.mb-client-ref {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-client-name {
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mb-client-ref {
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-client-chev {
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--graphite-600);
+}
+/* The tooltip's full name and reference wrap inside the rail instead of running off it. */
+.mb-client-tip {
+  display: block;
+  width: 200px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mb-client:hover {
+    background: var(--graphite-50);
+    box-shadow: 0 6px 16px rgb(0 15 71 / 0.1);
+  }
+  .mb-client:hover .mb-client-chev {
+    color: var(--marsh-navy);
+  }
+}
+.mb-client:active {
+  transform: scale(0.98);
+}
+
+/* A short rail, step by step (heights measured, see .mb-rail): tighter header, stage rows and
+   facts first, so "At a Glance" still shows on a laptop; then the facts step aside; then the
+   stage rows take their smallest height. */
+@container rail (max-height: 700px) {
+  .mb-rail-in {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .mb-bot {
+    padding-bottom: 8px;
+  }
+  .mb-bot .mb-face {
+    width: 48px;
+    height: 48px;
+  }
+  .mb-stage {
+    height: 36px;
+  }
+  .mb-stage[data-state='now'] {
+    height: 48px;
+  }
+  .mb-glance-in {
+    padding-top: 4px;
+  }
+  .mb-glance h2 {
+    margin-bottom: 0;
+  }
+  .mb-client {
+    min-height: 44px;
+    padding: 5px 8px;
+  }
+}
+@container rail (max-height: 566px) {
+  .mb-glance {
+    display: none;
+  }
+}
+@container rail (max-height: 424px) {
+  .mb-stage {
+    height: 32px;
+  }
+  .mb-stage[data-state='now'] {
+    height: 46px;
+  }
+}
+
+/* MarshBot typing: three dots in a small bubble, each pulsing over 1.2 s, 0.2 s apart. */
+.mb-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 6px 18px 18px 18px;
+  background: var(--surface-card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+.mb-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.mb-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--graphite-400);
+  animation: mb-dot 1.2s ease-in-out infinite;
+}
+.mb-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.mb-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+/* Reduced motion stops the pulse (index.css): the dots stay at three strengths, so they still
+   read as "typing" rather than an idle mark. The spinner's partial ring does the same. */
+@media (prefers-reduced-motion: reduce) {
+  .mb-dots i:nth-child(2) {
+    opacity: 0.7;
+  }
+  .mb-dots i:nth-child(3) {
+    opacity: 0.4;
+  }
+}
+.mb-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Phone (board 11): a stage bar on top, the page scrolls. A window too short for the rail
+   (a landscape phone, a laptop at high zoom) gets the same bar over the thread, which keeps
+   scrolling on its own. Must match SHORT_WINDOW in screens/MarshBotOverview.tsx. --- */
+.mb-phonebar {
+  display: none;
+}
+@media (max-width: 767px) {
+  .mb {
+    flex-direction: column;
+    height: auto;
+  }
+}
+/* The rail folded into the stage bar on top: a phone, a short window, or an Overview too narrow
+   for the rail (the screen sets data-stacked from those three, MarshBotOverview.tsx). */
+.mb[data-stacked] {
+  flex-direction: column;
+}
+.mb[data-stacked] .mb-phonebar {
+  flex: none;
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--graphite-200);
+  background: var(--surface-card);
+  font: inherit;
+  text-align: left;
+  color: var(--graphite-600);
+  cursor: pointer;
+}
+.mb-phonebar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-phonebar-stage {
+  font-size: 13px;
+  color: var(--graphite-600);
+}
+.mb-phonebar-stage b {
+  color: var(--marsh-navy);
+}
+.mb-phonebar-segs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.mb-phonebar-segs i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--graphite-200);
+}
+.mb-phonebar-segs i[data-state='done'] {
+  background: var(--green-600);
+}
+.mb-phonebar-segs i[data-state='now'] {
+  background: var(--marsh-navy);
+}
+.mb-phonebar-dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-phonebar-dates > span:not(.mb-status) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mb-phonebar-dates [data-tone='soon'] {
+  color: var(--amber-600);
+}
+.mb-phonebar-dates [data-tone='late'] {
+  color: var(--red-600);
+}
+
+/* --- Details panel (board 06): from the right over a dimmed page --- */
+.mb-panel-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.mb-panel-dialog::backdrop {
+  background: rgb(10 20 50 / 0.18);
+  animation: mb-fade var(--duration-slow) var(--ease-out);
+}
+.mb-panel-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  box-shadow:
+    -12px 0 32px rgb(0 15 71 / 0.12),
+    -1px 0 0 var(--graphite-200);
+  animation: mb-slide-in var(--duration-slow) var(--ease-out);
+}
+.mb-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+}
+.mb-panel-head h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 25px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+.mb-panel-head > span {
+  display: flex;
+  gap: 6px;
+}
+.mb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 24px;
+}
+.mb-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.mb-details-client {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mb-details-client .client-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+.mb-details-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+  overflow-wrap: anywhere;
+}
+.mb-details-ref {
+  font-size: 13px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.mb-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+.mb-labelrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  margin-bottom: 4px;
+}
+.mb-labelrow .mb-label {
+  margin: 0;
+}
+.mb-value {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--graphite-900);
+}
+.mb-value-sub {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+}
+.mb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.mb-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px 12px;
+}
+.mb-people {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--graphite-900);
+  min-width: 0;
+}
+.mb-muted {
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.mb-docs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mb-docs li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.mb-docs li + li {
+  border-top: 1px solid var(--graphite-100);
+}
+.mb-doc-name {
+  font-size: 14px;
+  line-height: 19px;
+  color: var(--graphite-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Motion (board 12); reduced motion keeps fades only --- */
+@keyframes mb-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mb-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes mb-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes mb-tint {
+  0%,
+  79% {
+    background-color: var(--ink-50);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+/* One focus ring for every MarshBot control, keyboard only (design system v2). */
+.mb :focus-visible,
+.mb-panel-dialog :focus-visible,
+.mb-details-sheet :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* The phone bar runs edge to edge, so its ring sits inside it. */
+.mb .mb-phonebar:focus-visible {
+  outline-offset: -2px;
+}
+/* Small controls get a 44 px tap area on a phone or touch screen without growing: an invisible
+   box centred on them (design system v2 tap target). */
+@media (max-width: 767px), (pointer: coarse) {
+  .mb-hit,
+  .mb-failed .ds-press {
+    position: relative;
+  }
+  .mb-hit::after,
+  .mb-failed .ds-press::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-panel-sheet {
+    animation-name: mb-fade;
+  }
+  .mb-stage::after,
+  .mb-stage-band,
+  .mb-stage-dot {
+    transition: none;
+  }
+  .mb-client:active {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The rail reads as the journey: a finished stage shows the day it was finished (AS-06 round 8).
+   --------------------------------------------------------------------------------------------- */
+.mb-stage-date {
+  grid-column: 2;
+}
+/* The name and, on its right, the day. One line high and wrapping: a day that doesn't fit beside
+   a long name ("Ready for generation") wraps out of sight instead of cutting the name short. */
+.mb-stage-line {
+  grid-column: 2;
+  min-width: 0;
+  height: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 8px;
+  overflow: hidden;
+}
+.mb-stage-line .mb-stage-name {
+  max-width: 100%;
+}
+.mb-stage-day {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

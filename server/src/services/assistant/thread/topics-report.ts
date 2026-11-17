@@ -1,0 +1,548 @@
+// MarshBot's topics from Ready for generation on (AS-06 rounds 5-6, canvas
+// S3-S8, C10): what's in the way of generating, the sections outline while
+// drafting and reviewing, reminders, drafts to redo, ready to export and the
+// exported file. Each builder returns the topic, or null when it has nothing
+// to say. Called by topics.ts.
+import { daysBetween, longDay, shortDay } from '../dates'
+import { partTitle, PARTS } from '../progress'
+import type { BriefItem, Card, OutlineItem, OutlineState, Reply } from '../types'
+import { andList, count, itemRow, kinds, opens, pill, row, tick } from './cards'
+import { answered } from './topics-capture'
+import type { Built, TopicCtx } from './types'
+
+const has = (ctx: TopicCtx, id: string) => ctx.open.find((i) => i.id === id)
+
+export const BLOCKER_KINDS = kinds('thin-sections', 'uncategorised', 'transcribing')
+
+/** Before you generate (S3): what would leave gaps in the draft, what's fine, and Generate anyway. */
+export function beforeGenerateTopic(ctx: TopicCtx): Built | null {
+  const blockers = ctx.open.filter(BLOCKER_KINDS)
+  if (!blockers.length) return null
+  const f = ctx.facts
+  const { covered, total } = answered(ctx.brief.areas)
+  const ticks = [
+    tick('Site Walks', `${f.walksReviewed ?? 0} reviewed`),
+    ...(blockers.some((i) => i.kind === 'transcribing')
+      ? []
+      : [tick('Recordings', `${f.recordingsTranscribed ?? 0} transcribed`)]),
+    // A tick says done: a checklist still being answered gets none (round 8, item 22).
+    ...(total && covered === total ? [tick('Checklist', `${covered} of ${total}`)] : []),
+  ]
+  const n = blockers.length
+  const reply: Reply = {
+    id: 'generate-anyway',
+    label: 'Generate anyway',
+    primary: true,
+    picksDate: false,
+    link: null,
+  }
+  // What would leave gaps, named from the card's own rows (round 7, item 31).
+  const named = byKind(blockers)
+  const one = named.length === 1 && named[0].startsWith('1 ')
+  return {
+    kind: 'question',
+    says: [
+      {
+        text: `It's nearly ready for generation, but ${andList(named)} would leave gaps in the draft.`,
+        tone: 'lead',
+      },
+      { text: `It's worth clearing ${one ? 'it' : 'them'} first.`, tone: 'normal' },
+    ],
+    cards: [
+      {
+        type: 'rows',
+        id: 'before-generate',
+        title: 'Before You Generate',
+        note: `${ticks.length} of ${ticks.length + n} ready`,
+        rows: blockers.map(itemRow),
+        ticks,
+        cta: null,
+      },
+    ],
+    replies: [reply],
+    mood: 'concerned',
+    status: { text: `${count(n, 'thing')} to clear`, tone: 'amber', icon: 'circle-alert' },
+  }
+}
+
+// Each kind of blocker as a counted phrase, e.g. "2 uncategorised observations", "3 sections without enough observations".
+function byKind(blockers: BriefItem[]): string[] {
+  const of = (kind: string) => blockers.filter((i) => i.kind === kind)
+  const uncategorised = of('uncategorised')[0]
+  const transcribing = of('transcribing')[0]
+  const thin = of('thin-sections').length
+  return [
+    uncategorised
+      ? count(Number(uncategorised.facts.uncategorised), 'uncategorised observation')
+      : '',
+    thin ? `${count(thin, 'section')} without enough observations` : '',
+    transcribing
+      ? `${count(Number(transcribing.facts.running), 'recording or page', 'recordings or pages')} still being transcribed`
+      : '',
+  ].filter(Boolean)
+}
+
+/** Ready to Generate (C10): what makes it ready, as three ticks, then Open Generation. */
+export function readyTopic(ctx: TopicCtx): Built | null {
+  const blockers = ctx.open.filter(BLOCKER_KINDS)
+  const anyway = ctx.said.includes('generate-anyway')
+  if (blockers.length && !anyway) return null
+  const f = ctx.facts
+  const n = f.observations
+  const { covered, total } = answered(ctx.brief.areas)
+  const uncategorised = blockers.some((i) => i.kind === 'uncategorised')
+  const thin = blockers.some((i) => i.kind === 'thin-sections')
+  return {
+    kind: 'info',
+    says: [
+      {
+        text: anyway
+          ? 'Sure. The draft will leave those gaps for now, and you can fill them in later.'
+          : `All ${count(n, 'observation')} ${n === 1 ? 'is' : 'are'} categorised and every section has enough to draft from, so you're good to go.`,
+        tone: anyway ? 'normal' : 'good',
+      },
+    ],
+    cards: [
+      {
+        type: 'rows',
+        id: 'ready',
+        title: 'Ready to Generate',
+        note: null,
+        rows: [],
+        ticks: [
+          tick('Observations', uncategorised ? `${n}` : `${n}, all categorised`),
+          ...(total && covered === total
+            ? [tick('Checklist', `${covered} of ${total} answered`)]
+            : []),
+          ...(thin ? [] : [tick('Sections', `All ${PARTS.length} have enough to draft`)]),
+        ],
+        cta: { label: 'Open Generation', link: { tab: 'generate' } },
+      },
+    ],
+    mood: 'pleased',
+    status: { text: 'Ready to generate', tone: 'green', icon: 'sparkles' },
+  }
+}
+
+export const SECTIONS_KINDS = kinds(
+  'draft-questions',
+  'figures-missing',
+  'not-drafted',
+  'out-of-date',
+  'summary-waiting',
+  'no-accepted-ofi',
+)
+// 'ok' is "Ready" in the words, on the card and in the key alike (round 8, item 20). "Drafted"
+// is a different count, the sections that have a draft at all (the greeting and the rail).
+const KEY_LABELS: Partial<Record<OutlineState, string>> = {
+  ok: 'Ready',
+  question: 'Questions for You',
+  figures: 'Needs Your Figures',
+  wait: 'Out of Date',
+  new: 'Not Drafted',
+}
+
+type Outline = Extract<Card, { type: 'outline' }>
+
+/**
+ * Returns one outline card. No row is singled out (`next` null, round 6): a
+ * row opens its own section, and the button opens the tab. The key names each
+ * state present; the browser draws it only when there are 2 or more (with 1, it
+ * still gives the rows their word, e.g. "Reviewed": round 8, item 25).
+ */
+function outlineCard(
+  id: string,
+  title: string,
+  lead: string,
+  items: OutlineItem[],
+  labels: Partial<Record<OutlineState, string>>,
+  cta: Outline['cta'],
+): Outline {
+  const present = new Set(items.map((i) => i.state))
+  return {
+    type: 'outline',
+    id,
+    title,
+    lead,
+    items,
+    next: null,
+    key: (Object.keys(labels) as OutlineState[])
+      .filter((s) => present.has(s))
+      .map((state) => ({ state, label: labels[state]! })),
+    cta,
+  }
+}
+
+/** Sections (S4, S5): all 11 report parts with their drafting state. */
+export function sectionsTopic(ctx: TopicCtx): Built {
+  const left = String(has(ctx, 'generate.not-drafted')?.facts.left ?? '').split(',')
+  // While the Executive Summary waits, its row says on how many (review #49).
+  const waits = has(ctx, 'generate.summary-waiting')
+  const items: OutlineItem[] = PARTS.map((no) => {
+    const q = has(ctx, `generate.questions:${no}`)
+    const fig = has(ctx, `generate.figures:${no}`)
+    const [state, note]: [OutlineState, string | null] = q
+      ? ['question', count(Number(q.facts.questions), 'question')]
+      : fig
+        ? ['figures', no === '4' ? 'Scores' : 'Figures']
+        : has(ctx, `generate.out-of-date:${no}`)
+          ? ['wait', 'Out of date']
+          : left.includes(no)
+            ? [
+                'new',
+                no === '2' && waits
+                  ? `Waits on ${String(waits.facts.waitsOn).split(',').length}`
+                  : null,
+              ]
+            : ['ok', null]
+    return {
+      no,
+      title: partTitle(no),
+      state,
+      note,
+      link: { tab: 'generate', params: { section: no } },
+    }
+  })
+  const n = (s: OutlineState) => items.filter((i) => i.state === s).length
+  const ok = n('ok')
+  // How many drafted is the greeting's to say; these words say how they stand.
+  const clauses = [
+    ok ? `${ok} ${ok === 1 ? 'is' : 'are'} ready` : '',
+    n('question') ? `${n('question')} came back with questions for you` : '',
+    n('figures')
+      ? `${n('figures')} ${n('figures') === 1 ? 'is' : 'are'} waiting on figures only you can enter`
+      : '',
+    n('wait') ? `${n('wait')} ${n('wait') === 1 ? 'is' : 'are'} out of date` : '',
+    n('new') ? `${n('new')} ${n('new') === 1 ? 'is' : 'are'} not drafted yet` : '',
+  ].filter(Boolean)
+  const need = items.length - ok
+  return {
+    kind: 'info',
+    says: [
+      {
+        text: need
+          ? `Of the ${items.length} sections, ${andList(clauses)}.`
+          : `All ${items.length} sections are drafted, and every one is ready.`,
+        tone: need ? 'lead' : 'good',
+      },
+    ],
+    cards: [
+      outlineCard(
+        'sections',
+        'Sections',
+        `${ok} of ${items.length} sections ready`,
+        items,
+        KEY_LABELS,
+        { label: 'Open Generation', link: { tab: 'generate' } },
+      ),
+    ],
+    mood: need ? 'idle' : 'pleased',
+    status: need
+      ? {
+          text: `${count(need, 'section')} to do`,
+          tone: 'amber',
+          icon: 'sparkles',
+        }
+      : { text: 'All drafted', tone: 'green', icon: 'sparkles' },
+  }
+}
+
+export const OUTLINE_KINDS = kinds('review-items')
+const REVIEW_LABELS: Partial<Record<OutlineState, string>> = {
+  ok: 'Reviewed',
+  wait: 'Decisions to Make',
+  question: 'Open Comments',
+  new: 'Not Started',
+}
+const REVIEW_STATE = { reviewed: 'ok', decisions: 'wait', not_started: 'new' } as const
+
+/** Returns the review outline items, from the stored section states. */
+function reviewItems(ctx: TopicCtx): OutlineItem[] {
+  return ctx.brief.sections.map((s) => ({
+    no: s.sectionId,
+    title: s.title,
+    // A reviewed section with an open comment is not done: it holds the stage in Review (round 9, I).
+    state: s.state === 'reviewed' && s.openComments ? 'question' : REVIEW_STATE[s.state],
+    note: s.openComments ? count(s.openComments, 'comment') : null,
+    link: { tab: 'review', params: { section: s.sectionId } },
+  }))
+}
+
+/**
+ * Returns what holds the review, by section: findings to decide and open comments ("Fire
+ * Protection has 3 findings to decide and 2 open comments, so the report stays in Review until
+ * they're all dealt with"), or '' when neither is left (round 9, items I and 10). After Review
+ * they are to sort out before the export; `still` says "still has" for a reaction.
+ */
+export function heldWords(ctx: TopicCtx, reopened: boolean, still = false): string {
+  const pending = ctx.open.find((i) => i.id === 'review.pending')
+  const pendingIn = String(pending?.facts.sections ?? '')
+    .split(',')
+    .filter(Boolean)
+  const pendingN = Number(pending?.facts.count ?? 0)
+  const title = (id: string) =>
+    ctx.brief.sections.find((x) => x.sectionId === id)?.title ?? partTitle(id)
+  // Each section's open work; findings are counted per section only when they sit in one.
+  const parts = new Map<string, string[]>()
+  const add = (id: string, what: string) => parts.set(id, [...(parts.get(id) ?? []), what])
+  if (pendingIn.length === 1) add(pendingIn[0], `${count(pendingN, 'finding')} to decide`)
+  for (const x of ctx.brief.sections)
+    if (x.openComments) add(x.sectionId, count(x.openComments, 'open comment'))
+  const clauses = [...parts].map(
+    ([id, what]) => `${title(id)} ${still ? 'still has' : 'has'} ${andList(what)}`,
+  )
+  if (pendingIn.length > 1)
+    clauses.unshift(
+      `${count(pendingN, 'finding')} to decide are in ${andList(pendingIn.map(title))}`,
+    )
+  if (!clauses.length) return ''
+  const comments = ctx.brief.sections.reduce((n, x) => n + x.openComments, 0)
+  const it = pendingN + comments === 1 ? 'it' : 'them'
+  const until = !pendingN
+    ? `${it === 'it' ? "it's" : "they're"} resolved`
+    : !comments
+      ? `${it === 'it' ? "it's" : "they're"} decided`
+      : "they're all dealt with"
+  return reopened
+    ? `${andList(clauses)}, so ${pendingN ? `sort ${it} out` : `resolve ${it}`} before you export.`
+    : `${andList(clauses)}, so the report stays in Review until ${until}.`
+}
+
+/** Review (S6): every section's review state. After Review only when work reopened. */
+export function outlineTopic(ctx: TopicCtx): Built | null {
+  const items = reviewItems(ctx)
+  const reopened = ctx.brief.stage === 'ready_to_export' || ctx.brief.stage === 'exported'
+  if (!items.length || (reopened && !ctx.open.some(OUTLINE_KINDS) && !ctx.rebuild)) return null
+  const reviewed = items.filter((i) => i.state === 'ok').length
+  const left = items.length - reviewed
+  const comments = heldWords(ctx, reopened)
+  return {
+    kind: 'info',
+    says: [
+      {
+        text: reopened
+          ? `${ctx.facts.site} was ready to export, but some of it needs another look in review.`
+          : `${reviewed} of ${items.length} sections are fully reviewed${left ? `, so ${count(left, 'section')} still ${left === 1 ? 'needs' : 'need'} you` : ''}.`,
+        tone: 'lead',
+      },
+      ...(comments ? [{ text: comments, tone: 'normal' as const }] : []),
+    ],
+    cards: [
+      outlineCard(
+        'outline',
+        'Review',
+        `${reviewed} of ${items.length} sections reviewed`,
+        items,
+        REVIEW_LABELS,
+        { label: 'Open Review', link: { tab: 'review' } },
+      ),
+    ],
+    mood: 'idle',
+    status: left
+      ? {
+          text: pill(`${count(left, 'section')} to review`, `${left} to review`),
+          tone: 'amber',
+          icon: 'user-search',
+        }
+      : { text: 'All reviewed', tone: 'green', icon: 'circle-check' },
+  }
+}
+
+export const REMINDER_KINDS = (i: BriefItem) => i.weight === 'reminder'
+/** While You Were Away: comments, quick decisions and unseen questions. */
+export function remindersTopic(ctx: TopicCtx): Built | null {
+  const items = ctx.open.filter(REMINDER_KINDS)
+  if (!items.length) return null
+  const n = items.length
+  return {
+    kind: 'info',
+    says: [
+      {
+        text: `${n === 1 ? '1 small thing' : `${n} small things`} I noticed while you were away.`,
+        tone: 'lead',
+      },
+    ],
+    cards: [
+      {
+        type: 'rows',
+        id: 'reminders',
+        title: 'While You Were Away',
+        note: null,
+        rows: items.map(itemRow),
+        ticks: [],
+        cta: null,
+      },
+    ],
+    mood: 'idle',
+    status: {
+      text: pill(`${count(n, 'thing')} to look at`, `${n} to look at`),
+      tone: 'amber',
+      icon: 'list-checks',
+    },
+  }
+}
+
+export const DRAFT_AGAIN_KINDS = kinds('out-of-date')
+/** Draft Again: sections whose drafts are out of date after the report was ready. */
+export function draftAgainTopic(ctx: TopicCtx): Built | null {
+  const items = ctx.open.filter(DRAFT_AGAIN_KINDS)
+  if (!items.length) return null
+  return {
+    kind: 'info',
+    says: [
+      {
+        text: 'Some drafts are out of date since you reviewed them, so draft them again first.',
+        tone: 'lead',
+      },
+    ],
+    cards: [
+      {
+        type: 'rows',
+        id: 'draft-again',
+        title: 'Draft Again',
+        note: null,
+        rows: items.map(itemRow),
+        ticks: [],
+        cta: null,
+      },
+    ],
+    mood: 'concerned',
+    status: {
+      text: pill(`${count(items.length, 'draft')} out of date`, `${items.length} to redraft`),
+      tone: 'amber',
+      icon: 'refresh-cw',
+    },
+  }
+}
+
+/** Ready to export (S7): the whole report ticked, then Export the Report. */
+export function exportReadyTopic(ctx: TopicCtx): Built | null {
+  if (ctx.open.some((i) => DRAFT_AGAIN_KINDS(i) || OUTLINE_KINDS(i))) return null
+  const items = reviewItems(ctx)
+  const due = ctx.facts.reportDue
+  const ahead = due ? daysBetween(ctx.today, due) : 0
+  return {
+    kind: 'info',
+    says: [
+      {
+        // Not "ready to export": the Open Export button under it says that (round 7, item 36).
+        text: `All ${items.length} sections on ${ctx.facts.site} are reviewed.${ahead > 0 ? ` That's ${count(ahead, 'day')} ahead of the due date. Nice work!` : ''}`,
+        tone: 'good',
+      },
+    ],
+    cards: [
+      outlineCard(
+        'export-ready',
+        'Review',
+        `${items.filter((i) => i.state === 'ok').length} of ${items.length} sections reviewed`,
+        items,
+        REVIEW_LABELS,
+        { label: 'Open Export', link: { tab: 'export' } },
+      ),
+    ],
+    mood: 'pleased',
+    status: { text: 'Ready to export', tone: 'green', icon: 'stamp' },
+  }
+}
+
+export const EXPORTED_KINDS = kinds('stale-export')
+/** Returns the stale-export item while MarshBot may still ask about it (a saved "Not now" or "Export again" ends that). */
+export function staleAsk(ctx: TopicCtx): BriefItem | null {
+  const stale = has(ctx, 'exported.stale')
+  if (!stale) return null
+  const dismissed = ctx.viewer.dismissed.some(
+    (d) => d.itemId === stale.id && d.fingerprint === stale.fingerprint,
+  )
+  return dismissed || ctx.viewer.exportAgain === stale.fingerprint ? null : stale
+}
+
+/**
+ * Exported (S8): with changes since, what changed, the "Changed Since Export"
+ * card and one Export Again choice that opens the Export tab (round 7, item 37);
+ * without, the file card alone.
+ */
+export function exportedTopic(ctx: TopicCtx): Built | null {
+  const f = ctx.facts
+  if (!f.exportFile || !f.exportDay) return null
+  const stale = has(ctx, 'exported.stale')
+  const ask = staleAsk(ctx)
+  const changed = stale ? String(stale.facts.changed).split(',').filter(Boolean) : []
+  const names = changed.map(partTitle)
+  const early = f.reportDue ? daysBetween(f.exportDay, f.reportDue) : 0
+  const went = `The ${f.site} report went out on ${shortDay(f.exportDay)}`
+  const replies: Reply[] = [
+    {
+      id: 'export-again',
+      label: 'Export Again',
+      primary: true,
+      picksDate: false,
+      link: { tab: 'export' },
+    },
+  ]
+  const file: Card = {
+    type: 'rows',
+    id: 'exported',
+    title: 'Exported',
+    note: longDay(f.exportDay),
+    rows: [
+      row(
+        'file',
+        'file-text',
+        'neutral',
+        f.exportFile.fileName,
+        f.exportFile.pages ? count(f.exportFile.pages, 'page') : null,
+        opens({ tab: 'export' }),
+      ),
+    ],
+    ticks: [],
+    cta: null,
+  }
+  const since: Card = {
+    type: 'rows',
+    id: 'changed',
+    title: 'Changed Since Export',
+    note: count(changed.length, 'section'),
+    rows: changed.map((id) =>
+      row(
+        `changed:${id}`,
+        'pen',
+        'amber',
+        partTitle(id),
+        'Edited after the export',
+        opens({ tab: 'review', params: { section: id } }),
+      ),
+    ),
+    ticks: [],
+    cta: null,
+  }
+  return {
+    kind: ask ? 'question' : 'info',
+    says: ask
+      ? [
+          { text: `${went}, but the copy you sent is now a version behind.`, tone: 'lead' },
+          {
+            text: `Since then, ${andList(names)} ${changed.length === 1 ? 'was' : 'were'} edited.`,
+            tone: 'normal',
+          },
+        ]
+      : [
+          {
+            text: `${went}${early > 0 ? `, ${count(early, 'day')} before it was due` : ''}.`,
+            tone: 'good',
+          },
+        ],
+    // A rebuild keeps the file card: an earlier clean "Exported" turn's file row stays as
+    // it was, instead of turning into a Done tick without its link (review #44).
+    cards: ask && !ctx.rebuild ? [since] : changed.length ? [since, file] : [file],
+    replies: ask ? replies : undefined,
+    mood: ask ? 'concerned' : 'pleased',
+    // No question is asked any more, so the pill says what changed.
+    status: ask
+      ? {
+          text: pill(`${count(changed.length, 'section')} changed`, `${changed.length} changed`),
+          tone: 'amber',
+          icon: 'pen',
+        }
+      : { text: 'Exported', tone: 'green', icon: 'stamp' },
+  }
+}

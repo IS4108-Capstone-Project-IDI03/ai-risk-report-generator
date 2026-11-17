@@ -12,11 +12,15 @@ export type ToastOptions = {
   description?: string
   // Milliseconds before it closes itself (success toasts only; errors stay).
   duration?: number
+  // Shows it in the <Toaster id=…> with this id instead of the app's own. A modal dialog sits
+  // in the top layer and covers (and blocks) the app's toaster, so it mounts its own.
+  toasterId?: string
 }
 
 const wrap = (o: ToastOptions = {}) => ({
   description: o.description,
   duration: o.duration,
+  toasterId: o.toasterId,
   action: o.action ? { label: o.action.label, onClick: o.action.onClick } : undefined,
 })
 
@@ -36,9 +40,11 @@ export const toast = {
 }
 
 /** Returns Sonner's toaster, styled by .ds-toast in styles.css (white card, radius 14, icon-only colour). */
-export function Toaster() {
+export function Toaster({ id, className }: { id?: string; className?: string } = {}) {
   return (
     <SonnerToaster
+      id={id}
+      className={className}
       position="bottom-center"
       closeButton
       visibleToasts={3}
@@ -48,12 +54,7 @@ export function Toaster() {
         success: <SuccessIcon />,
         error: <Icon name="circle-alert" size={18} color="var(--red-600)" />,
         loading: (
-          <Icon
-            name="loader-circle"
-            size={18}
-            color="var(--marsh-navy)"
-            style={{ animation: 'dsSpin 0.9s linear infinite' }}
-          />
+          <Icon name="loader-circle" size={18} color="var(--marsh-navy)" className="ds-spin" />
         ),
       }}
       toastOptions={{

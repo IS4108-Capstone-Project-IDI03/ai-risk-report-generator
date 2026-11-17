@@ -1,0 +1,139 @@
+{
+ "id": "thin-15",
+ "split": "test",
+ "kind": "thin",
+ "source": "mixed6be5 report notes + hand-written thin notes",
+ "assessment": {
+  "reference": "EVAL-S6-MIXED",
+  "jurisdiction": "SG",
+  "facility_type": "Mixed-use development"
+ },
+ "sections": [
+  {
+   "section_id": "7",
+   "title": "Construction",
+   "cope_dimensions": [
+    "Construction"
+   ]
+  },
+  {
+   "section_id": "8",
+   "title": "Occupancy, Hazards, and Utilities",
+   "cope_dimensions": [
+    "Occupancy"
+   ]
+  },
+  {
+   "section_id": "9",
+   "title": "Fire Protection",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "10",
+   "title": "External Exposures",
+   "cope_dimensions": [
+    "Exposure"
+   ]
+  },
+  {
+   "section_id": "11",
+   "title": "Security",
+   "cope_dimensions": [
+    "Protection"
+   ]
+  },
+  {
+   "section_id": "12",
+   "title": "Business Interruption",
+   "cope_dimensions": [
+    "Exposure",
+    "Occupancy"
+   ]
+  }
+ ],
+ "checklist": [
+  {
+   "id": "c01",
+   "area": "6",
+   "text": "Management Programs",
+   "key": "6/Management Programs"
+  },
+  {
+   "id": "c02",
+   "area": "8",
+   "text": "Generators or UPS, what they serve and how they are tested",
+   "key": "8/Back-up Power"
+  },
+  {
+   "id": "c03",
+   "area": "8",
+   "text": "Each transformer's type, rating, oil or dry type, and separation from buildings",
+   "key": "8/Transformer details"
+  }
+ ],
+ "observations": [
+  {
+   "id": "thin-15-1",
+   "COPE_dimension": [
+    "Construction"
+   ],
+   "note": "door looked a bit off",
+   "severity": "low",
+   "location": "Service corridor"
+  },
+  {
+   "id": "6be5-5",
+   "COPE_dimension": "Protection",
+   "note": "service contract for FP equipment. monthly fire pump servicing, quarterly gaseous system, monthly water monitor + IR flame detectors, monthly smoke detector testing (100% annually), monthly fire roller shutter testing",
+   "severity": "low",
+   "location": "Fire pump room"
+  },
+  {
+   "id": "6be5-3",
+   "COPE_dimension": "Occupancy",
+   "note": "AHUs maintained by in-house contractors per manufacturer recommendation",
+   "severity": "low",
+   "location": "Plant rooms"
+  },
+  {
+   "id": "6be5-2",
+   "COPE_dimension": "Occupancy",
+   "note": "planned preventive maint w some predictive. 3rd party LEWs. annual IR thermography LT boards, annual shutdown, PD test + DGA transformers, annual genset load test. no-load test monthly for one bldg, quarterly for another. genset maint programme needs improving",
+   "severity": "moderate",
+   "location": "Electrical rooms"
+  },
+  {
+   "id": "6be5-7",
+   "COPE_dimension": "Occupancy",
+   "note": "housekeeping generally good in most areas",
+   "severity": "low",
+   "location": "Whole building"
+  },
+  {
+   "id": "brief-15",
+   "COPE_dimension": [
+    "Construction"
+   ],
+   "note": "riser door 1 hr rated, closed and latched, cable gap sealed",
+   "severity": "low",
+   "location": "L2 riser"
+  },
+  {
+   "id": "6be5-1",
+   "COPE_dimension": "Construction",
+   "note": "bldgs in good condition. structural inspection every 5 yrs by PE civil, report to BCA",
+   "severity": "low",
+   "location": "Whole building"
+  }
+ ],
+ "removed_observations": [],
+ "links": {},
+ "gold": {
+  "uncovered": [],
+  "thin": [
+   "thin-15-1"
+  ]
+ }
+}

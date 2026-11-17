@@ -1,0 +1,1053 @@
+/* MarshBot's thread (AS-06 canvas C1 to C13, H1, H2, round 7): the scrolling conversation,
+   MarshBot's turns and bubbles, the engineer's replies, the Earlier fold, the action slot and the
+   scrolled-away bar. Cards are in
+   cards.css. Sizes from the canvas sources (r6.css, r7.css, r8.css) on design-system v2 tokens. */
+
+/* --mbt-control: a row's button; --mbt-reply: a button in the action slot (36 px on touch, with
+   a 44 px tap area). */
+.mbt {
+  --mbt-control: 36px;
+  --mbt-reply: 40px;
+  /* One text size for the whole conversation (round 10): bubbles, cards, counts, labels and
+     buttons. Emphasis is weight and colour, never size. */
+  --mbt-size: 14px;
+  /* Not --mbt-line: the tick cards use that name for a divider colour (cards.css). */
+  --mbt-leading: 20px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--graphite-50);
+}
+.mbt-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Scrolling to its end doesn't carry on into the page behind. */
+  overscroll-behavior: contain;
+}
+.mbt-thread {
+  max-width: 1600px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 32px 24px 24px;
+}
+/* Wide enough to use a collapsed sidebar's room even at 1920 px; past that the column centres. */
+@media (min-width: 1600px) {
+  .mbt-thread {
+    margin-inline: auto;
+  }
+}
+.mbt-session,
+.mbt-live {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* An earlier session: greyed and read-only (its buttons are left out, RowEnd.tsx). */
+/* An earlier session reads as past (canvas H2) but stays legible: its words in one muted grey
+   (graphite-600, about 6.9:1 on white), its icons, tiles and bars faded (they carry no words),
+   and the engineer's old reply a light grey bubble instead of navy. */
+.mbt-session[data-past]
+  :is(
+    .mbt-who,
+    .mbt-bubble,
+    .mbt-bubble b,
+    .mbt-card-head h3,
+    .mbt-card-head small,
+    .mbt-card-head small b,
+    .mbt-row-title,
+    .mbt-row-detail,
+    .mbt-gap b,
+    .mbt-gap small,
+    .mbt-gap li,
+    .mbt-ticks b,
+    .mbt-ol-lead b,
+    .mbt-ol-title,
+    .mbt-lane-title,
+    .mbt-bars-area,
+    .mbt-bars-count
+  ) {
+  color: var(--graphite-600);
+}
+.mbt-session[data-past] :is(.mbt-face, .mbt-tile, .mbt-stick, .mbt-segs, .mbt-ol-st, .mbt-tick) {
+  opacity: 0.55;
+}
+.mbt-session[data-past] .mbt-me {
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+.mbt-session[data-past] .mbt-me::before {
+  background: var(--graphite-100);
+}
+/* A turn takes focus after a reply (Thread.tsx): a soft ring round it, not the control ring. */
+.mbt-turn:focus {
+  outline: none;
+}
+.mbt-turn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.mbt-divider {
+  align-self: center;
+  margin: 4px 0;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  font-weight: 500;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Earlier": the folded sessions, opened and closed in place. */
+.mbt-fold {
+  position: relative;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-card);
+  box-shadow: inset 0 0 0 1px var(--graphite-200);
+  color: var(--marsh-navy);
+  font: 600 var(--mbt-size)/1 var(--font-sans);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out);
+}
+.mbt-fold small {
+  font-size: var(--mbt-size);
+  font-weight: 500;
+  color: var(--graphite-600);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-fold:hover {
+    background: var(--graphite-50);
+  }
+}
+.mbt-fold:active {
+  transform: scale(0.97);
+}
+
+/* One turn from MarshBot: its face, then a stack of what it says and hands over. */
+.mbt-turn {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+}
+.mbt-face {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--graphite-0) 0,
+    var(--ink-50) 62%,
+    var(--ink-100) 100%
+  );
+  box-shadow: 0 0 0 1px var(--ink-100);
+}
+.mbt-face .mb-face-svg {
+  width: 32px;
+  height: 32px;
+}
+/* Under "MarshBot", the face drops by the name's height (20 px line, -1 px margin, 6 px gap), so
+   its top lines up with the first bubble's top (round 7). */
+.mbt-turn[data-named] .mbt-face {
+  margin-top: 25px;
+}
+.mbt-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The turn's bubbles and cards in one column. It stretches, so a card always takes its full
+   width (OpenUI wraps a program in a plain div, which would otherwise shrink to its content);
+   a bubble keeps to its words. */
+.mbt-flow {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mbt-stack > .mb-typing {
+  align-self: flex-start;
+}
+.mbt-who {
+  align-self: flex-start;
+  margin: 0 0 -1px 2px;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+
+/* A speech bubble: sized to its words, the first with a tail towards the face. */
+.mbt-bubble {
+  position: relative;
+  width: fit-content;
+  max-width: 660px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 18px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  color: var(--graphite-900);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.mbt-bubble p {
+  margin: 0;
+}
+.mbt-bubble p + p {
+  margin-top: 8px;
+}
+.mbt-bubble b {
+  font-weight: 600;
+}
+.mbt-bubble[data-tail] {
+  border-top-left-radius: 6px;
+}
+.mbt-bubble[data-tail]::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 11px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-left: 1px solid var(--graphite-200);
+  border-bottom: 1px solid var(--graphite-200);
+  border-bottom-left-radius: 3px;
+  transform: rotate(45deg);
+}
+.mbt-bubble[data-tone='good'] {
+  background: color-mix(in srgb, var(--green-50) 55%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
+}
+.mbt-bubble[data-tone='good'][data-tail]::before {
+  border-color: color-mix(in srgb, var(--green-600) 22%, var(--surface-card));
+}
+.mbt-slot {
+  width: 100%;
+  min-width: 0;
+}
+
+/* The engineer's reply: right aligned, navy, with its own tail. */
+.mbt-me {
+  position: relative;
+  align-self: flex-end;
+  max-width: min(420px, 85%);
+  margin-right: 6px;
+  padding: 9px 16px;
+  border-radius: 18px;
+  border-top-right-radius: 6px;
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.mbt-me::before {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 11px;
+  width: 12px;
+  height: 12px;
+  background: var(--marsh-navy);
+  border-top-right-radius: 3px;
+  transform: rotate(45deg);
+}
+/* The reply the engineer just pressed rises into place while it is sent. */
+.mbt-me[data-sending] {
+  animation: mbt-rise var(--duration-slow) var(--ease-out) both;
+}
+
+/* A turn pushed in while the screen is open arrives one message at a time (useReveal.ts draws
+   each when its turn comes, so each rises as it mounts, with no stagger of its own); one already
+   there when the screen opened draws at once. */
+.mbt-turn[data-fresh] .mbt-in {
+  animation: mbt-rise var(--duration-slow) var(--ease-out) both;
+}
+/* A pushed turn with no message out yet: kept mounted, not drawn. */
+.mbt-turn[hidden] {
+  display: none;
+}
+@keyframes mbt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The action slot under the newest turn's last bubble or card: 8 px below it, flush with the
+   bubbles, 8 px between buttons, wrapping on a phone. In a turn that just arrived it fades in
+   once the last message is out (opacity only: a transform would trap the calendar's fixed popover). */
+.mbt-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+/* The slot's last pixel row, watched for "in view" (ScrolledAway.tsx); out of the flex flow. */
+.mbt-slot-end {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.mbt-turn[data-fresh] .mbt-actions {
+  animation: mbt-fade var(--duration-slow) var(--ease-out) both;
+}
+@keyframes mbt-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Scrolled away (R7-C8): the round arrow, 12 px above a slim bar with the slot's buttons, over the
+   conversation's foot. Kept mounted, so it fades and rises 8 px in and out (interruptible): in over
+   180 ms, out faster (120 ms), and the arrow itself grows from 80% as it appears. */
+.mbt-away {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard),
+    visibility 0s linear var(--duration-fast);
+}
+.mbt-away[data-away] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+.mbt-away[data-away] > * {
+  pointer-events: auto;
+}
+.mbt-away[data-alone] {
+  padding-bottom: 16px;
+}
+.mbt .mbt-latest {
+  border-color: var(--graphite-200);
+  color: var(--marsh-navy);
+  box-shadow: 0 2px 8px rgb(0 15 71 / 0.12);
+  /* `scale`, not `transform`, so the button's own press feedback is left alone. */
+  scale: 0.8;
+  transition:
+    var(--transition-control),
+    scale var(--duration-fast) var(--ease-standard);
+}
+.mbt-away[data-away] .mbt-latest {
+  scale: 1;
+  transition:
+    var(--transition-control),
+    scale var(--duration-base) var(--ease-out);
+}
+/* The bar: white, a top hairline, the buttons right-aligned in the thread's own column (.mbt-thread:
+   it ends where the engineer's bubble ends, 32 px gutter and 6 px tail). */
+.mbt-bar {
+  align-self: stretch;
+  background: var(--surface-card);
+  border-top: 1px solid var(--graphite-200);
+}
+.mbt-bar-in {
+  max-width: 1600px;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 11px 38px 13px 76px;
+}
+@media (min-width: 1600px) {
+  .mbt-bar-in {
+    margin-inline: auto;
+  }
+}
+/* While the Overview is open, toasts centre on the conversation, not the window, and clear the
+   bar while it shows (useToastPlace.ts sets the class and measures both). Every other screen
+   keeps the app's own Toaster place. */
+body.mbt-toasts [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  left: var(--mbt-toast-x, 50%) !important;
+}
+body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
+  [data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  bottom: var(--mbt-toast-bottom, 77px) !important;
+}
+/* The calendar's confirm: the picked day, what changes, Cancel and Confirm. */
+.mbt-confirm {
+  width: 320px;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  color: var(--graphite-700);
+}
+.mbt-confirm > b {
+  font-size: var(--mbt-size);
+  color: var(--graphite-900);
+}
+.mbt-confirm p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.mbt-confirm s {
+  color: var(--graphite-600);
+}
+.mbt-confirm p b {
+  font-weight: 600;
+  color: var(--graphite-900);
+}
+.mbt-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.mbt-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Touch screens: 44 px targets for every control in the thread and bar. The slot's and rows'
+   buttons look smaller (36 px, 14 px text, round 7 item 45): the 44 px is an invisible box. */
+@media (pointer: coarse), (max-width: 767px) {
+  .mbt {
+    --mbt-reply: 36px;
+  }
+  :is(.mbt-actions, .mbt-bar, .mbt-end) .ds-press {
+    position: relative;
+  }
+  /* Exactly 44 px tall whatever the button's own height: the box reaches 22 px each way from its middle. */
+  :is(.mbt-actions, .mbt-bar, .mbt-end) .ds-press::after,
+  .mbt .mbt-latest::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px)) 0;
+  }
+  .mbt .mbt-latest {
+    position: relative;
+  }
+  /* -5 px: the box is measured from inside the button's 1 px border, so this makes 44 px. */
+  .mbt .mbt-latest::after {
+    inset: -5px;
+  }
+  .mbt-fold {
+    min-height: 44px;
+  }
+  /* Small controls in the cards (See All, the (?) help) get a 44 px tap area without growing
+     their row: an invisible box centred on them, as .mb-hit does in marshbot.css. */
+  .mbt-seeall {
+    position: relative;
+  }
+  .mbt-seeall::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc(50% - 22px));
+  }
+  /* The (?) itself is 44 px: padding round its 16 px icon, taken back by a negative margin so
+     the card's header doesn't grow. */
+  .mbt .mbt-help {
+    padding: 14px;
+    margin: -14px;
+  }
+}
+/* Phone: a choice's label may wrap to 2 lines inside its pill instead of running past the pill's
+   edge: the button grows with it (2 lines of 18 px plus 4 px above and below is 44 px). A short
+   label is one line and looks as before: 36 px, or 44 px on a touch screen (kit.css). The inline
+   height, padding and no-wrap come from the Button, hence !important. */
+@media (max-width: 767px) {
+  .mbt .mbt-reply {
+    height: auto !important;
+    max-width: 100%;
+    padding: 4px 14px !important;
+    line-height: 18px !important;
+    white-space: normal !important;
+    text-align: center;
+  }
+}
+@media (max-width: 767px) and (pointer: fine) {
+  .mbt .mbt-reply {
+    min-height: 36px;
+  }
+}
+/* Phone: the page scrolls, the thread runs full width, the scrolled-away bar is fixed to the
+   screen's foot. */
+@media (max-width: 767px) {
+  .mbt {
+    min-height: auto;
+  }
+  .mbt-scroll {
+    overflow: visible;
+  }
+  .mbt-thread {
+    padding: 12px 12px 20px;
+    gap: 10px;
+  }
+  .mbt-session,
+  .mbt-live {
+    gap: 10px;
+  }
+  .mbt-turn {
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+  .mbt-face {
+    width: 32px;
+    height: 32px;
+  }
+  .mbt-face .mb-face-svg {
+    width: 26px;
+    height: 26px;
+  }
+  .mbt-bubble {
+    padding: 9px 14px;
+  }
+  .mbt-away {
+    position: fixed;
+  }
+  .mbt-away[data-alone] {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Left-aligned like the slot, so wrapped buttons don't stagger. */
+  .mbt-bar-in {
+    justify-content: flex-start;
+    padding: 10px 18px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+  }
+}
+/* Reduced motion: the app stops every animation (index.css); presses stop moving too. */
+@media (prefers-reduced-motion: reduce) {
+  .mbt-fold:active {
+    transform: none;
+  }
+  /* The bar and arrow appear and leave at once. */
+  .mbt-away,
+  .mbt .mbt-latest {
+    transition-duration: 0s;
+  }
+}
+
+/* A later turn in the same run: no face and no tail, tucked up under the turn before it (canvas C1). */
+.mbt-turn[data-grouped] {
+  margin-top: -6px;
+}
+.mbt-turn[data-grouped] .mbt-face {
+  visibility: hidden;
+}
+.mbt-turn[data-grouped] .mbt-bubble[data-tail] {
+  border-top-left-radius: 18px;
+}
+.mbt-turn[data-grouped] .mbt-bubble[data-tail]::before {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Round 8: one message per turn, a readable column, the journey marked in the thread.
+   --------------------------------------------------------------------------------------------- */
+
+/* The column keeps a readable measure and centres in the pane once the pane is wider (a
+   collapsed sidebar, a 1920 px screen): cards no longer stretch to 1,400 px. The scrolled-away
+   bar keeps to the same column. */
+.mbt-thread,
+.mbt-bar-in {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+/* Pieces that share a bubble: the lead line, paragraphs, a tick list. */
+.mbt-bubble > div + div {
+  margin-top: 6px;
+}
+/* The lead: the message's first line. Same size and weight as the rest (round 10: a whole bold
+   line read as shouting); only the names inside it are bold. */
+.mbt-lead {
+  color: var(--graphite-900);
+}
+/* A name one of the turn's cards lists: bold as before, and a link straight to it. Inline in
+   running text, so it keeps the text's own size (no 44 px box: WCAG's inline exception). */
+.mbt-name {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--marsh-navy);
+  text-align: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--marsh-navy) 32%, transparent);
+  cursor: pointer;
+  transition: text-decoration-color var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mbt-name:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.mbt-name:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.mbt-session[data-past] .mbt-lead {
+  color: var(--graphite-600);
+}
+
+/* The tick list inside the bubble: things already sorted, one green tick each. */
+.mbt-list {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0;
+  padding: 0;
+  list-style: none;
+}
+.mbt-list li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: start;
+}
+.mbt-list-mark {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--green-600);
+  color: var(--text-inverse);
+}
+.mbt-session[data-past] .mbt-list-mark {
+  opacity: 0.55;
+}
+
+/* The numbered list inside the bubble (Capture To Do's steps): a real <ol>, its numbers in the
+   bubble's own text colour and line, wrapping cleanly because each item is a block of its own. */
+.mbt-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+  padding: 0 0 0 24px;
+  list-style: decimal;
+}
+.mbt-steps li {
+  min-width: 0;
+  padding-left: 4px;
+}
+.mbt-steps li::marker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A message that stands out (the report is overdue): the same bubble, in the amber warning tint,
+   a warning icon before the words. Its tail, when it comes first, takes the same border. */
+.mbt-bubble[data-tone='alert'] {
+  background: var(--amber-50);
+  border-color: color-mix(in srgb, var(--amber-500) 55%, var(--surface-card));
+}
+.mbt-bubble[data-tone='alert'][data-tail]::before {
+  border-color: color-mix(in srgb, var(--amber-500) 55%, var(--surface-card));
+}
+.mbt-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.mbt-alert > :first-child {
+  flex: none;
+  margin-top: 2px;
+  color: var(--amber-600);
+}
+.mbt-session[data-past] .mbt-alert svg {
+  opacity: 0.55;
+}
+
+/* A stage the assessment moved on to, marked where it happened: a green flag between two
+   hairlines. One that arrives while the screen is open draws its lines outwards. */
+.mbt-milestone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 4px;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  font-weight: 500;
+  color: var(--green-600);
+}
+.mbt-milestone::before,
+.mbt-milestone::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--graphite-200);
+}
+.mbt-milestone span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 11px;
+  border-radius: 999px;
+  background: var(--green-50);
+  white-space: nowrap;
+}
+.mbt-milestone b {
+  font-weight: 700;
+}
+.mbt-milestone[data-fresh] span {
+  animation: mbt-rise var(--duration-slow) var(--ease-out) both;
+}
+.mbt-milestone[data-fresh]::before,
+.mbt-milestone[data-fresh]::after {
+  animation: mbt-line 520ms var(--ease-out) 120ms both;
+}
+.mbt-milestone[data-fresh]::before {
+  transform-origin: right;
+}
+.mbt-milestone[data-fresh]::after {
+  transform-origin: left;
+}
+@keyframes mbt-line {
+  from {
+    transform: scaleX(0);
+  }
+}
+.mbt-session[data-past] .mbt-milestone {
+  color: var(--graphite-600);
+}
+.mbt-session[data-past] .mbt-milestone span {
+  background: var(--graphite-100);
+}
+
+/* What the choices lead to, on its own line under them, in line with the first button. In the
+   scrolled-away bar it sits under the buttons, right-aligned with them. It wraps; it never
+   widens the slot. */
+.mbt-hint {
+  flex-basis: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 0 6px;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  color: var(--graphite-600);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.mbt-hint > :first-child {
+  flex: none;
+  margin-top: 3.5px;
+}
+.mbt-bar .mbt-hint {
+  justify-content: flex-end;
+  margin: 0;
+  text-align: right;
+}
+@media (max-width: 767px) {
+  .mbt-bar .mbt-hint {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+/* The agenda: a bar above the conversation, the stage's name and its topics in order. Done topics
+   are ticked green, the one MarshBot waits on is navy on a soft pill, a skipped one amber, the
+   rest grey rings. It stays put while the conversation scrolls under it, and keeps to the
+   conversation's column. */
+.mbt-agenda {
+  --link: 24px;
+  --air: 6px;
+  flex: none;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--graphite-200);
+}
+.mbt-agenda-in {
+  width: 100%;
+  max-width: 960px;
+  min-height: 52px;
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding: 0 32px 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--graphite-600);
+}
+/* The stage's name is left out where it would only be cut short or said twice: in a bar under
+   640 px (it showed as "CAPT…" beside a rail that already names the stage), and when the rail is
+   folded into the stage bar on top, which names it too. */
+.mbt-agenda-in {
+  container: agenda / inline-size;
+}
+@container agenda (max-width: 640px) {
+  .mbt-agenda-stage {
+    display: none;
+  }
+}
+.mb[data-stacked] .mbt-agenda-stage,
+.mbt-agenda[data-tight] .mbt-agenda-stage {
+  display: none;
+}
+/* The stage's name, the bar's label: the topics after it belong to this stage. */
+/* It is never cut short: when the steps don't fit beside it the name goes (data-tight, set by
+   Agenda.tsx), and only then do the steps scroll sideways (.mbt-agenda ol). */
+.mbt-agenda-stage {
+  flex: none;
+  white-space: nowrap;
+  padding-right: 20px;
+  border-right: 1px solid var(--graphite-200);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--marsh-navy);
+}
+.mbt-agenda ol {
+  /* The steps on one line; wider than the bar, they scroll sideways with no scrollbar showing
+     (Agenda.tsx keeps the current one in view). `position` makes it each step's offset parent. */
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mbt-agenda ol::-webkit-scrollbar {
+  display: none;
+}
+.mbt-agenda li {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+}
+/* The line between two topics; green once the one before it is done. */
+.mbt-agenda li + li::before {
+  content: '';
+  width: var(--link);
+  height: 1.5px;
+  margin: 0 var(--air);
+  border-radius: 1px;
+  background: var(--graphite-200);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+.mbt-agenda li[data-state='done'] + li::before {
+  background: var(--green-600);
+}
+/* One topic: its mark and name. A topic already raised is a button back to it, 48 px tall, with
+   a soft pill behind it on hover. The pill (hover or current) is exactly the step's width, so the
+   line between two topics shows in full with the same air on both sides. */
+.mbt-agenda-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+}
+button.mbt-agenda-step {
+  position: relative;
+  cursor: pointer;
+}
+button.mbt-agenda-step::before {
+  content: '';
+  position: absolute;
+  inset: 6px 0;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+button.mbt-agenda-step > :not(.mbt-sr) {
+  position: relative;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.mbt-agenda-step:hover::before {
+    opacity: 1;
+  }
+}
+button.mbt-agenda-step:active::before {
+  opacity: 1;
+  background: var(--graphite-200);
+}
+button.mbt-agenda-step:focus-visible {
+  outline: none;
+}
+button.mbt-agenda-step:focus-visible::before {
+  opacity: 1;
+  background: none;
+  outline: 2px solid var(--border-focus);
+  /* Inside the step: the bar scrolls sideways, which would cut an outer ring off at its ends. */
+  outline-offset: -2px;
+}
+.mbt-agenda-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--graphite-500);
+  color: var(--text-inverse);
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+.mbt-agenda li[data-state='done'] .mbt-agenda-mark {
+  background: var(--green-600);
+  border-color: var(--green-600);
+}
+.mbt-agenda-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mbt-agenda li[data-state='done'] .mbt-agenda-name {
+  color: var(--graphite-900);
+}
+.mbt-agenda li[data-state='now'] .mbt-agenda-mark {
+  border: 6px solid var(--marsh-navy);
+}
+/* The current topic sits on a soft pill, so it is the first thing the eye finds. It starts after
+   the line that leads into the topic (--lead), so the line is never hidden. */
+.mbt-agenda li + li {
+  --lead: calc(var(--link) + 2 * var(--air));
+}
+.mbt-agenda li[data-state='now']::after {
+  content: '';
+  position: absolute;
+  inset: 6px 0 6px var(--lead, 0px);
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--ink-50);
+}
+.mbt-agenda li[data-state='now'] .mbt-agenda-name {
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.mbt-agenda li[data-state='open'] .mbt-agenda-mark {
+  border-color: var(--amber-600);
+  background: var(--amber-50);
+}
+.mbt-agenda li[data-state='open'] .mbt-agenda-name {
+  color: var(--amber-600);
+}
+/* The scrolled-away bar waits 8 px below the pane while hidden (.mbt-away), which made the whole
+   Overview scrollable by those 8 px (a wheel turn over the rail shifted the screen). The pane
+   clips its own bottom edge instead. Not on a phone, where the page itself scrolls. */
+@media (min-width: 768px) {
+  .mbt {
+    overflow-y: clip;
+  }
+}
+/* A turn the agenda jumped to stops a little under the bar, not flush against it. */
+.mbt-turn {
+  scroll-margin-top: 16px;
+}
+/* Phone: one line. Every topic keeps its mark; only the current one keeps its name. */
+@media (max-width: 767px) {
+  .mbt-agenda-in {
+    gap: 12px;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+  .mbt-agenda-stage,
+  .mbt-agenda li[data-state='now']::after {
+    display: none;
+  }
+  /* Nothing to tap here on a phone (Agenda.tsx), so the bar is slimmer. */
+  .mbt-agenda-step {
+    min-height: 36px;
+    padding: 0;
+  }
+  .mbt-agenda li:not([data-state='now']) .mbt-agenda-name {
+    display: none;
+  }
+  .mbt-agenda li + li::before {
+    width: 10px;
+    margin: 0 5px;
+  }
+  .mbt-agenda li[data-state='now'] {
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+  .mbt-agenda li[data-state='now'] .mbt-agenda-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Buttons inside the conversation set their size inline (Button.tsx), hence !important. */
+.mbt .ds-press {
+  font-size: var(--mbt-size) !important;
+}

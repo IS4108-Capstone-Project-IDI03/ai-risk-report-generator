@@ -27,7 +27,13 @@ import {
   type SiteLocation,
   type Stamp,
 } from './api'
-import { formatDay as formatDate, formatDayYearTime, STATUS_LABEL } from './format'
+import {
+  formatDay as formatDate,
+  formatDayYearTime,
+  rowStage,
+  STAGE_LABEL,
+  STATUS_LABEL,
+} from './format'
 import {
   NO_EVIDENCE_FILTERS,
   pageStates,
@@ -92,7 +98,10 @@ import type { BoxContent } from './components/StatBox'
 import { useCaptureSession } from './useCaptureSession'
 import type { Cope, Severity } from '../site-walk/api'
 import { siteWalkReview } from '../site-walk/openReview'
+import { overviewNav } from './openOverviewLink'
 import { reportAssessmentMissing } from './openAssessment'
+import { useActivity } from '../marshbot/useActivity'
+import type { Priority } from '../marshbot/types'
 import {
   addCapturedObservation,
   proposalCapture,
@@ -219,6 +228,8 @@ function toRow(a: Assessment): AssessmentRow {
     engineerId: a.engineer?.id ?? null,
     record: a,
     status: STATUS_LABEL[a.status],
+    stage: a.stage,
+    priority: a.priority,
     sev: 'low',
     open: 0,
     persisted: true,
@@ -611,6 +622,20 @@ function placeFromUrl(): Partial<WorkflowState> {
   }
 }
 
+/**
+ * Returns the place the URL names after Back or Forward. The URL knows only an assessment's
+ * reference, so when it is still the assessment that is open (Back from a tab a MarshBot link
+ * opened, AS-06 round 9) its loaded site name and the Recent list are kept. Without this the page
+ * title went blank: the work list that fills the name in is not read again.
+ */
+export function placeAfterBack(
+  previous: Pick<WorkflowState, 'captureTarget' | 'recent'>,
+  place: ReturnType<typeof placeFromUrl>,
+) {
+  return place.captureTarget?.reference === previous.captureTarget.reference
+    ? { ...place, captureTarget: previous.captureTarget, recent: previous.recent }
+    : place
+}
 // The evidence views' search and filters, as each view opens (CP-13).
 const NO_EVIDENCE_SEARCH = { evidenceQuery: '', evidenceFilters: NO_EVIDENCE_FILTERS }
 
@@ -630,6 +655,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // the proposal's locations and Save adds to the proposal, not the assessment.
   const [proposalTarget, setProposalTarget] = useState<ProposalCaptureTarget | null>(null)
   const place = placeQuery(state, !!proposalTarget)
+  // The observation that a MarshBot link on the Overview opened, while it is the one open. Its own
+  // Back then goes back in history (to the Overview, where the link was) instead of to the
+  // Observations tab; one opened from that tab, or another stepped to, keeps the tab's Back.
+  const [obsViaOverview, setObsViaOverview] = useState<string | null>(null)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- forget it once another is open
+    if (obsViaOverview && state.obsOpen !== obsViaOverview) setObsViaOverview(null)
+  }, [state.obsOpen, obsViaOverview])
   useEffect(() => {
     // A client's page (CP-18) has the client in its path.
     const path =
@@ -643,11 +676,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const url = path + place
       const here = window.location.pathname + window.location.search
       // A new screen is a history entry; a new tab or observation on the same
-      // screen only rewrites it, so Back still leaves the screen.
+      // screen only rewrites it, so Back still leaves the screen. A MarshBot link from the
+      // Overview is the exception: it adds one, so Back returns to the Overview.
       if (url === here) return void (urlSynced.current = true)
-      if (urlSynced.current && window.location.pathname !== path)
+      const fromOverview = overviewNav.push
+      overviewNav.push = false
+      if (urlSynced.current && (window.location.pathname !== path || fromOverview)) {
         window.history.pushState(null, '', url)
-      else window.history.replaceState(null, '', url)
+        // Only when the link itself opened an observation: one left open from the Observations
+        // tab must keep its own Back.
+        if (fromOverview && state.tab === 'observations' && state.obsOpen)
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- noted as the link opens it
+          setObsViaOverview(state.obsOpen)
+      } else window.history.replaceState(null, '', url)
     }
     urlSynced.current = true
   }, [state.screen, state.clientPage, place])
@@ -657,7 +698,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       updateState((previous) => ({
         ...previous,
         screen: screenForPath(window.location.pathname, session),
-        ...placeFromUrl(),
+        ...placeAfterBack(previous, placeFromUrl()),
         clientPage: clientIdForPath(window.location.pathname),
         navOpen: false,
         toast: null,
@@ -1053,6 +1094,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       </div>
     )
   }
+  // AS-06: the assigned engineer's time on the open workspace tab (an admin's is not counted).
+  useActivity(
+    state.screen === 'assessment' ? state.captureTarget.reference : null,
+    'tab:' + state.tab,
+    serverRows?.find((r) => r.id === state.captureTarget.reference)?.engineerId === session.user.id,
+  )
   function renderVals() {
     const s = state
     const sc = s.screen,
@@ -2200,7 +2247,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (isArchived(r) !== showArchived) return false
-        if (!showArchived && fStatus !== 'All statuses' && r.status !== fStatus) return false
+        if (!showArchived && fStatus !== 'All statuses' && rowStage(r) !== fStatus) return false
         if (s.fDate && !DATE_FILTERS[s.fDate](r)) return false
         if (s.fVisitType && r.type !== s.fVisitType) return false
         return true
@@ -2281,12 +2328,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       })
     // A client's page (CP-18), opened from the Clients list, the work list or
     // an assessment.
-    // Opened afresh, it starts on its first tab: only Back returns to another.
-    const openClient = (id: string) =>
+    // Opened afresh, it starts on its first tab (or the one a MarshBot link names, AS-06):
+    // only Back returns to another.
+    const openClient = (id: string, tab: WorkflowState['clientTab'] = null) =>
       setState({
         screen: 'client',
         clientPage: id,
         clientDialog: null,
+        clientTab: tab,
         clientReturn: null,
         toast: null,
       })
@@ -2335,6 +2384,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: string
           sites: Map<string, { name: string; removed: boolean; jurisdiction: string }>
           visits: FactVisit[]
+          priorities: Priority[]
         }
       >()
       for (const r of rows) {
@@ -2345,6 +2395,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           name: a.client,
           sites: new Map(),
           visits: [] as FactVisit[],
+          priorities: [] as Priority[],
         }
         byId.set(a.clientId, c)
         c.sites.set(a.site.id, {
@@ -2352,6 +2403,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           removed: a.site.removed,
           jurisdiction: a.site.jurisdiction,
         })
+        if (r.priority) c.priorities.push(r.priority)
         c.visits.push({
           site: a.site.name,
           surveyDate: a.siteVisitDate,
@@ -2373,6 +2425,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             // Its listed sites' jurisdictions, each once (the Clients table's column).
             jurisdictions: [...new Set(sites.filter((x) => !x.removed).map((x) => x.jurisdiction))],
             facts: clientFacts(c.visits),
+            // The reasons its assessments are urgent (AS-06); the Clients table marks the first.
+            priorities: c.priorities,
             // Found by its name or one of its sites'.
             search: [c.name, ...sites.map((x) => x.name)].join(' ').toLowerCase(),
             open: () => openClient(c.id),
@@ -3074,7 +3128,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : null,
       // A site corrected from the Overview: the work list reads it again, and
       // the header takes its name.
-      siteSaved: async (message: string) => {
+      // `toast` options send it to a toaster of its own (the Details panel's, with an Undo).
+      siteSaved: async (
+        message: string,
+        options?: { undo?: { label: string; onClick: () => void }; toasterId?: string },
+      ) => {
         const list = await reloadRows()
         const now = list?.find((a) => a.reference === s.captureTarget.reference)
         if (now)
@@ -3082,12 +3140,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...previous,
             captureTarget: { ...previous.captureTarget, site: now.site.name },
           }))
-        toast(message)
+        if (options) sonner.success(message, { action: options.undo, toasterId: options.toasterId })
+        else toast(message)
       },
       // The work list reloads only on the dashboard, so reload it here.
-      detailsSaved: async (message: string) => {
+      detailsSaved: async (message: string, options?: { toasterId?: string }) => {
         await reloadRows()
-        toast(message)
+        if (options) sonner.success(message, { toasterId: options.toasterId })
+        else toast(message)
       },
       // Each visit to capture starts by asking where, until a location is chosen.
       goField: () =>
@@ -3237,6 +3297,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         menu: clientMenuModel,
         onNewAssessment: clientNewAssessment,
         onClients: () => setState({ screen: 'clients', clientDialog: null, toast: null }),
+        startTab: s.clientTab ?? undefined,
         // A visit as the work list shows it: its status, dates and countdown.
         visit: (reference: string) => {
           const r = rows.find((x) => x.id === reference)
@@ -3339,12 +3400,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 openRow.persisted && openRow.record?.clientId && canOpen('client', session)
                   ? () => openClient(openRow.record!.clientId!)
                   : undefined,
+              // AS-06: Details' See all, the same page on its Documents tab.
+              documents:
+                openRow.persisted && openRow.record?.clientId && canOpen('client', session)
+                  ? () => openClient(openRow.record!.clientId!, 'documents')
+                  : undefined,
             },
           ]
         : [{ label: 'Name', value: s.captureTarget.site }]) as {
         label: string
         value: string
         open?: () => void
+        documents?: () => void
       }[],
       // Its Assessment record card: this assessment's own details.
       ovRecordFacts: openRow
@@ -3436,7 +3503,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Back from an observation's page: to All Photos, All Handwritten Pages
       // or All Recordings (CP-12) if it came from there.
       closeObs: () =>
-        setState(s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null }),
+        obsViaOverview && s.obsOpen === obsViaOverview
+          ? // Opened from an Overview link: back to the Overview, as the browser's Back does.
+            window.history.back()
+          : setState(
+              s.obsFrom ? { obsOpen: null, tab: s.obsFrom, obsFrom: null } : { obsOpen: null },
+            ),
+      obsViaOverview,
       obsFrom: s.obsFrom ?? null,
       obsCountLabel: obsRows.length
         ? filtersActive(s.of)
@@ -3628,7 +3701,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'observations',
           label: 'Observations',
           icon: 'camera',
-          count: fieldSaved,
+          // Same count as the Overview and MarshBot: what the server holds.
+          count: savedCount,
         },
         {
           value: 'generate',
@@ -3692,9 +3766,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           q: e.target.value,
         }),
       // The filter pills (CP-23): '' is no filter.
-      statusFilter: fStatus === 'All statuses' ? '' : fStatus,
-      setStatusFilter: (value: string) => setState({ fStatus: value || 'All statuses' }),
-      statusOptions: Object.values(STATUS_LABEL),
+      stageFilter: fStatus === 'All statuses' ? '' : fStatus,
+      setStageFilter: (value: string) => setState({ fStatus: value || 'All statuses' }),
+      // The stages, then Archived (AS-06 AC 2).
+      stageOptions: [...Object.values(STAGE_LABEL), STATUS_LABEL.archived],
+      // Focus (AS-07): the rows the gateway gave a priority (only the engineer's own),
+      // in its rank order. Built from the list itself, so it never lags or pops in after it.
+      focus: rows
+        .flatMap((r) =>
+          r.priority
+            ? [
+                {
+                  reference: r.id,
+                  site: r.site,
+                  client: r.client,
+                  reportDueDate: r.reportDueDate ?? null,
+                  priority: r.priority,
+                },
+              ]
+            : [],
+        )
+        .sort((a, b) => a.priority.rank - b.priority.rank),
       visitType: s.fVisitType,
       setVisitType: (value: string) => setState({ fVisitType: value }),
       // The visit types the engineer's assessments have, the standard ones first.

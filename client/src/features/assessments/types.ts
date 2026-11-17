@@ -9,6 +9,7 @@ import type {
   Stamp,
   TranscriptionStatus,
 } from './api'
+import type { Priority, Stage } from '../marshbot/types'
 
 export type AssessmentRow = {
   engineerId?: string | null
@@ -24,6 +25,9 @@ export type AssessmentRow = {
   // The lead engineer.
   eng: string
   status: string
+  // From the gateway (AS-06); a sample row has neither.
+  stage?: Stage
+  priority?: Priority | null
   sev: string
   live?: boolean
   open?: number
@@ -186,6 +190,8 @@ export type WorkflowState = {
   clientPage: string | null
   // The client dialog opened from the client page's ⋯ menu (CP-18).
   clientDialog: 'rename' | 'remove' | null
+  // The client page's tab to open on, when not its first (AS-06: Details' See all opens Documents).
+  clientTab: 'documents' | null
   // The client page an assessment was opened from, and the tab it was on
   // (CP-29): that assessment's Back returns there, on that tab.
   clientReturn: { clientId: string; tab: string; reference: string } | null

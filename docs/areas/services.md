@@ -1671,3 +1671,174 @@ fail the action that already saved (they log and carry on, except the site walk
 A site walk fails in three places (the reading runs out of retries, a recording
 cannot be transcribed, the job cannot be queued); each tells the engineer once
 per attempt. An attempt is the walk's `retries` count, which Retry increments.
+
+## Assessment assistant (MarshBot, AS-06)
+
+MarshBot is the Overview tab: a saved conversation that tells the engineer the
+assessment's stage, what to fix and the next step, one topic at a time. Its
+cards only show and point (a button opens the tab where the work happens); the
+only things it changes are the choices under its newest turn and "Try Again" on
+a failed transcription. A choice with a `link` (Add observations, Export Again)
+only opens a tab and posts nothing. It never takes typed input and sends
+nothing to the bell or the Inbox.
+
+**In the browser.** The newest bot turn has one action slot under its last
+bubble or card: that card's `cta` (e.g. Open Generation), then the choices;
+older turns show none. Scrolled away from it, a sticky bar at the bottom of the
+conversation repeats those buttons, with a round arrow that scrolls back to the
+newest turn. A 409 with `code: 'reply-not-asked'` (already answered, e.g. in
+another tab) only re-reads the conversation, quietly. The Review and Generation tabs count 11 parts (Section 1 not counted), as
+MarshBot does.
+
+A bot turn is one message: its words share one bubble, opening with the bold
+lead line when the turn brings something to do or decide; cards and a
+stand-out message (an overdue report) stand alone. A bar above the conversation
+names the stage and lists its topics (`agenda`: done, still open, now, to
+come); on a computer a raised topic jumps back to its turn. A "Moved on to
+<stage>" marker sits in the conversation where the stage changed, and the rail
+shows the day each finished stage was finished. A choice that moves the stage
+carries a line under the choices (`reply.hint`, "Clicking “That's everything”
+will move the assessment's status forward to Ready for generation."), and
+"What else?" carries "Up next: <topic>". A bold name in the words that one of
+the turn's cards lists is a link to it.
+
+**Stage.** `Assessment.stage` is one of Setup, Prepare, Capture, Ready for
+generation, Generate, Review, Ready to export, Exported, with `stageDates` for
+when each was entered. It only moves forward: each re-check stores the furthest
+stage the data proves (`services/assistant/stage.ts`), never an earlier one.
+Archived stays separate (`archivedAt`), and the derived `status` used before
+AS-06 is unchanged. `npm run migrate:stages` works the stage out once for
+assessments made before AS-06. Ready to export needs the export check clear and
+no open comment thread (`exportClear` in `stage.ts`): an open comment keeps the
+assessment in Review, and the Review outline and the rail never count a section
+with open comments as reviewed (its row is "Open Comments" and the words name
+it and its count).
+
+**Re-check.** `recheckAssessment(reference)` (`recheck.service.ts`) loads the
+assessment's data once, advances the stage, runs every check in
+`services/assistant/checks/` (one file per item kind) and saves one brief per
+assessment (`assistant_briefs`: items, checklist areas, sections, facts,
+coverage). It runs:
+- after any 2xx non-GET under `/api/assessments/:reference/**`,
+  `/api/observations/:id/**` or a client document route
+  (`middleware/assistant-recheck.middleware.ts`);
+- when background work finishes: transcriptions, handwritten pages, photo
+  reading, site walk proposals (`queueAssessmentCheck` in those services);
+- once a day for date-based items (`scheduleDailyAssessmentChecks`, 00:05
+  Singapore).
+Changes within 2 seconds are checked together (BullMQ job id
+`as-check-<ref>-<window>`). A failed recording or page that stops being raised
+is stamped `facts.outcome`: `removed` when the engineer deleted it (its row
+says "Recording removed" / "Page removed"), else `done`.
+
+**Conversation.** `assistant_threads` keeps one thread per (assessment,
+assigned engineer): today's session and up to 10 earlier ones. The engine in
+`services/assistant/thread/` is pure: `advance()` takes the thread, the brief,
+now and an event (open, changed, reply) and returns the turns to add. A session
+is one day (or a stage that moved on after a 30-minute pause) and opens with a
+greeting or a catch-up. MarshBot raises one topic at a time per stage
+(`thread/topics.ts`, `STAGE_TOPICS`) and waits: a "To Do" topic until its rows
+are done or skipped ("Skip for now" names what stays in To Do; its words are a
+numbered list, one step per place, when there are 2 or more), a question for
+its own replies, any other topic offers "What else?" while another topic is
+waiting. The Setup card keeps one row per detail (Report Due Date, Site
+Contacts, Client Documents) that ticks in place with its value; with nothing
+missing, MarshBot says so and asks "Ready to move on to Prepare?" with one
+choice, "Move on to Prepare" (`to-prepare`, same effect as "Nothing more to
+add"). When something it listed is sorted (`thread/reactions.ts`), it posts one
+`noticed` turn: what it saw, in words for each kind of item (never an item's
+title as a label), and what is left (Setup names it, To Do and Gaps count it,
+Before the Survey counts it or says nothing is left until the survey day,
+Review names the findings and comments that hold it), with the waiting topic's
+button (e.g. Open Review) while something is left. The last Setup detail turns
+that turn into the Prepare question; fewer open comments are said too ("1
+comment is resolved"). Each item is said once (`seen:<id>` in `said`), and the
+next day's catch-up skips it. When the coverage check runs again after the
+gaps were raised, a `recheck` turn says what cleared, any new gaps and what is
+still open (a gaps card of a new kind comes with it); a check that fails then
+gets one `recheck-failed` turn; the typing dots show while it runs. None of
+this is said once the stage has moved past Capture. A stage move says which
+stage and why, both under an open session ("… has moved on to the Review
+stage now that all 11 sections are drafted.") and in the answer to a choice
+that moved it ("Thanks! Setup is confirmed, so I've moved this on to the
+Prepare stage."). Turns from before a stage move keep the cards they showed
+then (`frozen`), and a row that is no longer open ticks with "Done". Survey day passed asks "Another visit", "Add observations" (opens
+Observations) or "That's everything"; the first two carry their own icon
+(`reply.icon`: `calendar`, `plus`). Exported with sections changed since says
+which, shows the "Changed Since Export" card and one "Export Again" choice that
+opens the Export tab; nothing is asked. The gaps turn gives "Not Covered" and
+"Thin" each its own lead-in bubble, then a closing bubble; such a turn keeps
+its `order` and starts with the gateway's own program in that order. A new Fix
+now item is raised at once. Cards in today's session are rebuilt from the brief
+on every read (a fixed row ticks in place); earlier sessions are frozen. Turns'
+words never change. The rules give every piece of words its form (`Say.tone`):
+plain, good news (green), the lead line, a tick (a catch-up with 2 or more
+changes is a tick list), a numbered step or a stand-out message (the report is overdue; a
+report due within 7 days is a sentence at the end of the greeting). `thread.service.ts` loads and saves the thread (one advance
+per thread at a time, `lock.ts`); a re-check that changed the brief advances it
+only when the Overview is open (a live event stream) and the engineer opened it
+in the last 30 minutes. An archived assessment is shown read only and never
+advanced. An admin's view is built on the fly and nothing is saved.
+
+**Push.** After saving, the re-check and the thread call `publishBriefChanged`
+(`services/assistant/bus.ts`). The open Overview listens on
+`GET /api/assessments/:reference/assistant/events` (server-sent events, auth
+without refreshing the session cookie, a ping every 25 s, closed when the
+session expires so the browser reconnects with a fresh cookie) and reads the
+conversation again. No polling. The channel is in-process: a gateway running
+as several instances would need Redis pub/sub instead.
+
+**API.** Under `/api/assessments/:reference/assistant`: `GET` the conversation
+(`AssistantThread`), `POST /replies` (`{ replyId, date?, lastTurnId? }`: only a
+reply offered now, and only while `lastTurnId` is a turn of today's session
+with no engineer turn after it (MarshBot's own turns don't count), else 409
+with `code: 'reply-not-asked'`, so a second press adds nothing; an archived
+assessment is 409 without that code; e.g. another visit with its date moves
+`siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
+seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
+carries its `stage` and, for the engineer's own assessments, a `priority` with
+its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue, then Fix now,
+then least time to spare); the Focus list is those rows in rank order. Client
+page visits carry the same. An admin, or anyone who isn't the assigned
+engineer, sees the stage and progress only, never the engineer's activity.
+
+**AI.** Two rag-service routes, both masked through privacy-service and failing
+closed (503 when privacy-service is down):
+- `POST /assistant/coverage` finds checklist items no observation covers and
+  observations too thin for their section. It starts when the Overview opens
+  and the evidence changed, at most once a minute, from the first checklist
+  and categorised observation until Review. The "gaps" topic waits for it
+  (typing dots) and raises its result as "Not Covered" and "Thin", each card
+  with a `help` line on what clears a row. Model
+  `ASSISTANT_COVERAGE_MODEL`.
+- `POST /assistant/wording` rewords each new bot turn once as an OpenUI Lang
+  program (`Reply`, `Lead`, `Say`, `Ticks`, `Steps`, `Alert`, `Card`). The rules pick
+  the format and the AI only words it: each piece is sent with its form, and a
+  card as its id and kind only (nothing a card shows is sent). The gateway
+  (`wording.service.ts`) never words the greeting (it shows at once in its rule
+  words), waits at most 4.5 s for the other new turns, and keeps a program only
+  when it has
+  the same pieces in the same order as the gateway's own program for the turn
+  (`programOf`; a run of plain words counts as one), so the AI can't add, drop
+  or move a lead line, a tick, a step, a green or stand-out message or a card.
+  Each part (the lead line, the stand-out message, each tick or step, a run of
+  plain words)
+  is then checked against the rule words it rewords: the same numbers; the
+  same names (the viewer's first name, the site, areas, sections, places); the
+  same stage, weekday and month names; no tick, list mark or pictograph typed
+  into the words; and bold only on a name the rules wrote in that part, with
+  every `**` closed. Otherwise the turn is drawn from its rule words in the
+  same format. The prompt tells the AI never to add the viewer's name: without
+  the greeting in the batch it put "Sure, Alex!" into the next turn, and the
+  name check refused 20 of 66 turns (round 9). rag-service also leaves out a turn whose masked value runs
+  across a sentence end (a mis-read name), so it keeps its rule words. Known
+  limit: inside one part a number is not tied to the word beside it. Model
+  `ASSISTANT_WORDING_MODEL`.
+The prompt file `app/assistant/marshbot_components.txt` is generated from the
+client's MarshBot library (`UPDATE_PROMPT=1`). MarshBot uses
+`@openuidev/react-lang` 1.1.0 under the npm alias `openui-lang-v1`; the
+knowledge chatbot stays on 0.4.1.
+
+**Numbers.** Server thresholds are in `services/assistant/settings.ts`, Focus's
+work-left days in `focus.service.ts`, and the browser's activity numbers in
+`client/src/features/marshbot/settings.ts`.

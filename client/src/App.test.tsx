@@ -134,7 +134,7 @@ describe('Marsh prototype integration', () => {
     // Every place stays, as an icon named by its label, with the label as a tooltip.
     expect(within(nav()).queryByText('Clients')).not.toBeInTheDocument()
     const clients = within(nav()).getByRole('button', { name: 'Clients' })
-    fireEvent.focus(clients)
+    act(() => clients.focus())
     expect(screen.getByRole('tooltip')).toHaveTextContent('Clients')
     expect(within(nav()).getByRole('button', { name: /^Assessments/ })).toBeInTheDocument()
     expect(within(nav()).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()

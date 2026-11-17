@@ -25,6 +25,8 @@ export type ClientRecordProps = {
   // After a change: the work list reloads (its own message is not shown).
   onChanged: (message: string) => void
   notify: (message: string, tone?: string) => void
+  // The tab to open on (AS-06: Details' See all opens Documents); the first tab when left out.
+  startTab?: 'documents'
 }
 
 type Props = ClientRecordProps & {

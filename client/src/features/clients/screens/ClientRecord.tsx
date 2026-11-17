@@ -45,10 +45,11 @@ export function ClientRecord({
   onOpen,
   returnTab,
   onChanged,
+  startTab,
 }: ClientRecordProps & { page: Page; onClients: () => void; bell?: ReactNode }) {
-  // Open work, unless the engineer is coming back from an assessment opened on
-  // another tab (CP-29): then that tab, so Back returns to where they were.
-  const [tab, setTab] = useState<TabId>(TABS.find((t) => t === returnTab) ?? 'open')
+  // Open work, unless MarshBot's Details asked for a tab (AS-06: See all opens Documents), or the
+  // engineer is coming back from an assessment opened on another tab (CP-29): then that tab.
+  const [tab, setTab] = useState<TabId>(startTab ?? TABS.find((t) => t === returnTab) ?? 'open')
   // An assessment opened from here remembers the tab it was opened from.
   const openVisit = (reference: string, site: string) => onOpen(reference, site, tab)
   const [open, setOpen] = useState<Open | null>(null)

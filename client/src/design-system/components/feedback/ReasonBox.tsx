@@ -6,7 +6,7 @@ import { Icon } from '../core/Icon'
 
 export type Reason = { title: string; text: string }
 
-/** Returns the visible box. It flips to the right edge when it would run off the screen. */
+/** Returns the visible box. It flips to the right edge, and above its control, when it would run off the screen or out of the dialog round it. */
 export function ReasonBox({
   title,
   text,
@@ -15,8 +15,21 @@ export function ReasonBox({
   const box = useRef<HTMLSpanElement>(null)
   useLayoutEffect(() => {
     const el = box.current
-    if (el && el.getBoundingClientRect().right > document.documentElement.clientWidth - 8)
-      el.setAttribute('data-flip', '')
+    if (!el) return
+    // A dialog scrolls and clips what sticks out of it (a Save button in its footer), so the box
+    // must fit inside the dialog too, not just the window.
+    const room = el.closest('dialog')?.getBoundingClientRect()
+    // A dialog's content stops 24px inside its edge (its padding): a box that hangs past that
+    // lines up with its control's right edge instead, as one in the window keeps 8px.
+    const right = Math.min(
+      room ? room.right - 24 : Infinity,
+      document.documentElement.clientWidth - 8,
+    )
+    const bottom = Math.min(room?.bottom ?? Infinity, window.innerHeight) - 8
+    const at = el.getBoundingClientRect()
+    if (at.right > right) el.setAttribute('data-flip', '')
+    // Inside a dialog only: a box on a page may run below the fold and scroll into view.
+    if (room && at.bottom > bottom) el.setAttribute('data-up', '')
   }, [])
   // No id: the control describes itself from the always-present hidden span (ReasonWrap).
   return (
