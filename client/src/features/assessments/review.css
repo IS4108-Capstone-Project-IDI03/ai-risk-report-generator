@@ -527,6 +527,39 @@
 .rv-finding + .rv-finding {
   margin-top: 16px;
 }
+/* Text drafted from the Ask tab and inserted (AS-04 AC2): violet, as a finding
+   waiting for a decision is, until the engineer accepts it; a sentence with no
+   supporting source underlined in amber and badged Unsupported (AC3). */
+.rv-ai-text {
+  padding: 8px 12px;
+  border-left: 2px solid var(--ai-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--ai-bg);
+}
+.rv-ai-text + .rv-ai-text {
+  margin-top: 4px;
+}
+.rv-finding + .rv-ai-text,
+.rv-ai-text + .rv-finding,
+.rv-written + .rv-ai-text,
+.rv-ai-text + .rv-written {
+  margin-top: 16px;
+}
+.rv-ai-words {
+  margin: 0;
+}
+mark.rv-ai-unsupported {
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--status-moderate-fg);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.rv-ai-text .rv-ai-asked {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
 .rv-finding-bar {
   display: flex;
   flex-wrap: wrap;

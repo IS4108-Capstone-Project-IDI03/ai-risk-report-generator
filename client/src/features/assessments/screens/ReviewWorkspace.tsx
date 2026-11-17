@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from 'react'
-import { Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { Button, Callout, EmptyState, IconRegistry, toast } from '../../../design-system'
 import {
   bulkAccept,
   decideFinding,
@@ -30,7 +30,17 @@ import type { Stamp } from '../comments/api'
 import { ReviewHistory } from '../components/ReviewHistory'
 import { ReviewSectionRail } from '../components/ReviewSectionRail'
 import { SectionReviewBar, type DraftView } from '../components/SectionReviewBar'
-import { SourcePanel } from '../components/SourcePanel'
+import { ObservationView, PassageView, SourcePanel } from '../components/SourcePanel'
+import {
+  ReviewInspector,
+  type InspectorAsk,
+  type InspectorTab,
+} from '../components/ReviewInspector'
+import { READ_ONLY, useAsk } from '../ask/useAsk'
+import { applyProposal, ProposalRefusedError } from '../ask/api'
+import type { AskDrafting } from '../ask/AskPanel'
+import { contentText, passageAt, type AskPassage } from '../ask/passage'
+import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
 import { WrittenBlocks } from '../components/WrittenBlocks'
 import {
@@ -47,6 +57,7 @@ import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSummary } from '../useSummary'
+import { useCompact } from '../useCompact'
 import '../review.css'
 // Loaded on first open: the document editor brings TipTap, which the rest of
 // the workspace can skip.
@@ -84,8 +95,10 @@ function replacementView(section: ReviewSection): ReviewSection {
   return {
     ...section,
     draft: replacement.draft,
-    // The saved draft's document edits name its findings, not these.
+    // The saved draft's document edits name its findings, not these; nor is
+    // AI-drafted text inserted into them (AS-04) part of it.
     document: null,
+    aiDrafts: [],
     sources: replacement.sources,
     observations: replacement.observations,
     review: {
@@ -126,6 +139,7 @@ export function ReviewWorkspace({
   onGenerate,
   historyRequest = 0,
   openSection,
+  canAsk = false,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -148,6 +162,9 @@ export function ReviewWorkspace({
   historyRequest?: number
   // The part to open on, from a MarshBot link (AS-06), e.g. '9'; the first drafted when left out.
   openSection?: string
+  // May ask questions about the assessment in the inspector's Ask tab (AS-01):
+  // anyone who can open it with `reports:ask`.
+  canAsk?: boolean
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis } = useOfis(reference)
@@ -191,6 +208,24 @@ export function ReviewWorkspace({
   const shownId = selected ?? workspace?.sections?.find((s) => s.draft)?.id ?? null
   useActivity(reference, 'review', canReview)
   useActivity(reference, 'section:' + shownId, canReview && !!shownId && !documentAt, true)
+  // The Ask tab (AS-01), kept here so an answer keeps streaming from section to section.
+  const ask = useAsk(reference, canAsk)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('evidence')
+  const [askSheet, setAskSheet] = useState(false)
+  // Below 760px the Ask tab is a bottom sheet (AS-01 AC1).
+  const phone = useCompact(759)
+  // The source last opened from an answer, for the parts with no draft (1, 2, 3, A).
+  const [askedRef, setAskedRef] = useState<string | null>(null)
+  // The passage an answer last went back to, marked in the draft (AS-02 AC3).
+  const [shownPassage, setShownPassage] = useState<CommentAnchor | null>(null)
+  // AI-drafted text being accepted or deleted (AS-04), by its proposal.
+  const [aiBusy, setAiBusy] = useState<string | null>(null)
+  // Brings a source opened from an answer into view, also when the panel sits
+  // below the draft (tablet) or the sheet just closed (phone).
+  useEffect(() => {
+    if (askedRef)
+      document.querySelector('[data-asked-viewer]')?.scrollIntoView?.({ block: 'nearest' })
+  }, [askedRef])
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the
@@ -250,6 +285,7 @@ export function ReviewWorkspace({
           readOnly={!canReview}
           canComment={canComment}
           me={me ?? undefined}
+          ask={canAsk ? ask : null}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)
             setDocumentAt(null)
@@ -291,6 +327,8 @@ export function ReviewWorkspace({
   const select = (id: string) => {
     setSelected(id)
     setFocus(NOTHING)
+    setAskedRef(null)
+    setShownPassage(null)
     setView('saved')
     setProblem(null)
     setRestored(null)
@@ -301,10 +339,141 @@ export function ReviewWorkspace({
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
+  // A part's text now, as the document editor reads it, to find a passage
+  // asked about in (AS-02 AC3); undefined while Section 2 is still loading.
+  const textOf = (id: string) => {
+    const listed = sections.find((s) => s.id === id)
+    if (listed) return contentText(id, sectionContent(listed))
+    if (id === '2')
+      return summary || summaryError
+        ? contentText(
+            id,
+            summaryContent(summary?.executiveSummary.draft ?? null, workspace.parts?.['2'] ?? null),
+          )
+        : undefined
+    if (id === '1' || id === '3' || id === 'A')
+      return contentText(id, partContent(workspace.parts?.[id] ?? null))
+    return null
+  }
+  const locatePassage = (anchor: CommentAnchor) => {
+    const text = textOf(anchor.sectionId)
+    return text === undefined ? undefined : passageAt(text, anchor) !== null
+  }
+  // "Ask about this" on text selected in the draft (AS-02 AC1): the Ask tab,
+  // or its sheet on a phone, opens with the passage in the question box.
+  const askAbout = (passage: AskPassage) => {
+    ask.setAbout(passage)
+    setShownPassage(null)
+    setInspectorTab('ask')
+    if (phone) setAskSheet(true)
+  }
+  // "Rewrite this" (AS-04 AC1): the same, with the passage to be rewritten.
+  const rewriteAbout = (passage: AskPassage) => {
+    ask.rewrite(passage)
+    setShownPassage(null)
+    setInspectorTab('ask')
+    if (phone) setAskSheet(true)
+  }
+  // Back to a passage asked about: its part opens, the passage marked there.
+  const showPassage = (passage: AskPassage) => {
+    const { sectionId } = passage.anchor
+    setHistoryOpen(false)
+    setAskSheet(false)
+    if (sectionId !== railId) select(sectionId)
+    setShownPassage(passage.anchor)
+  }
+  // Every source an answer cites, so the evidence panel can open one (AS-01 AC2).
+  const asked = {
+    passages: ask.items.flatMap((item) => item.passages),
+    observations: ask.items.flatMap((item) => item.observations),
+  }
+  // Selecting an answer's citation shows its source in the evidence panel,
+  // marked there as open (AC2); on a phone the sheet closes to show it.
+  const inspector = (current: string | null): InspectorAsk | undefined =>
+    canAsk
+      ? {
+          ask,
+          current,
+          onCite: (ref) => {
+            setInspectorTab('evidence')
+            setAskSheet(false)
+            setAskedRef(ref)
+            setFocus({ citation: ref, statement: null })
+          },
+          tab: inspectorTab,
+          onTab: setInspectorTab,
+          sheetOpen: askSheet,
+          onSheet: setAskSheet,
+          locate: locatePassage,
+          onShowPassage: showPassage,
+          drafting: drafting(),
+        }
+      : undefined
+  // A source opened from an answer, in a part with no draft to cite it.
+  const askedViewer = () => {
+    if (!askedRef) return null
+    const passage = asked.passages.find((p) => p.id === askedRef)
+    const observation = askedRef.startsWith('O:')
+      ? asked.observations.find((o) => o.id === askedRef.slice(2))
+      : undefined
+    if (!passage && !observation) return null
+    return (
+      <div className="rv-panel-section">
+        <article
+          className="rv-viewer"
+          data-asked-viewer=""
+          aria-label={passage ? 'Source passage' : 'Field observation'}
+        >
+          {passage ? (
+            <PassageView passage={passage} number={undefined} onClose={() => setAskedRef(null)} />
+          ) : (
+            <ObservationView
+              observation={observation!}
+              number={undefined}
+              onClose={() => setAskedRef(null)}
+              note="As sent with the question on the Ask tab."
+            />
+          )}
+        </article>
+      </div>
+    )
+  }
   const previous = sections[index - 1]
   const next = sections[index + 1]
   // The part the rail marks as open.
   const railId = selected && OPENING.has(selected) ? selected : (saved?.id ?? '')
+  // Drafting text into the report from the Ask tab (AS-04): for the assigned
+  // engineer only (AC5), into the section open when it is one of Sections 4
+  // to 12. Once text is inserted, replaced or undone, the workspace shows the
+  // section's new version, on that section.
+  const drafting = (): AskDrafting | undefined => {
+    if (!canReview || ask.archived) return undefined
+    const open = sections.find((s) => s.id === railId)
+    return {
+      target: open ? { sectionId: open.id, label: `${open.id}. ${open.title}` } : null,
+      onApplied: (after, proposal, item) => {
+        keep(after)
+        setHistoryOpen(false)
+        if (proposal.sectionId !== railId) select(proposal.sectionId)
+        if (proposal.status === 'inserted')
+          toast.success(
+            `${proposal.kind === 'draft' ? 'Inserted into' : 'Replaced in'} ${proposal.label}`,
+            {
+              description: 'It stays AI draft until you accept it.',
+              action: {
+                label: 'Undo',
+                onClick: () =>
+                  void ask.apply(item, 'undo').then((undone) => {
+                    if (undone) keep(undone.workspace)
+                  }),
+              },
+            },
+          )
+        else if (proposal.status === 'undone')
+          toast.success('Undone', { description: `The text before is back in ${proposal.label}.` })
+      },
+    }
+  }
   const rail = (
     <ReviewSectionRail
       sections={sections}
@@ -435,13 +604,14 @@ export function ReviewWorkspace({
         {body}
         {(id === '1' || id === 'A') && writtenIn(id)}
       </ReportPart>
-      <aside aria-label={`${title} notes`} className="om-scroll" style={panelStyle}>
+      <ReviewInspector label={`${title} notes`} style={panelStyle} ask={inspector(askedRef)}>
+        {askedViewer()}
         <div className="rv-panel-section">
           <div className="rv-viewer is-empty">
             <p className="rv-muted">{note}</p>
           </div>
         </div>
-      </aside>
+      </ReviewInspector>
     </div>
   )
   if (selected === '1')
@@ -567,7 +737,8 @@ export function ReviewWorkspace({
             {writtenIn('3')}
           </div>
         </section>
-        <aside aria-label="Section 3 suggestions" className="om-scroll" style={panelStyle}>
+        <ReviewInspector label="Section 3 suggestions" style={panelStyle} ask={inspector(askedRef)}>
+          {askedViewer()}
           <div className="rv-panel-section">
             <div className="rv-viewer is-empty">
               <p className="rv-muted">
@@ -584,7 +755,7 @@ export function ReviewWorkspace({
               </div>
             </div>
           </div>
-        </aside>
+        </ReviewInspector>
       </div>
     )
   }
@@ -606,6 +777,26 @@ export function ReviewWorkspace({
   const decideInDialog = async (save: () => Promise<Workspace>) => {
     keep(await save())
     setDialog(null)
+  }
+  // Accepts or deletes AI-drafted text in the section (AS-04), showing why if
+  // it is refused; the Ask tab's proposal shows where it now stands.
+  const settleAi = async (id: string, action: 'accept' | 'delete') => {
+    setAiBusy(id)
+    setProblem(null)
+    try {
+      const done = await applyProposal(reference, id, action)
+      keep(done.workspace)
+      ask.refreshProposal(done.proposal)
+    } catch (error: unknown) {
+      setProblem(
+        error instanceof ProposalRefusedError
+          ? `${error.reason.charAt(0).toUpperCase()}${error.reason.slice(1)}. ${error.next}`
+          : error instanceof Error
+            ? error.message
+            : 'The decision was not saved.',
+      )
+    }
+    setAiBusy(null)
   }
   const regenerate = async (instruction: string) => {
     setDialog(null)
@@ -667,6 +858,30 @@ export function ReviewWorkspace({
         describe={describe}
         onCite={cite}
         actions={actions}
+        // Ask about text selected in the draft (AS-02); not in a replacement
+        // waiting to be accepted, which is not the report's text yet.
+        ask={
+          canAsk && showing === 'saved'
+            ? {
+                label: `${saved.id}. ${saved.title}`,
+                onAsk: askAbout,
+                // Rewrite this (AS-04): the assigned engineer only.
+                onRewrite: canReview && !ask.archived ? rewriteAbout : undefined,
+                shown: shownPassage,
+                blocked: ask.archived ? READ_ONLY : undefined,
+              }
+            : undefined
+        }
+        // Accept and Delete on AI-drafted text (AS-04), for the assigned engineer.
+        aiActions={
+          canReview && showing === 'saved'
+            ? {
+                busy: aiBusy,
+                onAccept: (id) => void settleAi(id, 'accept'),
+                onDelete: (id) => void settleAi(id, 'delete'),
+              }
+            : undefined
+        }
         // Sections 4 and 5's figures (GN-03); saving them reloads the workspace, so
         // the draft shows as out of date when they changed.
         figures={
@@ -748,6 +963,8 @@ export function ReviewWorkspace({
         onCite={cite}
         onShowClaim={(claim) => setFocus((f) => ({ ...f, statement: claim }))}
         style={panelStyle}
+        ask={inspector(focus.citation)}
+        asked={asked}
       >
         <ReviewHistory
           entries={saved.history}

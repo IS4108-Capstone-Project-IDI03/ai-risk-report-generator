@@ -251,8 +251,10 @@ admins assign under RV-11.
 
 `PUT /api/assessments/:reference` corrects an assessment's own details (RV-10
 AC10): its visit type (`surveyType`, one of the three above, or its saved older
-type left unchanged, so an assessment not yet migrated can still be edited) and its site visit and
-report due dates, with the same validation as creating one (AC11). The engineer, client and site are not editable: they stay as the
+type left unchanged, so an assessment not yet migrated can still be edited) and its site visit,
+last survey day (`siteVisitEndDate`, CP-60) and
+report due dates, with the same validation as creating one (AC11). A date left out or sent empty is
+cleared, so a caller sends all three; the calendar's Reschedule and Edit details both do. The engineer, client and site are not editable: they stay as the
 assessment was created (CP-17 AC8). The site's details and its client's name
 change for all their assessments at once, through `/api/sites` and
 `/api/clients` (CP-28, below); a `site` sent here is ignored. A new site's
@@ -321,6 +323,79 @@ shows only under the Archived filter, and refuses a new capture session (409).
 `POST /api/assessments/:reference/restore` (AC9) clears `archivedAt`, with the same
 rules (assigned engineer only; 409 when it is not archived). The `reportStatus` and
 capture sessions were kept, so the assessment returns with the status it had.
+
+## Client insights (CP-29)
+
+The client page's Insights tab. Nothing new is stored for its figures: they are
+counted on read by `client-insights.service.ts` (rules `insights-v1`) from the
+assessments, observations, accepted OFIs and Section 4 scores above. No model is
+asked for them.
+
+`GET /api/clients/:id/insights` (`assessments:edit`; 403 with no assessment for
+the client, 404 unknown, as the client page) returns:
+
+- `totals`: sites, assessments, observations, uncategorised, Critical, High,
+  accepted OFIs, those at Priority 1 or 2, late reports and the latest one.
+- `byCategory` and each site's `cells`: observations per COPE category in
+  C-O-P-E order, then not categorised (`category: null`), each with its
+  Critical and High counts. An observation filed under two categories counts in
+  both.
+- `sites`, worst first: Critical findings, then Priority 1 OFIs, then rating
+  (unrated last), then Critical and High together, then name. Each has its
+  `reasons` (the words and tone of each chip), its `rating` (null until all
+  seven Section 4 scores are entered, never a guess), its `visits` (oldest
+  first) and `change` (Critical and High findings, first visit against latest).
+- `findings`, at most three: the most common category (only with five or more
+  observations and no tie), the site that got worse the most, the one that
+  improved the most, and the site with the most severe findings when no change
+  already names it. Each is a sentence written by code.
+- `empty` (no site has an observation), `summary` and `canSummarise` (below).
+
+What is counted:
+
+- Only the signed-in user's own assessments, as the client page lists them; a
+  knowledge admin's are everyone's. A colleague's work is never counted or named.
+- Archived assessments and removed sites are left out.
+- A site's figures come from its **latest assessment with observations**, so a
+  visit still to come, with nothing captured, does not blank what the last one
+  found. A site whose assessments have none shows zeros and "No observations yet".
+- Deleted observations and suggested OFIs are never counted.
+- A report is late when its assessment is not finalised and its due day has passed.
+
+### `client_insight_summaries`
+
+The written summary on that tab: one document per write, never changed. Each has:
+
+- `client`, and `userId`: who asked. It is written from their assessments, and
+  only they read it back (the tab shows their latest).
+- `statements[]`: `text` and `citations` (the numbers of the sources it rests on).
+- `sources[]`: `n`, `kind` (`observation` or `figure`), `title`, `meta`, `quote`
+  (the observation's own words, or the figure's lines, never the model's), and
+  for an observation its `observationId` and its assessment's `reference`.
+- `missing` (what the evidence did not cover, or null) and `confidence`
+  (`high`, `medium` or `low`, worked out from the checks, never asked of the model).
+- `basis`: how many observations, accepted OFIs and ratings it was written from.
+- `fingerprint`: a hash of the figures and observations the model was given. A
+  different one on read means `outOfDate: true`.
+- `provenance`: provider, model, effort, `prompt_version` (`cp29-v1`),
+  `rules_version`, `generated_at` and `privacy: { enabled, masked_count }`.
+- `metadata` with the five required fields: `source_type:
+  'client_insight_summary'`, `effective_date` (when it was written), and
+  `jurisdiction`, `facility_type` and `COPE_dimension` all `null`: a client has
+  no jurisdiction or facility type of its own, and a summary is not one finding.
+  A documented exception to the metadata rule (CLAUDE.md), as a whole-client
+  document's is.
+
+`POST /api/clients/:id/insights/summary` (`assessments:edit`) writes one and
+returns it: 201, or 403, 404, 409 when there is no observation with words to
+write from or one is already being written for this user and client, 503 with
+the reason when client details could not be masked (nothing was sent) or the
+model or its checks failed. It is never part of a report or its export. See
+[services](services.md), "Client insights summary".
+
+`npm --prefix server run seed:cp29` adds a demo client, Harbourline Logistics,
+with five sites, repeat visits, observations, accepted OFIs and scores
+(`seed:cp29:remove` removes only it). Run `npm run seed` first.
 
 ## Client intakes and client documents (CP-23)
 
@@ -490,10 +565,11 @@ with the same list.
 | --- | --- | --- | --- |
 | `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
-| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only) | yes | yes |
+| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only) | yes | yes |
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
+| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03): asking about an assessment in the review workspace's Ask tab, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -603,7 +679,7 @@ two removals at once can't leave nothing. The API lists only kept ones under
 `removedRecordings`, `removedPhotos` and `removedPages`, so everything that
 reads the former leaves removed ones out without asking: drafting, the section
 evidence counts, the wait for transcriptions before drafting, the Photos tab,
-the Scans view and the photo appendix (EX-01). Removing or restoring a
+the Scans view, All Recordings (CP-12) and the photo appendix (EX-01). Removing or restoring a
 transcribed recording or page, or adding one once it is transcribed, changes
 the text a draft was given, so it counts in `changesSinceDraft`; photos are
 not drafting evidence, so they don't. A removed recording's or page's text
@@ -953,7 +1029,9 @@ each save or restore adds a version. Each version has:
   subsection (all of it in a section without subsections); `subsections` are
   the draft's, in order, each `{ heading, blocks }`, a table's always empty.
   A block is a `paragraph` (`content`, and `finding` as
-  `<subsection>.<statement>` when it came from the draft), a `heading` (the
+  `<subsection>.<statement>` when it came from the draft, or `ai`, the
+  `_id` of the [proposal](#proposed-text-as-04) whose text it is while that
+  text awaits the engineer's Accept, AS-04; never both), a `heading` (the
   engineer's sub-heading, with `finding` too when it is a finding set as a
   sub-heading) or a `bulletList` / `orderedList` of paragraphs.
   Content is `{ type: 'text', text, marks? }` (marks: `bold`, `italic`,
@@ -1066,6 +1144,143 @@ unknown assessment, thread or comment; 409 once the assessment is archived.
 `GET /api/assessments/:reference/export` also returns `openThreads`, how many
 threads are still open, which the Export tab shows as a reminder that never
 blocks the export (AC9).
+
+## Ask conversations (AS-01, AS-03)
+
+`assistant_conversations` (`server/src/models/assistant-conversation.model.ts`)
+holds the questions asked in the review workspace's Ask tab, kept in
+conversations (AS-03): one document per conversation, per assessment and per
+user, holding its questions with their answers as `turns`, oldest first. A
+conversation is its asker's alone: every read and write is scoped to `userId`
+and the assessment, so another user's (a knowledge admin's included) answers
+404, the same as one deleted. The tab opens on the latest (`lastAskedAt`).
+Questions saved before AS-03, one document each in `assessment_questions`,
+are moved here by `npm --prefix server run migrate:ask-conversations`
+(one-off, safe to re-run): each user's questions on an assessment become one
+conversation, and the old collection is dropped once every question is in one.
+
+| Field | Meaning |
+|---|---|
+| `assessment`, `userId` | the assessment, and whose conversation it is |
+| `title` | its first question, whitespace collapsed and trimmed to 60 characters with "…" (no AI call) |
+| `lastAskedAt` | when its last question was asked: the latest conversation is the one the tab opens on |
+| `turns` | its questions, oldest first, at most 100 (`MAX_CONVERSATION_QUESTIONS`; a question into a full one is 409 and the tab says to start a new one). Each is below |
+| `metadata` | the five required fields: `source_type: 'assistant_conversation'`, the site's `jurisdiction` and `facility_type`, `COPE_dimension: 'all'` (a conversation covers the whole assessment) and `effective_date` (when it was started) |
+
+Each turn:
+
+| Field | Meaning |
+|---|---|
+| `_id` | the question's id (kept from `assessment_questions` by the migration) |
+| `question` | as asked, at most 1,000 characters |
+| `proposal` | a request for text for a section (AS-04): the `_id` of its [proposal](#proposed-text-as-04); `null` for a question |
+| `passage` | the text selected in the draft that the question is about (AS-02), or rewritten (AS-04), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
+| `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
+| `missing` | what evidence the answer says is missing (AS-01 AC4) |
+| `sources` | the cited sources as S4 returned them, by `ref` (AS-03 AC3): a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
+| `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
+| `error` | `{ step, cause, at }` when it stopped, else `null` |
+| `provider`, `model`, `promptVersion` | what wrote the answer (AS-03 AC3), from its trace's `provider` (S4's `LLM_PROVIDER`), `model` and `prompt_version`; `null` while answering, or when S4 was never reached |
+| `askedAt`, `answeredAt` | when it was asked, and when its answer ended (`null` while answering) |
+| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+
+- A question is saved (pushed onto its conversation, or as the first of a
+  new one) before S4 is asked, so it is kept even if the answer fails; the
+  answer, sources, provider, model, times and trace are written into the
+  same turn once the stream ends. A conversation deleted while an answer is
+  written stays deleted.
+- The evaluation harness can replay a turn from its `question`, `passage`
+  and the trace's `scope`, and score it against its `statements`, `sources`
+  and `guardrail` (AS-03 AC3).
+- Never part of the report (AS-03 AC4): the export reads nothing here, and
+  asking, starting or deleting a conversation adds no version to
+  `report_section_versions`, no entry to `review_audit_log`, and nothing to
+  `report_comment_threads` (AS-02 AC5).
+- On an archived assessment conversations are only read: asking and deleting
+  answer 409 (AS-03 AC5).
+- Deleting a conversation is permanent and deletes its questions and answers.
+  Its paid calls stay in `ai_calls` (feature `ask`, and `retrieval` for
+  Cohere, with the assessment's `reportId`).
+- The browser never gets a turn's `provider`, `model`, `promptVersion`,
+  `answeredAt` or `trace`.
+- Index `{ assessment, userId, lastAskedAt: -1 }`.
+
+| Route | Does |
+| --- | --- |
+| `GET /api/assessments/:reference/ask` | `{ scope, archived, conversations, conversation, questions }`: the user's conversations, latest first (at most 100), each `{ id, title, startedAt, lastAskedAt, questions }` (a count); the latest, and its questions oldest first; whether the assessment is archived; and what a new question searches. |
+| `GET /api/assessments/:reference/ask/conversations/:id` | `{ conversation, questions }` for one of the user's conversations. |
+| `DELETE /api/assessments/:reference/ask/conversations/:id` | Deletes it for good. 204. |
+| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). Server-sent events, the first (`question`) naming the conversation it went into. |
+
+All need `reports:ask` and an assessment the caller can open (403
+otherwise); 404 for an unknown assessment, or a conversation that is not the
+user's or was deleted; 409 once the assessment is archived (asking and
+deleting) or when the conversation is full; 429 over the question limits.
+A conversation's 404, the 409s and the 429 also carry the `cause`, `at` and
+`next` step the tab shows.
+
+## Proposed text (AS-04)
+
+`report_text_proposals` (`server/src/models/report-text-proposal.model.ts`)
+holds text drafted or rewritten for one of Sections 4 to 12 from the Ask tab:
+one document per request, made by `text-proposal.service.ts`. The turn that
+asked for it in `assistant_conversations` points to it (`proposal`). It belongs
+to the report once inserted: the review workspace reads the sources inserted
+text cites from here (never from the conversation, which the export may not
+read), and deleting a conversation leaves it. Only its asker sees and inserts
+it; the assigned engineer accepts or deletes its text in the section.
+
+| Field | Meaning |
+|---|---|
+| `assessment`, `sectionId` (`4`-`12`), `label` | the section, and how the report heads it ("10. Exposures") |
+| `kind` | `draft` (new text) or `rewrite` (of the paragraphs a selection is in) |
+| `userId`, `conversation`, `turn` | who asked, and where |
+| `request` | what was asked, at most 1,000 characters |
+| `choices`, `subsection` | a draft: the subsections it can go at the end of (`{ index, heading }`, none for a section with no draft: its text before any subsection, `-1`), and the one it goes in, as the model suggested or the engineer chose |
+| `replaces` | a rewrite: `{ from, to, words, citations }`, the text blocks it replaces (their order in the section's text), their words then, and what they cite in the drafting set; else `null` |
+| `base` | `{ version, draft, signature }`: the section's newest version (0 for none), saved draft and a SHA-256 of its text when it was proposed. Insert refuses (409 `stale`) once any differs (AC6) |
+| `status` | `drafting`, then `proposed` (with text) or `failed`; `inserted` once in the section; then `accepted`, `deleted` or `undone` |
+| `sentences` | `{ text, citations, supported, paragraph }`: each sentence, the citations that count (as an answer's), `supported: false` with none (AC3), and its paragraph from 0 |
+| `missing` | what evidence S4 said was missing; not part of the text |
+| `sources` | the cited sources as S4 returned them, by citation ID: a standard passage's text and Chroma labels, or an observation as it was sent |
+| `provider`, `model`, `promptVersion` | what wrote it, from S4's trace (`as04-v1`) |
+| `insertion` | `{ version, previous, signature, at, by }`: the version Insert or Replace made, the section's text just before (what Undo restores), a signature of the text it made (Undo refuses once it differs), who and when; `null` until inserted |
+| `settled` | `{ action, at, by }`: the last Accept (`accepted`), Delete (`deleted`) or Undo (`undone`); `null` before |
+| `metadata` | the five required fields: `source_type: 'report_text_proposal'`, the site's `jurisdiction` and `facility_type`, the section's one category (else `all`) as `COPE_dimension`, and `effective_date` (when proposed) |
+
+Indexes `{ assessment, userId }` and `{ assessment, sectionId, 'insertion.at' }`.
+
+Inserted text is a section version's paragraphs marked `ai: <proposal _id>`
+(see [Report section versions](#report-section-versions-rv-08-rv-06)), each
+sentence then its citation markers. Whether text awaits Accept is read from the
+section's current version, not from `status`: a version restored from the
+history can bring it back. A sentence is still unsupported while it is in a
+paragraph of its proposal's text word for word with no citation marker
+straight after it (`section-document.ts` `unsupportedAiText`, the client's
+`aiText.ts`). `GET …/review` gives each section `aiDrafts` (each
+insertion awaiting Accept: `{ id, kind, request, unsupported, insertedAt,
+insertedBy }`) and `review.aiText` (`{ pending, unsupported }`), and adds the
+passages and observations inserted text cites to its `sources` and
+`observations`. Either count makes the section `needs_review`; text awaiting
+Accept is not "Edited by you".
+
+| Route | Does |
+| --- | --- |
+| `POST /api/assessments/:reference/ask` | with `propose: { kind: 'draft', sectionId }`, or `{ kind: 'rewrite' }` and a `passage`: asks for text (`reports:generate` too, and the assigned engineer). The turn's answer carries `proposal`. |
+| `POST /api/assessments/:reference/proposals/:id/insert` | `{ subsection? }`: a draft's text at the end of its subsection, as the section's next version. |
+| `POST /api/assessments/:reference/proposals/:id/replace` | a rewrite's text in place of the paragraphs it rewrote. |
+| `POST /api/assessments/:reference/proposals/:id/undo` | the section's text from before the insert, as its next version (`restoredFrom` the version or draft it was), while nothing changed since. |
+| `POST /api/assessments/:reference/proposals/:id/accept` | the text kept as the engineer's (no `ai` mark), refused while a sentence is unsupported. |
+| `POST /api/assessments/:reference/proposals/:id/delete` | the text taken out. |
+
+The proposal routes need `reports:generate` and the assigned engineer (403),
+on an assessment neither archived nor finalised (409); insert, replace and
+undo also the proposal's asker (404 otherwise). Each answers `{ proposal,
+workspace }`. Refusals carry `cause`, `next`, `at` and `code`: `stale` (the
+section changed since; AC6), `drafting-set` (a standard it cites is no longer
+selected; AC4), `unsupported` (Accept with a sentence unsupported; AC3),
+`state`, `target`, `moved` or `finalised`.
 
 ## Opportunities for Improvement (GN-05)
 
@@ -1231,7 +1446,9 @@ engineer's changes over from the latest). Each document has:
   the hazard list's own item when the model wrote none; or `manual`, added by
   the engineer, CP-32), `hazard` (the configured hazard's id),
   `text`, `fields` (the template subsection's fields), `COPE_dimension` (a
-  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`), and `flags`
+  list), `citations` (`ref`, a `C:` ID; `quote`; `quoteFound`; `quoteDescribed`,
+  true only when the words are only in a picture's AI description, KB-02, else
+  absent), and `flags`
   (`uncited`: it rests on no passage; never on a template or `manual` item).
   `status`: `active`, or `removed` by the engineer (CP-32), kept so it can be
   restored and stays removed when generated again. `prefill` (`null`) is kept
@@ -1355,6 +1572,23 @@ pipeline's `doc_id`, `headings`, pages and `bbox`: the worker adds them at
 ingest, and a correction rewrites them in place (KB-01). An Unconfirmed detail
 (IN-05) is left out of the passage, since Chroma can't store null, so no filter
 can match it.
+
+A passage read from a table, formula or picture may also record its **region**: the
+part of the original page a citation shows (KB-02). `bbox` can't serve: a table
+passage's `bbox` also holds the prose, captions and pictures in its chunk, and a
+formula passage's is the whole chunk. Only a described picture's `bbox` is the
+picture alone.
+
+| Key | Meaning |
+|---|---|
+| `region_kind` | `table`, `formula` or `picture`; absent for plain text |
+| `region_bbox` | flat `[l, t, r, b, …]` in PDF points from the page's bottom-left, only the boxes to show |
+| `region_pages` | the page of each box in `region_bbox`, in the same order |
+
+`bbox`/`bbox_pages` stay as they are (the chat's PDF tab outlines the whole passage
+with them). Ingestion doesn't write the region keys yet (IN-__); until it does, S4
+gives a described picture (`generated_text: picture_description`) its `bbox` as its
+region, and every other passage none.
 
 Knowledge documents carry no `COPE_dimension` (an exception to the
 five-field rule): each passage carries its own `section` instead (IN-05).
@@ -1706,7 +1940,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document` or `chat` |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk`, `client-intake` or `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) |
 | `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |

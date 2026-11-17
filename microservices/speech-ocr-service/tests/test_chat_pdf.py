@@ -63,6 +63,8 @@ def test_a_page_with_only_a_picture_is_skipped_and_named():
         (pdf_bytes(password="secret"), "password-protected"),
         (pdf_bytes()[:200], "could not be"),
     ],
+    # Short ids: pytest puts each id in an env var, which Windows caps at 32,767 chars.
+    ids=["empty", "not-pdf", "too-many-pages", "picture-only", "no-text", "password", "truncated"],
 )
 def test_refuses_what_it_cannot_read_and_says_why(data, reason):
     response = extract(data)

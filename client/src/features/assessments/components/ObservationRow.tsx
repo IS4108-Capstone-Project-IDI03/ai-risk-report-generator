@@ -1,13 +1,24 @@
 // One observation in the Observations tab's list (CP-22): its category icon,
 // its text, category, severity symbol and status icon. Pressing it opens the
 // observation's own page. A deleted one offers Restore in the row itself.
+// While a search is on (CP-13), its words are marked in the text, and where
+// else they were found is said under it: "Matched in Recording 2".
 // Rendered by components/ObservationList.tsx.
 import { Icon } from '../../../design-system'
 import type { ObservationRowView } from '../useObservationsView'
+import { HitText } from './HitText'
 import { ObservationBadge } from './ObservationBadge'
 import { CategoryMark, SeverityMark, StatusMark } from './ObservationMarks'
 
-export function ObservationRow({ o, onOpen }: { o: ObservationRowView; onOpen: () => void }) {
+export function ObservationRow({
+  o,
+  words = [],
+  onOpen,
+}: {
+  o: ObservationRowView
+  words?: readonly string[]
+  onOpen: () => void
+}) {
   const row = (
     <button
       type="button"
@@ -25,9 +36,17 @@ export function ObservationRow({ o, onOpen }: { o: ObservationRowView; onOpen: (
           </span>
         )}
       </span>
-      <span className="ob-row-text">
-        {o.isNew && <span className="ob-sr">{'New. '}</span>}
-        {o.text}
+      <span className="ob-row-main">
+        <span className="ob-row-text">
+          {o.isNew && <span className="ob-sr">{'New. '}</span>}
+          <HitText text={o.text} words={words} />
+        </span>
+        {o.matchedIn && (
+          <span className="ob-row-match">
+            <Icon name="search" size={12} />
+            {o.matchedIn}
+          </span>
+        )}
       </span>
       {/* One category per line, so several never run past the column. */}
       <span className="ob-row-cat">

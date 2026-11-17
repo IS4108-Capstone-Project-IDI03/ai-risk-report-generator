@@ -124,6 +124,7 @@ def test_each_citation_is_checked_against_its_passage(fake):
         "page_end": 13,
         "quote": "at least 18 in. (450 mm) clearance",
         "verified": True,
+        "described": False,
         "withdrawn": False,
     }
     assert bad["verified"] is False  # AC2
@@ -871,3 +872,75 @@ def test_a_search_failure_says_what_failed_with_a_reference_and_is_logged(
     assert "ReadTimeout" not in _program(events)
     assert "ReadTimeout" in _result(events)["error"] and "ref " in _result(events)["error"]
     assert any("ref" in r.getMessage() for r in caplog.records)
+
+
+# KB-02: a picture passage's description is a model's words, not the document's (IN-13).
+PICTURE = {
+    "id": "fm:picture:9",
+    "text": (
+        "Figure 4. Cylinder rack\n"
+        "Image description (generated, photograph): Two red cylinders strapped to a wall rack.\n"
+        "Text in image: FM-200 50 kg"
+    ),
+    "metadata": {"doc_id": "fm", "page_start": 20, "generated_text": "picture_description"},
+    "relevance_score": 0.9,
+}
+
+
+def _cite_picture(fake, quote):
+    fake["passages"] = [PICTURE]
+    fake["chunks"] = [
+        "root = Answer([s1])\n",
+        's1 = Statement("The rack holds cylinders.", [c1])\n',
+        f'c1 = Cite("P1", "{quote}")\n',
+    ]
+    [citation] = _result(_ask("How are the cylinders stored?"))["citations"]
+    return citation
+
+
+def test_a_quote_only_in_a_generated_picture_description_is_not_verified(fake):
+    assert _cite_picture(fake, "Two red cylinders strapped to a wall rack")["verified"] is False
+
+
+def test_a_quote_only_in_a_picture_description_is_cited_as_described(fake):
+    citation = _cite_picture(fake, "Two red cylinders strapped to a wall rack")
+    assert (citation["verified"], citation["described"]) == (False, True)
+    meta = _program(_ask("How are the cylinders stored?")).rstrip().splitlines()[-1]
+    assert (
+        '{label: "P1", quote: "Two red cylinders strapped to a wall rack", described: true}' in meta
+    )
+
+
+def test_a_quote_in_neither_the_picture_nor_its_description_is_not_described(fake):
+    citation = _cite_picture(fake, "Blue cylinders on the floor")
+    assert (citation["verified"], citation["described"]) == (False, False)
+    meta = _program(_ask("How are the cylinders stored?")).rstrip().splitlines()[-1]
+    assert '{label: "P1", quote: "Blue cylinders on the floor"}' in meta
+
+
+@pytest.mark.parametrize("quote", ["Figure 4. Cylinder rack", "FM-200 50 kg"])
+def test_a_picture_caption_and_its_printed_text_are_still_verified(fake, quote):
+    assert _cite_picture(fake, quote)["verified"] is True
+
+
+def test_a_description_over_several_lines_is_left_out_up_to_the_next_paragraph(fake):
+    fake["passages"] = [
+        {
+            **PICTURE,
+            "text": (
+                "Image description (generated, diagram): A pump room.\n"
+                "Valves line the north wall.\n"
+                "\n"
+                "Pumps shall be tested weekly."
+            ),
+        }
+    ]
+    fake["chunks"] = [
+        "root = Answer([s1, s2])\n",
+        's1 = Statement("Valves.", [c1])\n',
+        'c1 = Cite("P1", "Valves line the north wall")\n',
+        's2 = Statement("Weekly.", [c2])\n',
+        'c2 = Cite("P1", "Pumps shall be tested weekly")\n',
+    ]
+    description, prose = _result(_ask("Pump room?"))["citations"]
+    assert (description["verified"], prose["verified"]) == (False, True)

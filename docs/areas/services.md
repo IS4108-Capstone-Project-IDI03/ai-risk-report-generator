@@ -203,9 +203,13 @@ is (CP-03), and becomes drafting evidence.
    again (CP-20) to the assessment’s assigned engineer (`POST
    /api/observations/:id/pages/:pageId/retranscribe`), which clears its text,
    and any correction, and runs steps 2-4 once more; for a corrected page the
-   browser asks first. The Scans view, opened from the Observations
-   tab's Scans box beside Photos, lists every page of the assessment's
-   observations not deleted the same way, each with Go to observation.
+   browser asks first. All Handwritten Pages, opened from the location
+   navigator beside All Photos and All Recordings (CP-12), lists every page
+   of the assessment's observations not deleted, each with its state, Retry,
+   and its transcript to open, shown the same way; its text opens the
+   observation. Its search (CP-13, in the browser) looks in the text as
+   shown, the correction or else the model's reading, and marks the words
+   found inside any uncertain word's underline.
    Drafting uses the text as transcribed, or as the engineer corrected it; the
    uncertain marks are for the engineer and are not sent to S4.
 6. The assigned engineer manages a saved observation's pages (CP-20) as
@@ -389,6 +393,47 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   table that read on some of its pages is not. Its passage id is
   `<id>:table:<n>:picture[:g<k>]`, so it never clashes with a picture of the same
   chunk (`<id>:picture:<n>`).
+
+### Cited regions and formulas (KB-02)
+
+- **What S4 returns.** `GET /passages/{id}` (`app/chat/passages.py`), through the
+  gateway's `GET /api/chat/passages/:id`, adds `region` (`{ kind, boxes }` or null)
+  and `generated`. A table or formula region comes only from the passage's
+  `region_kind`/`region_bbox`/`region_pages` keys (see database.md); a described
+  picture with no region keys gets its own `bbox`; anything else is null, so today's
+  table and formula passages show as text. No box is guessed: the largest box of a
+  table chunk is often its prose.
+- **What is quotable.** `quotable_text` (`app/generation/generator.py`) leaves out a
+  described picture's `Image description (generated …)` block, up to its
+  `Text in image:` line or the next blank line. A quote found only in a model's
+  description is therefore never "found" in the document, in chat, the checklist or
+  Ask. The caption, the printed text and the prose stay quotable.
+- **Three outcomes.** `quote_check(quote, passage)` (same file) returns `found`,
+  `described` (only in the description: a real citation of what the answer read) or
+  `missing`. Every check uses it. The boolean stays false for a described quote, and a
+  separate flag marks it: `described` on a chat or Ask citation, `quote_described` from
+  `/checklist/draft` (`quoteDescribed` in Mongo), absent meaning false. Chat's `meta`
+  line marks it on the `unverified` entry, `{label, quote, described: true}`. The
+  screens show a neutral "from the AI's reading of the figure" note, not "not found".
+  In Ask it counts against neither confidence nor `guardrail.passed`; the trace
+  counts it in `described_citations`. The gateway's check of a hand-chosen checklist
+  quote (`checklist.service.ts` `quoteCheck`) does the same, leaving out the
+  description as S4 does.
+- **Where it shows.** The chat's Passage tab and the review workspace's source panel
+  draw the region above the passage text (`client/src/features/sources/`:
+  `CitedRegion`, `SourceRegion`), with react-pdf as the PDF tab does (`pdfSetup.ts`).
+  Review looks the passage up live by its chunk id only for the region; its text stays
+  as the draft was given it. The page is drawn out of sight and the box copied out of
+  its canvas as an image, 8 points (`MARGIN`) more than the box on each side, inside
+  the page, since Docling's boxes sit tight on a table's top rule. The image scales
+  down to fit the panel, never wider than it and never taller than 24rem
+  (`sources.css`). A region that can't be drawn shows nothing. The region is never sent to an AI model.
+- **Formulas as math.** `PassageBody` renders the LaTeX the formula reader wrote
+  (`$$…$$`, `\[…\]`, or a line with a command and no run of prose; words inside
+  `\text{}` or `\mathrm{}` are not prose) with KaTeX, lazy-loaded. A formula the text
+  breaks over lines (a brace left open, or the next line starting with `{`) is joined
+  first. LaTeX KaTeX rejects, and a formula holding the quoted words, show as written.
+  A formula ingestion didn't recognise is stored as plain text and stays so.
 
 See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
 
@@ -737,8 +782,9 @@ of date and to regenerate it.
    subsection (6) is put under it when the model leaves it out.
 5. Code checks the result. A citation of a passage not given is dropped; each
    quote is looked for in its passage, the headings shown with it and then its
-   text (`quote_found` over `quotable_text`, as chat does): a past report's
-   cover lines, for one, are headings only. An item
+   text (`quote_check`, as chat does): a past report's
+   cover lines, for one, are headings only. A quote only in a picture's AI
+   description is `quote_described` (KB-02). An item
    left with no citation is flagged `uncited`. A configured hazard with no item
    gets the config's own item, with origin `hazard_list` (written by the team,
    so not shown as AI-generated) and flagged `uncited`. Items are placed after their
@@ -781,7 +827,8 @@ from the item's own words, and opens a passage to read; the engineer may
 select the words the item rests on, else its first sentence is quoted. The
 gateway fetches a newly chosen passage from S4 (`GET /passages/{id}`), refuses
 one outside the checklist's standards or no longer applying to the site, looks
-for the quote in it as S4 does (`quoteFound`) and keeps the passage in the
+for the quote in it as S4 does (`quoteCheck`: `quoteFound`, or `quoteDescribed`
+for words only in a picture's AI description, KB-02) and keeps the passage in the
 checklist's `sources`, so the reference reads the same later and offline.
 
 **Passage search.** S4's `POST /passages/search` (`app/retrieval/keyword_search.py`)
@@ -1012,6 +1059,58 @@ unit-tested in `tests/test_client_intake_eval.py`.
 uv run python -m eval.client_intake.run_eval --split tuning [--only p01,p02] [--privacy on]
 ```
 
+## Client insights summary (S4, gateway, CP-29)
+
+The written summary on a client's Insights tab. The figures on the tab are
+counted by the gateway alone ([database](database.md), "Client insights"); only
+this summary asks a model. It is written in place when the engineer asks (about
+10-15 s), never on opening the tab, and never streamed.
+
+Gateway (`client-insight-summary.service.ts`):
+1. Builds the evidence from the user's own figures: `figures` (F1 observations
+   by category, F2 rating and accepted OFIs by site, F3 change between visits,
+   as lines of text) and `observations` (O1, O2, ...: each latest assessment's
+   observations with words, most severe first, at most 60, each cut to 600
+   characters).
+2. Sends them to `POST /client-insights/summary` with `privacy` from
+   `chatPrivacy()`: notes at one client can name another, so every client, site
+   and person is masked, as chat masks them.
+3. Records the usage (`ai_calls`, feature `client-insights`, for the user).
+4. Numbers the cited sources in the order they are first cited, each with its
+   own words, and saves the summary. Nothing is saved when the call fails or no
+   statement is left.
+
+rag-service (`app/client_insights/summary.py`, prompt `cp29-v1`, `INSIGHTS_MODEL`
+and `INSIGHTS_EFFORT` on `LLM_PROVIDER`):
+1. One `/mask` call covers the client's name, the figures and the observations,
+   before any model call. It fails closed: masking down is 503 and nothing is sent.
+2. One `complete` call returns 3 to 5 statements, each with the labels it rests on.
+3. Real names are put back, then each statement is checked in code. It is left
+   out when it cites no source it was given, breaks the Ask tab's content rules
+   (`ask.content_problem`: first person, advice, a percentage of certainty),
+   holds a placeholder that could not be restored, or uses a number its cited
+   sources don't give (a source's own label, "F3", does not count as a number).
+4. `confidence` is `low` when a statement was left out, `medium` when something
+   is missing or no statement rests on an observation, `high` otherwise. With no
+   statement left the call fails (502), and the gateway answers 503 with the reason.
+
+Not built: an evaluation set for the summary. The checks above are unit tested;
+how often a real summary passes them, and how useful it reads, is not yet measured.
+
+## Calendar (client, CP-60)
+
+The Calendar (`/calendar`, `client/src/features/calendar/`) has no service of its own. It is drawn
+in the browser from the work list, `GET /api/assessments`, which the gateway already scopes by role,
+so it adds no endpoint, collection or model call.
+
+- **Reads:** each assessment's `siteVisitDate`, `siteVisitEndDate`, `reportDueDate`, `status`,
+  `engineer` and `siteContacts`. Archived assessments are left out. `calendar.ts` holds the dates and
+  the layout (weeks from Monday, entries in lanes, the report due states) as pure functions.
+- **Writes:** Reschedule saves through `PUT /api/assessments/:reference` (RV-10), sending the type
+  unchanged and all three dates. Only the assigned engineer may, and not once archived (403, 409).
+- **New assessment on a day** opens the New Assessment form (CP-23) with that day as the first
+  assessment's survey start; nothing is created until the form is.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for
@@ -1093,6 +1192,283 @@ Regenerate:
    and then accept (it becomes the saved draft, every finding pending) or
    discard (nothing else changes).
 
+## Asking about an assessment (S4, AS-01)
+
+The review workspace's right inspector has two tabs, Evidence and Ask
+(`client/src/features/assessments/components/ReviewInspector.tsx`). Ask
+(`ask/AskPanel.tsx`, `ask/useAsk.ts`) answers an engineer's question from the
+assessment's own evidence, with citations.
+
+1. The tab reads `GET /api/assessments/:reference/ask` once when the
+   workspace opens: the user's own conversations on the assessment (AS-03),
+   the latest with its questions and answers (oldest first), and the scope a
+   new one searches. See [Conversations](#conversations-as-03) below.
+2. A question is one `POST /api/assessments/:reference/ask` with
+   `{ question }` (1 to 1,000 characters), and `conversation` to go into the
+   one on screen. Its answer streams back as
+   server-sent events on that request: `question` (the saved id and the
+   conversation it went into), `step`
+   (`retrieve`, then `generate`), each checked `statement` with the sources
+   it cites (so a citation opens while the answer is still written, and after
+   it stops), any `missing` line, then `result` with the saved answer. The tab never polls, so the
+   F-07 idle sign-out still applies.
+3. The gateway (`assessment-ask.service.ts`) checks `reports:ask` and that
+   the user can open the assessment (its assigned engineer or a knowledge
+   admin), counts the question against the chat's limits (10 a minute, 200
+   a day, $2 a day, shared with CB-01; over one it answers 429 with the
+   cause, time and next step), and saves the question in its conversation
+   before asking S4.
+4. It builds S4's request (`POST /assessments/ask`) itself, never from the
+   browser:
+   - `observations`: every observation not deleted with something recorded
+     (note, finished transcript or transcribed page), categorised or not
+     (`COPE_dimension` null), oldest first.
+   - `standard_ids`: the standards selected on the assessment, read from
+     `knowledge_documents`: the latest checklist's (CP-30), or, before any
+     checklist, every standard that applies to the site
+     (`listApplicableStandards`). Only those finished, not withdrawn and with
+     no Unconfirmed details are kept, so one withdrawn since the checklist is
+     no longer searched.
+   - `documents`: the name the prompt gives each of those standards and each
+     past report matching the site's jurisdiction and facility type.
+   - `privacy`: as drafting (`privacyFor`, PV-02).
+5. S4's orchestrator (`orchestrator.ask`, prompt and checks in
+   `app/generation/ask.py`) runs one pipeline:
+   - **retrieve**: one `/mask` call for the question, observations and
+     document names; one batched Cohere embed of the question, searching
+     the standards' passages through a Chroma `doc_id` filter and past
+     reports (`marsh_report`) filtered to the site's jurisdiction and
+     facility type (`all` matches either), 20 candidates each; then one
+     Cohere rerank of the observations, standards and (masked) past reports
+     together, keeping at most 8 observations, 6 standard passages and 4
+     past-report passages scoring at least `ASK_MIN_RELEVANCE` (0.1). If
+     rerank fails, vector order is used (the first 20 observations).
+   - **assemble**: the evidence labelled `O1`, `C1`, `P1`. With nothing
+     kept, no model is asked and the answer is one Missing line naming what
+     was searched.
+   - **generate**: `llm.stream_text` with `LLM_PROVIDER`, `ASK_MODEL`
+     (default `LLM_MODEL`) and `ASK_EFFORT` (default `low`), feature `ask`.
+     The model writes one statement per line with its citations after it
+     (`[O2]`, `[C1 "exact words"]`), or a `Missing:` line.
+   - **guardrail**, on each line before it is sent: real values back; a
+     citation counts only if it names a label the model was given, and its
+     quote is looked for in that passage or observation (`verified`). A line
+     with no citation is not shown, nor one in the first person, one that
+     recommends, or one that gives a percentage; emoji are removed. If no
+     line survives, the answer says no statement could be supported.
+6. S4's `result` holds the statements, missing lines, the cited sources (a
+   passage's text and Chroma labels, or the observation as sent), the
+   confidence, any error (`step`, `cause`, `at`), the usage list and the
+   run's trace. Confidence is worked out in code, never asked of the model:
+   High when every quote was found, nothing was left out or missing and some
+   statement rests on an observation or standard; Low when a line was left
+   out, most statements have a quote not found, or only past reports support
+   it; Medium otherwise.
+7. The gateway records the usage for the report (`ai_calls`: `ask` for the
+   model call, `retrieval` for Cohere), adds its cost to the user's daily
+   chat spend, saves the answer, its provider, model and times, and the
+   trace into the question's turn in `assistant_conversations` (see
+   [database](database.md#ask-conversations-as-01-as-03)), and sends the
+   browser the saved answer, its passages with their documents' details now
+   (as RV-01), without the usage or trace.
+
+Selecting a citation or a source in an answer switches the inspector to
+Evidence and opens it there; a source the draft also cites is marked open in
+its list. On parts with no draft (Sections 1-3, Appendix A) the source opens
+above the part's note.
+
+Failures state their cause and time, then the next step (AC8): "Answer
+stopped at 14:02: the model provider did not respond. Ask again." What was
+answered before a failure stays. Causes: `the answer service could not be
+reached` (gateway to S4), `the evidence search did not respond`, `client
+details could not be masked, so nothing was sent to the model`, `the model
+provider did not respond`, `the model provider returned an error`, `the
+model declined to answer`, `the answer was cut off before it was complete`,
+and for a request refused over the limits `more than 10 questions were asked
+in a minute` (Ask again in a minute) or `today's question limit was reached`
+(Ask again tomorrow). An engineer who leaves while it is written stops it;
+it is saved as `stopped`.
+
+Without the gateway the tab says it is unavailable: on the sample assessment
+always, and on a saved one when the gateway cannot be reached.
+
+### Asking about a selected passage (AS-02)
+
+Selecting text offers **Ask about this** in two places, both with
+Ctrl+Alt+K (Cmd+Option+K), beside Comment's Ctrl+Alt+M (`ask/shortcut.ts`):
+
+- the review workspace's draft editor, Sections 4 to 12 (`ask/AskSelection.tsx`):
+  a button by the selection opens the Ask tab (the sheet on a phone). Each
+  block of text the draft draws carries `data-ask-block`, its index in the
+  section's text, so a DOM selection is read as offsets in that text
+  (`ask/draftSelection.ts`; a citation number counts as its one marker,
+  badges as nothing).
+- the document editor (RV-08): a toolbar button beside Comment, and an Ask
+  panel (`ask/DocumentAsk.tsx`) in the comments list's place, with the same
+  conversation as the Ask tab; a source an answer cites opens at its top.
+
+A selection that can't be asked about (no words, across two sections, over
+4,000 characters) greys the button out with the reason; the shortcut says it.
+Either way the passage is kept as a comment thread's anchor is (RV-03,
+`comments/anchor.ts`): offsets into the section's text as the document editor
+saves it, its words and 32 characters either side (`ask/passage.ts` reads that
+text from the saved content too, so both places agree). Its citations are
+those of every block it is in; its findings, the keys of those blocks'
+findings. The passage waits in the question box, quoted verbatim behind a 2px
+rule, until the next question is asked or it is taken off.
+
+1. The browser sends `{ question, passage: { anchor, citations, findings } }`.
+   The gateway checks the anchor as RV-03's (`anchorSchema`), and that it holds
+   words and at most 4,000 characters (400 otherwise).
+2. It reads the section's saved draft, never the browser's copy: the findings
+   still in the draft (text now, decision, citations), and the sources the
+   draft cites. Only citations the draft holds are kept; each cited standard
+   or past-report passage is sent with its words and Chroma labels as the
+   draft was given them, and a cited observation deleted since is sent as the
+   draft was given it. S4 gets `passage: { section_id, section_title, text,
+   citations, sources, findings }`, `text` being the passage's words without
+   the markers.
+3. S4 masks the passage and the findings in the same `/mask` call as the
+   question, searches with the question and the passage's words, and always
+   keeps what the passage cites as evidence, labelled first and marked "cited
+   by the passage" (not reranked). The prompt (`as02-v1`) shows `<passage>` and
+   `<section_findings>` (each with its decision and the labels it cites); the
+   findings are the draft under review, never citable.
+4. Where the sources behind the passage disagree, the model writes a
+   `Differs:` line naming each figure with its source. The guardrail keeps it
+   only if it cites two sources or more, and drops any line that chooses
+   between sources ("more reliable", "the correct figure", "should be used",
+   "takes precedence", "likely a typo"). It is shown as "Sources disagree:"
+   and the answer's confidence is at most Medium.
+5. The question is saved with `passage: { anchor, label, citations, findings }`;
+   the trace's `story` is `AS-02` and its `passage` block holds the section,
+   length and citations, never the words.
+
+The Ask tab quotes each question's passage above it, with **Go to the
+passage**: the part opens and the passage is marked (the CSS highlight API
+where the browser has it, else its blocks tinted; in the document editor a
+decoration). The anchor is never moved: each time it is found again from its
+words, as RV-03 does, and once they are gone the message says "Text deleted".
+Asking writes nothing to the report (AC5): no version, no review log entry, no
+mark in the editor's text (`ask/askHighlight.ts` draws decorations only).
+
+### Conversations (AS-03)
+
+The Ask tab's questions are kept in conversations
+(`assistant_conversations`, see
+[database](database.md#ask-conversations-as-01-as-03)): per assessment and per
+user, private to that user, so an engineer can pick up where they left off
+and the team can evaluate the answers.
+
+- **Opening**: `GET …/ask` returns the user's conversations, latest first by
+  when a question was last asked, and the latest with its questions. The tab
+  opens on it; with none yet, the tab is empty and no picker shows.
+- **Picker** (`AskPanel.tsx`, `ConversationBar`): a `Select` named
+  "Conversation" above the tab lists each by its first question and when it
+  was last asked ("Was the B1 valve shut? · 14:02", a day before today as
+  "11 Nov 14:02"). Choosing one reads `GET …/ask/conversations/:id`. Beside it,
+  New conversation (`plus`) empties the tab; nothing is saved until its first
+  question, which `POST …/ask` without `conversation` saves as a new
+  conversation, named from it and listed first. Delete conversation
+  (`trash-2`) asks first in a dialog naming it and how many questions go
+  with it; `DELETE …/ask/conversations/:id` deletes it for good and the
+  latest left opens, or a new one when none is left. While an answer is
+  written the three are greyed out with the reason, as the answer belongs to
+  the conversation on screen.
+- **One question at a time into one conversation**: the gateway checks the
+  conversation is the user's (404 otherwise, as one deleted) and has room
+  (at most 100 questions; 409 "Start a new conversation.") before the
+  question counts against the limits, then pushes it on only while there is
+  room, so two at once never overfill it.
+- **Each question stays stand-alone**: S4 is sent no earlier turns, as AS-01
+  decided; a conversation is kept for reading back and for the evaluation
+  harness, and each turn can be replayed on its own.
+- **For the evaluation harness** (AC3): each turn keeps its cited `sources`,
+  `provider`, `model` and `promptVersion` (from S4's trace), `askedAt`,
+  `answeredAt` and the whole trace. The browser gets none of these but the
+  sources and when it was asked.
+- **Archived** (AC5): the list says `archived: true`; the tab shows every
+  conversation and its answers, with a note in the question box's place
+  ("This assessment is archived, so its conversations are read only. Restore
+  the assessment to ask about it again."), and no New conversation, Delete or
+  Ask again. Ask about this (AS-02) is greyed out with that reason. The
+  gateway refuses asking and deleting with 409.
+- **Never in the report** (AC4): the export (`document/export/`) imports
+  nothing from `ask/` (a test follows its imports), and the gateway's export
+  reads no conversation. Asking, starting or deleting a conversation adds no
+  version and changes no review state.
+
+### Drafting and rewriting text (AS-04)
+
+The assigned engineer can have the Ask tab draft text for a section, or
+rewrite a passage, then put it into the report (DECISIONS 2026-11-16). It is
+asked like a question, in the same conversation and through the same S4 run,
+so masking, provider, limits and the trace are AS-01's; what differs is what
+S4 may cite and what happens to the answer.
+
+- **Asking**: Draft text, beside Ask, sends `POST …/ask` with `{ question,
+  propose: { kind: 'draft', sectionId } }` for the section open (Sections 4 to
+  12; in the document editor, the one the cursor is in). Rewrite this, beside
+  Ask about this (and in the document editor's toolbar, once saved), puts the
+  passage in the question box to be rewritten; the request is then `{ question,
+  passage, propose: { kind: 'rewrite' } }`, the question saying how (empty:
+  "Rewrite this passage."). Both need `reports:generate` and the assigned
+  engineer (403), on an assessment neither archived nor finalised (409).
+- **What S4 is told** (`text-proposal.service.ts` `proposalContext`): the
+  section's text now, built as the editors build it (`section-document.ts`
+  `currentDocument`, the same as the client's `documentContent.ts`). A draft
+  sends the subsections it can go in (not tables, not Section 6's programmes);
+  a rewrite checks the passage is still at its offsets (409 `moved` otherwise),
+  widens it to the paragraphs it is in (plain paragraphs of one subsection, or
+  items of one list; a sub-heading refuses with 400) and sends their words as
+  the passage, with the sources they cite: observations, and standards in the
+  drafting set; never a past report. `standard_ids` are the drafting set (the
+  standards selected on the assessment, `drafting-set.service.ts`); no past
+  report is named.
+- **S4** (`orchestrator.ask` with `propose`, prompt and checks in
+  `app/generation/propose.py`, `as04-v1`, `PROPOSE_EFFORT` on `ASK_MODEL`):
+  searches the drafting set only, keeps up to 12 observations and 8 standard
+  passages, and writes in the drafting guide's voice: a draft's first line
+  `Subsection: <heading>` (streamed as `target`), then one sentence per line,
+  a blank line between paragraphs. Each sentence is checked before it streams:
+  content rules as an answer's (a line breaking one is dropped); a citation
+  counts only if it names evidence given and, for a standard, its quote is
+  found; a sentence left with none is kept with `supported: false` (AC3), not
+  dropped. Each statement carries its `paragraph`. The trace's `story` is
+  `AS-04`, with a `propose` block and the guardrail's `unsupported` and
+  `uncounted_citations`.
+- **Kept**: the gateway saves the proposal in `report_text_proposals` (see
+  [database](database.md#proposed-text-as-04)) with what the section was when
+  it was made (newest version, saved draft, text signature), and the turn
+  points to it. The Ask tab shows it as a card: a rewrite's paragraphs before,
+  then the text, each sentence with its citations and any unsupported one
+  marked; Insert (with Insert into, when the section has several
+  subsections) or Replace. Nothing in the report changes (AC1).
+- **Insert / Replace** (`POST /api/assessments/:reference/proposals/:id/insert`
+  `{ subsection? }`, `…/replace`): refused 409 `stale` when the section's
+  version, saved draft or text differs from when it was proposed (AC6; the card
+  offers Draft again), 409 `drafting-set` when a standard it cites left the
+  drafting set (AC4). Otherwise the section's next version holds the text as
+  paragraphs marked `ai: <proposal id>`, each sentence then its citation
+  markers, at the end of the subsection (a draft) or in place of the paragraphs
+  it rewrote (a rewrite; a finding among them is logged `reject`, `inDocument`,
+  as one deleted in the document editor). The answer is `{ proposal,
+  workspace }`; the section is Needs review (AC2).
+- **In the section**: the review workspace draws the text in violet with an AI
+  draft badge, who inserted it when and what was asked, each sentence still
+  unsupported underlined and badged (`aiText.ts`: still in the text word for
+  word with no citation marker straight after it). Accept (`…/accept`) saves a
+  version without the mark, refused while a sentence is unsupported; Delete
+  (`…/delete`) one without the text. Undo (`…/undo`, in the card while nothing
+  changed since) restores the text from before as the next version, named as a
+  restore (`version:<n>` or `draft:<id>`), bringing back a finding a rewrite
+  replaced. The document editor shows it violet too (`dm-ai-text`, its
+  unsupported sentences decorated), keeps the mark through edits and splits,
+  and drops it on a copy pasted into another section. A save naming a proposal
+  never inserted into the section is refused (400).
+- **Export**: `exportBlockers` lists a section with AI text awaiting Accept or
+  with an unsupported sentence of it (AC3).
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
@@ -1103,12 +1479,15 @@ file. Nothing is stored: the file is the gateway's answer.
    only a complete report goes. Section 2 drafted and current; an accepted
    OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
    each draft no new draft waiting, every finding decided, none unsupported,
-   out of date or citing a withdrawn source (DECISIONS 2026-11-05). Each
+   out of date or citing a withdrawn source (DECISIONS 2026-11-05); and no
+   text drafted from the Ask tab awaiting Accept, nor any of its sentences
+   unsupported (AS-04, [Drafting and rewriting text](#drafting-and-rewriting-text-as-04)). Each
    blocker names its section and where it is finished (`where`). It also
    returns `openThreads`, the comment threads still open (RV-03), shown as a
    reminder that never blocks the export; no comment reaches the file, as
    threads are kept apart from the text and the export's editor has no
-   comment marks.
+   comment marks. Nor does any Ask conversation (AS-03 AC4): they are kept
+   apart in `assistant_conversations`, which the export never reads.
 2. **Save** pending edits (`client/.../pendingSaves.ts`): the document editor's
    next save and Appendix A's queue. One that fails stops the export.
 3. **Lay out** (`client/.../document/export/`): `ExportPages` draws the report
@@ -1236,7 +1615,8 @@ S4 sends text as the model writes it; the chat screen paces it
 at an even rate, keeping the `meta` line whole). When the knowledge base lacks the
 answer, the reply is in the model's own words and the `meta` line carries a third
 argument, `Meta([...], [...], true)`, which shows the "Ask an admin" or "Add documents"
-button (CB-07). Errors and an empty question get a random friendly phrasing instead of
+button (CB-07). An `unverified` entry with `described: true` is a quote only in a
+picture's AI description (KB-02). Errors and an empty question get a random friendly phrasing instead of
 a fixed sentence; the technical reason stays in `chat_result.error`.
 
 ## Usage and Costs report (EV-04)

@@ -2,17 +2,26 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.assistant.coverage import check_coverage
 from app.assistant.wording import word_messages
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
+from app.client_insights.summary import summarise_client
 from app.client_intake.read import read_client_intake
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
 from app.orchestrator.orchestrator import (
+    ask_events,
     draft,
     draft_checklist_for,
     draft_ofis_for,
@@ -421,6 +430,48 @@ def read_client_intake_route(request: ReadClientIntakeRequest) -> dict:
         raise HTTPException(502, str(error)) from error
 
 
+# One figure the gateway counted (CP-29), as lines of text the model may cite by `label`.
+class InsightFigure(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str
+    title: str
+    lines: Annotated[list[str], Field(min_length=1)]
+
+
+# One of the engineer's observations at the client's sites, cited by `label`.
+class InsightObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str
+    site: str
+    location: str | None = None
+    severity: str
+    categories: list[str] = []
+    date: str | None = None
+    text: str
+
+
+class ClientInsightsSummaryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client: str
+    figures: Annotated[list[InsightFigure], Field(min_length=1)]
+    observations: Annotated[list[InsightObservation], Field(min_length=1)]
+    privacy: Privacy | None = None
+
+
+@router.post("/client-insights/summary")
+def client_insights_summary_route(request: ClientInsightsSummaryRequest) -> dict:
+    """Write a short cited summary of a client's insights (CP-29), every statement checked."""
+    try:
+        return summarise_client(
+            request.client, request.figures, request.observations, _privacy(request)
+        )
+    # 503, not 502: the gateway tells the engineer client details couldn't be protected.
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
 # One message as OpenUI's chat screen sends it. Its content is text for the
 # engineer's own messages; other roles' may carry tool calls, so stay loose.
 class ChatMessage(BaseModel):
@@ -502,6 +553,113 @@ class SearchPassagesRequest(BaseModel):
 def passage_search(request: SearchPassagesRequest) -> dict:
     """Return the documents' passages that best match the words, best first (CP-32)."""
     return {"results": search_passages(request.query, request.document_ids, request.limit)}
+
+
+# An observation as the Ask tab sends it (AS-01): any of the assessment's, categorised or not,
+# since a question is not about one section's categories. Uncategorised is null (CP-02).
+class AskObservation(Observation):
+    COPE_dimension: list[str] | None = None
+
+
+# A knowledge document's name for the prompt, sent by the gateway (never by the browser).
+class AskDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+
+
+Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+
+
+# A standard's or past report's passage that a selected passage cites (AS-02), as the draft
+# was given it: its chunk id, words and Chroma labels, read by the gateway from the draft.
+class AskPassageSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    kind: Literal["standard", "report"]
+    text: Annotated[str, StringConstraints(max_length=20_000)]
+    metadata: dict = {}
+
+
+# One of the section's findings still in the draft, with the engineer's decision on it, its
+# citations (O:/C:/P: refs) and whether the selected passage is in it.
+class AskFinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: Annotated[str, StringConstraints(max_length=5000)]
+    state: Literal["pending", "accepted", "edited"]
+    citations: Annotated[list[str], Field(max_length=50)] = []
+    in_passage: bool = False
+
+
+# Text the engineer selected in the draft to ask about (AS-02): its section, as the report
+# heads it ("9. Fire Protection"), its words (the citation markers left out), the sources it
+# cites and the section's findings.
+class AskPassage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[1-9]|A)$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    citations: Annotated[list[str], Field(max_length=50)] = []
+    sources: Annotated[list[AskPassageSource], Field(max_length=50)] = []
+    findings: Annotated[list[AskFinding], Field(max_length=200)] = []
+
+
+# A subsection of the section that drafted text can go in (AS-04): its index in the section,
+# as the gateway counts them, and its heading.
+class AskSubsection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    index: Annotated[int, Field(ge=-1, le=50)]
+    heading: Annotated[str, StringConstraints(max_length=300)]
+
+
+# Text for one of Sections 4 to 12 instead of an answer (AS-04): new text to insert ("draft"),
+# with the subsections it can go in, or a rewrite of the request's passage ("rewrite"), whose
+# words are then the paragraphs to rewrite.
+class AskPropose(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["draft", "rewrite"]
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[4-9])$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+    subsections: Annotated[list[AskSubsection], Field(max_length=50)] = []
+
+
+class AskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: Question
+    assessment: Assessment
+    observations: list[AskObservation] = []
+    # The standards selected on the assessment, as the gateway read them from
+    # knowledge_documents (AC3): only their passages are searched. For a proposal (AS-04)
+    # they are its drafting set, the only standards it may cite.
+    standard_ids: list[str] = []
+    documents: list[AskDocument] = []
+    privacy: Privacy | None = None
+    passage: AskPassage | None = None
+    propose: AskPropose | None = None
+
+    @model_validator(mode="after")
+    def _rewrite_has_passage(self):
+        if self.propose and self.propose.kind == "rewrite" and self.passage is None:
+            raise ValueError("A rewrite needs the passage to rewrite.")
+        return self
+
+
+@router.post("/assessments/ask")
+def ask_assessment(request: AskRequest) -> StreamingResponse:
+    """Stream one cited answer to a question about an assessment (AS-01), or about a passage
+    selected in its draft (AS-02), or text proposed for a section (AS-04), through the
+    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
+    events = ask_events(
+        request.question,
+        request.assessment,
+        request.observations,
+        request.standard_ids,
+        {d.id: d.name for d in request.documents},
+        privacy=_privacy(request),
+        passage=request.passage,
+        propose=request.propose,
+    )
+    return StreamingResponse(events, media_type="text/event-stream")
 
 
 @router.get("/passages/{passage_id}")

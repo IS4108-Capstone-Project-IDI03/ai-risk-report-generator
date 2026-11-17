@@ -1,3 +1,4 @@
+import type { EvidenceFilters } from './evidenceFilters'
 import type {
   Assessment,
   InterpretationStatus,
@@ -104,6 +105,9 @@ export type Observation = {
       error: string | null
       model: string | null
       outOfDate: boolean
+      // The photos it describes, when known (a sample one's are not): All
+      // Photos says which of them each describes.
+      photoIds?: string[]
     } | null
     categories: ProposedCategory[]
     error: string | null
@@ -138,6 +142,8 @@ export type Observation = {
     correction: Stamp | null
     error: string | null
     audioUrl: string
+    // A site walk clip's part of the walk, in seconds (CP-22); plays only that part (CP-12).
+    clip?: { start: number; end: number } | null
     // Who added it after the observation was saved (CP-08).
     added: Stamp | null
   }[]
@@ -186,6 +192,11 @@ export type WorkflowState = {
   clientDialog: 'rename' | 'remove' | null
   // The client page's tab to open on, when not its first (AS-06: Details' See all opens Documents).
   clientTab: 'documents' | null
+  // The client page an assessment was opened from, and the tab it was on
+  // (CP-29): that assessment's Back returns there, on that tab.
+  clientReturn: { clientId: string; tab: string; reference: string } | null
+  // The assessment opened from the calendar (CP-60): its Back returns there.
+  calendarReturn: string | null
   tab: string
   toast: string | null
   toastTone: string
@@ -213,6 +224,10 @@ export type WorkflowState = {
     clientId?: string
     clientName?: string
     siteId?: string
+    // The survey day, when opened from a day on the calendar (CP-60).
+    siteVisitDate?: string
+    // Where Cancel goes back to when not the Assessments list (CP-60).
+    returnTo?: 'calendar'
   }
   // The assessment the Site observation screen captures for.
   captureTarget: { reference: string; site: string }
@@ -307,7 +322,13 @@ export type WorkflowState = {
   // The expanded row on the Observations tab, by its key.
   obsOpen?: string | null
   // Where an open observation came from when not the list: Back returns there.
-  obsFrom?: 'photos' | 'scans' | null
+  obsFrom?: 'photos' | 'scans' | 'recordings' | null
+  // The search on All Photos, All Handwritten Pages or All Recordings
+  // (CP-13): kept while an observation opened from it is open, so Back finds
+  // it again, and cleared each time one of them is opened.
+  evidenceQuery?: string
+  // Their filters (CP-13), kept and cleared with the search.
+  evidenceFilters?: EvidenceFilters
   // Observations tab filters (CP-06, CP-08); '' shows every value.
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
@@ -349,6 +370,8 @@ export type ObservationFilters = {
   // A building (or Elsewhere on site), a level of it, or one location (CP-16).
   place: string
   status: string
+  // The search, as typed (CP-13): every word in the observation's evidence.
+  q: string
 }
 
 // A building, level or location name as typed, not yet on the site, and the

@@ -1,4 +1,5 @@
 import { config } from '../config'
+import { modelHeaders } from './model-resolver.service'
 import { recordAiCalls } from './ai-usage.service'
 import type { ReadingPrivacy } from './privacy.service'
 
@@ -57,12 +58,13 @@ async function callS5<T extends object>(
   payload: object,
   unreachable: string,
   isAnswer: (body: Partial<T>) => boolean,
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${config.speechOcrServiceUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
       body: JSON.stringify(payload),
     })
   } catch {
@@ -141,6 +143,7 @@ export async function describePhoto(
     { s3_key: s3Key, privacy },
     'The photo service could not be reached.',
     (b) => typeof b.description === 'string',
+    await modelHeaders('photo'),
   )
   await recordAiCalls(hyphenated(body.usage), { reportId })
   return body.description
@@ -173,6 +176,7 @@ export async function describeChatPhoto(
     { s3_key: s3Key },
     'The photo service could not be reached.',
     (b) => typeof b.description === 'string',
+    await modelHeaders('photo'),
   )
   await recordAiCalls(hyphenated(body.usage))
   return { description: body.description, unclear: body.unclear ?? '' }
@@ -217,11 +221,13 @@ export async function transcribeHandwriting(
   s3Key: string,
   reportId?: string,
 ): Promise<HandwritingResult> {
+  // Before the try: a missing key must surface as ModelUnavailableError, not "could not be reached".
+  const headers = { 'Content-Type': 'application/json', ...(await modelHeaders('handwriting')) }
   let response: Response
   try {
     response = await fetch(`${config.speechOcrServiceUrl}/transcribe-handwriting`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ s3_key: s3Key }),
     })
   } catch (error) {
@@ -316,11 +322,12 @@ export async function interpret(request: {
   parts: ('categories' | 'description')[]
   privacy: ReadingPrivacy
 }): Promise<InterpretationResult> {
+  const headers = { 'Content-Type': 'application/json', ...(await modelHeaders('photo')) }
   let response: Response
   try {
     response = await fetch(`${config.speechOcrServiceUrl}/interpret`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         photos: request.photos.map((p) => ({ label: p.label, s3_key: p.s3Key })),
         texts: request.texts,

@@ -2327,3 +2327,254 @@ Rejected:
 Known limits: a removed or edited model-written item that comes back resting on different passages, or under another section, is not matched: an edited one is kept beside the new one, a removed one comes back. The keyword search finds the words given, not their synonyms ("sprinkler" finds "sprinklers" but not "automatic suppression"); its cache holds a re-ingested standard's old passages for up to 10 minutes. On a phone, selecting words in a passage is fiddly; the first sentence is quoted without one. Answers written on the PDF are entered in the app by hand.
 
 Stories: CP-32, CP-30, CP-31, CP-34.
+
+## 2026-11-09 — Asking about an assessment runs through the orchestrator, checks each line before it is shown, and is saved with its trace
+
+Chose:
+- (AS-01) A question asked in the review workspace's Ask tab runs as `orchestrator.ask` in S4: retrieve, assemble, generate, guardrail, in one function, so one run leaves one trace (the 2026-09-07 orchestration decision). The trace is saved with the answer in `assessment_questions`; the paid calls go to `ai_calls` for the report (EV-03).
+- Its own small flow, not CB-01's chat: no planner step and no history. Each question stands alone, so one question costs one embed, one rerank and one model call. The model is `ASK_MODEL` on `LLM_PROVIDER` (default `LLM_MODEL`, effort low), as AC6 asks, not `CHAT_PROVIDER`.
+- The model writes one statement per line with its citations after it (`[O2]`, `[C1 "exact words"]`), or a `Missing:` line. S4 holds each line until it ends, checks it (labels it was given, quotes found, the content rules), and only then sends it; a line that fails is never shown and the trace records why. So an uncited statement never reaches the screen (AC4), at the cost of answers arriving a sentence at a time rather than word by word.
+- The standards selected on the assessment are its latest checklist's (CP-30), or, before any checklist, every standard that applies to the site, then filtered through `knowledge_documents` (finished, not withdrawn, no Unconfirmed details). Chroma searches them by `doc_id`. Past reports are filtered by the site's jurisdiction and facility type (`all` matches either), unlike GN-01, which filters past reports by country only.
+- Every observation not deleted is evidence, uncategorised ones included: a question is not about one section's categories. Observations are not in Chroma, so the one rerank call ranks them with the passages.
+- Confidence (High, Medium, Low) is worked out in code from the checks, never asked of the model, and shown with the design system's `ConfidenceIndicator`.
+- Questions are saved per user and assessment, so the tab shows one's earlier answers again; others never see them. Questions count against the chat's limits (CB-01), so one user's daily spend stays capped across both.
+- The answer box uses AI violet (`--ai-*`), as AC2 asks, although design system v2 says new screens carry no AI tint: answers are machine-written and provisional until their sources are checked.
+
+Rejected:
+- Reusing CB-01's chat pipeline: it answers from the knowledge base, not one assessment's observations, plans with a second model, and uses `CHAT_PROVIDER`.
+- Streaming the model's words as they come: a line could be shown before its check fails.
+- Asking the model for its confidence: it gives no measure the platform can stand behind (CP-05 said the same of photo readings).
+- A new standards field on the assessment: the checklist already records the standards the engineer keeps in scope.
+
+Known limits: the content rules are checked with patterns (first person, "should"-style advice to someone, percentages of certainty); a recommendation worded otherwise is left to the prompt. `ASK_MIN_RELEVANCE` (0.1) is a first guess; no AS-01 eval set exists yet, so the saved traces are the material for one.
+
+Stories: AS-01, GN-01, CP-30, EV-03, PV-02.
+
+
+## 2026-11-11 — All Recordings lists recordings as All Photos lists photos, with one player in the browser; all three views open each item's text
+
+Chose:
+- (CP-12) All Recordings is a third view of the Observations tab, beside All Photos and All Handwritten Pages, opened from the location navigator's foot. It uses their table (`PhotoTable`: observation, location, category; a tap on the row opens the observation; Back returns to the view), with a play tile where the thumbnail is. It is built in the browser from the observations already loaded: no new route or field.
+- One hidden `<audio>` for the whole list (`useRecordingPlayer`), so only one recording plays at a time. The playing or paused row shows a seek bar (a range input: drag, tap, arrow keys by five seconds, Home and End), its time, and a 1× / 1.5× / 2× speed, kept from one recording to the next for the visit.
+- A site walk clip plays from the walk's file. The player keeps the clip's start and end itself rather than relying on the url's `#t=` fragment, so the bar runs from 0:00 to the clip's length, seeking stays inside the clip, and playback stops at its end. The client's recording view now carries `clip` for this.
+- The row shows the observation's text, as All Photos does, with the recording's name and its state (Transcribing, or Couldn't transcribe with Retry) under it, which tells an observation's recordings apart. Retry is offered only where the observation page offers it: not in someone else's assessment (RV-11) or the demo.
+- Removed recordings and deleted observations' recordings are left out, as All Photos leaves out theirs; they are restored from the observation and the Deleted observations list.
+- A site walk proposal's navigator has no recordings row: its walk list already lists the walk's recordings, with their own player.
+- Each row of the three views has the item's own line under the observation's text: its name, its transcription's state with Retry (recordings and pages), and a Transcript or Description toggle that opens its text under the row, closed to start with. A recording's transcript also opens when it plays, to read along. The text looks as on the observation's page: a recording's transcript plainly, as corrected; a page's reading behind the AI rule with its unsure words marked, or the engineer's correction plainly; a photo's description behind the AI rule. All Photos and All Handwritten Pages gained this with CP-12 but count against no story (noted on CP-04 AC3 and CP-19 AC17); a site walk proposal's views are unchanged. (12 Nov 2026: now counted in CP-13, AC1-AC4.)
+- A photo's description is the observation's, one for all its photos (CP-21), so each photo's row says whether it describes this photo and how many others, or that it was written before this photo was added, and "Its evidence changed since." when out of date, as the observation's page says. The client's photo reading now carries `photoIds` for this.
+- This reverses CP-19's choice to keep page transcripts off the Scans view ("tiles only"): with the text closed by default the list stays as compact, and reading a page or recording no longer means opening each observation.
+
+Reason: recordings were the one kind of evidence only reachable one observation at a time, so finding "where I said the valve was chained" or a failed transcription meant opening each observation. Matching the other two views keeps one way to browse evidence, and giving all three the same line keeps them alike.
+
+Rejected:
+- The browser's own `<audio controls>` in each row: about 300px wide, different in every browser, and breaks the table's columns.
+- A length column: observation recordings store no length, and reading it from every file would download them all; the length shows once a recording plays.
+- A search box over transcripts: the photo and scan views have none, and the three should match.
+- Correcting or removing a recording here: that stays on the observation's page, so there is one place to change evidence. The same goes for a page's text, and for describing photos again.
+- Text that follows along with playback, a sentence lit as it is spoken: it needs Whisper's timestamps, which S5 doesn't return outside its eval, and a corrected transcript would lose them.
+
+Known limits: a recording made in the browser (webm from MediaRecorder) has no length in its header. The player seeks past its end to make the browser work it out, then starts at 0:00; if the browser still can't tell within three seconds, only the time played shows, without a bar. The speed is not remembered between visits.
+
+Stories: CP-12, CP-03, CP-04, CP-08, CP-19, CP-21, CP-22, RV-11.
+
+## 2026-11-12 — The evidence text is searched in the browser: on the three evidence views and the Observations list
+
+Chose:
+- (CP-13) A search box on All Recordings, All Handwritten Pages and All Photos (`PhotoTable`'s toolbar, given `search`) and on the Observations tab beside its filters. It runs in the browser on the observations already loaded (`evidenceSearch.ts`): no route, index or field, and nothing is sent to a service, so privacy masking does not come into it.
+- Every word, in any order, ignoring case and accents. On a view, a row matches across its item's text, its name and its observation's text; on the list, across the note, every transcript, every page and the photos' description. Words rather than a phrase, as a spoken transcript rarely keeps the order typed. Positions stay in the text as written, so a mark lands on the right letters after an accent is dropped.
+- What is searched is what is shown: a recording's transcript as corrected, a page's correction or else the model's reading. "(No speech was detected.)" is not searched (`NO_SPEECH`). A photo matches on its observation's description only if the description covers it (`photoIds`), as its row already says; one out of date is still searched.
+- The words found are marked (`HitText`, `.ob-hit` on `--ink-100`, the blue tint for what is selected: amber already means not sure, and comments use it). In a page's reading a mark sits inside an unsure word's underline, so it keeps both. An item found in its own text opens that text; one found only by its name or observation stays closed.
+- One query (`evidenceQuery`) serves the three views: emptied whenever one is opened from the navigator, kept while an observation opened from it is open, so Back restores it with the texts it found open again. The list's search is a filter (`ObservationFilters.q`): it narrows with the location and the four menus, counts towards Clear all, works on the deleted observations too, and is cleared when a view opens an observation, as the filters are.
+- The list says where else the words were found ("Matched in Recording 2 and the photo description") when its row's text doesn't show them, as a row shows only the note, or else the first transcript.
+- A recording that plays and is searched away stops (`useRecordingPlayer.stop`), rather than playing on with no row to pause it from.
+- When nothing matches, all four lists say so the same way: Clear all while a filter is set, else Clear search.
+- This reverses CP-12's rejection of a search box over transcripts: it was turned down until all three views could have one.
+- CP-13 also counts the item line CP-12 gave All Photos and All Handwritten Pages (a page's state, Retry and transcript; a photo's description and which photos it covers), which no story had counted (AC1-AC4). The story stays at 5 points with the filters.
+- Filters on the three views (added the same day): Location, Category and Severity as on the Observations tab (the views have no navigator beside them, so Location is a menu, by building and level), and one about the item: a recording's Status, a page's Status (Transcribed, Corrected, Has unsure words, Transcribing, Couldn't transcribe; a page can be several), a photo's Description (Described, Out of date, Not described, judged by whether the description covers that photo). They reuse the Observations tab's chips (`FilterChip`), are kept with the search in `evidenceFilters`, emptied when a view opens, count towards Clear all with it, and stop a recording they leave out (`evidenceFilters.ts`).
+
+Reason: CP-12 put every voice recording in one place but left finding a word in them to reading each. The Observations list shows one line per observation, so a second recording, a page or the photos' description could not be found from it at all.
+
+Rejected:
+- Searching on the gateway (a Mongo text index, or the vectors): the evidence is already in the browser, and a request per keystroke adds a wait and another path for client text, for no gain at one assessment's size. Searching by meaning is Ask (AS-01).
+- One query shared by the three views: a search in recordings would silently filter photos.
+- Searching what a correction replaced: the engineer corrected it because it was wrong.
+- A site walk proposal's views and list: its photos are described and pages transcribed only at Create all, and a walk recording's transcript covers the whole walk, so every observation cut from it would match. After Create all, the list's search covers them.
+- Choosing Appendix A's photos by description here: the appendix's photos carry no description, so it needs one gateway field; a GN-07 follow-up.
+
+Known limits: words match as typed, with no stemming: "valve" finds "valves" but "valves" does not find "valve". Every row is checked on each keystroke, which is fine at hundreds of items. The browser's own find (Ctrl+F) still cannot see a closed transcript.
+
+Stories: CP-13, CP-12, CP-08, CP-19, CP-20, CP-21, CP-22, AS-01, GN-07.
+
+## 2026-11-12 — Asking about a selected passage keeps it as a comment's anchor, reads the section from its saved draft, and names disagreeing sources without choosing
+
+Chose:
+- (AS-02) Ask about this is offered in both places draft text is read: the review workspace's draft editor (Sections 4 to 12), where a button by the selection opens the Ask tab, and the document editor (RV-08), where it sits beside Comment in the toolbar and opens an Ask panel in the comments list's place. One conversation (`useAsk`, kept by the review workspace) serves both. Asked on 12 Nov.
+- Ctrl+Alt+K (Cmd+Option+K), beside Comment's Ctrl+Alt+M: K types no letter with AltGr on most European layouts, and Chrome and Edge leave it free. Asked on 12 Nov.
+- The passage is stored as RV-03's anchor, from the same `comments/anchor.ts`: offsets into the section's text as the document editor saves it, its words, and 32 characters either side. `ask/passage.ts` reads that text from the saved content as well (`contentText`), so a passage selected in the review workspace is found in the document editor and the other way round. The anchor is never moved: it is found again from its words each time, as RV-03 finds a thread after the text changes outside the editor, and once its words are gone the message says "Text deleted". Comment threads move their anchors on every save; a question is a record of what was asked, so it does not.
+- In the review workspace, the draft's blocks carry `data-ask-block` (their index in the section's text) so a DOM selection is read as offsets in that text; a citation number counts as its one marker, badges as nothing. Section 6's programme rows, which show only their comment, carry where it starts.
+- A passage's citations are those of every block it is in, not only the markers inside the selection: a few words of a finding bring the finding's sources. Its findings are the keys of those blocks' findings.
+- The gateway reads the section's findings and sources from the saved draft (`sectionDrafts`, `foldFindings`), never from the browser: only citations the draft holds are sent, each standard or past-report passage with the words it was drafted from, and a cited observation deleted since as the draft was given it. The browser sends only the anchor, the citations and the finding keys.
+- S4 always keeps what the passage cites as evidence, labelled first and marked "cited by the passage", outside rerank; it searches with the question and the passage's words. The findings are shown to the model as the draft under review, with their decisions and the labels they cite, and are never citable.
+- Disagreement (AC4) is a line of its own, `Differs:`, kept only if it cites at least two sources and shown as "Sources disagree:". Any line that chooses between sources ("more reliable", "the correct figure", "should be used", "takes precedence", "likely a typo") is dropped, by pattern, as the other content rules are. Sources that disagree make the answer Medium at most.
+- Nothing is written to the report (AC5): the gateway only reads it; in the document editor the passage is marked with decorations (`ask/askHighlight.ts`), outside the undo history, never a mark in the text. Going back to a passage marks it with the CSS highlight API where the browser has it (as CP-13's search marks, `--ink-100`), else its blocks are tinted.
+- A passage is at most 4,000 characters (comments allow 10,000): it goes into the prompt whole.
+
+Rejected:
+- A second Ask for the document editor with its own conversation: the engineer would find half their questions in each place.
+- Moving a question's anchor on each document save, as comments do: a question says what was asked then; finding it by its words is enough to link back.
+- Detecting disagreement in code (comparing numbers across the cited sources): which figures are about the same thing is the model's reading; the code checks the line names both sides and does not choose.
+- Offering Ask about this on Sections 1, 2, 3 and Appendix A in the review workspace: they have no drafted findings or cited sources there. In the document editor every section can be asked about.
+
+Known limits: "choosing" is checked with patterns, so wording outside them is left to the prompt. The passage's words are not checked against the saved text on the gateway: a passage selected in unsaved document edits is sent as selected. Old answers have no passage.
+
+Stories: AS-02, AS-01, RV-03, RV-08, RV-01.
+
+## 2026-11-12 — Cited regions: a crop of the original page, from region keys only; formulas shown as math; a picture's description is never a quote
+
+Chose:
+- (KB-02) A cited table, formula or picture shows the part of the original page it was read from, cropped from the PDF in the browser with react-pdf, above the passage text. The table or formula is not rebuilt from its reading: the reading is what may be wrong, and a tidy rebuild would make an OCR error look authoritative. Ingestion keeps no table grid to rebuild from anyway.
+- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-__, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
+- Shown in the chat's Passage tab and the review workspace's source panel. Review looks the passage up live, only for its region; the text stays as the draft was given it (RV-01 AC7), and a passage gone since shows text only.
+- LaTeX in passage text is rendered with KaTeX (lazy-loaded) when valid, and shown as written when not, with no error. Detection is by text (delimiters, or a command on a line with no run of prose), so it also works for documents ingested before; it never decides whether a crop is shown.
+- A picture's generated description stays in the citation, under the picture, noted as written by AI: it is what the answer read, so the engineer can catch a misreading. `quotable_text` leaves it out, so a quote of it is never "found in the document".
+- Nothing about a region goes to an AI model: images can't pass through `/mask`, and past reports are stored masked (PV-05).
+
+Reason: chat and review showed only the OCR's reading of a table, formula or picture, the part of a citation most likely to be wrong, so a number taken from a table couldn't be checked without opening the PDF and finding the page.
+
+Rejected:
+- Using `bbox` for tables and formulas: a table passage's boxes include its chunk's prose and captions, and a formula's is the whole chunk, so the crop would show the wrong area.
+- Guessing a table's box as the largest in its chunk: a small table beside long prose crops the prose.
+- Recognising a formula region from valid LaTeX in old passages: its boxes are still the whole chunk.
+- Rebuilding tables as HTML tables: needs the grid kept at ingestion and re-ingesting every document; it belongs with exporting a table into the report (EX), if ever needed.
+- Sending crops to the chat or drafting model: breaks fail-closed masking.
+
+Known limits: the checklist and the drafting screen's evidence panel don't open passages, so they show no regions. Formula detection by text can miss an unread formula (Docling's placeholder or flattened arithmetic) and render a rare non-formula line with a command as math.
+
+Stories: KB-02, IN-__, CB-02, RV-01, IN-13.
+
+## 2026-11-13 — A quote from a picture's AI description is "from the AI's reading", not "not found"
+
+Chose:
+- (KB-02 AC9) A quote check has three outcomes, `found`, `described` and `missing` (rag-service `generator.quote_check`). A quote only in a picture's generated description is a real citation of what the answer read, so chat, the checklist (screen and PDF) and Ask show a neutral "from the AI's reading of the figure: check the figure" note, not the red "Not found" warning. It is still never "found in the document" (AC7).
+- Kept the boolean (`verified`, `quote_found`, `quoteFound`) false for it and added a separate flag (`described`, `quote_described`/`quoteDescribed`), absent meaning false. Stored chats, checklists and Ask answers read as before, and the eval scripts still count it as not verified.
+- Chat marks it on the `meta` line's `unverified` entry (`described: true`), not as a new positional argument, so `gap` keeps its place and saved messages still parse.
+- In Ask it lowers neither confidence nor `guardrail.passed`; the trace counts it apart as `described_citations`.
+- The gateway's check of a hand-chosen checklist quote now leaves out the description too. It didn't, so such a quote was marked found, against AC7.
+
+Reason: a chart's values read by the vision model (e.g. "Moderate Capital shows 0") could only be cited from its description, and every such citation showed as a likely hallucination although it pointed at the right figure.
+
+Rejected:
+- Telling the model never to quote a description: it would then quote a bare label or caption that passes the check but doesn't support the claim, so "Found" would overstate it.
+- Replacing the boolean with a three-value field: every stored record and consumer would need migrating for no gain.
+
+Stories: KB-02, CB-01, CP-30, CP-32, AS-01.
+
+## 2026-11-15 — A client's Insights tab is counted by the gateway; only its summary asks a model, and every statement is checked first
+
+Chose:
+- (CP-29) A fourth tab, Insights, on the client page. Open work stays the tab the page opens on, so the page keeps its job of listing the client's sites and assessments.
+- The figures, the order of the sites, the reasons on each and the What stands out sentences are counted and worded by the gateway (`client-insights.service.ts`, rules `insights-v1`) on read. Nothing is stored for them and no model is asked.
+- A site's figures come from its latest assessment that has observations, not its latest assessment. Without this, booking the next visit would blank the site until capture starts.
+- Sites are ordered by a stated rule (Critical findings, then Priority 1 OFIs, then rating) and each shows its reasons. There is no single attention score.
+- An observation filed under two COPE categories counts in both, so a grid row can add up to more than the site's observations.
+- Change is first visit against latest. Fewer Critical and High findings, or a higher score, is Improved. A change in accepted OFIs is shown as "2 more" or "4 fewer" and not judged.
+- Only the engineer's own assessments are counted, as the client page lists them (CP-18). A knowledge admin's are everyone's.
+- The summary is written by rag-service only when asked, from the figures and the latest assessments' observations (at most 60), in one call under `LLM_PROVIDER`. It is returned whole after every statement is checked: cited to a source it was given, no advice or first person (the Ask tab's `content_problem`), no placeholder left, and no number its cited sources lack. Confidence is worked out from those checks.
+- Masking uses chat's list of every client, site and person, and fails closed.
+- Each write is a new `client_insight_summaries` document for that user and client, with a fingerprint of what the model was given; a different fingerprint on read marks it out of date.
+- An assessment opened from a client's page (any of its tabs) has a round Back in its header, "Back to <client>", on every tab of the assessment. It returns to the client page on the tab it was opened from, and so does the browser's Back. The workflow state keeps `clientReturn: { clientId, tab, reference }` for this; opening the client afresh clears it, so it starts on Open work. An assessment opened from anywhere else has no such Back. Before this an assessment's header had no Back at all, and the client page always reopened on Open work.
+- A finding's link scrolls only the page's own scroller (`.om-scroll`). `scrollIntoView` also moved the app's clipped frame and pushed the screen out of view.
+- A model failure answers 503 with the reason, not 502: the browser reads 502 as the gateway being down and would hide the reason.
+- The grid and the change chart are HTML tables, not Recharts: a shaded table and a dot-on-a-line row are not forms Recharts draws, and as tables every value is already text. The grid's shades are the ink ramp (one blue, light to dark), not the `--chart-*` series colours, which are for telling series apart.
+
+Reason: the client page listed sites and dates but said nothing about risk. Counting in code keeps every figure traceable to its rule; the model is used only where words across many notes help, and only behind checks.
+
+Rejected:
+- A single risk score per site: it would sit beside Marsh's own rating with no agreed basis.
+- Counting every engineer's assessments as nameless totals: it would make trends complete, but changes CP-18's rule that an engineer sees only their own work.
+- Writing the summary when the tab opens: a paid call on every visit, for a block many visits don't need.
+- Streaming the summary: a statement could show before its checks.
+- Letting the model quote its sources: the sources list shows each observation's own words, so there is no quote to verify.
+
+Known limits: trends appear only where one user has two assessments with observations at a site. The summary has unit tests for its checks but no evaluation set. The number check reads digits only, so a number written as a word is not checked. Findings recurring across sites, the weakest Section 4 categories and loss expectancy across OFIs are left for a follow-up.
+
+Stories: CP-29, CP-18, PV-02, AS-01, EV-03.
+
+## 2026-11-15 — The Calendar is a screen over the work list, and its own grid
+
+Chose:
+- (CP-60) A Calendar under Work in the sidebar, at `/calendar`, for anyone who may read the work list (`assessments:view`). It shows each assessment's survey days and report due date by month or week.
+- It is drawn from `GET /api/assessments`, the list the Assessments and Clients screens already load. So it shows exactly what its reader may open (an engineer's own, every engineer's for a knowledge admin), and needed no new collection, endpoint or permission.
+- Dates are changed from it through Edit details' own call, `PUT /api/assessments/:reference`, which now also takes the last survey day (`siteVisitEndDate`). A survey of several days could not be moved without it: a start moved past the stored end would leave the end before the start. Left out or empty, it is cleared, as the other two dates are, and Edit details now sends it too.
+- Who may change dates is unchanged: the assigned engineer, and not once archived. For anyone else Reschedule is greyed out with its reason, and the gateway still answers 403.
+- The grid is our own: one CSS grid per week, the days as its columns under every row, and the entries in rows over them, so a survey of several days is one element across its days. Entries are placed in the lowest free row, surveys before report due dates and long before short (`features/calendar/calendar.ts`).
+- A month day shows three entries, then "+N more", which opens that week. The week view has no limit.
+- A survey is a bar in its assessment type's colours. A report due date is a white chip whose icon and words carry its state (late, within 7 days, on track, finalised), as the Report due cell's do, with no fill. The two differ in shape as well as colour, since Follow-up and "within 7 days" are both amber.
+- Under 768 px the month is a list of its days that hold something. Seven columns do not fit 375 px.
+- The view, period and filters are kept per signed-in person while the app stays open (`keptView.ts`), so Back from an assessment finds them. An assessment opened from the calendar gets "Back to calendar" in its header, as CP-29 gave one opened from a client page (`calendarReturn`).
+- New assessment sits beside the bell on this screen at every width, since the toolbar is full with the period, the view and the filters.
+
+Reason: survey and due dates were only columns of a table, so clashes between surveys and weeks with several reports due could not be seen. Everything the calendar needs was already stored and already scoped by role.
+
+Rejected:
+- A calendar library (FullCalendar, react-big-calendar): its look and phone behaviour would not match the design system, and month and week grids of all-day entries are a small amount of date arithmetic that the date picker already half had.
+- Dragging an entry to another day: quick with a mouse, but it needs a keyboard equivalent and a confirm step to stop accidental moves, and Reschedule already covers the task. Left for a follow-up.
+- A new endpoint returning only a date range: the work list is already loaded and is small; it would be the third way to read the same assessments.
+- Keeping the period in the URL: the calendar would then need its own query handling beside the workflow's; a refresh reopening on this month is acceptable.
+- Letting a knowledge admin move any engineer's dates: RV-11 keeps an admin read-only on someone else's assessment.
+
+- Reschedule's date fields are the design system's date picker on a desktop and the phone's own date field on a phone. The picker's phone calendar is a sheet, and a sheet opens behind a dialog (the Reassign dialog's engineer picker met the same thing).
+- An entry's details do not clip what hangs outside them (`.cal-entry-surface`), so the reason box under a greyed Reschedule shows. On a phone's sheet the reason is a line under the button instead, as a box there would be off the screen.
+
+Known limits: the date picker's calendar hangs below the Reschedule dialog rather than inside it, so the dialog (`.cal-reschedule`) does not scroll its overflow. On a narrow desktop the toolbar wraps to two rows. An assessment's finalised report still shows its due date, plainly. The calendar reads "today" from the browser, so a tab left open past midnight keeps yesterday until its next render.
+
+Stories: CP-60, RV-10, RV-11, CP-23, CP-29.
+
+## 2026-11-13 — Ask conversations are one document each, holding their questions; the old questions are moved into them
+
+Chose:
+- (AS-03) `assistant_conversations` holds one document per conversation, per assessment and per user, with its questions and answers as `turns`, replacing AS-01's `assessment_questions` (one document per question). One read opens a conversation, one delete removes it with everything in it, and the five metadata fields sit once on the conversation. Asked on 13 Nov.
+- `migrate:ask-conversations` moves the questions saved before: each user's questions on an assessment become one conversation (split past 100), named from the first, each question keeping its id; the provider, model and prompt version are read from its trace. The old collection is dropped only once every question is found in a conversation, so the script is safe to re-run. Asked on 13 Nov.
+- A picker above the Ask tab (a `Select`, latest first by when a question was last asked), with New conversation and Delete beside it, so older conversations can be reopened. The tab opens on the latest. Asked on 13 Nov.
+- Each question still stands alone (AS-01's decision): S4 is sent no earlier turns, so a turn can be replayed and scored on its own, and nothing changes in rag-service, the prompt or masking. Asked on 13 Nov.
+- New conversation saves nothing: the conversation is created with its first question (`POST …/ask` without `conversation`), so empty conversations never pile up. Its name is the first question, trimmed to 60 characters, as a saved chat's is (CB-03).
+- At most 100 questions a conversation (409, "Start a new conversation."), keeping a document with its sources and traces far below MongoDB's 16 MB. The question is pushed only while there is room, so two sent at once never overfill it; the conversation is checked before the question counts against the limits.
+- AC3's fields sit on each turn as well as in the trace: `sources`, `provider`, `model`, `promptVersion`, `askedAt` and `answeredAt`, so the evaluation harness can select and replay answers without reading traces. They come from S4's trace, never from gateway code, so the provider is still only `LLM_PROVIDER`'s.
+- "Private to that user" includes knowledge admins: another user's conversation answers 404, as a deleted one does (as saved chats, CB-03 AC7), although an admin can open the assessment.
+- Archived (AC5): reading stays open; asking a question and deleting a conversation answer 409 with the cause and next step. This reverses AS-01, which let an archived assessment be asked about. The tab shows a note in the question box's place, and Ask about this (AS-02) is greyed out with the reason.
+- AC4 is held in two places: the gateway's export never reads the collection, and a client test follows `document/export/`'s imports to show nothing there imports `ask/`.
+
+Rejected:
+- Keeping `assessment_questions` with a `conversation` reference, as chat keeps its messages (CB-03): two collections to keep in step on every delete and two reads per conversation, for questions that are never read alone.
+- Sending the last few turns with each question so follow-ups work: it changes rag-service, the prompt, masking and how a turn is replayed. Left for a later story if engineers need it.
+- Creating a conversation when New conversation is pressed: every press would leave an empty one in the list.
+
+Known limits: a conversation's name is not editable. Deleting is permanent, with no undo; the paid calls stay in `ai_calls`. An answer still being written when its conversation is deleted is discarded when it ends.
+
+Stories: AS-03, AS-01, AS-02, CB-03, EV-01.
+
+## 2026-11-16 — Text drafted from the Ask tab goes into a section as a version, marked AI draft by its proposal, until the engineer accepts it
+
+Chose:
+- (AS-04) A request for text is asked like a question, in the same conversation and through the same orchestrator run (retrieve → assemble → generate → guardrail), with the same masking and provider: `POST …/ask` with `propose`. "Draft text" (a button beside Ask) drafts new text for the section open; "Rewrite this" (beside Ask about this, and in the document editor's toolbar) rewrites the passage selected. Two buttons, not a guess from the wording. Asked on 16 Nov.
+- The proposal is kept in its own collection, `report_text_proposals`, and the turn points to it. Once inserted it is part of the report's record: the review workspace reads the passages and observations inserted text cites from there, never from `assistant_conversations` (which the export may not read, AS-03), and deleting a conversation leaves inserted text with its sources.
+- Insert puts a draft at the end of a subsection: the model names the one the text fits (`Subsection:` first line), and the engineer can choose another in the card. Replace swaps the whole paragraphs the selection is in (plain paragraphs of one subsection, or items of one list; a sub-heading is not rewritten), so a rewrite never leaves half of a sentence behind. Asked on 16 Nov.
+- Insert and Replace save the section's next version (RV-08) through the same checks as a save, the new paragraphs carrying `ai: <proposal id>`. The section is then Needs review (AC2). A finding a rewrite replaces leaves the text as one deleted in the document editor does: a `reject` entry marked `inDocument`. Undo restores the text from before as the next version, naming what it restored as a version-history restore does, so a replaced finding comes back.
+- Accept, on the violet text in the review workspace, saves a version without the `ai` mark: the text is then the engineer's own. Delete saves one without the text. Editing it in the document editor keeps it AI draft. Asked on 16 Nov.
+- A sentence with no citation that counts is kept and marked unsupported, not dropped as an answer's is (AC3): the engineer sees what the evidence did not support. A citation counts if it names evidence the model was given and, for a standard, its quote is found in the passage. Whether a sentence is still unsupported is read from the text: still there word for word with no citation marker straight after it. Giving it a citation (a marker pasted after it), rewording or deleting it resolves it. Accept is refused while one is unsupported, and the export is blocked by it and by any AI text not yet accepted.
+- The drafting set (AC4) is the standards selected on the assessment, as AS-01 reads them (latest checklist, else every standard that applies): only their passages are searched, and past reports are neither searched nor given, even one the rewritten paragraphs cite. Insert checks the set again, so a checklist made since cannot slip in a standard it dropped.
+- AC5: requests for text, Insert, Replace, Undo, Accept and Delete need `reports:generate` and the assigned engineer. Knowledge admins have held `reports:generate` since RV-11 (on their own assessments), so the assigned-engineer check is what hides these from an admin on someone else's assessment. A finalised report (`reportStatus: 'finalised'`) and an archived one answer 409.
+- AC6: a proposal records the section's newest version, saved draft and a signature of its text when it was made. Any difference on Insert (a save, a redraft, a finding reworded or rejected in the review workspace) answers 409 `stale`, and the card offers Draft again. Undo likewise refuses once the section changed after the insert.
+- In the document editor, Insert, Replace and Undo wait for unsaved changes to be saved, then the document reopens with the new version; Rewrite this asks for the document to be saved first, as a rewrite starts from the saved text. Asked on 16 Nov.
+- `PROPOSE_EFFORT` (default medium) on Ask's model: report text needs more care than a short answer. Prompt `as04-v1` carries the drafting guide (`drafting-skill.md`) for the report's voice. The trace's `story` is `AS-04`; its `propose` block holds the kind, section and subsection chosen, never the words.
+
+Reason: the engineer wants to write faster from the same evidence without losing the report's rule that every statement is cited and reviewed. Going through a saved version keeps the text history (RV-06), the review log (RV-02) and the export's checks (EX-01) as they are, with one more mark on a paragraph.
+
+Rejected:
+- Detecting a draft request from the question's wording: a question like "Draft a summary?" would surprise the engineer either way.
+- Inserting at the cursor in the document editor only: the review workspace has no cursor, and the gateway would have to trust a document the browser built.
+- Treating any edit or save of the inserted text as reviewed: an unrelated save elsewhere in the section would clear it.
+- Keeping proposals only in the conversation: the export and review workspace would have to read a collection that is private to one user and may be deleted.
+- Dropping unsupported sentences, as an answer does: AC3 asks for them to be marked and to block the export.
+
+Stories: AS-04, AS-01, AS-02, AS-03, RV-02, RV-06, RV-08, EX-01.

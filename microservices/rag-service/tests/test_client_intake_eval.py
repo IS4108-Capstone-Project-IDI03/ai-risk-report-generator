@@ -132,10 +132,10 @@ def test_a_document_that_fell_back_to_the_client_is_wrong_but_counted_as_not_sur
 
 
 def test_every_golden_case_has_a_plan_and_valid_placements():
-    plans = {p["id"]: p for p in json.loads((EVAL / "plans.json").read_text())}
+    plans = {p["id"]: p for p in json.loads((EVAL / "plans.json").read_text(encoding="utf-8"))}
     assert len(plans) == 24
     assert sum(p["split"] == "tuning" for p in plans.values()) == 12
-    for case in json.loads((EVAL / "golden.json").read_text())["cases"]:
+    for case in json.loads((EVAL / "golden.json").read_text(encoding="utf-8"))["cases"]:
         key = case["key"]
         assert key == plans[case["id"]]
         ids = {d["id"] for d in case["request"]["documents"]}

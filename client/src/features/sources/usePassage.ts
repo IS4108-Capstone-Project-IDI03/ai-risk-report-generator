@@ -1,6 +1,7 @@
-// Loads the passage behind an opened citation (CB-02). Used by CitationPanel.
+// Loads the passage behind an opened citation (CB-02). Used by the chat's CitationPanel, and by
+// the review workspace's SourcePanel for the passage's region of the original page (KB-02).
 import { useEffect, useState } from 'react'
-import { fetchPassage, type Passage } from '../api'
+import { fetchPassage, type Passage } from '../chat/api'
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; passage: Passage }
 

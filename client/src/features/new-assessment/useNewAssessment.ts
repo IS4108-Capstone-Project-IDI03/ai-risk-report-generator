@@ -39,7 +39,13 @@ import {
 } from './form'
 import { validate } from './validate'
 
-export type CreateStart = { clientId?: string; clientName?: string; siteId?: string }
+export type CreateStart = {
+  clientId?: string
+  clientName?: string
+  siteId?: string
+  // The day the first assessment's survey starts, when opened from a calendar day (CP-60).
+  siteVisitDate?: string
+}
 export type NewAssessmentForm = ReturnType<typeof useNewAssessment>
 
 // A patch to an object that drops the Not sure mark of each field it sets.

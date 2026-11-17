@@ -5,7 +5,15 @@
 // counts and review history, any replacement draft waiting for a decision,
 // and the report's review summary. With RV-08, each section's newest version
 // from the document editor, which adds the `edited` review state (Edited by
-// you). Called by routes/assessment.routes.ts.
+// you). With AS-04, text drafted from the Ask tab and inserted, awaiting the
+// engineer's Accept: each section's AI drafts and their unsupported sentences,
+// which put it back in Needs review, and the passages and observations that
+// text cites. Called by routes/assessment.routes.ts.
+import type { Types } from 'mongoose'
+import {
+  ReportTextProposalModel,
+  type IReportTextProposal,
+} from '../models/report-text-proposal.model'
 import type { ReviewAction } from '../models/review-audit.model'
 import { findKnowledgeDocuments, type KnowledgeDocumentDto } from './knowledge-document.service'
 import {
@@ -35,7 +43,13 @@ import {
   summaryDraft,
   type SectionVersionDto,
 } from './report-document.service'
-import { hasWrittenText, writtenSubsections } from './section-document'
+import {
+  aiIdsIn,
+  hasOwnText,
+  hasWrittenText,
+  unsupportedAiText,
+  writtenSubsections,
+} from './section-document'
 
 // How much of the section the draft writes. Tables are not counted: measured
 // values fill them (GN-03), so a draft never writes them.
@@ -167,6 +181,19 @@ export type ReviewHistoryEntryDto = {
 // an earlier draft, so the review workspace and the editor leave it aside.
 export type SectionDocumentDto = SectionVersionDto & { current: boolean }
 
+// Text drafted from the Ask tab and inserted into the section, still awaiting
+// the engineer's Accept (AS-04): its proposal, what was asked, its sentences
+// proposed with no supporting source (the browser marks those still in the
+// text, as `unsupportedAiText` does), and who inserted it when.
+export type AiDraftDto = {
+  id: string
+  kind: 'draft' | 'rewrite'
+  request: string
+  unsupported: string[]
+  insertedAt: Date
+  insertedBy: { id: string; name: string }
+}
+
 export type ReviewSectionDto = {
   id: string
   title: string
@@ -187,6 +214,9 @@ export type ReviewSectionDto = {
     // Changed or written in the document editor (RV-08 AC12), shown as Edited
     // by you even while the state is needs_review.
     editedInDocument: boolean
+    // AI-drafted text awaiting Accept (AS-04): how many insertions, and how
+    // many of their sentences are still unsupported. Either is Needs review.
+    aiText: { pending: number; unsupported: number }
   }
   // How many of the saved draft's findings stand in each state (RV-02 AC9).
   findings: FindingCounts
@@ -200,6 +230,8 @@ export type ReviewSectionDto = {
   history: ReviewHistoryEntryDto[]
   // Its newest version from the document editor (RV-08), or null.
   document: SectionDocumentDto | null
+  // Text drafted from the Ask tab awaiting Accept, in the order it is in the text (AS-04).
+  aiDrafts: AiDraftDto[]
 }
 
 export type ReviewWorkspaceDto = {
@@ -231,7 +263,7 @@ function documentIdOf(citation: string, passage: SavedPassage): string | null {
 
 const pageOf = (value: unknown) => (typeof value === 'number' ? value : null)
 
-function toPassage(
+export function toPassage(
   citation: string,
   saved: unknown,
   documents: Map<string, KnowledgeDocumentDto>,
@@ -359,6 +391,77 @@ function evidenceOf(
   return { sources, observations }
 }
 
+type InsertedProposal = Pick<
+  IReportTextProposal,
+  'sectionId' | 'kind' | 'request' | 'sentences' | 'sources' | 'insertion'
+> & { _id: Types.ObjectId }
+
+const strings = (v: unknown) => (Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [])
+const stringOr = (v: unknown) => (typeof v === 'string' ? v : null)
+
+// The passages and observations text inserted from the Ask tab cites (AS-04),
+// as its proposals saved them, added to the section's own: whatever the
+// section's text cites can then be opened. The draft's own come first.
+function withInserted(
+  evidence: { sources: Record<string, SourcePassageDto>; observations: FieldObservationDto[] },
+  inserted: readonly InsertedProposal[],
+  documents: Map<string, KnowledgeDocumentDto>,
+  captured: Map<string, Date>,
+) {
+  const sources = { ...evidence.sources }
+  const observations = [...evidence.observations]
+  const shown = new Set(observations.map((o) => o.id))
+  for (const p of inserted)
+    for (const [ref, saved] of Object.entries(p.sources ?? {})) {
+      if (ref.startsWith('O:')) {
+        const o = (saved ?? {}) as Record<string, unknown>
+        const id = String(o.id ?? ref.slice(2))
+        if (shown.has(id)) continue
+        shown.add(id)
+        observations.push({
+          id,
+          copeDimensions: strings(o.COPE_dimension),
+          note: stringOr(o.note),
+          transcripts: strings(o.transcripts),
+          handwriting: strings(o.handwriting),
+          severity: stringOr(o.severity) ?? '',
+          location: stringOr(o.location),
+          standard: stringOr(o.standard),
+          capturedAt: captured.get(id) ?? null,
+        })
+      } else if (!(ref in sources)) sources[ref] = toPassage(ref, saved, documents)
+    }
+  return { sources, observations }
+}
+
+// The section's AI-drafted text awaiting Accept (AS-04), read from its
+// current version, and how many of its sentences are still unsupported.
+function aiTextOf(
+  document: SectionDocumentDto | null,
+  inserted: readonly InsertedProposal[],
+): { drafts: AiDraftDto[]; unsupported: number } {
+  const text = document?.current ? document.document : null
+  if (!text) return { drafts: [], unsupported: 0 }
+  const byId = new Map(inserted.map((p) => [String(p._id), p]))
+  const drafts = aiIdsIn(text).flatMap((id): AiDraftDto[] => {
+    const p = byId.get(id)
+    return p?.insertion
+      ? [
+          {
+            id,
+            kind: p.kind,
+            request: p.request,
+            unsupported: p.sentences.filter((s) => !s.supported).map((s) => s.text),
+            insertedAt: p.insertion.at,
+            insertedBy: { id: p.insertion.by.id, name: p.insertion.by.name },
+          },
+        ]
+      : []
+  })
+  const still = unsupportedAiText(text, new Map(drafts.map((d) => [d.id, d.unsupported])))
+  return { drafts, unsupported: [...still.values()].reduce((n, s) => n + s.length, 0) }
+}
+
 function historyEntry(e: ReviewEntry): ReviewHistoryEntryDto {
   return {
     id: String(e._id),
@@ -401,19 +504,28 @@ export async function getReviewWorkspace(
   const assessment = await assessmentIdOf(reference)
   // One query for the review log, one for the document editor's versions,
   // and one lookup for every document any draft cites.
-  const [entries, versions, summary] = await Promise.all([
+  const [entries, versions, summary, inserted] = await Promise.all([
     drafts.length ? assessmentHistory(assessment) : [],
     latestVersions(assessment),
     summaryDraft(assessment),
+    // Text inserted from the Ask tab, whose sources the sections' text may cite (AS-04).
+    ReportTextProposalModel.find(
+      { assessment, insertion: { $ne: null } },
+      'sectionId kind request sentences sources insertion',
+    )
+      .sort({ 'insertion.at': 1 })
+      .lean<InsertedProposal[]>(),
   ])
+  const insertedIn = (sectionId: string) => inserted.filter((p) => p.sectionId === sectionId)
   // A version is current while it was made on the section's saved draft.
   const documentOf = (sectionId: string, draft: { _id: unknown } | null) => {
     const version = versions.get(sectionId)
     if (!version) return null
     return { ...version, current: version.draftId === (draft ? String(draft._id) : null) }
   }
-  const documentIds = drafts.flatMap((draft) =>
-    Object.entries(draft.sources ?? {}).flatMap(([citation, saved]) => {
+  const documentIds = [...drafts, ...inserted].flatMap((cited) =>
+    Object.entries(cited.sources ?? {}).flatMap(([citation, saved]) => {
+      if (citation.startsWith('O:')) return []
       const id = documentIdOf(citation, (saved ?? {}) as SavedPassage)
       return id ? [id] : []
     }),
@@ -421,9 +533,12 @@ export async function getReviewWorkspace(
   const documents = new Map(
     (await findKnowledgeDocuments(documentIds)).map((document) => [document.id, document]),
   )
-  const captured = await captureTimes(
-    drafts.flatMap((d) => savedEvidence(d.evidence).map((e) => e.id)),
-  )
+  const captured = await captureTimes([
+    ...drafts.flatMap((d) => savedEvidence(d.evidence).map((e) => e.id)),
+    ...inserted.flatMap((p) =>
+      Object.keys(p.sources ?? {}).flatMap((ref) => (ref.startsWith('O:') ? [ref.slice(2)] : [])),
+    ),
+  ])
 
   const sections = loaded.map(
     ({ section, latest, replacement, changesSinceDraft, changeCounts }): ReviewSectionDto => {
@@ -439,29 +554,49 @@ export async function getReviewWorkspace(
           replacement && toReplacement(replacement, section, documents, captured, entries),
         document: documentOf(section.id, latest),
       }
+      const ai = aiTextOf(base.document, insertedIn(section.id))
+      const aiText = { pending: ai.drafts.length, unsupported: ai.unsupported }
+      // The engineer's own text, AI-drafted text awaiting Accept left out (AS-04).
+      const ownText = !!base.document?.current && hasOwnText(base.document.document)
       if (!latest) {
         const completion = completionOf(null, [], base.document)
         return {
           ...base,
           completion,
           review: {
-            // Written in the document editor (RV-08 AC3).
-            state: completion.state === 'complete' ? 'edited' : 'not_drafted',
+            // Written in the document editor (RV-08 AC3), or holding AI-drafted
+            // text to accept (AS-04).
+            state: aiText.pending
+              ? 'needs_review'
+              : completion.state === 'complete'
+                ? 'edited'
+                : 'not_drafted',
             unsupportedStatements: 0,
             withdrawnSources: 0,
             changesSinceDraft: 0,
             changeCounts,
-            editedInDocument: completion.state === 'complete',
+            editedInDocument: ownText,
+            aiText,
           },
           findings: NO_FINDINGS,
           draft: null,
-          sources: {},
-          observations: [],
+          ...withInserted(
+            { sources: {}, observations: [] },
+            insertedIn(section.id),
+            documents,
+            captured,
+          ),
+          aiDrafts: ai.drafts,
         }
       }
       const findings = foldFindings(latest, entries)
       const counts = countFindings(findings)
-      const { sources, observations } = evidenceOf(latest, section, documents, captured)
+      const { sources, observations } = withInserted(
+        evidenceOf(latest, section, documents, captured),
+        insertedIn(section.id),
+        documents,
+        captured,
+      )
       const inDraft = findings.filter(kept)
       const unsupportedStatements = inDraft.filter((f) => !f.supported).length
       const citedNow = new Set(inDraft.flatMap((f) => f.citations))
@@ -471,14 +606,13 @@ export async function getReviewWorkspace(
       // Changed in the document editor (RV-08 AC12): a finding edited or deleted
       // there, or text the engineer wrote into the section.
       const editedInDocument =
-        entries.some((e) => e.inDocument && String(e.draft) === String(latest._id)) ||
-        (!!base.document?.current && hasWrittenText(base.document.document))
+        entries.some((e) => e.inDocument && String(e.draft) === String(latest._id)) || ownText
       return {
         ...base,
         completion: completionOf(latest, findings, base.document),
         review: {
           state:
-            unsupportedStatements || withdrawnSources || changesSinceDraft
+            unsupportedStatements || withdrawnSources || changesSinceDraft || aiText.pending
               ? 'needs_review'
               : editedInDocument
                 ? 'edited'
@@ -492,11 +626,13 @@ export async function getReviewWorkspace(
           changesSinceDraft,
           changeCounts,
           editedInDocument,
+          aiText,
         },
         findings: counts,
         draft: reviewDraft(latest, findings),
         sources,
         observations,
+        aiDrafts: ai.drafts,
       }
     },
   )

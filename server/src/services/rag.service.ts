@@ -1,5 +1,6 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
+import { modelHeaders } from './model-resolver.service'
 import { listIngestedDocuments } from './knowledge-document.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
@@ -74,6 +75,8 @@ export type FoundPassage = {
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
+  // The passage holds a model's description of a picture (IN-13, KB-02).
+  generated?: boolean
 }
 
 // The passage for a checklist item's reference (CP-32 AC2), or null when S4
@@ -126,6 +129,35 @@ export async function openChatStream(
     throw new RagServiceError(`The chat service failed with status ${response.status}.`)
   }
   return response.body.pipeThrough(recordingChatUsage(userId))
+}
+
+/**
+ * S4's event stream for one question about an assessment (AS-01): its steps,
+ * each checked statement, any missing evidence, then one `result` event. The
+ * caller reads the result (usage, trace) before passing anything on.
+ */
+export async function openAskStream(
+  body: unknown,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  let response: Response
+  try {
+    response = await fetch(`${config.ragServiceUrl}/assessments/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    })
+  } catch {
+    throw new RagServiceError('the answer service could not be reached')
+  }
+  if (!response.ok || !response.body) {
+    throw new RagServiceError(
+      `the answer service failed with status ${response.status}`,
+      response.status,
+    )
+  }
+  return response.body
 }
 
 // The AG-UI event S4 ends a chat answer with: the answer's paid calls.
@@ -219,7 +251,7 @@ export type SectionDraftResult = {
 export async function requestSectionDraft(body: unknown): Promise<SectionDraftResult> {
   return callRag<SectionDraftResult>('/sections/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -235,7 +267,8 @@ export type ChecklistDraftResult = {
     text: string
     fields: string[]
     COPE_dimension: string[]
-    citations: { ref: string; quote: string; quote_found: boolean }[]
+    // quote_described: the words are only in a picture's AI description (KB-02).
+    citations: { ref: string; quote: string; quote_found: boolean; quote_described?: boolean }[]
     flags: 'uncited'[]
   }[]
   areas: { id: string; title: string }[]
@@ -257,7 +290,7 @@ export type ChecklistDraftResult = {
 export async function requestChecklistDraft(body: unknown): Promise<ChecklistDraftResult> {
   return callRag<ChecklistDraftResult>('/checklist/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -295,7 +328,7 @@ export type OfiDraftResult = {
 export async function requestOfiDraft(body: unknown): Promise<OfiDraftResult> {
   return callRag<OfiDraftResult>('/ofis/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -332,7 +365,7 @@ export type ProposedLevel = {
 export async function requestFigureProposal(body: unknown): Promise<FigureProposalResult> {
   return callRag<FigureProposalResult>('/figures/propose', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -340,7 +373,7 @@ export async function requestFigureProposal(body: unknown): Promise<FigurePropos
 export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftResult> {
   return callRag<SummaryDraftResult>('/summary/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -517,6 +550,57 @@ export async function requestAssistantWording(
   body: AssistantWordingBody,
 ): Promise<{ programs: Record<string, string>; usage?: unknown }> {
   return callRag('/assistant/wording', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// What the gateway sends rag-service to summarise a client's insights (CP-29),
+// in the shape of POST /client-insights/summary. Must match
+// ClientInsightsSummaryRequest in microservices/rag-service/app/api/routes.py,
+// which refuses unknown fields.
+export type InsightSummaryBody = {
+  client: string
+  figures: { label: string; title: string; lines: string[] }[]
+  observations: {
+    label: string
+    site: string
+    location: string | null
+    severity: string
+    categories: string[]
+    date: string | null
+    text: string
+  }[]
+  privacy: { enabled: boolean; known_entities: unknown[] }
+}
+
+// The summary as S4 checked it: only statements that cite a source it was
+// given and state findings, with real names back.
+export type InsightSummaryResult = {
+  statements: { text: string; citations: string[] }[]
+  missing: string | null
+  confidence: 'high' | 'medium' | 'low'
+  dropped: number
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    privacy: DraftPrivacy
+  }
+  usage: unknown
+}
+
+/**
+ * Asks rag-service to write a client's insight summary (CP-29). Throws
+ * RagServiceError; its `status` is 503 when privacy protection is on and
+ * masking is unavailable, so nothing was sent to the model.
+ */
+export async function requestInsightSummary(
+  body: InsightSummaryBody,
+): Promise<InsightSummaryResult> {
+  return callRag<InsightSummaryResult>('/client-insights/summary', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

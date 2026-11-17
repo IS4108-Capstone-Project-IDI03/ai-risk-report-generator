@@ -23,6 +23,7 @@ import {
   removePhotos,
   sentPhotoIds,
 } from '../services/chat-attachment.service'
+import { ModelUnavailableError } from '../services/settings.service'
 import { SpeechServiceError } from '../services/speech.service'
 import {
   MAX_PDF_BYTES,
@@ -92,11 +93,10 @@ function engineerTexts(body: unknown): string[] {
   return [...said, ...noted].filter((t): t is string => typeof t === 'string')
 }
 
-// `{ attachments }` for this chat's PDF, or nothing when it has none, so a chat without one sends
-// S4 exactly what it did before (CB-09).
+// `{ attachments }` for this chat's PDFs (CB-09). Always set, even when empty: the browser's own
+// `attachments` is a list of photo ids (CB-08), and without this override S4 answers 422 to them.
 async function attachedPdfs(userId: string, threadId: unknown) {
-  const files = typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : []
-  return files.length ? { attachments: files } : {}
+  return { attachments: typeof threadId === 'string' ? await pdfsForChat(userId, threadId) : [] }
 }
 
 // The request with extra context lines added after any the browser sent.
@@ -254,6 +254,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
       userId,
     )
   } catch (error: unknown) {
+    if (error instanceof ModelUnavailableError) {
+      // S-01: the photo model has no key. Say so in the chat, as the other failures here do.
+      refuse(res, error.message)
+      return
+    }
     if (error instanceof SpeechServiceError) {
       // A chat reply, like the other failures here: nothing is asked of the answer model.
       refuse(res, 'I could not read that photo. Please try again, or ask without it.')

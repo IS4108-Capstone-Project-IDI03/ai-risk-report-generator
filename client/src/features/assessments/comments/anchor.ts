@@ -23,9 +23,10 @@ export const MAX_QUOTE = 10_000
 // The least text either side that places a passage whose words changed.
 const MIN_CONTEXT = 8
 
-type Run = { pos: number; offset: number; length: number }
-// A section's text, and where each of its blocks starts in the editor
-// (`pos`) and in the text (`offset`).
+// One text block of a section: where it starts in the editor (`pos`) and in
+// the text (`offset`), its length there, and the block itself.
+export type Run = { pos: number; offset: number; length: number; node?: PMNode }
+// A section's text, and where each of its blocks is.
 export type SectionText = { sectionId: string; text: string; runs: Run[] }
 
 // Whether the editor saves a text block: one with words, or a paragraph with
@@ -57,7 +58,7 @@ export function sectionText(section: PMNode, at: number): SectionText {
     if (savedBlock(node)) {
       if (runs.length) text += '\n'
       const words = blockText(node)
-      runs.push({ pos: at + 1 + pos + 1, offset: text.length, length: words.length })
+      runs.push({ pos: at + 1 + pos + 1, offset: text.length, length: words.length, node })
       text += words
     }
     return false
@@ -101,36 +102,45 @@ export function positionAt(text: SectionText, offset: number): number {
 // Why a selection cannot be commented on, if it cannot.
 export type Target = { anchor: CommentAnchor } | { reason: { title: string; text: string } }
 
+// The text between two editor positions, in its section's text, or what is
+// wrong with it: nothing selected, a selection across two sections, one with
+// no words (only a fixed heading or a part filled in elsewhere), or one
+// longer than `max`. Shared by comments and by asking about a passage (AS-02).
+export type Selected =
+  | { text: SectionText; start: number; end: number }
+  | { problem: 'nothing' | 'sections' | 'words' | 'length' }
+export function selectedText(doc: PMNode, from: number, to: number, max: number): Selected {
+  if (to <= from) return { problem: 'nothing' }
+  const $from = doc.resolve(from)
+  const $to = doc.resolve(to)
+  if ($from.depth < 1 || $to.depth < 1 || $from.before(1) !== $to.before(1))
+    return { problem: 'sections' }
+  const text = sectionText($from.node(1), $from.before(1))
+  const start = offsetAt(text, from, 'start')
+  const end = offsetAt(text, to, 'end')
+  const exact = start !== null && end !== null && end > start ? text.text.slice(start, end) : ''
+  if (start === null || end === null || !tidy(exact.replaceAll(MARKER, ' ')))
+    return { problem: 'words' }
+  if (exact.length > max) return { problem: 'length' }
+  return { text, start, end }
+}
+
 const CANT = "Can't comment here"
 
 // The anchor of the text between two editor positions (AC1), or why there is
 // none: nothing selected, a selection across two sections, one with no words
 // (only a fixed heading or a part filled in elsewhere), or one too long.
 export function commentTarget(doc: PMNode, from: number, to: number): Target {
-  if (to <= from) return { reason: { title: CANT, text: 'Select the text to comment on.' } }
-  const $from = doc.resolve(from)
-  const $to = doc.resolve(to)
-  if ($from.depth < 1 || $to.depth < 1 || $from.before(1) !== $to.before(1))
-    return { reason: { title: CANT, text: 'Select text within one section to comment on it.' } }
-  const text = sectionText($from.node(1), $from.before(1))
-  const start = offsetAt(text, from, 'start')
-  const end = offsetAt(text, to, 'end')
-  const exact = start !== null && end !== null && end > start ? text.text.slice(start, end) : ''
-  if (start === null || end === null || !tidy(exact.replaceAll(MARKER, ' ')))
-    return {
-      reason: {
-        title: CANT,
-        text: 'Select some of the text to comment on. Headings and parts filled in elsewhere take no comments.',
-      },
-    }
-  if (exact.length > MAX_QUOTE)
-    return {
-      reason: {
-        title: CANT,
-        text: `Select up to ${MAX_QUOTE.toLocaleString('en-GB')} characters to comment on.`,
-      },
-    }
-  return { anchor: anchorIn(text, start, end) }
+  const selected = selectedText(doc, from, to, MAX_QUOTE)
+  if ('text' in selected) return { anchor: anchorIn(selected.text, selected.start, selected.end) }
+  const text = {
+    nothing: 'Select the text to comment on.',
+    sections: 'Select text within one section to comment on it.',
+    words:
+      'Select some of the text to comment on. Headings and parts filled in elsewhere take no comments.',
+    length: `Select up to ${MAX_QUOTE.toLocaleString('en-GB')} characters to comment on.`,
+  }[selected.problem]
+  return { reason: { title: CANT, text } }
 }
 
 // The anchor of offsets in a section's text.

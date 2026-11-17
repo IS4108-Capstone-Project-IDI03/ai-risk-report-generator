@@ -13,10 +13,12 @@ export type Permission =
   | 'reports:generate'
   | 'reports:export'
   | 'reports:comment'
+  | 'reports:ask'
   | 'knowledge:view'
   | 'knowledge:manage'
   | 'users:manage'
   | 'usage:view'
+  | 'settings:manage'
 
 export type Session = {
   user: { id: string; name: string; role: UserRole }

@@ -1,4 +1,5 @@
 import { hasCategory } from './categories'
+import { andList, hasHit, matchesAll, NO_SPEECH, searchWords } from './evidenceSearch'
 import { groupKey, groupLocations, locationLabel, type Place } from './locations'
 import type { Observation, ObservationFilters } from './types'
 
@@ -8,6 +9,7 @@ export const NO_FILTERS: ObservationFilters = {
   sev: '',
   place: '',
   status: '',
+  q: '',
 }
 
 // The Location filter's values (CP-16): a building (or Elsewhere on site), a
@@ -114,6 +116,38 @@ export const statusOf = (o: Observation) =>
     ? 'Interpreting'
     : 'Complete')
 
+// What a search looks in on an observation (CP-13), each named for "Matched
+// in": its note, every recording's transcript as corrected (not one Whisper
+// heard nothing in), every page's text as shown, and its photos' description.
+export function evidenceOf(o: Observation) {
+  const parts: { label: string; text: string }[] = []
+  if (o.detail.trim()) parts.push({ label: 'the note', text: o.detail })
+  for (const r of o.recordings ?? [])
+    if (r.status === 'transcribed' && r.text !== NO_SPEECH)
+      parts.push({ label: r.name, text: r.text })
+  for (const p of o.pages ?? []) if (p.transcript) parts.push({ label: p.name, text: p.transcript })
+  const photos = o.interpretation?.photos
+  if (photos?.status === 'interpreted' && photos.description)
+    parts.push({ label: 'the photo description', text: photos.description })
+  return parts
+}
+
+// Whether every word of a search is in the observation's evidence, or the
+// text its row shows.
+export const matchesSearch = (o: Observation, words: readonly string[]) =>
+  matchesAll([o.text, ...evidenceOf(o).map((p) => p.text)], words)
+
+// Where a search found its words, other than the row's own text, which
+// shows them marked: "Matched in Recording 2 and the photo description".
+// Null when there is nothing more to say.
+export function matchedIn(o: Observation, words: readonly string[]) {
+  if (!words.length) return null
+  const found = evidenceOf(o)
+    .filter((p) => p.text !== o.text && hasHit(p.text, words))
+    .map((p) => p.label)
+  return found.length ? 'Matched in ' + andList(found) : null
+}
+
 // An observation matches when every filter that is set matches its label, so
 // any one label on its own returns every observation carrying it (CP-06 AC2,
 // CP-08 AC3). The Location filter takes a building, a level of it or one
@@ -125,8 +159,11 @@ export function matchesFilters(o: Observation, f: ObservationFilters) {
     (!f.cat || hasCategory(o.cats, f.cat)) &&
     (!f.sev || o.sev === f.sev) &&
     (!f.place || matchesPlace(o, f.place)) &&
-    (!f.status || statusOf(o) === f.status)
+    (!f.status || statusOf(o) === f.status) &&
+    (!f.q || matchesSearch(o, searchWords(f.q)))
   )
 }
 
-export const filtersActive = (f: ObservationFilters) => Object.values(f).some(Boolean)
+// A search of spaces alone searches nothing.
+export const filtersActive = (f: ObservationFilters) =>
+  Object.entries(f).some(([key, value]) => (key === 'q' ? !!value.trim() : !!value))

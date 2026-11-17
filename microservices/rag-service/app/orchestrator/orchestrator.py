@@ -6,15 +6,19 @@ this is the one place that defines pipeline order, so a single run can
 always be traced end to end (needed by the eval harness).
 """
 
+import contextvars
 import json
 import logging
 import re
+import time
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 from app import config, usage
 from app import privacy as pii
-from app.chat.quotes import quote_found
+from app.generation import ask as asking
+from app.generation import propose as proposing
 from app.generation.checklist import (
     CHECKLIST,
     CHECKLIST_PROMPT_VERSION,
@@ -36,9 +40,10 @@ from app.generation.generator import (
     draft_summary,
     filed_under,
     generate,
-    quotable_text,
+    quote_check,
     ram_priority,
 )
+from app.generation.llm import GenerationFailed, stream_text
 from app.guardrails.checker import check, check_citations
 from app.retrieval.retriever import rerank, retrieve, search
 
@@ -695,7 +700,12 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
     given = {f"C:{p['id']}": p for p in passages}
     for item in drafted:
         item["citations"] = [
-            {**c, "quote_found": quote_found(c["quote"], quotable_text(given[c["ref"]]))}
+            {
+                **c,
+                "quote_found": (where := quote_check(c["quote"], given[c["ref"]])) == "found",
+                # Only in a picture's AI description (KB-02): cited, never "found".
+                "quote_described": where == "described",
+            }
             for c in item["citations"]
             if c["ref"] in given
         ]
@@ -768,3 +778,493 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             "generated_at": datetime.now(UTC).isoformat(),
         },
     }
+
+
+# ---- Asking about one assessment (AS-01) ---------------------------------------------------
+# Kept for the answer after one rerank of every candidate: enough to answer, few enough that the
+# prompt stays small. Candidates per search come from Chroma's nearest.
+ASK_CANDIDATES = 20
+ASK_OBSERVATIONS = 8
+ASK_STANDARDS = 6
+ASK_REPORTS = 4
+# Rerank reads every observation; Cohere takes up to 1,000 documents a call.
+ASK_MAX_OBSERVATIONS = 200
+# If rerank fails, the observations go in capture order, so this many keep the prompt small.
+ASK_UNRANKED_OBSERVATIONS = 20
+# Drafting or rewriting a section's text (AS-04) reads a little more of each: a paragraph of
+# report text draws on more observations than a short answer.
+PROPOSE_OBSERVATIONS = 12
+PROPOSE_STANDARDS = 8
+
+
+def _lines(chunks: Iterator[str], blanks: bool = False) -> Iterator[str]:
+    """The streamed text as whole lines, so each is checked before it is shown (AC4). With
+    `blanks`, an empty line comes through as "", where a proposal starts a new paragraph."""
+    pending = ""
+    for chunk in chunks:
+        pending += chunk
+        *done, pending = pending.split("\n")
+        yield from ("" if not line.strip() else line for line in done if blanks or line.strip())
+    if pending.strip():
+        yield pending
+
+
+def _ask_cause(error: Exception, step: str) -> str:
+    """Why an answer stopped, in words for the engineer (AC8): never a stack trace or a value."""
+    if isinstance(error, pii.PrivacyUnavailable):
+        return "client details could not be masked, so nothing was sent to the model"
+    if isinstance(error, NotImplementedError):
+        return "the model provider set in LLM_PROVIDER is not supported"
+    if isinstance(error, GenerationFailed):
+        message = str(error)
+        if "could not be reached" in message:
+            return "the model provider did not respond"
+        if "returned an error" in message:
+            return "the model provider returned an error"
+        if "declined" in message:
+            return "the model declined to answer"
+        if "cut off" in message:
+            return "the answer was cut off before it was complete"
+        return message.rstrip(".").lower() or "the model gave no answer"
+    if step == "retrieve":
+        return "the evidence search did not respond"
+    return "the answer could not be finished"
+
+
+def _ask_source(found: tuple[str, object]) -> dict:
+    """A cited source as stored, for the evidence panel: the observation as it was sent, or a
+    passage's text and Chroma labels (the real words, never the masked copy)."""
+    kind, item = found
+    if kind == "observation":
+        return item.model_dump()
+    return {"text": item["text"], **(item.get("metadata") or {})}
+
+
+def _candidate(o) -> dict:
+    """An observation as rerank reads it, under its citation ID."""
+    text = " ".join(filter(None, [*o.recorded(), o.location]))
+    return {"id": f"O:{o.id}", "text": " ".join(text.split()), "metadata": {}}
+
+
+def _given_sources(passage) -> tuple[list[dict], list[dict]]:
+    """The standard and past-report passages a selected passage cites (AS-02), as the gateway
+    read them from the draft, shaped like search hits."""
+    refs = set(passage.citations)
+    standards, reports = [], []
+    for s in passage.sources:
+        kind = "standard" if s.kind == "standard" else "report"
+        if f"{'C' if kind == 'standard' else 'P'}:{s.id}" not in refs:
+            continue
+        hit = {"id": s.id, "text": s.text, "metadata": dict(s.metadata)}
+        (standards if kind == "standard" else reports).append(hit)
+    return standards, reports
+
+
+def ask(
+    question: str,
+    assessment,
+    observations,
+    standard_ids: list[str],
+    names: dict[str, str] | None = None,
+    privacy: dict | None = None,
+    passage=None,
+    propose=None,
+) -> Iterator[dict]:
+    """Answer one question about an assessment (AS-01): retrieve -> assemble -> generate ->
+    guardrail, as events for the review workspace's Ask tab, ending with one `result` event that
+    holds the answer, its sources, its usage and the run's trace (AC6).
+
+    Retrieval is limited to three sources (AC3): the assessment's `observations`; the passages
+    of `standard_ids` (the standards selected on it, as the gateway read them from
+    `knowledge_documents`), through a Chroma `doc_id` filter; and past reports on sites of the
+    same jurisdiction and facility type (`all` matches any). `names` maps a document id to the
+    name the prompt shows. With `privacy` on, Cohere and the model see client details masked.
+
+    `passage` is text the engineer selected in the draft (AS-02): its section, words, the
+    sources it cites and the section's findings. Its words join the search, the sources it
+    cites are always part of the evidence, and the prompt shows the passage and the findings,
+    all masked as the question is.
+
+    `propose` asks for text for one section instead of an answer (AS-04): new text to insert
+    (`kind` "draft", with the section's subsections it can go in), or a rewrite of `passage`
+    (`kind` "rewrite": its words are the paragraphs to rewrite). Only observations and the
+    standards in the drafting set are searched and citable, never past reports (AC4); each
+    sentence streams marked supported or not (AC3), with the paragraph it is in, and a draft's
+    `target` event names the subsection the model chose.
+    """
+    paid_calls = usage.start()
+    names = names or {}
+    protection = pii.session(privacy)
+    passage_refs = list(dict.fromkeys(passage.citations)) if passage else []
+    if propose:
+        # A proposal may cite no past report, even one the passage cites (AC4).
+        passage_refs = [ref for ref in passage_refs if not ref.startswith("P:")]
+    cited_obs = {ref[2:] for ref in passage_refs if ref.startswith("O:")}
+    given_standards, given_reports = _given_sources(passage) if passage else ([], [])
+    if propose:
+        given_reports = []
+    subsections = [(s.index, s.heading) for s in propose.subsections] if propose else []
+    drafting = propose is not None and propose.kind == "draft"
+    timings: dict[str, int] = {}
+    step, clock = "retrieve", time.perf_counter()
+
+    def finished(name: str) -> None:
+        nonlocal clock
+        now = time.perf_counter()
+        timings[name] = int((now - clock) * 1000)
+        clock = now
+
+    statements: list[dict] = []
+    missing: list[str] = []
+    dropped: list[dict] = []
+    sources: dict[str, dict] = {}
+    retrieved = {"observations": [], "standards": [], "reports": []}
+    reranked, model, error = False, None, None
+    target: int | None = None
+    uncounted = 0
+    recorded = [o for o in observations if o.recorded()]
+    # The observations a selected passage cites come first, so none is cut off (AS-02).
+    usable = [o for o in recorded if o.id in cited_obs]
+    usable = (usable + [o for o in recorded if o.id not in cited_obs])[:ASK_MAX_OBSERVATIONS]
+    yield {"type": "step", "step": "retrieve"}
+    try:
+        # 1. Retrieve. One /mask call covers the question, the observations, the documents'
+        # names (a past report's title can name its client) and a selected passage with its
+        # section's findings (AS-02), so one mapping covers the answer.
+        ids = sorted(names)
+        findings = passage.findings if passage else []
+        masked_obs, [masked_question, *rest] = _mask_evidence(
+            protection,
+            usable,
+            [
+                question,
+                *(names[i] for i in ids),
+                *([passage.text] if passage else []),
+                *(f.text for f in findings),
+            ],
+        )
+        shown_names = dict(zip(ids, rest[: len(ids)], strict=True))
+        rest = rest[len(ids) :]
+        masked_passage, masked_findings = (rest[0], rest[1:]) if passage else (None, [])
+        # A question about a passage is searched with the passage's words too.
+        query = spell_out(masked_question + (f"\n{masked_passage}" if passage else ""))[:1000]
+        site = {"jurisdiction": assessment.jurisdiction, "facility_type": assessment.facility_type}
+        requests = []
+        if standard_ids:
+            requests.append((query, {"doc_id": list(standard_ids)}, ASK_CANDIDATES))
+        # A proposal searches no past reports (AS-04 AC4).
+        if not propose:
+            requests.append((query, {**site, "source_type": "marsh_report"}, ASK_CANDIDATES))
+        hits = search(requests, protection) if requests else []
+        standard_hits = hits[0] if standard_ids else []
+        report_hits = hits[-1] if not propose else []
+        # What the passage cites is evidence whatever search finds; it is not ranked again.
+        given = {p["id"] for p in given_standards + given_reports}
+        standard_hits = [p for p in standard_hits if p["id"] not in given]
+        report_hits = [p for p in report_hits if p["id"] not in given]
+        # Standards are public; observations and past reports are masked for Cohere's rerank.
+        stored = {p["id"]: p for p in given_reports + report_hits}
+        masked_reports = {
+            p["id"]: p for p in _mask_passages(protection, given_reports + report_hits)
+        }
+        by_ref = {f"O:{o.id}": (o, m) for o, m in zip(usable, masked_obs, strict=True)}
+        ranked_obs = [m for o, m in zip(usable, masked_obs, strict=True) if o.id not in cited_obs]
+        candidates = (
+            [_candidate(m) for m in ranked_obs]
+            + standard_hits
+            + [masked_reports[p["id"]] for p in report_hits]
+        )
+        kinds = {c["id"]: "observation" for c in candidates[: len(ranked_obs)]}
+        kinds |= {p["id"]: "standard" for p in standard_hits}
+        kinds |= {p["id"]: "report" for p in report_hits}
+        try:
+            ranked = rerank(query, candidates) if candidates else []
+            ranked = [c for c in ranked if c.get("relevance_score", 0) >= config.ASK_MIN_RELEVANCE]
+            reranked = True
+        except Exception:
+            log.warning("Rerank failed for a question; using vector order", exc_info=True)
+            ranked = (
+                [_candidate(m) for m in ranked_obs[:ASK_UNRANKED_OBSERVATIONS]]
+                + standard_hits
+                + [masked_reports[p["id"]] for p in report_hits]
+            )
+
+        def top(kind: str, n: int) -> list[dict]:
+            return [c for c in ranked if kinds.get(c["id"]) == kind][:n]
+
+        kept_obs = [by_ref[f"O:{o.id}"] for o in usable if o.id in cited_obs] + [
+            by_ref[c["id"]]
+            for c in top("observation", PROPOSE_OBSERVATIONS if propose else ASK_OBSERVATIONS)
+        ]
+        kept_standards = given_standards + top(
+            "standard", PROPOSE_STANDARDS if propose else ASK_STANDARDS
+        )
+        kept_reports = [masked_reports[p["id"]] for p in given_reports] + [
+            masked_reports[c["id"]] for c in top("report", ASK_REPORTS)
+        ]
+        retrieved = {
+            "observations": [o.id for o, _ in kept_obs],
+            "standards": [p["id"] for p in kept_standards],
+            "reports": [p["id"] for p in kept_reports],
+        }
+        finished("retrieve")
+
+        # 2. Assemble. The prompt reads the masked copies; the checks read the real ones.
+        step = "assemble"
+        labels = asking.label_evidence(
+            [o for o, _ in kept_obs], kept_standards, [stored[p["id"]] for p in kept_reports]
+        )
+        by_label = {ref: (kind, item) for ref, kind, item in labels.values()}
+        label_of = {ref: label for label, (ref, _, _) in labels.items()}
+        cited = frozenset(label_of[ref] for ref in passage_refs if ref in label_of)
+        found = {k: len(v) for k, v in retrieved.items()}
+        if not any(found.values()):
+            # Nothing in scope relates to the question: say what is missing, ask no model (AC4).
+            line = (
+                proposing.nothing_found(len(usable), len(standard_ids))
+                if propose
+                else asking.nothing_found(assessment, len(usable), len(standard_ids))
+            )
+            missing.append(line)
+            finished("assemble")
+            yield {"type": "missing", "text": line}
+        elif propose:
+            user = proposing.user_message(
+                masked_question,
+                assessment,
+                propose.section_title,
+                subsections,
+                [m for _, m in kept_obs],
+                kept_standards,
+                shown_names,
+                None if drafting else masked_passage,
+                cited,
+            )
+            finished("assemble")
+
+            # 3. Generate, streamed line by line. 4. Guardrail each sentence before it is shown.
+            step = "generate"
+            yield {"type": "step", "step": "generate", "found": found}
+            written = stream_text(
+                proposing.SYSTEM,
+                [{"role": "user", "content": user}],
+                provider=config.LLM_PROVIDER,
+                model=config.ASK_MODEL,
+                effort=config.PROPOSE_EFFORT,
+                feature="ask",
+            )
+            paragraph, in_paragraph, opening = 0, False, True
+            for line in _lines(written, blanks=True):
+                if not line:
+                    # An empty line ends a paragraph that has a sentence in it.
+                    if in_paragraph:
+                        paragraph, in_paragraph = paragraph + 1, False
+                    continue
+                real, unknown = protection.unmask(line)
+                named = proposing.subsection_of(real, subsections)
+                if named is not False:
+                    # Only a draft's first line names where it goes; any other is dropped.
+                    if drafting and opening and not unknown:
+                        target = named
+                        yield {"type": "target", "subsection": named}
+                    else:
+                        dropped.append({"text": "", "reason": "subsection"})
+                    opening = False
+                    continue
+                opening = False
+                kind, words = asking.line_kind(real)
+                text, cites = asking.parse_words(words)
+                if unknown:
+                    dropped.append({"text": text, "reason": "placeholder"})
+                elif kind == "missing":
+                    problem = asking.content_problem(text)
+                    if problem or not text:
+                        dropped.append({"text": text, "reason": problem or "empty"})
+                        continue
+                    missing.append(text)
+                    yield {"type": "missing", "text": text}
+                elif text or cites:
+                    statement, why, uncounted_here = proposing.check_sentence(text, cites, labels)
+                    uncounted += uncounted_here
+                    if statement is None:
+                        dropped.append({"text": text, "reason": why})
+                        continue
+                    statement["paragraph"] = paragraph
+                    in_paragraph = True
+                    statements.append(statement)
+                    shown = {
+                        c["ref"]: _ask_source(by_label[c["ref"]])
+                        for c in statement["citations"]
+                        if c["ref"] not in sources
+                    }
+                    sources |= shown
+                    yield {"type": "statement", **statement, "sources": shown}
+            model = config.ASK_MODEL
+            finished("generate")
+            if not statements and not missing:
+                missing.append(proposing.NO_SUPPORTED_TEXT)
+                yield {"type": "missing", "text": proposing.NO_SUPPORTED_TEXT}
+        else:
+            user = asking.user_message(
+                masked_question,
+                assessment,
+                [m for _, m in kept_obs],
+                kept_standards,
+                kept_reports,
+                shown_names,
+                asking.selected_blocks(passage, masked_passage, masked_findings, label_of)
+                if passage
+                else None,
+                cited,
+            )
+            finished("assemble")
+
+            # 3. Generate, streamed line by line. 4. Guardrail each line before it is shown.
+            step = "generate"
+            yield {"type": "step", "step": "generate", "found": found}
+            written = stream_text(
+                asking.SYSTEM,
+                [{"role": "user", "content": user}],
+                provider=config.LLM_PROVIDER,
+                model=config.ASK_MODEL,
+                effort=config.ASK_EFFORT,
+                feature="ask",
+            )
+            for line in _lines(written):
+                # Real values back before any check compares text (PV-02 Rule 4).
+                real, unknown = protection.unmask(line)
+                kind, words = asking.line_kind(real)
+                text, cites = asking.parse_words(words)
+                if unknown:
+                    dropped.append({"text": text, "reason": "placeholder"})
+                elif kind == "missing":
+                    problem = asking.content_problem(text)
+                    if problem or not text:
+                        dropped.append({"text": text, "reason": problem or "empty"})
+                        continue
+                    missing.append(text)
+                    yield {"type": "missing", "text": text}
+                elif text or cites:
+                    statement, why = asking.check_statement(
+                        text, cites, labels, differs=kind == "differs"
+                    )
+                    if statement is None:
+                        dropped.append({"text": text, "reason": why})
+                        continue
+                    statements.append(statement)
+                    # Its sources go with it, so a citation opens while the answer is
+                    # still being written, and stays openable if the answer stops (AC2).
+                    shown = {
+                        c["ref"]: _ask_source(by_label[c["ref"]])
+                        for c in statement["citations"]
+                        if c["ref"] not in sources
+                    }
+                    sources |= shown
+                    yield {"type": "statement", **statement, "sources": shown}
+            model = config.ASK_MODEL
+            finished("generate")
+            if not statements and not missing:
+                missing.append(asking.NO_SUPPORTED_ANSWER)
+                yield {"type": "missing", "text": asking.NO_SUPPORTED_ANSWER}
+    except Exception as failure:  # noqa: BLE001
+        # The answer so far is kept; the engineer is told why it stopped and when (AC8).
+        if isinstance(failure, GenerationFailed | pii.PrivacyUnavailable | NotImplementedError):
+            log.error("Assessment question failed at %s: %s", step, failure)
+        else:
+            log.exception("Assessment question failed at %s", step)
+        error = {
+            "step": step,
+            "cause": _ask_cause(failure, step),
+            "at": datetime.now(UTC).isoformat(),
+        }
+        finished(step)
+    cited = [c for s in statements for c in s["citations"]]
+    unverified = sum(asking.not_found(c) for c in cited)
+    described = sum(bool(c.get("described")) for c in cited)
+    unsupported = sum(not s.get("supported", True) for s in statements)
+    yield {
+        "type": "result",
+        "value": {
+            "statements": statements,
+            "missing": missing,
+            "sources": sources,
+            # A proposal is judged sentence by sentence (supported or not), not as a whole.
+            "confidence": None if propose else asking.confidence(statements, len(dropped), missing),
+            "declined": not statements and error is None,
+            "error": error,
+            # The subsection a draft's text fits, as the model named it (AS-04); else None.
+            **({"target": target} if propose else {}),
+            "usage": paid_calls,
+            # One trace per answer for the evaluation harness (AC6): what was searched, what
+            # the model was given and what the checks did, never the masked text or mapping.
+            "trace": {
+                "story": "AS-04" if propose else "AS-02" if passage else "AS-01",
+                "pipeline": ["retrieve", "assemble", "generate", "guardrail"],
+                "provider": config.LLM_PROVIDER,
+                "model": model,
+                "effort": config.PROPOSE_EFFORT if propose else config.ASK_EFFORT,
+                "prompt_version": proposing.PROMPT_VERSION if propose else asking.PROMPT_VERSION,
+                "scope": {
+                    "jurisdiction": assessment.jurisdiction,
+                    "facility_type": assessment.facility_type,
+                    "standard_ids": list(standard_ids),
+                    "observations": len(usable),
+                },
+                "retrieved": retrieved,
+                # A question about a selected passage (AS-02): where it is and what it cites,
+                # never its words.
+                "passage": {
+                    "section_id": passage.section_id,
+                    "chars": len(passage.text),
+                    "citations": passage_refs,
+                    "findings": len(passage.findings),
+                    "findings_in_passage": sum(f.in_passage for f in passage.findings),
+                }
+                if passage
+                else None,
+                # Text for a section (AS-04): which kind, where it can go, and where the model
+                # put it; never the words of the paragraphs it rewrites.
+                "propose": {
+                    "kind": propose.kind,
+                    "section_id": propose.section_id,
+                    "subsections": len(subsections),
+                    "target": target,
+                }
+                if propose
+                else None,
+                "reranked": reranked,
+                "guardrail": {
+                    "passed": not dropped and not unverified and not unsupported and not uncounted,
+                    "kept": len(statements),
+                    "dropped": dropped,
+                    "unverified_citations": unverified,
+                    # Quotes only in a picture's AI description (KB-02), apart from the above.
+                    "described_citations": described,
+                    # A proposal's sentences kept with no citation that counts (AS-04 AC3), and
+                    # the citations left out of them: unknown labels or quotes not found.
+                    **(
+                        {"unsupported": unsupported, "uncounted_citations": uncounted}
+                        if propose
+                        else {}
+                    ),
+                },
+                "timings_ms": timings,
+                "privacy": protection.provenance(),
+                "generated_at": datetime.now(UTC).isoformat(),
+            },
+        },
+    }
+
+
+def ask_events(*args, **kwargs) -> Iterator[str]:
+    """`ask`'s events as server-sent events. Starlette runs each step of a stream in a fresh
+    copy of the context, so every step runs in one context to keep the usage list (app/usage.py)
+    alive throughout, as chat does (app/chat/answer.py)."""
+    steps = ask(*args, **kwargs)
+    context = contextvars.copy_context()
+    while True:
+        try:
+            event = context.run(next, steps)
+        except StopIteration:
+            return
+        yield f"data: {json.dumps(event)}\n\n"

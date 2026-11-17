@@ -10,7 +10,7 @@ import { beforeStartLine, INVALID_DATE } from '../../new-assessment/validate'
 import { updateAssessment, type Assessment } from '../api'
 import { SURVEY_TYPES } from '../demo-data'
 
-type DateKey = 'siteVisitDate' | 'reportDueDate'
+type DateKey = 'siteVisitDate' | 'siteVisitEndDate' | 'reportDueDate'
 
 /** Returns the dialog; `onSaved` hears the saved message once the gateway has taken the change. */
 export function EditDetailsDialog({
@@ -25,6 +25,8 @@ export function EditDetailsDialog({
   const start = {
     surveyType: record.surveyType,
     siteVisitDate: record.siteVisitDate ?? '',
+    // Sent with the rest, or saving would clear it (CP-60).
+    siteVisitEndDate: record.siteVisitEndDate ?? '',
     reportDueDate: record.reportDueDate ?? '',
   }
   const [form, setForm] = useState(start)
@@ -47,7 +49,7 @@ export function EditDetailsDialog({
       : key === 'reportDueDate' && early
         ? beforeStartLine(form.siteVisitDate)
         : undefined
-  const blocked = mine('siteVisitDate') ?? mine('reportDueDate')
+  const blocked = mine('siteVisitDate') ?? mine('siteVisitEndDate') ?? mine('reportDueDate')
   const unchanged =
     !typed.length &&
     (Object.keys(start) as (keyof typeof start)[]).every((k) => form[k] === start[k])
@@ -130,6 +132,8 @@ export function EditDetailsDialog({
           }}
         >
           {date('siteVisitDate', 'Survey Date')}
+          {/* The last survey day (CP-60), editable here so a save never clears it. */}
+          {date('siteVisitEndDate', 'Survey End Date', form.siteVisitDate || undefined)}
           {date('reportDueDate', 'Report Due Date', form.siteVisitDate || undefined)}
         </div>
       </div>

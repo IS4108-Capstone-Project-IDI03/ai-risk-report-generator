@@ -1431,6 +1431,8 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   expect(saves[1].body).toEqual({
     surveyType: 'Follow-up visit',
     siteVisitDate: '2026-04-21',
+    // Sent with the rest, so saving never clears it (CP-60).
+    siteVisitEndDate: '',
     reportDueDate: '2026-05-02',
   })
   // Details shows the saved details (AC10).

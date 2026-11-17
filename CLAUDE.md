@@ -36,8 +36,9 @@
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
-  `Undefined`; IN-05). A client intake and a client document (CP-23) also store
-  `null` for the fields they don't have (see docs/areas/database.md).
+  `Undefined`; IN-05). A client intake and a client document (CP-23), and a
+  client's insight summary (CP-29), also store `null` for the fields they don't
+  have (see docs/areas/database.md).
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
   A finding's review state is read from it, and drafts in `report_sections`
   are never changed. See docs/areas/database.md.
@@ -56,6 +57,42 @@
   which is never saved (`inlineOf` merges the runs it splits) and is not in
   the export's editor. Don't add it to `documentExtensions`. See
   docs/areas/database.md, "Report comment threads".
+- An Ask answer (AS-01) reaches the browser only line by line after
+  `ask.check_statement` (rag-service `orchestrator.ask`): never stream the
+  model's words straight to the client, or an uncited or first-person line
+  could show (AC4, AC5). See docs/areas/services.md, "Asking about an
+  assessment".
+- Asking about a selected passage (AS-02) only reads the report: the gateway
+  takes the findings and cited sources from the saved draft, never the
+  browser, and in the document editor the passage is marked by decorations
+  (`ask/askHighlight.ts`), never a mark in the text, so it adds no version
+  and changes no review state. Its anchor is RV-03's (`comments/anchor.ts`):
+  change both together.
+- Text drafted from the Ask tab (AS-04) enters a section only by Insert or
+  Replace (`text-proposal.service.ts`), as a new version whose paragraphs
+  carry `ai: <proposal id>` until the engineer accepts them; never write it
+  into a section any other way. The review workspace and the export read
+  inserted text's sources from `report_text_proposals`, never from
+  `assistant_conversations`. A sentence proposed without a source stays
+  `supported: false` and blocks Accept and the export until given a citation
+  or deleted; only standards in the drafting set (`drafting-set.service.ts`)
+  may be cited. Keep `section-document.ts` (`currentDocument`,
+  `unsupportedAiText`) in step with the client's `documentContent.ts` and
+  `aiText.ts` (kept out of `ask/`: the export reaches it through the document
+  editor's plugins). See docs/areas/database.md, "Proposed text".
+- A client's insight summary (CP-29) is saved and shown only after rag-service
+  (`client_insights/summary.py`) has checked every statement: cited, no advice
+  or first person, no number its sources lack. Never show a statement that
+  skipped those checks, and never put the summary into a report. The tab's
+  figures are counted in the gateway (`client-insights.service.ts`), never by a
+  model. See docs/areas/services.md, "Client insights summary".
+- Ask conversations (AS-03) live in `assistant_conversations`, one document
+  per conversation with its questions as `turns`, scoped to their user and
+  assessment: another user's, an admin's included, answers 404 as if it did
+  not exist. Nothing in the export (`document/export/`, `export.service.ts`)
+  may read them, and on an archived assessment asking and deleting answer
+  409. S4 is never sent earlier turns: each question stands alone. See
+  docs/areas/database.md, "Ask conversations".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export

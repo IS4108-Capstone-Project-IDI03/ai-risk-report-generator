@@ -119,7 +119,7 @@ function isFiledUnder(section: TemplateSection) {
 // Usable evidence: a note, or a finished transcript, as the engineer corrected
 // it if they did (CP-08 AC10). A failed or empty recording alone gives the
 // draft nothing to cite.
-function transcriptsOf(o: ObservationDto): string[] {
+export function transcriptsOf(o: ObservationDto): string[] {
   return o.recordings.flatMap((r) => {
     const text = r.transcription.correction?.text ?? r.transcription.transcript
     return r.transcription.status === 'transcribed' && text ? [text] : []
@@ -128,13 +128,13 @@ function transcriptsOf(o: ObservationDto): string[] {
 // The same for handwritten pages (CP-19): a finished transcript with text in
 // it, as the engineer corrected it if they did (CP-20). A page with no
 // handwriting gives the draft nothing. Removed pages are not in `pages`.
-function handwritingOf(o: ObservationDto): string[] {
+export function handwritingOf(o: ObservationDto): string[] {
   return o.pages.flatMap((p) => {
     const text = p.transcription.correction?.text ?? p.transcription.transcript
     return p.transcription.status === 'transcribed' && text?.trim() ? [text] : []
   })
 }
-function isUsable(o: ObservationDto): boolean {
+export function isUsable(o: ObservationDto): boolean {
   return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0 || handwritingOf(o).length > 0
 }
 

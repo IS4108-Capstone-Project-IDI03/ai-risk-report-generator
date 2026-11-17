@@ -17,6 +17,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'embed-document': 'Document embedding',
   chat: 'Chatbot',
   checklist: 'Pre-survey checklist',
+  ask: 'Ask about an assessment',
+  'client-insights': 'Client insights summary',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {

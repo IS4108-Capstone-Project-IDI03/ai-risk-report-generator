@@ -13,21 +13,35 @@ export type CitedSource = {
   withdrawn?: boolean
 }
 
-export type CitationCheck = { sources: Map<string, CitedSource>; unverified: Set<string> } | null
+/** `described`: unverified citations whose words are only in a picture's AI description (KB-02). */
+export type CitationCheck = {
+  sources: Map<string, CitedSource>
+  unverified: Set<string>
+  described?: Set<string>
+} | null
 
 export const CitationCheckContext = createContext<CitationCheck>(null)
 
 /** Returns the lookup key for one citation: its passage label and quoted words together. */
 export const checkKey = (label: string, quote: string) => `${label}\u0000${quote}`
 
-/** Returns a citation's source and state: checking (no result yet), verified or unverified. */
-export function useCitationCheck(passage: string, quote: string) {
+/** A citation's check: no result yet, found in the document, only in a picture's AI
+ * description (KB-02: cited, but never the document's words), or not found. */
+export type CitationState = 'checking' | 'verified' | 'described' | 'unverified'
+
+/** Returns a citation's source and state. */
+export function useCitationCheck(
+  passage: string,
+  quote: string,
+): { source?: CitedSource; state: CitationState } {
   const check = useContext(CitationCheckContext)
-  if (!check) return { source: undefined, state: 'checking' as const }
+  if (!check) return { source: undefined, state: 'checking' }
   const source = check.sources.get(passage)
+  const key = checkKey(passage, quote)
   // A label the model invented has no source, so it can't be verified either.
-  const verified = source && !check.unverified.has(checkKey(passage, quote))
-  return { source, state: verified ? ('verified' as const) : ('unverified' as const) }
+  if (!source) return { source, state: 'unverified' }
+  if (!check.unverified.has(key)) return { source, state: 'verified' }
+  return { source, state: check.described?.has(key) ? 'described' : 'unverified' }
 }
 
 // Each citation's number in its answer, keyed by checkKey(label, quote), in order of first citation.

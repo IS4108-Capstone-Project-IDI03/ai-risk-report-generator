@@ -37,6 +37,7 @@ const STACK_ORDER = [
   'draft-section',
   'retrieval',
   'checklist',
+  'ask',
   'transcribe',
   'interpret-photo',
   'transcribe-handwriting',
@@ -66,6 +67,8 @@ const SERIES_COLORS: Record<string, string> = {
   // The pre-survey checklist (CP-30) shares an assessment's bar with drafting,
   // so it takes the one report-feature hue no other uses.
   checklist: 'olive',
+  // Ask (AS-01) shares an assessment's bar too, so it takes a hue no report feature uses.
+  ask: 'magenta-light',
   transcribe: 'magenta-dark',
   'interpret-photo': 'aqua-light',
   'transcribe-handwriting': 'aqua-dark',

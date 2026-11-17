@@ -103,6 +103,8 @@ describe('the Edit Assessment Details dialog', () => {
     expect(puts[0].body).toEqual({
       surveyType: 'Resurvey',
       siteVisitDate: '2026-11-11',
+      // Sent with the rest so a save never clears it (CP-60); this record has none.
+      siteVisitEndDate: '',
       reportDueDate: '2026-12-20',
     })
   })

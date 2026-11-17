@@ -240,6 +240,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given an image contains risk-relevant visual evidence, such as property damage, safety hazards, equipment conditions, or site conditions, when extraction runs, then the description captures the observable details relevant to risk assessment without presenting unverified assumptions as facts.
   </details>
 
+- [ ] **IN-__** — Record the region each table, formula and picture passage was read from (knowledge admin, Should, deps: IN-12, IN-13, KB-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: store, for each passage read from a table, formula or picture, only the boxes of the item it was read from, so a citation can show that region of the original page (KB-02).
+
+  Today a table passage's `bbox` also holds the prose, captions and pictures in its chunk, and a formula passage's `bbox` is the whole chunk. This story writes the region keys KB-02 reads (`region_kind`, `region_bbox`, `region_pages`; see `docs/areas/database.md`). The GLM path is out of scope until it is fixed or dropped.
+
+  1. Given a chunk holds a table and prose, when it is ingested, then each table passage's region holds only the table's boxes.
+  2. Given a chunk holds two tables, when it is ingested, then each table's passages carry the boxes of the table they were read from.
+  3. Given a chunk is read as a formula, when it is ingested, then its passage's region holds the equation's own boxes, or the chunk's when no single item is the equation.
+  4. Given a picture is described, when it is ingested, then its passage's region holds the picture's boxes.
+  5. Given a passage is plain text, when it is ingested, then it records no region.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)
@@ -262,6 +276,24 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   13. Given a document is withdrawn, when reference material is retrieved, then none of its passages are returned.
   14. Given a document is withdrawn, when I view its details, then I see who withdrew it and when.
   15. Given a document is withdrawn, when I view it, then I can't edit its details.
+  </details>
+
+- [ ] **KB-02** — See the original table, formula or picture behind a cited passage (risk engineer, Should, 5 pts, deps: CB-02, RV-01, IN-13)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see the cited region of the original document beside the passage text, so a number read from a table or formula, or a description of a picture, can be checked against the source.
+
+  Covers the chat's Passage tab and the review workspace's source panel. A table or formula shows its region only once ingestion records it (IN-__); until then it shows as text. A described picture's own boxes stand in for its region. See `docs/DECISIONS.md` (2026-11-12, cited regions).
+
+  1. Given a cited passage records a table, formula or picture region, when its source opens in the chat or the review workspace, then that region of the original page is shown above the passage text.
+  2. Given a cited picture passage has a generated description but no recorded region, when its source opens, then the picture's own location is shown as its region.
+  3. Given a cited region spans several pages, when its source opens, then each page's region is shown in page order.
+  4. Given a cited passage records no region, or its document can't be loaded, when its source opens, then only the passage text is shown, with no error.
+  5. Given a passage's text holds valid LaTeX, when it is shown, then the formula is displayed as math; given the LaTeX is not valid, then the text is shown as written.
+  6. Given a cited picture has a generated description, when its source opens, then the description is shown below the picture, labelled as generated.
+  7. Given a quote is found only in a picture's generated description, when its citation is checked, then it is not shown as found in the document.
+  8. Given a cited region is shown, when the AI answers a question or drafts a section, then no image of it is sent to the AI.
+  9. Given a quote is found only in a picture's generated description, when its citation is shown in the chat, the checklist (on screen and in its PDF) or an Ask answer, then it is marked as from the AI's reading of the figure, not as not found, and in Ask it does not lower the answer's confidence.
   </details>
 
 ## E4 — Retrieval & Context Management
@@ -352,7 +384,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   1. Given an active session, when a JPG or PNG photograph is saved, then the original image is stored as raw evidence.
   2. Given a saved photograph, when its photo observation is opened, then the original image is linked to that observation.
-  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.)
+  3. Given saved photographs, when the assessment photo collection is opened, then every photo saved with the assessment's observations is listed, except those of deleted observations. (Reworded 7 Oct 2026: including the photos in the report's appendix is EX-01 AC3.) (Added 11 Nov 2026 with CP-12, counted in CP-13: each row names its photo and, once the observation's photos are described, opens that description under it, saying which of the photos it describes and whether they changed since.)
   4. Given an unsupported file type, when photo upload is attempted, then the file is rejected with a format message.
   5. Given a photo capture is created, when it is saved, then the capture is tagged with the engineer's id.
   6. Given a photo is taken on the device, when the engineer uploads it to the application, then it uploads as normal.
@@ -440,6 +472,88 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   2. Given an annotated image with entered caption, when Save is selected, then the caption is stored with the annotation.
   3. Given a saved annotated image, when it is displayed in any annotated-photo view, then its caption appears beneath it.
   4. Given a saved annotation, when the raw photo is opened, then the original image remains unchanged.
+  </details>
+
+- [ ] **CP-12** — See every voice recording of an assessment (risk engineer, Could, 3 pts, deps: CP-03, CP-08, CP-22, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see and play every voice recording of an assessment in one place, as All Photos and All Handwritten Pages show theirs, so I can find a voice recording without knowing which observation holds it, and catch one that failed to transcribe.
+
+  Listing
+
+  1. Given saved voice recordings, when I open All recordings from the location navigator, then every voice recording kept on an observation not deleted is listed, newest first, with its observation, location and category, and the Observations tab stays selected.
+  2. Given a removed voice recording, or a voice recording of a deleted observation, when All Recordings is opened, then it is not listed.
+  3. Given no voice recordings, when All Recordings is opened, then it says there are none yet.
+  4. Given a listed voice recording, when I select anywhere else on its row, then its observation opens, and Back returns to All Recordings.
+
+  Playing
+
+  5. Given a listed voice recording, when I select its play tile, then it plays in place and any other voice recording stops; when I select it again, it pauses.
+  6. Given a voice recording playing or paused, when I drag its seek bar, tap along it or press the arrow keys, then it moves to that point (the arrows by five seconds), and its time shows as played / length.
+  7. Given a voice recording playing, when I select its speed, then it plays at 1×, 1.5× or 2× in turn, and the next voice recording I play keeps that speed.
+  8. Given a voice recording that is a clip of a site walk, when it is played, then only its own part of the walk plays, its seek bar runs from the clip's start to its end, and it stops at the clip's end.
+
+  Transcripts
+
+  9. Given a transcribed voice recording, when I select Transcript, then its transcript, as corrected, opens under the row, and selecting it again closes it; when I play the voice recording, its transcript opens by itself.
+  10. Given a voice recording still transcribing, or one that failed, when it is listed, then its row says so under its name.
+  11. Given a failed voice recording on my assessment, when I select Retry, then a new transcription attempt starts for it.
+
+  Permissions
+
+  12. Given someone else's assessment, when a failed voice recording is listed, then it can be played but offers no Retry.
+
+  Not in this story: correcting or removing a voice recording (on its observation's page, CP-08); a site walk proposal's voice recordings (its walk list already holds them); a length column (voice recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted in CP-13 (CP-04 AC3, CP-19 AC17).
+  </details>
+
+- [ ] **CP-13** — Search and filter the evidence of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: read, search and filter an assessment's voice recordings, handwritten pages and photos, so I can find where I recorded, wrote or photographed something, and what still needs a look, without opening each observation.
+
+  Reading the text (built 2026-11-11 with CP-12)
+
+  1. Given a page still being transcribed, or one that failed, when I open All Handwritten Pages, then its row shows its name with "Transcribing" or "Couldn't transcribe", and Retry on a failed page starts transcribing it again.
+  2. Given a transcribed page, when I select Transcript on its row, then its text opens under the row as on the observation's page: unsure words underlined, my correction if I made one, or "No handwriting was found on this page."
+  3. Given a photo whose observation has a description, when I select Description on its row in All Photos, then the description opens under the row.
+  4. Given an open description, when I read it, then it says whether it describes this photo and how many others, or that it was written before this photo was added, and adds "Its evidence changed since." when it is out of date.
+
+  Searching
+
+  5. Given All Recordings, All Handwritten Pages or All Photos, when I type words in its search box, then only the items containing all of them are listed, in any order and ignoring capitals and accents, and the count reads, for example, "2 of 9 recordings".
+  6. Given an item, when I search for a word in its name or in its observation's text, then it is listed.
+  7. Given a voice recording, when I search for a word in its transcript, then it is found by the wording as corrected, not by the words I replaced, and never by "No speech was detected".
+  8. Given a handwritten page, when I search for a word in its text, then it is found by my correction if I made one, or else by the model's reading.
+  9. Given a photo, when I search for a word in its observation's description, then it is found only if that description covers this photo.
+
+  Showing what matched
+
+  10. Given an item found by its transcript or description, when it is listed, then that text opens under its row with the words found highlighted.
+  11. Given a word the model was unsure of, when a search finds it on a page, then it is highlighted and stays underlined.
+
+  Filtering
+
+  12. Given one of the three views, when I choose a Location, Category or Severity, then only the items whose observation has that location, category or severity are listed, and any search still applies.
+  13. Given All Recordings, when I choose a Status, then only the recordings that are transcribed, still transcribing, or could not be transcribed are listed.
+  14. Given All Handwritten Pages, when I choose a Status, then only the pages that are transcribed, corrected, have unsure words, are still transcribing, or could not be transcribed are listed, and a corrected page is not listed under Has unsure words.
+  15. Given All Photos, when I choose a Description, then Described lists the photos a description covers, Out of date those whose description is out of date, and Not described the rest, including a photo added after its description.
+
+  The Observations list
+
+  16. Given the Observations tab, or its deleted observations, when I type words in its search box, then only the observations with all of them in their note, a transcript, a page or the photo description are listed, together with the location picked and any filters.
+  17. Given a found observation, when it is listed, then the words found in its row's text are highlighted, and if they were found elsewhere, a line under the text says where, for example "Matched in Recording 2 and the photo description".
+
+  Clearing and returning
+
+  18. Given a search or filters that match nothing, when the list is shown, then it says nothing matches and offers Clear search, or Clear all when a filter is set.
+  19. Given two or more of the search and filters are set, when I select Clear all, then all of them are cleared.
+  20. Given a search or filters on one of the three views, when I open an observation from a row and select Back, then the same search and filters are still applied.
+  21. Given I go back to the Observations tab from one of the three views, when I open that view again, then its search and filters are empty.
+  22. Given a recording playing on All Recordings, when the search or a filter hides it, then it stops playing.
+
+  Permissions
+
+  23. Given another engineer's assessment that I can open, when I search or filter its views or its Observations tab, then they work as on my own.
   </details>
 
 - [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
@@ -545,7 +659,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 - [ ] **CP-33** — Recommend checklist items (risk engineer, Could, 3 pts, deps: CP-30, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: have the system recommend inspection items based on past inspections of similar facilities, so my checklist includes known risks to verify. Replaces CP-13.
+  Goal: have the system recommend inspection items based on past inspections of similar facilities, so my checklist includes known risks to verify. Replaces an earlier CP-13 (recommended inspection items); the ID now names the evidence search.
 
   1. Given a facility type, when recommendations are generated, then they are drawn from findings and Opportunities for Improvement in past Marsh reports for the same facility type.
   2. Given a recommendation, when I view it, then the past report passage it came from is shown with its page.
@@ -727,6 +841,80 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
+- [ ] **CP-29** — Insights tab on the client page (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: an Insights tab on each client's page that analyses its sites, so I can see where the risk is, which sites need attention and whether they are getting better, without opening every assessment.
+
+  Viewing
+
+  1. Given a client I have assessments for, when I open its page and choose Insights, then I see its number of sites and assessments, observations, Critical and High findings, Priority 1 and 2 OFIs and late reports. Open work stays the tab the page opens on.
+  2. Given observations at several sites, when I view the tab, then What stands out names the most common COPE category with its share, the site that got worse the most and the site that improved the most between visits, each linking to the block that shows it.
+  3. Given a client with several sites, when I view Sites needing attention, then the sites are listed worst first (Critical findings, then Priority 1 OFIs, then rating), each with the reasons it sits there, and each opens the assessment its figures come from.
+  4. Given observations in several categories, when I view Where the findings are, then a grid shows each site's observations by COPE category and uncategorised, with the count printed in every cell, and choosing a cell says how many are Critical and High.
+  5. Given a site with two or more visits, when I view Change between visits, then I see its first visit against its latest for Critical and High findings, accepted OFIs or risk quality score, marked Improved or Worse. A site with one visit reads First visit, and a change in OFIs is not judged.
+
+  Counting
+
+  6. Given a site with several assessments, when its figures are shown, then they come from its latest assessment that has observations, so a visit still to come does not blank them.
+  7. Given deleted observations, suggested OFIs, archived assessments or removed sites, when the figures are shown, then none of them is counted.
+  8. Given a site whose Section 4 scores are incomplete, when its rating is shown, then it reads Rating not entered, never 0.
+  9. Given fewer than five observations, or two categories tied, when What stands out is shown, then no category is called the most common. Given no observation at all, the tab says there is nothing to analyse.
+
+  The written summary
+
+  10. Given observations with notes or transcripts, when I choose Write summary, then a few statements about the client are drafted by the model, each citing the observations or figures it rests on, with the sources listed under them. Nothing is written until I ask.
+  11. Given a statement cites no source it was given, gives advice, uses "I" or "we", or uses a number its sources don't give, when the summary is checked, then that statement is not shown, and the summary's confidence is Low.
+  12. Given protection is on, when the summary is written, then client, site and staff names reach the model only as placeholders and show as real names in the summary. If the privacy service is unavailable, nothing is sent and I am told why.
+  13. Given the observations or figures changed since the summary was written, when I open the tab, then it is marked out of date and I can write it again. A summary is never part of a report or its export.
+
+  Charts
+
+  14. Given the grid or the change chart is shown, when I read it with a screen reader or without colour, then every value is also text.
+
+  Who sees what
+
+  15. Given another engineer has assessments for the same client, when I view the tab, then none of their figures is included, and a knowledge admin sees every engineer's. A summary is read back only by the user who wrote it.
+  16. Given a client I have no assessment for, when I request its insights or a summary, then it is refused.
+
+  Built 15 Nov 2026 (DECISIONS 2026-11-15). The figures and every sentence but the summary are counted and worded by the gateway (`insights-v1`); only the summary asks a model (`cp29-v1`). Not in this story: findings recurring across sites from checklist answers, the weakest Section 4 categories across sites, and loss expectancy before and after the OFIs (a follow-up); an evaluation set for the summary; a knowledge admin's cross-engineer management of clients (CP-44).
+  </details>
+
+- [ ] **CP-60** — Calendar of surveys and report due dates (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: a calendar I open every day that shows my surveys and report due dates by month or week, so I can plan site surveys around each other and see which reports are coming due, without reading dates off the Assessments list.
+
+  Viewing
+
+  1. Given assessments assigned to me, when I open Calendar from the sidebar, then the month shows each survey on its days, a survey of several days as one bar across them, and each report due date on its day, with today marked. Archived assessments are not shown.
+  2. Given a report due date, when it is shown, then it reads as late, due within 7 days, on track or finalised, counted as the Report due column counts it. A finalised report is never late.
+  3. Given the month, when I step back or forward, choose Today or switch to Week, then that period shows. A day's date opens its week.
+  4. Given a day in the month holds more than three entries, when I view it, then three show with "+N more", which opens that week, where every entry shows.
+  5. Given the calendar, when I filter to survey dates or report due dates only, or to one assessment type, then only those show, and the lists beside it and the count follow the type.
+  6. Given reports past due, or assessments with no survey date, when I view the calendar, then each is listed beside it, the late ones oldest first with how late they are. The footer's late count opens the month of the oldest late report.
+
+  Opening and planning
+
+  7. Given an entry, when I choose it, then I see the assessment's site, client, reference, type, status, survey days, report due date and site contacts, and can open the assessment. Its Back returns to the calendar on the same period and filters.
+  8. Given an assessment assigned to me, when I choose Reschedule and save a new survey start, survey end or report due date, then they are saved and show on the calendar, the Assessments list and the assessment's Overview.
+  9. Given a survey end before its start, a survey end with no start, or a report due date before the survey start, when I save, then the field says what to pick and nothing is saved.
+  10. Given an assessment with no survey date, when I choose Set dates on it, then the same form opens and its saved dates put it on the calendar.
+  11. Given a day, when I choose its +, then New Assessment opens with that day as the survey start, and Cancel returns to the calendar.
+
+  Who sees what
+
+  12. Given I am a risk engineer, when I view the calendar, then only assessments assigned to me show. A knowledge admin sees every engineer's, each entry naming its engineer, and can filter to one engineer.
+  13. Given an assessment assigned to someone else, when I view its entry, then Reschedule is greyed out with the reason, and the gateway refuses the change from anyone but its assigned engineer.
+
+  Phone and keyboard
+
+  14. Given a phone, when I open the calendar, then the month is a list of its days that hold something, with the late and unscheduled lists above it, and an entry's details open as a sheet.
+  15. Given a keyboard, when I am on the month, then the arrow keys move between days from one tab stop, and every entry is a button whose name says what it is, where and when.
+
+  Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
+  </details>
+
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
@@ -762,7 +950,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Scans view (added 2026-10-19; like the photo collection, CP-04 AC3)
 
-  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation.
+  17. Given saved pages, when I open the Scans view from the Observations tab, then every page of the assessment's observations not deleted is listed with its transcript, its original and a link to its observation. (Added 11 Nov 2026 with CP-12, counted in CP-13: each row names its page, says while it is transcribing or failed, with Retry, and opens its transcript under it as the observation's page shows it.)
 
   Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
   </details>
@@ -1300,6 +1488,68 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given my work list contains multiple sites, when I search by site, then matching entries are displayed.
   4. Given my work list contains multiple clients, when I search by client, then matching entries are displayed.
   5. Given a report has been assigned to me, when I open my work list, then that report appears.
+  </details>
+
+- [ ] **AS-01** — Ask a question about this assessment (risk engineer, AI and Machine Learning, 8 pts, deps: GN-01, RV-01, CP-30, EV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer reviewing a draft, ask questions about the assessment and get answers that cite its evidence, so that I don't have to search the evidence by hand.
+
+  1. Given I open an assessment's Review tab, when I look at the panel on the right, then it has an Ask tab beside Evidence that I can use with the keyboard alone. In a narrower window the panel sits below the draft, and on a phone Ask opens as a sheet from the bottom.
+  2. Given I ask a question, when the answer arrives, then it appears sentence by sentence in a violet box, every sentence cites an observation, a standard or a past report, and selecting a citation opens that source on the Evidence tab.
+  3. Given I ask a question, when it is answered, then the answer draws only on this assessment's observations, the standards on its checklist (or, before there is one, the standards that apply to the site), and past reports on sites of the same country and facility type.
+  4. Given nothing in that evidence answers my question, when the answer arrives, then it says which evidence is missing and makes no statement without a citation.
+  5. Given any answer, when I read it, then it calls the system "it", never "I"; it states facts and recommends nothing; it shows confidence as High, Medium or Low, never as a percentage; and it has no emoji.
+  6. Given I ask a question, when it is answered, then client names are hidden from the AI services as they are in drafting, the answer uses the same AI provider as drafting, and the question is saved with a record of how it was answered for the evaluation harness.
+  7. Given I am the assessment's engineer or a knowledge admin, when I open its Review tab, then I can ask. A request with no session, or from someone without access, is refused, and where the gateway can't be reached the tab says Ask is unavailable.
+  8. Given an answer fails, when it stops, then it says why, when and what to do next, e.g. "Answer stopped at 14:02: the model provider did not respond. Ask again." Asking never keeps me signed in past the 15-minute idle sign-out.
+
+  Technical terms (the first wording, 9 Nov): AC1 stacks below 1080px and uses `ds-dialog-sheet` below 760px. AC2's citations are `EvidenceCitation`s. AC3 filters the standards through `knowledge_documents` and searches them by Chroma `doc_id`; a past report marked `all` matches any country or facility type. AC6 masks the text sent to Cohere and the model as draft generation does, takes the provider from `LLM_PROVIDER`, runs the S4 orchestrator (retrieve → assemble → generate → guardrail) and leaves one trace. AC7 adds a `reports:ask` permission for both roles: no session gets 401, no permission gets 403. AC8 makes each question one streamed request with no polling, so F-07's idle sign-out still applies. AC wording simplified 12 Nov 2026; the meaning is unchanged.
+
+  Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`, in conversations in `assistant_conversations` since AS-03), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
+  </details>
+
+- [ ] **AS-02** — Ask about a selected passage (risk engineer, Software, 3 pts, deps: AS-01, RV-03, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, select text in the draft and ask about it, so that the answer concerns that passage and the sources behind it.
+
+  1. Selecting draft text offers "Ask about this", both in the editor and through a keyboard shortcut that does not clash with Ctrl+Alt+M.
+  2. The question sends the section ID, the selected passage, its citations and the section's findings. The panel quotes the passage verbatim behind a 2px left rule.
+  3. The message stores an anchor in RV-03's format (`anchor.ts`) and links back to the passage. If the passage is later deleted, the message shows "Text deleted".
+  4. Where the sources behind the passage disagree, the answer names both figures and their sources and does not choose between them.
+  5. Asking about a passage never changes the section's text, version or review state.
+
+  Built 12 Nov 2026 (DECISIONS 2026-11-12). "The editor" is both the review workspace's draft editor (Sections 4 to 12: a button by the selection opens the Ask tab) and the document editor (beside Comment, with an Ask panel in the comments list's place); the shortcut is Ctrl+Alt+K (Cmd+Option+K). A passage's citations are those of every block it is in; the gateway reads the findings and the cited sources from the saved draft. A disagreement is its own line, "Sources disagree:", citing both sources, and makes the answer Medium at most. A passage is at most 4,000 characters.
+  </details>
+
+- [ ] **AS-03** — Keep conversation history (risk engineer, Data Engineering, deps: AS-01)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, have my questions and answers kept with the assessment, so that I can pick up where I left off and the team can evaluate answer quality.
+
+  1. Conversations are stored in a new `assistant_conversations` collection, per assessment and per user, and are private to that user. Documents include the metadata fields CLAUDE.md requires.
+  2. Reopening the Ask tab shows the latest conversation. New conversation starts another, and Delete removes one after confirmation.
+  3. Each answer stores the sources it cited, the provider, the model and timestamps, so EV runs can replay and score it.
+  4. Conversations never reach the PDF or Word export, and add no version or review state.
+  5. On an archived assessment, conversations are read-only (409 on writes).
+
+  Built 13 Nov 2026 (DECISIONS 2026-11-13). One document per conversation holds its questions as `turns` (at most 100). The questions saved before, in `assessment_questions`, are moved by `migrate:ask-conversations`, one conversation per user and assessment. Older conversations are opened from a picker above the tab, which holds New conversation and Delete. Each question still stands alone: no earlier turns are sent to the model. "Private" includes knowledge admins: another user's conversation answers 404. On an archived assessment, asking a question is refused too, unlike AS-01, which let one ask.
+  </details>
+
+- [ ] **AS-04** — Draft or rewrite text into the report (risk engineer, AI and Machine Learning, 5 pts, deps: AS-01, AS-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, have the assistant draft new text or rewrite a selected passage that I can insert into a section, so that I write faster while every sentence stays cited and reviewable.
+
+  1. A draft request, such as "Draft a paragraph on flood exposure from the observations", returns a proposal in the panel. So does a rewrite request on a selected passage, shown as before and after. The report stays unchanged until Insert or Replace.
+  2. Inserted text enters the section as AI draft, in violet chrome, with its citation markers. The section saves a new version and returns to needs review. Undo restores the previous text.
+  3. Any sentence without a supporting source is marked unsupported and blocks export through `exportBlockers` until resolved.
+  4. Only standards in the assessment's drafting set can be cited.
+  5. Insert and Replace require `reports:generate`, so only risk engineers see them; they are hidden for knowledge admins. Finalised or archived reports return 409.
+  6. If the section changed after the proposal was made, Insert asks to regenerate the proposal rather than overwrite the section.
+
+  Built 16 Nov 2026 (DECISIONS 2026-11-16). "Draft text" beside Ask drafts for the section open (Sections 4 to 12); "Rewrite this" beside Ask about this, and in the document editor's toolbar, rewrites the whole paragraphs the selection is in. A draft goes at the end of the subsection the model suggests, or one the engineer chooses. The text is kept as a proposal (`report_text_proposals`); Insert or Replace saves the section's next version with it marked AI draft until the engineer accepts it in the review workspace (Accept, or Delete); Undo restores the version before. A sentence is resolved once given a citation, reworded or deleted; Accept waits for that. The drafting set is the standards selected on the assessment, as AS-01 reads them; past reports are never cited. Since RV-11 knowledge admins hold `reports:generate` too, so the assigned-engineer check is what hides Insert and Replace from them. In the document editor, Insert waits for unsaved changes to be saved.
   </details>
 
 ## E8 — Evaluation Harness

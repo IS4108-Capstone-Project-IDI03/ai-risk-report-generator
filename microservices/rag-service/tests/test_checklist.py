@@ -130,7 +130,12 @@ def test_a_warehouse_checklist_covers_its_hazards_with_cited_items(monkeypatch):
     # AC6: the label maps back to the passage, its quote is found in it, and the source
     # carries its page for the citation panel.
     assert racks["citations"] == [
-        {"ref": "C:nfpa13:118", "quote": "rack storage over 7.6 m in height", "quote_found": True}
+        {
+            "ref": "C:nfpa13:118",
+            "quote": "rack storage over 7.6 m in height",
+            "quote_found": True,
+            "quote_described": False,
+        }
     ]
     assert body["sources"]["C:nfpa13:118"]["page_start"] == 118
     # A hazard the model left out still gets the config's item: written by the team, not the
@@ -159,6 +164,28 @@ def test_a_quote_from_a_passages_headings_is_found(monkeypatch):
 
     racks = next(i for i in response.json()["items"] if i["hazard"] == "rack_storage")
     assert racks["citations"][0]["quote_found"] is True
+
+
+def test_a_quote_only_in_a_pictures_ai_description_is_marked_described(monkeypatch):
+    # KB-02: a real citation of what the model read, but never the document's printed words.
+    chart = {
+        **RACKS,
+        "text": (
+            "Figure 2. Rack heights\n"
+            "Image description (generated, chart): Bars show racks of 9 m and 12 m.\n"
+            "Text in image: Height (m)"
+        ),
+        "metadata": {**RACKS["metadata"], "generated_text": "picture_description"},
+    }
+    response, _, _ = generate(
+        monkeypatch,
+        [item(citations=[Citation(label="C1", quote="Bars show racks of 9 m and 12 m")])],
+        found=(chart, ROOF),
+    )
+
+    racks = next(i for i in response.json()["items"] if i["hazard"] == "rack_storage")
+    [citation] = racks["citations"]
+    assert (citation["quote_found"], citation["quote_described"]) == (False, True)
 
 
 def test_warehouse_and_office_checklists_cover_only_their_own_hazards(monkeypatch):

@@ -298,8 +298,8 @@ export function DatePicker({
           value={value}
           min={min}
           focusDay={fromButton}
-          // A pick, Today or Clear shows at once: the parent echoing the value back would otherwise
-          // keep the old text (only TYPED text survives an echo), and Save would send a date unseen.
+          // A pick, Today or Clear shows in the field at once. Reported alone, it would
+          // read as the field's own typed text coming back, and the old text would stay.
           onPick={(iso) => {
             setText(show(iso))
             report(iso)

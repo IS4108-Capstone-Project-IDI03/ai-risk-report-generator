@@ -50,6 +50,9 @@ export interface IChecklistCitation {
   // found in it.
   quote: string
   quoteFound: boolean
+  // True when the words are only in a picture's AI description (KB-02): cited,
+  // but never found in the document. Absent means false.
+  quoteDescribed?: boolean
 }
 
 export interface IChecklistItem {
@@ -129,6 +132,7 @@ const citationSchema = new Schema<IChecklistCitation>(
     ref: { type: String, required: true },
     quote: { type: String, required: true },
     quoteFound: { type: Boolean, required: true },
+    quoteDescribed: { type: Boolean },
   },
   { _id: false },
 )

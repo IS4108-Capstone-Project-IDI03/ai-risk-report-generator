@@ -129,7 +129,10 @@ const Meta = defineComponent({
   description: 'Server only. Never write this.',
   props: z.object({
     sources: z.array(MetaSource),
-    unverified: z.array(z.object({ label: z.string(), quote: z.string() })),
+    // `described`: the words are only in a picture's AI description (KB-02), never "found".
+    unverified: z.array(
+      z.object({ label: z.string(), quote: z.string(), described: z.boolean().optional() }),
+    ),
     // True when the knowledge base lacks what was asked (rag-service answer.py), so the
     // answer offers the role's next step (CB-07).
     gap: z.boolean().optional(),
@@ -160,7 +163,7 @@ const Answer = defineComponent({
         | {
             props?: {
               sources?: CitedSource[]
-              unverified?: { label: string; quote: string }[]
+              unverified?: { label: string; quote: string; described?: boolean }[]
               gap?: boolean
             }
           }
@@ -170,6 +173,11 @@ const Answer = defineComponent({
       ? {
           sources: new Map(meta.sources.map((s) => [s.label, s])),
           unverified: new Set((meta.unverified ?? []).map((u) => checkKey(u.label, u.quote))),
+          described: new Set(
+            (meta.unverified ?? [])
+              .filter((u) => u.described)
+              .map((u) => checkKey(u.label, u.quote)),
+          ),
         }
       : null
     return (

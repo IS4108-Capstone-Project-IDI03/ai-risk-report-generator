@@ -25,6 +25,10 @@ export const PERMISSIONS = [
   // reopen threads (RV-03). Also needs an assessment the user can open: its
   // assigned engineer, or a knowledge admin (comment.service).
   'reports:comment',
+  // Ask questions about an assessment in the review workspace's Ask tab and
+  // read one's own earlier answers there (AS-01). Also needs an assessment the
+  // user can open: its assigned engineer, or a knowledge admin.
+  'reports:ask',
   // List knowledge documents and open their original files, e.g. a citation.
   'knowledge:view',
   // Upload knowledge documents and correct their details (KB-01).
@@ -34,6 +38,8 @@ export const PERMISSIONS = [
   // Open the usage and cost report (EV-04). The API narrows a risk engineer to
   // the reports assigned to them; a knowledge admin sees every report.
   'usage:view',
+  // Change the Settings that apply to everyone: models, QA strictness, defaults (S-01).
+  'settings:manage',
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -45,10 +51,12 @@ export type Permission = (typeof PERMISSIONS)[number]
 // reports:generate   |      yes      |      yes (RV-11: only on their own assessments)
 // reports:export     |      yes      |      yes (RV-11: only on their own assessments)
 // reports:comment    |      yes      |      yes
+// reports:ask        |      yes      |      yes
 // knowledge:view     |      yes      |      yes
 // knowledge:manage   |      -        |      yes
 // users:manage       |      -        |      yes
 // usage:view         |      yes (own reports) | yes (all reports)
+// settings:manage    |      -        |      yes
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   risk_engineer: [
     'assessments:view',
@@ -56,6 +64,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'reports:generate',
     'reports:export',
     'reports:comment',
+    'reports:ask',
     'knowledge:view',
     'usage:view',
   ],
@@ -66,10 +75,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'reports:generate',
     'reports:export',
     'reports:comment',
+    'reports:ask',
     'knowledge:view',
     'knowledge:manage',
     'users:manage',
     'usage:view',
+    'settings:manage',
   ],
 }
 

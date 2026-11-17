@@ -225,6 +225,35 @@ describe('Opening a client (CP-18)', () => {
     expect(screen.getByRole('heading', { name: 'Kent Ridge campus', level: 1 })).toBeInTheDocument()
   })
 
+  it('goes back from an assessment to the tab it was opened from (CP-29)', async () => {
+    gateway({ page: page() })
+    await openClientPage()
+
+    // Opened from the Sites tab: the assessment's header has a Back to the client.
+    fireEvent.click(
+      within(card('Kent Ridge campus')).getByRole('button', { name: 'Open RPT-2026-0412' }),
+    )
+    const back = await screen.findByRole('button', { name: 'Back to NUS' })
+    expect(window.location.pathname).not.toBe('/clients/c1')
+    fireEvent.click(back)
+
+    await screen.findByRole('heading', { name: 'NUS', level: 1 })
+    expect(window.location.pathname).toBe('/clients/c1')
+    expect(screen.getByRole('tab', { name: 'Sites, 2' })).toHaveAttribute('aria-selected', 'true')
+    expect(card('Kent Ridge campus')).toBeInTheDocument()
+  })
+
+  it('has no Back to a client on an assessment opened from the work list', async () => {
+    gateway({ page: page() })
+    render(<App />)
+    await signIn()
+
+    fireEvent.click(await screen.findByText('RPT-2026-0412'))
+
+    await screen.findByRole('tab', { name: /Observations/ })
+    expect(screen.queryByRole('button', { name: /^Back to/ })).not.toBeInTheDocument()
+  })
+
   it('shows the client’s site contacts in the facts, three until Show all, and hides the row without any', async () => {
     const person = (name: string) => ({ name, role: null, site: 'Bukit Timah campus' })
     gateway({

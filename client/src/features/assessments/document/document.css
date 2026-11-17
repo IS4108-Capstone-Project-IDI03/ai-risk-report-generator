@@ -184,6 +184,31 @@
   border-left-color: var(--ai-border);
   background: var(--ai-bg);
 }
+/* Drafted from the Ask tab and inserted (AS-04): violet until accepted in the
+   review workspace, labelled so the engineer knows where it came from. Each
+   sentence still unsupported is underlined in amber and flagged (AC3). */
+.dm-prose p.dm-ai-text {
+  position: relative;
+  padding-top: 20px;
+}
+.dm-prose p.dm-ai-text::before {
+  content: 'AI draft';
+  position: absolute;
+  top: 2px;
+  left: 12px;
+  color: var(--ai-fg);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.dm-prose .dm-ai-unsupported {
+  text-decoration: underline;
+  text-decoration-color: var(--status-moderate-fg);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
 .dm-prose .dm-flagged {
   text-decoration: underline;
   text-decoration-color: var(--status-moderate-fg);

@@ -245,6 +245,7 @@ describe('the review workspace (RV-01)', () => {
       changesSinceDraft: 0,
       changeCounts: { added: 0, changed: 0, removed: 0 },
       editedInDocument: false,
+      aiText: { pending: 0, unsupported: 0 },
     })
     expect(construction.draft.subsections[0].statements).toHaveLength(2)
     expect(construction.draft.sources).toBeUndefined()
@@ -363,6 +364,7 @@ describe('the review workspace (RV-01)', () => {
       changesSinceDraft: 0,
       changeCounts: { added: 0, changed: 0, removed: 0 },
       editedInDocument: false,
+      aiText: { pending: 0, unsupported: 0 },
     })
     // Only the section's own observation shows, since the other is not cited.
     expect(fresh[0].observations.map((o: { id: string }) => o.id)).toEqual([String(riser._id)])

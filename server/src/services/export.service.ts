@@ -82,9 +82,10 @@ const OFIS = '3. Opportunities for Improvement'
 // - Section 2: the Executive Summary drafted, and not out of date;
 // - Section 3: at least one accepted Opportunity for Improvement;
 // - Sections 4-12: each drafted, or written in the document editor; Sections
-//   4 and 5 with every figure entered; and in each draft, no new draft waiting,
-//   every finding decided, none unsupported, none citing a withdrawn source,
-//   and nothing changed since it was drafted.
+//   4 and 5 with every figure entered; no AI-drafted text from the Ask tab
+//   awaiting Accept, and none of its sentences unsupported (AS-04 AC3); and in
+//   each draft, no new draft waiting, every finding decided, none unsupported,
+//   none citing a withdrawn source, and nothing changed since it was drafted.
 // Each item names its section, in report order. Empty when it may go.
 export async function exportBlockers(reference: string): Promise<ExportBlocker[]> {
   const [workspace, summary, ofis, assessment] = await Promise.all([
@@ -148,6 +149,25 @@ export function blockersFrom({
       )
       continue
     }
+    // Text drafted from the Ask tab (AS-04): an unsupported sentence blocks the
+    // export until it is given a source or deleted (AC3), and the text until accepted.
+    const ai = section.review.aiText
+    if (ai.unsupported)
+      add(
+        section.id,
+        title,
+        'review',
+        `${plural(ai.unsupported, 'AI-drafted sentence')} ${ai.unsupported === 1 ? 'has' : 'have'} no supporting source. Give ${ai.unsupported === 1 ? 'it a citation' : 'each a citation'} in the document editor, or delete ${ai.unsupported === 1 ? 'it' : 'them'}.`,
+      )
+    if (ai.pending)
+      add(
+        section.id,
+        title,
+        'review',
+        ai.pending === 1
+          ? 'AI-drafted text from the Ask tab is waiting for you to accept it.'
+          : `${ai.pending} pieces of AI-drafted text from the Ask tab are waiting for you to accept them.`,
+      )
     // Written in the document editor, with no draft to review.
     if (!section.draft) continue
     if (section.replacement)

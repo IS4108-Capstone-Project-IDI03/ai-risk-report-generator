@@ -249,6 +249,28 @@ describe('Pre-survey checklist (CP-30)', () => {
     ])
   })
 
+  it("keeps a quote from a picture's AI description marked as described, not found (KB-02)", async () => {
+    await assessment()
+    const draft = reply()
+    draft.items[1].citations = [
+      { ref: 'C:nfpa13:118', quote: 'Bars show racks of 9 m', quote_found: false },
+    ]
+    Object.assign(draft.items[1].citations[0], { quote_described: true })
+    drafts.mockImplementation(() => json(draft))
+    await api.post(url).send({ standardIds: [] })
+
+    const response = await api.get(url)
+
+    expect(response.body.checklist.items[1].citations).toEqual([
+      {
+        ref: 'C:nfpa13:118',
+        quote: 'Bars show racks of 9 m',
+        quoteFound: false,
+        quoteDescribed: true,
+      },
+    ])
+  })
+
   it('shows the latest checklist on reopening and keeps earlier ones (AC9)', async () => {
     await assessment()
     const first = await api.post(url).send({ standardIds: [] })
@@ -758,6 +780,46 @@ describe('Customising the checklist (CP-32)', () => {
     expect((await cite('C:gone:1')).status).toBe(400)
   })
 
+  it("never finds a chosen quote in a picture's AI description, but marks it described (KB-02)", async () => {
+    passages['nfpa13:300'] = {
+      id: 'nfpa13:300',
+      documentId: standardId,
+      text:
+        'Figure 25.1 Rack layout\n' +
+        'Image description (generated, diagram): Two rows of racks with flue spaces.\n' +
+        'Text in image: FLUE 150 mm',
+      headings: ['Rack Storage'],
+      pageStart: 300,
+      pageEnd: 300,
+      generated: true,
+    }
+    const { rack } = await withChecklist()
+    const choose = (quote: string) =>
+      api.patch(`${items}/${rack}`).send({ citations: [{ ref: 'C:nfpa13:300', quote }] })
+
+    const description = await choose('Two rows of racks with flue spaces')
+    expect(itemOf(description.body, rack).citations).toEqual([
+      {
+        ref: 'C:nfpa13:300',
+        quote: 'Two rows of racks with flue spaces',
+        quoteFound: false,
+        quoteDescribed: true,
+      },
+    ])
+    // Now kept with the checklist: checked the same way from the stored copy.
+    expect(description.body.checklist.sources['C:nfpa13:300']).toMatchObject({
+      generated_text: 'picture_description',
+    })
+    const printed = await choose('FLUE 150 mm')
+    expect(itemOf(printed.body, rack).citations).toEqual([
+      { ref: 'C:nfpa13:300', quote: 'FLUE 150 mm', quoteFound: true },
+    ])
+    const again = await choose('Two rows of racks')
+    expect(itemOf(again.body, rack).citations).toEqual([
+      expect.objectContaining({ quoteFound: false, quoteDescribed: true }),
+    ])
+  })
+
   it('keeps added and edited items, and removed ones removed, when generated again (AC3)', async () => {
     const { roof, rack, template } = await withChecklist()
     await api.patch(`${items}/${rack}`).send({
@@ -857,6 +919,30 @@ describe('Customising the checklist (CP-32)', () => {
     expect(html).not.toContain(ROOF)
     // Nothing in it is fetched: it reads the same offline.
     expect(html).not.toMatch(/\b(src|href)=|url\(|@import/i)
+  })
+
+  it("says in the PDF that a quote is from the AI's reading of a figure (KB-02)", async () => {
+    passages['nfpa13:300'] = {
+      id: 'nfpa13:300',
+      documentId: standardId,
+      text: 'Figure 25.1\nImage description (generated, diagram): Two rows of racks.',
+      headings: [],
+      pageStart: 300,
+      pageEnd: 300,
+      generated: true,
+    }
+    const { rack } = await withChecklist()
+    await api
+      .patch(`${items}/${rack}`)
+      .send({ citations: [{ ref: 'C:nfpa13:300', quote: 'Two rows of racks' }] })
+
+    await api.get(`${url}/pdf`)
+
+    const html = vi.mocked(withExportPage).mock.calls.at(-1)![0]
+    expect(html).toContain(
+      '“Two rows of racks”</span> <span class="note">(from the AI\'s reading of the figure: check the figure)</span>',
+    )
+    expect(html).not.toContain('not word for word')
   })
 
   it('refuses changes from anyone but the assigned engineer, and once archived (AC6)', async () => {

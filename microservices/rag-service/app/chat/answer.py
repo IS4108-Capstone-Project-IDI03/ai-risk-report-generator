@@ -20,8 +20,8 @@ from pydantic import BaseModel, Field
 
 from app import config, usage
 from app import privacy as pii
-from app.chat.quotes import find_cites, quote_found
-from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quotable_text
+from app.chat.quotes import find_cites
+from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quote_check
 from app.generation.llm import GenerationFailed, complete_json, stream_text
 from app.retrieval.retriever import retrieve
 
@@ -558,6 +558,8 @@ def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[
     for label, quote in find_cites(program):
         p = by_label.get(label)
         meta = p["metadata"] if p else {}
+        # An invented label has no passage, so its quote can't be verified.
+        where = quote_check(quote, p) if p else "missing"
         citations.append(
             {
                 "label": label,
@@ -566,8 +568,9 @@ def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[
                 "page_start": meta.get("page_start"),
                 "page_end": meta.get("page_end"),
                 "quote": quote,
-                # An invented label has no passage, so its quote can't be verified.
-                "verified": bool(p) and quote_found(quote, quotable_text(p)),
+                "verified": where == "found",
+                # Only in a picture's generated description (KB-02): cited, never "found".
+                "described": where == "described",
                 "withdrawn": meta.get("status") == "withdrawn",
             }
         )
@@ -581,9 +584,13 @@ def _check(program: str, passages: list[dict], declined: bool = False) -> tuple[
         for label, p in by_label.items()
     ]
     # Per citation, not per quote: the same words can be right in P1 and wrong in P3.
-    unverified = sorted({(c["label"], c["quote"]) for c in citations if not c["verified"]})
+    unverified = sorted(
+        {(c["label"], c["quote"], c["described"]) for c in citations if not c["verified"]}
+    )
     wrong = [
-        f"{{label: {json.dumps(label)}, quote: {json.dumps(quote)}}}" for label, quote in unverified
+        f"{{label: {json.dumps(label)}, quote: {json.dumps(quote)}"
+        + (", described: true}" if described else "}")
+        for label, quote, described in unverified
     ]
     gap = ", true" if declined and not citations else ""
     line = f"meta = Meta([{', '.join(sources)}], [{', '.join(wrong)}]{gap})\n"

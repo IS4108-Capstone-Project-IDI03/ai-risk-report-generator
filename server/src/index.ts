@@ -1,8 +1,9 @@
-import express from 'express'
+import express, { type NextFunction, type Request, type Response } from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { config } from './config'
 import { connectDb } from './models/db'
+import { ModelUnavailableError } from './services/settings.service'
 import healthRoutes from './routes/health.routes'
 import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
 import knowledgeGapRoutes from './routes/knowledge-gap.routes'
@@ -15,6 +16,8 @@ import chatRoutes from './routes/chat.routes'
 import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
 import commentRoutes from './routes/comment.routes'
+import askRoutes from './routes/ask.routes'
+import proposalRoutes from './routes/proposal.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import assistantRoutes from './routes/assistant.routes'
@@ -29,6 +32,8 @@ import {
   resumeInterruptedTranscriptions,
 } from './services/observation.service'
 import usageRoutes from './routes/usage.routes'
+import settingsRoutes from './routes/settings.routes'
+import qaRoutes from './routes/qa.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
@@ -80,6 +85,8 @@ app.use(
   (req, res, next) => (req.method === 'GET' ? requireAuthNoRefresh : requireAuth)(req, res, next),
   assistantRoutes,
 )
+app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
+app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
@@ -92,6 +99,8 @@ app.use('/api/chat', requireAuth, chatRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
 app.use('/api/usage', requireAuth, usageRoutes)
+app.use('/api/settings', requireAuth, settingsRoutes)
+app.use('/api/qa', requireAuth, qaRoutes)
 // The count poller runs on a timer, so it authenticates WITHOUT refreshing the
 // session — polling must not keep an idle tab logged in (F-07). Mounted before
 // the general notifications router so this more specific path matches first.
@@ -105,6 +114,16 @@ app.use('/api/internal/ai-usage', requireServiceKey, internalAiUsageRoutes)
 // GET /api/internal/knowledge-documents/:id/privacy (PV-05): how the ingestion
 // worker is to protect a document before it reads it.
 app.use('/api/internal/knowledge-documents', requireServiceKey, internalKnowledgeDocumentRoutes)
+
+// S-01: a task whose chosen model has no API key answers 503 with the reason, so the screen
+// shows it. Any other error goes to Express's own handler.
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof ModelUnavailableError) {
+    res.status(503).json({ error: err.message })
+    return
+  }
+  next(err)
+})
 
 async function start() {
   await connectDb()

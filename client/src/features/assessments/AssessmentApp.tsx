@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  BackButton,
   Button,
   clampedTitle,
   Dialog,
@@ -39,10 +40,13 @@ import { ReportExport } from './screens/ReportExport'
 import { ValidationExport } from './screens/ValidationExport'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
+import { Recordings } from './screens/Recordings'
 import { UserAccounts } from '../accounts/UserAccounts'
+import { Settings } from '../settings/Settings'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
 import type { ItemLink } from '../marshbot/types'
+import { Calendar } from '../calendar/screens/Calendar'
 import { KnowledgeBase } from '../knowledge-base/KnowledgeBase'
 // Loaded on first open: the chat screen brings OpenUI and the usage screen
 // brings the chart library, which every other screen can skip.
@@ -177,6 +181,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               {!captureOnPhone &&
                 !(v.isClient && !v.routeBlocked) &&
                 !(v.isClients && !v.routeBlocked) &&
+                // The Calendar heads itself with the kit TopBar (CP-60).
+                !(v.isCalendar && !v.routeBlocked) &&
                 !(v.isDashboard && !v.routeBlocked) &&
                 // The Inbox heads itself with the kit TopBar (F-10).
                 !(v.isInbox && !v.routeBlocked) &&
@@ -199,7 +205,27 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         paddingBottom: '16px',
                       }}
                     >
-                      <div style={{ minWidth: '0', flex: v.showTopBar ? '1 0 100%' : '1' }}>
+                      {/* Opened from a client's page: Back returns there, on the tab it
+                          was opened from (CP-29); from the calendar, to the calendar
+                          (CP-60). Leaving the document editor asks first. */}
+                      {!!v.backTo && !v.routeBlocked && (
+                        <BackButton
+                          label={v.backTo.label}
+                          onClick={() => guardLeave(v.backTo!.onClick)}
+                        />
+                      )}
+                      <div
+                        style={{
+                          minWidth: '0',
+                          // On a phone the title takes the row, less Back's width when
+                          // there is one, so the actions wrap under it and never squeeze it.
+                          flex: !v.showTopBar
+                            ? '1'
+                            : v.backTo
+                              ? '1 0 calc(100% - 72px)'
+                              : '1 0 100%',
+                        }}
+                      >
                         {!!v.eyebrow && (
                           <div
                             style={{
@@ -393,6 +419,15 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       />
                     )}
 
+                    {v.isCalendar && (
+                      <Calendar
+                        {...v.calendar}
+                        onStart={v.canEdit ? v.calendar.onStart : undefined}
+                        // Desktop has no top bar, so the bell sits in the page's own header.
+                        bell={!v.showTopBar && <NotificationBell />}
+                      />
+                    )}
+
                     {v.isClient && (
                       <ClientPage
                         {...v.clientPage}
@@ -408,6 +443,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <UsageCosts isAdmin={v.isAdmin} />
                       </Suspense>
                     )}
+
+                    {v.isSettings && <Settings />}
 
                     {v.isChat && (
                       <Suspense fallback={null}>
@@ -445,6 +482,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isScans && <Scans v={v} />}
 
+                    {v.isRecordings && <Recordings v={v} />}
+
                     {v.isGenerate &&
                       (v.liveReference ? (
                         <SectionDrafts
@@ -472,6 +511,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           onGenerate={() => v.setTab('generate')}
                           historyRequest={v.reviewHistory}
                           openSection={goTo?.params?.section}
+                          canAsk={v.canAsk}
                         />
                       ) : (
                         <Review v={v} />

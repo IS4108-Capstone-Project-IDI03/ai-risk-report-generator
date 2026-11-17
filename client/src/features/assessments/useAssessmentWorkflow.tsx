@@ -34,10 +34,19 @@ import {
   STAGE_LABEL,
   STATUS_LABEL,
 } from './format'
+import {
+  NO_EVIDENCE_FILTERS,
+  pageStates,
+  photoStates,
+  recordingStates,
+  type EvidenceFilters,
+} from './evidenceFilters'
+import { NO_SPEECH, searchWords } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
 import {
   filtersActive,
+  matchedIn,
   matchesFilters,
   matchesPlace,
   NO_FILTERS,
@@ -393,13 +402,14 @@ function toEntry(o: SavedObservation): Observation {
       // The engineer's correction stands in for what Whisper wrote (CP-08).
       text:
         status === 'transcribed'
-          ? (correction?.text ?? transcript) || '(No speech was detected.)'
+          ? (correction?.text ?? transcript) || NO_SPEECH
           : TRANSCRIPTION_TEXT[status],
       original: correction ? transcript : null,
       correction: correction && { at: correction.at, by: correction.by },
       error,
       // A site walk clip plays only its part of the walk (a media fragment).
       audioUrl: r.clip ? r.url + '#t=' + r.clip.start + ',' + r.clip.end : r.url,
+      clip: r.clip ? { start: r.clip.start, end: r.clip.end } : null,
       added: r.added,
     }
   })
@@ -528,6 +538,7 @@ function toEntry(o: SavedObservation): Observation {
         error: o.interpretation.photos.error,
         model: o.interpretation.photos.model,
         outOfDate: o.interpretation.photos.outOfDate,
+        photoIds: o.interpretation.photos.photoIds,
       },
       categories: o.interpretation.categories,
       error: o.interpretation.error,
@@ -625,6 +636,8 @@ export function placeAfterBack(
     ? { ...place, captureTarget: previous.captureTarget, recent: previous.recent }
     : place
 }
+// The evidence views' search and filters, as each view opens (CP-13).
+const NO_EVIDENCE_SEARCH = { evidenceQuery: '', evidenceFilters: NO_EVIDENCE_FILTERS }
 
 export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // The screen comes from the URL (F-05), so a screen can be linked to and
@@ -780,6 +793,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   const onDashboard = state.screen === 'dashboard' && canOpen('dashboard', session)
   // The Inbox opens an assessment from a row (F-10), which needs the list to find it.
   const onInbox = state.screen === 'inbox' && canOpen('inbox', session)
+  // The Calendar (CP-60) is drawn from the list.
+  const onCalendar = state.screen === 'calendar' && canOpen('calendar', session)
   const listScreen = onDashboard
     ? 'dashboard'
     : onClientScreen
@@ -788,7 +803,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? 'clients'
         : onInbox
           ? 'inbox'
-          : null
+          : onCalendar
+            ? 'calendar'
+            : null
   const clientPage = useClientPage(onClientScreen ? state.clientPage : null)
   // A refresh inside a workspace needs the list too, for the assessment's own record.
   const needsRows =
@@ -1122,11 +1139,29 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     // belongs to. The report's photo appendix (EX-01) is to draw on it.
     const photoCollection = allRows
       .filter(({ o }) => !o.deleted)
-      .flatMap(({ o, key }) =>
-        o.media.map((photo, i) => ({
+      .flatMap(({ o, key }) => {
+        // The AI's description of the observation's photos (CP-05, CP-21),
+        // once written: one for all of them, so each row says which it covers.
+        const described = o.interpretation?.photos
+        const reading =
+          described?.status === 'interpreted' && described.description ? described : null
+        const idOf = (m: (typeof o.media)[number]) => m.id ?? m.name
+        const covered = (m: (typeof o.media)[number]) =>
+          !reading?.photoIds || reading.photoIds.includes(idOf(m))
+        return o.media.map((photo, i) => ({
           key: key + '/' + i,
           name: photo.name,
           url: photo.url,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: photoStates(reading && { outOfDate: reading.outOfDate, thisOne: covered(photo) }),
+          description: reading && {
+            text: reading.description!,
+            outOfDate: reading.outOfDate,
+            // Whether it describes this photo, and how many others it describes.
+            thisOne: covered(photo),
+            others: o.media.filter((m) => m !== photo && covered(m)).length,
+          },
           where: placeOf(o),
           path: pathOf(o),
           cat: categoryLabel(o.cats),
@@ -1141,8 +1176,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               obsShowDeleted: false,
               of: NO_FILTERS,
             }),
-        })),
-      )
+        }))
+      })
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
     const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
     // The Location filter offers where the listed observations are, and the
@@ -2085,6 +2120,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         pageViews(o, key).map((page) => ({
           key: key + '/' + page.id,
           page,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: pageStates(page),
           where: placeOf(o),
           path: pathOf(o),
           cat: categoryLabel(o.cats),
@@ -2096,6 +2134,44 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               tab: 'observations',
               obsOpen: key,
               obsFrom: 'scans',
+              obsShowDeleted: false,
+              of: NO_FILTERS,
+            }),
+        })),
+      )
+    // The assessment's recordings (CP-12), gathered as the photo collection
+    // gathers its photos: every recording kept on an observation not deleted,
+    // newest first. A failed one can be retried here, except in someone else's
+    // assessment (RV-11) or the demo, where the gateway has nothing to retry.
+    const recordingCollection = allRows
+      .filter(({ o }) => !o.deleted)
+      .flatMap(({ o, key }) =>
+        (o.recordings ?? []).map((r) => ({
+          key: key + '/' + r.id,
+          name: r.name,
+          // For the view's filters (CP-13).
+          observation: o,
+          states: recordingStates(r.status),
+          audioUrl: r.audioUrl,
+          clip: r.clip ?? null,
+          status: r.status,
+          // Its transcript as corrected, once there is one.
+          transcript: r.status === 'transcribed' ? r.text : null,
+          retry:
+            r.status === 'failed' && !readOnlyHere && o.id
+              ? () => void retryVoice(o.id!, r.id)
+              : null,
+          where: placeOf(o),
+          path: pathOf(o),
+          cat: categoryLabel(o.cats),
+          cats: o.cats,
+          text: o.text,
+          time: o.time,
+          openObservation: () =>
+            setState({
+              tab: 'observations',
+              obsOpen: key,
+              obsFrom: 'recordings',
               obsShowDeleted: false,
               of: NO_FILTERS,
             }),
@@ -2130,6 +2206,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         label: 'Work',
         items: [
           { value: 'dashboard', label: 'Assessments', icon: 'clipboard-list' },
+          // The same assessments by date (CP-60).
+          { value: 'calendar', label: 'Calendar', icon: 'calendar' },
           // The engineer's clients and their pages (CP-18).
           { value: 'clients', label: 'Clients', icon: IconRegistry.object.client },
         ],
@@ -2141,6 +2219,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           { value: 'knowledge', label: 'Knowledge base', icon: 'library' },
           { value: 'usage', label: 'Usage and Costs', icon: 'coins' },
           { value: 'users', label: 'User accounts', icon: 'users' },
+          { value: 'settings', label: 'Settings', icon: 'settings' },
         ],
       },
       { label: 'Recent', collapsible: true, items: recentItems },
@@ -2249,12 +2328,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       })
     // A client's page (CP-18), opened from the Clients list, the work list or
     // an assessment.
+    // Opened afresh, it starts on its first tab (or the one a MarshBot link names, AS-06):
+    // only Back returns to another.
     const openClient = (id: string, tab: WorkflowState['clientTab'] = null) =>
       setState({
         screen: 'client',
         clientPage: id,
         clientDialog: null,
         clientTab: tab,
+        clientReturn: null,
         toast: null,
       })
     // A client page's occasional actions (CP-18), behind the header's ⋯:
@@ -2632,6 +2714,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fMode: 'note',
       })
     // The Observations tab's rows, as the filters show them.
+    // The Observations tab's search, as words to find and mark (CP-13).
+    const obsSearchWords = searchWords(s.of.q ?? '')
     const obsList = shownRows.map(({ o, key }) => {
       const open = s.obsOpen === key
       const sev = o.sev || 'low'
@@ -2672,6 +2756,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         path: pathOf(o),
         // What it holds and where its recordings and photos stand (CP-08 AC2).
         typeLabel: typeLabel(o),
+        // Where a search found its words, beyond the row's own text (CP-13).
+        matchedIn: matchedIn(o, obsSearchWords),
         status,
         statusTone:
           status === 'Transcribing' || status === 'Interpreting'
@@ -2859,6 +2945,31 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Its saved record, read again with the work list, so a corrected
       // client, site or detail shows on the document's cover (RV-12 AC3).
       liveRecord: openRow?.persisted ? (openRow.record ?? null) : null,
+      // Back to the client page this assessment was opened from (CP-29), on the
+      // tab it was opened from, or to the calendar (CP-60). None when it was
+      // opened from anywhere else.
+      backTo:
+        isAssessment &&
+        s.clientReturn?.reference === s.captureTarget.reference &&
+        canOpen('client', session)
+          ? {
+              label: 'Back to ' + (openRow?.record?.client || 'client'),
+              onClick: () =>
+                setState({
+                  screen: 'client',
+                  clientPage: s.clientReturn!.clientId,
+                  clientDialog: null,
+                  toast: null,
+                }),
+            }
+          : isAssessment &&
+              s.calendarReturn === s.captureTarget.reference &&
+              canOpen('calendar', session)
+            ? {
+                label: 'Back to calendar',
+                onClick: () => setState({ screen: 'calendar', toast: null }),
+              }
+            : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
       // Its assigned engineer exports its report, archived or not (EX-01 AC2).
       canExportReport: isMine && can('reports:export', session),
@@ -2870,6 +2981,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         targetRow.status !== STATUS_LABEL.archived &&
         (isMine || session.user.role === 'knowledge_admin') &&
         can('reports:comment', session),
+      // Anyone who can open the assessment asks about it (AS-01 AC7): its assigned
+      // engineer or a knowledge admin, archived or not, since asking changes nothing.
+      canAsk:
+        !!targetRow?.persisted &&
+        (isMine || session.user.role === 'knowledge_admin') &&
+        can('reports:ask', session),
       roleName: roleLabel(session.user.role),
       userId: session.user.id,
       isAdmin: session.user.role === 'knowledge_admin',
@@ -2975,7 +3092,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // New assessment's two starts (CP-23 screen 2A); the screen opens blank.
       goCreate: (mode: 'form' | 'documents') =>
         setState({ screen: 'create', createStart: { mode } }),
-      cancelForm: () => setState({ screen: 'dashboard' }),
+      // Cancel returns to the Assessments list, or the calendar it was started from (CP-60).
+      cancelForm: () => setState({ screen: s.createStart.returnTo ?? 'dashboard' }),
       // The Overview's Edit details (RV-10 AC10) and Edit site (CP-18), for
       // the engineer's own assessment on the gateway, with whether its site
       // is theirs to change and how many assessments a change reaches.
@@ -3130,9 +3248,36 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isUsers: sc === 'users',
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
+      isSettings: sc === 'settings',
       isChat: sc === 'chat',
       // The engineer's clients (CP-18), from the work list: loading until it
       // loads, and unavailable when the gateway can't be reached.
+      // The Calendar (CP-60): the work list's saved assessments by date. It
+      // opens one, starts a new one (on a day, when one was picked) and reads
+      // the list again after new dates are saved.
+      isCalendar: sc === 'calendar',
+      calendar: {
+        assessments: rows.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
+        loading: !serverRows && !listFailed,
+        failed: !serverRows && listFailed,
+        me: { id: session.user.id, name: session.user.name },
+        team: session.user.role === 'knowledge_admin',
+        onOpen: (reference: string, site: string) => {
+          releaseDraft(reference)
+          setState({
+            ...openAssessment({ reference, site }, s),
+            calendarReturn: reference,
+            clientReturn: null,
+            toast: null,
+          })
+        },
+        onStart: (mode: 'form' | 'documents', siteVisitDate?: string) =>
+          setState({
+            screen: 'create',
+            createStart: { mode, returnTo: 'calendar', ...(siteVisitDate && { siteVisitDate }) },
+          }),
+        onChanged: () => void reloadRows(),
+      },
       isClients: sc === 'clients',
       clientList: {
         clients: myClients,
@@ -3170,10 +3315,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         // Rename client or Remove client, opened from the header's ⋯ menu.
         dialog: s.clientDialog,
         closeDialog: () => setState({ clientDialog: null }),
-        onOpen: (reference: string, site: string) => {
+        // `tab` is the client page's tab it was opened from, kept for its Back (CP-29).
+        onOpen: (reference: string, site: string, tab = 'open') => {
           releaseDraft(reference)
-          setState({ ...openAssessment({ reference, site }, s), toast: null })
+          setState({
+            ...openAssessment({ reference, site }, s),
+            clientReturn: s.clientPage ? { clientId: s.clientPage, tab, reference } : null,
+            calendarReturn: null,
+            toast: null,
+          })
         },
+        // The tab to open on: the one an assessment was opened from, when the
+        // engineer comes back from it (the Back button or the browser's).
+        returnTab: s.clientReturn?.clientId === s.clientPage ? s.clientReturn.tab : null,
         onChanged: (message: string) => {
           void reloadRows()
           toast(message)
@@ -3188,13 +3342,30 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // tab stays selected while they show.
       isPhotos: isAssessment && s.tab === 'photos',
       isScans: isAssessment && s.tab === 'scans',
+      // Every recording (CP-12), a view of the Observations tab like the two above.
+      isRecordings: isAssessment && s.tab === 'recordings',
       // Capture is part of the Observations tab, which stays highlighted.
-      tabValue: sc === 'field' || s.tab === 'photos' || s.tab === 'scans' ? 'observations' : s.tab,
-      goPhotos: () => setState({ tab: 'photos' }),
-      goScans: () => setState({ tab: 'scans' }),
+      tabValue:
+        sc === 'field' || s.tab === 'photos' || s.tab === 'scans' || s.tab === 'recordings'
+          ? 'observations'
+          : s.tab,
+      // Each opens with its search and filters empty (CP-13).
+      goPhotos: () => setState({ tab: 'photos', ...NO_EVIDENCE_SEARCH }),
+      goScans: () => setState({ tab: 'scans', ...NO_EVIDENCE_SEARCH }),
+      goRecordings: () => setState({ tab: 'recordings', ...NO_EVIDENCE_SEARCH }),
+      evidenceQuery: s.evidenceQuery ?? '',
+      setEvidenceQuery: (query: string) => setState({ evidenceQuery: query }),
+      evidenceFilters: s.evidenceFilters ?? NO_EVIDENCE_FILTERS,
+      setEvidenceFilter: (key: keyof EvidenceFilters, value: string) =>
+        setState({
+          evidenceFilters: { ...(s.evidenceFilters ?? NO_EVIDENCE_FILTERS), [key]: value },
+        }),
+      // Clear all: the filters and the search.
+      clearEvidenceFilters: () => setState(NO_EVIDENCE_SEARCH),
       goObservations: () => setState({ tab: 'observations' }),
       photoCollection,
       scanCollection,
+      recordingCollection,
       goGenerate: () =>
         setState({
           tab: 'generate',
@@ -3329,7 +3500,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // `step` is the page's arrows, which stay on the same way in; from the list it starts afresh.
       openObs: (key: string, step = false) =>
         setState({ obsOpen: key, ...(!step && { obsFrom: null }) }),
-      // Back from an observation's page: to All Photos or All Handwritten Pages if it came from there.
+      // Back from an observation's page: to All Photos, All Handwritten Pages
+      // or All Recordings (CP-12) if it came from there.
       closeObs: () =>
         obsViaOverview && s.obsOpen === obsViaOverview
           ? // Opened from an Overview link: back to the Overview, as the browser's Back does.
@@ -3346,6 +3518,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         : plural(0, obsNoun),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
+      obsSearchWords,
       obsFiltering: filtersActive(s.of),
       obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
       // Nothing captured yet, and no locations to list by: the list offers
@@ -3442,7 +3615,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // named from the capture session when one is live. New Assessment has
       // none: its Back button already says where it sits (CP-23).
       eyebrow:
-        sc === 'dashboard' || sc === 'clients'
+        sc === 'dashboard' || sc === 'clients' || sc === 'calendar'
           ? 'Risk engineering'
           : sc === 'create'
             ? ''
@@ -3450,31 +3623,37 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'Administration'
               : sc === 'usage'
                 ? 'Reporting'
-                : sc === 'chat'
-                  ? 'Knowledge'
-                  : sc === 'client'
-                    ? 'Client'
-                    : 'Assessment workspace',
+                : sc === 'settings'
+                  ? 'Account'
+                  : sc === 'chat'
+                    ? 'Knowledge'
+                    : sc === 'client'
+                      ? 'Client'
+                      : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Assessments'
           : sc === 'clients'
             ? 'Clients'
-            : sc === 'create'
-              ? 'New Assessment'
-              : sc === 'field'
-                ? captureSite
-                : sc === 'users'
-                  ? 'User accounts'
-                  : sc === 'knowledge'
-                    ? 'Knowledge base'
-                    : sc === 'usage'
-                      ? 'Usage and Costs'
-                      : sc === 'chat'
-                        ? 'Ask the knowledge base'
-                        : sc === 'client'
-                          ? 'Client'
-                          : s.captureTarget.site,
+            : sc === 'calendar'
+              ? 'Calendar'
+              : sc === 'create'
+                ? 'New Assessment'
+                : sc === 'field'
+                  ? captureSite
+                  : sc === 'users'
+                    ? 'User accounts'
+                    : sc === 'knowledge'
+                      ? 'Knowledge base'
+                      : sc === 'usage'
+                        ? 'Usage and Costs'
+                        : sc === 'settings'
+                          ? 'Settings'
+                          : sc === 'chat'
+                            ? 'Ask the knowledge base'
+                            : sc === 'client'
+                              ? 'Client'
+                              : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? plural(rows.length, 'assessment') + ' · ' + session.user.name
@@ -3490,12 +3669,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                   : sc === 'usage'
                     ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                    : sc === 'chat'
-                      ? 'Answers come from the standards and past reports in the knowledge base.'
-                      : sc === 'client'
-                        ? ''
-                        : // An assessment shows only its name; its details are in its Overview.
-                          '',
+                    : sc === 'settings'
+                      ? 'Your password and preferences, and how the system is set.'
+                      : sc === 'chat'
+                        ? 'Answers come from the standards and past reports in the knowledge base.'
+                        : sc === 'client'
+                          ? ''
+                          : // An assessment shows only its name; its details are in its Overview.
+                            '',
       // The client page draws its own header with New assessment and ⋯ (CP-23).
       showSeverity: isAssessment,
       tab: s.tab,

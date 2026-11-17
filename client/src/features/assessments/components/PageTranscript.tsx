@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Icon, IconRegistry } from '../../../design-system'
+import type { Range } from '../evidenceSearch'
+import { HitText } from './HitText'
 
 // Read out by a screen reader, not shown.
 const hidden: CSSProperties = {
@@ -25,31 +27,49 @@ const unsure: CSSProperties = {
 // A handwritten page's text as transcribed (CP-19 AC8, AC9). The words are the
 // engineer's, but the reading of them is a model's, so they sit behind the AI
 // rule; each word it was unsure of is underlined, and how many there are is
-// said above, to check against the page. Positions count UTF-16 units, as
-// JavaScript slices strings.
+// said above, to check against the page. A search's words are marked too
+// (CP-13), inside an unsure word where they fall in one, so it keeps both
+// marks. Positions count UTF-16 units, as JavaScript slices strings.
 export function PageTranscript({
   text,
   uncertain,
+  hits = [],
 }: {
   text: string
   uncertain: [number, number][]
+  hits?: readonly Range[]
 }) {
-  const marks = [...uncertain].sort((a, b) => a[0] - b[0])
+  // The unsure words that fit the text, in order, none overlapping.
+  const marks: Range[] = []
+  for (const [start, end] of [...uncertain].sort((a, b) => a[0] - b[0])) {
+    const last = marks[marks.length - 1]
+    if ((last && start < last[1]) || end > text.length) continue
+    marks.push([start, end])
+  }
+  // The text from one position to another, with the search's words marked.
+  const searched = (from: number, to: number) => (
+    <HitText
+      key={'t' + from}
+      text={text.slice(from, to)}
+      ranges={hits
+        .filter(([a, b]) => a < to && b > from)
+        .map(([a, b]): Range => [Math.max(a, from) - from, Math.min(b, to) - from])}
+    />
+  )
   const parts: ReactNode[] = []
   let at = 0
   for (const [start, end] of marks) {
-    if (start < at || end > text.length) continue
-    if (start > at) parts.push(text.slice(at, start))
+    if (start > at) parts.push(searched(at, start))
     parts.push(
       <mark key={start} style={unsure}>
-        {text.slice(start, end)}
+        {searched(start, end)}
         <span style={hidden}> (unsure)</span>
       </mark>,
     )
     at = end
   }
-  parts.push(text.slice(at))
-  const count = parts.filter((p) => typeof p !== 'string').length
+  parts.push(searched(at, text.length))
+  const count = marks.length
   return (
     <>
       {count > 0 && (

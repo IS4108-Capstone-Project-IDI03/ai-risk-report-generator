@@ -25,6 +25,11 @@ export const AI_FEATURES = [
   // MarshBot (AS-06) in rag-service: the coverage check and the messages' wording.
   'assistant-coverage',
   'assistant-wording',
+  // A question asked about an assessment in the review workspace (AS-01): its model call.
+  // Its Cohere searches are `retrieval`, as drafting's are.
+  'ask',
+  // The written summary on a client's Insights tab (CP-29), in rag-service.
+  'client-insights',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

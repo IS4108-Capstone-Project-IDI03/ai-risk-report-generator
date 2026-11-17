@@ -21,6 +21,7 @@ from app.config import (
     HANDWRITING_PROVIDER,
     S3_BUCKET,
 )
+from app.model_override import MODEL_OVERRIDE
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved transcript names the prompt it came from.
@@ -100,7 +101,7 @@ def _transcribe_gemini(image: str) -> tuple[Reading, dict]:
         # Held open for the whole call, as in vision.py: a discarded client closes its connection.
         with genai.Client(api_key=GEMINI_API_KEY, http_options=HTTP_OPTIONS) as client:
             result = client.interactions.create(
-                model=HANDWRITING_MODEL,
+                model=MODEL_OVERRIDE.get() or HANDWRITING_MODEL,
                 system_instruction=SYSTEM_INSTRUCTION,
                 # The page before the text that asks about it.
                 input=[
@@ -139,7 +140,7 @@ def _transcribe_gemini(image: str) -> tuple[Reading, dict]:
     usage = {
         "feature": "transcribe-handwriting",
         "billed_service": "gemini-vision",
-        "model": result.model or HANDWRITING_MODEL,
+        "model": result.model or MODEL_OVERRIDE.get() or HANDWRITING_MODEL,
         "duration_ms": duration_ms,
         "input_tokens": input_tokens,
         # Google bills thinking as output, so it is added in.

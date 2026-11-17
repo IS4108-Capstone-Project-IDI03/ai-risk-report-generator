@@ -1,5 +1,5 @@
 // Finds where a citation's quoted words sit in a text (CB-02 AC1, AC2).
-// Used by PassageText (passage tab) and quoteRects (highlight on the PDF page).
+// Used by PassageBody (features/sources, passage text) and quoteRects (highlight on the PDF page).
 
 // Must match microservices/rag-service/app/chat/quotes.py `quote_found`: the same three
 // tiers in the same order, so a quote the server called verified is always found here.

@@ -47,6 +47,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       // Mocks sign-in and resets the URL between tests (F-04, F-05).
       setupFiles: ['./src/test/setup.ts'],
+      // Full-app jsdom tests take 2–8s alone and slow further when every
+      // file runs in parallel; the 5s default made a shifting few time out.
+      testTimeout: 20_000,
     },
     server: {
       port: 3000,

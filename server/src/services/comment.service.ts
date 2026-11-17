@@ -65,7 +65,9 @@ export class ThreadFullError extends Error {
   }
 }
 
-const anchorSchema = z
+// Where in a section's text a passage is (see models/report-comment.model.ts).
+// Also the anchor of a question asked about a passage (AS-02).
+export const anchorSchema = z
   .strictObject({
     sectionId: z.string('Name a section of the report.').regex(SECTION_ID, 'Name a section.'),
     start: z.number().int().min(0).max(1_000_000),
