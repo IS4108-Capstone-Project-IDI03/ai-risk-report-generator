@@ -2172,6 +2172,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           { value: 'knowledge', label: 'Knowledge base', icon: 'library' },
           { value: 'usage', label: 'Usage and Costs', icon: 'coins' },
           { value: 'users', label: 'User accounts', icon: 'users' },
+          { value: 'settings', label: 'Settings', icon: 'settings' },
         ],
       },
       { label: 'Recent', collapsible: true, items: recentItems },
@@ -3187,6 +3188,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isUsers: sc === 'users',
       isKnowledge: sc === 'knowledge',
       isUsage: sc === 'usage',
+      isSettings: sc === 'settings',
       isChat: sc === 'chat',
       // The engineer's clients (CP-18), from the work list: loading until it
       // loads, and unavailable when the gateway can't be reached.
@@ -3548,11 +3550,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ? 'Administration'
               : sc === 'usage'
                 ? 'Reporting'
-                : sc === 'chat'
-                  ? 'Knowledge'
-                  : sc === 'client'
-                    ? 'Client'
-                    : 'Assessment workspace',
+                : sc === 'settings'
+                  ? 'Account'
+                  : sc === 'chat'
+                    ? 'Knowledge'
+                    : sc === 'client'
+                      ? 'Client'
+                      : 'Assessment workspace',
       title:
         sc === 'dashboard'
           ? 'Assessments'
@@ -3570,11 +3574,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                       ? 'Knowledge base'
                       : sc === 'usage'
                         ? 'Usage and Costs'
-                        : sc === 'chat'
-                          ? 'Ask the knowledge base'
-                          : sc === 'client'
-                            ? 'Client'
-                            : s.captureTarget.site,
+                        : sc === 'settings'
+                          ? 'Settings'
+                          : sc === 'chat'
+                            ? 'Ask the knowledge base'
+                            : sc === 'client'
+                              ? 'Client'
+                              : s.captureTarget.site,
       meta:
         sc === 'dashboard'
           ? plural(rows.length, 'assessment') + ' · ' + session.user.name
@@ -3590,12 +3596,14 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   ? 'The standards and past reports used to draft new reports. Correct, withdraw or add them.'
                   : sc === 'usage'
                     ? 'What the AI calls cost, how much they were used, and how fast they ran.'
-                    : sc === 'chat'
-                      ? 'Answers come from the standards and past reports in the knowledge base.'
-                      : sc === 'client'
-                        ? ''
-                        : // An assessment shows only its name; its details are in its Overview.
-                          '',
+                    : sc === 'settings'
+                      ? 'Your password and preferences, and how the system is set.'
+                      : sc === 'chat'
+                        ? 'Answers come from the standards and past reports in the knowledge base.'
+                        : sc === 'client'
+                          ? ''
+                          : // An assessment shows only its name; its details are in its Overview.
+                            '',
       // The client page draws its own header with New assessment and ⋯ (CP-23).
       showSeverity: isAssessment,
       tab: s.tab,

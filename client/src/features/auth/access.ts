@@ -15,6 +15,7 @@ export type Screen =
   | 'users'
   | 'knowledge'
   | 'usage'
+  | 'settings'
   | 'chat'
   | 'clients'
   | 'client'
@@ -29,6 +30,7 @@ export const SCREEN_PATHS: Record<Screen, string> = {
   users: '/admin/users',
   knowledge: '/admin/knowledge-base',
   usage: '/usage-costs',
+  settings: '/settings',
   chat: '/ask',
   // The engineer's clients (CP-18), and each one's page at '/clients/<id>';
   // see clientIdForPath.
@@ -49,6 +51,8 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   users: 'users:manage',
   knowledge: 'knowledge:manage',
   usage: 'usage:view',
+  // Every signed-in user sees Settings (S-01); what they can change comes from the gateway.
+  settings: 'assessments:view',
   chat: 'knowledge:view',
   // Engineers manage the clients and sites of their own assessments (CP-18).
   clients: 'assessments:edit',

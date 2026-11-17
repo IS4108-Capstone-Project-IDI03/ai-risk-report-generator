@@ -40,6 +40,7 @@ import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { Recordings } from './screens/Recordings'
 import { UserAccounts } from '../accounts/UserAccounts'
+import { Settings } from '../settings/Settings'
 import { ClientList } from '../clients/ClientList'
 import { ClientPage } from '../clients/ClientPage'
 import { Calendar } from '../calendar/screens/Calendar'
@@ -421,6 +422,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         <UsageCosts isAdmin={v.isAdmin} />
                       </Suspense>
                     )}
+
+                    {v.isSettings && <Settings />}
 
                     {v.isChat && (
                       <Suspense fallback={null}>
