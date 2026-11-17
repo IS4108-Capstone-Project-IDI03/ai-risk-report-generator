@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Dialog, IconRegistry, Switch } from '../../../design-system'
-import type { SavedPhoto } from '../api'
+import type { PhotoRegion, SavedPhoto } from '../api'
 import { plural } from '../reviewDisplay'
+import { STARTING_MARK } from './markGeometry'
 import { ZoomablePhoto } from './ZoomablePhoto'
 
 export type ViewedPhoto = {
@@ -11,6 +12,11 @@ export type ViewedPhoto = {
   context?: string
   // How it last went to the AI with protection on (PV-04).
   redaction?: SavedPhoto['redaction']
+  // The area the engineer marked (CP-10), and, for whoever may change the
+  // observation, a way to save a new mark or (with null) clear it. It throws
+  // with the reason to show when the gateway refuses.
+  region?: PhotoRegion | null
+  mark?: ((region: PhotoRegion | null) => Promise<void>) | null
 }
 
 // One photo in a popup over the screen, to zoom into and move around without
@@ -20,6 +26,25 @@ export type ViewedPhoto = {
 export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: () => void }) {
   const [asSent, setAsSent] = useState(false)
   const blurred = photo.redaction?.url
+  // The saved mark, and the one being drawn while marking (CP-10).
+  const [region, setRegion] = useState(photo.region ?? null)
+  const [draft, setDraft] = useState<PhotoRegion | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const marking = !!draft
+  const save = async (next: PhotoRegion | null) => {
+    setBusy(true)
+    setProblem(null)
+    try {
+      await photo.mark!(next)
+      setRegion(next)
+      setDraft(null)
+    } catch (error: unknown) {
+      setProblem(error instanceof Error ? error.message : 'The mark could not be saved.')
+    } finally {
+      setBusy(false)
+    }
+  }
   return createPortal(
     <Dialog
       title={photo.name}
@@ -48,7 +73,56 @@ export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: (
           {'As sent to AI · no faces found'}
         </p>
       )}
-      <ZoomablePhoto src={asSent && blurred ? blurred : photo.url} alt={photo.name} />
+      {!!photo.mark && (
+        <div className="photo-mark-actions">
+          {marking ? (
+            <>
+              <Button variant="secondary" size="sm" disabled={busy} onClick={() => setDraft(null)}>
+                {'Cancel'}
+              </Button>
+              <Button variant="primary" size="sm" loading={busy} onClick={() => void save(draft)}>
+                {'Save mark'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft="crop"
+                onClick={() => {
+                  setProblem(null)
+                  setDraft(region ?? STARTING_MARK)
+                }}
+              >
+                {region ? 'Change mark' : 'Mark area'}
+              </Button>
+              {!!region && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="eraser"
+                  loading={busy}
+                  onClick={() => void save(null)}
+                >
+                  {'Clear mark'}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {problem && (
+        <p className="photo-mark-problem" role="alert">
+          {problem}
+        </p>
+      )}
+      <ZoomablePhoto
+        src={asSent && blurred ? blurred : photo.url}
+        alt={photo.name}
+        region={draft ?? region}
+        onMark={marking ? setDraft : undefined}
+      />
     </Dialog>,
     document.body,
   )

@@ -508,8 +508,24 @@ function photosOutOfDate(o: StoredObservation): boolean {
   if (reading?.status !== 'interpreted') return false
   const read = reading.photoIds.map(String)
   const now = kept(o.photos ?? []).map((p) => String(p._id))
-  return read.length !== now.length || now.some((id) => !read.includes(id))
+  if (read.length !== now.length || now.some((id) => !read.includes(id))) return true
+  // A mark moved, added or cleared since (CP-10): the model saw something else.
+  return markKey(marksOf(o.photos ?? [], now)) !== markKey(reading.marks ?? [])
 }
+
+// The marks on the given photos (CP-10), as a photo reading keeps them.
+function marksOf(photos: IPhoto[], ids: string[]) {
+  return photos
+    .filter((p) => p.region && ids.includes(String(p._id)))
+    .map((p) => ({ photo: p._id, region: p.region! }))
+}
+// Marks compared whatever their order.
+const markKey = (marks: { photo: Types.ObjectId; region: IPhotoRegion }[]) =>
+  JSON.stringify(
+    marks
+      .map(({ photo, region: { x, y, w, h } }) => [String(photo), x, y, w, h])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  )
 
 // Finished categories of something other than what the observation holds now.
 // A reading from before CP-21 read only its photos and note: it is judged by
@@ -1709,6 +1725,9 @@ export async function readObservation(
 
   const attempt = { startedAt: new Date() }
   const started = { status: 'interpreting', attempts: [attempt], photoIds }
+  // The photos' part also keeps the marks it reads (CP-10), to tell when one changes.
+  const marks = marksOf(o.photos ?? [], photoIds.map(String))
+  const startedPhotos = { ...started, marks }
   const filter: Record<string, unknown> = { _id: id, deleted: { $exists: false } }
   const set: Record<string, unknown> = {}
   const unset: Record<string, 1> = {}
@@ -1718,7 +1737,7 @@ export async function readObservation(
     set.interpretation = {
       ...started,
       items,
-      ...(parts.includes('description') && { photoReading: started }),
+      ...(parts.includes('description') && { photoReading: startedPhotos }),
     }
   } else {
     // The photos' description, wherever a reading kept it, now lives in its
@@ -1742,13 +1761,14 @@ export async function readObservation(
       Object.assign(set, {
         'interpretation.photoReading.status': 'interpreting',
         'interpretation.photoReading.photoIds': photoIds,
+        'interpretation.photoReading.marks': marks,
       })
       for (const field of ['description', 'hazardType', 'error', 'provenance'])
         unset[`interpretation.photoReading.${field}`] = 1
       push['interpretation.photoReading.attempts'] = attempt
     } else if (parts.includes('description')) {
       filter['interpretation.photoReading'] = { $exists: false }
-      set['interpretation.photoReading'] = started
+      set['interpretation.photoReading'] = startedPhotos
     } else if (!photoReading && photoReadingOf(o)) {
       // Reading the categories alone keeps a description read before the split.
       set['interpretation.photoReading'] = photoReadingOf(o)

@@ -754,7 +754,11 @@ rests on, by label, any `quote` from it, and `verified`, whether the gateway
 found the quote in that item (null for a photo, which has no words). Its
 `photoReading`, once photos are described, has a `description`, a
 `hazardType` and the `photoIds` it describes; it is absent for a reading
-without photos. A reading from before the parts were split kept `description`
+without photos. Its `marks` (CP-10) are the marks on those photos when the
+latest attempt started, each `{ photo, region }`. Once a mark is moved, added
+or cleared, the description is out of date, as when photos are added or
+removed. A reading from before CP-10 has no `marks` and counts as having read
+every photo unmarked. A reading from before the parts were split kept `description`
 and `hazardType` on the `interpretation` itself, under the categories'
 status: the API returns them as its photos' part, and reading either part
 again moves them into `photoReading`. A reading from before CP-21 has one

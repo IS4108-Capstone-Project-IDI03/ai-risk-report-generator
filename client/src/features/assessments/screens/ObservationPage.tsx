@@ -45,13 +45,18 @@ export function ObservationPage({
   // Leaves once pending saves went through: if one failed, the page stays with
   // the reason, or the only copy of the edit would be lost.
   const leave = (to: string | null) => whenSaved(() => (to ? v.openObs(to, true) : v.closeObs()))
-  // A saved photo also carries how it last went to the AI (PV-04).
-  const view = (photo: { name: string; url: string }) =>
+  // A saved photo also carries how it last went to the AI (PV-04), and its
+  // mark with a way to change it (CP-10).
+  const view = (photo: { name: string; url: string }) => {
+    const saved = o.media.find((m) => m.url === photo.url)
     onView({
       ...photo,
       context: o.where,
-      redaction: o.media.find((m) => m.url === photo.url)?.redaction,
+      redaction: saved?.redaction,
+      region: saved?.region,
+      mark: saved?.mark,
     })
+  }
   // a. Every observation in the assessment, in list order: the arrows step through them.
   const at = order.findIndex((x) => x.key === o.key)
   const previous = at > 0 ? order[at - 1] : undefined
@@ -222,6 +227,7 @@ export function ObservationPage({
               name: m.name,
               url: m.url,
               remove: m.remove,
+              region: m.region,
             }))}
             photoStamps={o.media
               .filter((m) => m.addedLabel)

@@ -203,6 +203,11 @@ export interface IPhotoReading {
   // The photos the latest attempt describes; once photos are added or removed,
   // a finished description of a different set is out of date.
   photoIds: Types.ObjectId[]
+  // The marks on those photos when the latest attempt started (CP-10): once one
+  // is moved, added or cleared, the model saw something else, so a finished
+  // description is out of date. Absent on readings from before CP-10, which
+  // read every photo unmarked.
+  marks?: { photo: Types.ObjectId; region: IPhotoRegion }[]
   provenance?: IReadingProvenance
 }
 
@@ -376,6 +381,16 @@ const pageSchema = new Schema<IPage>({
   removed: { type: stampSchema },
 })
 
+const regionSchema = new Schema<IPhotoRegion>(
+  {
+    x: { type: Number, required: true },
+    y: { type: Number, required: true },
+    w: { type: Number, required: true },
+    h: { type: Number, required: true },
+  },
+  { _id: false },
+)
+
 const photoSchema = new Schema<IPhoto>({
   name: { type: String, required: true },
   key: { type: String, required: true },
@@ -394,17 +409,7 @@ const photoSchema = new Schema<IPhoto>({
       { _id: false },
     ),
   },
-  region: {
-    type: new Schema<IPhotoRegion>(
-      {
-        x: { type: Number, required: true },
-        y: { type: Number, required: true },
-        w: { type: Number, required: true },
-        h: { type: Number, required: true },
-      },
-      { _id: false },
-    ),
-  },
+  region: { type: regionSchema },
 })
 
 const provenanceSchema = new Schema<IReadingProvenance>(
@@ -443,6 +448,15 @@ const photoReadingSchema = new Schema<IPhotoReading>(
     error: String,
     attempts: readingAttempts(),
     photoIds: { type: [Schema.Types.ObjectId], required: true },
+    marks: {
+      type: [
+        new Schema(
+          { photo: { type: Schema.Types.ObjectId, required: true }, region: regionSchema },
+          { _id: false },
+        ),
+      ],
+      default: undefined,
+    },
     provenance: { type: provenanceSchema },
   },
   { _id: false },

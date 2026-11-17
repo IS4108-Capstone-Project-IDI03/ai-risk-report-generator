@@ -3,7 +3,11 @@
 // pages. A tile opens its photo larger; a small round control at its corner
 // goes to the observation (collections), or a bin removes the photo (a page).
 // Rendered by screens/ObservationPage.tsx, Photos.tsx and Scans.tsx.
+import { useRef } from 'react'
 import { Icon } from '../../../design-system'
+import type { PhotoRegion } from '../api'
+import { MarkBox } from './PhotoMark'
+import { useImageLayer } from './markGeometry'
 import { ZoomBadge } from './ZoomBadge'
 import '../capture.css'
 
@@ -15,6 +19,24 @@ export type Tile = {
   remove?: (() => void) | null
   // Present on a collection: opens the observation the photo belongs to.
   goTo?: (() => void) | null
+  // The area the engineer marked (CP-10), drawn on the tile.
+  region?: PhotoRegion | null
+}
+
+// A tile's photo, cropped square, with its mark where the crop shows it (CP-10).
+function TilePhoto({ url, region }: { url: string; region?: PhotoRegion | null }) {
+  const image = useRef<HTMLImageElement>(null)
+  const { layer, measure } = useImageLayer(image, 'cover')
+  return (
+    <>
+      <img ref={image} src={url} alt="" loading="lazy" onLoad={measure} />
+      {region && (
+        <span className="cap-tile-mark" style={layer}>
+          <MarkBox region={region} />
+        </span>
+      )}
+    </>
+  )
 }
 
 export function PhotoGrid({
@@ -39,7 +61,7 @@ export function PhotoGrid({
               onClick={() => onOpen({ ...t, url: t.url! })}
             >
               {/* shortcut: loads the original; serve smaller copies if photo lists grow long. */}
-              <img src={t.url} alt="" loading="lazy" />
+              <TilePhoto url={t.url} region={t.region} />
               {/* The corner is the observation's link when there is one. */}
               {!t.goTo && <ZoomBadge />}
             </button>

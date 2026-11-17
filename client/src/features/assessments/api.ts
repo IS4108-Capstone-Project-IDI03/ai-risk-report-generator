@@ -110,8 +110,14 @@ export type SavedPhoto = {
   // that copy's url (null when it had no face, so went as taken). Null, or
   // absent from older answers, when never read with protection on.
   redaction?: { url: string | null; faces: number } | null
+  // The area the engineer marked as what matters (CP-10); null, or absent from
+  // older answers, when none is.
+  region?: PhotoRegion | null
   added: Stamp | null
 }
+// A marked area of a photo (CP-10): fractions (0 to 1) of the upright photo's
+// width and height, from its top-left corner.
+export type PhotoRegion = { x: number; y: number; w: number; h: number }
 // A photographed page of the engineer's handwritten notes (CP-19); url opens
 // the original. Like a recording, its transcription runs after the save
 // returns, so it starts as 'transcribing'.
@@ -546,6 +552,17 @@ export async function removeMedia(
   itemId: string,
 ): Promise<SavedObservation> {
   return (await request<SavedObservation>('DELETE', mediaPath(id, kind, itemId))).data
+}
+// Marks the area of a saved photo that matters, or with null clears the mark
+// (CP-10). The photo itself is never changed.
+export async function savePhotoRegion(
+  id: string,
+  photoId: string,
+  region: PhotoRegion | null,
+): Promise<SavedObservation> {
+  const path = `${mediaPath(id, 'photos', photoId)}/region`
+  return (await request<SavedObservation>(region ? 'PUT' : 'DELETE', path, region ?? undefined))
+    .data
 }
 export async function restoreMedia(
   id: string,

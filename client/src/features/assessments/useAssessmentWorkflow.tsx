@@ -18,6 +18,8 @@ import {
   restoreObservation,
   addObservationMedia,
   removeMedia,
+  savePhotoRegion,
+  type PhotoRegion,
   restoreMedia,
   type MediaKind,
   type ReadingPart,
@@ -482,6 +484,7 @@ function toEntry(o: SavedObservation): Observation {
       url: p.url,
       added: p.added,
       redaction: p.redaction,
+      region: p.region ?? null,
     })),
     // Removed recordings and photos, kept to restore (CP-08).
     removedMedia: [
@@ -1723,6 +1726,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           'Restore it under Removed media.',
       )
     }
+    // Marks the area of a saved photo that matters, or clears the mark (CP-10).
+    // The photo itself is never changed. Throws with the reason, for the photo
+    // popup to show.
+    async function markPhoto(id: string, photoId: string, region: PhotoRegion | null) {
+      let saved
+      try {
+        saved = await savePhotoRegion(id, photoId, region)
+      } catch (error: unknown) {
+        throw new Error(refusal(error), { cause: error })
+      }
+      captured.replace(saved)
+      toast(region ? 'Area marked.' : 'Mark cleared.')
+    }
     // Restores a removed recording, photo or page to the observation (CP-08, CP-20).
     async function restoreItem(
       key: string,
@@ -2777,6 +2793,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ...m,
           addedLabel: m.added ? m.name + ' added by ' + stampLabel(m.added) : null,
           remove: removing('photos', m.id ?? m.name, m.name),
+          // Only a saved photo can be marked (CP-10).
+          mark:
+            changing && o.id && m.id
+              ? (region: PhotoRegion | null) => markPhoto(o.id!, m.id!, region)
+              : null,
         })),
         removedMedia: (o.removedMedia ?? []).map((m) => ({
           ...m,

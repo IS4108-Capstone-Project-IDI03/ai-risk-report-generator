@@ -3123,6 +3123,46 @@ describe('marking the area of a photo that matters (CP-10)', () => {
     expect(vision.mock.calls[0][0].photos[0]).not.toHaveProperty('region')
   })
 
+  it('puts a description out of date when a mark it was read with changes', async () => {
+    vision.mockImplementation(() =>
+      s5(200, {
+        categories: [],
+        description: 'During the site visit to Bay 3, it was observed that a valve was shut.',
+        hazard_type: 'Fire Protection System Operation',
+        provider: 'gemini',
+        model: 'gemini-3.8-flash',
+        prompt_version: 'cp10-v1',
+        usage: null,
+      }),
+    )
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    await mark(id, photos[0].id, AREA)
+    const photoReading = async () => (await listed())[0].interpretation?.photos
+    const settledReading = async () => {
+      await vi.waitFor(async () => expect((await photoReading())?.status).toBe('interpreted'))
+      return photoReading()
+    }
+
+    await api.post(`/api/observations/${id}/interpretation`)
+    expect((await settledReading()).outOfDate).toBe(false)
+
+    // Moving the mark, marking another photo, or clearing it: the model saw something else.
+    await mark(id, photos[0].id, { ...AREA, x: 0 })
+    expect((await photoReading()).outOfDate).toBe(true)
+    await mark(id, photos[0].id, AREA)
+    expect((await photoReading()).outOfDate).toBe(false)
+    await mark(id, photos[1].id, AREA)
+    expect((await photoReading()).outOfDate).toBe(true)
+    await unmark(id, photos[1].id)
+    await unmark(id, photos[0].id)
+    expect((await photoReading()).outOfDate).toBe(true)
+
+    // Read again as it is now, it is up to date.
+    await api.post(`/api/observations/${id}/interpretation`)
+    expect((await settledReading()).outOfDate).toBe(false)
+  })
+
   it('lets only the assigned engineer mark, and not once archived', async () => {
     await assessmentWithSession()
     const { id, photos } = (await savePhotos([{ image: JPG }])).body
