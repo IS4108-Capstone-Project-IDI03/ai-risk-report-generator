@@ -10,6 +10,9 @@ Run from microservices/speech-ocr-service. It reads the root .env for the
 provider settings and GEMINI_API_KEY (a paid-tier key: these are Marsh's photos):
     uv run --extra dev python -m eval.interpret_photos [--privacy] [case-id ...]
 
+A case with a `region` ({x, y, w, h}, fractions of the upright photo) is read as a photo
+the engineer marked (CP-10): the area goes to the model as a close-up after the photo.
+
 `--privacy` reads each case with protection on (PV-04): privacy-service must be running
 (PRIVACY_SERVICE_URL) to mask the texts and blur faces, using a case's `known_entities`.
 
@@ -55,7 +58,11 @@ def main(only: list[str], protect: bool = False) -> None:
             note = [{"label": "Note", "kind": "note", "text": case["note"]}] if case["note"] else []
             privacy = {"enabled": protect, "known_entities": case.get("known_entities", [])}
             proposal = interpret_images(
-                [("Photo 1", photo_of(case["source"]))], note, case["location"], privacy=privacy
+                [("Photo 1", photo_of(case["source"]))],
+                note,
+                case["location"],
+                privacy=privacy,
+                regions={"Photo 1": case["region"]} if case.get("region") else None,
             )
         except (InterpretationError, PrivacyUnavailable) as error:
             proposal = {"error": str(error)}

@@ -36,7 +36,7 @@ vi.mock('../services/storage.service', () => ({
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 // S5's photo interpretation (CP-05), stubbed apart from transcription.
 type InterpretBody = {
-  s3_keys: string[]
+  photos: { label: string; s3_key: string; region?: object }[]
   location: string | null
   note: string | null
   privacy: ReadingPrivacy
@@ -3102,6 +3102,25 @@ describe('marking the area of a photo that matters (CP-10)', () => {
     await api.delete(`/api/observations/${id}`)
     expect((await mark(id, photos[0].id, AREA)).status).toBe(409)
     expect((await unmark(id, photos[0].id)).status).toBe(409)
+  })
+
+  it('sends the mark with its photo when the observation is read', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    await mark(id, photos[1].id, AREA)
+
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    const stored = await ObservationModel.findById(id).lean()
+    // An unmarked photo goes as it always has, with no region.
+    expect(vision.mock.calls[0][0]).toMatchObject({
+      photos: [
+        { label: stored!.photos![0].name, s3_key: stored!.photos![0].key },
+        { label: stored!.photos![1].name, s3_key: stored!.photos![1].key, region: AREA },
+      ],
+    })
+    expect(vision.mock.calls[0][0].photos[0]).not.toHaveProperty('region')
   })
 
   it('lets only the assigned engineer mark, and not once archived', async () => {

@@ -23,9 +23,24 @@ class S3KeyRequest(BaseModel):
     s3_key: str
 
 
+# An area the engineer marked on a photo (CP-10): fractions of the upright photo, inside it.
+class Region(BaseModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def inside(self):
+        if self.x + self.w > 1 or self.y + self.h > 1:
+            raise ValueError("The marked area must be inside the photo.")
+        return self
+
+
 class PhotoItem(BaseModel):
     label: str = Field(min_length=1)
     s3_key: str
+    region: Region | None = None
 
 
 class TextItem(BaseModel):

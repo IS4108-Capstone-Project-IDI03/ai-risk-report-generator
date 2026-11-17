@@ -1804,7 +1804,16 @@ export async function runInterpretation(
       ]
   const photos = items.flatMap((item) => {
     const photo = item.kind === 'photo' && observation.photos?.find((p) => p._id.equals(item.id!))
-    return photo ? [{ label: item.label, s3Key: photo.key }] : []
+    if (!photo) return []
+    // A marked photo (CP-10) goes with its mark, so S5 sends the model a close-up too.
+    const { region } = photo
+    return [
+      {
+        label: item.label,
+        s3Key: photo.key,
+        ...(region && { region: { x: region.x, y: region.y, w: region.w, h: region.h } }),
+      },
+    ]
   })
   const texts = items.flatMap((item) =>
     item.kind !== 'photo' && item.text
