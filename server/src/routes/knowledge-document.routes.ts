@@ -190,9 +190,10 @@ router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res
 
 // One page of a document's passages with its outline, for the knowledge base browser
 // (IN-17): `offset`, `limit`, the outline's `chapter` and `section`, `pageFrom`/`pageTo`,
-// and `q` to search by words. Answers: 200 `{ total, passages, outline }` · 400 a value
-// that can't be used · 404 unknown · 409 a search of a document that isn't active ·
-// 503 a service is down.
+// and `q` to search by words or, with `mode=meaning`, by meaning. Answers: 200
+// `{ total, passages, outline }` · 400 a value that can't be used · 404 unknown · 409 a
+// search of a document that isn't active · 503 a service is down, or the query couldn't
+// be protected.
 router.get('/:id/passages', requirePermission('knowledge:view'), async (req, res) => {
   const parsed = passageQuerySchema.safeParse(req.query)
   if (!parsed.success) {
@@ -200,7 +201,7 @@ router.get('/:id/passages', requirePermission('knowledge:view'), async (req, res
     return
   }
   try {
-    res.json(await listKnowledgeDocumentPassages(req.params.id, parsed.data))
+    res.json(await listKnowledgeDocumentPassages(req.params.id, parsed.data, res.locals.user!.id))
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

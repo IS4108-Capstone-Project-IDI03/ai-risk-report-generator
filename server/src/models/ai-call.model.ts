@@ -30,6 +30,10 @@ export const AI_FEATURES = [
   'ask',
   // The written summary on a client's Insights tab (CP-29), in rag-service.
   'client-insights',
+  // Searching a knowledge document by meaning in the Passages view (IN-17): Cohere calls
+  // rag-service reports as `retrieval`, relabelled by the gateway so the cost report keeps
+  // them apart from drafting's searches. No assessment: they belong to the user who searched.
+  'knowledge-search',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

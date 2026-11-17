@@ -900,9 +900,19 @@
   flex: 0 1 196px;
   min-width: 150px;
 }
-/* The search box takes the room the dropdowns leave. */
-.kb-ptoolbar > label:first-child {
-  flex: 1 1 220px;
+/* The search field and its Words | Meaning switch take the room the dropdowns leave;
+   "Press Enter to search" sits under the field while a search by meaning waits for it. */
+.kb-psearch {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.kb-psearch-hint {
+  margin: 0 0 0 14px;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
 }
 .kb-prange {
   display: flex;

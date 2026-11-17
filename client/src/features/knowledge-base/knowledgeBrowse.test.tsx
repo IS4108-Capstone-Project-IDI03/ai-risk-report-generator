@@ -530,3 +530,60 @@ describe("Searching a document's passages by words (IN-17)", () => {
     expect(search).toHaveAttribute('title', 'Search works once this document is active.')
   })
 })
+
+describe("Searching a document's passages by meaning (IN-17)", () => {
+  const RANKED = { total: 2, passages: [TABLE, FIRST], outline: OUTLINE }
+  const QUESTION = 'how often are valves checked'
+  const byMeaning = () => listings().filter((q) => q.includes('mode=meaning'))
+
+  async function openSearch() {
+    mockGateway([NFPA], (query) => (query.has('q') ? RANKED : sixty(query)))
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    const search = await within(dialog).findByRole('searchbox', { name: 'Search this document' })
+    return { dialog, search }
+  }
+
+  it('searches by meaning only when Enter is pressed, saying so until then', async () => {
+    const { dialog, search } = await openSearch()
+
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Meaning' }))
+    expect(search).toHaveAttribute(
+      'placeholder',
+      'Describe what you’re looking for, then press Enter',
+    )
+    fireEvent.change(search, { target: { value: QUESTION } })
+    expect(within(dialog).getByText('Press Enter to search')).toBeVisible()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(byMeaning()).toEqual([])
+
+    fireEvent.keyDown(search, { key: 'Enter' })
+
+    expect(
+      await within(dialog).findByText(`Passages 1–2 of 2 matching “${QUESTION}”`),
+    ).toBeVisible()
+    expect(byMeaning()).toEqual(['offset=0&limit=25&q=how+often+are+valves+checked&mode=meaning'])
+    expect(within(dialog).queryByText('Press Enter to search')).not.toBeInTheDocument()
+  })
+
+  it('searches by meaning at once when switched to with words typed', async () => {
+    const { dialog, search } = await openSearch()
+    fireEvent.change(search, { target: { value: QUESTION } })
+    await within(dialog).findByText('Passages 1–2 of 2')
+
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Meaning' }))
+
+    await vi.waitFor(() => expect(byMeaning()).toHaveLength(1))
+  })
+
+  it('offers neither search for a document that needs review', async () => {
+    mockGateway([UNREVIEWED])
+    await openAsEngineer()
+
+    const dialog = await openPassages(UNREVIEWED.title)
+
+    await within(dialog).findByRole('table')
+    expect(within(dialog).getByRole('radio', { name: 'Words' })).toBeDisabled()
+    expect(within(dialog).getByRole('radio', { name: 'Meaning' })).toBeDisabled()
+  })
+})

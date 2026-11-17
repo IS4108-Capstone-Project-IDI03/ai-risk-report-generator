@@ -313,7 +313,8 @@ export type PassageListing = {
 }
 
 // What to list: a page, the outline's chapter and section, a page range, and words to
-// search for (the best matches, ranked, within the rest).
+// search for (the best matches, ranked, within the rest), by words or by meaning (a paid
+// Cohere search, the query masked first when protection is on).
 export type PassageQuery = {
   offset: number
   limit: number
@@ -322,7 +323,9 @@ export type PassageQuery = {
   pageFrom?: number
   pageTo?: number
   q?: string
+  mode?: SearchMode
 }
+export type SearchMode = 'words' | 'meaning'
 
 // Returns one page of a document's passages with its outline (IN-17).
 export async function listDocumentPassages(
@@ -331,7 +334,7 @@ export async function listDocumentPassages(
   signal?: AbortSignal,
 ): Promise<PassageListing> {
   const params = new URLSearchParams({ offset: String(query.offset), limit: String(query.limit) })
-  for (const key of ['chapter', 'section', 'pageFrom', 'pageTo', 'q'] as const) {
+  for (const key of ['chapter', 'section', 'pageFrom', 'pageTo', 'q', 'mode'] as const) {
     if (query[key] !== undefined) params.append(key, String(query[key]))
   }
   const path = `/api/knowledge-documents/${encodeURIComponent(id)}/passages?${params}`

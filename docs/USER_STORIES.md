@@ -269,11 +269,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a standard, when I choose a chapter, then only that chapter's passages are listed from its first page, and I can then choose one of its sections; each chapter and section is named by its own heading, with how many passages it holds. Given a past report, then I filter by its template sections instead.
   7. Given I enter a page range, when it is valid, then only passages on those pages are listed; given it ends before it starts, then I am told so and the list doesn't change.
   8. Given an active document, when I type words into Search this document, then its best matching passages are listed, best first, within the chapter, section and pages I chose; when I empty the search, the whole document is listed again.
-  9. Given a document needs review or is withdrawn, when I open its passages, then a note says they aren't used in answers or search, and searching it isn't offered.
-  10. Given I open one passage, when it expands, then I see its full text with valid LaTeX shown as math, the region of the original page for a table, formula or picture once one is recorded (KB-02), and its passage ID.
-  11. Given a document has no passages, nothing matches my filters, or the passages can't be loaded, when I open its passages, then I see a message saying so, with Clear filters when nothing matches and Try again after a failed load.
-  12. Given any dialog that has a close button, when I click outside it, then it closes, and a text selection dragged out of it doesn't close it; when its content scrolls, its header and close button stay at the top.
-  13. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
+  9. Given I choose Meaning beside the search, when I describe what I'm looking for and press Enter, then the passages closest in meaning are listed, best first, within my filters, even if they use other words; nothing is searched until I press Enter (or choose Meaning with words already typed), the field says so meanwhile, and the footer names what I searched for. With privacy protection on, client details in what I typed are masked before it leaves the system, and if they can't be, nothing is searched and I'm told why.
+  10. Given a document needs review or is withdrawn, when I open its passages, then a note says they aren't used in answers or search, and neither search is offered.
+  11. Given I open one passage, when it expands, then I see its full text with valid LaTeX shown as math, the region of the original page for a table, formula or picture once one is recorded (KB-02), and its passage ID.
+  12. Given a document has no passages, nothing matches my filters, or the passages can't be loaded, when I open its passages, then I see a message saying so, with Clear filters when nothing matches and Try again after a failed load.
+  13. Given any dialog that has a close button, when I click outside it, then it closes, and a text selection dragged out of it doesn't close it; when its content scrolls, its header and close button stay at the top.
+  14. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
   </details>
 
 ## E3 — Knowledge Base & Online RAG Pipeline

@@ -102,6 +102,8 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'ask',
       // A client's written insight summary (CP-29).
       'client-insights',
+      // Searching a knowledge document by meaning (IN-17).
+      'knowledge-search',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })
@@ -235,8 +237,8 @@ describe('GET /api/usage/export.csv (AC4)', () => {
     expect(lines[0]).toBe(
       'feature,calls,estimated_cost_usd,calls_without_cost,estimated_calls,input_tokens,output_tokens,cache_read_tokens,search_units,audio_seconds,avg_ms,p50_ms,p95_ms,max_ms',
     )
-    // A header, then every feature (handwriting among them, CP-19; the checklist, CP-30; photo description and site walk, CP-22; client intake, CP-23; asking about an assessment, AS-01; a client's insight summary, CP-29; MarshBot's two, AS-06).
-    expect(lines).toHaveLength(18)
+    // A header, then every feature (handwriting among them, CP-19; the checklist, CP-30; photo description and site walk, CP-22; client intake, CP-23; asking about an assessment, AS-01; a client's insight summary, CP-29; MarshBot's two, AS-06; knowledge base search, IN-17).
+    expect(lines).toHaveLength(19)
     expect(lines[1]).toMatch(/^draft-section,1,0\.5,/)
   })
 
@@ -284,6 +286,15 @@ describe('GET /api/usage/overview (EV-04)', () => {
   const group = (groups: Group[], key: string) => groups.find((g) => g.key === key)!
   const chat = (userId: Types.ObjectId) =>
     call({ feature: 'chat', billedService: 'cohere-embed', reportId: undefined, userId })
+  // A search by meaning in the knowledge base's Passages view (IN-17): no assessment.
+  const search = (userId: Types.ObjectId) =>
+    call({
+      feature: 'knowledge-search',
+      billedService: 'cohere-rerank',
+      reportId: undefined,
+      userId,
+      estimatedCostUsd: 0.002,
+    })
 
   it('gives each assessment its cost, split by billed service, costliest first (AC1, AC3)', async () => {
     await people()
@@ -347,6 +358,32 @@ describe('GET /api/usage/overview (EV-04)', () => {
       calls: 2,
       reference: null,
     })
+  })
+
+  it('shows knowledge base searches, which have no assessment, as their own group, not chat', async () => {
+    await people()
+    await seed([chat(alex._id), search(alex._id), search(jide._id)])
+
+    const { body } = await overview('groupBy=assessment&split=feature&range=all')
+
+    expect(group(body.groups, 'chat')).toMatchObject({ label: 'Chatbot', calls: 1 })
+    expect(group(body.groups, 'chat').segments['knowledge-search']).toBeUndefined()
+    const searches = group(body.groups, 'knowledge-search')
+    expect(searches).toMatchObject({ label: 'Knowledge base search', calls: 2, reference: null })
+    expect(searches.segments['knowledge-search']).toBeCloseTo(0.004, 6)
+    expect(body.splitKeys).toContain('knowledge-search')
+  })
+
+  it('adds each engineer’s knowledge base searches to their bar as a part of its own', async () => {
+    await people()
+    await assessments()
+    await seed([call(), search(alex._id)])
+
+    const { body } = await overview('groupBy=engineer&split=feature&range=all')
+
+    const mine = group(body.groups, String(alex._id))
+    expect(mine.calls).toBe(2)
+    expect(mine.segments['knowledge-search']).toBeCloseTo(0.002, 6)
   })
 
   it('leaves out document ingestion, which has its own tab', async () => {
@@ -447,7 +484,7 @@ describe('GET /api/usage/overview (EV-04)', () => {
     expect(body.groups[0].calls).toBe(3)
   })
 
-  it('shows a risk engineer only their own assessments and chat (AC9)', async () => {
+  it('shows a risk engineer only their own assessments, chat and searches (AC9)', async () => {
     await people()
     await assessments()
     await seed([
@@ -455,10 +492,17 @@ describe('GET /api/usage/overview (EV-04)', () => {
       call({ reportId: 'RPT-B', estimatedCostUsd: 2 }),
       chat(alex._id),
       chat(jide._id),
+      search(alex._id),
+      search(jide._id),
     ])
 
     const byAssessment = await overview('groupBy=assessment&split=service&range=all', asAlex)
-    expect(byAssessment.body.groups.map((g) => g.key).sort()).toEqual(['RPT-A', 'chat'])
+    expect(byAssessment.body.groups.map((g) => g.key).sort()).toEqual([
+      'RPT-A',
+      'chat',
+      'knowledge-search',
+    ])
+    expect(group(byAssessment.body.groups, 'knowledge-search').calls).toBe(1)
     expect(group(byAssessment.body.groups, 'chat').calls).toBe(1)
     const byEngineer = await overview('groupBy=engineer&split=service&range=all', asAlex)
     expect(byEngineer.body.groups.map((g) => g.key)).toEqual([String(alex._id)])

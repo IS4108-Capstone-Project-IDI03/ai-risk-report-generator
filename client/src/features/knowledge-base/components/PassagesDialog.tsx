@@ -14,6 +14,8 @@ import {
   IconRegistry,
   Input,
   Pagination,
+  SearchField,
+  SegmentedControl,
   Select,
   TableFooter,
 } from '../../../design-system'
@@ -24,6 +26,7 @@ import {
   type OutlineEntry,
   type PassageListing,
   type PassageQuery,
+  type SearchMode,
 } from '../api'
 import { needsReview } from '../display'
 import { CitedRegion } from '../../sources/CitedRegion'
@@ -49,6 +52,10 @@ const narrowed = (f: Filters) =>
   f.chapter !== undefined || f.section !== undefined || !!(f.words.trim() || f.from || f.to)
 // How long typing must pause before the words are searched.
 const SEARCH_PAUSE_MS = 300
+const SEARCH_MODES: { value: SearchMode; label: string }[] = [
+  { value: 'words', label: 'Words' },
+  { value: 'meaning', label: 'Meaning' },
+]
 
 /** Returns the Passages dialog for one document. */
 export function PassagesDialog({
@@ -72,19 +79,39 @@ export function PassagesDialog({
   const pageTo = pageNumber(filters.to)
   const reversed = pageFrom !== undefined && pageTo !== undefined && pageFrom > pageTo
   const { chapter, section } = filters
-  // The words searched: what's typed, once typing pauses (so it searches once, not at
-  // every key). A new search starts on page 1 then, not while typing.
+  // The words searched. By words: what's typed, once typing pauses (so it searches once,
+  // not at every key). By meaning, a paid call: only on Enter, or on choosing Meaning with
+  // words typed; emptying the box goes back to the document at once. A new search starts
+  // on page 1, not while typing.
+  const [mode, setMode] = useState<SearchMode>('words')
   const [q, setQ] = useState<string>()
   const words = filters.words.trim() || undefined
+  const search = (next: string | undefined) => {
+    setQ(next)
+    setOffset(0)
+  }
   useEffect(() => {
-    if (words === q) return
-    const timer = setTimeout(() => {
-      setQ(words)
-      setOffset(0)
-    }, SEARCH_PAUSE_MS)
+    if (words === q || (mode === 'meaning' && words)) return
+    const timer = setTimeout(
+      () => {
+        setQ(words)
+        setOffset(0)
+      },
+      mode === 'words' ? SEARCH_PAUSE_MS : 0,
+    )
     return () => clearTimeout(timer)
-  }, [words, q])
-  const key = JSON.stringify({ offset, chapter, section, pageFrom, pageTo, q })
+  }, [words, q, mode])
+  // Typed words a search by meaning hasn't run yet: the field says to press Enter.
+  const waiting = mode === 'meaning' && !!words && words !== q
+  const key = JSON.stringify({
+    offset,
+    chapter,
+    section,
+    pageFrom,
+    pageTo,
+    q,
+    mode: q && mode === 'meaning' ? mode : undefined,
+  })
 
   useEffect(() => {
     if (reversed) return
@@ -171,7 +198,17 @@ export function PassagesDialog({
             filters={filters}
             reversed={reversed}
             searchable={!outOfUse}
+            mode={mode}
+            waiting={waiting}
             onChange={narrow}
+            onMode={(next) => {
+              setMode(next)
+              // Choosing a way to search is asking for it: the typed words are searched now.
+              if (words) search(words)
+            }}
+            onSearch={() => {
+              if (mode === 'meaning' && words && words !== q) search(words)
+            }}
           />
           {listing.total === 0 ? (
             <EmptyState
@@ -209,7 +246,7 @@ export function PassagesDialog({
                 </tbody>
               </table>
               <div className="kb-pfoot">
-                <TableFooter>{shown(loaded.offset, listing)}</TableFooter>
+                <TableFooter>{shown(loaded.offset, listing, JSON.parse(loaded.key))}</TableFooter>
                 <Pagination
                   page={Math.floor(offset / PAGE_SIZE) + 1}
                   pageCount={Math.ceil(listing.total / PAGE_SIZE)}
@@ -228,39 +265,62 @@ export function PassagesDialog({
   )
 }
 
-/** The search box (only for an active document: search skips the rest), the Chapter
-    and Section dropdowns (one Section dropdown for a past report), the page range, and
-    Clear filters once anything is narrowed. */
+/** The search field with its Words | Meaning switch (only for an active document: both
+    searches skip the rest), the Chapter and Section dropdowns (one Section dropdown for a
+    past report), the page range, and Clear filters once anything is narrowed. */
 function PassageFilters({
   outline,
   filters,
   reversed,
   searchable,
+  mode,
+  waiting,
   onChange,
+  onMode,
+  onSearch,
 }: {
   outline: PassageListing['outline']
   filters: Filters
   reversed: boolean
   searchable: boolean
+  mode: SearchMode
+  waiting: boolean
   onChange: (filters: Filters) => void
+  onMode: (mode: SearchMode) => void
+  onSearch: () => void
 }) {
   const byClause = outline.by !== 'section'
   const { chapter, section } = filters
   return (
     <div className="kb-ptoolbar">
-      <Input
-        size="sm"
-        type="search"
-        iconLeft="search"
-        aria-label="Search this document"
-        placeholder="Search this document"
-        disabled={!searchable}
-        title={searchable ? undefined : 'Search works once this document is active.'}
-        value={filters.words}
-        onChange={(e) => onChange({ ...filters, words: e.target.value })}
-      />
+      <div className="kb-psearch">
+        <SearchField
+          label="Search this document"
+          placeholder={
+            mode === 'meaning'
+              ? 'Describe what you’re looking for, then press Enter'
+              : 'Search this document'
+          }
+          enterKeyHint="search"
+          disabled={!searchable}
+          title={searchable ? undefined : 'Search works once this document is active.'}
+          value={filters.words}
+          onChange={(e) => onChange({ ...filters, words: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSearch()
+          }}
+          end={
+            <SegmentedControl
+              ariaLabel="Search by"
+              options={SEARCH_MODES.map((o) => ({ ...o, disabled: !searchable }))}
+              value={mode}
+              onChange={onMode}
+            />
+          }
+        />
+        {waiting && <p className="kb-psearch-hint">Press Enter to search</p>}
+      </div>
       <Select
-        size="sm"
         aria-label={byClause ? 'Chapter' : 'Section'}
         options={[
           { value: '', label: byClause ? 'All chapters' : 'All sections' },
@@ -280,7 +340,6 @@ function PassageFilters({
       />
       {byClause && (
         <Select
-          size="sm"
           aria-label="Section"
           title={chapter === undefined ? 'Choose a chapter first' : undefined}
           disabled={chapter === undefined}
@@ -293,7 +352,6 @@ function PassageFilters({
       )}
       <div className="kb-prange">
         <Input
-          size="sm"
           type="number"
           min={1}
           inputMode="numeric"
@@ -304,7 +362,6 @@ function PassageFilters({
         />
         <span aria-hidden="true">–</span>
         <Input
-          size="sm"
           type="number"
           min={1}
           inputMode="numeric"
@@ -316,7 +373,7 @@ function PassageFilters({
         />
       </div>
       {narrowed(filters) && (
-        <Button variant="ghost" size="sm" onClick={() => onChange(NO_FILTERS)}>
+        <Button variant="ghost" onClick={() => onChange(NO_FILTERS)}>
           Clear filters
         </Button>
       )}
@@ -439,11 +496,13 @@ function pages(p: DocumentPassage): string {
   return `${p.pageStart}–${p.pageEnd}`
 }
 
-// "Passages 26–50 of 1,214": which of the matching passages this page shows.
-function shown(offset: number, listing: PassageListing): string {
+// "Passages 26–50 of 1,214": which of the matching passages this page shows. A search by
+// meaning names its question, as the rows answer it rather than contain its words.
+function shown(offset: number, listing: PassageListing, query: PassageQuery): string {
   const last = offset + listing.passages.length
   const of = listing.total.toLocaleString('en')
-  return `Passages ${(offset + 1).toLocaleString('en')}–${last.toLocaleString('en')} of ${of}`
+  const range = `Passages ${(offset + 1).toLocaleString('en')}–${last.toLocaleString('en')} of ${of}`
+  return query.mode === 'meaning' ? `${range} matching “${query.q}”` : range
 }
 
 // A chapter as the filter names it: "Chapter 8", "Annex A", "Front matter". A past

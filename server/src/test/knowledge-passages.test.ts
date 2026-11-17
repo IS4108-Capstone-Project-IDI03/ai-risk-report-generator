@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Types } from 'mongoose'
 import app from '../index'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
+import { AiCallModel } from '../models/ai-call.model'
+import { ClientModel } from '../models/client.model'
+import { config } from '../config'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAsRole } from './auth-test-helpers'
 
@@ -38,8 +41,23 @@ const SEARCHED = [{ id: 'doc:7' }, { id: 'doc:2' }]
 // Each call to the stubbed services: its method, path with query, and body.
 type Call = { method: string; path: string; body: unknown }
 const calls: Call[] = []
-let down: 'ingestion' | 'rag' | null = null
+let down: 'ingestion' | 'rag' | 'privacy' | null = null
 let found: object[] = SEARCHED
+// The paid calls the meaning search reports (EV-03 wire shape).
+const USAGE = [
+  {
+    feature: 'retrieval',
+    billed_service: 'cohere-embed',
+    model: 'embed-v4.0',
+    duration_ms: 120,
+    input_tokens: 9,
+    output_tokens: null,
+    cache_read_tokens: null,
+    search_units: null,
+    audio_seconds: null,
+    usage_status: 'recorded',
+  },
+]
 beforeEach(() => {
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
     const path = String(url).replace('http://127.0.0.1:9', '')
@@ -52,11 +70,25 @@ beforeEach(() => {
       if (down === 'rag') return new Response('{}', { status: 500 })
       return Response.json({ results: found })
     }
+    if (path === '/passages/meaning') {
+      if (down === 'rag') return new Response('{}', { status: 500 })
+      if (down === 'privacy') {
+        return Response.json(
+          {
+            detail:
+              "Client details couldn't be protected because the privacy service isn't available, so nothing was sent to the AI model.",
+          },
+          { status: 503 },
+        )
+      }
+      return Response.json({ results: found, usage: USAGE })
+    }
     if (down === 'ingestion') return new Response('{}', { status: 500 })
     return Response.json(LISTED)
   })
 })
 afterEach(() => {
+  config.piiProtection = 'off'
   calls.length = 0
   down = null
   found = SEARCHED
@@ -216,5 +248,86 @@ describe('searching a document’s passages by words', () => {
 
     expect(response.status).toBe(503)
     expect(response.body.error).toMatch(/search could not be run/i)
+  })
+})
+
+describe('searching a document’s passages by meaning', () => {
+  const byMeaning = (id: Types.ObjectId) =>
+    listing(id, '?q=how%20often%20are%20valves%20checked&mode=meaning&chapter=8')
+  const meaningCall = () => calls.find((c) => c.path === '/passages/meaning')!
+
+  it('ranks them by meaning in this document only, then lists those passages in rank order', async () => {
+    const document = await seed()
+
+    const response = await byMeaning(document._id)
+
+    expect(response.status).toBe(200)
+    expect(meaningCall()).toMatchObject({
+      method: 'POST',
+      body: {
+        query: 'how often are valves checked',
+        document_id: String(document._id),
+        limit: 20,
+        privacy: { enabled: false, known_entities: [] },
+      },
+    })
+    expect(calls.some((c) => c.path === '/passages/search')).toBe(false)
+    expect(ingestionQuery().query).toEqual([
+      ['offset', '0'],
+      ['limit', '25'],
+      ['chapter', '8'],
+      ['ids', 'doc:7'],
+      ['ids', 'doc:2'],
+    ])
+  })
+
+  it('sends the known clients to be masked when protection is required', async () => {
+    config.piiProtection = 'required'
+    await ClientModel.create({ name: 'Northgate Logistics', key: 'northgate logistics' })
+    const document = await seed()
+
+    await byMeaning(document._id)
+
+    expect(meaningCall().body).toMatchObject({
+      privacy: {
+        enabled: true,
+        known_entities: expect.arrayContaining([
+          { type: 'CLIENT', names: ['Northgate Logistics'] },
+        ]),
+      },
+    })
+  })
+
+  it('records its paid calls against the engineer and the document', async () => {
+    const document = await seed()
+
+    await byMeaning(document._id)
+
+    const rows = await AiCallModel.find().lean()
+    expect(rows).toHaveLength(1)
+    // Its own feature, so the cost report shows it apart from drafting's searches and chat.
+    expect(rows[0]).toMatchObject({ feature: 'knowledge-search', billedService: 'cohere-embed' })
+    expect(String(rows[0].documentId)).toBe(String(document._id))
+    expect(rows[0].userId).toBeTruthy()
+  })
+
+  it('says why when client details couldn’t be protected, and lists nothing', async () => {
+    const document = await seed()
+    down = 'privacy'
+
+    const response = await byMeaning(document._id)
+
+    expect(response.status).toBe(503)
+    expect(response.body.error).toMatch(/couldn't be protected/)
+    expect(calls.some((c) => c.path.startsWith('/documents/'))).toBe(false)
+  })
+
+  it('answers 409 for a document that needs review, without a paid call', async () => {
+    const document = await seed({ unconfirmed: ['facility_type'] })
+
+    const response = await byMeaning(document._id)
+
+    expect(response.status).toBe(409)
+    expect(calls).toEqual([])
   })
 })

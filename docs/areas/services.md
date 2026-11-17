@@ -651,8 +651,23 @@ refuses them (403) whatever the client shows.
    `ids` in rank order, so a search is paged, filtered and outlined like a
    listing. The keyword search skips passages that aren't active, so a search of
    a document that needs review or is withdrawn answers 409 instead of looking
-   empty; the client offers no search box then. The client searches 300 ms after
+   empty; the client offers no search then. The client searches 300 ms after
    typing stops and cancels a request still running.
+   **Search by meaning** (`mode=meaning`, the field's Words | Meaning switch): the
+   gateway sends `{ query, document_id, limit: 20, privacy }` (`chatPrivacy()`) to
+   rag-service's `POST /passages/meaning`. That runs `retriever.retrieve` on the one
+   document (`doc_id`), 40 candidates from Chroma, reranked to 20: one Cohere embed
+   and one rerank. With protection on, the query is masked before Cohere sees it and
+   the reranker reads the passages masked (`rank_texts`, `protection`, as chat does);
+   if masking fails nothing is searched, S4 answers 503 and the gateway passes its
+   message on. S4 returns the ranked ids and `usage`, which the gateway records
+   for the user and the document as `knowledge-search` (S4's retriever names its
+   calls `retrieval`, which the cost report counts as drafting), before listing the
+   ids as a word search does. On the Usage and costs screen these calls are a
+   "Knowledge base search" group by assessment (they have none) and a part of the
+   searcher's bar by engineer; an engineer sees only their own. `label_filter` hides passages that aren't active here too, so the
+   same 409 applies. The client runs it only on Enter, or on choosing Meaning with
+   words typed, so a pause in typing is never a paid call.
 5. **Opening a passage** shows its full text (`PassageBody`) and, for a table,
    formula or picture, the region of the original page through the chat's
    `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Today only described

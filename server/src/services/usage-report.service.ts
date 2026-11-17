@@ -528,6 +528,10 @@ export const INGESTION_FEATURES: readonly IAiCall['feature'][] = [
 ]
 // The group chat falls under when grouping by assessment: it has none.
 export const CHAT_GROUP = 'chat'
+// The group knowledge base searches (IN-17) fall under: no assessment either.
+export const KNOWLEDGE_SEARCH_GROUP = 'knowledge-search'
+// Calls that belong to the user who made them, not an assessment.
+const PERSONAL_FEATURES: IAiCall['feature'][] = ['chat', 'knowledge-search']
 // The group for an assessment with no engineer assigned.
 export const UNASSIGNED_GROUP = 'unassigned'
 
@@ -602,7 +606,7 @@ export async function usageOverview(
     ? {
         $or: [
           { reportId: { $in: visible } },
-          { feature: 'chat' as const, userId: new Types.ObjectId(user.id) },
+          { feature: { $in: PERSONAL_FEATURES }, userId: new Types.ObjectId(user.id) },
         ],
       }
     : {}
@@ -639,17 +643,18 @@ export async function usageOverview(
   for (const a of assessments.values())
     if (a.engineer) names.set(String(a.engineer._id), a.engineer.name)
 
-  // Whose a call is: the assessment's assigned engineer, or the chat's asker.
+  // Whose a call is: the assessment's assigned engineer, or who asked or searched.
   const engineerOf = (r: IAiCall) => {
-    if (r.feature === 'chat' && r.userId) return String(r.userId)
+    if (PERSONAL_FEATURES.includes(r.feature) && r.userId) return String(r.userId)
     const engineer = r.reportId ? assessments.get(r.reportId)?.engineer : null
     return engineer ? String(engineer._id) : null
   }
   const kept = query.engineer ? rows.filter((r) => engineerOf(r) === query.engineer) : rows
   const groupKey = (r: IAiCall) => {
     if (query.groupBy === 'engineer') return engineerOf(r) ?? UNASSIGNED_GROUP
-    // Outside ingestion, only chat has no report.
-    return r.reportId ?? CHAT_GROUP
+    // Outside ingestion, only chat and knowledge base searches have no report.
+    if (r.reportId) return r.reportId
+    return r.feature === 'knowledge-search' ? KNOWLEDGE_SEARCH_GROUP : CHAT_GROUP
   }
   const splitKey = splitKeyFor(query.split)
 
@@ -669,6 +674,14 @@ export async function usageOverview(
     }
     if (key === CHAT_GROUP)
       return { ...shared, ...none, label: 'Chatbot', engineerId: null, engineerName: null }
+    if (key === KNOWLEDGE_SEARCH_GROUP)
+      return {
+        ...shared,
+        ...none,
+        label: 'Knowledge base search',
+        engineerId: null,
+        engineerName: null,
+      }
     const a = assessments.get(key)
     return {
       ...shared,

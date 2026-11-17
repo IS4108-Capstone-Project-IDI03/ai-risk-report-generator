@@ -36,6 +36,7 @@ const STACK_ORDER = [
   'self-hosted-ocr',
   'draft-section',
   'retrieval',
+  'knowledge-search',
   'checklist',
   'ask',
   'transcribe',
@@ -64,6 +65,10 @@ const SERIES_COLORS: Record<string, string> = {
   'self-hosted-ocr': 'neutral',
   'draft-section': 'blue',
   retrieval: 'orange-light',
+  // Knowledge base search (IN-17) is billed by Cohere, but both orange steps are taken by
+  // features that share an engineer's bar with it (retrieval, chat) and no third orange
+  // clears the floors; sky is the step furthest from every report feature.
+  'knowledge-search': 'sky',
   // The pre-survey checklist (CP-30) shares an assessment's bar with drafting,
   // so it takes the one report-feature hue no other uses.
   checklist: 'olive',
