@@ -263,25 +263,36 @@ def _passages(doc_id: str) -> list[dict]:
     return sorted(rows, key=lambda r: _reading_order(r["id"]))
 
 
-def document_passages(doc_id: str) -> list[dict]:
-    """Return a document's passages in reading order, without vectors (IN-17 browser)."""
+def document_passages(doc_id: str, offset: int = 0, limit: int = 25) -> dict:
+    """Return one page of a document's passages in reading order, and how many it has (IN-17).
+
+    Reads every passage's metadata (no text, no vectors) to order and count them, then the
+    text of the page's passages only: a standard has a thousand or more.
+    """
     collection = passages_collection()
     if collection is None:
-        return []
-    found = get_all(collection, where={"doc_id": doc_id}, include=["documents", "metadatas"])
-    rows = [
+        return {"total": 0, "passages": []}
+    found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
+    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
+    page = ordered[offset : offset + limit]
+    texts = {}
+    if page:
+        read = collection.get(ids=[id_ for id_, _ in page], include=["documents"])
+        texts = dict(zip(read["ids"], read["documents"]))
+    passages = [
         {
             "id": id_,
-            "text": text,
+            "position": offset + n + 1,
+            "text": texts.get(id_, ""),
             "headings": meta.get("headings") or [],
             "section": meta.get("section"),
             "pageStart": meta.get("page_start"),
             "pageEnd": meta.get("page_end"),
             "status": meta.get("status"),
         }
-        for id_, text, meta in zip(found["ids"], found["documents"], found["metadatas"])
+        for n, (id_, meta) in enumerate(page)
     ]
-    return sorted(rows, key=lambda r: _reading_order(r["id"]))
+    return {"total": len(ordered), "passages": passages}
 
 
 def _public(passage: dict) -> dict:

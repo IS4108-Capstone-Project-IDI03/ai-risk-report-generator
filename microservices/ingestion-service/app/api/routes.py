@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 import pymupdf
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
@@ -179,13 +179,17 @@ def delete_passages(doc_id: str) -> dict:
 
 
 @router.get("/documents/{doc_id}/passages")
-def list_passages(doc_id: str) -> dict:
-    """Return a document's passages in reading order, for the knowledge base browser (IN-17).
+def list_passages(
+    doc_id: str,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> dict:
+    """Return one page of a document's passages in reading order, and the total (IN-17).
 
     Reads the index only: an unknown document has no passages. The gateway checks the
     document exists.
     """
-    return {"passages": matching.document_passages(doc_id)}
+    return matching.document_passages(doc_id, offset, limit)
 
 
 @router.get("/documents/{doc_id}/comparison/{other_id}")

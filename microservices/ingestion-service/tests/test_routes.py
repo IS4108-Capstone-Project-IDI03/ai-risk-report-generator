@@ -172,10 +172,12 @@ def test_listing_passages_returns_only_that_documents_passages_in_reading_order(
     response = client.get("/documents/doc/passages")
 
     assert response.status_code == 200
+    assert response.json()["total"] == 3
     listed = response.json()["passages"]
     assert [p["id"] for p in listed] == ["doc:2", "doc:2:part1", "doc:10"]
     assert listed[0] == {
         "id": "doc:2",
+        "position": 1,
         "text": "Two",
         "headings": [],
         "section": "Not applicable",
@@ -191,4 +193,53 @@ def test_listing_passages_of_a_document_with_none_returns_an_empty_list(monkeypa
 
     response = client.get("/documents/nothing-indexed/passages")
 
-    assert response.json() == {"passages": []}
+    assert response.json() == {"total": 0, "passages": []}
+
+
+def seed_passages(passages, count, doc="doc"):
+    """`count` passages of `doc`, one per page, stored out of reading order."""
+    for n in reversed(range(count)):
+        passages.rows[f"{doc}:{n}"] = {
+            "text": f"Passage {n}",
+            "meta": {"doc_id": doc, "page_start": n + 1, "page_end": n + 1},
+            "vector": [1, 0, 0],
+        }
+
+
+def test_listing_passages_pages_through_them_in_reading_order(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_passages(passages, 30)
+
+    response = client.get("/documents/doc/passages?offset=25&limit=10")
+
+    body = response.json()
+    assert body["total"] == 30
+    assert [p["id"] for p in body["passages"]] == [f"doc:{n}" for n in range(25, 30)]
+    assert [p["position"] for p in body["passages"]] == [26, 27, 28, 29, 30]
+    assert body["passages"][0]["text"] == "Passage 25"
+
+
+def test_listing_passages_shows_25_at_a_time_unless_asked(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_passages(passages, 30)
+
+    body = client.get("/documents/doc/passages").json()
+
+    assert [p["position"] for p in body["passages"]] == list(range(1, 26))
+
+
+def test_listing_passages_reads_text_only_for_the_page_shown(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_passages(passages, 30)
+
+    client.get("/documents/doc/passages?offset=10&limit=5")
+
+    text_reads = [ids for ids, include in passages.gets if "documents" in include]
+    assert text_reads == [[f"doc:{n}" for n in range(10, 15)]]
+
+
+def test_listing_passages_refuses_a_page_size_over_100_or_a_negative_offset(monkeypatch):
+    in07_fakes(monkeypatch)
+
+    assert client.get("/documents/doc/passages?limit=101").status_code == 422
+    assert client.get("/documents/doc/passages?offset=-1").status_code == 422
