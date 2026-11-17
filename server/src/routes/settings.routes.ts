@@ -1,5 +1,5 @@
-// S-01: the Settings API, mounted at /api/settings. Anyone signed in reads and changes
-// their own values; only an admin (`settings:manage`) changes models, QA strictness and defaults.
+// S-01: the Settings API, mounted at /api/settings. Anyone signed in reads;
+// only an admin (`settings:manage`) changes models and QA strictness.
 import { Router } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
 import {
@@ -7,7 +7,6 @@ import {
   getSettings,
   saveGlobal,
   saveModelChoice,
-  savePersonal,
 } from '../services/settings.service'
 
 const router = Router()
@@ -37,15 +36,6 @@ router.put('/models/:task', requirePermission('settings:manage'), async (req, re
 router.patch('/global', requirePermission('settings:manage'), async (req, res) => {
   try {
     await saveGlobal(res.locals.user!, req.body ?? {})
-    res.json(await getSettings(res.locals.user!))
-  } catch (error) {
-    if (!answer(error, res)) throw error
-  }
-})
-
-router.patch('/me', async (req, res) => {
-  try {
-    await savePersonal(res.locals.user!.id, req.body)
     res.json(await getSettings(res.locals.user!))
   } catch (error) {
     if (!answer(error, res)) throw error

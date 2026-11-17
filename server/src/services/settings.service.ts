@@ -1,4 +1,4 @@
-// S-01: reads and saves the Settings (models, QA strictness, personal values) and tells
+// S-01: reads and saves the Settings (models, QA strictness) and tells
 // the AI calls which model to use. Called by routes/settings.routes.ts and
 // qa.service.ts; the AI-calling services ask `resolveModel`. Never returns an API key,
 // only whether one is set.
@@ -6,11 +6,9 @@ import {
   AppSettingsModel,
   QA_STRICTNESS,
   type IAppSettings,
-  type PersonalValues,
   type QaStrictness,
 } from '../models/app-settings.model'
 import { SettingsLogModel } from '../models/settings-log.model'
-import { UserSettingsModel } from '../models/user-settings.model'
 import {
   MODEL_CATALOG,
   MODEL_TASKS,
@@ -67,8 +65,6 @@ const metadata = (source_type: 'settings' | 'settings_change') => ({
   effective_date: new Date(),
 })
 
-const PERSONAL_DEFAULTS: PersonalValues = { standardsTargetPct: 50 }
-
 // The one admin document; created on first use so a fresh database needs no seed.
 async function appSettings(): Promise<IAppSettings> {
   try {
@@ -88,7 +84,6 @@ async function upsertAppSettings(): Promise<IAppSettings> {
         key: 'global',
         models: {},
         qaStrictness: 'standard',
-        defaults: PERSONAL_DEFAULTS,
         metadata: metadata('settings'),
       },
     },
@@ -164,20 +159,9 @@ function rowWarning(task: ModelTask, selected: ModelOption, saved: IAppSettings)
   return null
 }
 
-const personalValue = (
-  key: keyof PersonalValues,
-  saved: IAppSettings,
-  own: PersonalValues | undefined,
-) => {
-  const def = saved.defaults[key] ?? PERSONAL_DEFAULTS[key] ?? null
-  const mine = own?.[key] ?? null
-  return { value: mine ?? def, own: mine, default: def }
-}
-
-/** Returns everything the Settings screen shows for this person: models with lights, warnings, personal values. */
+/** Returns everything the Settings screen shows for this person: models with lights, warnings, QA strictness. */
 export async function getSettings(user: SessionUser) {
   const saved = await appSettings()
-  const own = (await UserSettingsModel.findOne({ user: user.id }).lean())?.values
   return {
     canEditGlobal: hasPermission(user.role, 'settings:manage'),
     models: MODEL_TASKS.map((task) => {
@@ -193,12 +177,6 @@ export async function getSettings(user: SessionUser) {
       }
     }),
     qaStrictness: saved.qaStrictness,
-    personal: {
-      standardsTargetPct: personalValue('standardsTargetPct', saved, own),
-      defaultCountry: personalValue('defaultCountry', saved, own),
-      defaultFacilityType: personalValue('defaultFacilityType', saved, own),
-      defaultTitle: personalValue('defaultTitle', saved, own),
-    },
   }
 }
 
@@ -246,84 +224,17 @@ export async function saveModelChoice(by: SessionUser, task: string, choice: unk
   if (savedBefore !== optionId(option)) await log(by, `models.${t}`, before, optionId(option))
 }
 
-const text = (v: unknown) =>
-  v === null || (typeof v === 'string' && v.trim().length > 0 && v.length <= 80)
-const VALID: Record<keyof PersonalValues, (v: unknown) => boolean> = {
-  standardsTargetPct: (v) =>
-    v === null || (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 100),
-  defaultCountry: text,
-  defaultFacilityType: text,
-  defaultTitle: text,
-}
-
-// Keeps only the known personal keys; a bad value is a 400, never silently dropped.
-function personalPatch(input: unknown): Record<string, unknown> {
-  if (!input || typeof input !== 'object') throw new SettingsInputError('Nothing to save.')
-  const patch: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(input)) {
-    // hasOwn: without it, "__proto__" or "constructor" would find a built-in and pass as a setting.
-    const valid = Object.hasOwn(VALID, key) ? VALID[key as keyof PersonalValues] : undefined
-    if (!valid) throw new SettingsInputError(`"${key}" is not a setting.`)
-    if (!valid(value)) throw new SettingsInputError(`"${key}" has a value that is not allowed.`)
-    patch[key] = typeof value === 'string' ? value.trim() : value
-  }
-  if (!Object.keys(patch).length) throw new SettingsInputError('Nothing to save.')
-  return patch
-}
-
-/** Saves the admin's QA strictness and default personal values for everyone, logging each real change. Checks all of it first, so a bad part saves nothing. */
+/** Saves the admin's QA strictness for everyone and logs a real change. Checks it first, so a bad value saves nothing. */
 export async function saveGlobal(by: SessionUser, input: unknown) {
   const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
-  const unknown = Object.keys(body).filter((k) => k !== 'qaStrictness' && k !== 'defaults')
+  const unknown = Object.keys(body).filter((k) => k !== 'qaStrictness')
   if (unknown.length) throw new SettingsInputError(`"${unknown[0]}" is not a setting.`)
-  if (body.qaStrictness === undefined && body.defaults === undefined) {
-    throw new SettingsInputError('Nothing to save.')
-  }
-  // a. Validate everything before the first write: without this a bad second part would
-  //    leave the first part saved and logged while the screen shows an error.
-  if (
-    body.qaStrictness !== undefined &&
-    !(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)
-  ) {
+  if (body.qaStrictness === undefined) throw new SettingsInputError('Nothing to save.')
+  if (!(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)) {
     throw new SettingsInputError('QA strictness must be strict, standard or lenient.')
   }
-  const defaults = body.defaults === undefined ? {} : personalPatch(body.defaults)
-  for (const [key, value] of Object.entries(defaults)) {
-    if (value === null) throw new SettingsInputError(`A default for "${key}" cannot be empty.`)
-  }
-  // b. Write only what changed, and log each change.
   const saved = await appSettings()
-  if (body.qaStrictness !== undefined && body.qaStrictness !== saved.qaStrictness) {
-    await AppSettingsModel.updateOne(
-      { key: 'global' },
-      { $set: { qaStrictness: body.qaStrictness } },
-    )
-    await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
-  }
-  for (const [key, value] of Object.entries(defaults)) {
-    const before = saved.defaults[key as keyof PersonalValues]
-    if (value === before) continue
-    await AppSettingsModel.updateOne({ key: 'global' }, { $set: { [`defaults.${key}`]: value } })
-    await log(by, `defaults.${key}`, before, value)
-  }
-}
-
-/** Saves this person's own values; null clears one so the admin's default applies again. */
-export async function savePersonal(userId: string, input: unknown) {
-  const patch = personalPatch(input)
-  const set: Record<string, unknown> = {}
-  const unset: Record<string, ''> = {}
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) unset[`values.${key}`] = ''
-    else set[`values.${key}`] = value
-  }
-  await UserSettingsModel.updateOne(
-    { user: userId },
-    {
-      ...(Object.keys(set).length ? { $set: set } : {}),
-      ...(Object.keys(unset).length ? { $unset: unset } : {}),
-      $setOnInsert: { user: userId, metadata: metadata('settings') },
-    },
-    { upsert: true },
-  )
+  if (body.qaStrictness === saved.qaStrictness) return
+  await AppSettingsModel.updateOne({ key: 'global' }, { $set: { qaStrictness: body.qaStrictness } })
+  await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
 }

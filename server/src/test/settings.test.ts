@@ -176,42 +176,25 @@ describe('the QA model (S-01 AC8, AC9)', () => {
   })
 })
 
-describe('personal settings and defaults (S-01 AC11, AC12, AC14)', () => {
-  it('an engineer sets their own value, others keep the admin default', async () => {
-    await engineer.patch('/api/settings/me').send({ standardsTargetPct: 70 })
-    const mine = (await engineer.get('/api/settings')).body.personal.standardsTargetPct
-    expect(mine).toMatchObject({ value: 70, own: 70, default: 50 })
-    const other = signedInAsRole(app, 'risk_engineer', 'Jide')
-    expect((await other.get('/api/settings')).body.personal.standardsTargetPct.value).toBe(50)
-  })
-
-  it('an admin default reaches engineers who have not set their own, and resets', async () => {
-    expect(
-      (await admin.patch('/api/settings/global').send({ defaults: { standardsTargetPct: 40 } }))
-        .status,
-    ).toBe(200)
-    expect((await engineer.get('/api/settings')).body.personal.standardsTargetPct.value).toBe(40)
-    await engineer.patch('/api/settings/me').send({ standardsTargetPct: 70 })
-    await engineer.patch('/api/settings/me').send({ standardsTargetPct: null })
-    expect((await engineer.get('/api/settings')).body.personal.standardsTargetPct.value).toBe(40)
-  })
-
-  it('refuses an engineer on global settings and a bad value for anyone', async () => {
+describe('QA strictness (S-01 AC12, AC14)', () => {
+  it('refuses an engineer, and a bad value from an admin', async () => {
     expect(
       (await engineer.patch('/api/settings/global').send({ qaStrictness: 'strict' })).status,
     ).toBe(403)
     expect((await admin.patch('/api/settings/global').send({ qaStrictness: 'harsh' })).status).toBe(
       400,
     )
-    expect(
-      (await engineer.patch('/api/settings/me').send({ standardsTargetPct: 140 })).status,
-    ).toBe(400)
   })
 
   it('lets the admin set the QA strictness for everyone, and logs it', async () => {
     await admin.patch('/api/settings/global').send({ qaStrictness: 'strict' })
     expect((await engineer.get('/api/settings')).body.qaStrictness).toBe('strict')
     expect((await SettingsLogModel.find({}).lean()).map((e) => e.setting)).toContain('qaStrictness')
+  })
+
+  it('has no personal settings or defaults any more', async () => {
+    expect((await admin.get('/api/settings')).body.personal).toBeUndefined()
+    expect((await engineer.patch('/api/settings/me').send({ x: 1 })).status).toBe(404)
   })
 })
 
@@ -229,42 +212,17 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
   const raw = (who: typeof admin, method: 'patch', url: string, body: string) =>
     who[method](url).set('Content-Type', 'application/json').send(body)
 
-  it('answers 400, never 500, for __proto__ and other built-in names as setting keys', async () => {
-    const me = await raw(engineer, 'patch', '/api/settings/me', '{"__proto__":{"x":1}}')
-    expect(me.status).toBe(400)
-    const global = await raw(
-      admin,
-      'patch',
-      '/api/settings/global',
-      '{"defaults":{"__proto__":{"x":1}}}',
-    )
-    expect(global.status).toBe(400)
-    const hasOwn = await raw(
-      admin,
-      'patch',
-      '/api/settings/global',
-      '{"defaults":{"hasOwnProperty":{"a":1}}}',
-    )
-    expect(hasOwn.status).toBe(400)
-  })
-
-  it('does not save built-in names such as constructor or toString', async () => {
-    expect((await engineer.patch('/api/settings/me').send({ constructor: 'x' })).status).toBe(400)
-    expect((await engineer.patch('/api/settings/me').send({ toString: 1 })).status).toBe(400)
+  it('answers 400, never 500, for __proto__ and built-in names as setting keys', async () => {
     expect(
-      (await admin.patch('/api/settings/global').send({ defaults: { constructor: 1 } })).status,
+      (await raw(admin, 'patch', '/api/settings/global', '{"__proto__":{"x":1}}')).status,
     ).toBe(400)
+    expect((await admin.patch('/api/settings/global').send({ constructor: 1 })).status).toBe(400)
     expect(await SettingsLogModel.countDocuments()).toBe(0)
   })
 
   it('refuses an unknown top-level key or an empty body on global settings', async () => {
     expect((await admin.patch('/api/settings/global').send({ nope: 1 })).status).toBe(400)
     expect((await admin.patch('/api/settings/global').send({})).status).toBe(400)
-  })
-
-  it('saves text without the spaces around it', async () => {
-    await admin.patch('/api/settings/global').send({ defaults: { defaultCountry: '  SG  ' } })
-    expect((await admin.get('/api/settings')).body.personal.defaultCountry.value).toBe('SG')
   })
 
   it('writes no log row when a choice does not change', async () => {
@@ -283,17 +241,10 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
     expect(entry.after).toBe('anthropic:claude-opus-5-5')
   })
 
-  it('saves nothing at all when any part of a global change is invalid', async () => {
-    const res = await admin
-      .patch('/api/settings/global')
-      .send({ qaStrictness: 'strict', defaults: { standardsTargetPct: 200 } })
+  it('saves nothing when the QA strictness is invalid', async () => {
+    const res = await admin.patch('/api/settings/global').send({ qaStrictness: 'nope' })
     expect(res.status).toBe(400)
     expect((await admin.get('/api/settings')).body.qaStrictness).toBe('standard')
-    const partly = await admin
-      .patch('/api/settings/global')
-      .send({ defaults: { defaultCountry: 'SG', defaultTitle: null } })
-    expect(partly.status).toBe(400)
-    expect((await admin.get('/api/settings')).body.personal.defaultCountry.default).toBeNull()
     expect(await SettingsLogModel.countDocuments()).toBe(0)
   })
 
