@@ -266,7 +266,7 @@ function PassageFilters({
           { value: '', label: byClause ? 'All chapters' : 'All sections' },
           ...outline.chapters.map((c) => ({
             value: `c:${c.name}`,
-            label: `${chapterName(c.name, byClause)} (${c.count.toLocaleString('en')})`,
+            label: `${named(chapterName(c.name, byClause), c.title)} (${c.count.toLocaleString('en')})`,
           })),
         ]}
         value={chapter === undefined ? '' : `c:${chapter}`}
@@ -425,7 +425,9 @@ function PassageDetail({
       {loaded.status === 'ready' && (
         <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} />
       )}
-      <p className="kb-pid">{p.id}</p>
+      <p className="kb-pid">
+        <span>Passage ID</span> {p.id}
+      </p>
     </section>
   )
 }
@@ -452,11 +454,21 @@ function chapterName(name: string, byClause: boolean): string {
   return /^\d+$/.test(name) ? `Chapter ${name}` : `Annex ${name}`
 }
 
+// "Chapter 8 Installation": a chapter or section with its title, ending at a whole word
+// within LABEL_CHARS so a dropdown doesn't grow to a paragraph.
+const LABEL_CHARS = 60
+function named(name: string, title: string | null): string {
+  const full = title ? `${name} ${title}` : name
+  if (full.length <= LABEL_CHARS) return full
+  const cut = full.slice(0, LABEL_CHARS)
+  return `${cut.slice(0, cut.lastIndexOf(' ')).trimEnd()}…`
+}
+
 // The chosen chapter's sections; "" is its start, before the first numbered section.
 function sectionOptions(sections: OutlineEntry[]) {
   return sections.map((s) => ({
     value: `s:${s.name}`,
-    label: `${s.name || 'Chapter start'} (${s.count.toLocaleString('en')})`,
+    label: `${named(s.name || 'Chapter start', s.title)} (${s.count.toLocaleString('en')})`,
   }))
 }
 

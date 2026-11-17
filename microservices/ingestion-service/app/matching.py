@@ -350,8 +350,11 @@ def document_passages(
         }
         for id_, meta, position in page
     ]
+    chapter_titles, section_titles = (
+        outline.titles([meta for _, meta in ordered]) if by == "clause" else ({}, {})
+    )
     sections = (
-        outline.counts([part for _, (_, part), _ in in_chapter])
+        outline.counts([part for _, (_, part), _ in in_chapter], section_titles)
         if chapter and by == "clause"
         else []
     )
@@ -360,7 +363,7 @@ def document_passages(
         "passages": passages,
         "outline": {
             "by": by,
-            "chapters": outline.counts([name for _, (name, _), _ in rows]),
+            "chapters": outline.counts([name for _, (name, _), _ in rows], chapter_titles),
             "sections": sections,
         },
     }

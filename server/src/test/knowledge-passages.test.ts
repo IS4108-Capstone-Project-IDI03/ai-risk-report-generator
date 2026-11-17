@@ -27,7 +27,11 @@ const PASSAGE = {
 const LISTED = {
   total: 1,
   passages: [PASSAGE],
-  outline: { by: 'clause', chapters: [{ name: '8', count: 1 }], sections: [] },
+  outline: {
+    by: 'clause',
+    chapters: [{ name: '8', count: 1, title: 'Installation' }],
+    sections: [],
+  },
 }
 const SEARCHED = [{ id: 'doc:7' }, { id: 'doc:2' }]
 

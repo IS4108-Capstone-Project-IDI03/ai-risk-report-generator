@@ -285,14 +285,15 @@ def test_the_outline_lists_chapters_from_clause_numbers_in_reading_order(monkeyp
     outline = client.get("/documents/std/passages").json()["outline"]
 
     # Before the first chapter is front matter (""); a heading without a clause number
-    # ("Notes:", a table continued) stays in the clause before it.
+    # ("Notes:", a table continued) stays in the clause before it. Only a chapter's own
+    # heading names it: chapter 8 and annex A open with a sub-clause, so have no title.
     assert outline == {
         "by": "clause",
         "chapters": [
-            {"name": "", "count": 1},
-            {"name": "1", "count": 4},
-            {"name": "8", "count": 1},
-            {"name": "A", "count": 2},
+            {"name": "", "count": 1, "title": None},
+            {"name": "1", "count": 4, "title": "Administration"},
+            {"name": "8", "count": 1, "title": None},
+            {"name": "A", "count": 2, "title": None},
         ],
         "sections": [],
     }
@@ -306,14 +307,47 @@ def test_a_chapter_narrows_the_list_and_lists_its_sections(monkeypatch):
 
     assert body["total"] == 4
     assert [p["id"] for p in body["passages"]] == ["std:1", "std:2", "std:3", "std:4"]
-    # The chapter's heading itself comes before its first section ("").
+    # The chapter's heading itself comes before its first section (""). 1.2 opens with the
+    # sub-clause "1.2.3* Purpose.", which names 1.2.3, not 1.2: no title beats a wrong one.
     assert body["outline"]["sections"] == [
-        {"name": "", "count": 1},
-        {"name": "1.1", "count": 1},
-        {"name": "1.2", "count": 2},
+        {"name": "", "count": 1, "title": None},
+        {"name": "1.1", "count": 1, "title": "Scope"},
+        {"name": "1.2", "count": 2, "title": None},
     ]
     assert listed_ids("?chapter=1&section=1.2") == ["std:3", "std:4"]
     assert listed_ids("?chapter=A&section=A.8") == ["std:6", "std:7"]
+
+
+def test_chapters_and_sections_are_named_by_their_own_headings(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    # As FM data sheets number them: "2.0" opens chapter 2; a section's own heading may come
+    # after its first sub-clause.
+    for n, heading in enumerate(
+        [
+            "2.0 LOSS PREVENTION  RECOMMENDATIONS",
+            "2.4.1 General.",
+            "2.4 Fire Protection System Inspection",
+            "Δ 2.5* Valves.",
+            "Annex B  Bibliography",
+        ]
+    ):
+        passages.rows[f"fm:{n}"] = {
+            "text": heading,
+            "meta": {"doc_id": "fm", "headings": [heading]},
+            "vector": [1, 0, 0],
+        }
+
+    outline = client.get("/documents/fm/passages?chapter=2").json()["outline"]
+
+    assert outline["chapters"] == [
+        {"name": "2", "count": 4, "title": "LOSS PREVENTION RECOMMENDATIONS"},
+        {"name": "B", "count": 1, "title": "Bibliography"},
+    ]
+    assert outline["sections"] == [
+        {"name": "2.0", "count": 1, "title": "LOSS PREVENTION RECOMMENDATIONS"},
+        {"name": "2.4", "count": 2, "title": "Fire Protection System Inspection"},
+        {"name": "2.5", "count": 1, "title": "Valves"},
+    ]
 
 
 def test_a_page_range_keeps_passages_that_overlap_it(monkeypatch):
@@ -349,8 +383,8 @@ def test_a_document_without_clause_numbers_is_outlined_by_its_report_sections(mo
     assert body["outline"] == {
         "by": "section",
         "chapters": [
-            {"name": "Purpose and Scope", "count": 1},
-            {"name": "Fire Protection", "count": 2},
+            {"name": "Purpose and Scope", "count": 1, "title": None},
+            {"name": "Fire Protection", "count": 2, "title": None},
         ],
         "sections": [],
     }

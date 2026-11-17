@@ -1084,6 +1084,12 @@
   font-size: var(--text-caption-size);
   color: var(--text-muted);
 }
+/* The label in the sans face, so the id alone reads as code. */
+.kb-pid > span {
+  margin-right: 4px;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+}
 
 .kb-pfoot {
   display: flex;

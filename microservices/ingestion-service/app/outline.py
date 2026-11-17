@@ -12,6 +12,9 @@ edition mark; see .claude/plans/ingestion-data-fixes.md, D1). So only the neares
 
 A document with no clause numbers at all (a past report) is outlined by its passages' template
 `section` instead, with no second level.
+
+Each chapter and section is named only by its own heading ("Chapter 8 Installation", "2.0 LOSS
+PREVENTION…", "8.6 Component replacement."), never by a sub-clause that happens to open it.
 """
 
 import re
@@ -49,9 +52,43 @@ def places(metadatas: list[dict]) -> tuple[str, list[tuple[str, str]]]:
     return "clause", found
 
 
-def counts(names: list[str]) -> list[dict]:
-    """Each distinct name with how often it occurs, in order of first appearance."""
+def _words(text: str) -> str:
+    """A heading's words after its number: spaces collapsed, no leading "*" or closing "."."""
+    return " ".join(text.split()).lstrip("*").strip().rstrip(".").strip()
+
+
+def titles(metadatas: list[dict]) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the chapters' and the sections' titles, each from its own heading; first one wins.
+
+    A chapter is named by "Chapter 8 …" / "Annex A …", or by the heading numbered "N.0" (which
+    also names section N.0); a section only by the heading numbered exactly that section.
+    """
+    chapters: dict[str, str] = {}
+    sections: dict[str, str] = {}
+    for meta in metadatas:
+        heading = (meta.get("headings") or [""])[-1]
+        if found := _CHAPTER.match(heading):
+            name = (found.group(1) or found.group(2)).upper()
+            if title := _words(heading[found.end() :]):
+                chapters.setdefault(name, title)
+        elif found := _CLAUSE.match(heading):
+            chapter, parts = found.group(1), found.group(2).split(".")[1:]
+            title = _words(heading[found.end() :])
+            if len(parts) != 1 or not title:
+                continue
+            sections.setdefault(f"{chapter}.{parts[0]}", title)
+            if parts[0] == "0":
+                chapters.setdefault(chapter, title)
+    return chapters, sections
+
+
+def counts(names: list[str], named: dict[str, str] | None = None) -> list[dict]:
+    """Each distinct name with how often it occurs and its title (or None), in order of first
+    appearance."""
     tally: dict[str, int] = {}
     for name in names:
         tally[name] = tally.get(name, 0) + 1
-    return [{"name": name, "count": count} for name, count in tally.items()]
+    return [
+        {"name": name, "count": count, "title": (named or {}).get(name)}
+        for name, count in tally.items()
+    ]

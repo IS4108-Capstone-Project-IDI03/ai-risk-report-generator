@@ -299,8 +299,9 @@ export type DocumentPassage = {
 }
 
 // A chapter or section of a document's outline and how many passages it holds. "" is
-// front matter as a chapter, or a chapter's start before its first section.
-export type OutlineEntry = { name: string; count: number }
+// front matter as a chapter, or a chapter's start before its first section. `title` comes
+// from its own heading ("Installation" for chapter 8), null when it has none.
+export type OutlineEntry = { name: string; count: number; title: string | null }
 
 // One page of a document's passages, how many match, and its outline. A standard is
 // outlined by clause numbers (chapters, then the chosen chapter's sections); a past

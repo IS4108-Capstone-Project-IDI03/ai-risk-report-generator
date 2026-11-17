@@ -98,9 +98,9 @@ const PICTURE = passage(2, {
 const OUTLINE = {
   by: 'clause',
   chapters: [
-    { name: '', count: 4 },
-    { name: '8', count: 40 },
-    { name: 'A', count: 16 },
+    { name: '', count: 4, title: null },
+    { name: '8', count: 40, title: 'Installation' },
+    { name: 'A', count: 16, title: 'Explanatory material' },
   ],
   sections: [],
 }
@@ -278,9 +278,13 @@ describe("A document's passages (IN-17)", () => {
 
   it('filters by chapter, then by that chapter’s section, from page 1', async () => {
     const SECTIONS = [
-      { name: '', count: 2 },
-      { name: '8.1', count: 20 },
-      { name: '8.2', count: 18 },
+      { name: '', count: 2, title: null },
+      {
+        name: '8.1',
+        count: 20,
+        title: 'Basic requirements for sprinklers installed in rack storage over 12 m high',
+      },
+      { name: '8.2', count: 18, title: null },
     ]
     mockGateway([NFPA], (query) => ({
       ...sixty(query),
@@ -296,8 +300,8 @@ describe("A document's passages (IN-17)", () => {
     expect([...chapter.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
       'All chapters',
       'Front matter (4)',
-      'Chapter 8 (40)',
-      'Annex A (16)',
+      'Chapter 8 Installation (40)',
+      'Annex A Explanatory material (16)',
     ])
     expect(section).toBeDisabled()
     fireEvent.change(chapter, { target: { value: 'c:8' } })
@@ -307,7 +311,8 @@ describe("A document's passages (IN-17)", () => {
     expect([...section.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
       'All sections',
       'Chapter start (2)',
-      '8.1 (20)',
+      // A long title ends at a whole word, so a dropdown doesn't grow to a paragraph.
+      '8.1 Basic requirements for sprinklers installed in rack… (20)',
       '8.2 (18)',
     ])
     fireEvent.change(section, { target: { value: 's:8.2' } })
@@ -327,8 +332,8 @@ describe("A document's passages (IN-17)", () => {
     const byTemplate = {
       by: 'section',
       chapters: [
-        { name: 'Fire protection', count: 12 },
-        { name: 'Undefined', count: 3 },
+        { name: 'Fire protection', count: 12, title: null },
+        { name: 'Undefined', count: 3, title: null },
       ],
       sections: [],
     }
@@ -384,7 +389,7 @@ describe("A document's passages (IN-17)", () => {
     expect(first).toHaveAttribute('aria-expanded', 'true')
     const opened = within(dialog).getByRole('region', { name: 'Passage 1' })
     expect(within(opened).getByText(LONG_TEXT)).toBeVisible()
-    expect(opened).toHaveTextContent('nfpa:0')
+    expect(opened).toHaveTextContent('Passage ID nfpa:0')
     // Plain text has no region of the page to fetch.
     expect(requested.some((url) => url.startsWith('/api/chat/passages/'))).toBe(false)
 
