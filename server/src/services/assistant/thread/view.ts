@@ -309,7 +309,7 @@ export function adminThread(brief: ThreadBrief, viewerName: string, now: Date): 
   ].filter(Boolean)
   const commented = [...sections].sort((a, b) => b.openComments - a.openComments)[0]
   const owner = f.engineerName ? firstName(f.engineerName) : 'The engineer'
-  const whose = f.engineerName ? ` This one is ${f.engineerName}'s.` : ''
+  const whose = f.engineerName ? ` This assessment was assigned to ${f.engineerName}.` : ''
   const where =
     brief.stage === 'exported' ? "It's exported" : `It's in the ${STAGE_LABELS[brief.stage]} stage`
   const text = `Hi ${firstName(viewerName)}!${whose} ${where}${progress.length ? `: ${progress.join(', and ')}` : ''}.${

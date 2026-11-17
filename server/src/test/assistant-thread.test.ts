@@ -1117,7 +1117,7 @@ describe('other stages', () => {
     expect(shown.status).toEqual({ text: "Alex's assessment", tone: 'blue', icon: 'user' })
     const [turn] = shown.session.turns
     expect(turn.says[0].text).toBe(
-      "Hi Sana! This one is Alex Rowe's. It's in the Review stage: 1 of 3 sections are reviewed, and the report is due on 18 Dec 2026. Construction has 2 open comments.",
+      "Hi Sana! This assessment was assigned to Alex Rowe. It's in the Review stage: 1 of 3 sections are reviewed, and the report is due on 18 Dec 2026. Construction has 2 open comments.",
     )
     expect(turn.cards.map((c) => c.type)).toEqual(['lanes', 'stage-time'])
     expect(

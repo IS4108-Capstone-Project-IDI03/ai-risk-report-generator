@@ -369,7 +369,7 @@ describe("an admin's view (AC 11)", () => {
     expect(theirs).toMatchObject({ viewer: 'admin', stage: 'prepare', replies: [], earlier: [] })
     expect(theirs.status).toEqual({ text: "Alex's assessment", tone: 'blue', icon: 'user' })
     expect(said(theirs)).toEqual([
-      "Hi Sana! This one is Alex Rowe's. It's in the Prepare stage: the report is due on 18 Dec 2026.",
+      "Hi Sana! This assessment was assigned to Alex Rowe. It's in the Prepare stage: the report is due on 18 Dec 2026.",
     ])
     expect(theirs.session.turns[0].cards.map((c) => c.type)).toEqual(['stage-time'])
     expect(await AssistantThreadModel.countDocuments({ user: admin._id })).toBe(0)
