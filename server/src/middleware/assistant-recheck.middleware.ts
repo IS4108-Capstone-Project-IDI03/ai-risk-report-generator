@@ -20,6 +20,10 @@ const SCOPES: [RegExp, (id: string) => Promise<string[]>, before: boolean][] = [
   [/^\/api\/client-documents\/([^/]+)/, openReferencesOfClientDocument, true],
 ]
 
+// Writes that change nothing MarshBot checks: the Ask tab's questions and conversations (AS-01,
+// AS-03). Without this, asking a question re-checked the assessment and could move its stage.
+const NOT_CHANGES = /^\/api\/assessments\/[^/]+\/ask(\/|$)/
+
 // Its references, or none when the look-up fails (a re-check is never worth failing the request).
 function referencesOf(scope: (typeof SCOPES)[number], path: string): Promise<string[]> {
   return scope[1](scope[0].exec(path)![1]).catch((error: unknown) => {
@@ -30,7 +34,7 @@ function referencesOf(scope: (typeof SCOPES)[number], path: string): Promise<str
 
 /** Express middleware: on a 2xx non-GET response under an assessment's paths, queues its re-check. */
 export async function assistantRecheck(req: Request, res: Response, next: NextFunction) {
-  const reads = req.method === 'GET' || req.method === 'HEAD'
+  const reads = req.method === 'GET' || req.method === 'HEAD' || NOT_CHANGES.test(req.path)
   const scope = SCOPES.find(([path]) => path.test(req.path))
   // No session cookie means a 401 is coming; without this, anyone could make us look things up.
   if (reads || !scope || !req.cookies?.[SESSION_COOKIE]) return next()
