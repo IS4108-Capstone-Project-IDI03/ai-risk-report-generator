@@ -232,7 +232,7 @@ describe('a missing key stops the call (S-01 AC6)', () => {
     const res = await api.post(draftUrl)
 
     expect(res.status).toBe(503)
-    expect(res.body.error).toMatch(/Answers and drafting.*unavailable.*API key is not set/)
+    expect(res.body.error).toMatch(/Report drafting.*unavailable.*API key is not set/)
     expect(summaryCalls()).toHaveLength(0)
   })
 })

@@ -19,6 +19,8 @@ export type ModelRowData = {
   label: string
   // Fixed in code (voice transcription): one option, never changes.
   fixed: boolean
+  // False while no service reads the saved choice yet (OCR, classifiers).
+  inUse?: boolean
   selected: string
   warning: string | null
   options: ModelOption[]

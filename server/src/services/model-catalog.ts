@@ -29,6 +29,8 @@ export interface TaskCatalog {
   label: string
   // True when the service cannot switch model (Whisper): shown, but not changeable.
   fixed?: boolean
+  // False while no service reads the saved choice yet; Settings says so instead of implying it works.
+  notWiredYet?: boolean
   // The `.env` variable the service falls back to when nothing is saved here.
   envDefault: string
   options: ModelOption[]
@@ -62,6 +64,7 @@ export const MODEL_CATALOG: Record<ModelTask, TaskCatalog> = {
   },
   ocr: {
     label: 'Table and formula OCR',
+    notWiredYet: true,
     envDefault: 'OCR_MODEL',
     options: [
       opt('anthropic', 'claude-haiku-5-5', 'Claude Haiku 5.5', CLAUDE_KEY, true),
@@ -69,7 +72,7 @@ export const MODEL_CATALOG: Record<ModelTask, TaskCatalog> = {
     ],
   },
   drafting: {
-    label: 'Answers and drafting',
+    label: 'Report drafting',
     envDefault: 'LLM_MODEL',
     options: [
       opt('anthropic', 'claude-opus-5-5', 'Claude Opus 5.5', CLAUDE_KEY, true),
@@ -78,6 +81,7 @@ export const MODEL_CATALOG: Record<ModelTask, TaskCatalog> = {
   },
   label_classifier: {
     label: 'Label classifier',
+    notWiredYet: true,
     envDefault: 'LABEL_CLASSIFIER',
     options: [
       opt('typesafe', 'jev', 'Jev (Typesafe)', 'TYPESAFE_API_KEY', true),
@@ -86,6 +90,7 @@ export const MODEL_CATALOG: Record<ModelTask, TaskCatalog> = {
   },
   site_walk_classifier: {
     label: 'Site-walk classifier (category, severity, place)',
+    notWiredYet: true,
     envDefault: 'SITE_WALK_CLASSIFIER',
     options: [opt('typesafe', 'jev', 'Jev (Typesafe)', 'TYPESAFE_API_KEY', true)],
   },

@@ -22,6 +22,7 @@ import {
   type ModelTask,
 } from './model-catalog'
 import type { SessionUser } from './auth.service'
+import { hasPermission } from './permissions.service'
 
 // A bad request to the settings API; `status` is the HTTP code the route answers with.
 export class SettingsInputError extends Error {
@@ -70,6 +71,16 @@ const PERSONAL_DEFAULTS: PersonalValues = { standardsTargetPct: 50 }
 
 // The one admin document; created on first use so a fresh database needs no seed.
 async function appSettings(): Promise<IAppSettings> {
+  try {
+    return await upsertAppSettings()
+  } catch (error) {
+    // Two first requests at once: the loser hits the unique key (E11000); the document now exists.
+    if ((error as { code?: number }).code !== 11000) throw error
+    return upsertAppSettings()
+  }
+}
+
+async function upsertAppSettings(): Promise<IAppSettings> {
   const doc = await AppSettingsModel.findOneAndUpdate(
     { key: 'global' },
     {
@@ -168,13 +179,14 @@ export async function getSettings(user: SessionUser) {
   const saved = await appSettings()
   const own = (await UserSettingsModel.findOne({ user: user.id }).lean())?.values
   return {
-    canEditGlobal: user.role === 'knowledge_admin',
+    canEditGlobal: hasPermission(user.role, 'settings:manage'),
     models: MODEL_TASKS.map((task) => {
       const selected = selectedOption(task, saved)
       return {
         task,
         label: MODEL_CATALOG[task].label,
         fixed: !!MODEL_CATALOG[task].fixed,
+        inUse: !MODEL_CATALOG[task].notWiredYet,
         selected: optionId(selected),
         warning: rowWarning(task, selected, saved),
         options: MODEL_CATALOG[task].options.map((o) => optionView(task, o, saved)),
@@ -227,8 +239,11 @@ export async function saveModelChoice(by: SessionUser, task: string, choice: unk
     { $set: { [`models.${t}`]: optionId(option) } },
     { returnDocument: 'before', lean: true },
   )
-  const before = optionId(selectedOption(t, previous as IAppSettings))
-  if (before !== optionId(option)) await log(by, `models.${t}`, before, optionId(option))
+  // What was really saved before, else the `.env` value in force (never a guessed default).
+  const savedBefore = (previous as IAppSettings).models?.[t]
+  const envValue = process.env[MODEL_CATALOG[t].envDefault]
+  const before = savedBefore ?? (envValue ? `(.env) ${envValue}` : '(default)')
+  if (savedBefore !== optionId(option)) await log(by, `models.${t}`, before, optionId(option))
 }
 
 const text = (v: unknown) =>
@@ -256,7 +271,7 @@ function personalPatch(input: unknown): Record<string, unknown> {
   return patch
 }
 
-/** Saves the admin's QA strictness and default personal values for everyone, logging each real change. */
+/** Saves the admin's QA strictness and default personal values for everyone, logging each real change. Checks all of it first, so a bad part saves nothing. */
 export async function saveGlobal(by: SessionUser, input: unknown) {
   const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
   const unknown = Object.keys(body).filter((k) => k !== 'qaStrictness' && k !== 'defaults')
@@ -264,27 +279,32 @@ export async function saveGlobal(by: SessionUser, input: unknown) {
   if (body.qaStrictness === undefined && body.defaults === undefined) {
     throw new SettingsInputError('Nothing to save.')
   }
-  const saved = await appSettings()
-  if (body.qaStrictness !== undefined) {
-    if (!(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)) {
-      throw new SettingsInputError('QA strictness must be strict, standard or lenient.')
-    }
-    if (body.qaStrictness !== saved.qaStrictness) {
-      await AppSettingsModel.updateOne(
-        { key: 'global' },
-        { $set: { qaStrictness: body.qaStrictness } },
-      )
-      await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
-    }
+  // a. Validate everything before the first write: without this a bad second part would
+  //    leave the first part saved and logged while the screen shows an error.
+  if (
+    body.qaStrictness !== undefined &&
+    !(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)
+  ) {
+    throw new SettingsInputError('QA strictness must be strict, standard or lenient.')
   }
-  if (body.defaults !== undefined) {
-    for (const [key, value] of Object.entries(personalPatch(body.defaults))) {
-      if (value === null) throw new SettingsInputError(`A default for "${key}" cannot be empty.`)
-      const before = saved.defaults[key as keyof PersonalValues]
-      if (value === before) continue
-      await AppSettingsModel.updateOne({ key: 'global' }, { $set: { [`defaults.${key}`]: value } })
-      await log(by, `defaults.${key}`, before, value)
-    }
+  const defaults = body.defaults === undefined ? {} : personalPatch(body.defaults)
+  for (const [key, value] of Object.entries(defaults)) {
+    if (value === null) throw new SettingsInputError(`A default for "${key}" cannot be empty.`)
+  }
+  // b. Write only what changed, and log each change.
+  const saved = await appSettings()
+  if (body.qaStrictness !== undefined && body.qaStrictness !== saved.qaStrictness) {
+    await AppSettingsModel.updateOne(
+      { key: 'global' },
+      { $set: { qaStrictness: body.qaStrictness } },
+    )
+    await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
+  }
+  for (const [key, value] of Object.entries(defaults)) {
+    const before = saved.defaults[key as keyof PersonalValues]
+    if (value === before) continue
+    await AppSettingsModel.updateOne({ key: 'global' }, { $set: { [`defaults.${key}`]: value } })
+    await log(by, `defaults.${key}`, before, value)
   }
 }
 

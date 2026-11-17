@@ -29,6 +29,11 @@ export function ModelRow({ row, canEdit, onSaved }: Props) {
         onChoose={(id) => run(() => saveModel(row.task, id))}
       />
       {row.fixed && <p className="st-note">Only one model works for this task.</p>}
+      {row.inUse === false && (
+        <p className="st-note">
+          Not used yet: your choice is saved, but this feature does not read it yet.
+        </p>
+      )}
       {row.warning && (
         <p className="st-warn" role="status">
           <Icon name="triangle-alert" size={16} color="var(--amber-600)" />

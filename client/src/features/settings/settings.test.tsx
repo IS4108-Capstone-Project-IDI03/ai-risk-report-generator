@@ -218,3 +218,13 @@ describe('Settings input checks', () => {
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
   })
 })
+
+describe('Settings: tasks nothing reads yet', () => {
+  it('says the choice is saved but not used yet', async () => {
+    mock({ ...data(true), models: [row('ocr', { label: 'OCR', inUse: false }), row('drafting')] })
+    render(<Settings />)
+    open('Models')
+    expect(await screen.findByText(/Not used yet/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Not used yet/)).toHaveLength(1)
+  })
+})

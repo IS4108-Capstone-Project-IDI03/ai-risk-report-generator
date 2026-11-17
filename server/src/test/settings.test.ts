@@ -120,7 +120,7 @@ describe('choosing a model (S-01 AC3, AC4, AC6, AC7, AC14, AC15)', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({
       setting: 'models.drafting',
-      before: 'anthropic:claude-opus-5-5',
+      before: '(default)',
       after: 'anthropic:claude-sonnet-5-5',
       by: { name: 'Sana' },
     })
@@ -268,9 +268,47 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
   })
 
   it('writes no log row when a choice does not change', async () => {
-    await admin.put('/api/settings/models/drafting').send({ option: 'anthropic:claude-opus-5-5' })
-    expect(await SettingsLogModel.countDocuments()).toBe(0)
+    await admin.put('/api/settings/models/drafting').send({ option: 'anthropic:claude-sonnet-5-5' })
+    const afterFirst = await SettingsLogModel.countDocuments()
+    await admin.put('/api/settings/models/drafting').send({ option: 'anthropic:claude-sonnet-5-5' })
     await admin.patch('/api/settings/global').send({ qaStrictness: 'standard' })
+    expect(await SettingsLogModel.countDocuments()).toBe(afterFirst)
+  })
+
+  it('logs the real before value: the .env model when nothing was saved yet', async () => {
+    process.env.LLM_MODEL = 'some-custom-model'
+    await admin.put('/api/settings/models/drafting').send({ option: 'anthropic:claude-opus-5-5' })
+    const [entry] = await SettingsLogModel.find({}).lean()
+    expect(entry.before).toBe('(.env) some-custom-model')
+    expect(entry.after).toBe('anthropic:claude-opus-5-5')
+  })
+
+  it('saves nothing at all when any part of a global change is invalid', async () => {
+    const res = await admin
+      .patch('/api/settings/global')
+      .send({ qaStrictness: 'strict', defaults: { standardsTargetPct: 200 } })
+    expect(res.status).toBe(400)
+    expect((await admin.get('/api/settings')).body.qaStrictness).toBe('standard')
+    const partly = await admin
+      .patch('/api/settings/global')
+      .send({ defaults: { defaultCountry: 'SG', defaultTitle: null } })
+    expect(partly.status).toBe(400)
+    expect((await admin.get('/api/settings')).body.personal.defaultCountry.default).toBeNull()
     expect(await SettingsLogModel.countDocuments()).toBe(0)
+  })
+
+  it('says which tasks nothing reads yet, so the screen can say so', async () => {
+    const body = (await admin.get('/api/settings')).body
+    const inUse = Object.fromEntries(
+      body.models.map((m: { task: string; inUse: boolean }) => [m.task, m.inUse]),
+    )
+    expect(inUse).toMatchObject({
+      drafting: true,
+      photo: true,
+      handwriting: true,
+      ocr: false,
+      label_classifier: false,
+      site_walk_classifier: false,
+    })
   })
 })
