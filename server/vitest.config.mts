@@ -13,11 +13,19 @@ export default defineConfig({
     // forgets to mock fetch fails instead of spending money.
     // The Cohere key tier is cleared so pricing tests see the default (trial),
     // whatever key the developer's .env names.
+    // Fake AI keys, so Settings > Models sees every model as available (S-01) and tests give
+    // the same result with or without a developer's .env (CI has none). Calls are mocked anyway.
     // PII protection starts off; tests that need it on set config.piiProtection.
     env: {
       SMTP_HOST: '',
       COHERE_KEY_TIER: '',
       PII_PROTECTION: 'off',
+      ANTHROPIC_API_KEY: 'test-key',
+      GEMINI_API_KEY: 'test-key',
+      OPENAI_API_KEY: 'test-key',
+      OPENAI_CHAT_API_KEY: 'test-key',
+      OPENAI_LABEL_API_KEY: 'test-key',
+      TYPESAFE_API_KEY: 'test-key',
       RAG_SERVICE_URL: 'http://127.0.0.1:9',
       SPEECH_OCR_SERVICE_URL: 'http://127.0.0.1:9',
       INGESTION_SERVICE_URL: 'http://127.0.0.1:9',

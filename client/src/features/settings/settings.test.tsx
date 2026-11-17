@@ -148,7 +148,7 @@ describe('Settings', () => {
     const after = data(true, [
       { ...qa, selected: 'c:same', warning: 'QA would not be independent.' },
     ])
-    const fetchMock = mock(data(true, [qa]), (url, init) =>
+    const fetchMock = mock(data(true, [qa]), (_url, init) =>
       init?.method === 'PUT' ? reply(200, after) : null,
     )
     render(<Settings />)
