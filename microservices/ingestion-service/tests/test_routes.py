@@ -184,6 +184,8 @@ def test_listing_passages_returns_only_that_documents_passages_in_reading_order(
         "pageStart": 3,
         "pageEnd": 4,
         "status": "needs_review",
+        "kind": "text",
+        "generated": False,
     }
     assert listed[2]["headings"] == ["Chapter 8", "8.15"]
 
@@ -353,3 +355,31 @@ def test_a_document_without_clause_numbers_is_outlined_by_its_report_sections(mo
         "sections": [],
     }
     assert [p["id"] for p in narrowed["passages"]] == ["rep:1", "rep:2"]
+
+
+def test_each_passage_says_what_kind_it_is_and_whether_ai_wrote_it(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    for passage_id, extra in [
+        ("kinds:0", {}),
+        ("kinds:table:1", {}),
+        ("kinds:table:1:picture", {"generated_text": "picture_description"}),
+        ("kinds:picture:2", {"generated_text": "picture_description"}),
+        ("kinds:3", {"region_kind": "formula"}),
+        ("kinds:4", {"region_kind": "table"}),
+    ]:
+        passages.rows[passage_id] = {
+            "text": passage_id,
+            "meta": {"doc_id": "kinds", **extra},
+            "vector": [1, 0, 0],
+        }
+
+    listed = client.get("/documents/kinds/passages").json()["passages"]
+
+    assert {p["id"]: (p["kind"], p["generated"]) for p in listed} == {
+        "kinds:0": ("text", False),
+        "kinds:table:1": ("table", False),
+        "kinds:table:1:picture": ("picture", True),
+        "kinds:picture:2": ("picture", True),
+        "kinds:3": ("formula", False),
+        "kinds:4": ("table", False),
+    }

@@ -264,6 +264,21 @@ def _passages(doc_id: str) -> list[dict]:
     return sorted(rows, key=lambda r: _reading_order(r["id"]))
 
 
+def _kind(passage_id: str, meta: dict) -> str:
+    """What a passage was read from: "text", "table", "formula" or "picture" (IN-17).
+
+    The recorded region says it best (`region_kind`, KB-02); a model-written picture
+    description says picture; otherwise the chunker's id (`:table:`, `:picture:`).
+    Formulas are only known from their region, so they show as text until it is recorded.
+    """
+    if meta.get("region_kind") in ("table", "formula", "picture"):
+        return meta["region_kind"]
+    segments = passage_id.split(":")[1:]
+    if meta.get("generated_text") == "picture_description" or "picture" in segments:
+        return "picture"
+    return "table" if "table" in segments else "text"
+
+
 def _overlaps(meta: dict, page_from: int | None, page_to: int | None) -> bool:
     """Whether a passage's pages overlap the range; one with no page never matches a range."""
     if page_from is None and page_to is None:
@@ -324,6 +339,9 @@ def document_passages(
             "pageStart": meta.get("page_start"),
             "pageEnd": meta.get("page_end"),
             "status": meta.get("status"),
+            "kind": _kind(id_, meta),
+            # Machine-written text, such as a picture's description (IN-13).
+            "generated": bool(meta.get("generated_text")),
         }
         for n, (id_, meta) in enumerate(page)
     ]
