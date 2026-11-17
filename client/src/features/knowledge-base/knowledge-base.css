@@ -900,6 +900,10 @@
   flex: 0 1 196px;
   min-width: 150px;
 }
+/* The search box takes the room the dropdowns leave. */
+.kb-ptoolbar > label:first-child {
+  flex: 1 1 220px;
+}
 .kb-prange {
   display: flex;
   align-items: flex-start;

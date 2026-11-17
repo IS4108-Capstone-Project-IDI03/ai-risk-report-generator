@@ -311,7 +311,8 @@ export type PassageListing = {
   outline: { by: 'clause' | 'section'; chapters: OutlineEntry[]; sections: OutlineEntry[] }
 }
 
-// What to list: a page, the outline's chapter and section, and a page range.
+// What to list: a page, the outline's chapter and section, a page range, and words to
+// search for (the best matches, ranked, within the rest).
 export type PassageQuery = {
   offset: number
   limit: number
@@ -319,6 +320,7 @@ export type PassageQuery = {
   section?: string
   pageFrom?: number
   pageTo?: number
+  q?: string
 }
 
 // Returns one page of a document's passages with its outline (IN-17).
@@ -328,7 +330,7 @@ export async function listDocumentPassages(
   signal?: AbortSignal,
 ): Promise<PassageListing> {
   const params = new URLSearchParams({ offset: String(query.offset), limit: String(query.limit) })
-  for (const key of ['chapter', 'section', 'pageFrom', 'pageTo'] as const) {
+  for (const key of ['chapter', 'section', 'pageFrom', 'pageTo', 'q'] as const) {
     if (query[key] !== undefined) params.append(key, String(query[key]))
   }
   const path = `/api/knowledge-documents/${encodeURIComponent(id)}/passages?${params}`

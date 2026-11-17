@@ -470,3 +470,58 @@ describe("A document's passages (IN-17)", () => {
     expect(await within(dialog).findByRole('table')).toBeVisible()
   })
 })
+
+describe("Searching a document's passages by words (IN-17)", () => {
+  // The best matches, ranked, as the gateway answers a search.
+  const RANKED = { total: 2, passages: [TABLE, FIRST], outline: OUTLINE }
+
+  it('searches once typing pauses, from page 1, and shows the ranked matches', async () => {
+    mockGateway([NFPA], (query) => (query.has('q') ? RANKED : sixty(query)))
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
+    await within(dialog).findByText('Passages 26–50 of 60')
+    const search = within(dialog).getByRole('searchbox', { name: 'Search this document' })
+
+    fireEvent.change(search, { target: { value: 'co' } })
+    fireEvent.change(search, { target: { value: ' cold store ' } })
+
+    expect(await within(dialog).findByText('Passages 1–2 of 2')).toBeVisible()
+    const rows = within(dialog).getAllByRole('row').slice(1)
+    expect(rows[0]).toHaveTextContent('8.2 Spacing')
+    expect(rows[1]).toHaveTextContent('8.1 Basic requirements')
+    // Only the settled words are searched, and nothing in between.
+    expect(listings()).toEqual([
+      'offset=0&limit=25',
+      'offset=25&limit=25',
+      'offset=0&limit=25&q=cold+store',
+    ])
+  })
+
+  it('goes back to paging through the document when the search is emptied', async () => {
+    mockGateway([NFPA], (query) => (query.has('q') ? RANKED : sixty(query)))
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    const search = await within(dialog).findByRole('searchbox', { name: 'Search this document' })
+    fireEvent.change(search, { target: { value: 'pump' } })
+    await within(dialog).findByText('Passages 1–2 of 2')
+    expect(within(dialog).getByRole('button', { name: 'Clear filters' })).toBeVisible()
+
+    fireEvent.change(search, { target: { value: '' } })
+
+    expect(await within(dialog).findByText('Passages 1–25 of 60')).toBeVisible()
+    expect(listings().at(-1)).toBe('offset=0&limit=25')
+    expect(within(dialog).queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+  })
+
+  it('can’t search a document that needs review, as search skips its passages', async () => {
+    mockGateway([UNREVIEWED])
+    await openAsEngineer()
+
+    const dialog = await openPassages(UNREVIEWED.title)
+
+    const search = await within(dialog).findByRole('searchbox', { name: 'Search this document' })
+    expect(search).toBeDisabled()
+    expect(search).toHaveAttribute('title', 'Search works once this document is active.')
+  })
+})

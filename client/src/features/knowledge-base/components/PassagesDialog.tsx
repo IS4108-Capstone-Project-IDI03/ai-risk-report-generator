@@ -39,10 +39,16 @@ const KINDS: Record<DocumentPassage['kind'], string> = {
   picture: 'Picture',
 }
 
-// What the table is narrowed to: the outline's chapter and section (undefined is all of
-// them), and the page range as typed (a blank or unusable page leaves that end open).
-type Filters = { chapter?: string; section?: string; from: string; to: string }
-const NO_FILTERS: Filters = { from: '', to: '' }
+// What the table is narrowed to: words to search for, the outline's chapter and section
+// (undefined is all of them), and the page range as typed (a blank or unusable page
+// leaves that end open).
+type Filters = { words: string; chapter?: string; section?: string; from: string; to: string }
+const NO_FILTERS: Filters = { words: '', from: '', to: '' }
+// Whether anything narrows the table: a typed page, words, or a chapter or section.
+const narrowed = (f: Filters) =>
+  f.chapter !== undefined || f.section !== undefined || !!(f.words.trim() || f.from || f.to)
+// How long typing must pause before the words are searched.
+const SEARCH_PAUSE_MS = 300
 
 /** Returns the Passages dialog for one document. */
 export function PassagesDialog({
@@ -66,7 +72,19 @@ export function PassagesDialog({
   const pageTo = pageNumber(filters.to)
   const reversed = pageFrom !== undefined && pageTo !== undefined && pageFrom > pageTo
   const { chapter, section } = filters
-  const key = JSON.stringify({ offset, chapter, section, pageFrom, pageTo })
+  // The words searched: what's typed, once typing pauses (so it searches once, not at
+  // every key). A new search starts on page 1 then, not while typing.
+  const [q, setQ] = useState<string>()
+  const words = filters.words.trim() || undefined
+  useEffect(() => {
+    if (words === q) return
+    const timer = setTimeout(() => {
+      setQ(words)
+      setOffset(0)
+    }, SEARCH_PAUSE_MS)
+    return () => clearTimeout(timer)
+  }, [words, q])
+  const key = JSON.stringify({ offset, chapter, section, pageFrom, pageTo, q })
 
   useEffect(() => {
     if (reversed) return
@@ -84,14 +102,21 @@ export function PassagesDialog({
   const listing = loaded?.listing
   // A new page or filter keeps the last rows, dimmed, until it arrives.
   const stale = loaded !== undefined && loaded.key !== key && !reversed
-  const filtered = filters !== NO_FILTERS
+  const filtered = narrowed(filters)
   // All of a document's passages share its status, so one note says it, not a column.
   const outOfUse = d.withdrawn ? 'is withdrawn' : needsReview(d) ? 'needs review' : null
 
-  // Narrows the table and goes back to its first page.
+  // Narrows the table; a new chapter, section or page range goes back to its first page.
   const narrow = (next: Filters) => {
     setFilters(next)
-    setOffset(0)
+    const { chapter, section, from, to } = filters
+    if (
+      next.chapter !== chapter ||
+      next.section !== section ||
+      next.from !== from ||
+      next.to !== to
+    )
+      setOffset(0)
   }
 
   return (
@@ -145,13 +170,14 @@ export function PassagesDialog({
             outline={listing.outline}
             filters={filters}
             reversed={reversed}
+            searchable={!outOfUse}
             onChange={narrow}
           />
           {listing.total === 0 ? (
             <EmptyState
               icon="search-x"
               title="No passages match"
-              description="Try another chapter or a wider page range."
+              description="Try other words, another chapter or a wider page range."
               action={
                 <Button variant="secondary" size="sm" onClick={() => narrow(NO_FILTERS)}>
                   Clear filters
@@ -202,23 +228,37 @@ export function PassagesDialog({
   )
 }
 
-/** The Chapter and Section dropdowns (one Section dropdown for a past report), the
-    page range, and Clear filters once anything is narrowed. */
+/** The search box (only for an active document: search skips the rest), the Chapter
+    and Section dropdowns (one Section dropdown for a past report), the page range, and
+    Clear filters once anything is narrowed. */
 function PassageFilters({
   outline,
   filters,
   reversed,
+  searchable,
   onChange,
 }: {
   outline: PassageListing['outline']
   filters: Filters
   reversed: boolean
+  searchable: boolean
   onChange: (filters: Filters) => void
 }) {
   const byClause = outline.by !== 'section'
   const { chapter, section } = filters
   return (
     <div className="kb-ptoolbar">
+      <Input
+        size="sm"
+        type="search"
+        iconLeft="search"
+        aria-label="Search this document"
+        placeholder="Search this document"
+        disabled={!searchable}
+        title={searchable ? undefined : 'Search works once this document is active.'}
+        value={filters.words}
+        onChange={(e) => onChange({ ...filters, words: e.target.value })}
+      />
       <Select
         size="sm"
         aria-label={byClause ? 'Chapter' : 'Section'}
@@ -275,7 +315,7 @@ function PassageFilters({
           onChange={(e) => onChange({ ...filters, to: e.target.value })}
         />
       </div>
-      {filters !== NO_FILTERS && (
+      {narrowed(filters) && (
         <Button variant="ghost" size="sm" onClick={() => onChange(NO_FILTERS)}>
           Clear filters
         </Button>
