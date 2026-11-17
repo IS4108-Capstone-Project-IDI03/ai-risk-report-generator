@@ -11,9 +11,12 @@ export function ModelsSection({ settings, onSaved }: Props) {
     <div className="st-stack">
       {!settings.canEditGlobal && <SetByAdmin />}
       <p className="st-note">A light shows whether the API key is set. It does not test the key.</p>
-      {settings.models.map((row) => (
-        <ModelRow key={row.task} row={row} canEdit={settings.canEditGlobal} onSaved={onSaved} />
-      ))}
+      {/* Voice transcription is set under Chat and voice, next to the other voice options */}
+      {settings.models
+        .filter((row) => row.task !== 'transcription')
+        .map((row) => (
+          <ModelRow key={row.task} row={row} canEdit={settings.canEditGlobal} onSaved={onSaved} />
+        ))}
     </div>
   )
 }

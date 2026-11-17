@@ -36,12 +36,6 @@ const data = (
   canEditGlobal,
   models,
   qaStrictness: 'standard',
-  personal: {
-    standardsTargetPct: { value: 50, own: null, default: 50 },
-    defaultCountry: { value: null, own: null, default: null },
-    defaultFacilityType: { value: null, own: null, default: null },
-    defaultTitle: { value: null, own: null, default: null },
-  },
 })
 const reply = (status: number, body: unknown) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -74,26 +68,41 @@ describe('Settings', () => {
       for (const name of [
         'Password',
         'Models',
-        'Drafting',
-        'QA check',
+        'QA eval',
         'Chat and voice',
-        'Defaults',
         'Checklist',
         'Source priority',
         'Note-taking',
-        'QA criteria',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      // Removed on request: personal drafting target and the three defaults.
+      for (const name of ['Drafting', 'Defaults', 'QA check', 'QA criteria'])
+        expect(screen.queryByRole('button', { name })).toBeNull()
       cleanup()
     }
   })
 
-  it('shows Coming soon with no controls', async () => {
+  it('shows Coming soon with the owner, and no controls', async () => {
     mock(data(false))
     render(<Settings />)
-    open('Checklist')
-    expect(screen.getByText('Coming soon')).toBeInTheDocument()
+    for (const [name, owner] of [
+      ['Checklist', 'Xuren'],
+      ['Source priority', 'Chris'],
+      ['Note-taking', 'Chris'],
+    ]) {
+      open(name)
+      expect(screen.getByText(`Coming soon. Being built by ${owner}.`)).toBeInTheDocument()
+    }
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+  })
+
+  it('highlights the open menu item', async () => {
+    mock(data(false))
+    render(<Settings />)
+    expect(screen.getByRole('button', { name: 'Password' })).toHaveAttribute('aria-current')
+    open('Models')
+    expect(screen.getByRole('button', { name: 'Models' })).toHaveAttribute('aria-current')
+    expect(screen.getByRole('button', { name: 'Password' })).not.toHaveAttribute('aria-current')
   })
 
   it('shows key lights with text, and a no-key option cannot be chosen', async () => {
@@ -176,10 +185,8 @@ describe('Settings', () => {
     open('Models')
     expect(await screen.findByRole('combobox', { name: 'Drafting' })).toBeDisabled()
     expect(screen.getByText('Set by an admin')).toBeInTheDocument()
-    open('QA check')
+    open('QA eval')
     expect(screen.getByRole('radio', { name: 'Strict' })).toBeDisabled()
-    open('Drafting')
-    expect(screen.queryByLabelText(/Default for everyone/)).toBeNull()
   })
 
   it('shows the memory switch from the chat API', async () => {
@@ -207,15 +214,35 @@ describe('Settings', () => {
   })
 })
 
-describe('Settings input checks', () => {
-  it('says plainly when the target is out of range and does not send it', async () => {
-    const fetchMock = mock(data(true))
+describe('Settings QA eval', () => {
+  it('shows what each strictness means, and QA criteria as coming soon from Chris', async () => {
+    mock(data(true))
     render(<Settings />)
-    open('Drafting')
-    const box = await screen.findByLabelText('My sections citing a standard')
-    fireEvent.change(box, { target: { value: '101' } })
-    expect(await screen.findAllByText('Enter a whole number from 0 to 100.')).not.toHaveLength(0)
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+    open('QA eval')
+    const row = (await screen.findByText('Standard (current)')).closest('tr')!
+    expect(
+      within(row)
+        .getAllByRole('cell')
+        .map((c) => c.textContent),
+    ).toEqual(['Standard (current)', 'Warn', 'Fail', 'Fail'])
+    expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+  })
+})
+
+describe('Settings Chat and voice', () => {
+  it('has the Whisper model here, not under Models, plus the voice default', async () => {
+    const whisper = row('transcription', {
+      label: 'Voice transcription',
+      fixed: true,
+      options: [opt('a:one')],
+    })
+    mock(data(true, [row('Drafting'), whisper]))
+    render(<Settings />)
+    open('Models')
+    await screen.findByRole('combobox', { name: 'Drafting' })
+    expect(screen.queryByRole('combobox', { name: 'Voice transcription' })).toBeNull()
+    open('Chat and voice')
+    expect(screen.getByRole('combobox', { name: 'Voice transcription' })).toBeDisabled()
   })
 })
 

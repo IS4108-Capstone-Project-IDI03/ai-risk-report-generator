@@ -6,8 +6,6 @@ import { GatewayError } from '../assessments/api'
 import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
-import { DefaultsSection } from './screens/DefaultsSection'
-import { DraftingSection } from './screens/DraftingSection'
 import { ModelsSection } from './screens/ModelsSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { QaSection } from './screens/QaSection'
@@ -17,6 +15,8 @@ type Save = (settings: SettingsData) => void
 type Section = {
   id: string
   label: string
+  // Set for sections someone else is still building; shown as a "Soon" tag in the menu.
+  owner?: string
   render: (settings: SettingsData | null, onSaved: Save) => React.ReactNode
 }
 
@@ -26,7 +26,7 @@ const needs =
   (s, onSaved) =>
     s ? show(s, onSaved) : <p className="st-note">Loading…</p>
 
-const SECTIONS: Section[] = [
+const WORKING: Section[] = [
   { id: 'password', label: 'Password', render: () => <PasswordSection /> },
   {
     id: 'models',
@@ -34,23 +34,28 @@ const SECTIONS: Section[] = [
     render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
   },
   {
-    id: 'drafting',
-    label: 'Drafting',
-    render: needs((s, f) => <DraftingSection settings={s} onSaved={f} />),
+    id: 'qa',
+    label: 'QA eval',
+    render: needs((s, f) => <QaSection settings={s} onSaved={f} />),
   },
-  { id: 'qa', label: 'QA check', render: needs((s, f) => <QaSection settings={s} onSaved={f} />) },
-  { id: 'chat', label: 'Chat and voice', render: () => <ChatVoiceSection /> },
   {
-    id: 'defaults',
-    label: 'Defaults',
-    render: needs((s, f) => <DefaultsSection settings={s} onSaved={f} />),
+    id: 'chat',
+    label: 'Chat and voice',
+    render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
   },
-  ...['Checklist', 'Source priority', 'Note-taking', 'QA criteria'].map((name) => ({
-    id: name,
-    label: name,
-    render: () => <ComingSoonSection name={name} />,
-  })),
 ]
+// Built by teammates later; each shows who. Order here is the order in the menu.
+const SOON: Section[] = [
+  ['Checklist', 'Xuren'],
+  ['Source priority', 'Chris'],
+  ['Note-taking', 'Chris'],
+].map(([name, owner]) => ({
+  id: name,
+  label: name,
+  owner,
+  render: () => <ComingSoonSection name={name} owner={owner} />,
+}))
+const SECTIONS = [...WORKING, ...SOON]
 
 export function Settings() {
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -67,16 +72,21 @@ export function Settings() {
   return (
     <div className="st">
       <nav className="st-menu" aria-label="Settings sections">
-        {SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className="st-menu-item"
-            aria-current={s.id === open || undefined}
-            onClick={() => setOpen(s.id)}
-          >
-            {s.label}
-          </button>
+        {[WORKING, SOON].map((group, i) => (
+          <div key={i} className="st-menu-group">
+            {i === 1 && <div className="st-menu-heading">Coming soon</div>}
+            {group.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="st-menu-item"
+                aria-current={s.id === open || undefined}
+                onClick={() => setOpen(s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
       <section className="st-panel" aria-label={section.label}>
