@@ -1,8 +1,9 @@
-import express from 'express'
+import express, { type NextFunction, type Request, type Response } from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { config } from './config'
 import { connectDb } from './models/db'
+import { ModelUnavailableError } from './services/settings.service'
 import healthRoutes from './routes/health.routes'
 import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
 import knowledgeGapRoutes from './routes/knowledge-gap.routes'
@@ -97,6 +98,16 @@ app.use('/api/internal/ai-usage', requireServiceKey, internalAiUsageRoutes)
 // GET /api/internal/knowledge-documents/:id/privacy (PV-05): how the ingestion
 // worker is to protect a document before it reads it.
 app.use('/api/internal/knowledge-documents', requireServiceKey, internalKnowledgeDocumentRoutes)
+
+// S-01: a task whose chosen model has no API key answers 503 with the reason, so the screen
+// shows it. Any other error goes to Express's own handler.
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof ModelUnavailableError) {
+    res.status(503).json({ error: err.message })
+    return
+  }
+  next(err)
+})
 
 async function start() {
   await connectDb()

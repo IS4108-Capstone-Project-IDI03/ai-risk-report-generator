@@ -97,11 +97,24 @@ function selectedOption(task: ModelTask, saved: IAppSettings): ModelOption {
   )
 }
 
-/** Returns the provider and model a task must use now, or throws ModelUnavailableError when its key is missing. */
-export async function resolveModel(task: ModelTask): Promise<{ provider: string; model: string }> {
-  const option = selectedOption(task, await appSettings())
-  if (!keyIsSet(option.keyEnv)) throw new ModelUnavailableError(task, option)
-  return { provider: option.provider, model: option.model }
+/**
+ * Returns the provider and model a task uses now, and whether an admin saved the choice.
+ * Throws ModelUnavailableError when the model in use has no API key. When nothing is saved and
+ * `.env` names a model the catalog does not list, that model is left alone (`saved: false`).
+ */
+export async function resolveModel(
+  task: ModelTask,
+): Promise<{ provider: string; model: string; saved: boolean }> {
+  const settings = await appSettings()
+  const option = selectedOption(task, settings)
+  const saved = !!findOption(task, settings.models[task] ?? '')
+  const envModel = process.env[MODEL_CATALOG[task].envDefault]
+  const envListed = MODEL_CATALOG[task].options.some((o) => o.model === envModel)
+  // A `.env` model outside the catalog is the service's own business: no key check, no override.
+  if ((saved || !envModel || envListed) && !keyIsSet(option.keyEnv)) {
+    throw new ModelUnavailableError(task, option)
+  }
+  return { provider: option.provider, model: option.model, saved }
 }
 
 /** Throws QaSameProviderError when the QA model shares a provider with drafting. EV-05 calls this before it runs. */

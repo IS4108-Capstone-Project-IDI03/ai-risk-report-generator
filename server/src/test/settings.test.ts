@@ -214,3 +214,13 @@ describe('personal settings and defaults (S-01 AC11, AC12, AC14)', () => {
     expect((await SettingsLogModel.find({}).lean()).map((e) => e.setting)).toContain('qaStrictness')
   })
 })
+
+describe('a .env model the catalog does not list (S-01 AC6)', () => {
+  it('is left alone: no model is forced on the service until an admin saves a choice', async () => {
+    process.env.LLM_MODEL = 'some-custom-model'
+    const { modelHeaders } = await import('../services/model-resolver.service')
+    expect(await modelHeaders('drafting')).toEqual({})
+    await admin.put('/api/settings/models/drafting').send({ option: 'anthropic:claude-sonnet-5-5' })
+    expect(await modelHeaders('drafting')).toEqual({ 'X-Model': 'claude-sonnet-5-5' })
+  })
+})

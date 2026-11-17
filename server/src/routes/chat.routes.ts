@@ -23,6 +23,7 @@ import {
   removePhotos,
   sentPhotoIds,
 } from '../services/chat-attachment.service'
+import { ModelUnavailableError } from '../services/settings.service'
 import { SpeechServiceError } from '../services/speech.service'
 import {
   MAX_PDF_BYTES,
@@ -254,6 +255,11 @@ router.post('/', requirePermission('knowledge:view'), async (req, res) => {
       userId,
     )
   } catch (error: unknown) {
+    if (error instanceof ModelUnavailableError) {
+      // S-01: the photo model has no key. Say so in the chat, as the other failures here do.
+      refuse(res, error.message)
+      return
+    }
     if (error instanceof SpeechServiceError) {
       // A chat reply, like the other failures here: nothing is asked of the answer model.
       refuse(res, 'I could not read that photo. Please try again, or ask without it.')
