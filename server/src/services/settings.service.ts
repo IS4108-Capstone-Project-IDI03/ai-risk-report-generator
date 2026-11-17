@@ -219,12 +219,16 @@ export async function saveModelChoice(by: SessionUser, task: string, choice: unk
       `${option.label} has no API key set in .env, so it cannot be chosen.`,
     )
   }
-  const before = optionId(selectedOption(t, await appSettings()))
-  await AppSettingsModel.updateOne(
+  await appSettings() // makes sure the one admin document exists
+  // The document as it was just before this write, so the log's "before" is right even when
+  // two admins save at once.
+  const previous = await AppSettingsModel.findOneAndUpdate(
     { key: 'global' },
     { $set: { [`models.${t}`]: optionId(option) } },
+    { returnDocument: 'before', lean: true },
   )
-  await log(by, `models.${t}`, before, optionId(option))
+  const before = optionId(selectedOption(t, previous as IAppSettings))
+  if (before !== optionId(option)) await log(by, `models.${t}`, before, optionId(option))
 }
 
 const text = (v: unknown) =>
@@ -242,36 +246,44 @@ function personalPatch(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object') throw new SettingsInputError('Nothing to save.')
   const patch: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
-    const valid = VALID[key as keyof PersonalValues]
+    // hasOwn: without it, "__proto__" or "constructor" would find a built-in and pass as a setting.
+    const valid = Object.hasOwn(VALID, key) ? VALID[key as keyof PersonalValues] : undefined
     if (!valid) throw new SettingsInputError(`"${key}" is not a setting.`)
     if (!valid(value)) throw new SettingsInputError(`"${key}" has a value that is not allowed.`)
-    patch[key] = value
+    patch[key] = typeof value === 'string' ? value.trim() : value
   }
   if (!Object.keys(patch).length) throw new SettingsInputError('Nothing to save.')
   return patch
 }
 
-/** Saves the admin's QA strictness and default personal values for everyone, logging each change. */
-export async function saveGlobal(
-  by: SessionUser,
-  input: { qaStrictness?: unknown; defaults?: unknown },
-) {
+/** Saves the admin's QA strictness and default personal values for everyone, logging each real change. */
+export async function saveGlobal(by: SessionUser, input: unknown) {
+  const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const unknown = Object.keys(body).filter((k) => k !== 'qaStrictness' && k !== 'defaults')
+  if (unknown.length) throw new SettingsInputError(`"${unknown[0]}" is not a setting.`)
+  if (body.qaStrictness === undefined && body.defaults === undefined) {
+    throw new SettingsInputError('Nothing to save.')
+  }
   const saved = await appSettings()
-  if (input.qaStrictness !== undefined) {
-    if (!(QA_STRICTNESS as readonly unknown[]).includes(input.qaStrictness)) {
+  if (body.qaStrictness !== undefined) {
+    if (!(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)) {
       throw new SettingsInputError('QA strictness must be strict, standard or lenient.')
     }
-    await AppSettingsModel.updateOne(
-      { key: 'global' },
-      { $set: { qaStrictness: input.qaStrictness } },
-    )
-    await log(by, 'qaStrictness', saved.qaStrictness, input.qaStrictness as QaStrictness)
+    if (body.qaStrictness !== saved.qaStrictness) {
+      await AppSettingsModel.updateOne(
+        { key: 'global' },
+        { $set: { qaStrictness: body.qaStrictness } },
+      )
+      await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
+    }
   }
-  if (input.defaults !== undefined) {
-    for (const [key, value] of Object.entries(personalPatch(input.defaults))) {
+  if (body.defaults !== undefined) {
+    for (const [key, value] of Object.entries(personalPatch(body.defaults))) {
       if (value === null) throw new SettingsInputError(`A default for "${key}" cannot be empty.`)
+      const before = saved.defaults[key as keyof PersonalValues]
+      if (value === before) continue
       await AppSettingsModel.updateOne({ key: 'global' }, { $set: { [`defaults.${key}`]: value } })
-      await log(by, `defaults.${key}`, saved.defaults[key as keyof PersonalValues], value)
+      await log(by, `defaults.${key}`, before, value)
     }
   }
 }
