@@ -403,6 +403,48 @@ describe("an admin's view (AC 11)", () => {
       end: { type: 'tick' },
     })
   })
+
+  it('lets the engineer tick the checklist as read with "I\'ve read the checklist" (round 11)', async () => {
+    vi.setSystemTime(new Date('2026-11-12T02:00:00Z'))
+    const { engineer } = await people()
+    const a = await assessment(engineer._id, { setupConfirmedAt: new Date() })
+    await checklist(a._id, engineer._id)
+    const api = signedInAs(app, engineer)
+    const t = await opened(api)
+    expect(t.replies.map((r) => [r.id, r.primary])).toEqual([['checklist-read', true]])
+
+    const res = await api
+      .post(`${url}/replies`)
+      .send({ replyId: 'checklist-read', lastTurnId: t.session.turns.at(-1)!.id })
+    expect(res.status).toBe(200)
+    expect(await openItems()).toContain('prepare.checklist-ready')
+    // The answer is written in the background (wording), then shows on the next read.
+    await settleBackground()
+    const after = thread(await api.get(url))
+    expect(said(after).slice(-2)).toEqual([
+      "I've read the checklist",
+      "Thanks! I've ticked the checklist as read.",
+    ])
+    const before = after.session.turns.find((x) => x.topic === 'before-survey')!
+    expect(rows(before.cards)[0]).toMatchObject({ title: 'Site Checklist', end: { type: 'tick' } })
+    expect(after.replies.some((r) => r.id === 'checklist-read')).toBe(false)
+  })
+
+  it('counts a skim as read once the time on the checklist reaches 1 s per item (round 11)', async () => {
+    vi.setSystemTime(new Date('2026-11-12T02:00:00Z'))
+    const { engineer } = await people()
+    const a = await assessment(engineer._id, { setupConfirmedAt: new Date() })
+    await checklist(a._id, engineer._id) // 1 item
+    const api = signedInAs(app, engineer)
+    const spend = (engagedMs: number) =>
+      api.post(`${url}/activity`).send({ places: [{ place: 'checklist', engagedMs, seen: {} }] })
+    await spend(600)
+    await opened(api)
+    expect(await openItems()).toContain('prepare.checklist-read')
+    await spend(600) // 1.2 s in all, with no item counted as seen
+    await opened(api)
+    expect(await openItems()).toContain('prepare.checklist-ready')
+  })
 })
 
 describe('the session (#14)', () => {

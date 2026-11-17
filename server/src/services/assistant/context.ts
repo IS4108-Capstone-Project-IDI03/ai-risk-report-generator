@@ -91,6 +91,8 @@ export type CheckContext = {
   activity: Map<string, Activity>
   firstActivityAt: Date | null
   reviewOpenedAt: Date | null
+  // When the engineer said they read the checklist (replies.service.ts), else null.
+  checklistReadAt: Date | null
   dismissed: { itemId: string; fingerprint: string }[]
   // The rag-service reads that failed this time ('sections', 'workspace', 'blockers'):
   // unavailable, not empty (recheck.service.ts keeps the items they feed).
@@ -253,6 +255,7 @@ export async function loadContext(
       null,
     ),
     reviewOpenedAt: viewer?.reviewOpenedAt ?? null,
+    checklistReadAt: viewer?.checklistReadAt ?? null,
     dismissed: viewer?.dismissed ?? [],
     unavailable,
   }

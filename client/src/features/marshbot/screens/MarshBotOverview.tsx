@@ -72,8 +72,9 @@ function Loader({ reference, openLink, openDetails }: Props) {
   )
 }
 
-// What changed after a reply, said once as a short toast: a new survey end, a new stage.
-function confirmChange(before: AssistantThread, after: AssistantThread) {
+// What changed after a reply, said once as a short toast: a new survey end, a new stage, a read checklist.
+function confirmChange(before: AssistantThread, after: AssistantThread, reply: Reply['id']) {
+  if (reply === 'checklist-read') toast.success('Checklist marked as read')
   if (after.surveyEnd && after.surveyEnd !== before.surveyEnd)
     toast.success('Survey end date updated')
   if (after.stage !== before.stage) toast.success(`Moved to ${STAGE_LABEL[after.stage]}`)
@@ -138,7 +139,7 @@ function Conversation({
       setPending(null)
       if (!next) return
       setAnswered((n) => n + 1)
-      confirmChange(thread, next)
+      confirmChange(thread, next, r.id)
     })
   }
 

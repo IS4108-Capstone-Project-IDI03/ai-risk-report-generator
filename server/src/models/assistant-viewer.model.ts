@@ -16,6 +16,8 @@ export interface IAssistantViewer {
   // The stale-export fingerprint "Export again" was pressed for: MarshBot then
   // points at the Export tab instead of asking again.
   exportAgain: string | null
+  // When they said "I've read the checklist": counts as read until the checklist is made again.
+  checklistReadAt: Date | null
 }
 
 const viewerSchema = new Schema<IAssistantViewer>(
@@ -29,6 +31,7 @@ const viewerSchema = new Schema<IAssistantViewer>(
     },
     reviewOpenedAt: { type: Date, default: null },
     exportAgain: { type: String, default: null },
+    checklistReadAt: { type: Date, default: null },
   },
   { timestamps: true, collection: 'assistant_viewers' },
 )

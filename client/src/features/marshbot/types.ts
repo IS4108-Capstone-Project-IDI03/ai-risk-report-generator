@@ -204,6 +204,7 @@ export type Reply = {
     | 'skip'
     | 'what-else'
     | 'generate-anyway'
+    | 'checklist-read' // Before the Survey: the engineer ticks the checklist as read themselves
   label: string
   primary: boolean // exactly one reply is primary (solid navy)
   picksDate: boolean // 'another-visit': calendar, then confirm, then send with `date`

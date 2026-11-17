@@ -7,6 +7,9 @@ export const ASSISTANT = {
   // "Read" (Architecture 5): this share of the items, each on screen this long.
   readShare: 0.8,
   readMs: 2_000,
+  // The checklist also counts as read after this much engaged time per item, however far it was
+  // scrolled (round 11): a 48-item skim of 2.5 minutes reached only half the items above.
+  checklistMsPerItem: 1_000,
   // The checklist reminder starts this many days before the survey (AC 8).
   checklistReminderDays: 3,
   // A report due within this many days raises "due soon".

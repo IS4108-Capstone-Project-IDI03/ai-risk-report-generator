@@ -13,7 +13,16 @@ export function checklistRead(ctx: CheckContext): RaisedItem[] {
   const days = daysBetween(ctx.today, survey)
   if (days < 0 || days > ASSISTANT.checklistReminderDays) return []
   const ids = ctx.checklist.items.filter((i) => i.status === 'active').map((i) => i.id)
-  const read = wasRead(ctx.activity.get('checklist')?.seen, ids)
+  // Read on screen, long enough on the checklist, or ticked by the engineer since this checklist
+  // was made (round 11).
+  // shortcut: engaged time is one running total, so time on a checklist made earlier counts too;
+  // reset it on a new checklist if a remade checklist ticks before anyone reads it.
+  const activity = ctx.activity.get('checklist')
+  const marked = ctx.checklistReadAt && ctx.checklistReadAt >= new Date(ctx.checklist.createdAt)
+  const read =
+    marked ||
+    (activity?.engagedMs ?? 0) >= ids.length * ASSISTANT.checklistMsPerItem ||
+    wasRead(activity?.seen, ids)
   const link = { tab: 'checklist' as const }
   const when = inDays(days)
   return [

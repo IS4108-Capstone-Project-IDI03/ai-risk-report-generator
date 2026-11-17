@@ -87,7 +87,12 @@ export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Re
           : { ...r, link: r.link ?? null, hint: moveHint(r.id) },
       )
   const next = nextTopic(ctx)
-  return next ? [{ ...offer('what-else'), hint: upNext(next.key) }] : []
+  const more = next ? [{ ...offer('what-else'), hint: upNext(next.key) }] : []
+  // Before the Survey with the checklist unread: the engineer can tick it themselves, since the
+  // on-screen count misses a quick read-through (round 11).
+  if (w.topic === 'before-survey' && ctx.open.some((i) => i.id === 'prepare.checklist-read'))
+    return [offer('checklist-read'), ...more.map((r) => ({ ...r, primary: false }))]
+  return more
 }
 
 // A row that is no longer open, as a done row: green with a tick, unless it already ends in Done.
@@ -405,6 +410,8 @@ export function advance(
       const ready = DEFS.ready.build(ctx())
       return ready ? raise('ready', ready) : raiseNext()
     }
+    // Without this, the next re-check would say "you've read through the checklist" a second time.
+    if (id === 'checklist-read') seen(['prepare.checklist-read'])
     const answer = answerWords(ctx(), id, date, left)!
     const turn = say('answer', answer.text, answer.good)
     if (id === 'export-again')

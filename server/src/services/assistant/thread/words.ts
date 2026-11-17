@@ -282,6 +282,7 @@ const LABELS: Record<Reply['id'], string> = {
   skip: 'Skip for now',
   'what-else': 'What else?',
   'generate-anyway': 'Generate anyway',
+  'checklist-read': "I've read the checklist",
 }
 
 /** Returns the engineer's reply as their bubble says it ("Another visit on Fri 20 Nov", as the button). */
@@ -384,6 +385,8 @@ export function answerWords(
         good: false,
       }
     }
+    case 'checklist-read':
+      return { text: "Thanks! I've ticked the checklist as read.", good: true }
     case 'export-again':
       return { text: 'Sure! The newer version is ready to go from the Export tab.', good: false }
     case 'not-now':

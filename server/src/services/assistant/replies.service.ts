@@ -39,6 +39,7 @@ export const replySchema = z.object({
     'skip',
     'what-else',
     'generate-anyway',
+    'checklist-read',
   ]),
   date: z.iso.date('Pick a valid day (YYYY-MM-DD).').optional(),
   // The id of the newest turn the engineer saw when they pressed it.
@@ -126,6 +127,10 @@ async function applyReply(
       await viewer({ $set: { exportAgain: stale?.fingerprint ?? null } })
       loaded.viewer.exportAgain = stale?.fingerprint ?? null
       return false
+    case 'checklist-read':
+      // The engineer's word counts as read even when the on-screen count fell short (round 11).
+      await viewer({ $set: { checklistReadAt: new Date() } })
+      return true
     case 'not-now':
       if (stale) {
         await dismiss(assessment, user, stale.id, stale.fingerprint)
