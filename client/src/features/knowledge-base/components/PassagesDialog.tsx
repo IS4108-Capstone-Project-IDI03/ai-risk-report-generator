@@ -1,8 +1,9 @@
-// A document's passages as search holds them (IN-17): one row per passage in
-// reading order, with its heading trail and pages; opening a row shows its full
-// text, formulas rendered (sources/PassageBody.tsx). Read-only for everyone.
-// Opened by screens/KnowledgeDocuments.tsx from a document's details.
-import { useEffect, useState } from 'react'
+// A document's passages as search holds them (IN-17): a table, one page at a time, in
+// reading order, narrowed by chapter and section (from the document's outline) and pages.
+// Each row shows the passage's place in the document, its nearest heading, an excerpt,
+// what it was read from and its pages; opening it shows the passage in full. Read-only for
+// everyone. Opened by screens/KnowledgeDocuments.tsx from a document's details.
+import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -11,9 +12,37 @@ import {
   EmptyState,
   Icon,
   IconRegistry,
+  Input,
+  Pagination,
+  Select,
+  TableFooter,
 } from '../../../design-system'
+import {
+  listDocumentPassages,
+  type DocumentPassage,
+  type KnowledgeDocument,
+  type OutlineEntry,
+  type PassageListing,
+  type PassageQuery,
+} from '../api'
+import { needsReview } from '../display'
+import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
-import { listDocumentPassages, type DocumentPassage, type KnowledgeDocument } from '../api'
+import { usePassage } from '../../sources/usePassage'
+
+const PAGE_SIZE = 25
+
+const KINDS: Record<DocumentPassage['kind'], string> = {
+  text: 'Text',
+  table: 'Table',
+  formula: 'Formula',
+  picture: 'Picture',
+}
+
+// What the table is narrowed to: the outline's chapter and section (undefined is all of
+// them), and the page range as typed (a blank or unusable page leaves that end open).
+type Filters = { chapter?: string; section?: string; from: string; to: string }
+const NO_FILTERS: Filters = { from: '', to: '' }
 
 /** Returns the Passages dialog for one document. */
 export function PassagesDialog({
@@ -23,25 +52,54 @@ export function PassagesDialog({
   document: KnowledgeDocument
   onClose: () => void
 }) {
-  const [passages, setPassages] = useState<DocumentPassage[] | null>(null)
+  // The last listing loaded, with the query it answers.
+  const [loaded, setLoaded] = useState<{ key: string; offset: number; listing: PassageListing }>()
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  // The one passage opened to its full text, if any.
   const [openId, setOpenId] = useState<string | null>(null)
+  const body = useRef<HTMLDivElement>(null)
+
+  const pageFrom = pageNumber(filters.from)
+  const pageTo = pageNumber(filters.to)
+  const reversed = pageFrom !== undefined && pageTo !== undefined && pageFrom > pageTo
+  const { chapter, section } = filters
+  const key = JSON.stringify({ offset, chapter, section, pageFrom, pageTo })
 
   useEffect(() => {
+    if (reversed) return
     const controller = new AbortController()
-    listDocumentPassages(d.id, controller.signal).then(setPassages, () => {
-      if (!controller.signal.aborted) setFailed(true)
-    })
+    const query: PassageQuery = { ...JSON.parse(key), limit: PAGE_SIZE }
+    listDocumentPassages(d.id, query, controller.signal).then(
+      (listing) => setLoaded({ key, offset: query.offset, listing }),
+      () => {
+        if (!controller.signal.aborted) setFailed(true)
+      },
+    )
     return () => controller.abort()
-  }, [d.id, attempt])
+  }, [d.id, key, reversed, attempt])
+
+  const listing = loaded?.listing
+  // A new page or filter keeps the last rows, dimmed, until it arrives.
+  const stale = loaded !== undefined && loaded.key !== key && !reversed
+  const filtered = filters !== NO_FILTERS
+  // All of a document's passages share its status, so one note says it, not a column.
+  const outOfUse = d.withdrawn ? 'is withdrawn' : needsReview(d) ? 'needs review' : null
+
+  // Narrows the table and goes back to its first page.
+  const narrow = (next: Filters) => {
+    setFilters(next)
+    setOffset(0)
+  }
 
   return (
     <Dialog
-      className="ds-dialog-sheet"
+      className="ds-dialog--v2 ds-dialog-sheet"
       title="Passages"
-      description={d.title}
-      width={720}
+      description={d.edition ? `${d.title} · ${d.edition}` : d.title}
+      width={1040}
       onClose={onClose}
       footer={
         <Button variant="secondary" onClick={onClose}>
@@ -68,63 +126,302 @@ export function PassagesDialog({
         >
           The knowledge base could not be reached. Try again shortly.
         </Callout>
-      ) : passages === null ? (
-        <p className="kb-list-note" role="status">
-          Loading passages…
-        </p>
-      ) : passages.length === 0 ? (
+      ) : !listing ? (
+        <LoadingRows />
+      ) : listing.total === 0 && !filtered ? (
         <EmptyState
           icon="library"
           title="No passages in search"
           description="This document has no passages yet, for example while it is still being ingested."
         />
       ) : (
-        <ol className="kb-passages">
-          {passages.map((p) => {
-            const open = openId === p.id
-            const panel = `kb-passage-${p.id}`
-            return (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className="kb-passage-toggle"
-                  aria-expanded={open}
-                  aria-controls={panel}
-                  onClick={() => setOpenId(open ? null : p.id)}
-                >
-                  <Icon
-                    name={open ? IconRegistry.action.expand : IconRegistry.action.forward}
-                    size={15}
-                  />
-                  <span className="kb-passage-head">
-                    <strong>{p.headings.length ? p.headings.join(' › ') : 'No heading'}</strong>
-                    <small>{pages(p)}</small>
-                  </span>
-                  {p.status && p.status !== 'active' && (
-                    <Badge tone={p.status === 'withdrawn' ? 'danger' : 'moderate'}>
-                      {p.status === 'withdrawn' ? 'Withdrawn' : 'Needs review'}
-                    </Badge>
-                  )}
-                </button>
-                {open ? (
-                  <div id={panel} className="kb-passage-text">
-                    <PassageBody text={p.text} quote="" className="kb-passage-body" />
-                  </div>
-                ) : (
-                  <p className="kb-passage-excerpt">{p.text}</p>
-                )}
-              </li>
-            )
-          })}
-        </ol>
+        <div ref={body} className="kb-pbody">
+          {outOfUse && (
+            <Callout tone="warning">
+              These passages aren’t used in answers or search while this document {outOfUse}.
+            </Callout>
+          )}
+          <PassageFilters
+            outline={listing.outline}
+            filters={filters}
+            reversed={reversed}
+            onChange={narrow}
+          />
+          {listing.total === 0 ? (
+            <EmptyState
+              icon="search-x"
+              title="No passages match"
+              description="Try another chapter or a wider page range."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => narrow(NO_FILTERS)}>
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <div className="kb-plist">
+              <table className={stale ? 'kb-ptable is-stale' : 'kb-ptable'} aria-busy={stale}>
+                <thead>
+                  <tr>
+                    <th className="kb-pcol-pos">#</th>
+                    <th className="kb-pcol-section">Section</th>
+                    <th className="kb-pcol-text">Passage</th>
+                    <th className="kb-pcol-kind">Type</th>
+                    <th className="kb-pcol-pages">Pages</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listing.passages.map((p) => (
+                    <PassageRow
+                      key={p.id}
+                      passage={p}
+                      fileUrl={d.fileUrl}
+                      open={openId === p.id}
+                      onToggle={() => setOpenId(openId === p.id ? null : p.id)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+              <div className="kb-pfoot">
+                <TableFooter>{shown(loaded.offset, listing)}</TableFooter>
+                <Pagination
+                  page={Math.floor(offset / PAGE_SIZE) + 1}
+                  pageCount={Math.ceil(listing.total / PAGE_SIZE)}
+                  onPage={(page) => {
+                    setOffset((page - 1) * PAGE_SIZE)
+                    // The new page starts at the top, under the dialog's header.
+                    body.current?.closest('dialog')?.scrollTo?.({ top: 0 })
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </Dialog>
   )
 }
 
-// "Page 14", "Pages 12–13", or nothing when the passage has no page.
+/** The Chapter and Section dropdowns (one Section dropdown for a past report), the
+    page range, and Clear filters once anything is narrowed. */
+function PassageFilters({
+  outline,
+  filters,
+  reversed,
+  onChange,
+}: {
+  outline: PassageListing['outline']
+  filters: Filters
+  reversed: boolean
+  onChange: (filters: Filters) => void
+}) {
+  const byClause = outline.by !== 'section'
+  const { chapter, section } = filters
+  return (
+    <div className="kb-ptoolbar">
+      <Select
+        size="sm"
+        aria-label={byClause ? 'Chapter' : 'Section'}
+        options={[
+          { value: '', label: byClause ? 'All chapters' : 'All sections' },
+          ...outline.chapters.map((c) => ({
+            value: `c:${c.name}`,
+            label: `${chapterName(c.name, byClause)} (${c.count.toLocaleString('en')})`,
+          })),
+        ]}
+        value={chapter === undefined ? '' : `c:${chapter}`}
+        onChange={(e) =>
+          onChange({
+            ...filters,
+            chapter: e.target.value ? e.target.value.slice(2) : undefined,
+            section: undefined,
+          })
+        }
+      />
+      {byClause && (
+        <Select
+          size="sm"
+          aria-label="Section"
+          title={chapter === undefined ? 'Choose a chapter first' : undefined}
+          disabled={chapter === undefined}
+          options={[{ value: '', label: 'All sections' }, ...sectionOptions(outline.sections)]}
+          value={section === undefined ? '' : `s:${section}`}
+          onChange={(e) =>
+            onChange({ ...filters, section: e.target.value ? e.target.value.slice(2) : undefined })
+          }
+        />
+      )}
+      <div className="kb-prange">
+        <Input
+          size="sm"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          aria-label="From page"
+          placeholder="From page"
+          value={filters.from}
+          onChange={(e) => onChange({ ...filters, from: e.target.value })}
+        />
+        <span aria-hidden="true">–</span>
+        <Input
+          size="sm"
+          type="number"
+          min={1}
+          inputMode="numeric"
+          aria-label="To page"
+          placeholder="To page"
+          value={filters.to}
+          error={reversed ? 'The range ends before it starts.' : undefined}
+          onChange={(e) => onChange({ ...filters, to: e.target.value })}
+        />
+      </div>
+      {filters !== NO_FILTERS && (
+        <Button variant="ghost" size="sm" onClick={() => onChange(NO_FILTERS)}>
+          Clear filters
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/** Five placeholder rows while the first page loads. */
+function LoadingRows() {
+  return (
+    <div className="kb-pskeleton">
+      <p className="ds-sr-only" role="status">
+        Loading passages…
+      </p>
+      {[0, 1, 2, 3, 4].map((n) => (
+        <div key={n} aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** One passage's row, and beneath it when open, the passage in full. */
+function PassageRow({
+  passage: p,
+  fileUrl,
+  open,
+  onToggle,
+}: {
+  passage: DocumentPassage
+  fileUrl: string
+  open: boolean
+  onToggle: () => void
+}) {
+  const panel = `kb-passage-${p.id}`
+  const heading = p.headings.at(-1)
+  return (
+    <>
+      <tr
+        className={open ? 'kb-prow is-open' : 'kb-prow'}
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest('button')) onToggle()
+        }}
+      >
+        <td className="kb-pcol-pos">{p.position}</td>
+        <td className="kb-pcol-section">
+          <button
+            type="button"
+            className="kb-ptoggle"
+            aria-expanded={open}
+            aria-controls={panel}
+            onClick={onToggle}
+          >
+            <Icon
+              name={open ? IconRegistry.action.expand : IconRegistry.action.forward}
+              size={14}
+            />
+            <span className={heading ? undefined : 'is-none'}>{heading ?? 'No heading'}</span>
+          </button>
+        </td>
+        <td className="kb-pcol-text">
+          <span className="kb-pexcerpt">{p.text}</span>
+        </td>
+        <td className="kb-pcol-kind">
+          <span className="kb-pkind">
+            {KINDS[p.kind]}
+            {p.generated && <Badge tone="ai">Generated</Badge>}
+          </span>
+        </td>
+        <td className="kb-pcol-pages">{pages(p)}</td>
+      </tr>
+      {open && (
+        <tr className="kb-pdetail-row">
+          <td colSpan={5}>
+            <PassageDetail id={panel} passage={p} fileUrl={fileUrl} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/** The opened passage: its full text, the region of the page a table, formula or
+    picture was read from (loaded only for those), and its id. */
+function PassageDetail({
+  id,
+  passage: p,
+  fileUrl,
+}: {
+  id: string
+  passage: DocumentPassage
+  fileUrl: string
+}) {
+  const loaded = usePassage(p.kind === 'text' ? undefined : p.id)
+  return (
+    <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
+      {p.generated && (
+        <p className="kb-pgenerated">
+          A model described this picture; these aren’t the document’s words.
+        </p>
+      )}
+      <PassageBody text={p.text} quote="" className="kb-passage-body" />
+      {loaded.status === 'ready' && (
+        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} />
+      )}
+      <p className="kb-pid">{p.id}</p>
+    </section>
+  )
+}
+
+// "14", "12–13", or "—" when the passage has no page.
 function pages(p: DocumentPassage): string {
-  if (p.pageStart == null) return ''
-  if (p.pageEnd == null || p.pageEnd === p.pageStart) return `Page ${p.pageStart}`
-  return `Pages ${p.pageStart}–${p.pageEnd}`
+  if (p.pageStart == null) return '—'
+  if (p.pageEnd == null || p.pageEnd === p.pageStart) return String(p.pageStart)
+  return `${p.pageStart}–${p.pageEnd}`
+}
+
+// "Passages 26–50 of 1,214": which of the matching passages this page shows.
+function shown(offset: number, listing: PassageListing): string {
+  const last = offset + listing.passages.length
+  const of = listing.total.toLocaleString('en')
+  return `Passages ${(offset + 1).toLocaleString('en')}–${last.toLocaleString('en')} of ${of}`
+}
+
+// A chapter as the filter names it: "Chapter 8", "Annex A", "Front matter". A past
+// report's chapters are its template sections, named as they are.
+function chapterName(name: string, byClause: boolean): string {
+  if (!byClause) return name || 'No section'
+  if (!name) return 'Front matter'
+  return /^\d+$/.test(name) ? `Chapter ${name}` : `Annex ${name}`
+}
+
+// The chosen chapter's sections; "" is its start, before the first numbered section.
+function sectionOptions(sections: OutlineEntry[]) {
+  return sections.map((s) => ({
+    value: `s:${s.name}`,
+    label: `${s.name || 'Chapter start'} (${s.count.toLocaleString('en')})`,
+  }))
+}
+
+// A typed page number, or undefined when blank or not a page (0, -2, 1.5).
+function pageNumber(text: string): number | undefined {
+  const page = Number(text)
+  return text.trim() && Number.isInteger(page) && page >= 1 ? page : undefined
 }

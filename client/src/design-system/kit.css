@@ -508,6 +508,31 @@
   cursor: pointer;
 }
 
+/* Pagination (IN-17): Previous / "Page 2 of 49" / Next, beside the table footer. */
+.ds-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ds-pagination-place {
+  font: 400 13px/1.2 var(--font-sans);
+  white-space: nowrap;
+  color: var(--graphite-600);
+}
+.ds-pagination-place b {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+/* A 44px target on touch screens. */
+@media (pointer: coarse) {
+  .ds-pagination > button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* Reading status cell: the mark is 16px wide in every state, so all three line up. */
 .ds-reading {
   display: inline-flex;

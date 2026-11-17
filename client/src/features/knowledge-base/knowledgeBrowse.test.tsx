@@ -68,44 +68,82 @@ const FM = {
 const LONG_TEXT =
   'Sprinklers shall be installed throughout the premises, including concealed spaces ' +
   'above ceilings, except where this standard permits their omission.'
-const PASSAGES = [
-  {
-    id: 'nfpa:0',
-    text: LONG_TEXT,
-    headings: ['Chapter 8 Installation', '8.1 Basic requirements'],
-    section: 'Not applicable',
-    pageStart: 12,
-    pageEnd: 13,
-    status: 'active',
-  },
-  {
-    id: 'nfpa:1',
-    text: 'Ceiling pockets shall be protected.',
-    headings: [],
-    section: 'Not applicable',
-    pageStart: 14,
-    pageEnd: 14,
-    status: 'active',
-  },
-]
+// One passage as the gateway lists it; `over` changes any field.
+const passage = (n: number, over: object = {}) => ({
+  id: `nfpa:${n}`,
+  position: n + 1,
+  text: `Passage ${n + 1} text.`,
+  headings: ['25 NFPA', `8.${n + 1} Requirement ${n + 1}`],
+  section: 'Not applicable',
+  pageStart: 12 + n,
+  pageEnd: 12 + n,
+  status: 'active',
+  kind: 'text',
+  generated: false,
+  ...over,
+})
+const FIRST = passage(0, {
+  text: LONG_TEXT,
+  headings: ['25 NFPA', '8.1 Basic requirements'],
+  pageEnd: 13,
+})
+const TABLE = passage(1, { headings: ['8.2 Spacing'], kind: 'table', pageStart: 30, pageEnd: 30 })
+const PICTURE = passage(2, {
+  headings: [],
+  kind: 'picture',
+  generated: true,
+  pageStart: null,
+  pageEnd: null,
+})
+const OUTLINE = {
+  by: 'clause',
+  chapters: [
+    { name: '', count: 4 },
+    { name: '8', count: 40 },
+    { name: 'A', count: 16 },
+  ],
+  sections: [],
+}
+// The listing the stub answers by default: these three of 60 passages.
+const LISTING = { total: 60, passages: [FIRST, TABLE, PICTURE], outline: OUTLINE }
+type Listing = { total: number; passages: object[]; outline: object }
+// 60 passages, answered a page at a time as the gateway would.
+const sixty = (query: URLSearchParams): Listing => {
+  const offset = Number(query.get('offset'))
+  const end = Math.min(offset + Number(query.get('limit')), 60)
+  const page = Array.from({ length: end - offset }, (_, n) => passage(offset + n))
+  return { total: 60, passages: page, outline: OUTLINE }
+}
 
 const requested: string[] = []
-// Answers the list with `documents` and a document's passages with `passages`
-// (a status number makes that call fail).
-function mockGateway(documents: object[], passages: object[] | number = PASSAGES) {
+// Answers the list with `documents` and a document's passages with `passages`, which
+// may read the query (a status number makes that call fail).
+function mockGateway(
+  documents: object[],
+  passages: Listing | number | ((query: URLSearchParams) => Listing) = LISTING,
+) {
   vi.stubGlobal('fetch', (url: string) => {
     requested.push(url)
-    if (url.endsWith('/passages')) {
+    const { pathname, searchParams } = new URL(url, 'http://app')
+    if (pathname.endsWith('/passages')) {
       return Promise.resolve(
         typeof passages === 'number'
           ? Response.json({ error: 'The passages could not be loaded.' }, { status: passages })
-          : Response.json({ passages }),
+          : Response.json(typeof passages === 'function' ? passages(searchParams) : passages),
+      )
+    }
+    if (pathname.startsWith('/api/chat/passages/')) {
+      return Promise.resolve(
+        Response.json({ ...TABLE, documentId: 'nfpa', boxes: [], region: null }),
       )
     }
     const answer = url === '/api/knowledge-documents/ingested' ? documents : []
     return Promise.resolve(Response.json(answer))
   })
 }
+// The passage listings requested, as their query strings.
+const listings = () =>
+  requested.filter((url) => url.includes('/passages?')).map((url) => url.split('?')[1])
 
 // Opens a document's details, then its passages.
 async function openPassages(title: string) {
@@ -190,35 +228,229 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
 })
 
 describe("A document's passages (IN-17)", () => {
-  it('lists them in reading order with their heading trail and pages', async () => {
+  it('shows a page of them as a table: position, nearest heading, excerpt, type and pages', async () => {
     mockGateway([NFPA])
     await openAsEngineer()
 
     const dialog = await openPassages('NFPA 13 sprinkler standard')
 
-    const items = await within(dialog).findAllByRole('listitem')
-    expect(items).toHaveLength(2)
-    expect(items[0]).toHaveTextContent('Chapter 8 Installation › 8.1 Basic requirements')
-    expect(items[0]).toHaveTextContent('Pages 12–13')
-    expect(items[1]).toHaveTextContent('Page 14')
-    expect(requested).toContain('/api/knowledge-documents/nfpa/passages')
+    const table = await within(dialog).findByRole('table')
+    const head = within(table)
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent)
+    expect(head).toEqual(['#', 'Section', 'Passage', 'Type', 'Pages'])
+    const [first, second, third] = within(table).getAllByRole('row').slice(1)
+    expect(
+      within(first)
+        .getAllByRole('cell')
+        .map((td) => td.textContent),
+    ).toEqual(['1', '8.1 Basic requirements', LONG_TEXT, 'Text', '12–13'])
+    expect(second).toHaveTextContent('Table')
+    expect(third).toHaveTextContent('No heading')
+    expect(third).toHaveTextContent('PictureGenerated')
+    expect(listings()).toEqual(['offset=0&limit=25'])
   })
 
-  it('shows a passage in full when it is opened', async () => {
+  it('pages through them with Next and Previous, saying which passages show', async () => {
+    mockGateway([NFPA], sixty)
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    const pager = await within(dialog).findByRole('navigation', { name: 'Pages' })
+    expect(within(dialog).getByText('Passages 1–25 of 60')).toBeVisible()
+    expect(pager).toHaveTextContent('Page 1 of 3')
+    expect(within(pager).getByRole('button', { name: 'Previous page' })).toBeDisabled()
+
+    fireEvent.click(within(pager).getByRole('button', { name: 'Next page' }))
+    expect(await within(dialog).findByText('Passages 26–50 of 60')).toBeVisible()
+    fireEvent.click(within(pager).getByRole('button', { name: 'Next page' }))
+    expect(await within(dialog).findByText('Passages 51–60 of 60')).toBeVisible()
+    expect(within(pager).getByRole('button', { name: 'Next page' })).toBeDisabled()
+    fireEvent.click(within(pager).getByRole('button', { name: 'Previous page' }))
+
+    expect(await within(dialog).findByText('Passages 26–50 of 60')).toBeVisible()
+    expect(listings()).toEqual([
+      'offset=0&limit=25',
+      'offset=25&limit=25',
+      'offset=50&limit=25',
+      'offset=25&limit=25',
+    ])
+  })
+
+  it('filters by chapter, then by that chapter’s section, from page 1', async () => {
+    const SECTIONS = [
+      { name: '', count: 2 },
+      { name: '8.1', count: 20 },
+      { name: '8.2', count: 18 },
+    ]
+    mockGateway([NFPA], (query) => ({
+      ...sixty(query),
+      outline: { ...OUTLINE, sections: query.has('chapter') ? SECTIONS : [] },
+    }))
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
+    await within(dialog).findByText('Passages 26–50 of 60')
+
+    const chapter = within(dialog).getByLabelText('Chapter')
+    const section = within(dialog).getByLabelText('Section')
+    expect([...chapter.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'All chapters',
+      'Front matter (4)',
+      'Chapter 8 (40)',
+      'Annex A (16)',
+    ])
+    expect(section).toBeDisabled()
+    fireEvent.change(chapter, { target: { value: 'c:8' } })
+
+    await within(dialog).findByText('Passages 1–25 of 60')
+    expect(section).toBeEnabled()
+    expect([...section.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'All sections',
+      'Chapter start (2)',
+      '8.1 (20)',
+      '8.2 (18)',
+    ])
+    fireEvent.change(section, { target: { value: 's:8.2' } })
+    fireEvent.change(chapter, { target: { value: 'c:' } })
+
+    await vi.waitFor(() =>
+      expect(listings().slice(2)).toEqual([
+        'offset=0&limit=25&chapter=8',
+        'offset=0&limit=25&chapter=8&section=8.2',
+        'offset=0&limit=25&chapter=',
+      ]),
+    )
+    expect(section).toHaveValue('')
+  })
+
+  it('filters a past report by its template sections, in one dropdown', async () => {
+    const byTemplate = {
+      by: 'section',
+      chapters: [
+        { name: 'Fire protection', count: 12 },
+        { name: 'Undefined', count: 3 },
+      ],
+      sections: [],
+    }
+    mockGateway([NFPA], { ...LISTING, outline: byTemplate })
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    const sections = await within(dialog).findByLabelText('Section')
+    expect(within(dialog).queryByLabelText('Chapter')).not.toBeInTheDocument()
+    expect([...sections.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'All sections',
+      'Fire protection (12)',
+      'Undefined (3)',
+    ])
+    fireEvent.change(sections, { target: { value: 'c:Fire protection' } })
+
+    await vi.waitFor(() =>
+      expect(listings()).toContain('offset=0&limit=25&chapter=Fire+protection'),
+    )
+  })
+
+  it('narrows them to a page range from page 1, and won’t list a range that ends before it starts', async () => {
+    mockGateway([NFPA], sixty)
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
+    await within(dialog).findByText('Passages 26–50 of 60')
+    const from = within(dialog).getByLabelText('From page')
+    const to = within(dialog).getByLabelText('To page')
+
+    fireEvent.change(from, { target: { value: '20' } })
+    fireEvent.change(to, { target: { value: '30' } })
+    await vi.waitFor(() =>
+      expect(listings().at(-1)).toBe('offset=0&limit=25&pageFrom=20&pageTo=30'),
+    )
+    const asked = listings().length
+    fireEvent.change(from, { target: { value: '31' } })
+
+    expect(await within(dialog).findByText('The range ends before it starts.')).toBeVisible()
+    expect(to).toHaveAttribute('aria-invalid', 'true')
+    expect(listings()).toHaveLength(asked)
+  })
+
+  it('opens a row to show the passage in full, one row at a time', async () => {
     mockGateway([NFPA])
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
 
-    const first = await within(dialog).findByRole('button', { name: /^Chapter 8 Installation/ })
+    const first = await within(dialog).findByRole('button', { name: '8.1 Basic requirements' })
     expect(first).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(first)
 
     expect(first).toHaveAttribute('aria-expanded', 'true')
-    expect(within(dialog).getByText(LONG_TEXT)).toBeVisible()
+    const opened = within(dialog).getByRole('region', { name: 'Passage 1' })
+    expect(within(opened).getByText(LONG_TEXT)).toBeVisible()
+    expect(opened).toHaveTextContent('nfpa:0')
+    // Plain text has no region of the page to fetch.
+    expect(requested.some((url) => url.startsWith('/api/chat/passages/'))).toBe(false)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '8.2 Spacing' }))
+    expect(first).toHaveAttribute('aria-expanded', 'false')
+    expect(within(dialog).getByRole('region', { name: 'Passage 2' })).toBeVisible()
+    await vi.waitFor(() => expect(requested).toContain('/api/chat/passages/nfpa%3A1'))
+  })
+
+  it.each([
+    ['needs review', UNREVIEWED, 'while this document needs review'],
+    [
+      'is withdrawn',
+      {
+        ...NFPA,
+        withdrawn: { at: '2026-10-01T00:00:00.000Z', by: { id: 'u1', name: 'Sana Patel' } },
+      },
+      'while this document is withdrawn',
+    ],
+  ])('says the passages aren’t searched while the document %s', async (_, document, why) => {
+    mockGateway([document])
+    await openAsEngineer()
+
+    const dialog = await openPassages(document.title)
+
+    expect(
+      await within(dialog).findByText(new RegExp(`aren’t used in answers or search ${why}`)),
+    ).toBeVisible()
+  })
+
+  it('says so when the active document’s passages all show', async () => {
+    mockGateway([NFPA])
+    await openAsEngineer()
+
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    await within(dialog).findByRole('table')
+    expect(within(dialog).queryByText(/aren’t used in answers/)).not.toBeInTheDocument()
+  })
+
+  it('says when no passage matches the filters, and clears them', async () => {
+    mockGateway([NFPA], (query) =>
+      query.has('pageFrom') ? { ...LISTING, total: 0, passages: [] } : LISTING,
+    )
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+    fireEvent.change(await within(dialog).findByLabelText('Chapter'), { target: { value: 'c:8' } })
+    fireEvent.change(within(dialog).getByLabelText('From page'), { target: { value: '900' } })
+
+    expect(await within(dialog).findByText('No passages match')).toBeVisible()
+    expect(within(dialog).queryByRole('table')).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Clear filters' })[0])
+
+    expect(await within(dialog).findByRole('table')).toBeVisible()
+    expect(within(dialog).getByLabelText('Chapter')).toHaveValue('')
+    expect(within(dialog).getByLabelText('From page')).toHaveValue(null)
+    expect(listings().at(-1)).toBe('offset=0&limit=25')
   })
 
   it('says so when a document has no passages', async () => {
-    mockGateway([NFPA], [])
+    mockGateway([NFPA], {
+      ...LISTING,
+      total: 0,
+      passages: [],
+      outline: { ...OUTLINE, chapters: [] },
+    })
     await openAsEngineer()
 
     const dialog = await openPassages('NFPA 13 sprinkler standard')
@@ -235,6 +467,6 @@ describe("A document's passages (IN-17)", () => {
     mockGateway([NFPA])
     fireEvent.click(within(dialog).getByRole('button', { name: 'Try again' }))
 
-    expect(await within(dialog).findAllByRole('listitem')).toHaveLength(2)
+    expect(await within(dialog).findByRole('table')).toBeVisible()
   })
 })
