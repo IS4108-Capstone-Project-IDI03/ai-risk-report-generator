@@ -1,5 +1,5 @@
 // One assessment on the Assessments list (CP-23, boards 03 and 04): type tile,
-// reference (with its priority mark, AS-06), Type, Survey date, Stage, Report due, and on
+// reference (with its priority mark, AS-07), Type, Survey date, Stage, Report due, and on
 // hover Archive and an open chevron. A table row wide, a stacked card on a phone (assessment-list.css).
 // Used by screens/Dashboard and ClientGroup. Calls the design system's kit.
 import {

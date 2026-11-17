@@ -1,4 +1,4 @@
-// AS-06 (AC 2, AC 12): the Assessments list shows each row's stage and priority mark, the Focus
+// AS-06 AC 2 and AS-07: the Assessments list shows each row's stage and priority mark, the Focus
 // button opens the top three with the agreed words, See all opens the full ranked list, and the
 // Clients list marks a client with its most urgent assessment. Calls App with a stubbed gateway.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'

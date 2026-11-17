@@ -1,4 +1,4 @@
-// One ranked assessment in the Focus list (AS-06, boards 08 and 09): a large plain numeral
+// One ranked assessment in the Focus list (AS-07, boards 08 and 09): a large plain numeral
 // (1 navy, the rest grey), the priority mark, reference, the one-fact reason and "Client › Site".
 // Used by FocusPopover (top 3, with a chevron) and FocusAllDialog (every one, with its
 // Report due cell). Calls PriorityMark and the design system's ReportDue and Icon.

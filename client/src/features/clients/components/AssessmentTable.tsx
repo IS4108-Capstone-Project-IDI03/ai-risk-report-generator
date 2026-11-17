@@ -1,5 +1,5 @@
 // A client's assessments as a table (CP-23, boards 06 and 08): type tile and
-// reference (with its priority mark, AS-06), Type, Survey date, Stage, Report due and a chevron that opens the
+// reference (with its priority mark, AS-07), Type, Survey date, Stage, Report due and a chevron that opens the
 // assessment. Called by SiteCard (one site) and screens/OpenWorkTab (all sites,
 // with a Site column). Rows open the assessment through onOpen.
 import { AssessmentTypeTile, ReportDue, StatusPill } from '../../../design-system'

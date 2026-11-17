@@ -1417,7 +1417,7 @@ assessment is 409 without that code; e.g. another visit with its date moves
 `siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
 seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
 carries its `stage` and, for the engineer's own assessments, a `priority` with
-its Focus rank (`rankedFocus` in `focus.service.ts`: overdue, then Fix now,
+its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue, then Fix now,
 then least time to spare); the Focus list is those rows in rank order. Client
 page visits carry the same. An admin, or anyone who isn't the assigned
 engineer, sees the stage and progress only, never the engineer's activity.

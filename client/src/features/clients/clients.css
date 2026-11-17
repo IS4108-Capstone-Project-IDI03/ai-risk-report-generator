@@ -561,7 +561,7 @@
   text-align: left;
 }
 
-/* The priority mark's tooltip (AS-06) opens above the name, so line 1 must not clip it; the name
+/* The priority mark's tooltip (AS-07) opens above the name, so line 1 must not clip it; the name
    itself still ends in an ellipsis (.cl-ellip). */
 .cl-clients .cl-line-1 {
   overflow: visible;

@@ -1,4 +1,4 @@
-// The Focus list (AS-06 AC 12), as the work list's rows carry it (priority and
+// The Focus list (AS-07), as the work list's rows carry it (priority and
 // rank): overdue first, then Fix now, then least time to spare, and only the
 // caller's own open assessments, counted in the team's time zone.
 import { Types } from 'mongoose'

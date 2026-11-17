@@ -24,7 +24,7 @@ export type ClientVisitDto = {
   surveyType: string
   reportDueDate: string | null
   status: AssessmentStatus
-  // MarshBot's stage and the Focus priority (AS-06), as the work list has them.
+  // MarshBot's stage and the Focus priority (AS-06, AS-07), as the work list has them.
   stage: Stage
   priority: Priority | null
 }

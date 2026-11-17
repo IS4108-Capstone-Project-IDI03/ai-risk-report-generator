@@ -1,4 +1,4 @@
-/* The Focus list (AS-06, boards 08, 09 and 12): the top bar's Focus button, its popover with
+/* The Focus list (AS-07, boards 08, 09 and 12): the top bar's Focus button, its popover with
    the top three, and the full-list dialog. Motion: the popover's own scale-in from its corner
    (design system, 180 ms in / 120 ms out). Ranked rows never stagger, and the button never pulses. */
 

@@ -1,4 +1,4 @@
-// The full Focus list (AS-06 AC 12, board 09): a v2 dialog with every assessment in Focus,
+// The full Focus list (AS-07, board 09): a v2 dialog with every assessment in Focus,
 // ranked, each with its Report due cell. Opened by FocusButton's "See all". Calls FocusRow.
 import { Dialog } from '../../../design-system'
 import { FocusRow, type FocusItem } from './FocusRow'

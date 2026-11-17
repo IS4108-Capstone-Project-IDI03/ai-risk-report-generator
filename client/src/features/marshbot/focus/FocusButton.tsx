@@ -1,4 +1,4 @@
-// The Focus button in the Assessments top bar (AS-06 AC 12, boards 08 and 09): "Focus" with the
+// The Focus button in the Assessments top bar (AS-07, boards 08 and 09): "Focus" with the
 // number of assessments in Focus, opening a popover with the top three and a "See all" link
 // to the full list. Hidden when nothing is in Focus. On a phone the popover is a sheet (built
 // into Popover). Used by screens/Dashboard. Calls FocusRow and FocusAllDialog.

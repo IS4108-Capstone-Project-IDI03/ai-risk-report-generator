@@ -124,7 +124,7 @@ export type AssessmentDto = {
   // MarshBot's stage (AS-06), separate from `status`; 'setup' until
   // `npm run migrate:stages` has given an older assessment its stage.
   stage: Stage
-  // Why it needs its engineer most (AS-06 Focus), only on the caller's own; else null.
+  // Why it needs its engineer most (AS-07 Focus), only on the caller's own; else null.
   priority: Priority | null
   // When its latest capture session started; null before capture starts. The
   // dashboard continues the engineer's most recently started capture.

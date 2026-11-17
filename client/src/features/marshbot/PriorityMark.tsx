@@ -1,4 +1,4 @@
-// The quiet round mark that says why an assessment is urgent (AS-06 AC 12, boards 08 and 10):
+// The quiet round mark that says why an assessment is urgent (AS-07, boards 08 and 10):
 // a calendar (overdue), an alert (fix now) or an hourglass (short on time). No label; the
 // reason shows on hover or focus. Used by the Focus list, the Assessments rows and the Clients
 // rows. Calls the design system's Icon and Tooltip.

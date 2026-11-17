@@ -1,4 +1,4 @@
-// The Focus list (AS-06 AC 12): the engineer's own assessments that need them
+// The Focus list (AS-07): the engineer's own assessments that need them
 // most, ranked overdue, then Fix now, then least time to spare. Called by the
 // assessment list (assessment.service.ts), whose rows carry each one's priority
 // and rank; the browser builds Focus from them. Reads assessments, MarshBot

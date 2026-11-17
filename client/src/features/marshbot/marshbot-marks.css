@@ -1,4 +1,4 @@
-/* The priority mark (AS-06, boards 08 and 10): a 24 px round tint with a 14 px icon.
+/* The priority mark (AS-07, boards 08 and 10): a 24 px round tint with a 14 px icon.
    Red tint for overdue and fix now, the ink tint for short on time; never solid. */
 .mb-mark {
   display: inline-flex;

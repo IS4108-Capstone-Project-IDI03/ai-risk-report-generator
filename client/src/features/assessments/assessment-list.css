@@ -163,7 +163,7 @@
   gap: 2px;
   min-width: 0;
 }
-/* The reference with its priority mark beside it (AS-06). */
+/* The reference with its priority mark beside it (AS-07). */
 .at-refline {
   display: inline-flex;
   align-items: center;
@@ -171,7 +171,7 @@
   min-width: 0;
 }
 .at-ref {
-  /* Holds the reference and its priority mark (AS-06), so the mark is no tab stop of its own. */
+  /* Holds the reference and its priority mark (AS-07), so the mark is no tab stop of its own. */
   display: inline-flex;
   align-items: center;
   gap: 8px;

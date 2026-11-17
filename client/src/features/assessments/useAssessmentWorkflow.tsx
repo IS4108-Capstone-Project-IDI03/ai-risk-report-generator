@@ -3589,7 +3589,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setStageFilter: (value: string) => setState({ fStatus: value || 'All statuses' }),
       // The stages, then Archived (AS-06 AC 2).
       stageOptions: [...Object.values(STAGE_LABEL), STATUS_LABEL.archived],
-      // Focus (AS-06 AC 12): the rows the gateway gave a priority (only the engineer's own),
+      // Focus (AS-07): the rows the gateway gave a priority (only the engineer's own),
       // in its rank order. Built from the list itself, so it never lags or pops in after it.
       focus: rows
         .flatMap((r) =>
