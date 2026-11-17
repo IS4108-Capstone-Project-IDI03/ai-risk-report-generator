@@ -1083,6 +1083,16 @@
 .kb-pdetail .kb-passage-body {
   max-width: 75ch;
 }
+/* The original page's region, as large as fits a box half the passage's width and half the
+   window's height, whichever it reaches first; its shape is kept (--region-ratio, set by
+   SourceRegion as width over height). Larger than chat's 12rem: the Passages view has room,
+   and a whole-page form or a dense table is unreadable smaller. */
+.kb-pdetail .src-region {
+  width: min(50%, calc(50svh * var(--region-ratio, 1)));
+  max-width: 50%;
+  max-height: none;
+  height: auto;
+}
 .kb-pgenerated {
   margin: 0;
   font-size: var(--text-small-size);

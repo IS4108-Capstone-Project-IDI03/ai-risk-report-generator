@@ -7,6 +7,13 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 
+// jsdom can't run pdf.js: the region of the original page is a plain image standing in for it,
+// shown only when the passage records one (sources/CitedRegion.tsx does the real drawing).
+vi.mock('../sources/CitedRegion', () => ({
+  CitedRegion: ({ region }: { region: { kind: string } | null | undefined }) =>
+    region ? <img alt={`${region.kind} on the original page`} /> : null,
+}))
+
 // jsdom has no <dialog> methods; the Passages dialog needs them.
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -134,7 +141,12 @@ function mockGateway(
     }
     if (pathname.startsWith('/api/chat/passages/')) {
       return Promise.resolve(
-        Response.json({ ...TABLE, documentId: 'nfpa', boxes: [], region: null }),
+        Response.json({
+          ...TABLE,
+          documentId: 'nfpa',
+          boxes: [],
+          region: { kind: 'table', boxes: [{ page: 30, l: 60, t: 700, r: 360, b: 500 }] },
+        }),
       )
     }
     const answer = url === '/api/knowledge-documents/ingested' ? documents : []
@@ -397,6 +409,20 @@ describe("A document's passages (IN-17)", () => {
     expect(first).toHaveAttribute('aria-expanded', 'false')
     expect(within(dialog).getByRole('region', { name: 'Passage 2' })).toBeVisible()
     await vi.waitFor(() => expect(requested).toContain('/api/chat/passages/nfpa%3A1'))
+  })
+
+  // KB-02: the original comes first, as in chat; under a long description it was off-screen.
+  it('shows a table’s region of the original page above its text', async () => {
+    mockGateway([NFPA])
+    await openAsEngineer()
+    const dialog = await openPassages('NFPA 13 sprinkler standard')
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: '8.2 Spacing' }))
+
+    const opened = within(dialog).getByRole('region', { name: 'Passage 2' })
+    const region = await within(opened).findByRole('img', { name: 'table on the original page' })
+    const text = within(opened).getByText('Passage 2 text.')
+    expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it.each([

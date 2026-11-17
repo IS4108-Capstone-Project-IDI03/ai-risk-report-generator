@@ -459,8 +459,8 @@ function PassageRow({
   )
 }
 
-/** The opened passage: its full text, the region of the page a table, formula or
-    picture was read from (loaded only for those), and its id. */
+/** The opened passage: the region of the page a table, formula or picture was read
+    from (loaded only for those), then its full text, and its id. */
 function PassageDetail({
   id,
   passage: p,
@@ -473,15 +473,16 @@ function PassageDetail({
   const loaded = usePassage(p.kind === 'text' ? undefined : p.id)
   return (
     <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
+      {/* The original first, as in chat (KB-02): a picture's description can run long. */}
+      {loaded.status === 'ready' && (
+        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} />
+      )}
       {p.generated && (
         <p className="kb-pgenerated">
           A model described this picture; these aren’t the document’s words.
         </p>
       )}
       <PassageBody text={p.text} quote="" className="kb-passage-body" />
-      {loaded.status === 'ready' && (
-        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} />
-      )}
       <p className="kb-pid">
         <span>Passage ID</span> {p.id}
       </p>
