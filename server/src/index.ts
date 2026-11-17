@@ -27,6 +27,8 @@ import {
   resumeInterruptedTranscriptions,
 } from './services/observation.service'
 import usageRoutes from './routes/usage.routes'
+import settingsRoutes from './routes/settings.routes'
+import qaRoutes from './routes/qa.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
@@ -80,6 +82,8 @@ app.use('/api/chat', requireAuth, chatRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
 app.use('/api/usage', requireAuth, usageRoutes)
+app.use('/api/settings', requireAuth, settingsRoutes)
+app.use('/api/qa', requireAuth, qaRoutes)
 // The count poller runs on a timer, so it authenticates WITHOUT refreshing the
 // session — polling must not keep an idle tab logged in (F-07). Mounted before
 // the general notifications router so this more specific path matches first.

@@ -38,6 +38,8 @@ export const PERMISSIONS = [
   // Open the usage and cost report (EV-04). The API narrows a risk engineer to
   // the reports assigned to them; a knowledge admin sees every report.
   'usage:view',
+  // Change the Settings that apply to everyone: models, QA strictness, defaults (S-01).
+  'settings:manage',
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -54,6 +56,7 @@ export type Permission = (typeof PERMISSIONS)[number]
 // knowledge:manage   |      -        |      yes
 // users:manage       |      -        |      yes
 // usage:view         |      yes (own reports) | yes (all reports)
+// settings:manage    |      -        |      yes
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   risk_engineer: [
     'assessments:view',
@@ -77,6 +80,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'knowledge:manage',
     'users:manage',
     'usage:view',
+    'settings:manage',
   ],
 }
 
