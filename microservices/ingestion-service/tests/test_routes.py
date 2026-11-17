@@ -383,3 +383,39 @@ def test_each_passage_says_what_kind_it_is_and_whether_ai_wrote_it(monkeypatch):
         "kinds:3": ("formula", False),
         "kinds:4": ("table", False),
     }
+
+
+def test_given_ids_lists_only_those_in_the_order_given_with_their_place_in_the_document(
+    monkeypatch,
+):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_standard(passages)
+
+    body = client.get("/documents/std/passages?ids=std:6&ids=std:2&ids=std:3").json()
+    in_chapter = client.get("/documents/std/passages?ids=std:6&ids=std:2&chapter=1").json()
+
+    # A search's ranked ids keep their rank; "position" is the place in the whole document.
+    assert [(p["id"], p["position"]) for p in body["passages"]] == [
+        ("std:6", 7),
+        ("std:2", 3),
+        ("std:3", 4),
+    ]
+    assert body["total"] == 3
+    assert [p["id"] for p in in_chapter["passages"]] == ["std:2"]
+
+
+def test_position_is_the_place_in_the_whole_document_when_filtered(monkeypatch):
+    passages, _, _ = in07_fakes(monkeypatch)
+    seed_standard(passages)
+
+    listed = client.get("/documents/std/passages?chapter=8").json()["passages"]
+
+    assert [(p["id"], p["position"]) for p in listed] == [("std:5", 6)]
+
+
+def test_more_than_50_ids_are_refused(monkeypatch):
+    in07_fakes(monkeypatch)
+
+    query = "&".join(f"ids=std:{n}" for n in range(51))
+
+    assert client.get(f"/documents/std/passages?{query}").status_code == 422

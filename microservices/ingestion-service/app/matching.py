@@ -298,13 +298,15 @@ def document_passages(
     section: str | None = None,
     page_from: int | None = None,
     page_to: int | None = None,
+    ids: list[str] | None = None,
 ) -> dict:
     """Return one page of a document's passages in reading order, the total and the outline (IN-17).
 
     Reads every passage's metadata (no text, no vectors) to order, outline, filter and count
     them, then the text of the page's passages only: a standard has a thousand or more.
     `chapter` and `section` are names from the outline (see app/outline.py); the page range
-    keeps passages that overlap it.
+    keeps passages that overlap it. `ids` (a search's ranked results) keeps only those, in the
+    order given. A passage's `position` is its place in the whole document, filtered or not.
     """
     empty = {
         "total": 0,
@@ -317,22 +319,25 @@ def document_passages(
     found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
     ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
     by, where = outline.places([meta for _, meta in ordered])
-    rows = list(zip(ordered, where))
+    rows = [(row, place, n + 1) for n, (row, place) in enumerate(zip(ordered, where))]
     in_chapter = [row for row in rows if chapter is None or row[1][0] == chapter]
     chosen = [
-        (id_, meta)
-        for (id_, meta), (_, part) in in_chapter
+        (id_, meta, position)
+        for (id_, meta), (_, part), position in in_chapter
         if (section is None or part == section) and _overlaps(meta, page_from, page_to)
     ]
+    if ids is not None:
+        rank = {id_: n for n, id_ in enumerate(dict.fromkeys(ids))}
+        chosen = sorted((row for row in chosen if row[0] in rank), key=lambda row: rank[row[0]])
     page = chosen[offset : offset + limit]
     texts = {}
     if page:
-        read = collection.get(ids=[id_ for id_, _ in page], include=["documents"])
+        read = collection.get(ids=[id_ for id_, _, _ in page], include=["documents"])
         texts = dict(zip(read["ids"], read["documents"]))
     passages = [
         {
             "id": id_,
-            "position": offset + n + 1,
+            "position": position,
             "text": texts.get(id_, ""),
             "headings": meta.get("headings") or [],
             "section": meta.get("section"),
@@ -343,17 +348,19 @@ def document_passages(
             # Machine-written text, such as a picture's description (IN-13).
             "generated": bool(meta.get("generated_text")),
         }
-        for n, (id_, meta) in enumerate(page)
+        for id_, meta, position in page
     ]
     sections = (
-        outline.counts([part for _, (_, part) in in_chapter]) if chapter and by == "clause" else []
+        outline.counts([part for _, (_, part), _ in in_chapter])
+        if chapter and by == "clause"
+        else []
     )
     return {
         "total": len(chosen),
         "passages": passages,
         "outline": {
             "by": by,
-            "chapters": outline.counts([name for _, (name, _) in rows]),
+            "chapters": outline.counts([name for _, (name, _), _ in rows]),
             "sections": sections,
         },
     }

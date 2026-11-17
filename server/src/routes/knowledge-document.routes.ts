@@ -15,7 +15,6 @@ import {
   KnowledgeDocumentWrongStateError,
   KnowledgeDocumentNotFoundError,
   listIngestedDocuments,
-  listKnowledgeDocumentPassages,
   listKnowledgeDocuments,
   reinstateKnowledgeDocument,
   RejectedFileError,
@@ -30,6 +29,10 @@ import {
   decisionSchema,
   deleteKnowledgeDocument,
 } from '../services/knowledge-document-decision.service'
+import {
+  listKnowledgeDocumentPassages,
+  passageQuerySchema,
+} from '../services/knowledge-passages.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -185,11 +188,19 @@ router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res
   }
 })
 
-// A document's passages in reading order, for the knowledge base browser (IN-17).
-// Answers: 200 `{ passages }` · 404 unknown · 503 ingestion down.
+// One page of a document's passages with its outline, for the knowledge base browser
+// (IN-17): `offset`, `limit`, the outline's `chapter` and `section`, `pageFrom`/`pageTo`,
+// and `q` to search by words. Answers: 200 `{ total, passages, outline }` · 400 a value
+// that can't be used · 404 unknown · 409 a search of a document that isn't active ·
+// 503 a service is down.
 router.get('/:id/passages', requirePermission('knowledge:view'), async (req, res) => {
+  const parsed = passageQuerySchema.safeParse(req.query)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
   try {
-    res.json({ passages: await listKnowledgeDocumentPassages(req.params.id) })
+    res.json(await listKnowledgeDocumentPassages(req.params.id, parsed.data))
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

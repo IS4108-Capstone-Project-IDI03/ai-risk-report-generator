@@ -201,25 +201,57 @@ export type ComparisonRow = {
   differs: boolean
 }
 
-// One passage as the knowledge base browser lists it (IN-17).
+// One passage as the knowledge base browser lists it (IN-17). `position` is its place in
+// the whole document; `kind` what it was read from; `generated` marks machine-written text.
 export type DocumentPassage = {
   id: string
+  position: number
   text: string
   headings: string[]
   section: string | null
   pageStart: number | null
   pageEnd: number | null
   status: string | null
+  kind: 'text' | 'table' | 'formula' | 'picture'
+  generated: boolean
 }
 
-// Returns a document's passages in reading order (IN-17).
-export async function listPassages(id: string): Promise<DocumentPassage[]> {
-  const answer = await callIngestion<{ passages: DocumentPassage[] }>(
-    `/documents/${id}/passages`,
+// A chapter or section of the document's outline, with how many passages it holds. ""
+// is front matter as a chapter, or a chapter's start before its first section.
+export type OutlineEntry = { name: string; count: number }
+
+// One page of a document's passages, how many match, and its outline (IN-17).
+export type PassageListing = {
+  total: number
+  passages: DocumentPassage[]
+  outline: { by: 'clause' | 'section'; chapters: OutlineEntry[]; sections: OutlineEntry[] }
+}
+
+// What to list: a page, the outline's chapter and section, a page range, and (from a
+// search) the passages' ids in rank order.
+export type PassageQuery = {
+  offset: number
+  limit: number
+  chapter?: string
+  section?: string
+  pageFrom?: number
+  pageTo?: number
+  ids?: string[]
+}
+
+// Returns one page of a document's passages, in reading order or the ids' order (IN-17).
+export async function listPassages(id: string, query: PassageQuery): Promise<PassageListing> {
+  const params = new URLSearchParams({ offset: String(query.offset), limit: String(query.limit) })
+  if (query.chapter !== undefined) params.append('chapter', query.chapter)
+  if (query.section !== undefined) params.append('section', query.section)
+  if (query.pageFrom !== undefined) params.append('pageFrom', String(query.pageFrom))
+  if (query.pageTo !== undefined) params.append('pageTo', String(query.pageTo))
+  for (const passageId of query.ids ?? []) params.append('ids', passageId)
+  return callIngestion<PassageListing>(
+    `/documents/${id}/passages?${params}`,
     'GET',
     'The passages could not be loaded. Try again shortly.',
   )
-  return answer.passages
 }
 
 // Returns the aligned passages of a document and the one it matches (IN-07 AC7).
