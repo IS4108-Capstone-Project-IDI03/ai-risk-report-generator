@@ -34,6 +34,14 @@ function Editor(props: {
   const text = draft.trim()
   // An empty box clears my value; a number box sends a number, never text.
   const value: PersonalValue = text === '' ? null : props.numeric ? Number(text) : text
+  // Checked here so the person sees a plain message, not the server's wording (the server checks too).
+  const problem = !props.numeric
+    ? text.length > 80
+      ? 'Use 80 characters or fewer.'
+      : null
+    : value !== null && !(Number.isInteger(value) && value >= 0 && value <= 100)
+      ? 'Enter a whole number from 0 to 100.'
+      : null
   return (
     <div className="st-editor">
       <Input
@@ -41,8 +49,12 @@ function Editor(props: {
         type={props.numeric ? 'number' : 'text'}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        error={problem ?? undefined}
+        min={props.numeric ? 0 : undefined}
+        max={props.numeric ? 100 : undefined}
+        maxLength={props.numeric ? undefined : 80}
       />
-      <Button size="md" onClick={() => run(() => props.save(value))}>
+      <Button size="md" disabled={!!problem} onClick={() => run(() => props.save(value))}>
         Save
       </Button>
       {props.extra}
@@ -68,7 +80,7 @@ export function PersonalSettingField({
       {/* key remounts the box when the saved value changes, so it shows what was stored */}
       <Editor
         key={`mine-${setting.own}`}
-        label={`My ${label.toLowerCase()}`}
+        label={label.toLowerCase().startsWith('my ') ? label : `My ${label.toLowerCase()}`}
         initial={setting.own}
         numeric={numeric}
         save={(v) => saveMine({ [name]: v })}

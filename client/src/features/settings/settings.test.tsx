@@ -206,3 +206,15 @@ describe('Settings', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many tries')
   })
 })
+
+describe('Settings input checks', () => {
+  it('says plainly when the target is out of range and does not send it', async () => {
+    const fetchMock = mock(data(true))
+    render(<Settings />)
+    open('Drafting')
+    const box = await screen.findByLabelText('My sections citing a standard')
+    fireEvent.change(box, { target: { value: '101' } })
+    expect(await screen.findAllByText('Enter a whole number from 0 to 100.')).not.toHaveLength(0)
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+  })
+})

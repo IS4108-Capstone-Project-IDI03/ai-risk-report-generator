@@ -32,6 +32,7 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
   const id = useId()
   const current = options.find((o) => o.id === selected)
 
@@ -42,6 +43,8 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
     const away = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false)
     }
+    // A list opened near the bottom of the page would be cut off; bring it into view.
+    root.current?.querySelector('ul')?.scrollIntoView?.({ block: 'nearest' })
     document.addEventListener('pointerdown', away)
     return () => document.removeEventListener('pointerdown', away)
   }, [open])
@@ -53,6 +56,8 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
         options.findIndex((o) => o.id === selected),
       ),
     )
+    // WebKit does not focus a clicked button; without this Escape and the arrows do nothing.
+    trigger.current?.focus()
     setOpen(true)
   }
   // A greyed option with selectable=false does nothing; without this guard a
@@ -90,6 +95,7 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
       }}
     >
       <button
+        ref={trigger}
         type="button"
         role="combobox"
         aria-label={label}
@@ -125,8 +131,9 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
                 <span>{optionText(o)}</span>
                 <Light on={o.keySet} />
               </span>
-              {o.note && <span className="st-option-note">{o.note}</span>}
               {o.id === selected && <Icon name="check" size={16} />}
+              {/* "No API key" is already said by the light, so only the other reason is a note */}
+              {o.note && o.keySet && <span className="st-option-note">{o.note}</span>}
             </li>
           ))}
         </ul>
