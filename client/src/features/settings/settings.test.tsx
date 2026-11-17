@@ -115,6 +115,16 @@ describe('Settings', () => {
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
   })
 
+  it('closes an open list when you click elsewhere, even where a click does not move focus (Safari)', async () => {
+    mock(data(true))
+    render(<Settings />)
+    open('Models')
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Drafting' }))
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
   it('lets an admin choose a same-provider QA option and sends the PUT', async () => {
     const qa = row('QA check', {
       options: [

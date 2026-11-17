@@ -1,7 +1,7 @@
 // Custom dropdown (listbox) for one AI task's model. S-01 AC3, AC4, AC7, AC8.
 // Called by ModelRow. A native select cannot show a light beside each option.
 // Keys: Up/Down/Home/End move, Enter or Space chooses, Escape closes.
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type * as React from 'react'
 import { Icon } from '../../../design-system'
 import type { ModelOption } from '../api'
@@ -34,6 +34,17 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
   const root = useRef<HTMLDivElement>(null)
   const id = useId()
   const current = options.find((o) => o.id === selected)
+
+  // Safari does not focus a button when it is clicked, so onBlur never fires there; without
+  // this a list opened by a click would stay open until Escape.
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [open])
 
   const show = () => {
     setActive(
