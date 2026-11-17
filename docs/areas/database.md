@@ -731,6 +731,15 @@ read with protection on has no `redaction`. Nothing deletes photo objects yet
 except a failed upload's cleanup; anything that later deletes a photo's object
 must delete its `redaction.key` too.
 
+A photo the engineer has marked (CP-10) has a `region`: `{ x, y, w, h }`, the
+marked rectangle as fractions (0 to 1) of the upright image's width and height,
+with `x` and `y` its top-left corner. It is data only. The image in S3 is never
+changed, and the mark is drawn over the photo wherever it is shown. A photo
+without a mark has no `region`, and the API returns `region: null` for it.
+Clearing the mark removes the field. Only a kept photo of an observation that
+isn't deleted can be marked, and only by the assigned engineer while the
+assessment isn't archived. A mark stamps `edited`.
+
 An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
 for it to be read: what the model proposes from everything captured in it, for
 the engineer to review. Saving never reads it, so a client's notes and site
@@ -841,6 +850,7 @@ none.
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
 | `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `PUT /api/observations/:id/photos/:photoId/region`, `DELETE …/region` | Marks the area of a photo that matters (CP-10): JSON `{ x, y, w, h }`, fractions of the photo with a size above zero, inside it; DELETE clears the mark. The photo in S3 is not changed. 200 with the observation, or 400 / 403 / 404 / 409 (the photo removed, the observation deleted, or the assessment archived) |
 | `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore`, `POST /api/observations/:id/pages/:pageId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |

@@ -3022,3 +3022,99 @@ describe('handwritten pages (CP-19)', () => {
     expect(o.pages).toEqual([])
   })
 })
+
+describe('marking the area of a photo that matters (CP-10)', () => {
+  const by = { id: String(actor._id), name: 'Alex Rowe' }
+  const AREA = { x: 0.25, y: 0.1, w: 0.5, h: 0.4 }
+  const mark = (id: string, photoId: string, region: object, as = api) =>
+    as.put(`/api/observations/${id}/photos/${photoId}/region`).send(region)
+  const unmark = (id: string, photoId: string) =>
+    api.delete(`/api/observations/${id}/photos/${photoId}/region`)
+  const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+
+  it('saves a mark on the photo, leaving the original image unchanged', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    const before = new Map(s3)
+
+    const response = await mark(id, photos[0].id, AREA)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      photos: [{ id: photos[0].id, region: AREA }, { id: photos[1].id, region: null }],
+      edited: { by },
+    })
+    const [o] = await listed()
+    expect(o.photos[0].region).toEqual(AREA)
+    // The original photo stays as taken (AC4): nothing is written to S3.
+    expect(s3).toEqual(before)
+  })
+
+  it('replaces a mark, and clears it', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+    await mark(id, photos[0].id, AREA)
+
+    const moved = await mark(id, photos[0].id, { x: 0, y: 0, w: 1, h: 1 })
+    expect(moved.body.photos[0].region).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+
+    const cleared = await unmark(id, photos[0].id)
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.photos[0].region).toBeNull()
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored!.photos![0]).not.toHaveProperty('region')
+  })
+
+  it('refuses a mark that is not an area inside the photo', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+
+    for (const region of [
+      {},
+      { x: 0.1, y: 0.1, w: 0.5 },
+      { x: -0.1, y: 0, w: 0.5, h: 0.5 },
+      { x: 0.6, y: 0, w: 0.5, h: 0.5 },
+      { x: 0, y: 0.7, w: 0.5, h: 0.4 },
+      { x: 0, y: 0, w: 0, h: 0.5 },
+      { x: 0, y: 0, w: 0.5, h: '0.5' },
+    ]) {
+      const response = await mark(id, photos[0].id, region)
+      expect(response.status, JSON.stringify(region)).toBe(400)
+    }
+    const [o] = await listed()
+    expect(o.photos[0].region).toBeNull()
+    expect(o.edited).toBeNull()
+  })
+
+  it('marks only a kept photo of a kept observation', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+
+    expect((await mark(id, String(new Types.ObjectId()), AREA)).status).toBe(404)
+    expect((await mark(id, 'nope', AREA)).status).toBe(404)
+    expect((await mark(String(new Types.ObjectId()), photos[0].id, AREA)).status).toBe(404)
+
+    await api.delete(`/api/observations/${id}/photos/${photos[1].id}`)
+    const removed = await mark(id, photos[1].id, AREA)
+    expect(removed.status).toBe(409)
+    expect(removed.body.error).toBe('This photo is removed.')
+
+    await api.delete(`/api/observations/${id}`)
+    expect((await mark(id, photos[0].id, AREA)).status).toBe(409)
+    expect((await unmark(id, photos[0].id)).status).toBe(409)
+  })
+
+  it('lets only the assigned engineer mark, and not once archived', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+    const other = signedInAs(app, { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' })
+
+    expect((await mark(id, photos[0].id, AREA, other)).status).toBe(403)
+
+    await AssessmentModel.updateMany({}, { archivedAt: new Date() })
+    expect((await mark(id, photos[0].id, AREA)).status).toBe(409)
+    expect((await unmark(id, photos[0].id)).status).toBe(409)
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored!.photos![0]).not.toHaveProperty('region')
+  })
+})

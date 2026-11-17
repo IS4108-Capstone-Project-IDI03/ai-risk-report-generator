@@ -96,7 +96,7 @@ export interface IPage {
   removed?: IStamp
 }
 
-// A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
+// A site photograph (CP-04), JPG or PNG. Each is its own entry so an
 // annotation (CP-10) can attach to one photo.
 export interface IPhoto {
   _id: Types.ObjectId
@@ -111,6 +111,18 @@ export interface IPhoto {
   removed?: IStamp
   // How the photo last went to the model with protection on (PV-04).
   redaction?: IPhotoRedaction
+  // The area the engineer marked as what matters (CP-10), drawn over the photo
+  // where it is shown. The image in S3 is never changed.
+  region?: IPhotoRegion
+}
+
+// A rectangle on a photo (CP-10), as fractions of the upright image's width
+// and height, so it holds at any size: `x` and `y` are its top-left corner.
+export interface IPhotoRegion {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 // A photo as the model last saw it with protection on (PV-04): the faces
@@ -378,6 +390,17 @@ const photoSchema = new Schema<IPhoto>({
         faces: { type: Number, required: true },
         size: Number,
         at: { type: Date, required: true },
+      },
+      { _id: false },
+    ),
+  },
+  region: {
+    type: new Schema<IPhotoRegion>(
+      {
+        x: { type: Number, required: true },
+        y: { type: Number, required: true },
+        w: { type: Number, required: true },
+        h: { type: Number, required: true },
       },
       { _id: false },
     ),
