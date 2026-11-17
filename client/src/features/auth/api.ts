@@ -18,6 +18,7 @@ export type Permission =
   | 'knowledge:manage'
   | 'users:manage'
   | 'usage:view'
+  | 'settings:manage'
 
 export type Session = {
   user: { id: string; name: string; role: UserRole }

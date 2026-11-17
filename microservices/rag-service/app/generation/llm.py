@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app import config
 from app import usage as usage_log
+from app.model_override import MODEL_OVERRIDE
 
 T = TypeVar("T", bound=BaseModel)
 # uvicorn's own logger, so the line shows in `docker compose logs rag-service`.
@@ -103,14 +104,17 @@ def complete(
     """Return the model's answer parsed into `schema`, and the model that wrote it.
 
     `feature` names the call in the usage record (ai_calls), e.g. "site-walk". `model`
-    is a step's own model setting (e.g. SITE_WALK_MODEL); LLM_MODEL when not given."""
+    is a step's own model setting (e.g. SITE_WALK_MODEL); else the admin's choice for this
+    request (S-01, X-Model header); else LLM_MODEL."""
     try:
         provider = _PROVIDERS[config.LLM_PROVIDER]
     except KeyError:
         raise NotImplementedError(
             f"LLM_PROVIDER {config.LLM_PROVIDER!r} is not supported"
         ) from None
-    return provider(system, user, schema, effort, feature, model or config.LLM_MODEL)
+    return provider(
+        system, user, schema, effort, feature, model or MODEL_OVERRIDE.get() or config.LLM_MODEL
+    )
 
 
 # ---- Chat (streaming answer + JSON plan) ----------------------------------------------------

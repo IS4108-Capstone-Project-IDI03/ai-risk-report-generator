@@ -18,10 +18,17 @@ from pydantic import BaseModel, ValidationError
 
 from app import privacy as protection
 from app.config import AWS_REGION, GEMINI_API_KEY, S3_BUCKET, VISION_MODEL, VISION_PROVIDER
+from app.model_override import MODEL_OVERRIDE
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
 PROMPT_VERSION = "cp21-v4"
+
+
+# The model for this request: the admin's choice (S-01, X-Model header), else VISION_MODEL.
+def _model() -> str:
+    return MODEL_OVERRIDE.get() or VISION_MODEL
+
 
 COPE_DIMENSIONS = ("Construction", "Occupancy", "Protection", "Exposure")
 
@@ -212,7 +219,7 @@ def _interpret_gemini(
         # client has been closed" before the request is sent.
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
-                model=VISION_MODEL,
+                model=_model(),
                 system_instruction=system_instruction(parts),
                 # Each photo after its name, then the text that asks about them.
                 input=[
@@ -258,7 +265,7 @@ def _interpret_gemini(
         if usage and usage.total_input_tokens is not None
         else None
     )
-    return answer, result.model or VISION_MODEL, tokens
+    return answer, result.model or _model(), tokens
 
 
 _PROVIDERS = {"gemini": _interpret_gemini}
@@ -399,7 +406,7 @@ def _describe_gemini(
     try:
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
-                model=VISION_MODEL,
+                model=_model(),
                 system_instruction=instruction,
                 input=[
                     {"type": "image", "data": image, "mime_type": "image/jpeg"},
@@ -433,7 +440,7 @@ def _describe_gemini(
     usage = {
         "feature": "describe_photo",
         "billed_service": "gemini-vision",
-        "model": result.model or VISION_MODEL,
+        "model": result.model or _model(),
         "duration_ms": duration_ms,
         "input_tokens": input_tokens,
         # Google bills thinking as output, so it is added in.

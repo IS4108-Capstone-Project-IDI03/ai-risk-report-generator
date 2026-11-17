@@ -1,0 +1,243 @@
+/* Settings screen (S-01). Colours and sizes from the design system tokens. */
+.st {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px clamp(16px, 2vw, 28px) 40px;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+/* The menu is its own bordered card; the settings sit in a separate card beside it. */
+.st-menu {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-sunken);
+}
+.st-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.st-menu-group + .st-menu-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
+.st-menu-heading {
+  padding: 0 12px 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite-600);
+}
+.st-menu-item {
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text-body);
+  cursor: pointer;
+}
+.st-menu-item:hover {
+  background: var(--surface-hover);
+}
+/* The chosen item: filled, with a bar on its edge, so it is clear which section is open. */
+.st-menu-item[aria-current] {
+  border-left-color: var(--action-primary);
+  background: var(--surface-selected);
+  font-weight: 600;
+  color: var(--text-heading, var(--text-body));
+}
+.st-menu-item:focus-visible,
+.st-select-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.st-panel {
+  min-width: 0;
+  max-width: 720px;
+  padding: 24px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-card);
+}
+.st-title {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+.st-stack,
+.st-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.st-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-row-head,
+.st-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.st-row-label {
+  font-weight: var(--weight-medium);
+}
+.st-note,
+.st-fix {
+  margin: 0;
+  color: var(--graphite-600);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.st-err {
+  margin: 0;
+  color: var(--red-600);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.st-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite-600);
+}
+.st-warn {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--status-moderate-bg);
+  color: var(--status-moderate-fg);
+}
+.st-soon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 24px;
+  border: 1px dashed var(--border-default);
+  border-radius: 14px;
+}
+.st-select {
+  position: relative;
+}
+.st-select-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
+  background: var(--surface-card);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.st-select-button > span:first-child {
+  flex: 1;
+}
+.st-select-button:disabled {
+  background: var(--surface-sunken);
+  cursor: not-allowed;
+}
+.st-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+  animation: omFade 120ms ease-out;
+}
+.st-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.st-option[data-active] {
+  background: var(--surface-sunken);
+}
+.st-option[data-greyed] {
+  color: var(--graphite-600);
+}
+.st-option[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.st-option-main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.st-option-note {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: var(--graphite-600);
+}
+.st-keyinfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--graphite-600);
+}
+.st-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.st-light--on {
+  background: var(--green-600, #2f7d4f);
+}
+.st-light--off {
+  background: var(--graphite-300);
+}
+@media (max-width: 720px) {
+  .st {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .st-menu,
+  .st-menu-group {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .st-menu-group + .st-menu-group {
+    padding: 0 0 0 12px;
+    border-top: none;
+    border-left: 1px solid var(--border-default);
+  }
+  .st-menu-heading {
+    display: none;
+  }
+  .st-menu-item {
+    white-space: nowrap;
+  }
+}

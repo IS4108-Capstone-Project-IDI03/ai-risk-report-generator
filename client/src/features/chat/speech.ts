@@ -1,7 +1,7 @@
 // Voice helpers for the chat (CB-10): the text to read aloud, the saved voice settings, the
 // microphone's problem message, and the stop word. Used by components/VoiceInput.tsx,
 // PlayAnswer.tsx and VoiceSettings.tsx.
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 /** The answer's words without its citation markers or the Try-again bar, as a person would say them. */
 export function spokenText(answer: Element): string {
@@ -98,3 +98,14 @@ export const answerSpoken = new EventTarget()
 // Set when hands-free sends a spoken question, so only that answer is read out by itself.
 // Without it, reopening an old chat would start reading its last answer.
 export const handsFreeTurn = { waiting: false }
+
+/** The voices this device can speak with; the browser loads them a moment after the page. */
+export function useVoices() {
+  const [voices, setVoices] = useState(() => speechSynthesis.getVoices())
+  useEffect(() => {
+    const update = () => setVoices(speechSynthesis.getVoices())
+    speechSynthesis.addEventListener('voiceschanged', update)
+    return () => speechSynthesis.removeEventListener('voiceschanged', update)
+  }, [])
+  return voices
+}

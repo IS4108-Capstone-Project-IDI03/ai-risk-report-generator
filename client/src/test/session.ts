@@ -34,6 +34,7 @@ export const SESSIONS: Record<UserRole, Session> = {
       'knowledge:manage',
       'users:manage',
       'usage:view',
+      'settings:manage',
     ],
     notifications: { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null },
   },

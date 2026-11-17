@@ -1,5 +1,6 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
+import { modelHeaders } from './model-resolver.service'
 import { listIngestedDocuments } from './knowledge-document.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
@@ -250,7 +251,7 @@ export type SectionDraftResult = {
 export async function requestSectionDraft(body: unknown): Promise<SectionDraftResult> {
   return callRag<SectionDraftResult>('/sections/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -289,7 +290,7 @@ export type ChecklistDraftResult = {
 export async function requestChecklistDraft(body: unknown): Promise<ChecklistDraftResult> {
   return callRag<ChecklistDraftResult>('/checklist/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -327,7 +328,7 @@ export type OfiDraftResult = {
 export async function requestOfiDraft(body: unknown): Promise<OfiDraftResult> {
   return callRag<OfiDraftResult>('/ofis/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -364,7 +365,7 @@ export type ProposedLevel = {
 export async function requestFigureProposal(body: unknown): Promise<FigureProposalResult> {
   return callRag<FigureProposalResult>('/figures/propose', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
@@ -372,7 +373,7 @@ export async function requestFigureProposal(body: unknown): Promise<FigurePropos
 export async function requestSummaryDraft(body: unknown): Promise<SummaryDraftResult> {
   return callRag<SummaryDraftResult>('/summary/draft', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),
   })
 }
