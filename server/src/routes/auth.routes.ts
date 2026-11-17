@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import {
+  changePassword,
+  PasswordChangeError,
   InvalidCredentialsError,
   InvalidResetTokenError,
   login,
@@ -80,6 +82,39 @@ router.post('/reset', async (req, res) => {
   } catch (error: unknown) {
     if (error instanceof InvalidResetTokenError) {
       res.status(400).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// Settings > Password (S-01 AC2): the signed-in person changes their own password.
+// 400 with `fields` marks the input to fix; the wrong current password is a 400,
+// not a 401, because the client signs a person out on 401.
+router.post('/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body ?? {}
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+    res.status(400).json({ error: 'Enter your current and new password.' })
+    return
+  }
+  const parsed = newPasswordSchema.safeParse(newPassword)
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'The password is not strong enough.',
+      fields: { newPassword: parsed.error.issues[0].message },
+    })
+    return
+  }
+  try {
+    await changePassword(res.locals.user!.id, currentPassword, parsed.data)
+    res.json({ message: 'Password changed.' })
+  } catch (error: unknown) {
+    if (error instanceof PasswordChangeError) {
+      res.status(400).json({ error: error.message, fields: { [error.field]: error.message } })
+      return
+    }
+    if (error instanceof TooManyAttemptsError) {
+      res.status(429).json({ error: error.message })
       return
     }
     throw error

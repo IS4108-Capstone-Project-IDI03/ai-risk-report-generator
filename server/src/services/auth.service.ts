@@ -155,6 +155,52 @@ export async function requestPasswordReset(email: string): Promise<void> {
   if (!mailIsConfigured()) await sent
 }
 
+// Why a change of password was refused (S-01 AC2): `field` says which input to mark.
+export class PasswordChangeError extends Error {
+  constructor(
+    readonly field: 'currentPassword' | 'newPassword',
+    message: string,
+  ) {
+    super(message)
+    this.name = 'PasswordChangeError'
+  }
+}
+
+// Changes a signed-in person's own password after checking the current one (S-01 AC2).
+// Wrong guesses count toward the same lockout as sign-in; without that, a stolen
+// session could guess the current password with no limit.
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await UserModel.findOne({ _id: userId, active: true }).select('+passwordHash')
+  if (!user?.passwordHash) throw new InvalidCredentialsError()
+
+  const key = user.email.toLowerCase()
+  const record = failedAttempts.get(key)
+  if (record?.lockedUntil && record.lockedUntil > Date.now()) throw new TooManyAttemptsError()
+
+  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    const count = (record?.count ?? 0) + 1
+    failedAttempts.set(key, {
+      count,
+      lockedUntil: count >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : undefined,
+    })
+    throw new PasswordChangeError('currentPassword', 'That is not your current password.')
+  }
+  failedAttempts.delete(key)
+
+  if (currentPassword === newPassword) {
+    throw new PasswordChangeError(
+      'newPassword',
+      'Choose a password different from the current one.',
+    )
+  }
+  user.set({ passwordHash: await bcrypt.hash(newPassword, 10) })
+  await user.save()
+}
+
 // Single-use: the matching token is cleared whether or not this call
 // succeeds past the lookup, so a token can't be retried after a failure.
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
