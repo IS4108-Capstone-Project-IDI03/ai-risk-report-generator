@@ -94,13 +94,23 @@ after that each can be regenerated on its own.
    it. The location is where the observation was made, most specific first
    ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
    categories and severity are not sent, so the proposed categories are the
-   model's own.
+   model's own. A photo the engineer marked (CP-10) also carries its `region`
+   (`{ x, y, w, h }`, fractions of the upright photo); an unmarked photo has
+   no `region` key, so its request is as before.
 4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
-   changed. With the gateway's `privacy` enabled (PV-04), it then has
-   privacy-service blur the faces in every photo (`POST /redact-image`, one
-   call) and mask the texts and location (`POST /mask`, one call), fails
+   changed. For a marked photo it also cuts the marked area from the upright
+   photo at full size, before shrinking, so a small area keeps its detail,
+   and sends it as an extra image labelled `"<photo name>, marked area"`
+   right after its photo. The close-up is not an item: the prompt names only
+   the photos, and the rule added only when a photo is marked (`MARKED_RULE`)
+   says to describe the marked area, use the full photo for context, and
+   cite the close-up by its photo's name. A box drawn on the photo was ruled
+   out because the model can read it as paint or tape. With the gateway's
+   `privacy` enabled (PV-04), it then has
+   privacy-service blur the faces in every photo and close-up (`POST
+   /redact-image`, one call) and mask the texts and location (`POST /mask`, one call), fails
    closed if either fails, and restores real values in the answer. With
    `check_answers` (the gateway's `PII_CHECK_ANSWERS`, on by default), it
    first takes details the model added out of the description and reasons

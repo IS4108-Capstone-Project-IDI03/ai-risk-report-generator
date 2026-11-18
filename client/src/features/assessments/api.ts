@@ -110,8 +110,14 @@ export type SavedPhoto = {
   // that copy's url (null when it had no face, so went as taken). Null, or
   // absent from older answers, when never read with protection on.
   redaction?: { url: string | null; faces: number } | null
+  // The area the engineer marked as what matters (CP-10); null, or absent from
+  // older answers, when none is.
+  region?: PhotoRegion | null
   added: Stamp | null
 }
+// A marked area of a photo (CP-10): fractions (0 to 1) of the upright photo's
+// width and height, from its top-left corner.
+export type PhotoRegion = { x: number; y: number; w: number; h: number }
 // A photographed page of the engineer's handwritten notes (CP-19); url opens
 // the original. Like a recording, its transcription runs after the save
 // returns, so it starts as 'transcribing'.
@@ -427,6 +433,15 @@ const observationsPath = (reference: string) =>
 // pages, to the assessment's active capture session. Null copeDimensions leave
 // it uncategorised. The server stores each file and starts each recording's
 // and page's initial transcription.
+// A photo to save, with any area marked on it first (CP-10).
+type NewPhotoPart = { name: string; image: Blob; region?: PhotoRegion | null }
+// Photos as `photo` parts and, when any is marked, a `photoRegion` part per
+// photo in the same order: its mark as JSON, or empty for one not marked.
+function appendPhotos(form: FormData, photos: NewPhotoPart[]) {
+  for (const p of photos) form.append('photo', p.image, p.name)
+  if (!photos.some((p) => p.region)) return
+  for (const p of photos) form.append('photoRegion', p.region ? JSON.stringify(p.region) : '')
+}
 export async function saveObservation(
   reference: string,
   details: {
@@ -439,13 +454,13 @@ export async function saveObservation(
     checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
   },
   recordings: { name: string; audio: Blob }[],
-  photos: { name: string; image: Blob }[] = [],
+  photos: NewPhotoPart[] = [],
   pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
-  for (const p of photos) form.append('photo', p.image, p.name)
+  appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
@@ -525,12 +540,12 @@ export async function restoreObservation(id: string): Promise<SavedObservation> 
 export async function addObservationMedia(
   id: string,
   recordings: { name: string; audio: Blob }[],
-  photos: { name: string; image: Blob }[],
+  photos: NewPhotoPart[],
   pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   for (const r of recordings) form.append('recording', r.audio, r.name)
-  for (const p of photos) form.append('photo', p.image, p.name)
+  appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
 }
@@ -546,6 +561,17 @@ export async function removeMedia(
   itemId: string,
 ): Promise<SavedObservation> {
   return (await request<SavedObservation>('DELETE', mediaPath(id, kind, itemId))).data
+}
+// Marks the area of a saved photo that matters, or with null clears the mark
+// (CP-10). The photo itself is never changed.
+export async function savePhotoRegion(
+  id: string,
+  photoId: string,
+  region: PhotoRegion | null,
+): Promise<SavedObservation> {
+  const path = `${mediaPath(id, 'photos', photoId)}/region`
+  return (await request<SavedObservation>(region ? 'PUT' : 'DELETE', path, region ?? undefined))
+    .data
 }
 export async function restoreMedia(
   id: string,

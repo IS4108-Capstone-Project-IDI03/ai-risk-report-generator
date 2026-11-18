@@ -219,7 +219,22 @@ def test_every_prompt_says_to_copy_placeholders_exactly():
     # With protection off too, so off and on evals differ only in masking (as in rag-service).
     for parts in (("categories",), ("description",), ("categories", "description")):
         assert "Copy bracketed placeholders" in vision.system_instruction(parts)
-    assert vision.PROMPT_VERSION == "cp21-v4"
+    assert vision.PROMPT_VERSION == "cp10-v1"
+
+
+def test_blurs_the_close_up_of_a_marked_area_too(monkeypatch, fake_privacy):
+    # CP-10: the close-up is cut before faces are blurred, so it goes through the same call.
+    use_fakes(monkeypatch, FakeS3({"k": photo((400, 300))}))
+    marked = photos("k")
+    marked[0]["region"] = {"x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5}
+
+    response = client.post("/interpret", json={"photos": marked, "privacy": PRIVACY})
+
+    assert response.status_code == 200, response.text
+    sent = sent_images()
+    assert [image.size for image in sent] == [(400, 300), (200, 150)]
+    assert all(image.convert("L").getextrema() == (0, 0) for image in sent)
+    assert [len(body["images"]) for path, body in fake_privacy.requests if path != "/mask"] == [2]
 
 
 # The answer check: details Gemini writes that the reading never sent it, such as a name or phone

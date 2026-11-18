@@ -316,7 +316,12 @@ export type InterpretationResult = {
 // masks the text and blurs faces before the model sees them (PV-04). Throws an
 // Error whose message is the reason to show.
 export async function interpret(request: {
-  photos: { label: string; s3Key: string }[]
+  // `region` is the area the engineer marked (CP-10), as fractions of the photo.
+  photos: {
+    label: string
+    s3Key: string
+    region?: { x: number; y: number; w: number; h: number }
+  }[]
   texts: { label: string; kind: 'note' | 'recording' | 'page'; text: string }[]
   location: string | null
   parts: ('categories' | 'description')[]
@@ -329,7 +334,11 @@ export async function interpret(request: {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        photos: request.photos.map((p) => ({ label: p.label, s3_key: p.s3Key })),
+        photos: request.photos.map((p) => ({
+          label: p.label,
+          s3_key: p.s3Key,
+          ...(p.region && { region: p.region }),
+        })),
         texts: request.texts,
         location: request.location,
         parts: request.parts,

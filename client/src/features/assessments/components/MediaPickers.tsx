@@ -1,5 +1,8 @@
-import type { ChangeEvent, CSSProperties, ReactNode } from 'react'
+import { useRef, type ChangeEvent, type CSSProperties, type ReactNode } from 'react'
 import { Icon } from '../../../design-system'
+import type { PhotoRegion } from '../api'
+import { useImageLayer } from './markGeometry'
+import { MarkBox } from './PhotoMark'
 import { ZoomBadge } from './ZoomBadge'
 import '../capture.css'
 
@@ -176,31 +179,20 @@ export function ReadyItem({
 
 // A photo waiting in the list, shown whole, never cropped: contained in a
 // fixed box.
-// A waiting photo's thumbnail; with onOpen, it opens the photo full size.
+// A waiting photo's thumbnail; with onOpen, it opens the photo full size. With
+// `region`, the area marked on it (CP-10).
 export function PhotoThumb({
   url,
   name,
   onOpen,
+  region,
 }: {
   url: string
   name?: string
   onOpen?: () => void
+  region?: PhotoRegion | null
 }) {
-  const img = (
-    <img
-      src={url}
-      alt=""
-      style={{
-        display: 'block',
-        width: '64px',
-        height: '48px',
-        objectFit: 'contain',
-        background: 'var(--surface-sunken)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '6px',
-      }}
-    />
-  )
+  const img = <ThumbImage url={url} region={region} />
   if (!onOpen) return img
   return (
     <button
@@ -219,6 +211,35 @@ export function PhotoThumb({
       {img}
       <ZoomBadge small />
     </button>
+  )
+}
+
+function ThumbImage({ url, region }: { url: string; region?: PhotoRegion | null }) {
+  const image = useRef<HTMLImageElement>(null)
+  const { layer, measure } = useImageLayer(image, 'contain')
+  return (
+    <span style={{ position: 'relative', display: 'block' }}>
+      <img
+        ref={image}
+        src={url}
+        alt=""
+        onLoad={measure}
+        style={{
+          display: 'block',
+          width: '64px',
+          height: '48px',
+          objectFit: 'contain',
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '6px',
+        }}
+      />
+      {region && (
+        <span style={{ position: 'absolute', ...layer, pointerEvents: 'none' }}>
+          <MarkBox region={region} />
+        </span>
+      )}
+    </span>
   )
 }
 

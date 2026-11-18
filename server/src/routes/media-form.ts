@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler, type Request } from 'express'
 import {
   audioExtension,
   photoFormat,
+  photoRegionSchema,
   type NewPage,
   type NewPhoto,
   type NewRecording,
@@ -73,6 +74,34 @@ async function imageParts(
   return images
 }
 
+// The areas marked on the photos before they were saved (CP-10): one
+// `photoRegion` part per `photo` part, in order, each the mark as JSON or empty
+// for a photo not marked. None at all means no photo is marked. Null when they
+// don't match the photos or one isn't an area inside its photo.
+function photoRegions(form: FormData, photos: number) {
+  const parts = form.getAll('photoRegion')
+  if (!parts.length) return []
+  if (parts.length !== photos) return null
+  const regions = []
+  for (const part of parts) {
+    if (typeof part !== 'string') return null
+    if (part === '') {
+      regions.push(null)
+      continue
+    }
+    let value: unknown
+    try {
+      value = JSON.parse(part)
+    } catch {
+      return null
+    }
+    const parsed = photoRegionSchema.safeParse(value)
+    if (!parsed.success) return null
+    regions.push(parsed.data)
+  }
+  return regions
+}
+
 // The request's multipart form, or null when it isn't one.
 export async function readForm(req: Request): Promise<FormData | null> {
   try {
@@ -108,6 +137,11 @@ export async function mediaParts(
 
   const photos = await imageParts(form, 'photo')
   if ('error' in photos) return photos
+  const marked = photoRegions(form, photos.length)
+  if (!marked) return { status: 400, error: 'A photo’s marked area is invalid. Mark it again.' }
+  const markedPhotos: NewPhoto[] = photos.map((p, i) =>
+    marked[i] ? { ...p, region: marked[i] } : p,
+  )
   const pages = await imageParts(form, 'page')
   if ('error' in pages) return pages
 
@@ -118,7 +152,7 @@ export async function mediaParts(
       contentType: file.type,
     })),
   )
-  return { recordings, photos, pages }
+  return { recordings, photos: markedPhotos, pages }
 }
 
 // A site walk upload that was refused: the status, a plain reason, and a `code`

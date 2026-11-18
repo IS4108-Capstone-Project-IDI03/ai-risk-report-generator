@@ -96,7 +96,7 @@ export interface IPage {
   removed?: IStamp
 }
 
-// A site photograph (CP-04), JPG or PNG. Each is its own entry so a later
+// A site photograph (CP-04), JPG or PNG. Each is its own entry so an
 // annotation (CP-10) can attach to one photo.
 export interface IPhoto {
   _id: Types.ObjectId
@@ -111,6 +111,18 @@ export interface IPhoto {
   removed?: IStamp
   // How the photo last went to the model with protection on (PV-04).
   redaction?: IPhotoRedaction
+  // The area the engineer marked as what matters (CP-10), drawn over the photo
+  // where it is shown. The image in S3 is never changed.
+  region?: IPhotoRegion
+}
+
+// A rectangle on a photo (CP-10), as fractions of the upright image's width
+// and height, so it holds at any size: `x` and `y` are its top-left corner.
+export interface IPhotoRegion {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 // A photo as the model last saw it with protection on (PV-04): the faces
@@ -191,6 +203,11 @@ export interface IPhotoReading {
   // The photos the latest attempt describes; once photos are added or removed,
   // a finished description of a different set is out of date.
   photoIds: Types.ObjectId[]
+  // The marks on those photos when the latest attempt started (CP-10): once one
+  // is moved, added or cleared, the model saw something else, so a finished
+  // description is out of date. Absent on readings from before CP-10, which
+  // read every photo unmarked.
+  marks?: { photo: Types.ObjectId; region: IPhotoRegion }[]
   provenance?: IReadingProvenance
 }
 
@@ -364,6 +381,16 @@ const pageSchema = new Schema<IPage>({
   removed: { type: stampSchema },
 })
 
+const regionSchema = new Schema<IPhotoRegion>(
+  {
+    x: { type: Number, required: true },
+    y: { type: Number, required: true },
+    w: { type: Number, required: true },
+    h: { type: Number, required: true },
+  },
+  { _id: false },
+)
+
 const photoSchema = new Schema<IPhoto>({
   name: { type: String, required: true },
   key: { type: String, required: true },
@@ -382,6 +409,7 @@ const photoSchema = new Schema<IPhoto>({
       { _id: false },
     ),
   },
+  region: { type: regionSchema },
 })
 
 const provenanceSchema = new Schema<IReadingProvenance>(
@@ -420,6 +448,15 @@ const photoReadingSchema = new Schema<IPhotoReading>(
     error: String,
     attempts: readingAttempts(),
     photoIds: { type: [Schema.Types.ObjectId], required: true },
+    marks: {
+      type: [
+        new Schema(
+          { photo: { type: Schema.Types.ObjectId, required: true }, region: regionSchema },
+          { _id: false },
+        ),
+      ],
+      default: undefined,
+    },
     provenance: { type: provenanceSchema },
   },
   { _id: false },

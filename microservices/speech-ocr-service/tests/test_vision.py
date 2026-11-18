@@ -363,3 +363,81 @@ def test_interpret_needs_something_to_read():
     # Nothing to describe without photos, and an unknown or empty list of parts.
     for parts in (["description"], ["summary"], []):
         assert client.post("/interpret", json={"texts": [NOTE], "parts": parts}).status_code == 422
+
+
+# CP-10: the engineer can mark the area of a photo that matters, as fractions of the upright photo.
+def half_red(size) -> bytes:
+    """A grey photo whose right half is red."""
+    image = Image.new("RGB", size, "grey")
+    image.paste("red", (size[0] // 2, 0, size[0], size[1]))
+    out = io.BytesIO()
+    image.save(out, "JPEG")
+    return out.getvalue()
+
+
+def test_sends_a_close_up_of_the_marked_area_after_its_photo(monkeypatch):
+    use_fakes(monkeypatch, FakeS3({"a": photo((400, 300)), "b": half_red((400, 200))}))
+    marked = photos("a", "b")
+    marked[1]["region"] = {"x": 0.5, "y": 0.25, "w": 0.5, "h": 0.5}
+
+    response = client.post("/interpret", json={"photos": marked, "texts": [NOTE]})
+
+    assert response.status_code == 200, response.text
+    sent = FakeGemini.request["input"]
+    labels = [p["text"] for p in sent[:-1] if p["type"] == "text"]
+    assert labels == ["Photo 1", "Photo 2", "Photo 2, marked area"]
+    first, second, close_up = sent_images()
+    assert (first.size, second.size, close_up.size) == ((400, 300), (400, 200), (200, 100))
+    # The close-up is the marked area: the red half.
+    red, green, blue = close_up.convert("RGB").getpixel((100, 50))
+    assert red > 200 and green < 60 and blue < 60
+    # The close-up is part of Photo 2, not an item the answer can cite.
+    assert "captured as: Photo 1, Photo 2, Note." in sent[-1]["text"]
+
+
+def test_cuts_the_close_up_from_the_upright_photo_at_full_detail(monkeypatch):
+    s3 = FakeS3(
+        {
+            # Stored wide with EXIF saying "turn 90°": upright it is 200 x 400.
+            "turned": photo((400, 200), orientation=6),
+            "big": photo((4000, 3000)),
+        }
+    )
+    use_fakes(monkeypatch, s3)
+    marked = photos("turned", "big")
+    marked[0]["region"] = {"x": 0, "y": 0.5, "w": 1, "h": 0.5}
+    # A quarter of the big photo: cut before shrinking, so 1000 x 750, not 400 x 300.
+    marked[1]["region"] = {"x": 0.5, "y": 0.5, "w": 0.25, "h": 0.25}
+
+    client.post("/interpret", json={"photos": marked})
+
+    sizes = [image.size for image in sent_images()]
+    assert sizes == [(200, 400), (200, 200), (1600, 1200), (1000, 750)]
+
+
+def test_tells_the_model_about_a_marked_area_only_when_one_is_marked(monkeypatch):
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
+    client.post("/interpret", json={"photos": photos("k")})
+    assert "marked area" not in FakeGemini.request["system_instruction"]
+
+    marked = photos("k")
+    marked[0]["region"] = {"x": 0, "y": 0, "w": 0.5, "h": 0.5}
+    client.post("/interpret", json={"photos": marked})
+    instruction = FakeGemini.request["system_instruction"]
+    assert "'<photo name>, marked area' is a close-up" in instruction
+    assert "Describe the condition in the marked area" in instruction
+    assert vision.PROMPT_VERSION == "cp10-v1"
+
+
+def test_refuses_a_mark_that_is_not_an_area_inside_the_photo(monkeypatch):
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
+    for region in (
+        {"x": -0.1, "y": 0, "w": 0.5, "h": 0.5},
+        {"x": 0.6, "y": 0, "w": 0.5, "h": 0.5},
+        {"x": 0, "y": 0, "w": 0, "h": 0.5},
+        {"x": 0, "y": 0, "w": 0.5},
+    ):
+        marked = photos("k")
+        marked[0]["region"] = region
+        assert client.post("/interpret", json={"photos": marked}).status_code == 422, region
+    assert FakeGemini.request is None

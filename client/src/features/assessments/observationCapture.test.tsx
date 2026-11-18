@@ -71,7 +71,13 @@ const json = (status: number, body: unknown) =>
 // A small stand-in for the gateway, answering by route. The dashboard list is
 // unreachable, so the app falls back to its sample rows. A save echoes what
 // was sent, as the gateway does.
-type Sent = { details: Record<string, unknown>; recordings: File[]; photos: File[] }
+type Sent = {
+  details: Record<string, unknown>
+  recordings: File[]
+  photos: File[]
+  // Each photo's mark, as JSON or empty (CP-10); none when no photo is marked.
+  regions: string[]
+}
 let listed: SavedObservation[] = []
 let saveReply: (sent: Sent) => Promise<Response>
 const saves: Sent[] = []
@@ -85,6 +91,7 @@ function mockGateway() {
         details: JSON.parse(String(form.get('details'))),
         recordings: form.getAll('recording') as File[],
         photos: form.getAll('photo') as File[],
+        regions: form.getAll('photoRegion') as string[],
       }
       saves.push(sent)
       return saveReply(sent)
@@ -358,6 +365,8 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     })
     expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1'])
     expect(saves[0].photos.map((f) => f.name)).toEqual(['IMG_0460.jpg'])
+    // Not marked, so it goes as it always has (CP-10).
+    expect(saves[0].regions).toEqual([])
     // The form starts again empty, tags and all.
     expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice' })).toBeInTheDocument()
@@ -960,5 +969,56 @@ describe('Adding to a site walk proposal', () => {
     )
     click('Back to Site walk proposal')
     expect(await screen.findByRole('heading', { name: 'Chiller room' })).toBeInTheDocument()
+  })
+})
+
+describe('Marking the area of a photo as it is captured (CP-10)', () => {
+  it('marks a photo before saving, and saves the mark with it', async () => {
+    await openCapture()
+    mode('Photo')
+    addPhotos(photo('wide.jpg'), photo('close.jpg'))
+
+    click('Open wide.jpg')
+    const popup = screen.getByRole('dialog', { name: 'wide.jpg' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    // The middle half, moved right one step.
+    fireEvent.keyDown(within(popup).getByLabelText(/^wide\.jpg\. Drag over/), { key: 'ArrowRight' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+    expect(await within(popup).findByRole('button', { name: 'Change mark' })).toBeInTheDocument()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    // Nothing is sent until the observation is saved.
+    expect(saves).toHaveLength(0)
+    // The waiting photo shows its mark.
+    const photos = screen.getByRole('region', { name: 'Photos' })
+    expect(within(photos).getAllByTestId('photo-mark')).toHaveLength(1)
+
+    grade('Low')
+    save()
+
+    await screen.findByText(/Observation saved/)
+    expect(saves[0].photos.map((f) => f.name)).toEqual(['wide.jpg', 'close.jpg'])
+    expect(saves[0].regions.map((r) => r && JSON.parse(r))).toEqual([
+      { x: 0.3, y: 0.25, w: 0.5, h: 0.5 },
+      '',
+    ])
+  })
+
+  it('takes a mark off a waiting photo with Clear mark', async () => {
+    await openCapture()
+    mode('Photo')
+    addPhotos(photo('wide.jpg'))
+    click('Open wide.jpg')
+    const popup = screen.getByRole('dialog', { name: 'wide.jpg' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+    fireEvent.click(await within(popup).findByRole('button', { name: 'Clear mark' }))
+    expect(await within(popup).findByRole('button', { name: 'Mark area' })).toBeInTheDocument()
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+
+    grade('Low')
+    save()
+
+    await screen.findByText(/Observation saved/)
+    expect(saves[0].regions).toEqual([])
   })
 })

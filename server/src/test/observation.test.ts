@@ -36,7 +36,7 @@ vi.mock('../services/storage.service', () => ({
 const speech = vi.fn<(body: { s3_key: string }) => Promise<Response>>()
 // S5's photo interpretation (CP-05), stubbed apart from transcription.
 type InterpretBody = {
-  s3_keys: string[]
+  photos: { label: string; s3_key: string; region?: object }[]
   location: string | null
   note: string | null
   privacy: ReadingPrivacy
@@ -3020,5 +3020,231 @@ describe('handwritten pages (CP-19)', () => {
     const [o] = await listed()
 
     expect(o.pages).toEqual([])
+  })
+})
+
+describe('marking the area of a photo that matters (CP-10)', () => {
+  const by = { id: String(actor._id), name: 'Alex Rowe' }
+  const AREA = { x: 0.25, y: 0.1, w: 0.5, h: 0.4 }
+  const mark = (id: string, photoId: string, region: object, as = api) =>
+    as.put(`/api/observations/${id}/photos/${photoId}/region`).send(region)
+  const unmark = (id: string, photoId: string) =>
+    api.delete(`/api/observations/${id}/photos/${photoId}/region`)
+  const listed = async () => (await api.get('/api/assessments/RPT-2026-0411/observations')).body
+
+  it('saves a mark on the photo, leaving the original image unchanged', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    const before = new Map(s3)
+
+    const response = await mark(id, photos[0].id, AREA)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      photos: [
+        { id: photos[0].id, region: AREA },
+        { id: photos[1].id, region: null },
+      ],
+      edited: { by },
+    })
+    const [o] = await listed()
+    expect(o.photos[0].region).toEqual(AREA)
+    // The original photo stays as taken (AC4): nothing is written to S3.
+    expect(s3).toEqual(before)
+  })
+
+  it('replaces a mark, and clears it', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+    await mark(id, photos[0].id, AREA)
+
+    const moved = await mark(id, photos[0].id, { x: 0, y: 0, w: 1, h: 1 })
+    expect(moved.body.photos[0].region).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+
+    const cleared = await unmark(id, photos[0].id)
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.photos[0].region).toBeNull()
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored!.photos![0]).not.toHaveProperty('region')
+  })
+
+  it('refuses a mark that is not an area inside the photo', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+
+    for (const region of [
+      {},
+      { x: 0.1, y: 0.1, w: 0.5 },
+      { x: -0.1, y: 0, w: 0.5, h: 0.5 },
+      { x: 0.6, y: 0, w: 0.5, h: 0.5 },
+      { x: 0, y: 0.7, w: 0.5, h: 0.4 },
+      { x: 0, y: 0, w: 0, h: 0.5 },
+      { x: 0, y: 0, w: 0.5, h: '0.5' },
+    ]) {
+      const response = await mark(id, photos[0].id, region)
+      expect(response.status, JSON.stringify(region)).toBe(400)
+    }
+    const [o] = await listed()
+    expect(o.photos[0].region).toBeNull()
+    expect(o.edited).toBeNull()
+  })
+
+  it('marks only a kept photo of a kept observation', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+
+    expect((await mark(id, String(new Types.ObjectId()), AREA)).status).toBe(404)
+    expect((await mark(id, 'nope', AREA)).status).toBe(404)
+    expect((await mark(String(new Types.ObjectId()), photos[0].id, AREA)).status).toBe(404)
+
+    await api.delete(`/api/observations/${id}/photos/${photos[1].id}`)
+    const removed = await mark(id, photos[1].id, AREA)
+    expect(removed.status).toBe(409)
+    expect(removed.body.error).toBe('This photo is removed.')
+
+    await api.delete(`/api/observations/${id}`)
+    expect((await mark(id, photos[0].id, AREA)).status).toBe(409)
+    expect((await unmark(id, photos[0].id)).status).toBe(409)
+  })
+
+  it('sends the mark with its photo when the observation is read', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    await mark(id, photos[1].id, AREA)
+
+    expect((await api.post(`/api/observations/${id}/interpretation`)).status).toBe(202)
+
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    const stored = await ObservationModel.findById(id).lean()
+    // An unmarked photo goes as it always has, with no region.
+    expect(vision.mock.calls[0][0]).toMatchObject({
+      photos: [
+        { label: stored!.photos![0].name, s3_key: stored!.photos![0].key },
+        { label: stored!.photos![1].name, s3_key: stored!.photos![1].key, region: AREA },
+      ],
+    })
+    expect(vision.mock.calls[0][0].photos[0]).not.toHaveProperty('region')
+  })
+
+  it('puts a description out of date when a mark it was read with changes', async () => {
+    vision.mockImplementation(() =>
+      s5(200, {
+        categories: [],
+        description: 'During the site visit to Bay 3, it was observed that a valve was shut.',
+        hazard_type: 'Fire Protection System Operation',
+        provider: 'gemini',
+        model: 'gemini-3.8-flash',
+        prompt_version: 'cp10-v1',
+        usage: null,
+      }),
+    )
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }, { image: PNG }])).body
+    await mark(id, photos[0].id, AREA)
+    const photoReading = async () => (await listed())[0].interpretation?.photos
+    const settledReading = async () => {
+      await vi.waitFor(async () => expect((await photoReading())?.status).toBe('interpreted'))
+      return photoReading()
+    }
+
+    await api.post(`/api/observations/${id}/interpretation`)
+    expect((await settledReading()).outOfDate).toBe(false)
+
+    // Moving the mark, marking another photo, or clearing it: the model saw something else.
+    await mark(id, photos[0].id, { ...AREA, x: 0 })
+    expect((await photoReading()).outOfDate).toBe(true)
+    await mark(id, photos[0].id, AREA)
+    expect((await photoReading()).outOfDate).toBe(false)
+    await mark(id, photos[1].id, AREA)
+    expect((await photoReading()).outOfDate).toBe(true)
+    await unmark(id, photos[1].id)
+    await unmark(id, photos[0].id)
+    expect((await photoReading()).outOfDate).toBe(true)
+
+    // Read again as it is now, it is up to date.
+    await api.post(`/api/observations/${id}/interpretation`)
+    expect((await settledReading()).outOfDate).toBe(false)
+  })
+
+  // Marked as the photo is captured or added, before it is saved: one
+  // `photoRegion` part per `photo` part, in order, empty for one not marked.
+  function withMarks(
+    req: ReturnType<typeof api.post>,
+    photos: { image: Buffer; name: string; region: object | null }[],
+  ) {
+    for (const p of photos) {
+      req.attach('photo', p.image, { filename: p.name, contentType: 'image/jpeg' })
+      req.field('photoRegion', p.region ? JSON.stringify(p.region) : '')
+    }
+    return req
+  }
+  const capture = () =>
+    api.post('/api/assessments/RPT-2026-0411/observations').field(
+      'details',
+      JSON.stringify({
+        copeDimensions: ['Protection'],
+        severity: 'moderate',
+        locationId: String(BAY_3),
+      }),
+    )
+
+  it('keeps a mark made at capture with its photo', async () => {
+    await assessmentWithSession()
+
+    const response = await withMarks(capture(), [
+      { image: JPG, name: 'wide.jpg', region: AREA },
+      { image: PNG, name: 'close.jpg', region: null },
+    ])
+
+    expect(response.status).toBe(201)
+    expect(response.body.photos.map((p: { region: unknown }) => p.region)).toEqual([AREA, null])
+    const stored = await ObservationModel.findById(response.body.id).lean()
+    expect(stored!.photos![0].region).toEqual(AREA)
+    expect(stored!.photos![1]).not.toHaveProperty('region')
+  })
+
+  it('keeps a mark made on a photo added later', async () => {
+    await assessmentWithSession()
+    const { id } = (await note()).body
+
+    const response = await withMarks(api.post(`/api/observations/${id}/media`), [
+      { image: JPG, name: 'valve.jpg', region: AREA },
+    ])
+
+    expect(response.status).toBe(200)
+    expect(response.body.photos[0]).toMatchObject({ name: 'valve.jpg', region: AREA })
+  })
+
+  it('refuses a capture whose marks are not areas inside their photos, storing nothing', async () => {
+    await assessmentWithSession()
+
+    const outside = await withMarks(capture(), [
+      { image: JPG, name: 'wide.jpg', region: { x: 0.8, y: 0, w: 0.5, h: 0.5 } },
+    ])
+    expect(outside.status).toBe(400)
+    expect(outside.body.error).toBe('A photo’s marked area is invalid. Mark it again.')
+    // A mark for a photo that was not sent.
+    const extra = await capture()
+      .attach('photo', JPG, { filename: 'wide.jpg', contentType: 'image/jpeg' })
+      .field('photoRegion', '')
+      .field('photoRegion', JSON.stringify(AREA))
+    expect(extra.status).toBe(400)
+
+    expect(s3.size).toBe(0)
+    expect(await ObservationModel.countDocuments()).toBe(0)
+  })
+
+  it('lets only the assigned engineer mark, and not once archived', async () => {
+    await assessmentWithSession()
+    const { id, photos } = (await savePhotos([{ image: JPG }])).body
+    const other = signedInAs(app, { ...actor, _id: new Types.ObjectId(), name: 'Jide Okafor' })
+
+    expect((await mark(id, photos[0].id, AREA, other)).status).toBe(403)
+
+    await AssessmentModel.updateMany({}, { archivedAt: new Date() })
+    expect((await mark(id, photos[0].id, AREA)).status).toBe(409)
+    expect((await unmark(id, photos[0].id)).status).toBe(409)
+    const stored = await ObservationModel.findById(id).lean()
+    expect(stored!.photos![0]).not.toHaveProperty('region')
   })
 })
