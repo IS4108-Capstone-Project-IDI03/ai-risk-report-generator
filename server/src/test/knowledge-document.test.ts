@@ -2180,6 +2180,29 @@ describe('buildKnowledgeDocumentIndex', () => {
     await KnowledgeDocumentModel.deleteMany({})
     await KnowledgeDocumentModel.syncIndexes()
   })
+
+  // IN-19 added awaiting_type to the index's statuses. MongoDB won't build an index under a
+  // name an index with another filter already has, so a database from before kept the old one.
+  it('replaces an index built with an older status filter', async () => {
+    await KnowledgeDocumentModel.collection.dropIndexes()
+    const older = { status: { $in: ['queued', 'processing', 'complete'] } }
+    await KnowledgeDocumentModel.collection.createIndex(
+      { 'file.sha256': 1 },
+      { unique: true, partialFilterExpression: older },
+    )
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await buildKnowledgeDocumentIndex()
+
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
+    const index = (await KnowledgeDocumentModel.collection.indexes()).find(
+      (i) => i.name === 'file.sha256_1',
+    )
+    expect(index?.partialFilterExpression).toEqual({
+      status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] },
+    })
+  })
 })
 
 // PV-05 acceptance: a redacted report's mapping (tag -> client detail) is saved
