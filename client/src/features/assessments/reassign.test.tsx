@@ -3,7 +3,7 @@
 // assessment that says why it can't move.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { calls, created, gateway, json, sent } from '../new-assessment/testKit'
@@ -175,6 +175,31 @@ describe('Reassign (RV-11)', () => {
     expect(screen.getByText('Now with Omar Khan')).toBeInTheDocument()
     // The row holds the "just changed" tint while it settles.
     expect(rowOf('RPT-2026-0001')).toHaveAttribute('data-changed')
+  })
+
+  // The tint is let go after 1.4 s. Left running past the list, that timer updated a screen that
+  // had gone (and, in tests, fired after jsdom was torn down).
+  it('lets the "just changed" tint go when the list closes before it settles', async () => {
+    serve({
+      'POST /api/assessments/RPT-2026-0001/reassign': () =>
+        json(200, row('RPT-2026-0001', 'Jurong Island Depot', { engineer: OMAR })),
+    })
+    const started = vi.spyOn(window, 'setTimeout')
+    const cancelled = vi.spyOn(window, 'clearTimeout')
+    await openList('knowledge_admin')
+    fireEvent.click(reassignButton('RPT-2026-0001'))
+    fireEvent.click(within(dialog()).getByRole('button', { name: /^Assigned engineer/ }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /^Omar Khan/ }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Reassign' }))
+    await waitFor(() => expect(rowOf('RPT-2026-0001')).toHaveAttribute('data-changed'))
+    const tint = started.mock.results[started.mock.calls.findLastIndex(([, ms]) => ms === 1400)]
+
+    cleanup()
+
+    expect(tint).toBeDefined()
+    expect(cancelled).toHaveBeenCalledWith(tint.value)
+    started.mockRestore()
+    cancelled.mockRestore()
   })
 
   it('keeps the dialog open with the reason when it fails', async () => {

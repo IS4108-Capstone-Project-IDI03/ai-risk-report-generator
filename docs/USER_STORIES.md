@@ -254,6 +254,29 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a passage is plain text, when it is ingested, then it records no region.
   </details>
 
+- [ ] **IN-17** — Browse the knowledge base and its passages (risk engineer, Should, deps: KB-01, IN-07)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see which documents the knowledge base holds and the passages search draws from, so I can judge what an answer or a draft rests on.
+
+  Engineers browse read-only; adding and changing documents stays with the knowledge admin (`knowledge:manage`, KB-01). Passages can't be edited here: amending passages arrives with manual entry (IN-18), for manually entered documents only. See `docs/areas/services.md` (Browsing a knowledge document's passages).
+
+  1. Given I am a risk engineer, when I open the navigation, then Knowledge base is offered, and it opens on the Documents list.
+  2. Given I am a risk engineer, when I open the Knowledge base, then I don't see Add documents or Requests, and a document's details offer no Edit details, Withdraw, Reinstate or Delete.
+  3. Given a document needs review and I am a risk engineer, when I view the list, then it is marked Needs review but offers no Review page, and opening a Review link shows the list instead.
+  4. Given documents of different source types, when I filter by one source type, then only documents of that type are listed.
+  5. Given a document has finished ingesting, when I open its passages, then I see a table of 25 at a time in reading order, each row with its place in the document, its nearest heading, a short excerpt, its type (Text, Table, Formula or Picture, with text a model wrote marked Generated) and its pages, and I can move between pages with Previous and Next.
+  6. Given a standard, when I choose a chapter, then only that chapter's passages are listed from its first page, and I can then choose one of its sections; each chapter and section is named by its own heading, with how many passages it holds. Given a past report, then I filter by its template sections instead.
+  7. Given I enter a page range, when it is valid, then only passages on those pages are listed; given it ends before it starts, then I am told so and the list doesn't change.
+  8. Given an active document, when I type words into Search this document, then its best matching passages are listed, best first, within the chapter, section and pages I chose; when I empty the search, the whole document is listed again.
+  9. Given I choose Meaning beside the search, when I describe what I'm looking for and press Enter, then the passages closest in meaning are listed, best first, within my filters, even if they use other words; nothing is searched until I press Enter (or choose Meaning with words already typed), the field says so meanwhile, and the footer names what I searched for. With privacy protection on, client details in what I typed are masked before it leaves the system, and if they can't be, nothing is searched and I'm told why.
+  10. Given a document needs review or is withdrawn, when I open its passages, then a note says they aren't used in answers or search, and neither search is offered.
+  11. Given I open one passage, when it expands, then I see its full text with valid LaTeX shown as math, the region of the original page for a table, formula or picture once one is recorded (KB-02), and its passage ID.
+  12. Given a document has no passages, nothing matches my filters, or the passages can't be loaded, when I open its passages, then I see a message saying so, with Clear filters when nothing matches and Try again after a failed load.
+  13. Given any dialog that has a close button, when I click outside it, then it closes, and a text selection dragged out of it doesn't close it; when its content scrolls, its header and close button stay at the top.
+  14. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)

@@ -373,6 +373,20 @@ describe('Source region', () => {
     expect(region.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  // react-pdf 11's <Document> suspends unless told not to, and its cache lets a suspended
+  // document go once shown: the next render opened the PDF again, a new pdf.js worker every
+  // ~600 ms, so the region was never cut and its box kept jumping (IN-17 review, 18 Nov).
+  it('loads its document and page in place, never suspending, so the PDF opens once', async () => {
+    pdf.suspense = []
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'gpm: 250' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+
+    expect(pdf.suspense.length).toBeGreaterThan(0)
+    expect(new Set(pdf.suspense)).toEqual(new Set([false]))
+  })
+
   // Docling's boxes sit tight on a table's top rule and header, so the cut keeps a margin.
   it("cuts the page to the region's box, with a margin of 8 points", async () => {
     vi.mocked(fetchPassage).mockResolvedValue(TABLE)
@@ -385,6 +399,18 @@ describe('Source region', () => {
     expect(cut.top).toBeCloseTo(92)
     expect(cut.width).toBeCloseTo(316)
     expect(cut.height).toBeCloseTo(216)
+  })
+
+  // A view can then size it to a box (the Passages view: half its width or half the window's
+  // height, whichever is reached first) without stretching it.
+  it('gives the drawn region its shape, width over height', async () => {
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited())
+
+    const region = await screen.findByRole('img', { name: 'Table on page 4 of the original' })
+
+    // The cut above: 316 x 216 points.
+    expect(Number(region.style.getPropertyValue('--region-ratio'))).toBeCloseTo(316 / 216, 3)
   })
 
   it('keeps the margin inside the page', async () => {

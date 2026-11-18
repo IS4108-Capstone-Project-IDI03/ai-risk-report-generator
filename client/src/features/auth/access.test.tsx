@@ -99,24 +99,25 @@ describe('Route guard (F-05)', () => {
     expect(screen.getByRole('heading', { name: 'User accounts' })).toBeInTheDocument()
   })
 
-  it.each([
-    ['/admin/users', 'User accounts', '/api/users'],
-    ['/admin/knowledge-base', 'Knowledge base', '/api/knowledge-documents'],
-  ])('blocks a risk engineer from %s', async (path, screenName, api) => {
-    openAt(path)
-    await signIn('risk_engineer')
+  // IN-17 opened the Knowledge base to engineers, read-only (knowledgeBrowse.test.tsx).
+  it.each([['/admin/users', 'User accounts', '/api/users']])(
+    'blocks a risk engineer from %s',
+    async (path, screenName, api) => {
+      openAt(path)
+      await signIn('risk_engineer')
 
-    expect(screen.getByRole('alert')).toHaveTextContent('You do not have access to this page')
-    expect(screen.getByRole('alert')).toHaveTextContent('Risk engineer')
-    expect(screen.queryByRole('heading', { name: screenName })).not.toBeInTheDocument()
-    expect(requested()).not.toContain(api)
-    // Nor is it offered in the navigation.
-    expect(within(nav()).queryByRole('button', { name: screenName })).not.toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('You do not have access to this page')
+      expect(screen.getByRole('alert')).toHaveTextContent('Risk engineer')
+      expect(screen.queryByRole('heading', { name: screenName })).not.toBeInTheDocument()
+      expect(requested()).not.toContain(api)
+      // Nor is it offered in the navigation.
+      expect(within(nav()).queryByRole('button', { name: screenName })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Go to your workspace' }))
-    expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/assessments')
-  })
+      fireEvent.click(screen.getByRole('button', { name: 'Go to your workspace' }))
+      expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/assessments')
+    },
+  )
 
   // RV-11 reversed the F-05 decision that kept admins out of these screens: an admin has the
   // engineer's screens and abilities, and is read-only only on other people's assessments.

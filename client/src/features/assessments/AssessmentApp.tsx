@@ -14,6 +14,7 @@ import {
   Toaster,
 } from '../../design-system'
 import type { Session } from '../auth/api'
+import { can } from '../auth/access'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { useNotificationCounts } from '../notifications/useNotificationCounts'
 import { Inbox } from '../inbox/screens/Inbox'
@@ -436,7 +437,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       />
                     )}
 
-                    {v.isKnowledge && <KnowledgeBase narrow={v.stackTable} notify={v.notify} />}
+                    {v.isKnowledge && (
+                      <KnowledgeBase
+                        narrow={v.stackTable}
+                        notify={v.notify}
+                        canManage={can('knowledge:manage', session)}
+                      />
+                    )}
 
                     {v.isUsage && (
                       <Suspense fallback={null}>

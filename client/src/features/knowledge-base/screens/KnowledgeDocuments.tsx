@@ -15,6 +15,8 @@ import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
 import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
+import { PassagesDialog } from '../components/PassagesDialog'
+import { NO_FILTERS, type Filters } from '../documentFilters'
 
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
@@ -36,6 +38,14 @@ const FACILITY_FILTER = [
   { value: 'all', label: 'All facility types' },
   ...FACILITY_TYPES,
 ]
+// The groups' source types (IN-17); an unconfirmed one matches no value here.
+const SOURCE_FILTER = [
+  { value: '', label: 'Any source type' },
+  ...GROUPS.filter((g) => g.sourceType).map((g) => ({
+    value: g.sourceType as string,
+    label: g.title,
+  })),
+]
 const STATUS_FILTER = [
   { value: '', label: 'Any status' },
   { value: 'active', label: 'Active' },
@@ -50,7 +60,6 @@ const hasStatus = (d: KnowledgeDocument, status: string) =>
     : status === 'needs_review'
       ? needsReview(d)
       : !d.withdrawn && !needsReview(d)
-const NO_FILTERS = { title: '', jurisdiction: '', facilityType: '', status: '' }
 
 // A fuzzy title match: the typed letters appear in the title in order, with
 // gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
@@ -65,11 +74,13 @@ function titleMatches(title: string, query: string) {
   return true
 }
 
-export type Filters = typeof NO_FILTERS
-
 // The filters the admin left the list with, kept in the browser's history
 // entry by KnowledgeBase.tsx so the way back from a Review page restores them.
-const restoredFilters = (): Filters | null => window.history.state?.kbFilters ?? null
+// Merged over NO_FILTERS: an entry saved before a filter existed lacks its key.
+const restoredFilters = (): Filters | null => {
+  const saved = window.history.state?.kbFilters
+  return saved ? { ...NO_FILTERS, ...saved } : null
+}
 
 // What the Edit details dialog opens on: the document, and the version being
 // restored, if any (AC10).
@@ -82,6 +93,7 @@ export function KnowledgeDocuments({
   onAdd,
   onNeedReview,
   onReview,
+  canManage,
 }: {
   // The document a notification opened (F-10), marked once and scrolled into view.
   focused?: string | null
@@ -91,6 +103,8 @@ export function KnowledgeDocuments({
   onNeedReview: (count: number) => void
   // Opens a document's Review page (IN-07), keeping the filters for the way back.
   onReview: (id: string, filters: Filters) => void
+  // Off for a risk engineer, who browses read-only (IN-17).
+  canManage: boolean
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -101,6 +115,7 @@ export function KnowledgeDocuments({
   const [historyOf, setHistoryOf] = useState<KnowledgeDocument | null>(null)
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
   const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
+  const [passagesOf, setPassagesOf] = useState<KnowledgeDocument | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -131,6 +146,7 @@ export function KnowledgeDocuments({
   const shown = (documents ?? []).filter(
     (d) =>
       titleMatches(d.title, filters.title) &&
+      (!filters.sourceType || d.sourceType === filters.sourceType) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
       (!filters.status || hasStatus(d, filters.status)),
@@ -173,7 +189,11 @@ export function KnowledgeDocuments({
     <section className="kb-docs" aria-labelledby="kb-docs-title">
       <header className="kb-docs-head">
         <h2 id="kb-docs-title">All documents</h2>
-        <p>Browse every document in the knowledge base and fix their details.</p>
+        <p>
+          {canManage
+            ? 'Browse every document in the knowledge base and fix their details.'
+            : 'Browse every document in the knowledge base.'}
+        </p>
       </header>
 
       {unreachable && (
@@ -191,7 +211,7 @@ export function KnowledgeDocuments({
       )}
 
       {/* Placeholder for the app-wide notification feature (IN-05). */}
-      {needReview.length > 0 && (
+      {canManage && needReview.length > 0 && (
         <div role="status" aria-label="Documents to review">
           <ReviewBanner
             documents={needReview}
@@ -211,6 +231,13 @@ export function KnowledgeDocuments({
             placeholder="Search titles"
             value={filters.title}
             onChange={(e) => setFilters({ ...filters, title: e.target.value })}
+          />
+          <Select
+            size="sm"
+            aria-label="Source type"
+            options={SOURCE_FILTER}
+            value={filters.sourceType}
+            onChange={(e) => setFilters({ ...filters, sourceType: e.target.value })}
           />
           <Select
             size="sm"
@@ -279,9 +306,11 @@ export function KnowledgeDocuments({
             title="The knowledge base is empty"
             description="Documents appear here once an upload finishes ingesting."
             action={
-              <Button variant="secondary" iconLeft="upload" onClick={onAdd}>
-                Add documents
-              </Button>
+              canManage ? (
+                <Button variant="secondary" iconLeft="upload" onClick={onAdd}>
+                  Add documents
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -315,6 +344,8 @@ export function KnowledgeDocuments({
                   onChangeStatus={setChangingStatus}
                   onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
+                  onPassages={setPassagesOf}
+                  canManage={canManage}
                 />
               )
             })}
@@ -322,6 +353,7 @@ export function KnowledgeDocuments({
         )}
       </div>
 
+      {passagesOf && <PassagesDialog document={passagesOf} onClose={() => setPassagesOf(null)} />}
       {historyOf && (
         <EditHistoryDialog
           document={historyOf}

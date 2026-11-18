@@ -21,6 +21,8 @@ export function DocumentRow({
   onChangeStatus,
   onDelete,
   onReview,
+  onPassages,
+  canManage,
 }: {
   document: KnowledgeDocument
   open: boolean
@@ -32,6 +34,9 @@ export function DocumentRow({
   onChangeStatus: () => void
   onDelete: () => void
   onReview: () => void
+  onPassages: () => void
+  // Off for a risk engineer: no Review link, no actions in the details (IN-17).
+  canManage: boolean
 }) {
   const panel = `kb-details-${d.id}`
   return (
@@ -81,7 +86,11 @@ export function DocumentRow({
           {d.withdrawn ? (
             <Badge tone="danger">Withdrawn</Badge>
           ) : needsReview(d) ? (
-            <ReviewBadge title={d.title} onReview={onReview} />
+            canManage ? (
+              <ReviewBadge title={d.title} onReview={onReview} />
+            ) : (
+              <Badge tone="moderate">Needs review</Badge>
+            )
           ) : (
             <Badge tone="low">Active</Badge>
           )}
@@ -112,6 +121,8 @@ export function DocumentRow({
               onHistory={onHistory}
               onChangeStatus={onChangeStatus}
               onDelete={onDelete}
+              onPassages={onPassages}
+              canManage={canManage}
             />
           </td>
         </tr>

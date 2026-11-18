@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 import pymupdf
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
@@ -176,6 +176,32 @@ def delete_passages(doc_id: str) -> dict:
     if ids:
         collection.delete(ids=ids)
     return {"passagesDeleted": len(ids)}
+
+
+@router.get("/documents/{doc_id}/passages")
+def list_passages(
+    doc_id: str,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    chapter: str | None = None,
+    section: str | None = None,
+    page_from: Annotated[int | None, Query(alias="pageFrom", ge=1)] = None,
+    page_to: Annotated[int | None, Query(alias="pageTo", ge=1)] = None,
+    ids: Annotated[list[str] | None, Query()] = None,
+) -> dict:
+    """Return one page of a document's passages in reading order, the total and its outline (IN-17).
+
+    Filters by the outline's chapter and section, by a page range (passages that overlap
+    it) and by `ids`, a search's ranked results, kept in that order. Reads the index only: an
+    unknown document has no passages. The gateway checks the document exists.
+    """
+    if page_from is not None and page_to is not None and page_from > page_to:
+        raise HTTPException(422, "The page range ends before it starts.")
+    if ids is not None and len(ids) > 50:
+        raise HTTPException(422, "At most 50 passage ids can be listed at once.")
+    return matching.document_passages(
+        doc_id, offset, limit, chapter, section, page_from, page_to, ids
+    )
 
 
 @router.get("/documents/{doc_id}/comparison/{other_id}")

@@ -6,15 +6,25 @@ import { Icon } from '../core/Icon'
 export type SearchFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> & {
   // Accessible name; the placeholder is often the same text.
   label?: string
+  // Controls inside the field's right end, e.g. how to search (IN-17's Words | Meaning).
+  end?: React.ReactNode
 }
 
-/** Returns a 40 px grey search input with a magnifier. */
-export function SearchField({ label, className, ...rest }: SearchFieldProps) {
-  return (
-    <label className={`ds-search ${className ?? ''}`}>
+/** Returns a 40 px grey search input with a magnifier, and `end` inside its right end. */
+export function SearchField({ label, className, end, ...rest }: SearchFieldProps) {
+  const field = (
+    <>
       <Icon name="search" size={16} />
       <input type="search" aria-label={label ?? rest.placeholder} {...rest} />
-    </label>
+    </>
+  )
+  if (!end) return <label className={`ds-search ${className ?? ''}`}>{field}</label>
+  // The end's controls stay outside the label, so they are never part of the input's name.
+  return (
+    <div className={`ds-search has-end ${className ?? ''}`}>
+      <label className="ds-search-input">{field}</label>
+      <div className="ds-search-end">{end}</div>
+    </div>
   )
 }
 

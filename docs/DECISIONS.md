@@ -2596,3 +2596,25 @@ Rejected:
 - Drawing the mark on Appendix A's photos and in the export: the report shows photos as taken; the mark only tells the AI reading where to look. Asked on 18 Nov.
 
 Stories: CP-10, CP-05, CP-21, PV-04.
+
+## 2026-11-17 — A knowledge document's passages are paged and outlined by the ingestion service, from clause numbers
+
+Chose:
+- (IN-17) The Passages view pages the document (25 at a time) and filters it by chapter, section and pages in the ingestion service (`matching.document_passages`): it reads every passage's metadata, no text or vectors, orders, outlines, filters and counts them, then reads the text of the page shown only. Chroma can't filter on a heading's prefix or a page overlap, and about 1,500 small metadata rows per standard is cheap to scan on each read; no cache until it's measured slow.
+- The outline comes from clause numbers in each passage's nearest heading, carried forward in reading order (`app/outline.py`), not from heading levels: on real NFPA 25, 631 of 639 trails start with the page header, a watermark and an edition mark, so `headings[0]` is the same for every passage. 613 of 639 passages get a chapter this way. A document with no clause numbers (a past report) is outlined by its template `section`. Chapters and sections are named only by their own heading, never a sub-clause: no name is better than a wrong one. Computed on read, so no re-ingestion.
+- Search by words reuses rag-service's local keyword search for the one document (no paid call, so nothing to mask), then the same ingestion listing with the ranked ids, so search results are paged, filtered and outlined like a listing. The keyword search skips passages that aren't active, so searching a document that needs review or is withdrawn answers 409 and the client offers no search.
+- Search by meaning is the same field with a Words | Meaning switch inside it (asked on 17 Nov, after Chroma's search field; two options, as our retrieval is purely semantic: no Hybrid until RT-01 AC5 builds one, no Regex). It reuses chat's retrieval (Cohere embed and rerank, masked the same way, failing closed) through rag-service's `POST /passages/meaning`, and the gateway records its usage. It runs only on Enter, or on choosing Meaning with words typed, so a pause in typing is never a paid call; the placeholder, a hint under the field and the footer say so.
+- A document's status is one note above the table, not a column: its passages always share it.
+- Every dialog with a close button closes on a click outside it, and its header stays at the top while it scrolls (asked on 17 Nov: every dialog, not just this one).
+
+Reason: an engineer judging what an answer rests on needs to find a clause in a standard of 1,000 or more passages, which a single unpaged list can't offer. Clause numbers are what engineers cite and are stable across the PDFs seen so far, where heading levels aren't.
+
+Rejected:
+- Filtering on `headings[0]`/`headings[1]`: every NFPA 25 passage has the same junk first levels (D1 in the ingestion fixes plan).
+- Storing chapter and section on each passage at ingestion: needs re-ingesting every document, and the junk trails should be fixed first (D1).
+- Filtering a search's results in the gateway by headings: the ingestion listing already filters, so passing it the ranked ids keeps one rule.
+- Searching by meaning after a longer pause in typing (no Enter): every pause mid-thought would be a paid Cohere call.
+- Recording a search by meaning as `retrieval`, as S4 names it: the cost report counts `retrieval` as drafting, and a call with no assessment as Chatbot, so its cost would have shown as both. It is `knowledge-search`, with its own group and chart colour (asked on 17 Nov).
+- A status column: it would repeat the same word on every row.
+
+Stories: IN-17, IN-18, KB-02, IN-13.

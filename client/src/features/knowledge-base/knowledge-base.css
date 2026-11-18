@@ -879,3 +879,364 @@
 .kb-request-picker > label:has(input:checked) {
   background: var(--surface-selected);
 }
+
+/* A document's passages (IN-17, components/PassagesDialog.tsx): the out-of-use note,
+   the filters, then one card holding the table and its footer, as the Documents tab
+   draws its list. */
+.kb-pbody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Small controls on one line; the page range keeps its two fields together, and the
+   range's error drops under them without pushing the dropdowns down. */
+.kb-ptoolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 12px;
+}
+.kb-ptoolbar > label {
+  flex: 0 1 196px;
+  min-width: 150px;
+}
+/* The search field and its Words | Meaning switch take the room the dropdowns leave;
+   "Press Enter to search" sits under the field while a search by meaning waits for it. */
+.kb-psearch {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.kb-psearch-hint {
+  margin: 0 0 0 14px;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+.kb-prange {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.kb-prange > label {
+  width: 112px;
+}
+.kb-prange > span {
+  line-height: var(--control-height-sm);
+  color: var(--text-muted);
+}
+.kb-plist {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.kb-ptable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-body-size);
+  color: var(--text-body);
+  transition: opacity 160ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+/* The last page's rows stay, dimmed, while the next one loads. */
+.kb-ptable.is-stale {
+  opacity: 0.55;
+}
+.kb-ptable thead th {
+  padding: 8px 12px;
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.kb-ptable td {
+  padding: 10px 12px;
+  vertical-align: top;
+}
+.kb-ptable .kb-pcol-pos {
+  width: 64px;
+  padding-left: 16px;
+}
+.kb-ptable .kb-pcol-section {
+  width: 30%;
+}
+.kb-ptable .kb-pcol-kind {
+  width: 112px;
+  text-align: center;
+}
+.kb-ptable .kb-pcol-pages {
+  width: 88px;
+  padding-right: 16px;
+  text-align: center;
+}
+.kb-ptable td.kb-pcol-pos,
+.kb-ptable td.kb-pcol-pages {
+  font-family: var(--font-mono);
+  font-size: var(--text-small-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.kb-ptable td.kb-pcol-pos {
+  padding-top: 11px;
+}
+.kb-ptable td.kb-pcol-pages {
+  padding-top: 11px;
+  white-space: nowrap;
+}
+
+.kb-prow {
+  cursor: pointer;
+  transition: background 120ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb-prow + .kb-prow,
+.kb-pdetail-row + .kb-prow {
+  border-top: 1px solid var(--border-subtle);
+}
+.kb-prow:hover {
+  background: var(--surface-hover);
+}
+.kb-prow.is-open {
+  background: var(--surface-selected);
+}
+
+/* The nearest heading is the row's disclosure button: chevron, then at most two lines. */
+.kb-ptoggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -3px -6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.kb-ptoggle > span:first-child {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+.kb-ptoggle > span:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.kb-ptoggle > span.is-none {
+  font-weight: var(--weight-regular);
+  font-style: italic;
+  color: var(--text-muted);
+}
+.kb-ptoggle:hover > span:last-child {
+  color: var(--text-link);
+}
+.kb-ptoggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.kb-pexcerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+/* Type, with the violet Generated marker under it for a model's words (IN-13). */
+.kb-pkind {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+
+/* An opened passage: the full table width on the sunken surface, with the 2px ink rule
+   the Documents table uses for an open row. */
+.kb-ptable .kb-pdetail-row > td {
+  padding: 0;
+}
+.kb-pdetail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 16px 64px;
+  background: var(--surface-sunken);
+  border-left: 2px solid var(--action-primary);
+  border-top: 1px solid var(--border-subtle);
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.kb-pdetail .kb-passage-body {
+  max-width: 75ch;
+}
+/* The original page's region, as large as fits a box half the passage's width and half the
+   window's height, whichever it reaches first; its shape is kept (--region-ratio, set by
+   SourceRegion as width over height). Larger than chat's 12rem: the Passages view has room,
+   and a whole-page form or a dense table is unreadable smaller. */
+.kb-pdetail .src-region {
+  width: min(50%, calc(50svh * var(--region-ratio, 1)));
+  max-width: 50%;
+  max-height: none;
+  height: auto;
+}
+.kb-pgenerated {
+  margin: 0;
+  font-size: var(--text-small-size);
+  color: var(--ai-fg);
+}
+.kb-pid {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+/* The label in the sans face, so the id alone reads as code. */
+.kb-pid > span {
+  margin-right: 4px;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+}
+
+.kb-pfoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 12px;
+  border-top: 1px solid var(--border-default);
+}
+
+/* While the first page loads: five rows of grey bars, gently pulsing. */
+.kb-pskeleton {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.kb-pskeleton > div {
+  display: grid;
+  grid-template-columns: 40px 30% 1fr 72px;
+  gap: 16px;
+  padding: 16px;
+  animation: kb-pulse 1.4s ease-in-out infinite;
+}
+.kb-pskeleton > div + div {
+  border-top: 1px solid var(--border-subtle);
+}
+.kb-pskeleton span {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--graphite-100);
+}
+.kb-pskeleton span:first-child {
+  grid-column: 1;
+  width: 24px;
+}
+.kb-pskeleton span:last-child {
+  grid-column: 4;
+}
+@keyframes kb-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-pskeleton > div {
+    animation: none;
+  }
+  .kb-ptable {
+    transition: none;
+  }
+}
+
+/* A phone: each passage is a card. Its place and heading, then the excerpt, then its
+   type and pages on one line. */
+@media (max-width: 767px) {
+  .kb-ptoolbar > label {
+    flex-basis: 100%;
+  }
+  .kb-prange {
+    flex-basis: 100%;
+  }
+  .kb-prange > label {
+    flex: 1;
+    width: auto;
+  }
+  .kb-ptable,
+  .kb-ptable tbody,
+  .kb-ptable tr,
+  .kb-ptable td {
+    display: block;
+  }
+  .kb-ptable thead {
+    display: none;
+  }
+  .kb-ptable .kb-prow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'pos section section'
+      '. text text'
+      '. kind pages';
+    gap: 6px 10px;
+    padding: 12px 14px;
+  }
+  .kb-ptable .kb-prow > td {
+    width: auto;
+    padding: 0;
+    text-align: left;
+  }
+  .kb-ptable td.kb-pcol-pos {
+    grid-area: pos;
+    padding-top: 1px;
+  }
+  .kb-ptable .kb-pcol-section {
+    grid-area: section;
+  }
+  .kb-ptable .kb-pcol-text {
+    grid-area: text;
+  }
+  .kb-ptable .kb-pcol-kind {
+    grid-area: kind;
+  }
+  .kb-ptable td.kb-pcol-pages {
+    grid-area: pages;
+    padding-top: 0;
+  }
+  .kb-ptable td.kb-pcol-pages::before {
+    content: 'p. ';
+  }
+  .kb-pkind {
+    flex-direction: row;
+  }
+  .kb-pdetail {
+    padding-left: 20px;
+  }
+  .kb-pskeleton > div {
+    grid-template-columns: 24px 1fr;
+  }
+  .kb-pskeleton span:last-child {
+    grid-column: 2;
+  }
+}
+
+.kb-passage-body {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -20,6 +20,7 @@ class FakePassages:
 
     def __init__(self):
         self.rows = {}  # id -> {"text", "meta", "vector"}
+        self.gets = []  # each get's (ids or None, include), to check what was read
 
     def add(self, doc_id: str, vectors: list[list[float]], texts: list[str] | None = None):
         for n, vector in enumerate(vectors):
@@ -34,8 +35,10 @@ class FakePassages:
         wanted = set(doc["$in"]) if isinstance(doc, dict) else {doc}
         return [(i, r) for i, r in self.rows.items() if r["meta"]["doc_id"] in wanted]
 
-    def get(self, where, include=(), limit=None, offset=0):
-        chosen = self._select(where)[offset : None if limit is None else offset + limit]
+    def get(self, where=None, include=(), limit=None, offset=0, ids=None):
+        self.gets.append((list(ids) if ids is not None else None, list(include)))
+        pool = [(i, self.rows[i]) for i in ids if i in self.rows] if ids else self._select(where)
+        chosen = pool[offset : None if limit is None else offset + limit]
         return {
             "ids": [i for i, _ in chosen],
             "documents": [r["text"] for _, r in chosen],

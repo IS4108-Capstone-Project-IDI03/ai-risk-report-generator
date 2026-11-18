@@ -10,7 +10,8 @@ import { listIngestedDocuments, listKnowledgeRequests } from './api'
 import { knowledgeTab } from './openTab'
 import { needsReview } from './display'
 import { AddDocuments } from './screens/AddDocuments'
-import { KnowledgeDocuments, type Filters } from './screens/KnowledgeDocuments'
+import { NO_FILTERS, type Filters } from './documentFilters'
+import { KnowledgeDocuments } from './screens/KnowledgeDocuments'
 import { Requests } from './screens/Requests'
 import { ReviewDocument } from './screens/ReviewDocument'
 import './knowledge-base.css'
@@ -18,10 +19,14 @@ import './knowledge-base.css'
 export function KnowledgeBase({
   narrow,
   notify,
+  canManage,
 }: {
   narrow: boolean
   // Shows a toast, e.g. to confirm a saved correction.
   notify: (message: string) => void
+  // A risk engineer browses read-only (IN-17): Documents only, no Add documents
+  // or Requests, and nothing in the list that changes a document.
+  canManage: boolean
 }) {
   const [tab, setTab] = useState(knowledgeTab.current)
   // How many documents in the knowledge base need review (IN-05), for the
@@ -50,13 +55,14 @@ export function KnowledgeBase({
     return () => controller.abort()
   }, [completed, decided])
   useEffect(() => {
+    if (!canManage) return
     const controller = new AbortController()
     listKnowledgeRequests(controller.signal).then(
       (list) => setOpenRequests(list.length),
       () => undefined,
     )
     return () => controller.abort()
-  }, [])
+  }, [canManage])
   // Which document's Review page is open, if any. It follows the URL, so the
   // page can be linked to, reloaded, and left with the browser's Back.
   const [reviewId, setReviewId] = useState(() => reviewIdForPath(window.location.pathname))
@@ -105,12 +111,21 @@ export function KnowledgeBase({
     knowledgeTab.current = value
     setTab(value)
   }
-  if (reviewId) {
+  // A tab chosen from elsewhere may be one only an admin has (openKnowledgeTab).
+  const shown = canManage ? tab : 'documents'
+  // Reviewing a match is the admin's (IN-07): an engineer's Review link opens the list,
+  // and the address says so.
+  const reviewing = canManage ? reviewId : null
+  useEffect(() => {
+    if (reviewId && !canManage)
+      window.history.replaceState(window.history.state, '', SCREEN_PATHS.knowledge)
+  }, [reviewId, canManage])
+  if (reviewing) {
     return (
       <div className="kb">
         <ReviewDocument
-          key={reviewId}
-          id={reviewId}
+          key={reviewing}
+          id={reviewing}
           onBack={() => closeReview()}
           onDecided={(message) => {
             setDecided((n) => n + 1)
@@ -132,36 +147,39 @@ export function KnowledgeBase({
               ? `${needReview} ${needReview === 1 ? 'needs' : 'need'} review`
               : undefined,
           },
-          { value: 'add', label: 'Add documents' },
-          {
-            value: 'requests',
-            label: 'Requests',
-            count: openRequests || undefined,
-            // The same amber pill as Documents' review count: open requests are a to-do list.
-            alert: openRequests ? `${openRequests} open` : undefined,
-          },
+          ...(canManage ? [{ value: 'add', label: 'Add documents' }] : []),
+          ...(canManage
+            ? [
+                {
+                  value: 'requests',
+                  label: 'Requests',
+                  count: openRequests || undefined,
+                  // The same amber pill as Documents' review count: open requests are a to-do list.
+                  alert: openRequests ? `${openRequests} open` : undefined,
+                },
+              ]
+            : []),
         ]}
-        value={tab}
+        value={shown}
         onChange={open}
       />
-      {tab === 'documents' ? (
+      {shown === 'documents' ? (
         <KnowledgeDocuments
           focused={focusDoc}
           notify={notify}
           onAdd={() => open('add')}
           onNeedReview={setNeedReview}
           onReview={openReview}
+          canManage={canManage}
         />
-      ) : tab === 'requests' ? (
+      ) : shown === 'requests' ? (
         <Requests key={visit} notify={notify} onCount={setOpenRequests} />
       ) : (
         <AddDocuments
           narrow={narrow}
           onCompleted={setCompleted}
           // From Add documents the list has no filters to keep.
-          onReview={(id) =>
-            openReview(id, { title: '', jurisdiction: '', facilityType: '', status: '' })
-          }
+          onReview={(id) => openReview(id, NO_FILTERS)}
         />
       )}
     </div>

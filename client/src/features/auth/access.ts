@@ -49,7 +49,9 @@ const SCREEN_PERMISSIONS: Record<Screen, Permission> = {
   field: 'assessments:edit',
   assessment: 'assessments:view',
   users: 'users:manage',
-  knowledge: 'knowledge:manage',
+  // Engineers browse it read-only (IN-17); adding and changing documents takes
+  // knowledge:manage, checked on the screen and by the gateway.
+  knowledge: 'knowledge:view',
   usage: 'usage:view',
   // Every signed-in user sees Settings (S-01); what they can change comes from the gateway.
   settings: 'assessments:view',

@@ -11,6 +11,7 @@ from pydantic import (
     model_validator,
 )
 
+from app import usage
 from app.assistant.coverage import check_coverage
 from app.assistant.wording import word_messages
 from app.chat.answer import answer_events
@@ -29,6 +30,7 @@ from app.orchestrator.orchestrator import (
     run,
 )
 from app.privacy import PrivacyUnavailable
+from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
 from app.site_walk.propose import propose_site_walk
@@ -553,6 +555,46 @@ class SearchPassagesRequest(BaseModel):
 def passage_search(request: SearchPassagesRequest) -> dict:
     """Return the documents' passages that best match the words, best first (CP-32)."""
     return {"results": search_passages(request.query, request.document_ids, request.limit)}
+
+
+# One knowledge document searched by meaning in the knowledge base's Passages view (IN-17).
+class MeaningSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    query: Query
+    document_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    limit: Annotated[int, Field(ge=1, le=30)] = 20
+    privacy: Privacy | None = None
+
+
+# Candidates read from Chroma before reranking: twice what is kept, so the reranker chooses.
+MEANING_CANDIDATES = 40
+
+
+@router.post("/passages/meaning")
+def passage_meaning(request: MeaningSearchRequest) -> dict:
+    """Return one document's active passages ranked by meaning, best first (IN-17): one Cohere
+    embedding and one rerank, as chat's search.
+
+    With protection on, the query reaches Cohere masked, and so do the passages the reranker
+    reads (a past report's restored words are masked again), as in chat (PV-03, PV-05).
+    `usage` lists the paid calls, for the gateway to record (EV-03).
+    """
+    calls = usage.start()
+    protection = privacy_session(_privacy(request))
+    masking = {"rank_texts": protection.mask, "protection": protection}
+    try:
+        query = protection.mask([request.query])[0] if protection.enabled else request.query
+        hits = retrieve(
+            query,
+            {"doc_id": [request.document_id]},
+            candidates=MEANING_CANDIDATES,
+            top_n=request.limit,
+            **(masking if protection.enabled else {}),
+        )
+    # Fail closed: nothing reached Cohere unmasked. 503 so the gateway says why.
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    return {"results": [{"id": hit["id"]} for hit in hits], "usage": calls}
 
 
 # An observation as the Ask tab sends it (AS-01): any of the assessment's, categorised or not,
