@@ -1,7 +1,6 @@
-// Section 3 Opportunities for Improvement as the first row of the Report
-// generation table (GN-05): draft suggestions, accept them one by one or all at
-// once, and see the accepted ones as the report has them. Used by
-// screens/SectionDrafts.tsx, which passes its table's column grid. Calls api.ts.
+// Section 3 Opportunities for Improvement (GN-05): one OFI in the AI draft box (OfiBlock,
+// used by OfiReviewPanel in Review) and the accepted ones as the report has them (OfisInReport,
+// used by Review and the document's ReportParts). Calls api.ts.
 import { Fragment, useState } from 'react'
 import type * as React from 'react'
 import {
@@ -14,30 +13,19 @@ import {
 } from '../../../design-system'
 import { OFI_CATEGORIES as CATEGORIES } from '../reviewDisplay'
 import {
-  draftOfis,
   GatewayError,
   type AcceptedOfi,
   type Ofi,
-  type OfiList,
   type OfiLossValues,
   type SavedObservation,
 } from '../api'
 import { formatAmount } from '../reportFigures'
 import { formatDay } from '../format'
 import { locationText } from '../locations'
-import { useOfis } from '../useOfis'
 import { ObservationExcerpt } from './ObservationExcerpt'
 
-const card = {
-  background: 'var(--surface-card)',
-  border: '1px solid var(--border-default)',
-  borderRadius: '8px',
-  padding: '16px 20px',
-} as const
 const label = { margin: 0, fontSize: '13px', color: 'var(--text-muted)' } as const
 const muted = { margin: 0, fontSize: '15px', color: 'var(--text-secondary)' } as const
-const note = { display: 'block', marginTop: '4px', fontSize: '14px' } as const
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // Priority on the platform's fixed risk scale: Priority 1 is the most urgent.
 const PRIORITY_TONE: Record<string, string> = {
@@ -45,21 +33,6 @@ const PRIORITY_TONE: Record<string, string> = {
   'Priority 2': 'high',
   'Priority 3': 'moderate',
   'Priority 4': 'low',
-}
-// The observations OFIs are drafted from, as in rag-service orchestrator.OFI_SEVERITIES.
-const OFI_SEVERITIES = ['critical', 'high', 'moderate']
-
-// Can this observation lead to an OFI: categorised, rated moderate or worse, and with
-// a note, finished transcript or transcribed handwritten page (CP-19) to draft from
-// (as the gateway's drafting evidence).
-function isCandidate(o: SavedObservation) {
-  return (
-    Boolean(o.copeDimensions?.length) &&
-    OFI_SEVERITIES.includes(o.severity) &&
-    (Boolean(o.note?.trim()) ||
-      o.recordings.some((r) => r.transcription.transcript) ||
-      (o.pages ?? []).some((p) => p.transcription.transcript?.trim()))
-  )
 }
 
 // The past OFI's title from its chunk, whose rows read "2025-02: Description;
@@ -487,163 +460,4 @@ export function OfisInReport({
         ))}
     </div>
   ))
-}
-
-// What opens under the row on Generation: the suggestions, read-only, then the OFIs in
-// the report. Accepting is done in Review → Section 3 (OfiReviewPanel).
-function OfiPanel({ ofis, observations }: { ofis: OfiList; observations: SavedObservation[] }) {
-  return (
-    <section
-      aria-label="3. Opportunities for Improvement"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        padding: '16px 20px 20px',
-        background: 'var(--surface-sunken)',
-        borderBottom: '1px solid var(--border-default)',
-      }}
-    >
-      {ofis.suggestions.length > 0 && (
-        <p style={muted}>
-          {plural(ofis.suggestions.length, 'suggestion')}, not in the report until accepted. Accept
-          them in Review, under Section 3, where their sources open.
-        </p>
-      )}
-      {ofis.suggestions.map((o) => (
-        <OfiBlock key={o.id} ofi={o} observations={observations} withSources={false} />
-      ))}
-      <section aria-label="Opportunities for Improvement in the report" style={card}>
-        <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 500 }}>In the report</h4>
-        <OfisInReport accepted={ofis.accepted} observations={observations} />
-      </section>
-    </section>
-  )
-}
-
-export function OfiRow({
-  reference,
-  canDraft,
-  observations,
-}: {
-  reference: string
-  canDraft: boolean
-  observations: SavedObservation[]
-}) {
-  const { ofis, setOfis, loadError } = useOfis(reference)
-  const [open, setOpen] = useState(false)
-  const [drafting, setDrafting] = useState(false)
-  const [failure, setFailure] = useState<string | null>(null)
-  const candidates = observations.filter(isCandidate).length
-
-  const draft = async () => {
-    setDrafting(true)
-    setFailure(null)
-    try {
-      setOfis(await draftOfis(reference))
-      setOpen(true)
-    } catch (error: unknown) {
-      setFailure(
-        error instanceof GatewayError
-          ? error.message
-          : 'The Opportunities for Improvement were not drafted.',
-      )
-    }
-    setDrafting(false)
-  }
-  const suggested = ofis?.suggestions.length ?? 0
-  const inReport = ofis?.accepted.length ?? 0
-  const state = drafting
-    ? { tone: 'ai', icon: 'sparkles', label: 'Drafting' }
-    : failure
-      ? { tone: 'critical', icon: 'octagon-alert', label: 'Failed' }
-      : suggested
-        ? { tone: 'ai', icon: 'sparkles', label: `${plural(suggested, 'suggestion')} to review` }
-        : inReport
-          ? { tone: 'low', icon: 'check', label: `${inReport} in the report` }
-          : candidates
-            ? { tone: 'neutral', icon: 'circle-dashed', label: 'Not drafted' }
-            : { tone: 'moderate', icon: 'triangle-alert', label: 'Insufficient evidence' }
-
-  return (
-    <Fragment>
-      <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div
-          className="generation-row"
-          style={{
-            display: 'grid',
-            alignItems: 'center',
-            padding: '12px 20px',
-          }}
-        >
-          <span
-            style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}
-          >
-            3
-          </span>
-          <span style={{ minWidth: 0, paddingRight: '20px' }}>
-            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 500 }}>
-                Opportunities for Improvement
-              </span>
-            </span>
-            {suggested > 0 && inReport > 0 && (
-              <span style={{ ...note, color: 'var(--text-secondary)' }}>
-                {inReport} already in the report.
-              </span>
-            )}
-            {!candidates && !suggested && !inReport && (
-              <span style={{ ...note, color: 'var(--text-secondary)' }}>
-                Needs an observation rated moderate or worse.
-              </span>
-            )}
-            {loadError && (
-              <span style={{ ...note, color: 'var(--status-critical-fg)' }}>{loadError}</span>
-            )}
-            {failure && (
-              <span role="alert" style={{ ...note, color: 'var(--status-critical-fg)' }}>
-                {failure}
-              </span>
-            )}
-          </span>
-          <span className="generation-status">
-            <Badge tone={state.tone} icon={state.icon}>
-              {state.label}
-            </Badge>
-          </span>
-          <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>
-            {plural(candidates, 'observation')}
-          </span>
-          <span
-            style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '8px' }}
-          >
-            {ofis && (suggested > 0 || inReport > 0) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                iconLeft="file-text"
-                aria-expanded={open}
-                onClick={() => setOpen(!open)}
-              >
-                {open ? 'Hide OFIs' : 'View OFIs'}
-              </Button>
-            )}
-            {canDraft && ofis && candidates > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                iconLeft="sparkles"
-                loading={drafting}
-                disabled={drafting}
-                onClick={() => void draft()}
-              >
-                {drafting ? 'Drafting…' : suggested || inReport ? 'Redraft OFIs' : 'Draft OFIs'}
-              </Button>
-            )}
-          </span>
-        </div>
-      </div>
-      {open && ofis && <OfiPanel ofis={ofis} observations={observations} />}
-    </Fragment>
-  )
 }

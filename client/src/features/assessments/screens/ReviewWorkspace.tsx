@@ -5,18 +5,21 @@ import {
   decideFinding,
   decideReplacement,
   editFinding,
-  regenerateSection,
+  GatewayError,
   type Assessment,
   type ReviewSection,
   type ReviewWorkspace as Workspace,
 } from '../api'
+import { usePartJobs } from '../generation/usePartJobs'
 import { AppendixPhotos } from '../components/AppendixPhotos'
 import { ChartBoundary } from '../components/ChartBoundary'
 import { DraftEditor, type FindingActions } from '../components/DraftEditor'
 import { ExecutiveSummary } from '../components/ExecutiveSummary'
 import { LossEstimateFigures } from '../components/LossEstimateFigures'
 import { RiskQualityFigures } from '../components/RiskQualityFigures'
+import { PartJobNotice } from '../components/PartJobNotice'
 import { PurposeScope } from '../components/PurposeScope'
+import { RedraftButton } from '../components/RedraftButton'
 import { ReportPart } from '../components/ReportPart'
 import { RiskMatrix } from '../components/RiskMatrix'
 import { OfiReviewPanel } from '../components/OfiReviewPanel'
@@ -71,6 +74,8 @@ const OfiCharts = lazy(() =>
 const NOTHING: ReviewFocus = { citation: null, statement: null }
 // The rail's rows that are not one of sections 4-12.
 const OPENING = new Set(['1', '2', '3', 'A'])
+// Hidden from Review until all 11 parts are drafted (GN-13 rule 9).
+const HIDDEN_UNTIL_DRAFTED = new Set(['1', '2', 'A'])
 // Their headings.
 const PART_TITLES: Record<string, string> = {
   '1': '1. Purpose and Scope',
@@ -167,14 +172,19 @@ export function ReviewWorkspace({
   canAsk?: boolean
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
-  const { ofis, setOfis } = useOfis(reference)
+  const { ofis, setOfis, reload: reloadOfis } = useOfis(reference)
   const { summary, loadError: summaryError, reload: reloadSummary } = useSummary(reference)
   // For each OFI's sources, as on Generation.
   const { observations } = useObservations(reference, true)
   // Only a list from the gateway counts; anything else reads as no OFIs yet.
   const accepted = Array.isArray(ofis?.accepted) ? ofis.accepted : []
   const waiting = Array.isArray(ofis?.suggestions) ? ofis.suggestions.length : 0
-  const [selected, setSelected] = useState<string | null>(openSection ?? null)
+  const [chosen, setSelected] = useState<string | null>(openSection ?? null)
+  // GN-13: background drafting, kept live; Review reads itself again when a part's job clears.
+  const jobs = usePartJobs(reference, { reload, reloadSummary, reloadOfis })
+  const { generation, openingHidden } = jobs
+  // A hidden part that was asked for (a link, a stale selection) opens Section 3 instead.
+  const selected = openingHidden && chosen && HIDDEN_UNTIL_DRAFTED.has(chosen) ? '3' : chosen
   const [focus, setFocus] = useState<ReviewFocus>(NOTHING)
   const [view, setView] = useState<DraftView>('saved')
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
@@ -182,9 +192,6 @@ export function ReviewWorkspace({
   const [busy, setBusy] = useState<string | null>(null)
   // Why the last decision made outside a dialog was not saved.
   const [problem, setProblem] = useState<string | null>(null)
-  // Sections being regenerated, and why a regeneration failed, by section.
-  const [regenerating, setRegenerating] = useState<Set<string>>(new Set())
-  const [regenerateProblems, setRegenerateProblems] = useState<Record<string, string>>({})
   // The document edit view (RV-08), open on a section; and, once reopened
   // after a refused save, the workspace read it waits to replace.
   const [documentAt, setDocumentAt] = useState<string | null>(null)
@@ -251,7 +258,8 @@ export function ReviewWorkspace({
         </Callout>
       </div>
     )
-  if (!sections)
+  // Waits for the drafting state too, so the hidden parts never show and then vanish.
+  if (!sections || (!generation && !jobs.loadError))
     return <p style={{ padding: '24px 28px', margin: 0 }}>Loading the report sections…</p>
 
   if (documentAt) {
@@ -478,7 +486,10 @@ export function ReviewWorkspace({
     <ReviewSectionRail
       sections={sections}
       summary={workspace.summary}
-      regenerating={regenerating}
+      regenerating={new Set(jobs.workingIds.filter((id) => !OPENING.has(id)))}
+      redrafting={new Set(jobs.workingIds.filter(jobs.redraftedByRun))}
+      hideOpening={openingHidden}
+      draftedParts={generation?.drafted}
       selected={railId}
       onSelect={select}
       inReport={accepted.length}
@@ -498,8 +509,14 @@ export function ReviewWorkspace({
   )
   const last = sections[sections.length - 1]
   // Every part of the report in order, for "Draft editor · N of M": Sections 1, 2 and 3,
-  // the drafted sections (4-12), then Appendix A.
-  const parts = ['1', '2', '3', ...sections.map((s) => s.id), 'A']
+  // the drafted sections (4-12), then Appendix A. Sections 1 and 2 and Appendix A are
+  // left out until the whole report is drafted (GN-13).
+  const parts = [
+    ...(openingHidden ? [] : ['1', '2']),
+    '3',
+    ...sections.map((s) => s.id),
+    ...(openingHidden ? [] : ['A']),
+  ]
   const positionOf = (id: string) => `${parts.indexOf(id) + 1} of ${parts.length}`
 
   // The version history (RV-06) of the part the rail marks: its versions
@@ -588,6 +605,13 @@ export function ReviewWorkspace({
     )
   }
 
+  // Redraft on the heading row of Section 2 or Section 3 (GN-13): drafts it again in the
+  // background; shown once the part is drafted, for the assigned engineer only.
+  const redraftButton = (id: '2' | '3') =>
+    canReview && jobs.drafted(id) ? (
+      <RedraftButton working={jobs.working(id)} onRedraft={() => void jobs.redraft(id)} />
+    ) : undefined
+
   // Sections 1 and 2, and Appendix A: one view each, with a side panel that
   // says where its content comes from.
   const part = (
@@ -596,10 +620,17 @@ export function ReviewWorkspace({
     body: React.ReactNode,
     note: string,
     nav: { onPrevious?: () => void; onNext?: () => void },
+    action?: React.ReactNode,
   ) => (
     <div style={wrapStyle}>
       {rail}
-      <ReportPart title={title} position={positionOf(id)} onHistory={openHistory} {...nav}>
+      <ReportPart
+        title={title}
+        position={positionOf(id)}
+        onHistory={openHistory}
+        action={action}
+        {...nav}
+      >
         {restoredNotice(id)}
         {body}
         {(id === '1' || id === 'A') && writtenIn(id)}
@@ -626,14 +657,18 @@ export function ReviewWorkspace({
     return part(
       '2',
       PART_TITLES['2'],
-      <ExecutiveSummary
-        summary={summary?.executiveSummary ?? null}
-        error={summaryError}
-        onGenerate={onGenerate}
-        document={workspace.parts?.['2'] ?? null}
-      />,
+      <>
+        <PartJobNotice name="Section 2" failed={jobs.failedWith('2')} />
+        <ExecutiveSummary
+          summary={summary?.executiveSummary ?? null}
+          error={summaryError}
+          onGenerate={onGenerate}
+          document={workspace.parts?.['2'] ?? null}
+        />
+      </>,
       'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
       { onPrevious: () => select('1'), onNext: () => select('3') },
+      redraftButton('2'),
     )
   if (selected === 'A')
     return part(
@@ -677,7 +712,13 @@ export function ReviewWorkspace({
           <div className="rv-editor-inner">
             <div className="rv-editor-bar">
               <p className="rv-label">Draft editor · {positionOf('3')}</p>
-              <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={() => select('2')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconLeft="chevron-left"
+                disabled={openingHidden}
+                onClick={() => select('2')}
+              >
                 Previous
               </Button>
               <Button
@@ -698,7 +739,11 @@ export function ReviewWorkspace({
                 Version history
               </Button>
             </div>
-            <h2>{PART_TITLES['3']}</h2>
+            <div className="rv-heading-row">
+              <h2>{PART_TITLES['3']}</h2>
+              {redraftButton('3')}
+            </div>
+            <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
             {restoredNotice('3')}
             {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
             <RiskMatrix />
@@ -745,14 +790,21 @@ export function ReviewWorkspace({
                 {waiting
                   ? `${waiting} suggested OFI${waiting === 1 ? ' is' : 's are'} waiting to be accepted.`
                   : 'No suggested OFIs are waiting.'}{' '}
-                Each OFI's sources open below it. Suggestions are drafted on Generation and accepted
-                here.
+                Each OFI's sources open below it.{' '}
+                {/* GN-13: once drafted, Section 3 is drafted again from here, not Generation. */}
+                {!jobs.drafted('3')
+                  ? 'Suggestions are drafted on Generation and accepted here.'
+                  : canReview
+                    ? 'Suggestions are accepted here. Redraft, beside the heading, drafts them again and keeps the OFIs you accepted.'
+                    : 'Suggestions are accepted here.'}
               </p>
-              <div style={{ marginTop: '12px' }}>
-                <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
-                  Go to Generation
-                </Button>
-              </div>
+              {!jobs.drafted('3') && (
+                <div style={{ marginTop: '12px' }}>
+                  <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
+                    Go to Generation
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </ReviewInspector>
@@ -762,14 +814,20 @@ export function ReviewWorkspace({
 
   const draftId = saved.draft?.id ?? ''
   const sectionId = saved.id
-  // Saves a decision made outside a dialog, showing why if it is refused.
+  // GN-13: a drafting run is redrafting this section, so its decisions wait until it is done.
+  const redrafting = jobs.redraftedByRun(sectionId)
+  // Saves a decision made outside a dialog, showing why if it is refused. A 409 (the decision
+  // no longer applies, e.g. a drafting run began redrafting the section) is a toast, with
+  // Reload, since the workspace on screen is out of step with the gateway.
   const decide = async (key: string, save: () => Promise<Workspace>) => {
     setBusy(key)
     setProblem(null)
     try {
       keep(await save())
     } catch (error: unknown) {
-      setProblem(error instanceof Error ? error.message : 'The decision was not saved.')
+      if (error instanceof GatewayError && error.status === 409)
+        toast.error(error.message, { action: { label: 'Reload', onClick: reload } })
+      else setProblem(error instanceof Error ? error.message : 'The decision was not saved.')
     }
     setBusy(null)
   }
@@ -798,33 +856,20 @@ export function ReviewWorkspace({
     }
     setAiBusy(null)
   }
+  // Queues the regeneration in the background; the section shows "Regenerating" from the
+  // drafting state, so it survives a refresh.
   const regenerate = async (instruction: string) => {
     setDialog(null)
-    setRegenerating((ids) => new Set(ids).add(sectionId))
-    setRegenerateProblems((problems) => {
-      const left = { ...problems }
-      delete left[sectionId]
-      return left
-    })
-    try {
-      keep(await regenerateSection(reference, sectionId, instruction))
-    } catch (error: unknown) {
-      setRegenerateProblems((problems) => ({
-        ...problems,
-        [sectionId]: error instanceof Error ? error.message : 'Drafting failed.',
-      }))
-    }
-    setRegenerating((ids) => {
-      const left = new Set(ids)
-      left.delete(sectionId)
-      return left
-    })
+    await jobs.regenerate(sectionId, `${sectionId}. ${saved.title}`, instruction)
   }
+  // While a drafting run redrafts the section, every decision control is off: `busy` set to
+  // a key no finding has disables them all without a spinner on any.
+  const busyNow = redrafting ? 'redrafting' : busy
 
   const actions: FindingActions | undefined =
     canReview && showing === 'saved' && saved.draft
       ? {
-          busy,
+          busy: busyNow,
           onAccept: (claim) =>
             decide(claim.key, () =>
               decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
@@ -848,8 +893,8 @@ export function ReviewWorkspace({
         section={section}
         position={positionOf(saved.id)}
         onPrevious={() => select(previous ? previous.id : '3')}
-        // The last section leads on to Appendix A.
-        onNext={() => select(next ? next.id : 'A')}
+        // The last section leads on to Appendix A, once that is shown.
+        onNext={next || !openingHidden ? () => select(next ? next.id : 'A') : undefined}
         onGenerate={onGenerate}
         onHistory={openHistory}
         notice={restoredNotice(saved.id)}
@@ -924,6 +969,7 @@ export function ReviewWorkspace({
                 </Callout>
               </div>
             )}
+            <PartJobNotice name={`Section ${sectionId}`} redrafting={redrafting} />
             <SectionReviewBar
               section={saved}
               view={showing}
@@ -932,9 +978,9 @@ export function ReviewWorkspace({
                 setFocus(NOTHING)
               }}
               canReview={canReview}
-              busy={busy}
-              regenerating={regenerating.has(sectionId)}
-              regenerateProblem={regenerateProblems[sectionId] ?? null}
+              busy={busyNow}
+              regenerating={jobs.working(sectionId) && !redrafting}
+              regenerateProblem={jobs.failedWith(sectionId)}
               onBulkAccept={() => decide('bulk', () => bulkAccept(reference, sectionId, draftId))}
               onRegenerate={() => setDialog({ kind: 'regenerate' })}
               onAcceptReplacement={() => setDialog({ kind: 'accept-replacement' })}
@@ -970,7 +1016,7 @@ export function ReviewWorkspace({
           entries={saved.history}
           savedDraftId={saved.draft?.id ?? null}
           rejected={rejected}
-          busy={busy}
+          busy={busyNow}
           onRestore={
             canReview
               ? (finding) =>

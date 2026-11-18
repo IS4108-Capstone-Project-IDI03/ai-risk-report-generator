@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { reportDrafted } from '../generation/fixtures'
 import type { ReviewSection, SourcePassage } from '../api'
 import { MARKER } from '../comments/anchor'
 import type { CommentAnchor } from '../comments/api'
@@ -178,6 +179,8 @@ function gateway({
       return method === 'POST' ? answer(body) : json(200, { scope: null, questions: earlier })
     if (url === `/api/assessments/${REF}/review`) return json(200, WORKSPACE)
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
+    // The drafting state (GN-13): all 11 parts drafted, so Review shows every part.
+    if (url === `/api/assessments/${REF}/generation`) return json(200, reportDrafted)
     return json(200, [])
   })
   return calls

@@ -1,8 +1,9 @@
-// Sections 1 and 2 and Appendix A in the Review and Generation tabs
-// (GN-07). The gateway is a stubbed fetch, so nothing is drafted for real.
+// Sections 1 and 2 and Appendix A in the Review tab (GN-07; Section 2 is drafted in
+// Generation's step 3 since GN-13). The gateway is a stubbed fetch, so nothing is drafted for real.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
+import { reportDrafted } from './generation/fixtures'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { AppendixList, ReviewSection, SectionDraft, Summary } from './api'
@@ -134,21 +135,14 @@ let reviewSections: ReviewSection[] = [CONSTRUCTION]
 let appendix: AppendixList
 // Each PUT to the appendix, as sent.
 const puts: unknown[] = []
-const posts: string[] = []
 
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url === '/api/assessments') return json(200, [RECORD])
     if (url === `/api/assessments/${REF}/review`) return json(200, { sections: reviewSections })
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
-    if (url === `/api/assessments/${REF}/summary/draft`) {
-      posts.push(url)
-      summary = {
-        ...summary,
-        executiveSummary: { draft: SUMMARY_DRAFT, missing: [], staleSections: [] },
-      }
-      return json(201, SUMMARY_DRAFT)
-    }
+    // The drafting state (GN-13): all 11 parts drafted, so Review shows every part.
+    if (url === `/api/assessments/${REF}/generation`) return json(200, reportDrafted)
     if (url === `/api/assessments/${REF}/summary`) return json(200, summary)
     if (url === `/api/assessments/${REF}/appendix`) {
       if (init?.method === 'PUT') {
@@ -188,7 +182,6 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   puts.length = 0
-  posts.length = 0
   reviewSections = [CONSTRUCTION]
 })
 
@@ -327,49 +320,4 @@ it('opens Section 1 and Appendix A before any section is drafted (AC1, AC5)', as
   expect(await screen.findByRole('region', { name: 'Available photos' })).toBeVisible()
   fireEvent.click(within(await nav()).getByRole('button', { name: /Purpose and Scope/ }))
   expect(await within(editor()).findByText(PURPOSE)).toBeVisible()
-}, 15_000)
-
-it('drafts the Executive Summary from Generation only once every section is complete (AC3)', async () => {
-  reset()
-  await openTab(/^Generation/)
-  const row = await screen.findByRole('group', { name: 'Section 2 Executive Summary' })
-
-  expect(await within(row).findByRole('button', { name: 'Draft' })).toBeDisabled()
-  expect(
-    within(row).getByText(
-      /Complete these sections first: 4 Risk Quality Ratings and Comments, 5 Loss Estimates/,
-    ),
-  ).toBeVisible()
-  expect(posts).toEqual([])
-}, 15_000)
-
-it('drafts the Executive Summary when the sections are complete', async () => {
-  reset()
-  summary.executiveSummary.missing = []
-  await openTab(/^Generation/)
-  const row = await screen.findByRole('group', { name: 'Section 2 Executive Summary' })
-
-  fireEvent.click(await within(row).findByRole('button', { name: 'Draft' }))
-
-  await waitFor(() => expect(posts).toHaveLength(1))
-  expect(await within(row).findByText('Drafted')).toBeVisible()
-  expect(within(row).getByRole('button', { name: 'Redraft' })).toBeEnabled()
-}, 15_000)
-
-it('opens the drafted Executive Summary from its Generation row, like the other sections', async () => {
-  reset(SUMMARY_DRAFT)
-  await openTab(/^Generation/)
-  const row = await screen.findByRole('group', { name: 'Section 2 Executive Summary' })
-
-  fireEvent.click(await within(row).findByRole('button', { name: 'View draft' }))
-
-  const draft = screen.getByRole('region', { name: '2. Executive Summary draft' })
-  expect(within(draft).getByText('The hub is of concrete construction.')).toBeVisible()
-  // Its section citations are read in Review, not on Generation.
-  expect(within(draft).queryByText('Section 7')).toBeNull()
-  expect(within(draft).getByText('Changes Since Previous Survey')).toBeVisible()
-  // On Generation the draft fills its width, as the sections' drafts do.
-  expect(draft.querySelector('[style*="measure-prose"]')).toBeNull()
-  fireEvent.click(within(row).getByRole('button', { name: 'Hide draft' }))
-  expect(screen.queryByRole('region', { name: '2. Executive Summary draft' })).toBeNull()
 }, 15_000)

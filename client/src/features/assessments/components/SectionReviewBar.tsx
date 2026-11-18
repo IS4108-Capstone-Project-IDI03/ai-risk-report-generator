@@ -28,6 +28,7 @@ export function SectionReviewBar({
   canReview: boolean
   // A decision on this section is being saved, e.g. 'bulk' or 'discard'.
   busy: string | null
+  // Its regeneration is queued or running in the background (GN-13).
   regenerating: boolean
   regenerateProblem: string | null
   onBulkAccept: () => void
@@ -61,21 +62,17 @@ export function SectionReviewBar({
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.regenerate}
-                disabled={regenerating || !!replacement || busy !== null}
+                // While it works it keeps its normal look with a spinner (board 15): `loading`
+                // alone blocks it without greying it out.
+                disabled={!regenerating && (!!replacement || busy !== null)}
+                loading={regenerating}
+                aria-busy={regenerating || undefined}
                 onClick={onRegenerate}
               >
-                Regenerate
+                {regenerating ? 'Regenerating' : 'Regenerate'}
               </Button>
             </div>
           )}
-        </div>
-      )}
-      {regenerating && (
-        <div role="status">
-          <Callout tone="ai" title={`Regenerating section ${section.id}`}>
-            Drafting takes a minute or two. The saved draft and your decisions on it stay as they
-            are until you accept the replacement, and you can keep reviewing meanwhile.
-          </Callout>
         </div>
       )}
       {regenerateProblem && (

@@ -1,6 +1,6 @@
 import { PhotoReferences } from './PhotoReferences'
 // What a cited observation says, shown in a draft's evidence list (GN-01 AC4).
-// Used by screens/SectionDrafts.tsx as an EvidenceCitation excerpt.
+// Used by OfiSuggestions.tsx as an EvidenceCitation excerpt.
 import { useState } from 'react'
 import { Button, Icon, IconRegistry } from '../../../design-system'
 import type { SavedObservation } from '../api'

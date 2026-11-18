@@ -1,4 +1,4 @@
-import { Badge, Button, IconRegistry, ProgressBar } from '../../../design-system'
+import { Badge, Button, Icon, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
@@ -45,6 +45,9 @@ export function ReviewSectionRail({
   sections,
   summary,
   regenerating = new Set(),
+  redrafting = new Set(),
+  hideOpening = false,
+  draftedParts,
   selected,
   onSelect,
   inReport,
@@ -58,6 +61,13 @@ export function ReviewSectionRail({
   summary?: FindingCounts
   // Sections being regenerated now.
   regenerating?: Set<string>
+  // Of those, the ones a drafting run is redrafting (GN-13): same line, "Redrafting".
+  redrafting?: Set<string>
+  // Leaves out Sections 1 and 2 and Appendix A until the report is drafted (GN-13).
+  hideOpening?: boolean
+  // How many of the 11 parts the gateway counts as drafted (GN-13), so this rail and
+  // Generation always show the same number. Left out, the rail counts for itself.
+  draftedParts?: number
   selected: string
   onSelect: (id: string) => void
   // Accepted OFIs, for section 3's row.
@@ -92,11 +102,13 @@ export function ReviewSectionRail({
   )
   const drafted = sections.filter((s) => s.draft).length
   // Over the 11 counted parts (Sections 2-12), not only those with a draft of their own.
-  const progress = reportProgress({
+  const counted = reportProgress({
     summaryDrafted: !!executiveSummary?.draft,
     ofisAccepted: inReport,
     sectionsDrafted: drafted,
   })
+  const done = draftedParts ?? counted.done
+  const progress = { ...counted, done, percent: Math.round((done / counted.total) * 100) }
   const flagged = sections.filter((s) => s.review.state === 'needs_review').length
   // Reviewed as MarshBot counts it (server/src/services/assistant/progress.ts): the summary
   // when drafted and up to date, Section 3 with an accepted OFI, and 4-12 drafted with nothing open.
@@ -154,34 +166,36 @@ export function ReviewSectionRail({
         )}
       </div>
       <ul className="rv-rail-list">
-        {row(
-          '1',
-          '1',
-          'Purpose and Scope',
-          <Badge tone="low" icon="check">
-            From assessment details
-          </Badge>,
-        )}
-        {row(
-          '2',
-          '2',
-          'Executive Summary',
-          !executiveSummary ? null : executiveSummary.staleSections.length ? (
-            <Badge tone="moderate" icon="triangle-alert">
-              Out of date
-            </Badge>
-          ) : executiveSummary.draft ? (
-            <Badge tone="ai" icon="sparkles">
-              AI draft
-            </Badge>
-          ) : (
-            <Badge tone="neutral" icon="circle-dashed">
-              {executiveSummary.missing.length
-                ? `Needs ${plural(executiveSummary.missing.length, 'section')}`
-                : 'Not drafted'}
-            </Badge>
-          ),
-        )}
+        {!hideOpening &&
+          row(
+            '1',
+            '1',
+            'Purpose and Scope',
+            <Badge tone="low" icon="check">
+              From assessment details
+            </Badge>,
+          )}
+        {!hideOpening &&
+          row(
+            '2',
+            '2',
+            'Executive Summary',
+            !executiveSummary ? null : executiveSummary.staleSections.length ? (
+              <Badge tone="moderate" icon="triangle-alert">
+                Out of date
+              </Badge>
+            ) : executiveSummary.draft ? (
+              <Badge tone="ai" icon="sparkles">
+                AI draft
+              </Badge>
+            ) : (
+              <Badge tone="neutral" icon="circle-dashed">
+                {executiveSummary.missing.length
+                  ? `Needs ${plural(executiveSummary.missing.length, 'section')}`
+                  : 'Not drafted'}
+              </Badge>
+            ),
+          )}
         <li>
           <button
             type="button"
@@ -230,16 +244,22 @@ export function ReviewSectionRail({
                         {REVIEW_BADGE.edited.label}
                       </Badge>
                     )}
-                    {regenerating.has(s.id) ? (
+                    {s.replacement && (
                       <Badge tone="ai" icon={IconRegistry.action.regenerate}>
-                        Regenerating
+                        Replacement ready
                       </Badge>
-                    ) : (
-                      s.replacement && (
-                        <Badge tone="ai" icon={IconRegistry.action.regenerate}>
-                          Replacement ready
-                        </Badge>
-                      )
+                    )}
+                    {/* Its own line under the badges; from the server's drafting state (GN-13). */}
+                    {regenerating.has(s.id) && (
+                      <span className="rv-rail-completion rv-rail-regenerating">
+                        <Icon name="loader-circle" size={14} className="ds-spin" />
+                        {/* A run's first draft of a section is not a redraft. */}
+                        {redrafting.has(s.id)
+                          ? s.draft
+                            ? 'Redrafting'
+                            : 'Drafting'
+                          : 'Regenerating'}
+                      </span>
                     )}
                   </span>
                 </span>
@@ -247,7 +267,8 @@ export function ReviewSectionRail({
             </li>
           )
         })}
-        {row('A', 'A', 'Site Photos', <span className="rv-rail-completion">Appendix A</span>)}
+        {!hideOpening &&
+          row('A', 'A', 'Site Photos', <span className="rv-rail-completion">Appendix A</span>)}
       </ul>
       <p className="rv-rail-legend">
         A section needs review when a statement is unsupported, a source it cites has been

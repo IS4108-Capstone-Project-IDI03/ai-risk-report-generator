@@ -10,6 +10,7 @@ export function ReportPart({
   onPrevious,
   onNext,
   onHistory,
+  action,
   children,
 }: {
   title: string
@@ -18,6 +19,8 @@ export function ReportPart({
   onPrevious?: () => void
   onNext?: () => void
   onHistory?: () => void
+  // Sits at the right of the heading, e.g. Redraft on Section 2 (GN-13).
+  action?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -54,7 +57,14 @@ export function ReportPart({
             </Button>
           )}
         </div>
-        <h2>{title}</h2>
+        {action ? (
+          <div className="rv-heading-row">
+            <h2>{title}</h2>
+            {action}
+          </div>
+        ) : (
+          <h2>{title}</h2>
+        )}
         {children}
       </div>
     </section>

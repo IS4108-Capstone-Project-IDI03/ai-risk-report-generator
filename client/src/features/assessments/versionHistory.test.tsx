@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
+import { reportDrafted } from './generation/fixtures'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type {
@@ -250,6 +251,8 @@ function mockGateway(review = workspace([CONSTRUCTION, FIRE])) {
     if (url === `/api/assessments/${REF}/sections/9/versions`)
       return json(200, { sectionId: '9', entries: [], latestVersion: 0, savedDraftId: 'd9' })
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
+    // The drafting state (GN-13): all 11 parts drafted, so Review shows every part.
+    if (url === `/api/assessments/${REF}/generation`) return json(200, reportDrafted)
     return json(200, [])
   })
 }
