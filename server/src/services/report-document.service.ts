@@ -26,6 +26,7 @@ import {
   type SectionDocument,
 } from '../models/report-section-version.model'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { assertNotRedrafting } from './generation/drafting-run.service'
 import { isDuplicateKeyError } from './mongo-errors'
 import { MAX_FINDING_LENGTH, recordDocumentEdits, StaleDraftError } from './review-decision.service'
 import { assessmentToDraft, sectionDrafts, templateSection, type Draft } from './section.service'
@@ -277,6 +278,9 @@ export async function writeSectionVersion(
   inserting: string | null = null,
 ): Promise<SectionVersionDto> {
   const assessment = await assessmentToDraft(reference, user)
+  // GN-13: while the section is redrafted in the background, a save would be
+  // built on the draft being replaced and its review decisions lost.
+  await assertNotRedrafting(reference, sectionId)
   const { draft, cope } = await savedDraftOf(assessment._id, sectionId)
   if ((draft ? String(draft._id) : null) !== base.draftId) throw new StaleDraftError()
 

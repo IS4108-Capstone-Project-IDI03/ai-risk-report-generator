@@ -9,10 +9,10 @@ import { USER_ROLES, type UserRole } from './user.model'
 //   site_walk_failed            a site walk could not be read; the engineer retries it (F-10)
 //   assessment_assigned         an admin assigned an assessment to an engineer (RV-11)
 //   assessment_moved            an admin moved an assessment away from an engineer (RV-11)
+//   drafting_status             a part drafted in the background is ready or failed (GN-13)
 // Agreed next purposes, each grounded in an event the code already records but
 // not yet sent anywhere:
 //   transcription_status        runTranscription / resumeInterruptedTranscriptions
-//   drafting_status             draftSection's guardrail and open questions
 //   knowledge_document_status   correct / withdraw / reinstate (KB-01)
 //   account_status              createUser, and updateUser changing role or active
 //   assessment_status           createAssessment, archive, restore

@@ -1,10 +1,11 @@
 // MarshBot's push channel (AS-06, ADR .local-docs/adr/0002): a server-sent
-// event stream that tells an open Overview its brief changed, so it never polls.
+// event stream that tells an open Overview its brief changed, and Generation and
+// Review that drafting moved on (GN-13), so none of them polls.
 // Mounted in index.ts under requireAuthNoRefresh. Listens on assistant/bus.ts.
 import { Router } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
 import { canOpenAssessment } from '../services/assessment.service'
-import { onBriefChanged } from '../services/assistant/bus'
+import { onBriefChanged, onDrafting } from '../services/assistant/bus'
 
 const router = Router({ mergeParams: true })
 
@@ -36,6 +37,10 @@ router.get('/', requirePermission('assessments:view'), async (req, res) => {
   const unsubscribe = onBriefChanged(reference, (updatedAt) =>
     res.write(`event: brief\ndata: ${JSON.stringify({ updatedAt })}\n\n`),
   )
+  // And one per drafting change (GN-13); Generation and Review then re-read the drafting state.
+  const unsubscribeDrafting = onDrafting(reference, () =>
+    res.write('event: drafting\ndata: {}\n\n'),
+  )
   const ping = setInterval(() => res.write(': ping\n\n'), PING_MS)
   // c. Closed when the session expires, so a stream never outlives the 15-minute
   // sign-in; EventSource reconnects with whatever cookie the browser now holds.
@@ -44,6 +49,7 @@ router.get('/', requirePermission('assessments:view'), async (req, res) => {
   // d. Without this, a closed tab would keep its listener and timers forever.
   req.on('close', () => {
     unsubscribe()
+    unsubscribeDrafting()
     clearInterval(ping)
     clearTimeout(expire)
   })

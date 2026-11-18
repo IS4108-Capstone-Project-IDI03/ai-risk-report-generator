@@ -22,11 +22,13 @@ import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import assistantRoutes from './routes/assistant.routes'
 import assistantEventRoutes from './routes/assistant-events.routes'
+import generationRoutes from './routes/generation.routes'
 import { assistantRecheck } from './middleware/assistant-recheck.middleware'
 import { scheduleDailyAssessmentChecks } from './services/assistant/check-queue.service'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
 import { startWorkers } from './services/job-queue.service'
 import { resumeInterruptedSiteWalks } from './services/site-walk.service'
+import { resumeDraftingRuns } from './services/generation/drafting-run.service'
 import {
   failInterruptedInterpretations,
   resumeInterruptedTranscriptions,
@@ -85,6 +87,13 @@ app.use(
   (req, res, next) => (req.method === 'GET' ? requireAuthNoRefresh : requireAuth)(req, res, next),
   assistantRoutes,
 )
+// Background drafting (GN-13). Reading doesn't refresh the session: an open
+// Generation tab re-reads it on every push, which must not keep an idle session alive.
+app.use(
+  '/api/assessments/:reference/generation',
+  (req, res, next) => (req.method === 'GET' ? requireAuthNoRefresh : requireAuth)(req, res, next),
+  generationRoutes,
+)
 app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
@@ -128,6 +137,9 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 async function start() {
   await connectDb()
   await failInterruptedInterpretations()
+  // GN-13: before the workers, so recovery never resets a job a worker has
+  // just picked up (its "done" write would then match nothing).
+  await resumeDraftingRuns()
   startWorkers()
   // Not awaited: Redis being slow must not hold up the gateway starting.
   scheduleIntakeCleanup().catch((error: unknown) =>

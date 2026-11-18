@@ -6,6 +6,7 @@ import type { Types } from 'mongoose'
 import type { SessionUser } from './auth.service'
 import { createHash } from 'node:crypto'
 import { AssessmentModel, type IAssessment } from '../models/assessment.model'
+import { DraftingRunModel } from '../models/drafting-run.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import type { ISite } from '../models/site.model'
@@ -111,20 +112,34 @@ export function purposeAndScope(
   ]
 }
 
+// True when a background job drafted Section 3 and the AI suggested no OFIs at
+// all (GN-13 rule 5): Section 2 is then drafted without any. Read from Section
+// 3's fingerprint, which only a job that drafted it saves, not the latest job's
+// status: a Redraft queued from Review would otherwise undo it.
+async function noOfisSuggested(assessment: Types.ObjectId): Promise<boolean> {
+  const [ofi, drafted] = await Promise.all([
+    ReportOfiModel.exists({ assessment }),
+    DraftingRunModel.exists({ assessment, ofiEvidence: { $ne: null } }),
+  ])
+  return !ofi && !!drafted
+}
+
 // Each summarised section as it stands now: its text for S4, and a version that
 // changes whenever its content does (AC4). Sections 4-12: the saved draft (RV-02:
 // a replacement only once accepted) with the engineer's decisions applied, so an
 // edit is summarised as edited and a rejected finding not at all; its version is
-// the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids.
+// the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids,
+// or `none` with no text when the AI suggested none (GN-13).
 // A null version means the section is not complete.
 export async function currentSections(
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> & { _id: Types.ObjectId },
 ) {
-  const [drafts, accepted] = await Promise.all([
+  const [drafts, accepted, suggestedNone] = await Promise.all([
     sectionDrafts(assessment._id),
     ReportOfiModel.find({ assessment: assessment._id, state: 'accepted' })
       .sort({ acceptedAt: 1 })
       .lean(),
+    noOfisSuggested(assessment._id),
   ])
   const saved = SUMMARISED_SECTIONS.flatMap((s) => drafts.get(s.id)?.saved ?? [])
   const entries = await entriesFor(saved.map((d) => d._id))
@@ -137,7 +152,9 @@ export async function currentSections(
               .map((o) => String(o._id))
               .sort()
               .join(',')
-          : null,
+          : suggestedNone
+            ? 'none'
+            : null,
         text: accepted.map((o) => `${o.priority} — ${o.title}: ${o.description}`).join('\n'),
       }
     }
