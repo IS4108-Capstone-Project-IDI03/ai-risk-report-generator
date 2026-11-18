@@ -452,22 +452,78 @@ def _update_section_stack(stack: list[tuple[int, str]], level: int, text: str) -
 
 
 def _build_section_trails(doc) -> dict[str, list[str]]:
-    """Map each document item's self_ref -> its heading trail (outermost first)."""
+    """Map each document item's self_ref -> its heading trail (outermost first).
+
+    Heading text is normalised (`_heading_text`), and two kinds of heading are left out of every
+    trail (IN-19, D1): a text repeated on many pages, which is a running header or a watermark
+    Docling read as a body heading ("25 NFPA ®", "EDUFIRE"; true page headers are already in
+    Docling's furniture layer), and a "Table … Continued" label, which would cut the clause
+    trail in the middle of a section.
+    """
+    items = list(doc.iterate_items(with_groups=False))
+    headings = [(item, level) for item, _ in items if (level := _heading_level(item)) is not None]
+    repeated = _repeated_headings([item for item, _ in headings], doc)
     trails: dict[str, list[str]] = {}
     stack: list[tuple[int, str]] = []
-    for item, _tree_level in doc.iterate_items(with_groups=False):
-        label = getattr(item, "label", None)
-        if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
-            _update_section_stack(stack, 0, item.text)
-
-        elif isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
-            level = getattr(item, "level", 1) or 1
-            _update_section_stack(stack, level, item.text)
+    for item, _tree_level in items:
+        level = _heading_level(item)
+        if level is not None:
+            text = _heading_text(item.text)
+            if text and text not in repeated and not _CONTINUED.match(text):
+                _update_section_stack(stack, level, text)
 
         self_ref = getattr(item, "self_ref", None)
         if self_ref is not None:
             trails[self_ref] = [text for _lvl, text in stack]
     return trails
+
+
+def _heading_level(item) -> int | None:
+    """0 for a title, a section heading's level (1 if unknown), or None if not a heading."""
+    label = getattr(item, "label", None)
+    if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
+        return 0
+    if isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
+        return getattr(item, "level", 1) or 1
+    return None
+
+
+# A table or figure label repeated where it carries on: "Table 3.3.1 Continued",
+# "Figure A.4 (continued)".
+_CONTINUED = re.compile(r"^(?:Table|Figure|Exhibit)\b.*\bcontinued\W*$", re.IGNORECASE)
+# NFPA's change markers before a clause number ("Δ 3.3.1", "N 3.3.2"), and the "*" after one
+# that points to its Annex note ("3.3.1*"). IN-17's outline (`app/outline.py` `_CLAUSE`) reads
+# clause numbers with or without them.
+_CLAUSE_NUMBER = r"(?:\d{1,2}|[A-Z])(?:\.\d+)+"
+_CHANGE_MARKER = re.compile(rf"^(?:Δ\s*)?(?:N\s*(?={_CLAUSE_NUMBER}))?")
+_ANNEX_STAR = re.compile(rf"^({_CLAUSE_NUMBER})\*")
+# A heading on at least this many pages, and on more than this share of them, is a running
+# header or a watermark, not a section.
+_REPEATED_PAGES = 3
+_REPEATED_SHARE = 0.2
+
+
+def _heading_text(text: str) -> str:
+    """A heading as a trail shows it: whitespace collapsed, NFPA's change markers and a clause
+    number's Annex "*" removed."""
+    text = " ".join((text or "").split())
+    text = _CHANGE_MARKER.sub("", text, count=1)
+    return _ANNEX_STAR.sub(r"\1", text, count=1)
+
+
+def _repeated_headings(headings: list, doc) -> set[str]:
+    """The heading texts found on so many pages that they are a running header or watermark."""
+    pages_of: dict[str, set[int]] = {}
+    for item in headings:
+        text = _heading_text(item.text)
+        for item_prov in getattr(item, "prov", None) or []:
+            pages_of.setdefault(text, set()).add(item_prov.page_no)
+    total = len(getattr(doc, "pages", None) or {}) or len(set().union(*pages_of.values(), set()))
+    return {
+        text
+        for text, pages in pages_of.items()
+        if len(pages) >= _REPEATED_PAGES and len(pages) > _REPEATED_SHARE * total
+    }
 
 
 def _resolved(item, doc):
