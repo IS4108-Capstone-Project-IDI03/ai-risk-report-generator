@@ -21,9 +21,12 @@ import {
   reviewReasons,
   SOURCE_LABELS,
 } from '../display'
+import { ChooseSourceType } from './ChooseSourceType'
 import { ReviewBadge } from './ReviewBadge'
 
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
+  // Waits for the admin to choose a source type before it is ingested (IN-19).
+  awaiting_type: { label: 'Type needed', tone: 'moderate' },
   queued: { label: 'Queued', tone: 'neutral' },
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
@@ -70,6 +73,7 @@ export function UploadedDocuments({
   const [retryError, setRetryError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({})
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
 
   // Re-reads the list (and, because a retried document is now queued, restarts
   // the 3s polling loop). Bumping `attempt` re-runs the load effect.
@@ -187,10 +191,18 @@ export function UploadedDocuments({
           </span>
         )}
         {d.error && <span className="kb-status-reason">{d.error}</span>}
+        {d.status === 'awaiting_type' && (
+          <span className="kb-stage-detail">
+            Its source type couldn't be read. Choose one to start.
+          </span>
+        )}
       </span>
     )
   }
   const action = (d: KnowledgeDocument) => {
+    if (d.status === 'awaiting_type') {
+      return <ChooseSourceType document={d} onStarted={refresh} onError={setStartError} />
+    }
     if (d.status === 'failed' || d.status === 'cancelled') {
       return (
         <Button
@@ -247,6 +259,11 @@ export function UploadedDocuments({
       {cancelError && (
         <Callout tone="danger" title="Stop not started">
           {cancelError}
+        </Callout>
+      )}
+      {startError && (
+        <Callout tone="danger" title="Ingestion not started">
+          {startError}
         </Callout>
       )}
       {unreachable && (

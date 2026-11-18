@@ -9,10 +9,12 @@ import { uploadKnowledgeDocument } from './api'
 
 // A selected file and where its upload stands. `queued` means the gateway
 // accepted it; its ingestion progress then shows in the uploads list.
+// `awaiting_type` means it was accepted but its source type couldn't be read:
+// the admin chooses one in the uploads list before it is ingested (IN-19).
 export type Upload = {
   key: string
   file: File
-  state: 'uploading' | 'queued' | 'rejected' | 'failed'
+  state: 'uploading' | 'queued' | 'awaiting_type' | 'rejected' | 'failed'
   error: string | null
 }
 
@@ -82,8 +84,8 @@ export function clearFinished() {
 async function send(upload: Upload) {
   try {
     // 201: accepted. Its ingestion progress now shows in the uploaded list.
-    await uploadKnowledgeDocument(upload.file)
-    patch(upload.key, { state: 'queued' })
+    const { status } = await uploadKnowledgeDocument(upload.file)
+    patch(upload.key, { state: status === 'awaiting_type' ? 'awaiting_type' : 'queued' })
   } catch (error: unknown) {
     // Nothing wrong with the file: the gateway, ingestion or the converter is
     // down. Keep the row so the admin can upload it again.
