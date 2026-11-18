@@ -1661,7 +1661,10 @@ uncategorised observations. The title falls back to the file name, and
   'admin'`. Absent when labelling failed, in which case every detail is
   Unconfirmed.
 
-`status` is `queued` (set by the gateway), then `processing`, `complete` (with
+`status` is `queued` (set by the gateway), or `awaiting_type` when labelling
+couldn't read the source type (IN-19): such a document is stored but not
+queued until an admin chooses a type (`POST .../source-type`), so it is never
+ingested or redacted as an unknown type. Then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
 (with `error`, the reason shown to the admin), all set by the ingestion worker,
 which also records `startedAt` and `finishedAt`. An admin can stop a queued or
@@ -1752,7 +1755,7 @@ it `select: false`, so the gateway never loads it unless it asks by name, and no
 route or DTO includes it. See [privacy.md](privacy.md) "Ingestion of past reports".
 
 `file.sha256` has a **unique partial index** covering documents whose `status`
-is `queued`, `processing` or `complete`, so a failed document's file can be
+is `awaiting_type`, `queued`, `processing` or `complete`, so a failed document's file can be
 uploaded again. It stops two identical files uploaded together both being
 stored. `original.sha256` has the same index, limited to documents that have
 an `original`, because two conversions of one Word file give different PDFs. The gateway builds it at startup. It can't build while identical files
@@ -1763,13 +1766,14 @@ copies and restart. The upload's own check still rejects most repeats.
 | Route | Does |
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
-| `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents` | Recent uploads, newest first: every document awaiting a type, queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
 | `GET /api/knowledge-documents/:id` | One document as the lists show it (F-10), `knowledge:view`. 200, or 404 (unknown or malformed id) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
 | `POST /api/knowledge-documents/:id/retry` | Retries a failed or cancelled ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears terminal error/cancellation fields, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not retryable (someone already retried it), 503 queue unreachable (document is restored to its previous terminal state, counter rolled back). `knowledge:manage` only |
+| `POST /api/knowledge-documents/:id/source-type` | Chooses the source type of a document awaiting one (IN-19): JSON `{ sourceType }`. Saves it as the admin's (`labelling.details.source_type.source: 'admin'`), sets the issuing body from it, drops it from `unconfirmed` (a report also drops its edition and standard number), records `handled`, flips `status` to `queued` and queues the job. 200 with the document, 400 a type not on the list, 404 unknown, 409 not awaiting a type (also the second of two choices made together), 503 queue unreachable (the document is put back exactly as it was). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
 | `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |

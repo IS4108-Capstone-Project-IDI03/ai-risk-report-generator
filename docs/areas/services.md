@@ -269,7 +269,12 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
 4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
-   record and the file and answers 503.
+   record and the file and answers 503. If labelling couldn't read the source
+   type, it records the document as `awaiting_type` instead and queues nothing
+   (IN-19): Recent uploads shows it as Type needed with a type select, and
+   Start ingestion (`POST .../source-type`) saves the type and queues the job.
+   The worker would redact a document with no type as a precaution (PV-05),
+   which garbled standards set in Type3 fonts.
 5. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`

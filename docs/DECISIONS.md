@@ -2618,3 +2618,19 @@ Rejected:
 - A status column: it would repeat the same word on every row.
 
 Stories: IN-17, IN-18, KB-02, IN-13.
+
+## 2026-11-18 — A document whose type can't be read waits for the admin to choose one before ingestion
+
+An upload whose source type labelling can't read is stored as `awaiting_type` and not queued. Recent uploads shows it as Type needed, with a type select and Start ingestion; choosing a type saves it as the admin's and queues the job once. Delete works on it; Stop and Retry don't apply.
+
+- The type is chosen in Recent uploads only. The upload row above it says Type needed and points there: both sit on the Add documents tab, and a second control in the row would get out of step with the list.
+- The worker's rule is unchanged: a document that reaches it with no type is redacted (PV-05, fail closed). This only stops such documents reaching it.
+
+Reason: redaction depends on the type, and a standard sent through it as an unknown type came out garbled (Type3 fonts redrawn at 0.1 pt, one glyph per paragraph, false `[PERSON_n]` tags; D3/D4 in the ingestion fixes plan). Asking for the type costs the admin one choice, against re-ingesting the document.
+
+Rejected:
+- Ingesting first and asking afterwards: the damage is done by then and needs a full re-ingest.
+- Guessing a type (say, "standard") when labelling fails: a past report guessed as a standard would skip redaction and send client names out.
+- The type control in both the upload row and Recent uploads: two controls for one document on one screen.
+
+Stories: IN-19, IN-05, PV-05.
