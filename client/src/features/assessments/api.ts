@@ -760,12 +760,6 @@ export async function listOfis(reference: string, signal?: AbortSignal): Promise
   return (await request<OfiList>('GET', ofisPath(reference), undefined, signal)).data
 }
 
-// Drafts OFI suggestions from the assessment's observations, replacing the
-// unaccepted ones; accepted OFIs stay.
-export async function draftOfis(reference: string): Promise<OfiList> {
-  return (await request<OfiList>('POST', `${ofisPath(reference)}/draft`)).data
-}
-
 // Accepts one suggestion into the report.
 export async function acceptOfi(reference: string, id: string): Promise<OfiList> {
   return (await request<OfiList>('POST', `${ofisPath(reference)}/${encodeURIComponent(id)}/accept`))
@@ -981,16 +975,6 @@ export async function downloadChecklistPdf(
     file: await response.blob(),
     fileName: fileNameOf(response.headers.get('Content-Disposition'), `${reference} checklist.pdf`),
   }
-}
-
-// Drafts one section from the assessment's observations; the gateway saves it.
-export async function draftSection(reference: string, sectionId: string): Promise<SectionDraft> {
-  return (
-    await request<SectionDraft>(
-      'POST',
-      `${sectionsPath(reference)}/${encodeURIComponent(sectionId)}/draft`,
-    )
-  ).data
 }
 
 export type CompletionState = 'not_started' | 'partial' | 'complete'
@@ -1233,20 +1217,6 @@ export async function bulkAccept(
   ).data
 }
 
-// Drafts the section again as a replacement for its saved draft, with what
-// the engineer wants changed, if anything.
-export async function regenerateSection(
-  reference: string,
-  sectionId: string,
-  instruction: string,
-): Promise<ReviewWorkspace> {
-  return (
-    await request<ReviewWorkspace>('POST', `${sectionPath(reference, sectionId)}/regenerate`, {
-      instruction,
-    })
-  ).data
-}
-
 // Accepts the waiting replacement as the section's content, or discards it.
 export async function decideReplacement(
   reference: string,
@@ -1408,11 +1378,6 @@ const summaryPath = (reference: string) =>
 
 export async function getSummary(reference: string, signal?: AbortSignal): Promise<Summary> {
   return (await request<Summary>('GET', summaryPath(reference), undefined, signal)).data
-}
-
-// Drafts the Executive Summary; the gateway saves it as Section 2.
-export async function draftSummary(reference: string): Promise<SectionDraft> {
-  return (await request<SectionDraft>('POST', `${summaryPath(reference)}/draft`)).data
 }
 
 // Appendix A (GN-07): every photo of the report, and the chosen ones in order

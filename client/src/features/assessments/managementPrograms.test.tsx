@@ -1,11 +1,10 @@
-// Section 6 Management Programs as Generation and Review show it (GN-11 AC1-AC5):
+// Section 6 Management Programs as Review shows it (GN-11 AC1-AC5):
 // Table 1 with each rank coloured, Table 2 the maturity scale, then the comments.
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReviewSection, SectionDraft } from './api'
 import { DraftEditor } from './components/DraftEditor'
-import { DraftView } from './screens/SectionDrafts'
 
 const PROVENANCE = {
   provider: 'anthropic',
@@ -104,13 +103,6 @@ function expectTables() {
   // Then the comments paragraph.
   expect(screen.getByText('Maintenance is well run; hot work is loosely controlled.')).toBeVisible()
 }
-
-it("shows Section 6 on Generation as Marsh's two tables, then the comments (AC1, AC2, AC4)", () => {
-  render(<DraftView draft={SIX} />)
-  expectTables()
-  // Generation only generates: no citations or review controls.
-  expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
-})
 
 it('lets the engineer decide each row in Review, in the same tables (AC3, AC5)', () => {
   const section: ReviewSection = {

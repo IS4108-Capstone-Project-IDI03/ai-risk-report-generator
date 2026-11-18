@@ -396,14 +396,6 @@ main.om-scroll {
   }
 }
 
-/* A failed figure proposal (GN-03 addendum), under the section's figures-needed note. */
-.generation-propose-error {
-  display: block;
-  margin-top: 4px;
-  color: var(--status-critical-fg);
-  font-size: 14px;
-}
-
 /* ---- The assessment's tab bar (CP-22 round 1): the tabs are the emphasis ----
    Overrides the design system's Tabs, whose spacing and weights are inline, for
    this bar only; other screens keep the standard tabs. */
