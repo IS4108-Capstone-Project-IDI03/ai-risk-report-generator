@@ -8,7 +8,6 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import type { AcceptedOfi, SavedObservation } from '../../api'
 import { ChartBoundary } from '../../components/ChartBoundary'
-import { MarkBox } from '../../components/PhotoMark'
 import { MaturityTable } from '../../components/MaturityTable'
 import { OfisInReport } from '../../components/OfiSuggestions'
 import { RiskMatrix } from '../../components/RiskMatrix'
@@ -71,20 +70,7 @@ export function AppendixReport({ reference }: { reference: string }) {
     <>
       {appendix.selected.map((photo) => (
         <figure key={photo.photoId} className="pg-photo">
-          {/* A marked photo shows its mark (CP-10). The export draws it into the
-              printed photo from data-region and leaves this box out (snapshot.ts). */}
-          <span className="pg-photo-frame">
-            <img
-              src={photo.url}
-              alt={photo.caption || photo.name}
-              data-region={photo.region ? JSON.stringify(photo.region) : undefined}
-            />
-            {photo.region && (
-              <span className="pg-photo-mark">
-                <MarkBox region={photo.region} />
-              </span>
-            )}
-          </span>
+          <img src={photo.url} alt={photo.caption || photo.name} />
           <figcaption>{photo.caption}</figcaption>
         </figure>
       ))}

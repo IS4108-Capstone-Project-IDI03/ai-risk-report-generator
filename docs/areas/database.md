@@ -205,14 +205,12 @@ as `locations`. `GET /api/assessments/:reference/appendix` returns `{ selected,
 available }`: the chosen photos with their details and caption, leaving out any
 whose observation was deleted since, and every photo of the assessment's
 non-deleted observations (`photoId`, `observationId`, `name`, `url`,
-`location`, `category`, `note`, `region`, `selected`; `region` is the
-photo's mark, CP-10, or null). `PUT` on the same path (JSON
+`location`, `category`, `note`, `selected`). `PUT` on the same path (JSON
 `photos: [{ photoId, caption }]`, assigned engineer only) replaces the list:
 200 with the same shape, 400 for a photo not the assessment's, one given
 twice, or a caption over 200 characters, 403, 404, 409 archived. The export
-(EX-01) is to read it. A marked photo's mark shows over it in the page layout,
-and the export draws it into the printed photo (`snapshot.ts` `drawMark`), so
-the PDF and the Word file both hold it while the original stays unchanged.
+(EX-01) is to read it. A photo's mark (CP-10) is not shown here or in the
+export: it is for the AI reading only, so the report shows photos as taken.
 
 `riskQuality` and `lossEstimates` (GN-03) are Sections 4 and 5's figures, typed
 by the engineer in Review; every score, rating and loss is computed from them
@@ -737,11 +735,16 @@ must delete its `redaction.key` too.
 A photo the engineer has marked (CP-10) has a `region`: `{ x, y, w, h }`, the
 marked rectangle as fractions (0 to 1) of the upright image's width and height,
 with `x` and `y` its top-left corner. It is data only. The image in S3 is never
-changed, and the mark is drawn over the photo wherever it is shown. A photo
+changed. The mark is shown over the photo in the app (its popup and tiles) and
+sent to the AI reading (CP-05); the report's Appendix A and the export (EX-01)
+show photos as taken. A photo
 without a mark has no `region`, and the API returns `region: null` for it.
 Clearing the mark removes the field. Only a kept photo of an observation that
 isn't deleted can be marked, and only by the assigned engineer while the
-assessment isn't archived. A mark stamps `edited`.
+assessment isn't archived. A mark stamps `edited`. A photo can also be marked
+before it is saved, at capture or in Add media: the mark goes with it as a
+`photoRegion` part (see the two upload routes below) and is stored with the new
+photo. Site walk photos (CP-22) are not marked.
 
 An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
 for it to be read: what the model proposes from everything captured in it, for
@@ -850,13 +853,13 @@ none.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. When a photo was marked before saving (CP-10), one `photoRegion` part per `photo` part, in the same order: the mark as JSON `{ x, y, w, h }`, or empty for a photo not marked; none at all when no photo is marked. A mark that is not an area inside its photo, or a count that doesn't match the photos, is a 400 and nothing is stored. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
 | `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, and `photoRegion` parts for photos marked before adding (CP-10), checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
 | `PUT /api/observations/:id/photos/:photoId/region`, `DELETE …/region` | Marks the area of a photo that matters (CP-10): JSON `{ x, y, w, h }`, fractions of the photo with a size above zero, inside it; DELETE clears the mark. The photo in S3 is not changed. 200 with the observation, or 400 / 403 / 404 / 409 (the photo removed, the observation deleted, or the assessment archived) |
 | `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore`, `POST /api/observations/:id/pages/:pageId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |

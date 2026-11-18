@@ -5,7 +5,7 @@ import { fileNameOf } from '../../api'
 import { toEditorJSON, type EditorSection } from '../convert'
 import { programRowDecorations, programRowsOf } from '../page/programs'
 import { documentExtensions } from '../schema'
-import { drawMark, photosIn, PRINT_DPI, printSize, regionOf } from './snapshot'
+import { photosIn, PRINT_DPI, printSize } from './snapshot'
 
 // The export's pages (EX-01). jsdom lays nothing out, so how the pages are
 // cut is checked on the server's sample pages; here, the rules that need no
@@ -37,40 +37,6 @@ describe('photos at print resolution (AC8)', () => {
     expect(photosIn(root).map((img) => img.getAttribute('src'))).toEqual([
       '/api/observations/o1/photos/p1/image',
     ])
-  })
-})
-
-describe('a marked photo (CP-10)', () => {
-  it('draws the mark into the printed photo, white on a dark edge, at its share of the photo', () => {
-    const drawn: { strokeStyle: unknown; lineWidth: number; rect: number[] }[] = []
-    const context = {
-      strokeStyle: '' as unknown,
-      lineWidth: 0,
-      strokeRect(...rect: number[]) {
-        drawn.push({ strokeStyle: this.strokeStyle, lineWidth: this.lineWidth, rect })
-      },
-    }
-
-    drawMark(
-      context as unknown as CanvasRenderingContext2D,
-      { x: 0.25, y: 0.1, w: 0.5, h: 0.4 },
-      { width: 1200, height: 900 },
-    )
-
-    // At 1,200 pixels wide (4 inches at 300 dpi), a 4-pixel line: about 1 pt.
-    expect(drawn).toEqual([
-      { strokeStyle: 'rgba(16, 31, 51, 0.6)', lineWidth: 8, rect: [300, 90, 600, 360] },
-      { strokeStyle: '#fff', lineWidth: 4, rect: [300, 90, 600, 360] },
-    ])
-  })
-
-  it("reads a photo's mark from the page, and none when there is none or it is not one", () => {
-    const img = document.createElement('img')
-    expect(regionOf(img)).toBeNull()
-    img.dataset.region = JSON.stringify({ x: 0.25, y: 0.1, w: 0.5, h: 0.4 })
-    expect(regionOf(img)).toEqual({ x: 0.25, y: 0.1, w: 0.5, h: 0.4 })
-    img.dataset.region = '{"x":0.25}'
-    expect(regionOf(img)).toBeNull()
   })
 })
 

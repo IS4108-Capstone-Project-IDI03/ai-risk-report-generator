@@ -418,19 +418,6 @@
   max-height: 420pt;
   margin: 0 auto;
 }
-/* Hugs the photo, so a mark's percentages are of the photo (CP-10). */
-.pg-photo-frame {
-  position: relative;
-  display: block;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
-}
-.pg-photo-mark {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
 .pg-photo figcaption {
   margin-top: 4pt;
   font-size: 10pt;

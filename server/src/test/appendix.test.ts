@@ -108,25 +108,10 @@ describe('Appendix A site photos (GN-07)', () => {
         location: 'Pump room, B1',
         category: 'Protection',
         note: 'Fire pump controller in auto.',
-        // Not marked (CP-10).
-        region: null,
         selected: false,
       },
       expect.objectContaining({ name: 'panel.jpg', selected: false }),
     ])
-  })
-
-  it('gives each photo the area the engineer marked, for the export to draw (CP-10)', async () => {
-    const ids = await assessment()
-    const area = { x: 0.25, y: 0.1, w: 0.5, h: 0.4 }
-    const pump = { ...photo('pump.jpg'), region: area }
-    await observation(ids, [pump])
-    await api.put(url).send({ photos: [{ photoId: String(pump._id), caption: 'Pump' }] })
-
-    const { body } = await api.get(url)
-
-    expect(body.available[0].region).toEqual(area)
-    expect(body.selected[0].region).toEqual(area)
   })
 
   it('saves the chosen photos in order with their captions, and deselects', async () => {

@@ -1451,8 +1451,6 @@ export type AppendixPhoto = {
   location: string | null
   category: string | null
   note: string | null
-  // The area the engineer marked (CP-10); null, or absent from older answers, when none is.
-  region?: PhotoRegion | null
   selected: boolean
 }
 export type AppendixList = {

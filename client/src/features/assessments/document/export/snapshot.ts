@@ -13,7 +13,6 @@
 // Photos go in at print resolution (PRINT_DPI); the stored originals are
 // never changed (AC8).
 import type { EditorView } from '@tiptap/pm/view'
-import type { PhotoRegion } from '../../api'
 import { contentsNumber } from '../page/frontMatter'
 import { MARSH_GEOMETRY } from '../page/geometry'
 import { measureUnits, type MeasuredUnit } from '../page/measure'
@@ -61,9 +60,6 @@ const PICTURE = 'figure, svg, canvas, .rv-legend, .rv-charts-grid'
 const TABLE_PART = new Set(['TR', 'THEAD', 'TBODY', 'TFOOT', 'CAPTION'])
 // Starts a page in Word too, as it does in the layout (measure.ts NEW_PAGE).
 const NEW_PAGE = '.rv-figures-level'
-// A photo's mark as the page shows it (CP-10): drawn into the printed photo
-// instead, so the PDF and the Word file both hold it.
-const PAGE_MARK = '.pg-photo-mark'
 // For screen readers only: in the PDF's text, not drawn in the Word file.
 const SCREEN_READER_ONLY = '.rv-sr-only, .dm-visually-hidden'
 
@@ -122,39 +118,6 @@ export function photosIn(root: ParentNode): HTMLImageElement[] {
   return Array.from(root.querySelectorAll<HTMLImageElement>(`img:not(${SEPARATOR})`))
 }
 
-// The area the engineer marked on a photo in the pages (CP-10), or null.
-export function regionOf(img: HTMLImageElement): PhotoRegion | null {
-  if (!img.dataset.region) return null
-  try {
-    const r = JSON.parse(img.dataset.region) as Partial<PhotoRegion>
-    return [r.x, r.y, r.w, r.h].every((n) => typeof n === 'number') ? (r as PhotoRegion) : null
-  } catch {
-    return null
-  }
-}
-
-// Draws a mark into a printed photo (CP-10) as the page shows it: white on a
-// dark edge, so it shows on any photo, about 1 pt wide at print resolution.
-export function drawMark(
-  context: CanvasRenderingContext2D,
-  region: PhotoRegion,
-  size: { width: number; height: number },
-) {
-  const line = Math.max(2, Math.round(size.width / 300))
-  const rect = [
-    Math.round(region.x * size.width),
-    Math.round(region.y * size.height),
-    Math.round(region.w * size.width),
-    Math.round(region.h * size.height),
-  ] as const
-  context.strokeStyle = 'rgba(16, 31, 51, 0.6)'
-  context.lineWidth = line * 2
-  context.strokeRect(...rect)
-  context.strokeStyle = '#fff'
-  context.lineWidth = line
-  context.strokeRect(...rect)
-}
-
 function photoData(img: HTMLImageElement): string {
   if (!img.complete || !img.naturalWidth)
     throw new SnapshotError(
@@ -170,8 +133,6 @@ function photoData(img: HTMLImageElement): string {
   context.fillStyle = '#fff'
   context.fillRect(0, 0, size.width, size.height)
   context.drawImage(img, 0, 0, size.width, size.height)
-  const region = regionOf(img)
-  if (region) drawMark(context, region, size)
   try {
     return canvas.toDataURL('image/jpeg', JPEG_QUALITY)
   } catch {
@@ -217,7 +178,6 @@ export function snapshotPages({ sheet, view, parts, title, css }: SnapshotInput)
   // Photos at print resolution, in place of their gateway addresses. The
   // separators are an editing aid, drawn at no size: left out.
   for (const separator of Array.from(master.querySelectorAll(SEPARATOR))) separator.remove()
-  for (const mark of Array.from(master.querySelectorAll(PAGE_MARK))) mark.remove()
   for (const img of photosIn(sheet))
     (copyOf.get(img) as HTMLImageElement).setAttribute('src', photoData(img))
   for (const canvas of Array.from(sheet.querySelectorAll('canvas'))) {
