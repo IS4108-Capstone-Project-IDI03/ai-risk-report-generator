@@ -3,7 +3,7 @@
 // client and site or one flat list, with the Focus button beside the bell (AS-07). Rendered
 // by AssessmentApp. Calls WorkToolbar, ClientGroup, WorkRow and FocusButton; the list's data
 // is from useAssessmentWorkflow.tsx.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Callout,
@@ -44,6 +44,9 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
   // holds 1 s + 260 ms, as the Documents list's does).
   const [reassigning, setReassigning] = useState<WorkRowData | null>(null)
   const [changed, setChanged] = useState<string | null>(null)
+  // The timer that lets the tint go; cancelled when the list closes or another row takes it.
+  const settle = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(settle.current), [])
   // The row as the list holds it now: a refused move reads the list again, and the dialog follows.
   const held = reassigning && (v.filteredRows.find((r) => r.id === reassigning.id) ?? reassigning)
   const assign: AssignControls | undefined = v.canAssign
@@ -181,7 +184,8 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
             v.rowMoved(moved)
             setReassigning(null)
             setChanged(moved.reference)
-            window.setTimeout(() => setChanged(null), 1400)
+            window.clearTimeout(settle.current)
+            settle.current = window.setTimeout(() => setChanged(null), 1400)
             toast.success(moved.reference + ' reassigned', {
               description: 'Now with ' + (moved.engineer?.name ?? 'no one'),
             })
