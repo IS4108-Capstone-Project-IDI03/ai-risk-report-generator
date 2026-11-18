@@ -360,6 +360,13 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   answer that finds no table is not unusable: that table is still read as a picture.
 - **Passage metadata** gains `position` (the chunk's number in reading order),
   and table passages `table_id` (shared by a table's groups) and `table_title`.
+- **Heading trails** (`chunker._build_section_trails`). Each passage's `headings` is
+  the stack of headings above it. A heading text on 3 or more pages, and on more than
+  20% of them, is a running header or a watermark Docling read as a body heading
+  ("25 NFPA ®", "EDUFIRE") and is in no trail; a "Table/Figure … Continued" label is
+  skipped, so the clause trail before it carries on. Heading text is normalised:
+  whitespace collapsed, NFPA's `Δ`/`N` change markers and a clause number's Annex `*`
+  removed (IN-19). The picture reader's `Section:` line is the same trail.
 - **What search reads.** The embedder and the reranker both see the heading trail
   and then the text (`indexer.embedding_text`, `retriever.rank_text`; change them
   together), while the stored text, quotes and pages stay plain. Short forms in a

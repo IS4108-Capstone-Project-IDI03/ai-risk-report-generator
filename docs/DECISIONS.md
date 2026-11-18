@@ -2666,3 +2666,17 @@ Rejected:
 - Joining an untitled table to the one before only when on the next page: two items in one chunk are two tables to Docling; a long table is one item with several boxes.
 
 Stories: IN-19, KB-02.
+
+## 2026-11-18 — A heading repeated on many pages is left out of heading trails
+
+A heading text on 3 or more pages, and on more than 20% of a document's pages, is left out of every passage's heading trail, as are "Table/Figure … Continued" labels. Heading text is normalised (whitespace, NFPA's `Δ`/`N` change markers, the Annex `*` after a clause number).
+
+Reason: NFPA 25's trails began `25 NFPA ® › EDUFIRE › 3e`: its running header and a licence watermark are body text to Docling, which already moves true page headers to its furniture layer. Position or repetition is the only signal left, and repetition needs no page geometry. Both thresholds are needed: a short document's real section name may appear on two pages, and a long one's chapter title on many fewer than 20%.
+
+Rejected:
+- Dropping headings by position (top or bottom band of the page): a section heading at the top of a page is common.
+- Folding sub-labels into one level, and storing clause or chapter on each passage at ingestion: not measured yet, and IN-17 already reads clause numbers on the server.
+
+The embedded text (`indexer.embedding_text`) and the reranker's (`retriever.rank_text`) both read the trail, so they change together. The E8 evaluation on the standards set is to be run before and after, after the knowledge base is rebuilt; scores must not drop.
+
+Stories: IN-19, IN-17.
