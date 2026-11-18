@@ -285,6 +285,44 @@ describe('customising the checklist (CP-32)', () => {
     expect(within(row).getByText('Added')).toBeInTheDocument()
   })
 
+  it('cites the words selected in a passage when its button is pressed with a mouse', async () => {
+    const passage = {
+      ref: 'C:nfpa13:200',
+      documentId: 'nfpa13',
+      text: 'Flue spaces shall be kept clear. Transverse flues 75 mm.',
+      headings: ['Rack Storage'],
+      pageStart: 200,
+      pageEnd: 200,
+    }
+    serve(view([TEMPLATE, ROOF, RACKS]), (url) =>
+      url.includes('/passages?') ? { results: [passage] } : view([TEMPLATE, ROOF, RACKS]),
+    )
+    open()
+    fireEvent.click(await screen.findByRole('tab', { name: /Report sections/ }))
+    fireEvent.click(screen.getByRole('button', { name: `Edit item ${ROOF.text}` }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit item' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add another reference' }))
+    const found = await screen.findByRole('list', { name: 'Passages found' })
+    fireEvent.click(within(found).getByRole('button', { name: /NFPA 13 · p. 200/ }))
+
+    // Select the passage's second sentence, "Transverse flues 75 mm.".
+    const words = screen.getByLabelText('Passage text').firstChild!
+    const range = document.createRange()
+    range.setStart(words, 33)
+    range.setEnd(words, 56)
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+
+    // A browser clears the selection when a button is pressed with a mouse,
+    // unless the press is cancelled. jsdom never clears it, so check the press
+    // is cancelled, then that the selected words are the ones cited.
+    const use = screen.getByRole('button', { name: 'Use this passage' })
+    expect(fireEvent.mouseDown(use)).toBe(false)
+    fireEvent.click(use)
+    const refs = screen.getByRole('region', { name: 'References' })
+    expect(within(refs).getByText('“Transverse flues 75 mm.”')).toBeInTheDocument()
+  })
+
   it('asks for the wording and a category before adding', async () => {
     const fetch = serve(view([TEMPLATE, ROOF, RACKS]))
     open()

@@ -215,13 +215,18 @@ function PassagePicker({
                   <p style={{ ...caption, margin: 'var(--space-3) 0' }}>
                     Select the words the item rests on, or use the first sentence.
                   </p>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => onChoose(chosen, selectedIn(passageText.current))}
-                  >
-                    Use this passage
-                  </Button>
+                  {/* A mouse press on a button clears the page's selection before
+                      the click is handled, which would lose the words chosen:
+                      cancelling the press keeps them. */}
+                  <span onMouseDown={(event) => event.preventDefault()}>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => onChoose(chosen, selectedIn(passageText.current))}
+                    >
+                      Use this passage
+                    </Button>
+                  </span>
                 </div>
               )}
             </li>
