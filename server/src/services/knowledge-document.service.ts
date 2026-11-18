@@ -894,7 +894,7 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
   const since = (hours: number) => new Date(Date.now() - hours * HOUR)
   const documents = await KnowledgeDocumentModel.find({
     $or: [
-      { status: { $in: ['queued', 'processing'] } },
+      { status: { $in: ['awaiting_type', 'queued', 'processing'] } },
       { status: 'complete', finishedAt: { $gte: since(24) } },
       { status: 'failed', finishedAt: { $gte: since(7 * 24) } },
       { status: 'cancelled', cancelledAt: { $gte: since(7 * 24) } },

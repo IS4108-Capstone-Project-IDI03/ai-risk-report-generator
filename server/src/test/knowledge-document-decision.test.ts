@@ -749,6 +749,14 @@ describe('DELETE /api/knowledge-documents/:id (IN-12)', () => {
     expect((await remove(doc._id)).status).toBe(204)
   })
 
+  // IN-19: an upload whose type couldn't be read can be dropped instead of typed.
+  it('deletes a document awaiting a type', async () => {
+    const doc = await seed({ status: 'awaiting_type' })
+
+    expect((await remove(doc._id)).status).toBe(204)
+    expect(await reload(doc._id)).toBeNull()
+  })
+
   it('answers 404 for an unknown id', async () => {
     expect((await remove(new Types.ObjectId())).status).toBe(404)
   })

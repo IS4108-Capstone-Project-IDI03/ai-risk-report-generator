@@ -888,10 +888,11 @@ describe('POST /api/knowledge-documents/:id/source-type (IN-19)', () => {
 })
 
 describe('GET /api/knowledge-documents', () => {
-  it('lists recent uploads: in progress, complete for 24 hours, failed or cancelled for 7 days', async () => {
+  it('lists recent uploads: awaiting a type or in progress, complete for 24 hours, failed or cancelled for 7 days', async () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000)
     // The ingestion worker writes status and finishedAt; set them as it would.
     const cases = [
+      ['awaiting a type', { status: 'awaiting_type' }],
       ['queued', { status: 'queued' }],
       ['processing', { status: 'processing' }],
       ['complete 23 h ago', { status: 'complete', finishedAt: hoursAgo(23) }],
@@ -909,6 +910,7 @@ describe('GET /api/knowledge-documents', () => {
     const { body } = await api.get('/api/knowledge-documents')
 
     expect(body.map((d: { title: string }) => d.title).sort()).toEqual([
+      'awaiting a type',
       'cancelled 6 days ago',
       'complete 23 h ago',
       'failed 6 days ago',
