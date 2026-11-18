@@ -2433,7 +2433,7 @@ Stories: AS-02, AS-01, RV-03, RV-08, RV-01.
 
 Chose:
 - (KB-02) A cited table, formula or picture shows the part of the original page it was read from, cropped from the PDF in the browser with react-pdf, above the passage text. The table or formula is not rebuilt from its reading: the reading is what may be wrong, and a tidy rebuild would make an OCR error look authoritative. Ingestion keeps no table grid to rebuild from anyway.
-- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-__, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
+- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-19, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
 - Shown in the chat's Passage tab and the review workspace's source panel. Review looks the passage up live, only for its region; the text stays as the draft was given it (RV-01 AC7), and a passage gone since shows text only.
 - LaTeX in passage text is rendered with KaTeX (lazy-loaded) when valid, and shown as written when not, with no error. Detection is by text (delimiters, or a command on a line with no run of prose), so it also works for documents ingested before; it never decides whether a crop is shown.
 - A picture's generated description stays in the citation, under the picture, noted as written by AI: it is what the answer read, so the engineer can catch a misreading. `quotable_text` leaves it out, so a quote of it is never "found in the document".
@@ -2450,7 +2450,7 @@ Rejected:
 
 Known limits: the checklist and the drafting screen's evidence panel don't open passages, so they show no regions. Formula detection by text can miss an unread formula (Docling's placeholder or flattened arithmetic) and render a rare non-formula line with a command as math.
 
-Stories: KB-02, IN-__, CB-02, RV-01, IN-13.
+Stories: KB-02, IN-19, CB-02, RV-01, IN-13.
 
 ## 2026-11-13 — A quote from a picture's AI description is "from the AI's reading", not "not found"
 
@@ -2578,3 +2578,105 @@ Rejected:
 - Dropping unsupported sentences, as an answer does: AC3 asks for them to be marked and to block the export.
 
 Stories: AS-04, AS-01, AS-02, AS-03, RV-02, RV-06, RV-08, EX-01.
+
+## 2026-11-18 — A photo's mark is a rectangle kept as data, and the model gets a close-up of it
+
+Chose:
+- (CP-10) The engineer marks the part of a site photo that matters with one rectangle, saved on the photo as `region: { x, y, w, h }`, fractions of the upright photo. The image in S3 is never changed (AC4). The mark is for the AI reading only: it is shown over the photo in the app (its popup and tiles), and the report's Appendix A and the export (EX-01) show photos as taken. This replaces AC1's "derivative image". Asked on 18 Nov.
+- When the photos are read (CP-05), S5 sends the full photo and then a close-up of the marked area, cut from the full-resolution upright photo, labelled `"<photo name>, marked area"`. The prompt gains a rule only when a photo is marked (`cp10-v1`), so an unmarked reading is as before. With protection on, the close-up is blurred in the same call as the photo.
+- A description records the marks it was read with (`photoReading.marks`): moving, adding or clearing one puts it out of date, as adding or removing a photo does. Reading again stays the engineer's choice.
+- Marking is optional, on a saved photo or before it is saved (at capture, or in Add media), where the engineer is standing at the hazard and knows what matters. The mark goes with the photo as a `photoRegion` part per `photo` part, and the server checks it as it checks a later mark. Site walk photos (CP-22) are not marked: their auto-description runs with no engineer in the loop. Drafting is unchanged.
+
+Reason: a wide photo shows many things, so the model sometimes described the wrong detail. In the photo eval, the recessed sprinkler case went from "No hazard visible" unmarked to the right hazard type once marked.
+
+Rejected:
+- Cropping: the report reader loses the surroundings, and a second image would have to be stored.
+- Freehand drawing burned into the image: the model can read red strokes as paint, rust or tape, and strokes are hard to edit or remove.
+- A box drawn on the photo the model sees: the same risk as freehand, where a separate close-up cannot be mistaken for part of the scene.
+- Drawing the mark on Appendix A's photos and in the export: the report shows photos as taken; the mark only tells the AI reading where to look. Asked on 18 Nov.
+
+Stories: CP-10, CP-05, CP-21, PV-04.
+
+## 2026-11-17 — A knowledge document's passages are paged and outlined by the ingestion service, from clause numbers
+
+Chose:
+- (IN-17) The Passages view pages the document (25 at a time) and filters it by chapter, section and pages in the ingestion service (`matching.document_passages`): it reads every passage's metadata, no text or vectors, orders, outlines, filters and counts them, then reads the text of the page shown only. Chroma can't filter on a heading's prefix or a page overlap, and about 1,500 small metadata rows per standard is cheap to scan on each read; no cache until it's measured slow.
+- The outline comes from clause numbers in each passage's nearest heading, carried forward in reading order (`app/outline.py`), not from heading levels: on real NFPA 25, 631 of 639 trails start with the page header, a watermark and an edition mark, so `headings[0]` is the same for every passage. 613 of 639 passages get a chapter this way. A document with no clause numbers (a past report) is outlined by its template `section`. Chapters and sections are named only by their own heading, never a sub-clause: no name is better than a wrong one. Computed on read, so no re-ingestion.
+- Search by words reuses rag-service's local keyword search for the one document (no paid call, so nothing to mask), then the same ingestion listing with the ranked ids, so search results are paged, filtered and outlined like a listing. The keyword search skips passages that aren't active, so searching a document that needs review or is withdrawn answers 409 and the client offers no search.
+- Search by meaning is the same field with a Words | Meaning switch inside it (asked on 17 Nov, after Chroma's search field; two options, as our retrieval is purely semantic: no Hybrid until RT-01 AC5 builds one, no Regex). It reuses chat's retrieval (Cohere embed and rerank, masked the same way, failing closed) through rag-service's `POST /passages/meaning`, and the gateway records its usage. It runs only on Enter, or on choosing Meaning with words typed, so a pause in typing is never a paid call; the placeholder, a hint under the field and the footer say so.
+- A document's status is one note above the table, not a column: its passages always share it.
+- Every dialog with a close button closes on a click outside it, and its header stays at the top while it scrolls (asked on 17 Nov: every dialog, not just this one).
+
+Reason: an engineer judging what an answer rests on needs to find a clause in a standard of 1,000 or more passages, which a single unpaged list can't offer. Clause numbers are what engineers cite and are stable across the PDFs seen so far, where heading levels aren't.
+
+Rejected:
+- Filtering on `headings[0]`/`headings[1]`: every NFPA 25 passage has the same junk first levels (D1 in the ingestion fixes plan).
+- Storing chapter and section on each passage at ingestion: needs re-ingesting every document, and the junk trails should be fixed first (D1).
+- Filtering a search's results in the gateway by headings: the ingestion listing already filters, so passing it the ranked ids keeps one rule.
+- Searching by meaning after a longer pause in typing (no Enter): every pause mid-thought would be a paid Cohere call.
+- Recording a search by meaning as `retrieval`, as S4 names it: the cost report counts `retrieval` as drafting, and a call with no assessment as Chatbot, so its cost would have shown as both. It is `knowledge-search`, with its own group and chart colour (asked on 17 Nov).
+- A status column: it would repeat the same word on every row.
+
+Stories: IN-17, IN-18, KB-02, IN-13.
+
+## 2026-11-18 — A document whose type can't be read waits for the admin to choose one before ingestion
+
+An upload whose source type labelling can't read is stored as `awaiting_type` and not queued. Recent uploads shows it as Type needed, with a type select and Start ingestion; choosing a type saves it as the admin's and queues the job once. Delete works on it; Stop and Retry don't apply.
+
+- The type is chosen in Recent uploads only. The upload row above it says Type needed and points there: both sit on the Add documents tab, and a second control in the row would get out of step with the list.
+- The worker's rule is unchanged: a document that reaches it with no type is redacted (PV-05, fail closed). This only stops such documents reaching it.
+
+Reason: redaction depends on the type, and a standard sent through it as an unknown type came out garbled (Type3 fonts redrawn at 0.1 pt, one glyph per paragraph, false `[PERSON_n]` tags; D3/D4 in the ingestion fixes plan). Asking for the type costs the admin one choice, against re-ingesting the document.
+
+Rejected:
+- Ingesting first and asking afterwards: the damage is done by then and needs a full re-ingest.
+- Guessing a type (say, "standard") when labelling fails: a past report guessed as a standard would skip redaction and send client names out.
+- The type control in both the upload row and Recent uploads: two controls for one document on one screen.
+
+Stories: IN-19, IN-05, PV-05.
+
+## 2026-11-18 — Type3 text is redrawn at its height and a line at a time
+
+When the redactor redraws a page, a span PyMuPDF reports under 1 pt is redrawn at its height, and the glyphs of a Type3 line, which PyMuPDF reads one per line, are joined into one span first, with a space at a visible gap. Only spans under 1 pt are changed, so other pages are read and drawn exactly as before. The chunker also joins a picture's prose items of 1-3 characters on one baseline, and logs a warning when a picture's prose is still mostly such items.
+
+Reason: NFPA standards set text in a Type3 font at 0.1 pt and scale it up through the font's FontMatrix, which PyMuPDF doesn't apply to the size it reports. Sent through redaction (D4 has since stopped that for documents whose type is unknown), they were redrawn at 0.1 pt, glyph by glyph: Docling made each glyph a paragraph, and `/mask` read lone letters, some tagged `[PERSON_n]`.
+
+Rejected:
+- A page-ink check with a scanned-page fallback: once the size and the joining are right there is no case it would catch, and none could be built to test it.
+- A minimum length for a `PERSON` tag: it treats the symptom; joining the glyphs removes the cause.
+- A flag on a passage whose prose is mostly glyphs: a warning in the log is enough to find such a PDF, and a flag would need somewhere to show.
+
+The test PDF is written by hand (a Type3 font of boxes with a ToUnicode map), as the NFPA PDFs are licensed and can't be committed.
+
+Stories: IN-19, PV-05.
+
+## 2026-11-18 — Each table item in a chunk is read as its own table, and records its own region
+
+Ingestion writes `region_kind`, `region_bbox` and `region_pages` (IN-19). A chunk's table items are now split into tables one item at a time: before, all their readings were joined and split as one text, where an untitled block counts as the previous table's next page.
+
+- Two tables in one chunk give `:t0` and `:t1`, each with its own boxes, even when the second has no title.
+- A table over two pages is one item with two boxes, so it is still one table, its pages joined in order, with a box on each page.
+- Every row group (`:g<n>`) carries the whole table's region, since a citation of one row is best seen in its table.
+- The region is bottom-left, like `bbox`; a box Docling measured from the top is flipped with the page's height, and left out if the height isn't known.
+
+Reason: a citation's crop (KB-02) must show the table it was read from, not the prose and the other table beside it. A region needs to know which item a table came from, which the joined text had lost.
+
+Rejected:
+- Keeping the joined split and giving every table the chunk's table boxes: the second table's citation would show both.
+- Joining an untitled table to the one before only when on the next page: two items in one chunk are two tables to Docling; a long table is one item with several boxes.
+
+Stories: IN-19, KB-02.
+
+## 2026-11-18 — A heading repeated on many pages is left out of heading trails
+
+A heading text on 3 or more pages, and on more than 20% of a document's pages, is left out of every passage's heading trail, as are "Table/Figure … Continued" labels. Heading text is normalised (whitespace, NFPA's `Δ`/`N` change markers, the Annex `*` after a clause number).
+
+Reason: NFPA 25's trails began `25 NFPA ® › EDUFIRE › 3e`: its running header and a licence watermark are body text to Docling, which already moves true page headers to its furniture layer. Position or repetition is the only signal left, and repetition needs no page geometry. Both thresholds are needed: a short document's real section name may appear on two pages, and a long one's chapter title on many fewer than 20%.
+
+Rejected:
+- Dropping headings by position (top or bottom band of the page): a section heading at the top of a page is common.
+- Folding sub-labels into one level, and storing clause or chapter on each passage at ingestion: not measured yet, and IN-17 already reads clause numbers on the server.
+
+The embedded text (`indexer.embedding_text`) and the reranker's (`retriever.rank_text`) both read the trail, so they change together. The E8 evaluation on the standards set is to be run before and after, after the knowledge base is rebuilt; scores must not drop.
+
+Stories: IN-19, IN-17.

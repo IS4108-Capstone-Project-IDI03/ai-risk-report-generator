@@ -28,6 +28,8 @@ export function DocumentDetails({
   onHistory,
   onChangeStatus,
   onDelete,
+  onPassages,
+  canManage,
 }: {
   id: string
   document: KnowledgeDocument
@@ -35,6 +37,10 @@ export function DocumentDetails({
   onHistory: () => void
   onChangeStatus: () => void
   onDelete: () => void
+  // Opens the document's passages (IN-17); for everyone.
+  onPassages: () => void
+  // Off for a risk engineer: the details show, no action that changes them (IN-17).
+  canManage: boolean
 }) {
   const standard = d.sourceType !== 'marsh_report'
   return (
@@ -79,7 +85,7 @@ export function DocumentDetails({
         )}
       </dl>
       <div className="kb-details-actions">
-        {d.withdrawn && (
+        {canManage && d.withdrawn && (
           <Button
             variant="tonal"
             size="sm"
@@ -91,7 +97,7 @@ export function DocumentDetails({
             Reinstate
           </Button>
         )}
-        {!d.withdrawn && !needsReview(d) && (
+        {canManage && !d.withdrawn && !needsReview(d) && (
           <Button variant="tonal" size="sm" iconLeft={IconRegistry.action.edit} onClick={onEdit}>
             Edit details
           </Button>
@@ -104,7 +110,10 @@ export function DocumentDetails({
         >
           Edit history
         </Button>
-        {!d.withdrawn && (
+        <Button variant="ghost" size="sm" iconLeft="list" onClick={onPassages}>
+          View passages
+        </Button>
+        {canManage && !d.withdrawn && (
           <Button
             variant="danger-tonal"
             size="sm"
@@ -128,7 +137,7 @@ export function DocumentDetails({
           {/* Last in the row, set apart from Withdraw by the file's facts. Not while it
               is being ingested: Cancel covers that. A cited document gets a muted,
               locked Delete that explains instead (IN-12). */}
-          {d.status !== 'queued' && d.status !== 'processing' && (
+          {canManage && d.status !== 'queued' && d.status !== 'processing' && (
             <Button
               className="kb-delete"
               variant={d.cited ? 'secondary' : 'danger-outline'}

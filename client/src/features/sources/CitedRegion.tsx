@@ -7,15 +7,20 @@ import { PdfErrorBoundary } from '../chat/components/PdfErrorBoundary'
 
 const SourceRegion = lazy(() => import('./SourceRegion').then((m) => ({ default: m.SourceRegion })))
 
-type Props = { fileUrl: string; region: Passage['region'] }
+type Props = {
+  fileUrl: string
+  region: Passage['region']
+  /** Called once the whole region is drawn (SourceRegion). */
+  onDrawn?: () => void
+}
 
 /** The region of the original file, or nothing when the passage records none. */
-export function CitedRegion({ fileUrl, region }: Props) {
+export function CitedRegion({ fileUrl, region, onDrawn }: Props) {
   if (!region) return null
   return (
     <PdfErrorBoundary fallback={null}>
       <Suspense fallback={null}>
-        <SourceRegion fileUrl={fileUrl} kind={region.kind} boxes={region.boxes} />
+        <SourceRegion fileUrl={fileUrl} kind={region.kind} boxes={region.boxes} onDrawn={onDrawn} />
       </Suspense>
     </PdfErrorBoundary>
   )

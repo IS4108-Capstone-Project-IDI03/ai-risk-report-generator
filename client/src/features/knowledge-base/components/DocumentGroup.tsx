@@ -21,6 +21,8 @@ export function DocumentGroup({
   onChangeStatus,
   onDelete,
   onReview,
+  onPassages,
+  canManage,
 }: {
   group: Group
   documents: KnowledgeDocument[]
@@ -32,6 +34,9 @@ export function DocumentGroup({
   onChangeStatus: (document: KnowledgeDocument) => void
   onDelete: (document: KnowledgeDocument) => void
   onReview: (document: KnowledgeDocument) => void
+  onPassages: (document: KnowledgeDocument) => void
+  // Off for a risk engineer, who browses read-only (IN-17).
+  canManage: boolean
 }) {
   const id = `kb-group-${group.sourceType ?? 'unconfirmed'}`
   return (
@@ -64,6 +69,8 @@ export function DocumentGroup({
             onChangeStatus={() => onChangeStatus(d)}
             onDelete={() => onDelete(d)}
             onReview={() => onReview(d)}
+            onPassages={() => onPassages(d)}
+            canManage={canManage}
           />
         ))
       )}

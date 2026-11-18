@@ -22,7 +22,7 @@ from app.model_override import MODEL_OVERRIDE
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
-PROMPT_VERSION = "cp21-v4"
+PROMPT_VERSION = "cp10-v1"
 
 
 # The model for this request: the admin's choice (S-01, X-Model header), else VISION_MODEL.
@@ -159,6 +159,17 @@ hazard_type: the closest of {", ".join(HAZARD_TYPES[:-2])}; "Other" if none fits
 "No hazard visible"."""
 
 
+# Only when the engineer marked an area of a photo (CP-10), so an unmarked reading's prompt stays
+# as it was. The close-up is a separate image, not a box drawn on the photo, so the model never
+# mistakes the mark for paint or tape.
+MARKED_RULE = """
+
+Where the engineer marked an area of a photograph, '<photo name>, marked area' is a close-up of \
+that area from the same photograph, sent after it. Describe the condition in the marked area; use \
+the full photograph only for context such as location. Cite the close-up by its photograph's \
+name, never as an item of its own."""
+
+
 # With protection on, names and contact details reach the model as placeholders (PV-04). The
 # rule is there with protection off too, so off and on differ only in masking (as in rag-service).
 PLACEHOLDER_RULE = """
@@ -168,16 +179,17 @@ included, in descriptions, reasons and quotes. They stand for names and contact 
 invent, alter, explain or merge them."""
 
 
-def system_instruction(parts: tuple[str, ...]) -> str:
+def system_instruction(parts: tuple[str, ...], marked: bool = False) -> str:
     """The rules for the parts asked for: categories may rest on any item, a description only on
-    the photos."""
+    the photos. `marked` when a photo has a marked area (CP-10)."""
+    marking = MARKED_RULE if marked else ""
     if parts == ("description",):
-        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION + PLACEHOLDER_RULE
+        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION + marking + PLACEHOLDER_RULE
     rules = CATEGORIES_INTRO + CATEGORIES_INSTRUCTION
     if "description" in parts:
         rules += "\n\nThere are also photographs." + PHOTOS_INSTRUCTION
         rules += " The categories may rest on any item."
-    return rules + PLACEHOLDER_RULE
+    return rules + marking + PLACEHOLDER_RULE
 
 
 def _read(s3, key: str) -> bytes:
@@ -189,10 +201,10 @@ def _read(s3, key: str) -> bytes:
         raise InterpretationError(f"The photo could not be read from storage: {error}") from error
 
 
-def _prepare(image: bytes) -> str:
-    """The photo upright and shrunk (see `upright_jpeg`), as base64."""
+def _prepare(image: bytes, region: dict | None = None) -> str:
+    """The photo, or its marked area, upright and shrunk (see `upright_jpeg`), as base64."""
     try:
-        jpeg = upright_jpeg(image)
+        jpeg = upright_jpeg(image, region)
     except Exception as error:
         raise InterpretationError(f"The photo could not be opened: {error}") from error
     return base64.b64encode(jpeg).decode("ascii")
@@ -210,7 +222,7 @@ def _prompt(photos: list[str], texts: list[dict], location: str | None) -> str:
 
 
 def _interpret_gemini(
-    images: list[tuple[str, str]], prompt: str, parts: tuple[str, ...]
+    images: list[tuple[str, str]], prompt: str, parts: tuple[str, ...], marked: bool = False
 ) -> tuple[BaseModel, str, dict | None]:
     answer_type = ANSWERS[parts]
     try:
@@ -220,7 +232,7 @@ def _interpret_gemini(
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
                 model=_model(),
-                system_instruction=system_instruction(parts),
+                system_instruction=system_instruction(parts, marked),
                 # Each photo after its name, then the text that asks about them.
                 input=[
                     *(
@@ -312,11 +324,16 @@ def interpret(
     parts: tuple[str, ...] | None = None,
     privacy: dict | None = None,
 ) -> dict:
-    """The proposal for an observation: photos as {label, s3_key}, texts as {label, kind, text}.
-    `privacy` is the gateway's `{enabled, known_entities}` (PV-04), or None."""
+    """The proposal for an observation: photos as {label, s3_key, region}, texts as {label, kind,
+    text}. `privacy` is the gateway's `{enabled, known_entities}` (PV-04), or None."""
     s3 = boto3.client("s3", region_name=AWS_REGION) if photos else None
     return interpret_images(
-        [(p["label"], _read(s3, p["s3_key"])) for p in photos], texts, location, parts, privacy
+        [(p["label"], _read(s3, p["s3_key"])) for p in photos],
+        texts,
+        location,
+        parts,
+        privacy,
+        regions={p["label"]: p["region"] for p in photos if p.get("region")},
     )
 
 
@@ -326,29 +343,38 @@ def interpret_images(
     location: str | None,
     parts: tuple[str, ...] | None = None,
     privacy: dict | None = None,
+    regions: dict[str, dict] | None = None,
 ) -> dict:
     """The proposal for photos already in hand; interpret() and the eval both use it. Without
-    `parts`, both when there are photos, else the categories."""
+    `parts`, both when there are photos, else the categories. `regions` are the areas the
+    engineer marked (CP-10), by photo label: each goes as a close-up after its photo."""
     try:
         provider = _PROVIDERS[VISION_PROVIDER]
     except KeyError:
         raise NotImplementedError(f"VISION_PROVIDER {VISION_PROVIDER!r} is not supported") from None
     parts = tuple(p for p in PARTS if p in (parts or (PARTS if photos else ("categories",))))
-    images = [(label, _prepare(photo)) for label, photo in photos]
+    regions = regions or {}
+    images = []
+    for label, photo in photos:
+        images.append((label, _prepare(photo)))
+        if label in regions:
+            images.append((f"{label}, marked area", _prepare(photo, regions[label])))
     if sum(len(data) for _, data in images) > MAX_INLINE_CHARS:
         raise InterpretationError(
             "There are too many photos to interpret together. Save fewer photos per observation."
         )
     session = protection.session(privacy)
-    # Faces blurred in every photo, in one call; the original in S3 is never changed.
+    # Faces blurred in every photo and close-up, in one call; the original in S3 is never
+    # changed.
     blurred = session.redact_images([data for _, data in images])
     images = [(label, data) for (label, _), data in zip(images, blurred, strict=True)]
     # The texts and the location in one /mask call, so one mapping covers them (Rule 2).
     *masked, masked_location = session.mask([t["text"] for t in texts] + [location or ""])
     texts = [{**t, "text": text} for t, text in zip(texts, masked, strict=True)]
     location = masked_location or None
-    prompt = _prompt([label for label, _ in images], texts, location)
-    answer, model, usage = provider(images, prompt, parts)
+    # The close-ups are part of their photos, not items the answer can cite.
+    prompt = _prompt([label for label, _ in photos], texts, location)
+    answer, model, usage = provider(images, prompt, parts, bool(regions))
     _check(answer, session)
     description = getattr(answer, "description", None)
     # Real values back before the gateway checks quotes against the items (Rule 4).

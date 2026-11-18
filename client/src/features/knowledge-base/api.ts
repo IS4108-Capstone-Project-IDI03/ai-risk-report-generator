@@ -27,7 +27,10 @@ async function send(path: string, init: RequestInit): Promise<void> {
 }
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'local_standard' | 'marsh_report'
-export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+// `awaiting_type`: labelling couldn't read the source type, so the document is
+// not ingested until an admin chooses one (IN-19).
+export type IngestionStatus =
+  'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
@@ -255,6 +258,20 @@ export function retryIngestion(id: string): Promise<void> {
   return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
 }
 
+// Chooses the source type of a document awaiting one and starts its ingestion
+// (IN-19); returns the document, now queued. Rejects with the gateway's
+// reason: 409 if it no longer awaits a type, 503 if the queue is unreachable.
+export function chooseSourceType(id: string, sourceType: SourceType): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(
+    `/api/knowledge-documents/${encodeURIComponent(id)}/source-type`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceType }),
+    },
+  )
+}
+
 // Stops a queued or processing ingestion. 202 on accept; queued documents
 // become cancelled immediately, while processing documents finish
 // cooperatively in the worker.
@@ -278,6 +295,67 @@ export function uploadKnowledgeDocument(
     headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file,
   })
+}
+
+// One passage of a document as the knowledge base lists it (IN-17). `position` is its
+// place in the whole document, filtered or not; `kind` what it was read from;
+// `generated` marks text a model wrote, such as a picture's description (IN-13).
+export type DocumentPassage = {
+  id: string
+  position: number
+  text: string
+  // The heading trail, outermost first; empty when the passage has none. Only the
+  // last is reliable (see .claude/plans/ingestion-data-fixes.md, D1).
+  headings: string[]
+  section: string | null
+  pageStart: number | null
+  pageEnd: number | null
+  status: string | null
+  kind: 'text' | 'table' | 'formula' | 'picture'
+  generated: boolean
+}
+
+// A chapter or section of a document's outline and how many passages it holds. "" is
+// front matter as a chapter, or a chapter's start before its first section. `title` comes
+// from its own heading ("Installation" for chapter 8), null when it has none.
+export type OutlineEntry = { name: string; count: number; title: string | null }
+
+// One page of a document's passages, how many match, and its outline. A standard is
+// outlined by clause numbers (chapters, then the chosen chapter's sections); a past
+// report by its template sections, as chapters with no second level.
+export type PassageListing = {
+  total: number
+  passages: DocumentPassage[]
+  outline: { by: 'clause' | 'section'; chapters: OutlineEntry[]; sections: OutlineEntry[] }
+}
+
+// What to list: a page, the outline's chapter and section, a page range, and words to
+// search for (the best matches, ranked, within the rest), by words or by meaning (a paid
+// Cohere search, the query masked first when protection is on).
+export type PassageQuery = {
+  offset: number
+  limit: number
+  chapter?: string
+  section?: string
+  pageFrom?: number
+  pageTo?: number
+  q?: string
+  mode?: SearchMode
+}
+export type SearchMode = 'words' | 'meaning'
+
+// Returns one page of a document's passages with its outline (IN-17).
+export async function listDocumentPassages(
+  id: string,
+  query: PassageQuery,
+  signal?: AbortSignal,
+): Promise<PassageListing> {
+  const params = new URLSearchParams({ offset: String(query.offset), limit: String(query.limit) })
+  for (const key of ['chapter', 'section', 'pageFrom', 'pageTo', 'q', 'mode'] as const) {
+    if (query[key] !== undefined) params.append(key, String(query[key]))
+  }
+  const path = `/api/knowledge-documents/${encodeURIComponent(id)}/passages?${params}`
+  return request<PassageListing>(path, { signal })
 }
 
 // One passage in the side-by-side comparison (IN-07).

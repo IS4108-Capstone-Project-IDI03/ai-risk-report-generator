@@ -94,13 +94,23 @@ after that each can be regenerated on its own.
    it. The location is where the observation was made, most specific first
    ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
    categories and severity are not sent, so the proposed categories are the
-   model's own.
+   model's own. A photo the engineer marked (CP-10) also carries its `region`
+   (`{ x, y, w, h }`, fractions of the upright photo); an unmarked photo has
+   no `region` key, so its request is as before.
 4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
-   changed. With the gateway's `privacy` enabled (PV-04), it then has
-   privacy-service blur the faces in every photo (`POST /redact-image`, one
-   call) and mask the texts and location (`POST /mask`, one call), fails
+   changed. For a marked photo it also cuts the marked area from the upright
+   photo at full size, before shrinking, so a small area keeps its detail,
+   and sends it as an extra image labelled `"<photo name>, marked area"`
+   right after its photo. The close-up is not an item: the prompt names only
+   the photos, and the rule added only when a photo is marked (`MARKED_RULE`)
+   says to describe the marked area, use the full photo for context, and
+   cite the close-up by its photo's name. A box drawn on the photo was ruled
+   out because the model can read it as paint or tape. With the gateway's
+   `privacy` enabled (PV-04), it then has
+   privacy-service blur the faces in every photo and close-up (`POST
+   /redact-image`, one call) and mask the texts and location (`POST /mask`, one call), fails
    closed if either fails, and restores real values in the answer. With
    `check_answers` (the gateway's `PII_CHECK_ANSWERS`, on by default), it
    first takes details the model added out of the description and reasons
@@ -259,7 +269,12 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
 4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
-   record and the file and answers 503.
+   record and the file and answers 503. If labelling couldn't read the source
+   type, it records the document as `awaiting_type` instead and queues nothing
+   (IN-19): Recent uploads shows it as Type needed with a type select, and
+   Start ingestion (`POST .../source-type`) saves the type and queues the job.
+   The worker would redact a document with no type as a precaution (PV-05),
+   which garbled standards set in Type3 fonts.
 5. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
@@ -345,6 +360,13 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   answer that finds no table is not unusable: that table is still read as a picture.
 - **Passage metadata** gains `position` (the chunk's number in reading order),
   and table passages `table_id` (shared by a table's groups) and `table_title`.
+- **Heading trails** (`chunker._build_section_trails`). Each passage's `headings` is
+  the stack of headings above it. A heading text on 3 or more pages, and on more than
+  20% of them, is a running header or a watermark Docling read as a body heading
+  ("25 NFPA ®", "EDUFIRE") and is in no trail; a "Table/Figure … Continued" label is
+  skipped, so the clause trail before it carries on. Heading text is normalised:
+  whitespace collapsed, NFPA's `Δ`/`N` change markers and a clause number's Annex `*`
+  removed (IN-19). The picture reader's `Section:` line is the same trail.
 - **What search reads.** The embedder and the reranker both see the heading trail
   and then the text (`indexer.embedding_text`, `retriever.rank_text`; change them
   together), while the stored text, quotes and pages stay plain. Short forms in a
@@ -400,8 +422,9 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   gateway's `GET /api/chat/passages/:id`, adds `region` (`{ kind, boxes }` or null)
   and `generated`. A table or formula region comes only from the passage's
   `region_kind`/`region_bbox`/`region_pages` keys (see database.md); a described
-  picture with no region keys gets its own `bbox`; anything else is null, so today's
-  table and formula passages show as text. No box is guessed: the largest box of a
+  picture with no region keys gets its own `bbox`; anything else is null. Ingestion
+  writes the keys from IN-19 (see database.md); a passage ingested before then shows
+  as text. No box is guessed: the largest box of a
   table chunk is often its prose.
 - **What is quotable.** `quotable_text` (`app/generation/generator.py`) leaves out a
   described picture's `Image description (generated …)` block, up to its
@@ -562,7 +585,7 @@ details and history back and answers 503, as it does for any failed relabel.
 ## Correcting a knowledge document (KB-01)
 
 1. The Documents tab lists `GET /api/knowledge-documents/ingested` and filters
-   by country and facility type in the browser.
+   by source type (IN-17), country, facility type and status in the browser.
 2. Edit details sends the full details to `PUT /api/knowledge-documents/:id`.
    The gateway validates them as at upload, refuses a document that is not
    active (409), keeps a copy of the old details and saves the new ones.
@@ -593,6 +616,77 @@ details and history back and answers 503, as it does for any failed relabel.
 4. Retrieval skips withdrawn passages: the RAG service's `retrieve()` always
    excludes `status: withdrawn` (and `needs_review`, IN-05), so `/retrieve` and `/generate` both skip them.
    Reinstating brings them back without uploading again.
+
+## Browsing a knowledge document's passages (IN-17)
+
+Engineers and admins (`knowledge:view`) see the Knowledge base's Documents list;
+only admins (`knowledge:manage`) see Add documents, Requests, the Review page and
+the actions that change a document. The client hides them, and the gateway
+refuses them (403) whatever the client shows.
+
+1. A document's details offer View passages: a table, one page of 25 at a time
+   (`PassagesDialog.tsx`). It reads `GET /api/knowledge-documents/:id/passages`
+   with `offset`, `limit` (1–100), `chapter`, `section`, `pageFrom`/`pageTo` and
+   `q`. The gateway (`knowledge-passages.service.ts`) checks them with zod (400
+   for a bad value or a range that ends before it starts, before any service is
+   asked), answers 404 for an unknown document without calling a service, and 503
+   when a service is down.
+2. **Listing.** The gateway calls the ingestion service's
+   `GET /documents/{id}/passages` (`matching.document_passages`). It reads every
+   passage's metadata for the document (no text, no vectors), orders them in
+   reading order (chunk number, then table, picture and `:partN` passages, as
+   `matching.py` orders them), outlines, filters and counts them, then reads the
+   text of that page's passages only. It answers
+   `{ total, passages: [{ id, position, text, headings, section, pageStart, pageEnd,
+   status, kind, generated }], outline: { by, chapters, sections } }`:
+   - `position` is the passage's place in the whole document, filtered or not;
+   - `kind` is `table`, `formula` or `picture` from the recorded region, a
+     described picture or the id (`:table:`, `:picture:`), else `text`;
+     `generated` marks text a model wrote (IN-13);
+   - a page range keeps passages whose pages overlap it; a passage with no page
+     never matches one.
+3. **Outline** (`app/outline.py`). Docling's heading trails don't nest reliably
+   (in NFPA 25 every trail starts with the page header and a watermark; see
+   `.claude/plans/ingestion-data-fixes.md`, D1), so only the nearest heading is
+   read. A clause number ("8.6 …", "Δ 12.4.1", "N12.3.17", "4.1.5*", "A.8.6.1")
+   sets the chapter (`8`, or annex `A`) and section (`8.6`, `A.8`); "Chapter 8 …"
+   and "Annex A …" start a chapter; any other heading stays in the clause before
+   it, and passages before the first chapter are front matter (`""`). That gives
+   `by: "clause"`, with `chapters` and, once a chapter is chosen, its `sections`,
+   each `{ name, count, title }`. A title comes only from the chapter's or
+   section's own heading ("Chapter 8 Installation", an "N.0" heading, "8.6 …"),
+   never a sub-clause; else it is null. A document with no clause numbers (a past
+   report) is `by: "section"`: its chapters are the passages' template `section`
+   values, with no second level. Computed on each read, so no re-ingestion.
+4. **Search by words.** With `q`, the gateway asks rag-service's keyword search
+   (`POST /passages/search`, `document_ids: [id]`, the best 30; local ranking, no
+   paid call, so nothing is masked) and then the same ingestion listing with
+   `ids` in rank order, so a search is paged, filtered and outlined like a
+   listing. The keyword search skips passages that aren't active, so a search of
+   a document that needs review or is withdrawn answers 409 instead of looking
+   empty; the client offers no search then. The client searches 300 ms after
+   typing stops and cancels a request still running.
+   **Search by meaning** (`mode=meaning`, the field's Words | Meaning switch): the
+   gateway sends `{ query, document_id, limit: 20, privacy }` (`chatPrivacy()`) to
+   rag-service's `POST /passages/meaning`. That runs `retriever.retrieve` on the one
+   document (`doc_id`), 40 candidates from Chroma, reranked to 20: one Cohere embed
+   and one rerank. With protection on, the query is masked before Cohere sees it and
+   the reranker reads the passages masked (`rank_texts`, `protection`, as chat does);
+   if masking fails nothing is searched, S4 answers 503 and the gateway passes its
+   message on. S4 returns the ranked ids and `usage`, which the gateway records
+   for the user and the document as `knowledge-search` (S4's retriever names its
+   calls `retrieval`, which the cost report counts as drafting), before listing the
+   ids as a word search does. On the Usage and costs screen these calls are a
+   "Knowledge base search" group by assessment (they have none) and a part of the
+   searcher's bar by engineer; an engineer sees only their own. `label_filter` hides passages that aren't active here too, so the
+   same 409 applies. The client runs it only on Enter, or on choosing Meaning with
+   words typed, so a pause in typing is never a paid call.
+5. **Opening a passage** shows its full text (`PassageBody`) and, for a table,
+   formula or picture, the region of the original page through the chat's
+   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Ingestion records the
+   region from IN-19.
+6. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
+   document are never edited; amending passages comes with manual entry (IN-18).
 
 ## Report section drafting (S4, GN-01)
 

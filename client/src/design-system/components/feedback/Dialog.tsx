@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import { IconButton } from '../core/IconButton'
 import { useIsPhone } from './Sheet'
 
@@ -37,6 +37,14 @@ function leaveCopy(element: HTMLDialogElement) {
   return copy
 }
 
+/** True when a pointer event is on the backdrop: on the <dialog> element, outside its card. */
+function isBackdrop(event: MouseEvent<HTMLDialogElement>) {
+  if (event.target !== event.currentTarget) return false
+  const box = event.currentTarget.getBoundingClientRect()
+  const { clientX: x, clientY: y } = event
+  return x < box.left || x > box.right || y < box.top || y > box.bottom
+}
+
 export function Dialog({
   className = '',
   open = true,
@@ -54,6 +62,9 @@ export function Dialog({
   // Dialog gives it the size itself.
   const phone = useIsPhone()
   const closeSize = phone ? { width: 44, height: 44 } : undefined
+  // Whether the last press began on the backdrop, so a text selection dragged out of the card
+  // and released outside it doesn't close the dialog.
+  const pressedOutside = useRef(false)
   const titleId = useId()
   const descriptionId = useId()
   useEffect(() => {
@@ -92,6 +103,15 @@ export function Dialog({
       onCancel={(event) => {
         event.preventDefault()
         onClose?.()
+      }}
+      // A click on the backdrop closes it, as Esc does (IN-17 follow-up). The backdrop is the
+      // <dialog> itself outside its box: a gap between the card's parts is inside the box.
+      onPointerDown={(event) => {
+        pressedOutside.current = isBackdrop(event)
+      }}
+      onClick={(event) => {
+        if (onClose && pressedOutside.current && isBackdrop(event)) onClose()
+        pressedOutside.current = false
       }}
       style={{ width, ...style }}
     >

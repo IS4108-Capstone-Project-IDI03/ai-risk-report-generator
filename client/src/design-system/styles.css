@@ -45,11 +45,18 @@
   background: var(--scrim);
   backdrop-filter: var(--blur-overlay);
 }
+/* The header, with its close button, stays at the top while a long dialog scrolls (IN-17
+   follow-up); the <dialog> is the scroll container. Its card background covers what scrolls
+   under it, and a hairline appears once it has (kit.css, .ds-dialog .ds-dialog-header). */
 .ds-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   gap: var(--space-6);
   padding: var(--space-7) var(--space-7) var(--space-5);
+  background: var(--surface-card);
 }
 .ds-dialog-header > div {
   flex: 1;

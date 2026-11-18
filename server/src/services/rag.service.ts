@@ -1,6 +1,7 @@
 import { config } from '../config'
 import { recordAiCalls } from './ai-usage.service'
 import { modelHeaders } from './model-resolver.service'
+import type { Privacy } from './privacy.service'
 import { listIngestedDocuments } from './knowledge-document.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
@@ -103,6 +104,23 @@ export async function searchPassages(
     body: JSON.stringify({ query, document_ids: documentIds, limit }),
   })
   return found.results
+}
+
+// One knowledge document's passages ranked by meaning, best first (IN-17): a Cohere embedding
+// and rerank in S4, the query masked there first when `privacy` is enabled. Returns the ranked
+// ids and the paid calls, for the caller to record. Throws RagServiceError (503 when the query
+// couldn't be masked, so nothing was sent).
+export async function searchPassagesByMeaning(
+  query: string,
+  documentId: string,
+  privacy: Privacy,
+  limit = 20,
+): Promise<{ results: FoundPassage[]; usage: unknown }> {
+  return callRag('/passages/meaning', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, document_id: documentId, limit, privacy }),
+  })
 }
 
 /**

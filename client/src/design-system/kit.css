@@ -401,6 +401,52 @@
 .ds-search:focus-within {
   box-shadow: 0 0 0 2px var(--border-focus);
 }
+/* A search field with controls at its right end (IN-17): the input takes the room left, and
+   a segmented control sits 4 px in, its track a step darker than the field so it reads as
+   one piece. A disabled field greys out whole. */
+.ds-search.has-end {
+  padding-right: 4px;
+}
+.ds-search-input {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  cursor: text;
+}
+.ds-search-end {
+  display: flex;
+  flex: none;
+}
+.ds-search-end .ds-segmented {
+  padding: 2px;
+  background: var(--graphite-200);
+}
+.ds-search-end .ds-segmented button {
+  height: 28px;
+  padding: 0 12px;
+}
+.ds-search-end .ds-seg-thumb {
+  top: 2px;
+  bottom: 2px;
+}
+.ds-search:has(input:disabled) {
+  opacity: 0.55;
+}
+.ds-search input:disabled {
+  cursor: not-allowed;
+}
+/* 44 px targets on touch: the field grows to hold them. */
+@media (pointer: coarse) {
+  .ds-search.has-end {
+    height: 52px;
+  }
+  .ds-search-end .ds-segmented button {
+    height: 44px;
+  }
+}
 .ds-filter-pill {
   display: inline-flex;
   align-items: center;
@@ -506,6 +552,31 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Pagination (IN-17): Previous / "Page 2 of 49" / Next, beside the table footer. */
+.ds-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ds-pagination-place {
+  font: 400 13px/1.2 var(--font-sans);
+  white-space: nowrap;
+  color: var(--graphite-600);
+}
+.ds-pagination-place b {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+/* A 44px target on touch screens. */
+@media (pointer: coarse) {
+  .ds-pagination > button {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 /* Reading status cell: the mark is 16px wide in every state, so all three line up. */
@@ -818,10 +889,13 @@
 }
 /* The close button floats in the corner: only the title keeps room for it, so the helper
    text runs the full width (round 15). */
+/* Sticky (styles.css): 10 px of padding under the helper text, given back by the margin, so
+   what scrolls under the header passes a clean edge and the resting layout is unchanged. */
 .ds-dialog--v2 .ds-dialog-header {
   display: block;
-  position: relative;
-  padding: 22px 24px 0;
+  position: sticky;
+  padding: 22px 24px 10px;
+  margin-bottom: -10px;
 }
 /* .ds-dialog.ds-dialog--v2: styles.css's .ds-dialog h2 loads after this file and would win. */
 .ds-dialog.ds-dialog--v2 h2 {
@@ -931,4 +1005,25 @@
 .ds-dialog .ds-dialog-header,
 .ds-dialog .ds-swap {
   animation: ds-fade-in 160ms var(--ease-out);
+}
+/* The sticky header's hairline fades in over the first 16 px of scrolling, where the browser
+   can tie an animation to scrolling; elsewhere it stays without one. */
+@supports (animation-timeline: scroll()) {
+  .ds-dialog .ds-dialog-header {
+    animation:
+      ds-fade-in 160ms var(--ease-out),
+      ds-dialog-rule linear both;
+    animation-timeline: auto, scroll(nearest);
+    animation-range:
+      normal,
+      0 16px;
+  }
+}
+@keyframes ds-dialog-rule {
+  from {
+    box-shadow: 0 1px 0 transparent;
+  }
+  to {
+    box-shadow: 0 1px 0 var(--border-subtle);
+  }
 }

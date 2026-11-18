@@ -656,3 +656,21 @@
   right: 0;
   bottom: auto;
 }
+
+/* Marking the area of a photo that matters (CP-10), in the photo popup's toolbar. */
+.photo-mark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: var(--space-3);
+}
+.photo-mark-problem {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-caption-size);
+  color: var(--red-600);
+}
+/* A tile's mark (CP-10), on the photo as the square crop shows it. */
+.cap-tile-mark {
+  position: absolute;
+  pointer-events: none;
+}

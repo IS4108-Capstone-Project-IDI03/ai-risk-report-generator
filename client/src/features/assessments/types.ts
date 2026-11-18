@@ -58,6 +58,8 @@ export type Observation = {
     added?: Stamp | null
     // As sent to the AI with protection on (PV-04).
     redaction?: SavedPhoto['redaction']
+    // The area the engineer marked (CP-10).
+    region?: SavedPhoto['region']
   }[]
   // Recordings, photos and handwritten pages removed from it, to restore
   // (CP-08, CP-20). A page removed in the demo keeps itself here, so restoring
@@ -409,4 +411,6 @@ export type PhotoFile = {
   name: string
   image: Blob
   url: string
+  // The area marked before it is saved (CP-10), sent with it.
+  region?: SavedPhoto['region']
 }

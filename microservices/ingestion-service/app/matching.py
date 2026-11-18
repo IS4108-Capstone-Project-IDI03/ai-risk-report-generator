@@ -12,6 +12,7 @@ import re
 import numpy as np
 from chromadb.errors import NotFoundError
 
+from app import outline
 from app.labelling.config import STANDARDS
 from app.labelling.decide import normalise
 from app.pipeline.indexer import get_all
@@ -261,6 +262,111 @@ def _passages(doc_id: str) -> list[dict]:
         )
     ]
     return sorted(rows, key=lambda r: _reading_order(r["id"]))
+
+
+def _kind(passage_id: str, meta: dict) -> str:
+    """What a passage was read from: "text", "table", "formula" or "picture" (IN-17).
+
+    The recorded region says it best (`region_kind`, KB-02); a model-written picture
+    description says picture; otherwise the chunker's id (`:table:`, `:picture:`).
+    Formulas are only known from their region, so they show as text until it is recorded.
+    """
+    if meta.get("region_kind") in ("table", "formula", "picture"):
+        return meta["region_kind"]
+    segments = passage_id.split(":")[1:]
+    if meta.get("generated_text") == "picture_description" or "picture" in segments:
+        return "picture"
+    return "table" if "table" in segments else "text"
+
+
+def _overlaps(meta: dict, page_from: int | None, page_to: int | None) -> bool:
+    """Whether a passage's pages overlap the range; one with no page never matches a range."""
+    if page_from is None and page_to is None:
+        return True
+    start, end = meta.get("page_start"), meta.get("page_end")
+    if start is None:
+        return False
+    end = end if end is not None else start
+    return (page_from is None or end >= page_from) and (page_to is None or start <= page_to)
+
+
+def document_passages(
+    doc_id: str,
+    offset: int = 0,
+    limit: int = 25,
+    chapter: str | None = None,
+    section: str | None = None,
+    page_from: int | None = None,
+    page_to: int | None = None,
+    ids: list[str] | None = None,
+) -> dict:
+    """Return one page of a document's passages in reading order, the total and the outline (IN-17).
+
+    Reads every passage's metadata (no text, no vectors) to order, outline, filter and count
+    them, then the text of the page's passages only: a standard has a thousand or more.
+    `chapter` and `section` are names from the outline (see app/outline.py); the page range
+    keeps passages that overlap it. `ids` (a search's ranked results) keeps only those, in the
+    order given. A passage's `position` is its place in the whole document, filtered or not.
+    """
+    empty = {
+        "total": 0,
+        "passages": [],
+        "outline": {"by": "section", "chapters": [], "sections": []},
+    }
+    collection = passages_collection()
+    if collection is None:
+        return empty
+    found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
+    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
+    by, where = outline.places([meta for _, meta in ordered])
+    rows = [(row, place, n + 1) for n, (row, place) in enumerate(zip(ordered, where))]
+    in_chapter = [row for row in rows if chapter is None or row[1][0] == chapter]
+    chosen = [
+        (id_, meta, position)
+        for (id_, meta), (_, part), position in in_chapter
+        if (section is None or part == section) and _overlaps(meta, page_from, page_to)
+    ]
+    if ids is not None:
+        rank = {id_: n for n, id_ in enumerate(dict.fromkeys(ids))}
+        chosen = sorted((row for row in chosen if row[0] in rank), key=lambda row: rank[row[0]])
+    page = chosen[offset : offset + limit]
+    texts = {}
+    if page:
+        read = collection.get(ids=[id_ for id_, _, _ in page], include=["documents"])
+        texts = dict(zip(read["ids"], read["documents"]))
+    passages = [
+        {
+            "id": id_,
+            "position": position,
+            "text": texts.get(id_, ""),
+            "headings": meta.get("headings") or [],
+            "section": meta.get("section"),
+            "pageStart": meta.get("page_start"),
+            "pageEnd": meta.get("page_end"),
+            "status": meta.get("status"),
+            "kind": _kind(id_, meta),
+            # Machine-written text, such as a picture's description (IN-13).
+            "generated": bool(meta.get("generated_text")),
+        }
+        for id_, meta, position in page
+    ]
+    chapter_titles, section_titles = (
+        outline.titles([meta for _, meta in ordered]) if by == "clause" else ({}, {})
+    )
+    sections = (
+        outline.counts([part for _, (_, part), _ in in_chapter], section_titles)
+        if chapter and by == "clause"
+        else []
+    )
+    return {
+        "total": len(chosen),
+        "passages": passages,
+        "outline": {
+            "by": by,
+            "chapters": outline.counts([name for _, (name, _), _ in rows], chapter_titles),
+            "sections": sections,
+        },
+    }
 
 
 def _public(passage: dict) -> dict:

@@ -10,6 +10,8 @@ const UPLOAD_STATE: Record<Upload['state'], { label: string; tone: string } | nu
   uploading: null,
   // Accepted and queued; its live status is in the uploaded documents list.
   queued: { label: 'Uploaded', tone: 'low' },
+  // Accepted, but not ingested until a type is chosen in the uploads list (IN-19).
+  awaiting_type: { label: 'Type needed', tone: 'moderate' },
   rejected: { label: 'Rejected', tone: 'critical' },
   failed: { label: 'Not uploaded', tone: 'high' },
 }
@@ -48,6 +50,9 @@ export function UploadRow({ upload }: { upload: Upload }) {
           />
         )}
       </div>
+      {state === 'awaiting_type' && (
+        <p className="kb-reason">Choose its source type in Recent uploads.</p>
+      )}
       {error && (
         <p className={state === 'rejected' ? 'kb-reason kb-reason-rejected' : 'kb-reason'}>
           {error}

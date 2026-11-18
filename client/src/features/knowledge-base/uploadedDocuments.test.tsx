@@ -48,10 +48,28 @@ const onCompleted = () => undefined
 // retry has been posted — the way the gateway would after a successful retry.
 // Records retry posts so a test can assert them.
 function stubGateway(initial: Record<string, unknown>[]) {
-  const state = { list: initial, retried: [] as string[], cancelled: [] as string[] }
+  const state = {
+    list: initial,
+    retried: [] as string[],
+    cancelled: [] as string[],
+    // Each chosen source type (IN-19) as [id, type]; `chooseStatus` other than 200 refuses it.
+    chosen: [] as [string, string][],
+    chooseStatus: 200,
+  }
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
+    const choose = url.match(/\/api\/knowledge-documents\/([^/]+)\/source-type$/)
+    if (choose && method === 'POST') {
+      const id = choose[1]
+      const { sourceType } = JSON.parse(String(init?.body))
+      state.chosen.push([id, sourceType])
+      if (state.chooseStatus !== 200) {
+        return json({ error: 'Ingestion could not be queued.' }, state.chooseStatus)
+      }
+      state.list = state.list.map((d) => (d.id === id ? { ...d, status: 'queued', sourceType } : d))
+      return json(state.list.find((d) => d.id === id))
+    }
     const retry = url.match(/\/api\/knowledge-documents\/([^/]+)\/retry$/)
     if (retry && method === 'POST') {
       const id = retry[1]
@@ -255,5 +273,78 @@ describe('UploadedDocuments cancellation', () => {
     await waitFor(() =>
       expect(within(table).getByRole('button', { name: 'Stop' })).toBeInTheDocument(),
     )
+  })
+})
+
+// IN-19: an upload whose source type couldn't be read waits for the admin to choose one.
+describe('UploadedDocuments awaiting a type', () => {
+  const AWAITING = {
+    ...FAILED,
+    id: 'awaiting',
+    title: 'Scan.pdf',
+    sourceType: null,
+    issuingBody: null,
+    status: 'awaiting_type',
+    error: null,
+    unconfirmed: ['sourceType'],
+  }
+  const renderList = (narrow = false) =>
+    render(
+      <UploadedDocuments
+        narrow={narrow}
+        refreshKey={0}
+        onCompleted={onCompleted}
+        onReview={() => undefined}
+      />,
+    )
+
+  it('asks for a type, with Start ingestion disabled until one is chosen, and no Stop or Retry', async () => {
+    stubGateway([AWAITING])
+    renderList()
+
+    expect(await screen.findByText('Type needed')).toBeInTheDocument()
+    expect(
+      screen.getByText("Its source type couldn't be read. Choose one to start."),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Source type for Scan.pdf' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start ingestion' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
+  it('posts the chosen type and refreshes, so the row shows queued', async () => {
+    const state = stubGateway([AWAITING])
+    renderList()
+    const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
+
+    fireEvent.change(select, { target: { value: 'nfpa_standard' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Start ingestion' }))
+
+    await waitFor(() => expect(state.chosen).toEqual([['awaiting', 'nfpa_standard']]))
+    expect(await screen.findByText('Queued')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start ingestion' })).not.toBeInTheDocument()
+  })
+
+  it("shows the gateway's reason and keeps the choice when ingestion can't start", async () => {
+    const state = stubGateway([AWAITING])
+    state.chooseStatus = 503
+    renderList()
+    const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
+
+    fireEvent.change(select, { target: { value: 'fm_standard' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Start ingestion' }))
+
+    expect(await screen.findByText('Ingestion not started')).toBeInTheDocument()
+    expect(screen.getByText('Ingestion could not be queued.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start ingestion' })).toBeEnabled()
+  })
+
+  it('offers the choice in the stacked (narrow) layout too', async () => {
+    stubGateway([AWAITING])
+    renderList(true)
+
+    expect(
+      await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' }),
+    ).toBeInTheDocument()
   })
 })

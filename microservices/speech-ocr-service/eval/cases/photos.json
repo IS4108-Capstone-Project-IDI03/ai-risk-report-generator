@@ -1,5 +1,5 @@
 {
-  "_about": "Photos with Marsh's own reading of them, to check photo interpretation (CP-05) against. A case's source is a page of a sample report (the largest image on it) or an image file, relative to the repo root. The redacted sample reports keep only these two OFI photos; add cases from unredacted reports or your own site photos, with what Marsh would write, as they become available.",
+  "_about": "Photos with Marsh's own reading of them, to check photo interpretation (CP-05) against. A case's source is a page of a sample report (the largest image on it) or an image file, relative to the repo root. The redacted sample reports keep only these two OFI photos; add cases from unredacted reports or your own site photos, with what Marsh would write, as they become available. A case with a `region` is read as a photo the engineer marked (CP-10); the -marked cases are the same photos with the hazard marked, so a run shows what the mark changes.",
   "cases": [
     {
       "id": "office-5-ofi-2026-01",
@@ -27,6 +27,46 @@
         "observation": "As observed at B3 service corridor area, a few of the sprinkler heads are recessing more than 50% into the ceiling.",
         "caption": "Sprinkler head recess into ceiling",
         "type": "Sprinkler Installation"
+      }
+    },
+    {
+      "id": "office-5-ofi-2026-01-marked",
+      "source": {
+        "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+        "page": 9
+      },
+      "location": "B2 service lift corridor",
+      "note": null,
+      "marsh": {
+        "observation": "As observed at B2 service lift corridor, fire door sequencer is not in good working condition.",
+        "caption": "Door sequencer not in good working condition",
+        "type": "Fire door ITM"
+      },
+      "region": {
+        "x": 0.27,
+        "y": 0.05,
+        "w": 0.37,
+        "h": 0.51
+      }
+    },
+    {
+      "id": "office-5-ofi-2026-02-marked",
+      "source": {
+        "pdf": "microservices/ingestion-service/tests/test_files/Office Sample 5 - PRE 2026 - REDACTED.pdf",
+        "page": 10
+      },
+      "location": "B3 service corridor",
+      "note": null,
+      "marsh": {
+        "observation": "As observed at B3 service corridor area, a few of the sprinkler heads are recessing more than 50% into the ceiling.",
+        "caption": "Sprinkler head recess into ceiling",
+        "type": "Sprinkler Installation"
+      },
+      "region": {
+        "x": 0.42,
+        "y": 0.3,
+        "w": 0.15,
+        "h": 0.16
       }
     }
   ]

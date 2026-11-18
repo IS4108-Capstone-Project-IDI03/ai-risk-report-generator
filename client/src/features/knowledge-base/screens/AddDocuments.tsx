@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { Button, Icon } from '../../../design-system'
 import { UploadedDocuments } from '../components/UploadedDocuments'
 import { UploadRow } from '../components/UploadRow'
-import { addFiles, clearFinished, useUploads } from '../uploads'
+import { addFiles, clearFinished, useUploads, type Upload } from '../uploads'
 
 /** Returns the Add documents tab: the upload panel, then recent uploads. */
 export function AddDocuments({
@@ -23,8 +23,10 @@ export function AddDocuments({
   const uploads = useUploads()
   const [dragging, setDragging] = useState(false)
   const uploading = uploads.some((u) => u.state === 'uploading')
-  const finished = uploads.some((u) => u.state === 'queued' || u.state === 'rejected')
-  const acceptedCount = uploads.filter((u) => u.state === 'queued').length
+  // One awaiting a type (IN-19) was accepted too: it is in Recent uploads.
+  const accepted = (u: Upload) => u.state === 'queued' || u.state === 'awaiting_type'
+  const finished = uploads.some((u) => accepted(u) || u.state === 'rejected')
+  const acceptedCount = uploads.filter(accepted).length
 
   return (
     <>

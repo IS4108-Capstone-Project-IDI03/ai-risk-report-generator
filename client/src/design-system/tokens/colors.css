@@ -147,6 +147,12 @@
   --chart-magenta-light: #ee86ad;
   --chart-orange-dark: #c4561f;
   --chart-orange-light: #f39a62;
+  /* Knowledge base search (IN-17), the one series outside the vendor rule: Cohere bills it,
+     but both orange steps are taken by features that share an engineer's bar with it and no
+     third orange clears ΔE 15 (best 14.5). Searched for with the validator's maths against
+     all eight report hues on white: worst ΔE 15.8 (normal), 12.9 (protan/deutan), 27.5 from
+     the AI violet. Below 3:1, like the other light steps, so its values are in the table. */
+  --chart-sky: #44bcfc;
   /* Free services: never drawn as a part with any height, named in the legend only. */
   --chart-neutral: var(--graphite-500);
   /* Report charts and tables (GN-12): Marsh's own palette, sampled from the sample

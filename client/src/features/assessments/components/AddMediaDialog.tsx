@@ -10,6 +10,7 @@ import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from '../m
 import type { PhotoFile, VoiceClip } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { AudioPickers, PhotoPickers, PhotoThumb, ReadyItem, RemoveButton } from './MediaPickers'
+import { PhotoDialog } from './PhotoReferences'
 import { useSave } from './useSave'
 import '../capture.css'
 
@@ -27,6 +28,8 @@ export function AddMediaDialog({ v, dialog }: Props) {
   const [photos, setPhotos] = useState<PhotoFile[]>([])
   // Photographed pages of handwritten notes (CP-20), transcribed once added.
   const [pages, setPages] = useState<PhotoFile[]>([])
+  // A waiting photo opened to mark the area that matters (CP-10).
+  const [viewing, setViewing] = useState<PhotoFile | null>(null)
   const [recording, setRecording] = useState(false)
   // Why a microphone or a chosen file could not be used.
   const [problem, setProblem] = useState<{ title: string; message: string } | null>(null)
@@ -110,143 +113,166 @@ export function AddMediaDialog({ v, dialog }: Props) {
   }
   const listed = clips.length + photos.length + pages.length
 
+  const markPhoto = (id: number) => async (region: PhotoFile['region']) =>
+    setPhotos((list) => list.map((p) => (p.id === id ? { ...p, region } : p)))
+
   return (
-    <Dialog
-      className="ds-dialog-sheet"
-      title="Add to observation"
-      description={
-        dialog.where +
-        '. ' +
-        (dialog.saved
-          ? 'Kept as captured, with your name and the time.'
-          : 'No capture session, so these stay in this browser and are not uploaded.')
-      }
-      width={560}
-      onClose={busy ? undefined : cancel}
-      footer={
-        <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={cancel}
-          >
-            {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--primary"
-            disabled={busy || !listed || recording}
-            onClick={() => run(() => v.addMedia(clips, photos, pages))}
-          >
-            {'Add to observation'}
-          </button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {!!saveProblem && (
-          <div role="alert">
-            <Callout tone="warning" title="Nothing added">
-              {saveProblem} Everything is still listed; press Add to observation to try again.
-            </Callout>
-          </div>
-        )}
-        <section
-          aria-label="Voice"
-          style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-        >
-          <p style={heading}>{'Voice'}</p>
-          <AudioPickers
-            recording={recording}
-            onRecord={() => void toggleRecording()}
-            onUpload={uploadAudio}
-            busy={busy}
-          />
-          {recording && (
-            <span role="status" style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-              {'Recording… press Stop recording to add it to the list.'}
-            </span>
+    <>
+      {viewing && (
+        <PhotoDialog
+          key={viewing.id}
+          photo={{
+            name: viewing.name,
+            url: viewing.url,
+            context: dialog.where,
+            region: viewing.region,
+            mark: markPhoto(viewing.id),
+          }}
+          onClose={() => setViewing(null)}
+        />
+      )}
+      <Dialog
+        className="ds-dialog-sheet"
+        title="Add to observation"
+        description={
+          dialog.where +
+          '. ' +
+          (dialog.saved
+            ? 'Kept as captured, with your name and the time.'
+            : 'No capture session, so these stay in this browser and are not uploaded.')
+        }
+        width={560}
+        onClose={busy ? undefined : cancel}
+        footer={
+          <>
+            <button
+              type="button"
+              className="cap-btn cap-btn--secondary"
+              disabled={busy}
+              onClick={cancel}
+            >
+              {'Cancel'}
+            </button>
+            <button
+              type="button"
+              className="cap-btn cap-btn--primary"
+              disabled={busy || !listed || recording}
+              onClick={() => run(() => v.addMedia(clips, photos, pages))}
+            >
+              {'Add to observation'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {!!saveProblem && (
+            <div role="alert">
+              <Callout tone="warning" title="Nothing added">
+                {saveProblem} Everything is still listed; press Add to observation to try again.
+              </Callout>
+            </div>
           )}
-        </section>
-        <section
-          aria-label="Photos"
-          style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-        >
-          <p style={heading}>{'Photos'}</p>
-          <PhotoPickers onChange={addPhotos} busy={busy} />
-        </section>
-        <section
-          aria-label="Handwritten pages"
-          style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-        >
-          <p style={heading}>{'Handwritten pages'}</p>
-          <PhotoPickers
-            onChange={addPages}
-            busy={busy}
-            takeLabel="Photograph a page"
-            chooseLabel="Choose pages"
-          />
-        </section>
-        {!!problem && (
-          <div role="alert">
-            <Callout tone="warning" title={problem.title}>
-              {problem.message}
-            </Callout>
-          </div>
-        )}
-        {listed > 0 && (
           <section
-            aria-label="Ready to add"
+            aria-label="Voice"
             style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
           >
-            <p style={{ ...heading, display: 'flex', justifyContent: 'space-between' }}>
-              <span>{'Ready to add'}</span>
-              <span>{listed}</span>
-            </p>
-            {clips.map((clip) => (
-              <ReadyItem
-                key={clip.id}
-                icon={clip.length ? 'mic' : 'file-audio'}
-                title={clip.name}
-                detail={clip.length}
-              >
-                <audio
-                  controls
-                  src={clip.url}
-                  aria-label={'Play ' + clip.name}
-                  style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
-                />
-                <RemoveButton
-                  label={'Remove ' + clip.name}
-                  disabled={busy}
-                  onClick={() => drop(clip)}
-                />
-              </ReadyItem>
-            ))}
-            {photos.map((photo) => (
-              <ReadyItem key={photo.id} icon="image" title={photo.name}>
-                <PhotoThumb url={photo.url} />
-                <RemoveButton
-                  label={'Remove ' + photo.name}
-                  disabled={busy}
-                  onClick={() => drop(photo)}
-                />
-              </ReadyItem>
-            ))}
-            {pages.map((page) => (
-              <ReadyItem key={page.id} icon={IconRegistry.evidence.handwriting} title={page.name}>
-                <PhotoThumb url={page.url} />
-                <RemoveButton
-                  label={'Remove ' + page.name}
-                  disabled={busy}
-                  onClick={() => drop(page)}
-                />
-              </ReadyItem>
-            ))}
+            <p style={heading}>{'Voice'}</p>
+            <AudioPickers
+              recording={recording}
+              onRecord={() => void toggleRecording()}
+              onUpload={uploadAudio}
+              busy={busy}
+            />
+            {recording && (
+              <span role="status" style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                {'Recording… press Stop recording to add it to the list.'}
+              </span>
+            )}
           </section>
-        )}
-      </div>
-    </Dialog>
+          <section
+            aria-label="Photos"
+            style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+          >
+            <p style={heading}>{'Photos'}</p>
+            <PhotoPickers onChange={addPhotos} busy={busy} />
+          </section>
+          <section
+            aria-label="Handwritten pages"
+            style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+          >
+            <p style={heading}>{'Handwritten pages'}</p>
+            <PhotoPickers
+              onChange={addPages}
+              busy={busy}
+              takeLabel="Photograph a page"
+              chooseLabel="Choose pages"
+            />
+          </section>
+          {!!problem && (
+            <div role="alert">
+              <Callout tone="warning" title={problem.title}>
+                {problem.message}
+              </Callout>
+            </div>
+          )}
+          {listed > 0 && (
+            <section
+              aria-label="Ready to add"
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+            >
+              <p style={{ ...heading, display: 'flex', justifyContent: 'space-between' }}>
+                <span>{'Ready to add'}</span>
+                <span>{listed}</span>
+              </p>
+              {clips.map((clip) => (
+                <ReadyItem
+                  key={clip.id}
+                  icon={clip.length ? 'mic' : 'file-audio'}
+                  title={clip.name}
+                  detail={clip.length}
+                >
+                  <audio
+                    controls
+                    src={clip.url}
+                    aria-label={'Play ' + clip.name}
+                    style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
+                  />
+                  <RemoveButton
+                    label={'Remove ' + clip.name}
+                    disabled={busy}
+                    onClick={() => drop(clip)}
+                  />
+                </ReadyItem>
+              ))}
+              {photos.map((photo) => (
+                <ReadyItem key={photo.id} icon="image" title={photo.name}>
+                  <PhotoThumb
+                    url={photo.url}
+                    name={photo.name}
+                    region={photo.region}
+                    onOpen={() => setViewing(photo)}
+                  />
+                  <RemoveButton
+                    label={'Remove ' + photo.name}
+                    disabled={busy}
+                    onClick={() => drop(photo)}
+                  />
+                </ReadyItem>
+              ))}
+              {pages.map((page) => (
+                <ReadyItem key={page.id} icon={IconRegistry.evidence.handwriting} title={page.name}>
+                  <PhotoThumb url={page.url} />
+                  <RemoveButton
+                    label={'Remove ' + page.name}
+                    disabled={busy}
+                    onClick={() => drop(page)}
+                  />
+                </ReadyItem>
+              ))}
+            </section>
+          )}
+        </div>
+      </Dialog>
+    </>
   )
 }

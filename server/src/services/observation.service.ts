@@ -15,6 +15,7 @@ import {
   type IObservation,
   type IPage,
   type IPhoto,
+  type IPhotoRegion,
   type IPhotoReading,
   type IReadItem,
   type IRecording,
@@ -206,9 +207,17 @@ export const transcriptCorrectionSchema = z.object({
     .max(20000, 'The transcript must be 20,000 characters or fewer.')
     .refine((text) => text.trim() !== '', 'Write the corrected transcript.'),
 })
+// A marked area of a photo (CP-10): fractions of its width and height, with a
+// size, inside the photo.
+const fraction = z.number('Give each side as a number from 0 to 1.').min(0).max(1)
+export const photoRegionSchema = z
+  .object({ x: fraction, y: fraction, w: fraction, h: fraction })
+  .refine((r) => r.w > 0 && r.h > 0, 'Mark an area, not a point or a line.')
+  .refine((r) => r.x + r.w <= 1 && r.y + r.h <= 1, 'Mark an area inside the photo.')
 export type NewRecording = { name: string; audio: Buffer; contentType: string }
 // The route has already checked it is a JPG or PNG (photoFormat).
-export type NewPhoto = { name: string; image: Buffer }
+// `region` is an area the engineer marked before saving it (CP-10).
+export type NewPhoto = { name: string; image: Buffer; region?: IPhotoRegion }
 // A handwritten page (CP-19), checked as a photo is.
 export type NewPage = { name: string; image: Buffer }
 
@@ -251,6 +260,8 @@ type PhotoDto = {
   // blurred, and a link to that copy (null when it had none, so went as
   // taken); null when never read with protection on.
   redaction: { url: string | null; faces: number } | null
+  // The area the engineer marked (CP-10), or null when none is.
+  region: IPhotoRegion | null
   added: StampDto | null
 }
 // A handwritten page (CP-19), linking to its original photo.
@@ -498,8 +509,24 @@ function photosOutOfDate(o: StoredObservation): boolean {
   if (reading?.status !== 'interpreted') return false
   const read = reading.photoIds.map(String)
   const now = kept(o.photos ?? []).map((p) => String(p._id))
-  return read.length !== now.length || now.some((id) => !read.includes(id))
+  if (read.length !== now.length || now.some((id) => !read.includes(id))) return true
+  // A mark moved, added or cleared since (CP-10): the model saw something else.
+  return markKey(marksOf(o.photos ?? [], now)) !== markKey(reading.marks ?? [])
 }
+
+// The marks on the given photos (CP-10), as a photo reading keeps them.
+function marksOf(photos: IPhoto[], ids: string[]) {
+  return photos
+    .filter((p) => p.region && ids.includes(String(p._id)))
+    .map((p) => ({ photo: p._id, region: p.region! }))
+}
+// Marks compared whatever their order.
+const markKey = (marks: { photo: Types.ObjectId; region: IPhotoRegion }[]) =>
+  JSON.stringify(
+    marks
+      .map(({ photo, region: { x, y, w, h } }) => [String(photo), x, y, w, h])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  )
 
 // Finished categories of something other than what the observation holds now.
 // A reading from before CP-21 read only its photos and note: it is judged by
@@ -624,6 +651,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
           faces: p.redaction.faces,
         }
       : null,
+    region: p.region ? { x: p.region.x, y: p.region.y, w: p.region.w, h: p.region.h } : null,
     added: stampDto(p.added),
   })
   const page = (p: IPage): PageDto => ({
@@ -855,6 +883,7 @@ function storedMedia(
       key: `photos/${reference}/${id}/${photoId}.${format.extension}`,
       contentType: format.contentType,
       size: p.image.length,
+      ...(p.region && { region: p.region }),
       ...(added && { added }),
     }
   })
@@ -1124,6 +1153,52 @@ async function setRemoved(
   ).lean<StoredObservation>()
   if (!updated) {
     // It changed between the read and the write: say how, from how it is now.
+    const current = await ObservationModel.findById(id).lean<StoredObservation>()
+    throw (
+      (current && refusal(current)) ??
+      new ObservationStateError('This observation changed while saving. Try again.')
+    )
+  }
+  return toDto(updated, locations)
+}
+
+// Marks the area of a photo that matters (CP-10), or clears the mark with null.
+// Only the observation changes: the photo in S3 stays as taken (AC4), and the
+// mark is drawn over it where it is shown. A removed photo is not evidence, so
+// it can't be marked; matching on that in the update makes it atomic.
+export async function markPhoto(
+  id: string,
+  photoId: string,
+  region: IPhotoRegion | null,
+  user: SessionUser,
+): Promise<ObservationDto> {
+  const { observation, locations } = await changeable(id, user)
+  if (!isValidObjectId(photoId)) throw new ObservationNotFoundError('photo')
+  const photo = new Types.ObjectId(photoId)
+  const refusal = (o: StoredObservation) => {
+    if (o.deleted) return new ObservationStateError(DELETED)
+    const found = (o.photos ?? []).find((p) => p._id.equals(photo))
+    if (!found) return new ObservationNotFoundError('photo')
+    if (found.removed) return new ObservationStateError('This photo is removed.')
+    return null
+  }
+  const problem = refusal(observation)
+  if (problem) throw problem
+
+  const now = stamp(user)
+  const path = 'photos.$[photo].region'
+  const updated = await ObservationModel.findOneAndUpdate(
+    {
+      _id: id,
+      deleted: { $exists: false },
+      photos: { $elemMatch: { _id: photo, removed: { $exists: false } } },
+    },
+    region
+      ? { $set: { [path]: region, edited: now } }
+      : { $set: { edited: now }, $unset: { [path]: 1 } },
+    { arrayFilters: [{ 'photo._id': photo }], returnDocument: 'after' },
+  ).lean<StoredObservation>()
+  if (!updated) {
     const current = await ObservationModel.findById(id).lean<StoredObservation>()
     throw (
       (current && refusal(current)) ??
@@ -1652,6 +1727,9 @@ export async function readObservation(
 
   const attempt = { startedAt: new Date() }
   const started = { status: 'interpreting', attempts: [attempt], photoIds }
+  // The photos' part also keeps the marks it reads (CP-10), to tell when one changes.
+  const marks = marksOf(o.photos ?? [], photoIds.map(String))
+  const startedPhotos = { ...started, marks }
   const filter: Record<string, unknown> = { _id: id, deleted: { $exists: false } }
   const set: Record<string, unknown> = {}
   const unset: Record<string, 1> = {}
@@ -1661,7 +1739,7 @@ export async function readObservation(
     set.interpretation = {
       ...started,
       items,
-      ...(parts.includes('description') && { photoReading: started }),
+      ...(parts.includes('description') && { photoReading: startedPhotos }),
     }
   } else {
     // The photos' description, wherever a reading kept it, now lives in its
@@ -1685,13 +1763,14 @@ export async function readObservation(
       Object.assign(set, {
         'interpretation.photoReading.status': 'interpreting',
         'interpretation.photoReading.photoIds': photoIds,
+        'interpretation.photoReading.marks': marks,
       })
       for (const field of ['description', 'hazardType', 'error', 'provenance'])
         unset[`interpretation.photoReading.${field}`] = 1
       push['interpretation.photoReading.attempts'] = attempt
     } else if (parts.includes('description')) {
       filter['interpretation.photoReading'] = { $exists: false }
-      set['interpretation.photoReading'] = started
+      set['interpretation.photoReading'] = startedPhotos
     } else if (!photoReading && photoReadingOf(o)) {
       // Reading the categories alone keeps a description read before the split.
       set['interpretation.photoReading'] = photoReadingOf(o)
@@ -1747,7 +1826,16 @@ export async function runInterpretation(
       ]
   const photos = items.flatMap((item) => {
     const photo = item.kind === 'photo' && observation.photos?.find((p) => p._id.equals(item.id!))
-    return photo ? [{ label: item.label, s3Key: photo.key }] : []
+    if (!photo) return []
+    // A marked photo (CP-10) goes with its mark, so S5 sends the model a close-up too.
+    const { region } = photo
+    return [
+      {
+        label: item.label,
+        s3Key: photo.key,
+        ...(region && { region: { x: region.x, y: region.y, w: region.w, h: region.h } }),
+      },
+    ]
   })
   const texts = items.flatMap((item) =>
     item.kind !== 'photo' && item.text

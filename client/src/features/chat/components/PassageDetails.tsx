@@ -8,6 +8,7 @@ import { Badge, Callout, Icon, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
+import { useFoldedText } from '../../sources/useFoldedText'
 import type { Passage } from '../api'
 import type { SelectedCitation } from './citationSelection'
 import type { DocSummary } from './documents'
@@ -35,6 +36,7 @@ type Props = {
 export function PassageDetails(props: Props) {
   const { number, doc, withdrawn, range, state, quote, passageText, status, title } = props
   const { region, generated } = props
+  const fold = useFoldedText(region ?? null)
   const many = Boolean(range?.includes('–'))
   const where = range ? `${many ? 'pages' : 'page'} ${range}` : 'the passage'
 
@@ -98,7 +100,9 @@ export function PassageDetails(props: Props) {
           “{quote}” Check the source before relying on this statement.
         </Callout>
       )}
-      {!status && doc && <CitedRegion fileUrl={doc.fileUrl} region={region} />}
+      {!status && doc && (
+        <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />
+      )}
       {/* KB-02 AC6: the description is shown, as what the answer read, but never as the
           document's words; a quote of it is never found (rag-service quotable_text). */}
       {!status && generated && (
@@ -106,7 +110,7 @@ export function PassageDetails(props: Props) {
           The picture's description was written by AI, not printed in the document.
         </p>
       )}
-      {status ?? <PassageBody text={passageText ?? ''} quote={quote} />}
+      {status ?? <PassageBody text={passageText ?? ''} quote={quote} folded={fold.folded} />}
     </div>
   )
 }

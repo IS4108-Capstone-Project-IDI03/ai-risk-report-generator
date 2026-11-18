@@ -70,4 +70,26 @@ describe('PassageBody', () => {
     await waitFor(() => expect(body().querySelectorAll('.katex')).toHaveLength(1))
     expect(body().querySelector('mark')).toHaveTextContent('C = \\frac{100}{2}')
   })
+
+  it('folds the text behind "Show extracted text", closed', () => {
+    const { container } = render(<PassageBody text="Light hazard | gpm: 100" quote="" folded />)
+    const details = container.querySelector('details')!
+    expect(details).toHaveTextContent('Show extracted text')
+    expect(details.open).toBe(false)
+    expect(details).toContainElement(body())
+  })
+
+  it('opens the fold when the text holds the quote, so it stays marked', () => {
+    const { container } = render(
+      <PassageBody text="Light hazard | gpm: 100" quote="gpm: 100" folded />,
+    )
+    expect(container.querySelector('details')!.open).toBe(true)
+    expect(body().querySelector('mark')).toHaveTextContent('gpm: 100')
+  })
+
+  it('shows the text with no fold unless asked', () => {
+    const { container } = render(<PassageBody text="Light hazard | gpm: 100" quote="" />)
+    expect(container.querySelector('details')).toBeNull()
+    expect(body()).toHaveTextContent('Light hazard | gpm: 100')
+  })
 })

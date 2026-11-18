@@ -220,8 +220,14 @@ function mockGateway() {
     // Added recordings and photos arrive as a form (CP-08); calls name its files.
     const form = init.body instanceof FormData ? init.body : null
     const names = (part: string) => (form?.getAll(part) as File[]).map((file) => file.name)
+    // Marks made before adding (CP-10) come as one `photoRegion` per photo.
+    const regions = (form?.getAll('photoRegion') ?? []) as string[]
     const body = form
-      ? { recordings: names('recording'), photos: names('photo') }
+      ? {
+          recordings: names('recording'),
+          photos: names('photo'),
+          ...(regions.length && { regions: regions.map((r) => r && JSON.parse(r)) }),
+        }
       : init.body
         ? JSON.parse(String(init.body))
         : undefined
@@ -317,6 +323,19 @@ function mockGateway() {
           ],
           interpretation: o.interpretation && { ...o.interpretation, outOfDate: true },
           edited: STAMP,
+        }))
+      // Marking or clearing the area of a photo (CP-10). As the gateway does,
+      // a description read with other marks is then out of date.
+      const marked = rest.match(/^\/photos\/(\w+)\/region$/)
+      if (marked && (method === 'PUT' || method === 'DELETE'))
+        return change((o) => ({
+          edited: STAMP,
+          photos: o.photos.map((p) =>
+            p.id === marked[1] ? { ...p, region: method === 'PUT' ? body : null } : p,
+          ),
+          interpretation: o.interpretation?.photos
+            ? { ...o.interpretation, photos: { ...o.interpretation.photos, outOfDate: true } }
+            : o.interpretation,
         }))
       // Removing and restoring a recording or photo (CP-08).
       const item = rest.match(/^\/(recordings|photos)\/(\w+)(\/restore)?$/)
@@ -1741,5 +1760,161 @@ describe('Filtering All Photos (CP-13)', () => {
     expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(true)
     expect(shownRows().some((t) => t?.includes('Loading dock.'))).toBe(true)
     expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(false)
+  })
+})
+
+describe('Marking the area of a photo that matters (CP-10)', () => {
+  const NOTE_TEXT = 'Sprinkler head recessed in the corridor ceiling.'
+  const IMAGE_URL = '/api/observations/o11/photos/p1/image'
+  const MARKABLE = observation({
+    id: 'o11',
+    note: NOTE_TEXT,
+    photos: [{ ...PHOTO, url: IMAGE_URL }],
+    interpretation: {
+      status: 'interpreted',
+      photos: described(),
+      categories: [],
+      error: null,
+      attempts: 1,
+      model: null,
+      photoIds: ['p1'],
+      items: [{ label: 'IMG_0460.jpg', kind: 'photo', id: 'p1', leftOut: false }],
+      outOfDate: false,
+    },
+  })
+  const REGION_URL = '/api/observations/o11/photos/p1/region'
+  const AREA = { x: 0.2, y: 0.1, w: 0.3, h: 0.4 }
+
+  async function openPhoto(o: SavedObservation = MARKABLE) {
+    listed = [o]
+    await openObservations()
+    fireEvent.click(row(NOTE_TEXT))
+    fireEvent.click(screen.getByRole('button', { name: 'Open IMG_0460.jpg' }))
+    return screen.getByRole('dialog', { name: 'IMG_0460.jpg' })
+  }
+  // The photo as laid out on screen: jsdom has no layout, so say where it is.
+  function laidOut(popup: HTMLElement) {
+    const layer = within(popup).getByTestId('photo-layer')
+    layer.getBoundingClientRect = () =>
+      ({ left: 100, top: 50, width: 800, height: 400, right: 900, bottom: 450 }) as DOMRect
+    return within(popup).getByLabelText(/^IMG_0460\.jpg\. Drag over/)
+  }
+  const shown = (scope: HTMLElement) => within(scope).queryByTestId('photo-mark')
+  const box = (mark: HTMLElement | null) =>
+    mark && [mark.style.left, mark.style.top, mark.style.width, mark.style.height]
+
+  it('marks an area by dragging over the photo, and saves it as fractions of the photo', async () => {
+    const popup = await openPhoto()
+    expect(shown(popup)).toBeNull()
+
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    const frame = laidOut(popup)
+    // From a quarter in to three quarters across and down: the middle half.
+    fireEvent.pointerDown(frame, { pointerId: 1, clientX: 300, clientY: 150 })
+    fireEvent.pointerMove(frame, { pointerId: 1, clientX: 700, clientY: 350 })
+    fireEvent.pointerUp(frame, { pointerId: 1, clientX: 700, clientY: 350 })
+    expect(box(shown(popup))).toEqual(['25%', '25%', '50%', '50%'])
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+
+    expect(await screen.findByText('Area marked.')).toBeInTheDocument()
+    expect(calls).toEqual([
+      { method: 'PUT', url: REGION_URL, body: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+    ])
+    // The mark stays on the photo, and the photo can be marked again or cleared.
+    expect(box(shown(popup))).toEqual(['25%', '25%', '50%', '50%'])
+    expect(within(popup).getByRole('button', { name: 'Change mark' })).toBeInTheDocument()
+    expect(within(popup).getByRole('button', { name: 'Clear mark' })).toBeInTheDocument()
+    // The description was read without it, so it offers to read the photos again.
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    const photos = screen.getByRole('region', { name: 'Photos' })
+    expect(within(photos).getByText('Its evidence changed since.')).toBeInTheDocument()
+  })
+
+  it('moves and resizes the mark with the keyboard', async () => {
+    const popup = await openPhoto()
+
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    const frame = laidOut(popup)
+    // It starts as the middle half, ready to move.
+    expect(box(shown(popup))).toEqual(['25%', '25%', '50%', '50%'])
+    fireEvent.keyDown(frame, { key: 'ArrowRight' })
+    fireEvent.keyDown(frame, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyDown(frame, { key: 'ArrowLeft', shiftKey: true })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+
+    await screen.findByText('Area marked.')
+    expect(calls).toEqual([
+      { method: 'PUT', url: REGION_URL, body: { x: 0.3, y: 0.25, w: 0.45, h: 0.55 } },
+    ])
+  })
+
+  it('shows a saved mark on the photo and its tile, and clears it', async () => {
+    const popup = await openPhoto({
+      ...MARKABLE,
+      photos: [{ ...MARKABLE.photos[0], region: AREA }],
+    })
+    expect(box(shown(popup))).toEqual(['20%', '10%', '30%', '40%'])
+    const tile = screen.getByRole('list', { name: /Photos/ })
+    expect(box(shown(tile))).toEqual(['20%', '10%', '30%', '40%'])
+
+    fireEvent.click(within(popup).getByRole('button', { name: 'Clear mark' }))
+
+    expect(await screen.findByText('Mark cleared.')).toBeInTheDocument()
+    expect(calls).toEqual([{ method: 'DELETE', url: REGION_URL, body: undefined }])
+    expect(shown(popup)).toBeNull()
+    expect(shown(tile)).toBeNull()
+    expect(within(popup).getByRole('button', { name: 'Mark area' })).toBeInTheDocument()
+  })
+
+  it('marks a photo before adding it to a saved observation', async () => {
+    listed = [MARKABLE]
+    await openObservations()
+    fireEvent.click(row(NOTE_TEXT))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
+    fireEvent.change(within(dialog).getByLabelText('Choose photographs'), {
+      target: { files: [new File(['jpeg'], 'IMG_0510.jpg', { type: 'image/jpeg' })] },
+    })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open IMG_0510.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0510.jpg' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+    await within(popup).findByRole('button', { name: 'Change mark' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    expect(calls).toEqual([])
+    const ready = within(dialog).getByRole('region', { name: 'Ready to add' })
+    expect(within(ready).getAllByTestId('photo-mark')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
+
+    await screen.findByText(/^Added 1 photo/)
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        url: '/api/observations/o11/media',
+        body: {
+          recordings: [],
+          photos: ['IMG_0510.jpg'],
+          regions: [{ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }],
+        },
+      },
+    ])
+  })
+
+  it('leaves the photo as it was on Cancel, and keeps the mark to retry when saving fails', async () => {
+    const popup = await openPhoto()
+
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    fireEvent.click(within(popup).getByRole('button', { name: 'Cancel' }))
+    expect(shown(popup)).toBeNull()
+    expect(calls).toEqual([])
+
+    refuse = (method) => (method === 'PUT' ? json(409, { error: 'This photo is removed.' }) : null)
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+
+    expect(await within(popup).findByRole('alert')).toHaveTextContent('This photo is removed.')
+    expect(within(popup).getByRole('button', { name: 'Save mark' })).toBeInTheDocument()
+    expect(box(shown(popup))).toEqual(['25%', '25%', '50%', '50%'])
   })
 })

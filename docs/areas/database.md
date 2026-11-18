@@ -209,7 +209,8 @@ non-deleted observations (`photoId`, `observationId`, `name`, `url`,
 `photos: [{ photoId, caption }]`, assigned engineer only) replaces the list:
 200 with the same shape, 400 for a photo not the assessment's, one given
 twice, or a caption over 200 characters, 403, 404, 409 archived. The export
-(EX-01) is to read it.
+(EX-01) is to read it. A photo's mark (CP-10) is not shown here or in the
+export: it is for the AI reading only, so the report shows photos as taken.
 
 `riskQuality` and `lossEstimates` (GN-03) are Sections 4 and 5's figures, typed
 by the engineer in Review; every score, rating and loss is computed from them
@@ -731,6 +732,20 @@ read with protection on has no `redaction`. Nothing deletes photo objects yet
 except a failed upload's cleanup; anything that later deletes a photo's object
 must delete its `redaction.key` too.
 
+A photo the engineer has marked (CP-10) has a `region`: `{ x, y, w, h }`, the
+marked rectangle as fractions (0 to 1) of the upright image's width and height,
+with `x` and `y` its top-left corner. It is data only. The image in S3 is never
+changed. The mark is shown over the photo in the app (its popup and tiles) and
+sent to the AI reading (CP-05); the report's Appendix A and the export (EX-01)
+show photos as taken. A photo
+without a mark has no `region`, and the API returns `region: null` for it.
+Clearing the mark removes the field. Only a kept photo of an observation that
+isn't deleted can be marked, and only by the assigned engineer while the
+assessment isn't archived. A mark stamps `edited`. A photo can also be marked
+before it is saved, at capture or in Add media: the mark goes with it as a
+`photoRegion` part (see the two upload routes below) and is stored with the new
+photo. Site walk photos (CP-22) are not marked.
+
 An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
 for it to be read: what the model proposes from everything captured in it, for
 the engineer to review. Saving never reads it, so a client's notes and site
@@ -745,7 +760,11 @@ rests on, by label, any `quote` from it, and `verified`, whether the gateway
 found the quote in that item (null for a photo, which has no words). Its
 `photoReading`, once photos are described, has a `description`, a
 `hazardType` and the `photoIds` it describes; it is absent for a reading
-without photos. A reading from before the parts were split kept `description`
+without photos. Its `marks` (CP-10) are the marks on those photos when the
+latest attempt started, each `{ photo, region }`. Once a mark is moved, added
+or cleared, the description is out of date, as when photos are added or
+removed. A reading from before CP-10 has no `marks` and counts as having read
+every photo unmarked. A reading from before the parts were split kept `description`
 and `hazardType` on the `interpretation` itself, under the categories'
 status: the API returns them as its photos' part, and reading either part
 again moves them into `photoReading`. A reading from before CP-21 has one
@@ -834,13 +853,14 @@ none.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. When a photo was marked before saving (CP-10), one `photoRegion` part per `photo` part, in the same order: the mark as JSON `{ x, y, w, h }`, or empty for a photo not marked; none at all when no photo is marked. A mark that is not an area inside its photo, or a count that doesn't match the photos, is a 400 and nothing is stored. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
 | `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
 | `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, and `photoRegion` parts for photos marked before adding (CP-10), checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `PUT /api/observations/:id/photos/:photoId/region`, `DELETE …/region` | Marks the area of a photo that matters (CP-10): JSON `{ x, y, w, h }`, fractions of the photo with a size above zero, inside it; DELETE clears the mark. The photo in S3 is not changed. 200 with the observation, or 400 / 403 / 404 / 409 (the photo removed, the observation deleted, or the assessment archived) |
 | `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore`, `POST /api/observations/:id/pages/:pageId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
@@ -1626,9 +1646,14 @@ picture alone.
 | `region_pages` | the page of each box in `region_bbox`, in the same order |
 
 `bbox`/`bbox_pages` stay as they are (the chat's PDF tab outlines the whole passage
-with them). Ingestion doesn't write the region keys yet (IN-__); until it does, S4
-gives a described picture (`generated_text: picture_description`) its `bbox` as its
-region, and every other passage none.
+with them). Ingestion writes the region keys (IN-19, `chunker._region`): a table's
+passages, every row group included, hold that table item's boxes; a formula holds its
+FORMULA item's boxes, or the chunk's when no single item is the equation; a described
+picture, or a table reread as one, holds the picture's boxes. A plain text passage, and
+the prose left when a table doesn't read, have none. A box Docling measured from the
+page's top is flipped with the page's height. Passages ingested before IN-19 have no
+region keys: S4 then gives a described picture its `bbox` as its region, and every
+other passage none.
 
 Knowledge documents carry no `COPE_dimension` (an exception to the
 five-field rule): each passage carries its own `section` instead (IN-05).
@@ -1681,7 +1706,10 @@ uncategorised observations. The title falls back to the file name, and
   'admin'`. Absent when labelling failed, in which case every detail is
   Unconfirmed.
 
-`status` is `queued` (set by the gateway), then `processing`, `complete` (with
+`status` is `queued` (set by the gateway), or `awaiting_type` when labelling
+couldn't read the source type (IN-19): such a document is stored but not
+queued until an admin chooses a type (`POST .../source-type`), so it is never
+ingested or redacted as an unknown type. Then `processing`, `complete` (with
 `result`: `chunksIndexed`, `tablesCaptured`, `imagesCaptured`) or `failed`
 (with `error`, the reason shown to the admin), all set by the ingestion worker,
 which also records `startedAt` and `finishedAt`. An admin can stop a queued or
@@ -1772,7 +1800,7 @@ it `select: false`, so the gateway never loads it unless it asks by name, and no
 route or DTO includes it. See [privacy.md](privacy.md) "Ingestion of past reports".
 
 `file.sha256` has a **unique partial index** covering documents whose `status`
-is `queued`, `processing` or `complete`, so a failed document's file can be
+is `awaiting_type`, `queued`, `processing` or `complete`, so a failed document's file can be
 uploaded again. It stops two identical files uploaded together both being
 stored. `original.sha256` has the same index, limited to documents that have
 an `original`, because two conversions of one Word file give different PDFs. The gateway builds it at startup. It can't build while identical files
@@ -1783,13 +1811,14 @@ copies and restart. The upload's own check still rejects most repeats.
 | Route | Does |
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
-| `GET /api/knowledge-documents` | Recent uploads, newest first: every document queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
+| `GET /api/knowledge-documents` | Recent uploads, newest first: every document awaiting a type, queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
 | `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
 | `GET /api/knowledge-documents/:id` | One document as the lists show it (F-10), `knowledge:view`. 200, or 404 (unknown or malformed id) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
 | `POST /api/knowledge-documents/:id/reinstate` | Reinstates a withdrawn document (KB-01), no body. 200 with `withdrawn: null`, or 404 / 409 (not withdrawn, or IN-07: another edition in its `editionFamily` is active, named in `error`) / 503 (search not updated, still withdrawn) |
 | `POST /api/knowledge-documents/:id/retry` | Retries a failed or cancelled ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears terminal error/cancellation fields, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not retryable (someone already retried it), 503 queue unreachable (document is restored to its previous terminal state, counter rolled back). `knowledge:manage` only |
+| `POST /api/knowledge-documents/:id/source-type` | Chooses the source type of a document awaiting one (IN-19): JSON `{ sourceType }`. Saves it as the admin's (`labelling.details.source_type.source: 'admin'`), sets the issuing body from it, drops it from `unconfirmed` (a report also drops its edition and standard number), records `handled`, flips `status` to `queued` and queues the job. 200 with the document, 400 a type not on the list, 404 unknown, 409 not awaiting a type (also the second of two choices made together), 503 queue unreachable (the document is put back exactly as it was). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
 | `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |

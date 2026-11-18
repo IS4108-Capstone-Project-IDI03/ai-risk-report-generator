@@ -1,8 +1,11 @@
 import { Schema, model, type Types } from 'mongoose'
 
-// Where a knowledge document is in ingestion. The gateway sets `queued`; the
-// ingestion worker moves it on (see microservices/ingestion-service/app/worker.py).
+// Where a knowledge document is in ingestion. The gateway sets `queued`, or
+// `awaiting_type` when labelling couldn't read the source type: such a
+// document is not ingested until an admin chooses one (IN-19). The ingestion
+// worker moves it on (see microservices/ingestion-service/app/worker.py).
 export const INGESTION_STATUSES = [
+  'awaiting_type',
   'queued',
   'processing',
   'complete',
@@ -270,15 +273,14 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
   { timestamps: true, collection: 'knowledge_documents' },
 )
 
-// One stored copy of each file (IN-07 AC1). Failed and cancelled documents are
-// outside the index so their files can be uploaded again; without this index, two identical
-// files uploaded together would both pass the upload's fingerprint lookup.
+// One stored copy of each file (IN-07 AC1), counting one awaiting a type (IN-19).
+// Failed and cancelled documents are outside the index so their files can be
+// uploaded again; without this index, two identical files uploaded together
+// would both pass the upload's fingerprint lookup. Same statuses as models/db.ts.
+const HOLDS_ITS_FILE = ['awaiting_type', 'queued', 'processing', 'complete']
 knowledgeDocumentSchema.index(
   { 'file.sha256': 1 },
-  {
-    unique: true,
-    partialFilterExpression: { status: { $in: ['queued', 'processing', 'complete'] } },
-  },
+  { unique: true, partialFilterExpression: { status: { $in: HOLDS_ITS_FILE } } },
 )
 // The same for a converted upload's original, since each conversion's PDF differs.
 // PDF uploads have no `original`, so they are left out rather than all clashing as null.
@@ -287,7 +289,7 @@ knowledgeDocumentSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      status: { $in: ['queued', 'processing', 'complete'] },
+      status: { $in: HOLDS_ITS_FILE },
       'original.sha256': { $exists: true },
     },
   },

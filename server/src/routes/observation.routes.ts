@@ -10,9 +10,11 @@ import {
   getPhotoImage,
   getRedactedPhotoImage,
   getRecordingAudio,
+  markPhoto,
   MEDIA_KINDS,
   NotRetryableError,
   observationChangesSchema,
+  photoRegionSchema,
   ObservationNotFoundError,
   ObservationStateError,
   readObservation,
@@ -177,6 +179,39 @@ router.post(
           media.pages,
         ),
       )
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+
+// Marks the area of a photo that matters (CP-10): JSON {x, y, w, h}, fractions
+// of the photo's width and height. The photo itself is never changed. 200 with
+// the observation; DELETE clears the mark.
+router.put(
+  '/:id/photos/:photoId/region',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = photoRegionSchema.safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: parsed.error.issues[0].message, fields: fieldErrors(parsed.error) })
+      return
+    }
+    try {
+      res.json(await markPhoto(req.params.id, req.params.photoId, parsed.data, res.locals.user!))
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+  },
+)
+router.delete(
+  '/:id/photos/:photoId/region',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    try {
+      res.json(await markPhoto(req.params.id, req.params.photoId, null, res.locals.user!))
     } catch (error: unknown) {
       refuse(error, res)
     }

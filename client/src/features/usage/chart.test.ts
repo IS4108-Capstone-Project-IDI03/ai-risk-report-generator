@@ -103,6 +103,39 @@ describe('toStackedSeries', () => {
   })
 })
 
+describe('knowledge base searches (IN-17)', () => {
+  it('are their own named part, in a colour no other report feature wears', () => {
+    const reportFeatures = [
+      'draft-section',
+      'retrieval',
+      'checklist',
+      'ask',
+      'transcribe',
+      'interpret-photo',
+      'transcribe-handwriting',
+      'chat',
+    ]
+    const bar = group('alex', {
+      estimatedCostUsd: 0.6,
+      segments: { 'draft-section': 0.5, retrieval: 0.05, chat: 0.05, 'knowledge-search': 0.002 },
+    })
+
+    const { series } = toStackedSeries([bar], { sort: 'cost', limit: 15 })
+
+    const search = series.find((s) => s.key === 'knowledge-search')!
+    expect(search.label).toBe('Knowledge base search')
+    expect(search.color).toBe('var(--chart-sky)')
+    expect(reportFeatures.map(seriesColor)).not.toContain(search.color)
+    // Stacked after the report's own work, before chat and ingestion.
+    expect(series.map((s) => s.key)).toEqual([
+      'draft-section',
+      'retrieval',
+      'knowledge-search',
+      'chat',
+    ])
+  })
+})
+
 describe('seriesColor', () => {
   it('gives every billed service and feature a chart token', () => {
     for (const key of [

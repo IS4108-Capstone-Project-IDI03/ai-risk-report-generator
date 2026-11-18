@@ -18,6 +18,7 @@ import { CitationMark } from './CitationMark'
 import { usePassage } from '../../sources/usePassage'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
+import { useFoldedText } from '../../sources/useFoldedText'
 import { ReviewInspector, type InspectorAsk } from './ReviewInspector'
 
 // How a source listed below the viewer looks while it is open above.
@@ -65,6 +66,7 @@ export function PassageView({
   // draft was given it (AC7). The citation ID is `C:` or `P:` and the passage's id.
   const live = usePassage(passage.id.slice(2))
   const region = live.status === 'ready' ? live.passage.region : null
+  const fold = useFoldedText(region)
   return (
     <>
       <ViewerHead number={number} onClose={onClose}>
@@ -117,9 +119,15 @@ export function PassageView({
         <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
         <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
       </dl>
-      {doc && <CitedRegion fileUrl={doc.fileUrl} region={region} />}
+      {doc && <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />}
       {/* Focusable, since a long passage scrolls on its own. */}
-      <PassageBody as="blockquote" className="rv-passage" text={passage.text} quote="" />
+      <PassageBody
+        as="blockquote"
+        className="rv-passage"
+        text={passage.text}
+        quote=""
+        folded={fold.folded}
+      />
       {doc?.withdrawnAt && (
         <p className="rv-viewer-note">
           This source has been withdrawn from the knowledge base, so search no longer uses it. Check
