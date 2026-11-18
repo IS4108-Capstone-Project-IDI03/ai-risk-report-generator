@@ -109,6 +109,12 @@ function factsOf(ctx: CheckContext): BriefFacts {
       .flatMap((o) => o.recordings)
       .filter((r) => r.transcription.status === 'transcribed').length,
     walkObservations: ctx.walkObservations,
+    drafting: ctx.drafting
+      ? {
+          checkpoint: ctx.drafting.checkpoint,
+          openTasks: ctx.drafting.tasks.filter((t) => !t.done).map((t) => t.id),
+        }
+      : null,
   }
 }
 
@@ -161,6 +167,9 @@ async function refresh(reference: string): Promise<StoredBrief | null> {
   facts.stageDates = Object.fromEntries(
     STAGES.map((s) => [s, dated?.stageDates?.[s]?.toISOString() ?? null]),
   ) as BriefFacts['stageDates']
+  // Generation's checkpoint is kept as it was while it can't be read, so MarshBot's next step stays.
+  if (ctx.unavailable.includes('drafting') && stored)
+    facts.drafting = (stored.facts as BriefFacts).drafting ?? null
   const fields = {
     reference,
     stage: ctx.stage,

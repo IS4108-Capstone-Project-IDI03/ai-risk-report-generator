@@ -27,6 +27,7 @@ import {
 } from './reactions'
 import { coverageFailedTopic, SETUP_KINDS } from './topics-capture'
 import { DEFS, STAGE_TOPICS } from './topics'
+import { stepMark, waitsOnEngineer } from './topics-drafting'
 import type { Built, Event, ThreadBrief, ThreadState, ThreadViewer, TopicCtx } from './types'
 import {
   answerWords,
@@ -67,7 +68,8 @@ const upNext = (key: string) => TOPIC_TITLES[key] && `Up next: ${TOPIC_TITLES[ke
 
 /**
  * Returns the choices offered now: Skip while a tasks topic has open
- * rows, a question's own replies, and "What else?" only when another topic waits.
+ * rows, a question's own replies, nothing beside the next step's button while it
+ * waits on the engineer (GN-13), and "What else?" only when another topic waits.
  * A choice that moves the stage on, and "What else?", carry a `hint` saying what follows.
  */
 export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Reply[] {
@@ -86,6 +88,7 @@ export function offeredReplies(session: StoredSession | null, ctx: TopicCtx): Re
           ? { ...r, label: 'Export Again', link: { tab: 'export' as const } }
           : { ...r, link: r.link ?? null, hint: moveHint(r.id) },
       )
+  if (w.topic === 'next-step' && waitsOnEngineer(ctx)) return []
   const next = nextTopic(ctx)
   const more = next ? [{ ...offer('what-else'), hint: upNext(next.key) }] : []
   // Before the Survey with the checklist unread: the engineer can tick it themselves, since the
@@ -206,10 +209,14 @@ export function advance(
     // 'sure': the opener is spent only by an answer that really began with it.
     s.said = [
       ...new Set([
-        ...s.said,
+        // Only the checkpoint named last counts, so one that comes back (drafting again after a
+        // failure) is said again.
+        ...s.said.filter((k) => key !== 'next-step' || !k.startsWith('checkpoint:')),
         key,
         ...(says === built.says ? [] : ['sure']),
         ...(built.items ?? []).map((id) => `item:${id}`),
+        // Which checkpoint the next step named, so a new one is said (react, below).
+        ...(key === 'next-step' ? [stepMark(brief.facts)!] : []),
       ]),
     ]
     s.waiting = {
@@ -302,6 +309,21 @@ export function advance(
       s.said.push(...failedAgain.map((i) => `sorry:${i.id}`))
     }
     const w = s.waiting
+    // Generation's checkpoint moved on since MarshBot named it (GN-13 rule 12): it names the new
+    // next step at once; while To Do tasks wait, right after them. Without this, it kept saying
+    // "drafting 8 sections" after the run had finished.
+    const mark = stepMark(brief.facts)
+    // Past Generate the next step may not have spoken yet ("All drafted" is never said), so a
+    // checkpoint that now needs a look (an edit made a section out of date) is raised too.
+    const speaks =
+      s.said.includes('next-step') ||
+      (brief.stage !== 'generate' &&
+        STAGE_TOPICS[brief.stage].includes('next-step') &&
+        !!DEFS['next-step'].build(c))
+    if (mark && speaks && !s.said.includes(mark)) {
+      s.said = s.said.filter((k) => k !== 'next-step')
+      if (w?.kind !== 'tasks') return raiseNext()
+    }
     const live = w?.turnId && w.kind !== 'tasks' ? DEFS[w.topic]?.build(c) : undefined
     if (w?.kind === 'tasks') {
       if (tasksLeft(c, w.items)) return

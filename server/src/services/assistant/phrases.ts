@@ -1,5 +1,6 @@
 // MarshBot's shared words (AS-06): number words for the checks, a first name,
 // and the facts the conversation is written from. Called by checks/ and thread/.
+import type { Checkpoint, GenerationTask } from '../generation/types'
 import type { Stage } from './types'
 
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
@@ -42,4 +43,7 @@ export type BriefFacts = {
   walksReviewed: number
   recordingsTranscribed: number
   walkObservations: Record<string, number>
+  // Generation's checkpoint and the engineer's tasks still open (GN-13), from draftingState;
+  // null before any drafting work, absent on older briefs.
+  drafting?: { checkpoint: Checkpoint; openTasks: GenerationTask['id'][] } | null
 }

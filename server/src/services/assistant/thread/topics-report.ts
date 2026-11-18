@@ -200,9 +200,13 @@ export function sectionsTopic(ctx: TopicCtx): Built {
       title: partTitle(no),
       state,
       note,
-      link: { tab: 'generate', params: { section: no } },
+      // A drafted section opens in Review; Generation has no per-section rows (GN-13).
+      link: left.includes(no) ? { tab: 'generate' } : { tab: 'review', params: { section: no } },
     }
   })
+  // Waiting on the engineer's input, or all drafted, the work is in Review (GN-13).
+  const kind = ctx.facts.drafting?.checkpoint.kind
+  const inReview = kind === 'input_needed' || kind === 'drafted'
   const n = (s: OutlineState) => items.filter((i) => i.state === s).length
   const ok = n('ok')
   // How many drafted is the greeting's to say; these words say how they stand.
@@ -233,7 +237,9 @@ export function sectionsTopic(ctx: TopicCtx): Built {
         `${ok} of ${items.length} sections ready`,
         items,
         KEY_LABELS,
-        { label: 'Open Generation', link: { tab: 'generate' } },
+        inReview
+          ? { label: 'Open Review', link: { tab: 'review' } }
+          : { label: 'Open Generation', link: { tab: 'generate' } },
       ),
     ],
     mood: need ? 'idle' : 'pleased',
