@@ -124,3 +124,20 @@ def test_a_number_written_another_way_or_from_the_location_is_grounded(monkeypat
     )
     rows = response.json()["subsections"][0]["statements"]
     assert [r["supported"] for r in rows] == [True, True]
+
+
+def test_a_clause_number_does_not_stop_the_draft(monkeypatch):
+    # "8.3.6.4" names a clause of a standard; reading it as a figure used to crash the draft
+    # (GN-13's rehearsal: Section 4 failed three times on it).
+    response, _, _ = draft(
+        monkeypatch,
+        [
+            Subsection(
+                heading="Risk Quality Rating Comments",
+                statements=statements("Clause 8.3.6.4 asks for 20 mm/min; the site scores 9."),
+            )
+        ],
+        request={**SECTION_4, "facts": FACTS_4 + "\nDesign density: 20"},
+    )
+    assert response.status_code == 200
+    assert response.json()["subsections"][0]["statements"][0]["supported"] is True
