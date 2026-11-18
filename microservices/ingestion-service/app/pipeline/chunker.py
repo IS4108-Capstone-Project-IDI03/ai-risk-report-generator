@@ -256,6 +256,31 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
     return _bbox_area_deduplication(chunk_bboxes)
 
 
+def _formula_boxes(dl_chunk) -> list[dict]:
+    """The boxes of a chunk's one FORMULA item, or [] if it has none or several."""
+    items = [
+        item
+        for item in getattr(dl_chunk.meta, "doc_items", None) or []
+        if getattr(item, "label", None) == DocItemLabel.FORMULA
+    ]
+    if len(items) != 1:
+        return []
+    return _item_boxes(items[0])
+
+
+def _item_boxes(item) -> list[dict]:
+    """An item's own boxes, one per provenance, as `_region` reads them."""
+    return [
+        {
+            "page": getattr(prov, "page_no", None),
+            "bbox": [float(v) for v in (prov.bbox.l, prov.bbox.t, prov.bbox.r, prov.bbox.b)],
+            "coord_origin": str(getattr(prov.bbox, "coord_origin", "")),
+        }
+        for prov in getattr(item, "prov", None) or []
+        if getattr(prov, "bbox", None) is not None
+    ]
+
+
 def _is_table_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a table.
 
@@ -568,6 +593,38 @@ def _build_metadata(
     return metadata
 
 
+def _region(kind: str, boxes: list[dict], page_heights: dict[int, float] | None) -> dict:
+    """The region keys of a passage read from `boxes` (IN-19, D2): `region_kind`, and the boxes
+    as a flat `[l, t, r, b, ...]` from the page's bottom-left with each one's page, so a citation
+    can show only that part of the page (KB-02; rag-service `chat/passages.py`). Empty when a box
+    is measured from the top and its page's height is unknown: no region beats a wrong one."""
+    flat: list[float] = []
+    pages: list[int] = []
+    for box in boxes:
+        left, top, right, bottom = (float(v) for v in box["bbox"])
+        if "TOP" in str(box.get("coord_origin", "")).upper():
+            height = (page_heights or {}).get(box.get("page"))
+            if height is None:
+                return {}
+            top, bottom = height - top, height - bottom
+        if not isinstance(box.get("page"), int):
+            return {}
+        flat += [left, top, right, bottom]
+        pages.append(box["page"])
+    if not flat:
+        return {}
+    return {"region_kind": kind, "region_bbox": flat, "region_pages": pages}
+
+
+def _page_heights(doc) -> dict[int, float]:
+    """Each page's height in points, to measure a box from the bottom instead of the top."""
+    return {
+        number: float(page.size.height)
+        for number, page in (getattr(doc, "pages", None) or {}).items()
+        if getattr(page, "size", None) is not None
+    }
+
+
 def _extract_table_chunk(
     table_bboxes: list[dict],
     doc_path: str,
@@ -578,6 +635,7 @@ def _extract_table_chunk(
     caption: str = "",
     position: int | None = None,
     protection: Session | None = None,
+    page_heights: dict[int, float] | None = None,
 ) -> list[dict] | None:
     """Extract a region's tables into index-ready chunks, or None.
 
@@ -594,16 +652,19 @@ def _extract_table_chunk(
     groups that each repeat the title, so one answering row is not drowned by
     the rest. Every chunk carries `table_id`, shared by its groups, so a hit can
     be widened to the whole table at search time. A table spanning pages is
-    decoded page by page and its pages joined in order.
+    decoded page by page and its pages joined in order. Each table item is read
+    on its own, so a second, untitled table is not taken for the first one's next
+    page, and its passages record only its own boxes as their region (IN-19).
 
     Returns None when nothing decoded, so the caller skips the table rather
     than indexing an empty chunk.
     """
     before: list[str] = []
     after: list[str] = []
-    readings: list[str] = []
+    # Each table item's page readings and the boxes they were read from, in order.
+    readings: dict[Any, list[str]] = {}
+    read_boxes: dict[Any, list[dict]] = {}
     unread: list[dict] = []
-    read_items: set = set()
     for box in table_bboxes:
         if not box.get("is_table", True):
             text = str(box.get("text", "")).strip()
@@ -619,15 +680,19 @@ def _extract_table_chunk(
             protection=protection,
         )
         if parsed and any(table.records for table in split_tables(parsed)):
-            readings.append(parsed)
-            read_items.add(box.get("item"))
+            readings.setdefault(box.get("item"), []).append(parsed)
+            read_boxes.setdefault(box.get("item"), []).append(box)
         else:
             unread.append(box)
 
-    text = "\n\n".join(readings)
-    if text and _is_first_pages(table_bboxes):
-        text = _clean_toc_leaders(text)
-    tables = [table for table in split_tables(text) if table.records]
+    first_pages = _is_first_pages(table_bboxes)
+    tables: list[tuple[Any, Any]] = []  # (table, the item it was read from)
+    for item, pages in readings.items():
+        text = "\n\n".join(pages)
+        if first_pages:
+            text = _clean_toc_leaders(text)
+        tables += [(table, item) for table in split_tables(text) if table.records]
+    read_items = set(readings)
     metadata = _build_metadata(
         meta, doc_id, headings=headings, bboxes=table_bboxes, position=position
     )
@@ -655,6 +720,7 @@ def _extract_table_chunk(
             headings=headings,
             position=position,
             protection=protection,
+            page_heights=page_heights,
         )
 
     if not tables:
@@ -665,10 +731,12 @@ def _extract_table_chunk(
         return [{"id": chunk_id, "text": prose, "metadata": metadata}] if prose else None
 
     chunks: list[dict] = []
-    for index, table in enumerate(tables):
+    for index, (table, item) in enumerate(tables):
         table_id = chunk_id if len(tables) == 1 else f"{chunk_id}:t{index}"
         title = (caption.strip() if index == 0 else "") or table.title
         groups = group_records(table.records)
+        # Every row group shows the whole table it belongs to.
+        region = _region("table", read_boxes[item], page_heights)
         for part, records in enumerate(groups):
             chunk_text = "\n".join(([title] if title else []) + records)
             chunks.append(
@@ -679,6 +747,7 @@ def _extract_table_chunk(
                         **metadata,
                         "table_id": table_id,
                         **({"table_title": title} if title else {}),
+                        **region,
                     },
                 }
             )
@@ -707,6 +776,7 @@ def _extract_picture_chunk(
     headings: list[str] | None = None,
     position: int | None = None,
     protection: Session | None = None,
+    page_heights: dict[int, float] | None = None,
 ) -> list[dict]:
     """Describe a chunk's pictures as passages, one per picture.
 
@@ -758,6 +828,8 @@ def _extract_picture_chunk(
                 generated_text="picture_description",
                 generated_by=reader(),
                 prompt_version=PICTURE_PROMPT_VERSION,
+                # A citation shows the picture it describes (IN-19).
+                **_region("picture", picture["boxes"], page_heights),
             )
         text = "\n\n".join(part for part in [*picture["before"], body, *picture["after"]] if part)
         if not text:
@@ -853,6 +925,7 @@ def chunk(
     # Precompute nested heading trails (self_ref -> trail) from heading levels,
     # since a chunk's own meta.headings is flat.
     section_trails = _build_section_trails(doc)
+    page_heights = _page_heights(doc)
 
     total_pages = parsed.page_count
     page_reached = 0
@@ -895,6 +968,7 @@ def chunk(
                 headings=trail,
                 position=n,
                 protection=protection,
+                page_heights=page_heights,
             )
 
             if _is_table_chunk(dl_chunk):
@@ -919,6 +993,7 @@ def chunk(
                         caption=_table_caption(dl_chunk, doc),
                         position=n,
                         protection=protection,
+                        page_heights=page_heights,
                     )
                     ocr_jobs.append((len(chunks), "table", job))
                     chunks.append(None)  # filled (or dropped) in pass 2
@@ -941,7 +1016,10 @@ def chunk(
                 continue
 
             chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
+            region: dict = {}
             if _has_formula_chunk(dl_chunk) or _looks_like_equation(text):
+                # The equation's own boxes when one item is the equation, else the chunk's (IN-19).
+                region = _region("formula", _formula_boxes(dl_chunk) or chunk_bboxes, page_heights)
                 # With formula enrichment OFF, formula text gets replaced with
                 #  <!-- formula-not-decoded -->, and an equation Docling took for
                 # text comes out flattened; pass 2 re-reads the region and keeps
@@ -955,13 +1033,16 @@ def chunk(
                 {
                     "id": f"{resolved_doc_id}:{n}",
                     "text": text,
-                    "metadata": _build_metadata(
-                        dl_chunk.meta,
-                        resolved_doc_id,
-                        headings=trail,
-                        bboxes=chunk_bboxes,
-                        position=n,
-                    ),
+                    "metadata": {
+                        **_build_metadata(
+                            dl_chunk.meta,
+                            resolved_doc_id,
+                            headings=trail,
+                            bboxes=chunk_bboxes,
+                            position=n,
+                        ),
+                        **region,
+                    },
                 }
             )
 

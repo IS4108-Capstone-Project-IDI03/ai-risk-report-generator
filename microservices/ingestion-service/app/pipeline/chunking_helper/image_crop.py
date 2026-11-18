@@ -31,7 +31,7 @@ def render_dpi() -> int:
 
 
 def convert_bbox(bbox: tuple, page_obj: pymupdf.Page, coord_origin: str) -> tuple:
-    """_summary_
+    """A Docling box as a PyMuPDF rectangle, measured from the page's top-left.
 
     Args:
         bbox (tuple): docling's ``(l, t, r, b)`` for the region.
@@ -41,7 +41,8 @@ def convert_bbox(bbox: tuple, page_obj: pymupdf.Page, coord_origin: str) -> tupl
         everything else is flipped as bottom-left.
 
     Returns:
-        tuple: return bottom-left origin bbox in PyMuPDF's ``(x0, y0, x1, y1)`` format.
+        tuple: the box from the page's top-left, in PyMuPDF's ``(x0, y0, x1, y1)`` format.
+        (The passage region keys go the other way, to bottom-left: chunker `_region`.)
     """
     height = page_obj.rect.height
 
