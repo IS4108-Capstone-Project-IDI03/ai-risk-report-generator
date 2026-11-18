@@ -917,7 +917,8 @@ Survey" and "Planned Changes / Projects", left empty for the engineer.
 `evidence` and `sources` are empty. `summarised` records the version of each
 section it read (`{ sectionId, version }`: for 4-12, the saved draft's `_id`
 and its number of review decisions, as `<_id>:<n>`; for 3, the sorted accepted
-OFI `_id`s), so a new draft, an accepted replacement, an edit or a rejection
+OFI `_id`s, or `none` when a background job drafted Section 3 and the AI
+suggested no OFIs at all, GN-13), so a new draft, an accepted replacement, an edit or a rejection
 marks it out of date. It summarises each section's saved draft as reviewed
 (RV-02): an edited finding as edited, a rejected one not at all, and a
 replacement only once accepted.
@@ -931,6 +932,44 @@ stored: the gateway fills Marsh's standard wording from the assessment and site 
 | `GET /api/assessments/:reference/summary` | Sections 1 and 2 (GN-07): `{ purposeAndScope, executiveSummary: { draft, missing, staleSections } }`. `purposeAndScope` is Marsh's standard Section 1 wording filled in with the client, site and locations: paragraphs, with the visit activities as a nested list. `missing` lists the sections of 3-12 not yet complete (3: no accepted OFI; 4-12: no draft), `staleSections` those changed since the summary was drafted, each `{ id, title }` in report order. 404. |
 | `POST /api/assessments/:reference/summary/draft` | Drafts and saves Section 2 (`reports:generate`, assigned engineer only). 201 with the draft, 403, 404, 409 archived, 422 `{ error, missing }` while a section is incomplete (no S4 call), 503 (drafting failed). |
 | `GET /api/assessments/:reference/review` | The review workspace (RV-01, RV-02): `{ sections, summary, asOf }`, sections 7-12 in template order. Each has `completion` (`state`: `not_started`, `partial` or `complete`, with `written` of `total` prose and field subsections that keep a finding not rejected, and `tables`), `review` (`state`: `not_drafted`, `ai_draft`, `in_review`, `reviewed`, or `needs_review`, which wins; with `unsupportedStatements` and `withdrawnSources` counting only findings still in the draft, `changesSinceDraft` and its `changeCounts`), `findings` (`{ total, pending, accepted, edited, rejected }`), the saved `draft` without its raw `sources`, each statement with its current `text`, `generatedText` and `review` (`state`, `at`, `by`), `sources` (each cited passage by citation ID: `kind` `standard` or `precedent`, `text`, `headings`, `pageStart`, `pageEnd`, `documentId`, and `document`: the knowledge base's current `title`, `issuingBody`, `sourceType`, `edition`, `effectiveDate`, `withdrawnAt`, `fileUrl`, or `null` with no record), `observations` (the draft's `evidence` filed under any of the section's categories, plus any other it cites, each with `copeDimensions`), `replacement` (a regenerated draft waiting for a decision, with its own `draft`, `sources` and `observations`, and `instruction`, `requestedBy`, `requestedAt`; or `null`) and `history` (the section's audit log entries, newest first). `summary` totals `findings` over the saved drafts; `asOf` is when it was read. 404, or 503 when S4 cannot be reached. |
+
+## Drafting runs (GN-13)
+
+`drafting_runs` (`server/src/models/drafting-run.model.ts`) holds one document
+per assessment (unique `assessment`): where each AI-drafted part (Sections 2
+to 12) stands in the background, and the current drafting run. It holds jobs
+only: whether a part is drafted is read from `report_sections` and
+`report_ofis`. Written by `services/generation/drafting-run.service.ts`. Each
+document has:
+
+- `assessment`, `reference`.
+- `parts`: by part id (`'2'` to `'12'`), that part's latest background job, a
+  run's or one from Review: `status` (`queued`, `drafting`, `done` or
+  `failed`), `action` (`regenerate` for Sections 4 to 12 from Review, which
+  writes a replacement; `draft` otherwise), `instruction` (Regenerate's, else
+  `null`), `attempts` (failed tries), `error` (the plain reason once failed),
+  `requestedBy` (`{ id, role, name }`: the engineer the job drafts as),
+  `requestedAt` and `finishedAt`. A part never asked for has no entry. Each
+  job is claimed with one write on `parts.<id>.status`, so a part is never
+  drafted twice at once.
+- `run`: the current or last drafting run, absent before the first: `parts`
+  (what one press drafts, in order), `startedBy` (`{ id, name }`),
+  `startedAt`, and `finishedAt` (`null` while it runs; one run at a time).
+- `ofiEvidence`: a short hash of the usable observations when a job last
+  drafted Section 3, or `null`. Section 3 is out of date when the hash of the
+  observations now differs. OFIs drafted before GN-13 get one the first time
+  the drafting state is read (creating the record if needed). Set with no OFIs,
+  it says the AI suggested none. `ofiEvidenceAt`: when the job saved it.
+- `metadata` with the five required fields: `source_type: 'drafting_run'`,
+  `jurisdiction` and `facility_type` from the site, `COPE_dimension: 'all'`
+  (a run covers the whole report) and `effective_date` (when the record was
+  made).
+
+| Route (under `/api/assessments/:reference/generation`) | Does |
+| --- | --- |
+| `GET /` | `GenerationDto` (`services/generation/types.ts`): the `checkpoint`, `canStart`, `drafted` (of 11), all 11 `parts` in run order, the 3 `tasks` and the 3 `steps`. `assessments:view` and the assigned engineer or an admin; does not refresh the session. 403, 404, 503 when S4 cannot be reached. |
+| `POST /run` | Starts the drafting run the checkpoint offers (`ready`, `failed` or `out_of_date`). `reports:generate`, assigned engineer only. 202 with `GenerationDto`; 403, 404, 409 (a run under way, nothing to draft, a part busy, archived). |
+| `POST /parts/:partId` | `{ instruction }`: drafts one part again in the background from Review, not as part of a run: Redraft for Sections 2 and 3, Regenerate for Sections 4 to 12 (409 when not drafted or a replacement waits). 202 with `GenerationDto`; 400, 403, 404, 409 (the part already queued or drafting, or part of the run still going). |
 
 ## Review audit log (RV-02)
 
