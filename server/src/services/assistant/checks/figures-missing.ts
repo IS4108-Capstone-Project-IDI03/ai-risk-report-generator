@@ -22,7 +22,8 @@ export function figuresMissing(ctx: CheckContext): RaisedItem[] {
         detail: id === '4' ? 'Scores not all entered' : 'Figures not all entered',
         fact: `Not all ${id === '4' ? 'scores' : 'figures'} are entered for ${title}.`,
         icon: 'calculator',
-        link: { tab: 'generate', params: { section: id } },
+        // Figures are entered in the section in Review (GN-13 rule 8).
+        link: { tab: 'review', params: { section: id } },
         facts: { missing },
       }),
     ]

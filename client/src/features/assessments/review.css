@@ -98,6 +98,12 @@
   align-items: center;
   gap: 4px 8px;
 }
+.rv-rail-regenerating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+}
 .rv-rail-completion {
   font-size: var(--text-caption-size);
   line-height: var(--text-caption-lh);
@@ -134,6 +140,14 @@
 .rv-editor-bar .rv-label {
   flex: 1;
   font-size: 13px;
+}
+/* A heading with an action at its right, e.g. Redraft on Section 3 (GN-13). */
+.rv-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
 }
 .rv-editor h2 {
   margin: 0;

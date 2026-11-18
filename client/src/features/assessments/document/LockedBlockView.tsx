@@ -45,8 +45,8 @@ function OfiList({ ofis }: { ofis: AcceptedOfi[] }) {
   if (!ofis.length)
     return (
       <p className="rv-muted">
-        No OFIs are in the report yet. Suggestions are drafted on Generation and accepted in the
-        review workspace.
+        No OFIs are in the report yet. Suggestions are accepted in Section 3 of the review
+        workspace.
       </p>
     )
   return (

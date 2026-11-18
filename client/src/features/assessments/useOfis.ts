@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { listOfis, type OfiList } from './api'
 
 // The assessment's Section 3 OFIs: suggestions and accepted ones (GN-05).
-// setOfis lets the screen show the list a draft or an accept returns.
+// setOfis lets the screen show the list a draft or an accept returns; reload reads it
+// again, e.g. once Section 3 was redrafted in the background (GN-13).
 export function useOfis(reference: string) {
   const [ofis, setOfis] = useState<OfiList | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [reads, setReads] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -24,7 +26,9 @@ export function useOfis(reference: string) {
       },
     )
     return () => controller.abort()
-  }, [reference])
+  }, [reference, reads])
 
-  return { ofis, setOfis, loadError }
+  const reload = useCallback(() => setReads((n) => n + 1), [])
+
+  return { ofis, setOfis, loadError, reload }
 }

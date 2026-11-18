@@ -1025,10 +1025,12 @@ describe('other stages', () => {
         { state: 'new', label: 'Not Drafted' },
       ],
     })
+    // A drafted section opens in Review, one not drafted Generation (GN-13: no section rows there).
     expect(card.type === 'outline' && card.items[6].link).toEqual({
-      tab: 'generate',
+      tab: 'review',
       params: { section: '8' },
     })
+    expect(card.type === 'outline' && card.items[0].link).toEqual({ tab: 'generate' })
     // How many are drafted is the greeting's to say; the outline's words don't repeat it.
     expect(opened.added[0].says[0].text).toMatch(/with 9 of 11 sections drafted\.$/)
     expect(opened.added[1].says[0].text).toBe(
@@ -1055,6 +1057,88 @@ describe('other stages', () => {
       ['2', 'Waits on 2'],
       ['3', null],
     ])
+  })
+
+  it("names Generation's next checkpoint as soon as it moves on (GN-13 rule 12)", () => {
+    const at = (checkpoint: NonNullable<BriefFacts['drafting']>['checkpoint']) =>
+      brief({
+        stage: 'generate',
+        facts: facts({ draftedParts: 8, drafting: { checkpoint, openTasks: ['scores'] } }),
+      })
+    const running = at({ kind: 'drafting', step: 1, parts: ['3', '6', '7', '8'], done: 1 })
+    const opened = run(EMPTY, running, { type: 'open' })
+    expect(topics(opened.added)).toEqual(['greeting', 'next-step'])
+    expect(opened.added[1].says[0].text).toMatch(/^I'm drafting 4 sections in the background\./)
+    // A part finishing changes nothing said; the run finishing is a new next step.
+    const later = at({ kind: 'drafting', step: 1, parts: ['3', '6', '7', '8'], done: 3 })
+    expect(run(opened, later, { type: 'changed' }, LATER).added).toEqual([])
+    const input = run(opened, at({ kind: 'input_needed' }), { type: 'changed' }, LATER)
+    expect(topics(input.added)).toEqual(['next-step'])
+    expect(input.added[0].says.map((s) => s.text)).toEqual([
+      'Before I can draft the last 3 sections, I need 1 thing from you.',
+      "**Section 4** needs its figures. Once that's in, draft them from Generation.",
+    ])
+    // The earlier turn keeps no button of the new checkpoint.
+    const shown = view(input, at({ kind: 'input_needed' }), LATER).session.turns
+    expect(shown[1].cards).toEqual([])
+    expect(shown.at(-1)!.cards[0]).toMatchObject({
+      cta: { label: 'Open Review', link: { tab: 'review' } },
+    })
+  })
+
+  it('words the out-of-date and drafted checkpoints (GN-13)', () => {
+    const says = (checkpoint: NonNullable<BriefFacts['drafting']>['checkpoint']) =>
+      run(
+        EMPTY,
+        brief({ stage: 'generate', facts: facts({ drafting: { checkpoint, openTasks: [] } }) }),
+        { type: 'open' },
+      ).added[1].says.map((s) => s.text)
+    expect(says({ kind: 'out_of_date', parts: ['7', '2'] })).toEqual([
+      'Sections 2 and 7 are out of date.',
+      'Redraft them from Generation. Redrafting keeps the findings you accepted.',
+    ])
+    expect(says({ kind: 'drafted' })).toEqual([
+      'All 11 sections are drafted and ready for you to review before you export the report.',
+    ])
+  })
+
+  it("offers only the next step's button while the engineer must act (GN-13, board 18)", () => {
+    const at = (checkpoint: NonNullable<BriefFacts['drafting']>['checkpoint']) =>
+      brief({
+        stage: 'generate',
+        facts: facts({ draftedParts: 8, drafting: { checkpoint, openTasks: ['scores'] } }),
+      })
+    const replies = (b: ThreadBrief) => view(run(EMPTY, b, { type: 'open' }), b).replies
+    expect(replies(at({ kind: 'input_needed' }))).toEqual([])
+    expect(replies(at({ kind: 'out_of_date', parts: ['7', '2'] }))).toEqual([])
+    // Drafting only informs, so the Sections outline is still offered after it.
+    const drafting = at({ kind: 'drafting', step: 3, parts: ['4', '5', '2'], done: 0 })
+    expect(replies(drafting).map((r) => r.id)).toEqual(['what-else'])
+  })
+
+  it('in Review, names an out-of-date checkpoint and stays quiet once all is drafted (GN-13)', () => {
+    const at = (checkpoint: NonNullable<BriefFacts['drafting']>['checkpoint']) =>
+      brief({
+        stage: 'review',
+        facts: facts({ draftedParts: 11, drafting: { checkpoint, openTasks: [] } }),
+      })
+    const opened = run(EMPTY, at({ kind: 'drafted' }), { type: 'open' })
+    expect(topics(opened.added)).not.toContain('next-step')
+
+    const stale = run(
+      opened,
+      at({ kind: 'out_of_date', parts: ['7', '2'] }),
+      { type: 'changed' },
+      LATER,
+    )
+    const step = stale.added.find((t) => t.topic === 'next-step')
+    expect(step?.says.map((s) => s.text)).toEqual([
+      'Sections 2 and 7 are out of date.',
+      'Redraft them from Generation. Redrafting keeps the findings you accepted.',
+    ])
+
+    const redrafted = run(stale, at({ kind: 'drafted' }), { type: 'changed' }, LATER)
+    expect(topics(redrafted.added)).not.toContain('next-step')
   })
 
   it('says all clear with a card of ticks when nothing is open (C13)', () => {

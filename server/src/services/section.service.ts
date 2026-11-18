@@ -140,7 +140,8 @@ export function isUsable(o: ObservationDto): boolean {
 
 // An observation as the draft is given it, and as the draft saves it.
 export type Evidence = IReportSection['evidence'][number]
-function toEvidence(o: ObservationDto): Evidence {
+/** Returns the observation as a draft's evidence entry. */
+export function toEvidence(o: ObservationDto): Evidence {
   const handwriting = handwritingOf(o)
   return {
     id: o.id,

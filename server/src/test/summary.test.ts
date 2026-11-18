@@ -415,6 +415,39 @@ describe('Section 2 Executive Summary (GN-07 AC2-AC4)', () => {
     expect((await api.get(url)).body.executiveSummary.staleSections).toEqual([])
   })
 
+  // GN-13: the report is drafted before it is reviewed, so accepting a finding
+  // (which leaves the section's text as it was) must not flag the summary.
+  it('stays up to date when a finding is only accepted', async () => {
+    const a = await assessment()
+    await completeReport(a._id)
+    const nine = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '9' }).lean()
+    await api.post(`${url}/draft`)
+
+    expect(
+      (
+        await api
+          .post(`/api/assessments/${REFERENCE}/sections/9/findings/0.0/accept`)
+          .send({ draftId: String(nine!._id) })
+      ).status,
+    ).toBe(200)
+
+    expect((await api.get(url)).body.executiveSummary.staleSections).toEqual([])
+  })
+
+  it('still reads a summary saved with the older version format as up to date', async () => {
+    const a = await assessment()
+    await completeReport(a._id)
+    const nine = await ReportSectionModel.findOne({ assessment: a._id, sectionId: '9' }).lean()
+    await api.post(`${url}/draft`)
+    // Before GN-13 a section's version was its draft's id and its count of decisions.
+    await ReportSectionModel.updateOne(
+      { assessment: a._id, sectionId: '2', 'summarised.sectionId': '9' },
+      { $set: { 'summarised.$.version': `${nine!._id}:0` } },
+    )
+
+    expect((await api.get(url)).body.executiveSummary.staleSections).toEqual([])
+  })
+
   it('can be drafted only by the assigned engineer', async () => {
     const a = await assessment()
     await completeReport(a._id)

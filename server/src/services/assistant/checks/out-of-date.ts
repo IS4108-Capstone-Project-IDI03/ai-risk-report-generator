@@ -18,7 +18,8 @@ export function outOfDate(ctx: CheckContext): RaisedItem[] {
         detail: `${plural(n, 'change')} since it was drafted`,
         fact: `${section.title} has ${plural(n, 'change')} since it was drafted.`,
         icon: 'refresh-cw',
-        link: { tab: 'generate', params: { section: section.id } },
+        // Generation has no per-section rows since GN-13: one Redraft button for all.
+        link: { tab: 'generate' },
         facts: { changes: n },
       }),
     )

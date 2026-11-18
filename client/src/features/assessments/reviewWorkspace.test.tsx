@@ -1,5 +1,5 @@
 import { SourcePanel } from './components/SourcePanel'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import * as React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,7 @@ import type {
   ReviewWorkspace,
   SourcePassage,
 } from './api'
+import { RUN_ORDER, type GenerationDto, type GenerationPart } from './generation/types'
 
 // jsdom can't run pdf.js: a cited region's page (KB-02) is drawn by this stand-in, which reports
 // a 600 x 800 page drawn at once, as react-pdf does. jsdom can't draw on a canvas either, so the
@@ -306,8 +307,73 @@ type Sent = { method: string; url: string; body: unknown }
 let decide: (sent: Sent) => Promise<Response> = () => json(500, { error: 'Not expected.' })
 const sent: Sent[] = []
 
+// What the gateway says is drafted (GN-13): all 11 parts unless a test says otherwise.
+// `jobs` puts a part's background drafting in a state; `errors` is why a job failed.
+function generationOf(
+  drafted = 11,
+  jobs: Record<string, GenerationPart['job']> = {},
+  errors: Record<string, string> = {},
+): GenerationDto {
+  return {
+    checkpoint: { kind: 'drafted' },
+    canStart: true,
+    drafted,
+    parts: RUN_ORDER.map((id, i) => ({
+      id,
+      title: `Part ${id}`,
+      step: 1,
+      drafted: i < drafted,
+      draftedAt: null,
+      job: jobs[id] ?? null,
+      attempts: 0,
+      error: errors[id] ?? null,
+      outOfDate: null,
+      observations: null,
+    })),
+    tasks: [],
+    steps: {
+      one: { state: 'done', draftedAt: null, parts: [] },
+      two: { state: 'done' },
+      three: { state: 'done', draftedAt: null, parts: [] },
+    },
+  }
+}
+let generation: GenerationDto = generationOf()
+// The posts Review made to draft one part again, and how the gateway answers them.
+const partPosts: Sent[] = []
+let partReply: () => Promise<Response> = () => json(202, generation)
+
+// The push stream's stand-in: tests emit `drafting` on the open one (as marshbot.test.tsx does).
+class FakeEventSource {
+  static open: FakeEventSource[] = []
+  static CLOSED = 2
+  readyState = 1
+  onerror: (() => void) | null = null
+  listeners: Record<string, (() => void)[]> = {}
+  url: string
+  constructor(url: string) {
+    this.url = url
+    FakeEventSource.open.push(this)
+  }
+  addEventListener(type: string, fn: () => void) {
+    ;(this.listeners[type] ??= []).push(fn)
+  }
+  close() {
+    FakeEventSource.open = FakeEventSource.open.filter((s) => s !== this)
+  }
+  emit(type: string) {
+    this.listeners[type]?.forEach((fn) => fn())
+  }
+}
+
 function mockGateway(review: () => Promise<Response>) {
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // Drafting one part again in the background (GN-13).
+    if (init?.method === 'POST' && url.startsWith(`/api/assessments/${REF}/generation/parts/`)) {
+      partPosts.push({ method: 'POST', url, body: JSON.parse(String(init.body)) })
+      return partReply()
+    }
+    if (url === `/api/assessments/${REF}/generation`) return json(200, generation)
     // Review decisions; anything else written, e.g. a capture session, is answered as before.
     if (init?.method && init.method !== 'GET' && url.includes('/sections/')) {
       const request = {
@@ -344,6 +410,13 @@ const viewer = () => within(panel()).getByRole('article', { name: 'Source passag
 const detail = (scope: HTMLElement, label: string) =>
   within(scope).getByText(label, { selector: 'dt' }).nextElementSibling
 
+beforeEach(() => {
+  generation = generationOf()
+  partPosts.length = 0
+  partReply = () => json(202, generation)
+  FakeEventSource.open = []
+  vi.stubGlobal('EventSource', FakeEventSource)
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -391,6 +464,8 @@ it('shows the draft editor with its sources, observations and claims beside it (
 }, 15_000)
 
 it("shows each section's completion and review state in the navigation (AC5, AC6)", async () => {
+  // The drafted count is the gateway's (GN-13), so the rail and Generation agree.
+  generation = generationOf(2)
   await openReview()
   const nav = await screen.findByRole('navigation', { name: 'Report sections' })
   const row = (name: RegExp) => within(nav).getByRole('button', { name })
@@ -402,7 +477,7 @@ it("shows each section's completion and review state in the navigation (AC5, AC6
   expect(within(row(/Fire Protection/)).getByText('AI draft')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not started')).toBeVisible()
   expect(within(row(/External Exposures/)).getByText('Not drafted')).toBeVisible()
-  // Counted over the report's 11 parts: Sections 7 and 9.
+  // Counted over the report's 11 parts, as the gateway counts them.
   expect(within(nav).getByText('2 of 11 sections drafted')).toBeInTheDocument()
   expect(within(nav).getByText('1 section needs review')).toBeInTheDocument()
 }, 15_000)
@@ -963,11 +1038,11 @@ const WAITING: ReviewSection = {
   },
 }
 
-it('regenerates one section with an instruction and makes an accepted replacement its content (AC10, AC11)', async () => {
-  await openReview()
+it('regenerates one section in the background and makes an accepted replacement its content (AC10, AC11)', async () => {
+  let current = workspace([CONSTRUCTION, FIRE, EXPOSURES])
+  await openReview(() => json(200, current))
   await screen.findByRole('region', { name: 'Draft editor' })
-  let finish: (response: Response) => void = () => {}
-  decide = () => new Promise((resolve) => (finish = resolve))
+  generation = generationOf(11, { '7': 'queued' })
 
   fireEvent.click(within(editor()).getByRole('button', { name: 'Regenerate' }))
   const dialog = screen.getByRole('dialog', { name: 'Regenerate 7. Construction?' })
@@ -976,29 +1051,33 @@ it('regenerates one section with an instruction and makes an accepted replacemen
   })
   fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate section' }))
 
-  // Review goes on while it drafts.
-  expect(await within(editor()).findByText('Regenerating section 7')).toBeInTheDocument()
+  // It is queued at the gateway, and Review goes on while it drafts: the button and the
+  // rail read "Regenerating" from the drafting state, and nothing else is switched off.
+  const regenerating = await within(editor()).findByRole('button', { name: 'Regenerating' })
+  expect(regenerating).toBeDisabled()
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(within(rowOf(/Construction/)).getByText('Regenerating')).toBeInTheDocument()
-  expect(sent).toEqual([
+  expect(within(editor()).queryByText('Regenerating section 7')).toBeNull()
+  expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled()
+  expect(partPosts).toEqual([
     {
       method: 'POST',
-      url: `/api/assessments/${REF}/sections/7/regenerate`,
+      url: `/api/assessments/${REF}/generation/parts/7`,
       body: { instruction: 'Name the riser.' },
     },
   ])
-  finish(
-    new Response(JSON.stringify(workspace([WAITING, FIRE, EXPOSURES], LATER)), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  )
+
+  // The gateway pushes that the job is done: Review reads again and shows the replacement.
+  generation = generationOf(11)
+  current = workspace([WAITING, FIRE, EXPOSURES], LATER)
+  act(() => FakeEventSource.open[0].emit('drafting'))
 
   // Only that section gets a replacement, and its saved draft still shows.
   expect(await within(editor()).findByText('A replacement draft is ready')).toBeInTheDocument()
   expect(within(editor()).getByText('Name the riser.')).toBeInTheDocument()
   expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
   expect(within(rowOf(/Construction/)).getByText('Replacement ready')).toBeInTheDocument()
+  expect(within(rowOf(/Construction/)).queryByText('Regenerating')).toBeNull()
   expect(within(rowOf(/Fire Protection/)).queryByText('Replacement ready')).toBeNull()
 
   // The replacement can be read, but not decided on, before it is accepted.
@@ -1057,9 +1136,26 @@ it('keeps the saved section content when the replacement is discarded (AC12)', a
 }, 15_000)
 
 it('says why a regeneration failed, leaving the saved draft', async () => {
+  // The background job failed at the gateway; Review reads that from the drafting state.
+  generation = generationOf(
+    11,
+    { '7': 'failed' },
+    { '7': 'The model declined to draft this section.' },
+  )
   await openReview()
   await screen.findByRole('region', { name: 'Draft editor' })
-  decide = () => json(503, { error: 'The model declined to draft this section.' })
+  expect(await within(editor()).findByText('The section was not regenerated')).toBeInTheDocument()
+  expect(
+    within(editor()).getByText(/The model declined to draft this section\./),
+  ).toBeInTheDocument()
+  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
+  expect(within(editor()).getByRole('button', { name: 'Regenerate' })).toBeEnabled()
+}, 15_000)
+
+it('shows the gateway’s refusal to regenerate as a toast', async () => {
+  partReply = () => json(409, { error: 'A replacement is already waiting for this section.' })
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
   fireEvent.click(within(editor()).getByRole('button', { name: 'Regenerate' }))
   fireEvent.click(
     within(screen.getByRole('dialog', { name: 'Regenerate 7. Construction?' })).getByRole(
@@ -1067,13 +1163,195 @@ it('says why a regeneration failed, leaving the saved draft', async () => {
       { name: 'Regenerate section' },
     ),
   )
-  expect(await within(editor()).findByText('The section was not regenerated')).toBeInTheDocument()
   expect(
-    within(editor()).getByText(/The model declined to draft this section\./),
+    await screen.findByText('A replacement is already waiting for this section.'),
   ).toBeInTheDocument()
-  expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
-  expect(sent[0].body).toEqual({ instruction: '' })
+  expect(partPosts[0].body).toEqual({ instruction: null })
 }, 15_000)
+
+// GN-13: a drafting run that redrafts a section replaces its draft directly, so the gateway
+// refuses decisions on it (409) until it is done; a Regenerate (above) does not.
+it('holds a section’s decisions while a drafting run redrafts it, then reads it again', async () => {
+  generation = {
+    ...generationOf(11, { '7': 'drafting', '2': 'queued' }),
+    checkpoint: { kind: 'drafting', step: 3, parts: ['7', '2'], done: 0 },
+  }
+  let reads = 0
+  await openReview(() => {
+    reads++
+    return json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES]))
+  })
+  await screen.findByRole('region', { name: 'Draft editor' })
+  expect(
+    within(editor()).getByText(
+      "Section 7 is being redrafted. You can review it again when it's ready.",
+    ),
+  ).toBeInTheDocument()
+  expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeDisabled()
+  expect(within(editor()).getByRole('button', { name: 'Edit finding 2' })).toBeDisabled()
+  expect(within(editor()).getByRole('button', { name: /^Bulk accept/ })).toBeDisabled()
+  expect(within(editor()).getByRole('button', { name: 'Regenerate' })).toBeDisabled()
+  expect(within(rowOf(/Construction/)).getByText('Redrafting')).toBeInTheDocument()
+
+  // The run moves on: Review reads the section again, and it can be decided on.
+  const before = reads
+  generation = generationOf(11)
+  act(() => FakeEventSource.open[0].emit('drafting'))
+  await waitFor(() =>
+    expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled(),
+  )
+  await waitFor(() => expect(reads).toBeGreaterThan(before))
+  expect(screen.queryByText(/is being redrafted/)).toBeNull()
+  expect(within(rowOf(/Construction/)).queryByText('Redrafting')).toBeNull()
+}, 15_000)
+
+// A run drafting a section for the first time (step 3's Section 4, say) is not a redraft.
+it('labels a section a drafting run drafts for the first time "Drafting"', async () => {
+  generation = {
+    ...generationOf(11, { '10': 'drafting' }),
+    checkpoint: { kind: 'drafting', step: 3, parts: ['10', '2'], done: 0 },
+  }
+  await openReview(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
+  await screen.findByRole('region', { name: 'Draft editor' })
+  expect(within(rowOf(/External Exposures/)).getByText('Drafting')).toBeInTheDocument()
+  expect(within(rowOf(/External Exposures/)).queryByText('Redrafting')).toBeNull()
+}, 15_000)
+
+it('shows a decision the gateway refuses with 409 as a toast', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  decide = () => json(409, { error: 'Section 7 is being redrafted. Decide again once it is done.' })
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Accept finding 1' }))
+  expect(
+    await screen.findByText('Section 7 is being redrafted. Decide again once it is done.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('Your decision was not saved')).toBeNull()
+}, 15_000)
+
+it('words Section 3’s notes for Redraft once it is drafted, and for Generation before', async () => {
+  await openReview()
+  await screen.findByRole('region', { name: 'Draft editor' })
+  fireEvent.click(rowOf(/Opportunities for Improvement/))
+  const notes = screen.getByRole('complementary', { name: 'Section 3 suggestions' })
+  expect(notes).toHaveTextContent(
+    'Suggestions are accepted here. Redraft, beside the heading, drafts them again and keeps the OFIs you accepted.',
+  )
+  expect(within(notes).queryByRole('button', { name: 'Go to Generation' })).toBeNull()
+  cleanup()
+
+  generation = generationOf(0)
+  mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
+  render(
+    <ReviewWorkspaceScreen
+      reference={REF}
+      canReview
+      wrapStyle={{}}
+      railStyle={{}}
+      panelStyle={{}}
+      onGenerate={() => {}}
+      openSection="3"
+    />,
+  )
+  const before = await screen.findByRole('complementary', { name: 'Section 3 suggestions' })
+  expect(before).toHaveTextContent('Suggestions are drafted on Generation and accepted here.')
+  expect(within(before).getByRole('button', { name: 'Go to Generation' })).toBeInTheDocument()
+}, 15_000)
+
+// GN-13: Review leaves out Section 1, Section 2 and Appendix A until all 11 parts are drafted.
+describe('Review before the whole report is drafted (GN-13)', () => {
+  const OPENING_ROWS = [/Purpose and Scope/, /Executive Summary/, /Site Photos/]
+
+  it('hides Sections 1 and 2 and Appendix A until all 11 parts are drafted', async () => {
+    generation = generationOf(8)
+    await openReview()
+    await screen.findByRole('region', { name: 'Draft editor' })
+    for (const name of OPENING_ROWS)
+      expect(within(nav()).queryByRole('button', { name })).toBeNull()
+
+    // The list runs from Section 3: 3, 7, 9 and 10 here.
+    fireEvent.click(rowOf(/Opportunities for Improvement/))
+    expect(screen.getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+    expect(within(editor()).getByRole('button', { name: 'Previous' })).toBeDisabled()
+  })
+
+  it('opens Section 3 when a hidden part is asked for', async () => {
+    generation = generationOf(8)
+    mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
+    render(
+      <ReviewWorkspaceScreen
+        reference={REF}
+        canReview
+        wrapStyle={{}}
+        railStyle={{}}
+        panelStyle={{}}
+        onGenerate={() => {}}
+        openSection="2"
+      />,
+    )
+    expect(
+      await within(await screen.findByRole('region', { name: 'Draft editor' })).findByRole(
+        'heading',
+        { name: '3. Opportunities for Improvement' },
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('shows them once all 11 are drafted', async () => {
+    await openReview()
+    await screen.findByRole('region', { name: 'Draft editor' })
+    for (const name of OPENING_ROWS)
+      expect(within(nav()).getByRole('button', { name })).toBeVisible()
+    fireEvent.click(rowOf(/Opportunities for Improvement/))
+    expect(screen.getByText('Draft editor · 3 of 7')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['3', /Opportunities for Improvement/],
+    ['2', /Executive Summary/],
+  ])('redrafts Section %s in the background', async (id, row) => {
+    await openReview()
+    await screen.findByRole('region', { name: 'Draft editor' })
+    fireEvent.click(rowOf(row))
+    generation = generationOf(11, { [id]: 'queued' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Redraft' }))
+
+    expect(partPosts).toEqual([
+      {
+        method: 'POST',
+        url: `/api/assessments/${REF}/generation/parts/${id}`,
+        body: { instruction: null },
+      },
+    ])
+    // Queued: the button reads Redrafting and is disabled until the job clears.
+    expect(await screen.findByRole('button', { name: 'Redrafting' })).toBeDisabled()
+    expect(await screen.findByText(`Redrafting Section ${id}`)).toBeInTheDocument()
+  })
+
+  it('has no Redraft before the part is drafted, or for someone who cannot review', async () => {
+    generation = generationOf(11)
+    generation.parts.find((p) => p.id === '3')!.drafted = false
+    await openReview()
+    await screen.findByRole('region', { name: 'Draft editor' })
+    fireEvent.click(rowOf(/Opportunities for Improvement/))
+    expect(screen.queryByRole('button', { name: 'Redraft' })).toBeNull()
+    cleanup()
+
+    generation = generationOf(11)
+    mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
+    render(
+      <ReviewWorkspaceScreen
+        reference={REF}
+        wrapStyle={{}}
+        railStyle={{}}
+        panelStyle={{}}
+        onGenerate={() => {}}
+        openSection="3"
+      />,
+    )
+    await screen.findByRole('heading', { name: '3. Opportunities for Improvement' })
+    expect(screen.queryByRole('button', { name: 'Redraft' })).toBeNull()
+  })
+})
 
 it('shows decisions without the actions to whoever may not decide', async () => {
   mockGateway(reply([WAITING, FIRE, EXPOSURES]))

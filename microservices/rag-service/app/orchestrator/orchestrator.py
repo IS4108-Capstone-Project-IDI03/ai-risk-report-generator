@@ -99,7 +99,10 @@ _RATING = re.compile(r"\b[Rr]at(?:ed|ing)\s+(?:of\s+|as\s+)?([A-E])\b")
 
 def _numbers(text: str) -> set[float]:
     # By value, so 80, 80.0 and 1,000 vs 1000 match however each was written.
-    return {float(n.replace(",", "")) for n in _NUMBER.findall(text)}
+    # A clause number ("8.3.6.4") is not a figure: without the skip, float() raises on it and
+    # the whole draft fails with a 500.
+    plain = (n.replace(",", "") for n in _NUMBER.findall(text))
+    return {float(n) for n in plain if n.count(".") <= 1}
 
 
 def check_numbers_grounded(

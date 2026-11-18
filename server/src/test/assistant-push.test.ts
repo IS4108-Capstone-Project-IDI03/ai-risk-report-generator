@@ -15,6 +15,7 @@ import { signSession } from '../services/auth.service'
 import { recheckAssessment } from '../services/assistant/recheck.service'
 import { drainInlineJobs } from '../services/job-queue.service'
 import { signedInAs } from './auth-test-helpers'
+import { fakeS4 } from './generation-fixtures'
 import { useMemoryMongo } from './memory-mongo'
 
 vi.mock('../services/assistant/recheck.service', () => ({
@@ -106,6 +107,22 @@ describe('the assistant event stream', () => {
       ),
     )
     res.destroy()
+  })
+
+  it('pushes a drafting event when a part is drafted in the background (GN-13)', async () => {
+    const engineer = await assessment()
+    fakeS4()
+    const { res, frames } = await openStream(signSession(engineer))
+
+    await signedInAs(app, engineer)
+      .post(`/api/assessments/${REF}/generation/parts/3`)
+      .send({ instruction: null })
+      .expect(202)
+    await drainInlineJobs()
+
+    await vi.waitFor(() => expect(frames.join('')).toContain('event: drafting\ndata: {}\n\n'))
+    res.destroy()
+    vi.unstubAllGlobals()
   })
 
   it('ends the stream when the session expires', async () => {

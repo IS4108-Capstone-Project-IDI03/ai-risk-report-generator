@@ -24,6 +24,9 @@ export function openSubject(notification: Notification) {
     // An assigned assessment (RV-11): its Overview.
     case 'assessment_assigned':
       return reference ? openAssessmentOverview(reference) : undefined
+    // A drafting run finished or a part failed (GN-13): the assessment's Overview.
+    case 'drafting_status':
+      return reference ? openAssessmentOverview(reference) : undefined
     // A site walk is ready or failed (CP-22): its assessment's Observations, on the review.
     case 'site_walk_ready':
     case 'site_walk_failed':

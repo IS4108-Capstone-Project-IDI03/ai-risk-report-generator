@@ -1,9 +1,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { AcceptedOfi, Ofi, OfiList } from './api'
+import type { AcceptedOfi, Ofi, OfiList, SavedObservation } from './api'
 import { OfiReviewPanel } from './components/OfiReviewPanel'
-import { OfiRow } from './components/OfiSuggestions'
 import { useOfis } from './useOfis'
 
 const REF = 'RPT-2026-0901'
@@ -100,19 +99,21 @@ function mockGateway(suggestions: Ofi[]) {
   return calls
 }
 
-function renderRow(canDraft = true) {
-  render(<OfiRow reference={REF} canDraft={canDraft} observations={[VALVE, PANEL]} />)
-}
-
 // Review → Section 3, where suggestions are accepted (moved from Generation, 12 Oct).
-function ReviewPanel({ canAccept }: { canAccept: boolean }) {
+function ReviewPanel({
+  canAccept,
+  observations = [VALVE, PANEL],
+}: {
+  canAccept: boolean
+  observations?: SavedObservation[]
+}) {
   const { ofis, setOfis } = useOfis(REF)
   return ofis ? (
     <OfiReviewPanel
       reference={REF}
       ofis={ofis}
       setOfis={setOfis}
-      observations={[VALVE, PANEL]}
+      observations={observations}
       canAccept={canAccept}
     />
   ) : null
@@ -122,31 +123,6 @@ const renderReview = (canAccept = true) => render(<ReviewPanel canAccept={canAcc
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
-})
-
-it('is a section row with its state; a suggestion is shown read-only and stays out of the report (AC3)', async () => {
-  mockGateway([SUGGESTION])
-  renderRow()
-
-  // Section 3's row: only moderate-or-worse observations count as its evidence.
-  expect(await screen.findByText('1 suggestion to review')).toBeInTheDocument()
-  expect(screen.getByText('1 observation')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Redraft OFIs' })).toBeEnabled()
-  fireEvent.click(screen.getByRole('button', { name: 'View OFIs' }))
-
-  const card = screen.getByText('Supervise sprinkler control valves').closest('article')!
-  expect(within(card).getByText('Priority 1')).toBeInTheDocument()
-  // No "AI draft" badge: everything here is AI drafted (Miya, 15 Oct).
-  expect(within(card).queryByText('AI draft')).toBeNull()
-  // Generation only generates (Miya, 12 Oct): accepting, sources and the precedent
-  // are on the Review tab.
-  expect(screen.getByText(/Accept them in Review/)).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
-  expect(within(card).queryByRole('button', { name: /sources?$/ })).toBeNull()
-  expect(screen.queryByText(/Based on past report/)).toBeNull()
-  expect(
-    screen.getByText(/No Opportunities for Improvement are in the report yet/),
-  ).toBeInTheDocument()
 })
 
 it("shows a suggestion's precedent and sources in Review, out of the report until accepted (AC2, AC3)", async () => {
@@ -194,10 +170,9 @@ it('shows the photos of the observations an OFI rests on, whole, in its Observat
   // PANEL's photo is not cited by the OFI, so it stays out too.
   const panel = { ...PANEL, photos: [photo('p4', 'panel.jpg')] }
   mockGateway([{ ...SUGGESTION, observations: ['o1', 'o3'] }])
-  render(<OfiRow reference={REF} canDraft observations={[valve, gone, panel]} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
+  render(<ReviewPanel canAccept observations={[valve, gone, panel]} />)
 
-  const row = screen.getByRole('rowheader', { name: 'Observation' }).closest('tr')!
+  const row = (await screen.findByRole('rowheader', { name: 'Observation' })).closest('tr')!
   expect(within(row).getByText(SUGGESTION.observation)).toBeInTheDocument()
   const images = within(row).getAllByRole('img')
   expect(images.map((i) => i.getAttribute('alt'))).toEqual(['valve-shut.jpg', 'valve-tag.jpg'])
@@ -210,10 +185,9 @@ it('shows the photos of the observations an OFI rests on, whole, in its Observat
 
 it("draws a suggested OFI's table as wide as one in the report, not at prose width", async () => {
   mockGateway([SUGGESTION])
-  renderRow()
-  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
+  renderReview()
 
-  const table = screen.getByText(SUGGESTION.title).closest('table')!
+  const table = (await screen.findByText(SUGGESTION.title)).closest('table')!
   // The AI draft box's body, which caps prose at a reading width.
   expect(table.parentElement).toHaveStyle({ maxWidth: 'none' })
 })
@@ -260,13 +234,8 @@ it('accepts every suggestion at once', async () => {
   expect(screen.queryByRole('button', { name: /^Accept / })).toBeNull()
 })
 
-it('offers no drafting or accepting to someone who cannot draft', async () => {
+it('offers no accepting to someone who cannot review', async () => {
   mockGateway([SUGGESTION, SECOND])
-  renderRow(false)
-  fireEvent.click(await screen.findByRole('button', { name: 'View OFIs' }))
-  expect(screen.queryByRole('button', { name: /Draft OFIs|Redraft OFIs/ })).toBeNull()
-  cleanup()
-
   renderReview(false)
   expect(await screen.findByText('Improve Hot Work Permit')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()

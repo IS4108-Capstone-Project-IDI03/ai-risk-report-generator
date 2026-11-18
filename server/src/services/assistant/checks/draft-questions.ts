@@ -17,7 +17,8 @@ export function draftQuestions(ctx: CheckContext): RaisedItem[] {
         detail: `${plural(latest!.questions.length, 'question')} in the draft`,
         fact: `The ${section.title} draft asks ${plural(latest!.questions.length, 'question')}.`,
         icon: 'message-circle-question',
-        link: { tab: 'generate', params: { section: section.id } },
+        // The questions are answered in the section's draft, in Review (GN-13).
+        link: { tab: 'review', params: { section: section.id } },
         facts: { questions: latest!.questions.length, draft: String(latest!._id) },
       }),
     )

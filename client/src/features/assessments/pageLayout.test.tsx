@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import '@testing-library/jest-dom/vitest'
 import type { Editor } from '@tiptap/core'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
+import { reportDrafted } from './generation/fixtures'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { Assessment, ReviewSection, ReviewStatement, ReviewWorkspace, Summary } from './api'
@@ -147,6 +148,8 @@ function mockGateway() {
     if (url === `/api/assessments/${REF}/sections`) return json(200, [])
     if (url === `/api/assessments/${REF}/summary`) return json(200, SUMMARY)
     if (url === `/api/assessments/${REF}/ofis`) return json(200, { suggestions: [], accepted: [] })
+    // The drafting state (GN-13): all 11 parts drafted, so Review shows every part.
+    if (url === `/api/assessments/${REF}/generation`) return json(200, reportDrafted)
     return json(200, [])
   })
 }

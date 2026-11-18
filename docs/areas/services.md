@@ -1286,6 +1286,77 @@ Regenerate:
    and then accept (it becomes the saved draft, every finding pending) or
    discard (nothing else changes).
 
+## Background drafting (GN-13)
+
+Generation drafts the report in the background, in the gateway
+(`services/generation/`). Each job calls the same drafting function the old
+synchronous routes call, unchanged: `draftOfis` (Section 3), `draftSection`
+(Sections 4 to 12; `regenerateSection` for Regenerate from Review) and
+`draftSummary` (Section 2), as the engineer who asked. No new prompt or model.
+
+**Run record.** `drafting_runs`, one per assessment (see
+[database](database.md#drafting-runs-gn-13)): each part's latest job and the
+current drafting run.
+
+**Queue.** `drafting` (`defineQueue`, BullMQ): one job per part, 3 at a time
+across all assessments, 3 attempts (the first try and two retries) from a 5 s
+exponential backoff. Before the last try a failure puts the part back to
+`queued` and BullMQ retries it; on the last it is `failed` with a plain reason.
+A job drafts its part only if it can claim it from `queued`, so a duplicate
+drafts nothing. Only the drafting call is retried: the `done` write comes after
+it, so a failed write never pays for a second draft. When the queue is down
+(Redis not answering in 3 s), the part is `failed` with "Drafting could not be
+queued. Try again.", the other parts carry on and the run still closes, so
+Generation offers Try again instead of "Drafting" for ever. `resumeDraftingRuns`
+(from `index.ts`, before the workers start) queues again what a restart cut
+off, under a fresh job id (`retryJobId`), as does Section 2's queueing.
+
+**Order.** Out-of-date parts first, in run order (3, 6 to 12, 4, 5), then the
+parts the current step allows, Section 2 always last: Section 2's job is added
+only once every other part of the run has finished, and dropped if one failed
+or the engineer's tasks are no longer done (a redraft of Section 3 suggested
+OFIs where there were none).
+When the whole run has finished, the bell (`drafting_status`, `context:
+{ reference, status, client, site, reportDue? }`) says which parts are ready
+("Your draft of Section 3 and Sections 6 to 12 is ready."); each failed part
+gets its own ("Section 9 was not drafted.", the reason as `details`), and a
+part drafted from Review gets "Your new draft of Section 6 is ready.".
+
+**One check.** `draftingState(reference)` (`generation.service.ts`) works out
+each part (drafted, out of date and why), the three tasks, the three steps and
+the checkpoint from what is saved now; `GET …/generation` adds `canStart` for
+the viewer. MarshBot reads the same function. Out of date: Sections 4 to
+12 from `changeCounts` (figures, scope, else observations); Section 3 when the
+usable observations' hash differs from the one stored when a job last drafted
+it (`ofiEvidence`). OFIs from before GN-13 get today's hash as a baseline the
+first time the state is read, so later changes count (earlier ones are not
+seen). Section 2 from `staleSections`, or while another part is out of date.
+When a job drafted Section 3 and the AI suggested no OFIs at all, the OFI task
+counts as done and Section 2 is drafted without any (`currentSections` gives
+Section 3 the version `none`); that is read from `ofiEvidence`, so it holds
+while Section 3 is redrafted. The `drafting` checkpoint's `done` counts drafted
+parts only.
+
+**Push.** Each change to a part calls `publishDrafting` (`assistant/bus.ts`),
+which the assistant events stream sends as `event: drafting`; the page then
+reads `GET …/generation` again. No polling. Each finished part also calls
+`queueAssessmentCheck`, since the re-check middleware doesn't see a worker's
+writes.
+
+**Guard.** The old routes (`…/sections/:id/draft`, `…/sections/:id/regenerate`,
+`…/ofis/draft`, `…/summary/draft`) answer 409 while their part is `queued` or
+`drafting`, so a run and a one-off draft never write one section at once. A
+run and a Review request each claim their parts in one write; a Review request
+for a part of the run still going is refused (409), even once that part is
+drafted. While one of Sections 4 to 12 is redrafted (action `draft`, queued or
+drafting), every review decision on it answers 409 ("Section 7 is being
+redrafted. …"): accept, edit, reject, restore, bulk accept, the replacement's
+accept or discard (`assertNotRedrafting` in the routes), and every save through
+`writeSectionVersion` (the document editor, a restore, Ask's Insert, Replace,
+Undo, Accept and Delete). Otherwise the decision would stay on the draft being
+replaced. A Regenerate doesn't block: its replacement waits beside the saved
+draft.
+
 ## Asking about an assessment (S4, AS-01)
 
 The review workspace's right inspector has two tabs, Evidence and Ask
@@ -1800,6 +1871,8 @@ the turn's cards lists is a link to it.
 generation, Generate, Review, Ready to export, Exported, with `stageDates` for
 when each was entered. It only moves forward: each re-check stores the furthest
 stage the data proves (`services/assistant/stage.ts`), never an earlier one.
+Generate becomes Review only when all 11 parts are drafted, as Generation's
+`draftingState` counts them (GN-13); a review decision alone no longer moves it.
 Archived stays separate (`archivedAt`), and the derived `status` used before
 AS-06 is unchanged. `npm run migrate:stages` works the stage out once for
 assessments made before AS-06. Ready to export needs the export check clear and
@@ -1860,7 +1933,19 @@ then (`frozen`), and a row that is no longer open ticks with "Done". Survey day 
 Observations) or "That's everything"; the first two carry their own icon
 (`reply.icon`: `calendar`, `plus`). Exported with sections changed since says
 which, shows the "Changed Since Export" card and one "Export Again" choice that
-opens the Export tab; nothing is asked. The gaps turn gives "Not Covered" and
+opens the Export tab; nothing is asked. In Generate, the "next-step" topic
+(`thread/topics-drafting.ts`, under To Do) names Generation's checkpoint, which
+the re-check copies from `draftingState` into `facts.drafting`, with the button
+Generation offers (Open Review while the engineer's input is needed, Open
+Generation, Open Observations, or none while drafting or transcribing); a new
+checkpoint is named again at once. While it waits on the engineer
+(`input_needed`, `needs_observations`, `ready`, `failed`, `out_of_date`) it
+offers only that button, no "What else?" (board 18). In Review and Ready to
+export it speaks only for `out_of_date` (in Ready to export only when Draft
+Again doesn't), `failed` and `drafting`, never for `drafted`. Generate-stage links never point at a section
+row on Generation: figures and draft questions open the section in Review, out
+of date, not drafted and the summary open Generation, and the Sections outline's
+rows open a drafted section in Review. The gaps turn gives "Not Covered" and
 "Thin" each its own lead-in bubble, then a closing bubble; such a turn keeps
 its `order` and starts with the gateway's own program in that order. A new Fix
 now item is raised at once. Cards in today's session are rebuilt from the brief

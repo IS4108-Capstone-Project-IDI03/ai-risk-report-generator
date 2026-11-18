@@ -22,10 +22,19 @@ const ICON_FOR_PURPOSE: Record<Notification['purpose'], string> = {
 
 export function NotificationIcon({ notification }: { notification: Notification }) {
   // A move is a plain update, so its tile is grey, not the navy of "no status".
+  const drafting = notification.purpose === 'drafting_status'
+  // Drafting (GN-13): the AI's blue sparkles when ready, a red alert when a part failed (board 17).
   const status =
-    notification.purpose === 'assessment_moved' ? 'dismissed' : notification.context?.status
+    notification.purpose === 'assessment_moved'
+      ? 'dismissed'
+      : drafting && notification.context?.status === 'ready'
+        ? undefined
+        : notification.context?.status
   const { fg, bg } = toneFor(status)
-  const icon = ICON_FOR_PURPOSE[notification.purpose] ?? 'bell'
+  const icon =
+    drafting && notification.context?.status === 'failed'
+      ? 'circle-alert'
+      : (ICON_FOR_PURPOSE[notification.purpose] ?? 'bell')
   return (
     <span className="notif-icon" data-icon={icon} style={{ color: fg, background: bg }}>
       <Icon name={icon} size={16} />

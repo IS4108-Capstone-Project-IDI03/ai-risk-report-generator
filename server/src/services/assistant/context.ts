@@ -17,9 +17,11 @@ import { ReportSectionModel } from '../../models/report-section.model'
 import { ReportSectionVersionModel } from '../../models/report-section-version.model'
 import { ReviewAuditModel } from '../../models/review-audit.model'
 import { SiteWalkModel } from '../../models/site-walk.model'
+import { DraftingRunModel } from '../../models/drafting-run.model'
 import type { ISite } from '../../models/site.model'
 import { getChecklist, type ChecklistDto, type StandardDto } from '../checklist.service'
 import { blockersFrom, type ExportBlocker } from '../export.service'
+import { draftingState, type DraftingState } from '../generation/generation.service'
 import { listObservations, type ObservationDto } from '../observation.service'
 import { listOfis } from '../ofi.service'
 import { RagServiceError } from '../rag.service'
@@ -75,7 +77,10 @@ export type CheckContext = {
   workspace: ReviewWorkspaceDto | null
   summary: SummaryDto | null
   ofis: Awaited<ReturnType<typeof listOfis>> | null
-  // The report parts (2-12) with a draft or written text.
+  // Generation's one check (GN-13): checkpoint, parts and tasks; null before any drafting work,
+  // or when rag-service didn't answer.
+  drafting: DraftingState | null
+  // The report parts (2-12) with a draft, as Generation counts them.
   draftedParts: string[]
   allDrafted: boolean
   threads: Thread[]
@@ -118,18 +123,27 @@ export async function loadContext(
   const engineerId = assessment.engineer?._id
 
   // b. What each tab holds, read in parallel.
-  const [observations, walks, checklist, sessions, drafts, ofiCount, decided, threads, documents] =
-    await Promise.all([
-      listObservations(reference),
-      listWalks(reference),
-      getChecklist(reference),
-      CaptureSessionModel.find({ assessment: id }, 'status').lean(),
-      ReportSectionModel.find({ assessment: id }, 'sectionId createdAt').lean(),
-      ReportOfiModel.countDocuments({ assessment: id }),
-      ReviewAuditModel.exists({ assessment: id }),
-      ReportCommentThreadModel.find({ assessment: id }).lean<Thread[]>(),
-      countDocuments(assessment),
-    ])
+  const [
+    observations,
+    walks,
+    checklist,
+    sessions,
+    drafts,
+    ofiCount,
+    runStarted,
+    threads,
+    documents,
+  ] = await Promise.all([
+    listObservations(reference),
+    listWalks(reference),
+    getChecklist(reference),
+    CaptureSessionModel.find({ assessment: id }, 'status').lean(),
+    ReportSectionModel.find({ assessment: id }, 'sectionId createdAt').lean(),
+    ReportOfiModel.countDocuments({ assessment: id }),
+    DraftingRunModel.exists({ assessment: id }),
+    ReportCommentThreadModel.find({ assessment: id }).lean<Thread[]>(),
+    countDocuments(assessment),
+  ])
   const [brief, viewer, activity, created] = await Promise.all([
     AssistantBriefModel.findOne({ assessment: id }, 'coverage').lean(),
     engineerId ? AssistantViewerModel.findOne({ assessment: id, user: engineerId }).lean() : null,
@@ -153,6 +167,9 @@ export async function loadContext(
   const generationWork =
     drafts.length > 0 ||
     ofiCount > 0 ||
+    // A drafting run was started (GN-13): the stage is Generate from the press, not only
+    // once the first part is drafted, so MarshBot can say it is drafting.
+    !!runStarted ||
     !!assessment.riskQuality?.updatedAt ||
     !!assessment.lossEstimates?.updatedAt ||
     !!assessment.riskQuality?.proposal ||
@@ -177,12 +194,15 @@ export async function loadContext(
         listOfis(reference),
       ])
     : [null, null, null]
-  const written = new Set(
-    workspace?.sections.filter((s) => s.completion.state !== 'not_started').map((s) => s.id),
-  )
-  const draftedParts = PARTS.filter(
-    (p) => written.has(p) || (p === '3' ? ofiCount > 0 : drafts.some((d) => d.sectionId === p)),
-  )
+  // Which parts are drafted comes from Generation's own check, so MarshBot, the stage and
+  // Generation never disagree (GN-13 rule 12). While rag-service is down, the saved drafts and
+  // OFIs stand in, so the drafted count doesn't drop to 0 for the outage.
+  const drafting = generationWork
+    ? await unlessRagDown('drafting', () => draftingState(reference))
+    : null
+  const draftedParts = drafting
+    ? PARTS.filter((p) => drafting.parts.some((x) => x.id === p && x.drafted))
+    : PARTS.filter((p) => (p === '3' ? ofiCount > 0 : drafts.some((d) => d.sectionId === p)))
 
   // d. The stage the data proves; Ready to export also needs the export check, from Review on.
   const signals = {
@@ -196,7 +216,8 @@ export async function loadContext(
       !!assessment.anotherVisit,
     readyToGenerate,
     generationWork,
-    reviewStarted: !!decided || draftedParts.length === PARTS.length,
+    // Only Generation's check proves all 11 drafted (GN-13 rule 11): a review decision alone doesn't.
+    reviewStarted: drafting?.drafted === PARTS.length,
     exportClear: false,
     exported: !!assessment.exportedAt,
   }
@@ -231,6 +252,7 @@ export async function loadContext(
     workspace,
     summary,
     ofis,
+    drafting,
     draftedParts,
     allDrafted: draftedParts.length === PARTS.length,
     threads,

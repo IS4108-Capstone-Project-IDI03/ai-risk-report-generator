@@ -15,6 +15,7 @@ import {
   AssessmentArchivedError,
   AssessmentNotFoundError,
 } from '../services/capture-session.service'
+import { SectionRedraftingError } from '../services/generation/drafting-run.service'
 import { RagServiceError } from '../services/rag.service'
 import { DocumentShapeError } from '../services/report-document.service'
 import { ConcurrentDecisionError, FindingStateError } from '../services/review-decision.service'
@@ -63,6 +64,10 @@ function refuse(error: unknown, res: Response) {
     res.status(400).json({ error: error.message })
   } else if (error instanceof FindingStateError || error instanceof ConcurrentDecisionError) {
     res.status(409).json(stated(error.message, error.message, 'Reload the review workspace.'))
+  } else if (error instanceof SectionRedraftingError) {
+    res
+      .status(409)
+      .json(stated(error.message, 'the section is being redrafted', 'Try again once it is ready.'))
   } else if (error instanceof RagServiceError) {
     res.status(503).json({ error: error.message })
   } else {

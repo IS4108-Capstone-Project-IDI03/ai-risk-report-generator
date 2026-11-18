@@ -34,7 +34,7 @@ import { Overview } from './screens/Overview'
 import { Checklist } from './screens/Checklist'
 import { Observations } from './screens/Observations'
 import { Generation } from './screens/Generation'
-import { SectionDrafts } from './screens/SectionDrafts'
+import { DraftingSteps } from './screens/DraftingSteps'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ReportExport } from './screens/ReportExport'
@@ -493,12 +493,15 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isGenerate &&
                       (v.liveReference ? (
-                        <SectionDrafts
+                        <DraftingSteps
                           reference={v.liveReference}
-                          canDraft={v.canDraftSections}
-                          onCapture={v.canCapture ? v.goField : undefined}
                           onReview={v.goReview}
-                          openSection={goTo?.params?.section}
+                          // A step 2 task opens its section in Review, as a MarshBot link does.
+                          onOpenSection={(section) => {
+                            v.setTab('review')
+                            setGoTo({ tab: 'review', params: { section } })
+                          }}
+                          onObservations={v.goObservations}
                         />
                       ) : (
                         <Generation v={v} />

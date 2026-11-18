@@ -28,7 +28,7 @@ export type StageSignals = {
   captureStarted: boolean // a capture session, an observation or a site walk
   readyToGenerate: boolean // told MarshBot, or completed the capture session
   generationWork: boolean // any draft, OFI, summary, figures or figure proposal
-  reviewStarted: boolean // a review decision, or all parts drafted
+  reviewStarted: boolean // all 11 parts drafted, as Generation's check counts them (GN-13)
   exportClear: boolean // exportClear() below: no export blockers and no open comment
   exported: boolean
 }

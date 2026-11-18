@@ -37,6 +37,7 @@ import {
   sectionsTopic,
   SECTIONS_KINDS,
 } from './topics-report'
+import { nextStepTopic } from './topics-drafting'
 import type { Built, TopicCtx, TopicDef } from './types'
 
 const none = () => false
@@ -56,9 +57,11 @@ export const STAGE_TOPICS: Record<Stage, string[]> = {
     'all-clear',
   ],
   ready_for_generation: ['todo', 'before-generate', 'ready', 'rest'],
-  generate: ['todo', 'sections', 'rest'],
-  review: ['todo', 'outline', 'reminders', 'rest'],
-  ready_to_export: ['todo', 'draft-again', 'outline', 'export-ready', 'rest'],
+  // 'next-step' is Generation's checkpoint (GN-13), shown under To Do on the agenda.
+  // From Review on it speaks only when the checkpoint needs a look (topics-drafting.ts).
+  generate: ['todo', 'next-step', 'sections', 'rest'],
+  review: ['todo', 'next-step', 'outline', 'reminders', 'rest'],
+  ready_to_export: ['todo', 'next-step', 'draft-again', 'outline', 'export-ready', 'rest'],
   exported: ['todo', 'draft-again', 'exported', 'rest'],
 }
 
@@ -118,6 +121,7 @@ export const DEFS: Record<string, TopicDef> = {
   'all-clear': def(allClearTopic),
   'before-generate': def(beforeGenerateTopic, BLOCKER_KINDS),
   ready: def(readyTopic, BLOCKER_KINDS),
+  'next-step': def(nextStepTopic),
   sections: def(sectionsTopic, SECTIONS_KINDS),
   outline: def(outlineTopic, OUTLINE_KINDS),
   reminders: def(remindersTopic, REMINDER_KINDS),

@@ -6,6 +6,7 @@ import type { Types } from 'mongoose'
 import type { SessionUser } from './auth.service'
 import { createHash } from 'node:crypto'
 import { AssessmentModel, type IAssessment } from '../models/assessment.model'
+import { DraftingRunModel } from '../models/drafting-run.model'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import type { ISite } from '../models/site.model'
@@ -111,20 +112,38 @@ export function purposeAndScope(
   ]
 }
 
+// True when a background job drafted Section 3 and the AI suggested no OFIs at
+// all (GN-13 rule 5): Section 2 is then drafted without any. Read from Section
+// 3's fingerprint, which only a job that drafted it saves, not the latest job's
+// status: a Redraft queued from Review would otherwise undo it.
+async function noOfisSuggested(assessment: Types.ObjectId): Promise<boolean> {
+  const [ofi, drafted] = await Promise.all([
+    ReportOfiModel.exists({ assessment }),
+    DraftingRunModel.exists({ assessment, ofiEvidence: { $ne: null } }),
+  ])
+  return !ofi && !!drafted
+}
+
 // Each summarised section as it stands now: its text for S4, and a version that
 // changes whenever its content does (AC4). Sections 4-12: the saved draft (RV-02:
 // a replacement only once accepted) with the engineer's decisions applied, so an
 // edit is summarised as edited and a rejected finding not at all; its version is
-// the draft's id and how many decisions it has. Section 3: the accepted OFIs' ids.
-// A null version means the section is not complete.
+// the draft's id and a fingerprint (sha1) of that text, so only a decision that
+// changes the text (an edit, a rejection) marks the summary out of date. Accepting
+// a finding does not: GN-13 drafts the summary before the review, and every
+// Accept used to flag it. `legacyVersion` is the version as saved before GN-13
+// (the draft's id and its count of decisions), so older summaries still compare.
+// Section 3: the accepted OFIs' ids, or `none` with no text when the AI suggested
+// none (GN-13). A null version means the section is not complete.
 export async function currentSections(
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> & { _id: Types.ObjectId },
 ) {
-  const [drafts, accepted] = await Promise.all([
+  const [drafts, accepted, suggestedNone] = await Promise.all([
     sectionDrafts(assessment._id),
     ReportOfiModel.find({ assessment: assessment._id, state: 'accepted' })
       .sort({ acceptedAt: 1 })
       .lean(),
+    noOfisSuggested(assessment._id),
   ])
   const saved = SUMMARISED_SECTIONS.flatMap((s) => drafts.get(s.id)?.saved ?? [])
   const entries = await entriesFor(saved.map((d) => d._id))
@@ -132,12 +151,15 @@ export async function currentSections(
     if (s.id === '3') {
       return {
         ...s,
+        legacyVersion: null,
         version: accepted.length
           ? accepted
               .map((o) => String(o._id))
               .sort()
               .join(',')
-          : null,
+          : suggestedNone
+            ? 'none'
+            : null,
         text: accepted.map((o) => `${o.priority} — ${o.title}: ${o.description}`).join('\n'),
       }
     }
@@ -145,22 +167,25 @@ export async function currentSections(
     // Sections 4 and 5 (GN-03) also need their figures complete, and are read with
     // them, so changing a figure changes the version too.
     const { facts, missing } = figureFacts(s.id, assessment)
-    if (!draft || missing) return { ...s, version: null, text: '' }
+    if (!draft || missing) return { ...s, version: null, legacyVersion: null, text: '' }
     const decisions = entries.filter((e) => String(e.draft) === String(draft._id)).length
     // Each heading that still has a finding, then its findings' text now. Tables
     // are filled from measured values (GN-03), never by a draft, so carry nothing.
     const findings = foldFindings(draft, entries).filter((f) => f.state !== 'rejected')
     const headings = [...new Set(findings.map((f) => f.heading))]
+    const text = [
+      ...(facts ? [facts] : []),
+      ...headings.flatMap((h) => [
+        h,
+        ...findings.filter((f) => f.heading === h).map((f) => f.text),
+      ]),
+    ].join('\n')
+    const sha1 = (value: string) => createHash('sha1').update(value).digest('hex')
     return {
       ...s,
-      version: `${draft._id}:${decisions}${facts ? `:${createHash('sha1').update(facts).digest('hex')}` : ''}`,
-      text: [
-        ...(facts ? [facts] : []),
-        ...headings.flatMap((h) => [
-          h,
-          ...findings.filter((f) => f.heading === h).map((f) => f.text),
-        ]),
-      ].join('\n'),
+      version: `${draft._id}:${sha1(text)}`,
+      legacyVersion: `${draft._id}:${decisions}${facts ? `:${sha1(facts)}` : ''}`,
+      text,
     }
   })
 }
@@ -194,10 +219,14 @@ export async function getSummary(reference: string): Promise<SummaryDto> {
       .sort({ createdAt: -1 })
       .lean(),
   ])
-  const now = new Map(sections.map((s) => [s.id, s.version]))
+  const now = new Map(sections.map((s) => [s.id, s]))
+  // Changed: the version saved with the summary is neither form of the section's now.
   const changed = new Set(
     (latest?.summarised ?? [])
-      .filter((e) => now.get(e.sectionId) !== e.version)
+      .filter(
+        (e) =>
+          ![now.get(e.sectionId)?.version, now.get(e.sectionId)?.legacyVersion].includes(e.version),
+      )
       .map((e) => e.sectionId),
   )
   return {

@@ -73,6 +73,12 @@ import {
 } from '../services/risk-quality.service'
 import { RagServiceError } from '../services/rag.service'
 import {
+  assertNotRedrafting,
+  assertPartIdle,
+  PartBusyError,
+  SectionRedraftingError,
+} from '../services/generation/drafting-run.service'
+import {
   addChecklistItem,
   addChecklistItemSchema,
   ChecklistChangeError,
@@ -580,6 +586,8 @@ router.post(
   requirePermission('reports:generate'),
   async (req, res) => {
     try {
+      // GN-13: never while a background job drafts the same section.
+      await assertPartIdle(req.params.reference, req.params.sectionId)
       res
         .status(201)
         .json(await draftSection(req.params.reference, req.params.sectionId, res.locals.user!))
@@ -594,7 +602,8 @@ router.post(
       }
       if (
         error instanceof TranscriptionInProgressError ||
-        error instanceof AssessmentArchivedError
+        error instanceof AssessmentArchivedError ||
+        error instanceof PartBusyError
       ) {
         res.status(409).json({ error: error.message })
         return
@@ -621,7 +630,8 @@ router.post(
 // the assigned engineer, 409 when the decision no longer applies (archived,
 // not drafted, the saved draft changed since it was opened, a rejected
 // finding, a decision saved at the same moment, a replacement already
-// waiting, a transcription in progress), 422 when regenerating lacks
+// waiting, a transcription in progress, the section being redrafted in the
+// background: GN-13), 422 when regenerating lacks
 // evidence, 503 when S4 fails (not 502, which the client reads as the
 // gateway being down).
 function reviewFailure(error: unknown, res: Response) {
@@ -641,7 +651,9 @@ function reviewFailure(error: unknown, res: Response) {
     error instanceof FindingStateError ||
     error instanceof ConcurrentDecisionError ||
     error instanceof ReplacementPendingError ||
-    error instanceof TranscriptionInProgressError
+    error instanceof TranscriptionInProgressError ||
+    error instanceof PartBusyError ||
+    error instanceof SectionRedraftingError
   ) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof InsufficientEvidenceError) {
@@ -670,6 +682,8 @@ for (const action of ['accept', 'reject', 'restore'] as const) {
       const { reference, sectionId, finding } = req.params
       try {
         const user = res.locals.user!
+        // GN-13: a decision made while the section is redrafted would be lost.
+        await assertNotRedrafting(reference, sectionId)
         await decideFinding(reference, sectionId, finding, parsed.data.draftId, { action }, user)
         res.json(await getReviewWorkspace(reference))
       } catch (error: unknown) {
@@ -694,6 +708,7 @@ router.put(
     }
     const { reference, sectionId, finding } = req.params
     try {
+      await assertNotRedrafting(reference, sectionId)
       await decideFinding(
         reference,
         sectionId,
@@ -721,6 +736,7 @@ router.post(
     }
     const { reference, sectionId } = req.params
     try {
+      await assertNotRedrafting(reference, sectionId)
       await bulkAccept(reference, sectionId, parsed.data.draftId, res.locals.user!)
       res.json(await getReviewWorkspace(reference))
     } catch (error: unknown) {
@@ -745,6 +761,7 @@ router.post(
     }
     const { reference, sectionId } = req.params
     try {
+      await assertPartIdle(reference, sectionId)
       await regenerateSection(reference, sectionId, parsed.data.instruction, res.locals.user!)
       res.status(201).json(await getReviewWorkspace(reference))
     } catch (error: unknown) {
@@ -771,6 +788,7 @@ for (const [action, accept] of [
       }
       const { reference, sectionId } = req.params
       try {
+        await assertNotRedrafting(reference, sectionId)
         await decideReplacement(reference, sectionId, parsed.data.draftId, accept, res.locals.user!)
         res.json(await getReviewWorkspace(reference))
       } catch (error: unknown) {
@@ -903,13 +921,14 @@ router.post(
   requirePermission('reports:generate'),
   async (req, res) => {
     try {
+      await assertPartIdle(req.params.reference, '2')
       res.status(201).json(await draftSummary(req.params.reference, res.locals.user!))
     } catch (error: unknown) {
       if (error instanceof AssessmentNotFoundError) {
         res.status(404).json({ error: error.message })
       } else if (error instanceof NotAssignedError) {
         res.status(403).json({ error: error.message })
-      } else if (error instanceof AssessmentArchivedError) {
+      } else if (error instanceof AssessmentArchivedError || error instanceof PartBusyError) {
         res.status(409).json({ error: error.message })
       } else if (error instanceof IncompleteSectionsError) {
         res.status(422).json({ error: error.message, missing: error.missing })
@@ -1054,7 +1073,8 @@ function ofiFailure(error: unknown, res: Response) {
   } else if (
     error instanceof TranscriptionInProgressError ||
     error instanceof AssessmentArchivedError ||
-    error instanceof OfiNotAcceptedError
+    error instanceof OfiNotAcceptedError ||
+    error instanceof PartBusyError
   ) {
     res.status(409).json({ error: error.message })
   } else if (error instanceof RagServiceError) {
@@ -1068,6 +1088,7 @@ function ofiFailure(error: unknown, res: Response) {
 // unaccepted ones: 201 with { suggestions, accepted }.
 router.post('/:reference/ofis/draft', requirePermission('reports:generate'), async (req, res) => {
   try {
+    await assertPartIdle(req.params.reference, '3')
     res.status(201).json(await draftOfis(req.params.reference, res.locals.user!))
   } catch (error: unknown) {
     ofiFailure(error, res)

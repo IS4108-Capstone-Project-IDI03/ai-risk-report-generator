@@ -19,6 +19,7 @@ import type { BriefItem, Reply, Say, Stage } from '../types'
 import { andList, count, lowerFirst, upperFirst } from './cards'
 import { droppedByStageMove } from './session'
 import { doneClause } from './tasks'
+import { draftingLine } from './topics-drafting'
 import type { TopicCtx } from './types'
 
 // Where the assessment stands, in one sentence per stage.
@@ -39,7 +40,10 @@ function stageLine(ctx: TopicCtx): string {
         ? `${f.site} is in the Capture stage, and you already have ${count(n, 'observation')} in, which is a great start for survey day.`
         : `${f.site} is in the Capture stage, with ${count(n, 'observation')} so far.`,
     ready_for_generation: `Capture on ${f.site} is done, so it's in the Ready for generation stage.`,
-    generate: `${f.site} is in the Generate stage, with ${f.draftedParts} of 11 sections drafted.`,
+    // Waiting on the engineer, it says what is ready for them, as board 18 does (GN-13).
+    generate:
+      draftingLine(f) ??
+      `${f.site} is in the Generate stage, with ${f.draftedParts} of 11 sections drafted.`,
     review: `${f.site} is in the Review stage.`,
     ready_to_export: `${f.site} is in the Ready to export stage.`,
     exported: `${f.site} is in the Exported stage.`,
@@ -259,8 +263,8 @@ const REASONS: Record<Stage, (f: TopicCtx['facts']) => string> = {
     f.draftedParts
       ? `${count(f.draftedParts, 'section')} ${f.draftedParts === 1 ? 'is' : 'are'} drafted`
       : 'work on the report has started',
-  review: (f) =>
-    f.allDrafted ? `all ${PARTS.length} sections are drafted` : 'the first review decision is in',
+  // Only all 11 drafted moves it to Review (GN-13 rule 11).
+  review: () => `all ${PARTS.length} sections are drafted`,
   ready_to_export: () => 'nothing blocks the export any more',
   exported: () => 'the report is exported',
 }
@@ -296,6 +300,7 @@ export function replyLabel(reply: Reply['id'], date?: string): string {
  */
 export const TOPIC_TITLES: Record<string, string> = {
   todo: 'To Do',
+  'next-step': 'To Do',
   setup: 'Setup',
   'before-survey': 'Before the Survey',
   checklist: 'Checklist',

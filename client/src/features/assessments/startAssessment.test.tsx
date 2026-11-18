@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { checkReady } from './generation/fixtures'
 
 // Deliberately differs from the demo data, so passing tests prove the capture
 // screen names the assessment from the server response.
@@ -1598,12 +1599,14 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
   }
   // Opens the admin's list with one assessment assigned to `engineerId`, on its Overview.
   async function open(engineerId: string) {
+    // Generation's drafting state (GN-13): only the assigned engineer can start drafting.
+    const replies = { ...REPLIES, generation: { ...checkReady, canStart: engineerId === SANA } }
     vi.stubGlobal('fetch', (url: string) =>
       respond(
         200,
         url === '/api/assessments'
           ? [{ ...CREATED, status: 'capturing', engineer: { id: engineerId, name: 'Alex Rowe' } }]
-          : (REPLIES[url.split('/').pop()!.split('?')[0]] ?? []),
+          : (replies[url.split('/').pop()!.split('?')[0] as keyof typeof replies] ?? []),
       ),
     )
     window.history.pushState({}, '', '/assessments')
@@ -1636,11 +1639,10 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     for (const name of ['Add manually', 'Record site walk', 'Add location']) {
       expect(has(name)).toBe(false)
     }
+    // Generation shows the progress and View only in place of the draft button (GN-13 AC11).
     tab(/^Generation/)
-    expect(await screen.findByRole('button', { name: 'Review report' })).toBeInTheDocument()
-    for (const name of ['Draft', 'Redraft section', 'Capture evidence']) {
-      expect(has(name)).toBe(false)
-    }
+    expect(await screen.findByText('View only')).toBeInTheDocument()
+    expect(has('Draft 8 sections')).toBe(false)
     // Export opens to read, and only the assigned engineer can use it (EX-01 AC2).
     tab(/^Export/)
     expect(await screen.findByRole('radio', { name: /^PDF/ })).toBeDisabled()
@@ -1658,8 +1660,7 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
       expect(has(name)).toBe(true)
     }
     tab(/^Generation/)
-    expect(await screen.findByRole('button', { name: 'Redraft section' })).toBeInTheDocument()
-    expect(has('Draft')).toBe(true)
+    expect(await screen.findByRole('button', { name: 'Draft 8 sections' })).toBeInTheDocument()
   })
 })
 
