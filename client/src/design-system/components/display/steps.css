@@ -1,0 +1,702 @@
+/* A journey of steps (GN-13, NEW pattern): the checkpoint header, the segmented report bar, the
+   step card and its badge, section rows with one 16 px mark, the flagged row, the row count with
+   a tab's icon, the task row and the View only chip. Imported by each of those components.
+   Sizes from the GN-13 canvas (gn2.css); motion from the spec's Motion table. */
+
+/* ---- Checkpoint header: who acts now, what to do, at most one button, then the bar ---- */
+.ds-checkpoint {
+  padding: 20px 24px 18px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  font-family: var(--font-sans);
+}
+/* The old and new header share one grid cell, so the old one can fade out over the new. */
+.ds-checkpoint-swap {
+  display: grid;
+}
+.ds-checkpoint-top {
+  grid-area: 1 / 1;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  column-gap: 16px;
+  align-items: center;
+}
+.ds-checkpoint-top[data-in] {
+  animation: ds-step-rise var(--duration-base) var(--ease-out) both;
+}
+.ds-checkpoint-top[data-out] {
+  animation: ds-fade-out var(--duration-fast) var(--ease-out) forwards;
+  pointer-events: none;
+}
+.ds-checkpoint-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+.ds-checkpoint-tile[data-tone='ai'] {
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+.ds-checkpoint-tile[data-tone='you'],
+.ds-checkpoint-tile[data-tone='warn'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.ds-checkpoint-tile[data-tone='bad'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.ds-checkpoint-tile[data-tone='ok'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+/* While the AI works, a small ring turns on the tile's corner: the one moving thing up here. */
+.ds-checkpoint-busy {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: 0 0 0 2px var(--surface-card);
+  border: 2px solid var(--ink-100);
+  border-top-color: var(--marsh-navy);
+  animation: dsSpin 1.2s linear infinite;
+}
+.ds-checkpoint h2 {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 20px/26px var(--font-sans);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.ds-checkpoint p {
+  max-width: 860px;
+  margin: 2px 0 0;
+  color: var(--graphite-600);
+  font: 400 14px/20px var(--font-sans);
+  text-wrap: pretty;
+}
+.ds-checkpoint-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.ds-checkpoint-bar {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ---- Segmented bar: one segment per part, in groups, then "N of 11 drafted" ---- */
+.ds-segbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ds-segbar-track {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+.ds-segbar-group {
+  display: flex;
+  gap: 4px;
+}
+.ds-seg {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--graphite-100);
+  transition: background-color var(--duration-slow) var(--ease-out);
+}
+/* The green fill grows from the left when a part is drafted (400 ms, v2 "Reading progress bar"). */
+.ds-seg > b {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: var(--green-600);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 400ms var(--ease-out);
+}
+.ds-seg[data-state='done'] > b {
+  transform: scaleX(1);
+}
+.ds-seg[data-state='working'] {
+  background: var(--ink-100);
+}
+/* A light sweep while the part is being drafted now. */
+.ds-seg[data-state='working']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.9), transparent);
+  transform: translateX(-100%);
+  animation: ds-step-sweep 1.6s ease-in-out infinite;
+}
+.ds-seg[data-state='stale'] {
+  background: var(--amber-50);
+  box-shadow: inset 0 0 0 1.5px var(--amber-500);
+}
+.ds-seg[data-state='failed'] {
+  background: var(--red-50);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--red-600) 45%, var(--surface-card));
+}
+.ds-segbar-label {
+  color: var(--graphite-700);
+  font: 600 13px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-segbar-label > span:last-child {
+  color: var(--graphite-600);
+  font-weight: 400;
+}
+
+/* ---- A number that crossfades when it changes: out 100 ms, in 120 ms ---- */
+.ds-numswap {
+  display: inline-grid;
+  justify-items: end;
+}
+.ds-numswap > span {
+  grid-area: 1 / 1;
+}
+.ds-numswap > span[data-in] {
+  animation: ds-fade-in var(--duration-fast) var(--ease-out);
+}
+.ds-numswap > span[data-out] {
+  animation: ds-fade-out 100ms var(--ease-out) forwards;
+}
+
+/* ---- Step card: the badge, the step's name and line, a count, then its rows ---- */
+.ds-step {
+  position: relative;
+  min-width: 0;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  font-family: var(--font-sans);
+  transition:
+    background-color var(--duration-slow) var(--ease-out),
+    border-color var(--duration-slow) var(--ease-out);
+}
+/* A step still to come is dashed and quiet. */
+.ds-step[data-state='next'] {
+  background: rgb(255 255 255 / 0.6);
+  border: 1.5px dashed var(--graphite-300);
+}
+.ds-step-head {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  column-gap: 14px;
+  row-gap: 1px;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 18px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.ds-step-head {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: var(--radius-card);
+}
+.ds-step-head:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+/* An opened header takes focus from its button (StepCard); a click shows no ring. */
+div.ds-step-head:focus:not(:focus-visible) {
+  outline: none;
+}
+/* The badge: a 36 px round number, centred on the name and its line; it keeps its number when done. */
+.ds-step-badge {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  font: 700 16px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--duration-slow) var(--ease-out),
+    border-color var(--duration-slow) var(--ease-out),
+    color var(--duration-slow) var(--ease-out);
+}
+.ds-step[data-state='now'] .ds-step-badge {
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+}
+.ds-step[data-state='next'] .ds-step-badge {
+  background: var(--surface-card);
+  border-color: var(--graphite-300);
+  color: var(--graphite-600);
+}
+.ds-step[data-state='done'] .ds-step-badge {
+  background: var(--green-600);
+  color: var(--text-inverse);
+}
+.ds-step-head h3 {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/20px var(--font-sans);
+  transition: color var(--duration-slow) var(--ease-out);
+}
+.ds-step[data-state='next'] .ds-step-head h3 {
+  color: var(--graphite-700);
+}
+.ds-step-line {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+.ds-step-end {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* "3 of 8", the number larger. */
+.ds-step-count b {
+  margin-right: 3px;
+  color: var(--marsh-navy);
+  font: 700 18px/22px var(--font-sans);
+}
+/* The one-line summary ("3 tasks") is the phone's; the desktop shows every row. */
+.ds-step-summary {
+  display: none;
+}
+/* The thin bar under a running step's header. */
+.ds-step-bar {
+  height: 3px;
+  margin: 0 18px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--graphite-100);
+}
+.ds-step-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--green-600);
+  transform-origin: left;
+  transition: transform 400ms var(--ease-out);
+}
+
+/* ---- Section row: number tile, name (and a reason), one 16 px mark at the right edge ---- */
+.ds-srow,
+.ds-task {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 5px 18px;
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-sans);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+.ds-step > .ds-srow:last-child,
+.ds-step > .ds-task:last-child {
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+.ds-srow-num,
+.ds-task-tile {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font: 600 13px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+/* Rows of a step still to come: outlined tiles, quiet words. */
+.ds-step[data-state='next'] :is(.ds-srow-num, .ds-task-tile) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--graphite-200);
+  color: var(--graphite-600);
+}
+.ds-srow-name,
+.ds-task-name {
+  min-width: 0;
+  color: var(--graphite-900);
+  font: 400 14px/19px var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.ds-step[data-state='next'] :is(.ds-srow-name, .ds-task-name) {
+  color: var(--graphite-600);
+}
+.ds-srow-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+/* The short reason under a flagged row's name. */
+.ds-srow-reason {
+  display: block;
+  margin-top: 1px;
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+.ds-srow-reason[data-in] {
+  animation: ds-step-drop var(--duration-base) var(--ease-out) both;
+}
+
+/* The flagged row (one look): tinted row, tinted number tile, one coloured mark, a short reason.
+   Amber when something is missing or out of date, red when drafting failed. */
+.ds-srow[data-flag='warn'] {
+  background: var(--flagged-row-warn-bg);
+}
+.ds-srow[data-flag='bad'] {
+  background: var(--flagged-row-bad-bg);
+}
+.ds-step .ds-srow[data-flag='warn'] .ds-srow-num {
+  background: var(--amber-50);
+  box-shadow: none;
+  color: var(--amber-600);
+}
+.ds-step .ds-srow[data-flag='bad'] .ds-srow-num {
+  background: var(--red-50);
+  box-shadow: none;
+  color: var(--red-600);
+}
+.ds-srow[data-flag='warn'] .ds-srow-reason {
+  color: var(--amber-600);
+  font-weight: 600;
+}
+.ds-srow-reason b {
+  color: var(--red-600);
+  font-weight: 600;
+}
+
+/* ---- The 16 px marks: spinner, waiting circle, tick, out of date, failed, open ---- */
+.ds-mark {
+  display: inline-grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.ds-mark > * {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.ds-mark > [data-out] {
+  animation: ds-fade-out 100ms var(--ease-out) forwards;
+}
+.ds-mark > [data-in] {
+  animation: ds-fade-in var(--duration-base) var(--ease-out);
+}
+.ds-mark-ring {
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--ink-100);
+  border-top-color: var(--marsh-navy);
+  animation: dsSpin 0.9s linear infinite;
+}
+/* The ring keeps turning while it fades in, so the in animation is layered on the spin. */
+.ds-mark-ring[data-in] {
+  animation:
+    dsSpin 0.9s linear infinite,
+    ds-fade-in var(--duration-base) var(--ease-out);
+}
+.ds-mark-circle {
+  box-sizing: border-box;
+  border-radius: 50%;
+  /* --graphite-500: 3:1 against white, as a mark that means something must be. */
+  border: 1.5px solid var(--graphite-500);
+}
+.ds-mark-tick circle {
+  fill: var(--green-600);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ds-mark-tick path {
+  fill: none;
+  stroke: var(--text-inverse);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 14;
+}
+/* Spinner to tick: the green disc pops from 0.6 (120 ms) and the stroke draws (260 ms). */
+.ds-mark-tick[data-in] {
+  animation: none;
+}
+.ds-mark-tick[data-in] circle {
+  animation: ds-step-pop var(--duration-fast) var(--ease-out) both;
+}
+.ds-mark-tick[data-in] path {
+  animation: ds-draw var(--duration-slow) var(--ease-out) both;
+}
+.ds-mark-stale {
+  color: var(--amber-600);
+}
+.ds-mark-failed {
+  color: var(--red-600);
+}
+.ds-mark-open {
+  color: var(--graphite-600);
+}
+
+/* ---- Row count with a tab's icon: the number right-aligned against one icon column ---- */
+.ds-rcount {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--graphite-700);
+  font: 600 14px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.ds-rcount b {
+  min-width: 20px;
+  font-weight: 600;
+  text-align: right;
+}
+/* Light grey, but 3:1 against white for a meaningful icon: --graphite-500. */
+.ds-rcount > :last-child {
+  color: var(--graphite-500);
+}
+.ds-rcount[data-warn],
+.ds-rcount[data-warn] > :last-child {
+  color: var(--amber-600);
+}
+
+/* ---- Task row: its own icon tile, title and section, then a chevron (opens it) or a tick ---- */
+.ds-task {
+  width: 100%;
+  min-height: 54px;
+  padding: 6px 18px;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+button.ds-task {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button.ds-task:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.ds-task:hover {
+    background: var(--hover-bg);
+  }
+}
+button.ds-task:active {
+  background: var(--surface-active);
+}
+.ds-task[data-active] .ds-task-tile {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.ds-task[data-done] .ds-task-name {
+  color: var(--graphite-600);
+}
+.ds-task-name small {
+  display: block;
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+
+/* ---- View only: sits where the button would be, for someone who can never press it ---- */
+.ds-viewonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px 0 11px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font: 600 13px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+/* ---- Phone (767 px and under): the header stacks, the button goes full width ---- */
+@media (max-width: 767px) {
+  .ds-checkpoint {
+    padding: 16px;
+  }
+  .ds-checkpoint-top {
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  .ds-checkpoint-tile {
+    width: 40px;
+    height: 40px;
+  }
+  .ds-checkpoint h2 {
+    font-size: 18px;
+    line-height: 24px;
+  }
+  .ds-checkpoint-action {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+    margin-top: 14px;
+  }
+  .ds-checkpoint-action > *,
+  .ds-checkpoint-action .ds-reason-wrap > button {
+    flex: 1;
+  }
+  .ds-checkpoint-action button {
+    min-height: 44px;
+  }
+  .ds-checkpoint-action .ds-viewonly {
+    flex: none;
+  }
+  .ds-checkpoint-bar {
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+  .ds-segbar {
+    gap: 12px;
+  }
+  .ds-segbar-track {
+    gap: 8px;
+  }
+  .ds-step-head {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    column-gap: 10px;
+    min-height: 56px;
+    padding: 12px 14px;
+  }
+  /* A folded step is one line (board 13): at 375 px "Draft from observations" beside
+     "8 sections" and the chevron needs the tighter gaps and Apple's bold tracking. */
+  button.ds-step-head h3 {
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .ds-step-end {
+    gap: 6px;
+  }
+  .ds-step-badge {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .ds-step-line {
+    display: none;
+  }
+  .ds-step-head h3 {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .ds-step-summary {
+    display: inline;
+  }
+  .ds-step-count + .ds-step-summary {
+    display: none;
+  }
+  .ds-step-bar {
+    margin: 0 14px;
+  }
+  .ds-srow,
+  .ds-task {
+    min-height: 48px;
+    padding: 5px 14px;
+  }
+}
+
+@keyframes ds-step-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes ds-step-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@keyframes ds-step-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes ds-step-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Reduced motion (v2 section 8): every motion here becomes a fade. index.css switches all
+   animation off, so these win by specificity with !important; the spinners pulse instead. */
+@media (prefers-reduced-motion: reduce) {
+  .ds-checkpoint-top[data-in],
+  .ds-numswap > span[data-in],
+  .ds-mark > [data-in],
+  .ds-mark-tick[data-in] circle,
+  .ds-srow-reason[data-in] {
+    animation: ds-fade-in var(--duration-base) var(--ease-out) !important;
+  }
+  .ds-checkpoint-top[data-out],
+  .ds-numswap > span[data-out],
+  .ds-mark > [data-out] {
+    animation: ds-fade-out 100ms var(--ease-out) forwards !important;
+  }
+  /* `.ds-mark >` so it outranks `.ds-mark > [data-in]` above: without it a spinner that
+     appears after the page loaded would be a still ring. */
+  .ds-checkpoint-busy,
+  .ds-mark > .ds-mark-ring {
+    animation: dsPulse 1.6s ease-in-out infinite !important;
+  }
+  /* The fill fades in instead of growing. */
+  .ds-seg > b {
+    transform: none;
+    opacity: 0;
+    transition: opacity var(--duration-slow) var(--ease-out);
+  }
+  .ds-seg[data-state='done'] > b {
+    opacity: 1;
+  }
+}

@@ -39,6 +39,9 @@
   --green-50: #e6f4ea;
   --green-600: #2f7049;
   --amber-50: #fdf1d8;
+  /* A flagged row's background (GN-13, steps.css): the 50 tint at 40% on white, quieter than
+     the tile it sits behind. Amber = missing or out of date; red = drafting failed. */
+  --flagged-row-warn-bg: #fef9ef;
   /* A step stronger than the 50 tint, for a count that must catch the eye
      (the Documents tab's needs-review count, IN-05); 5.7:1 with --amber-700. */
   --amber-100: #f9dda0;
@@ -46,6 +49,7 @@
   --amber-600: #8f5f13;
   --amber-700: #744c0e;
   --red-50: #fdeae8;
+  --flagged-row-bad-bg: #fef6f5;
   --red-600: #ad2e2d;
   /* Facility chip and Resurvey tile (v2 section 3). */
   --teal-50: #dff4f8;
