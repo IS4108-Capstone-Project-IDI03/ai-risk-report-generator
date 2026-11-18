@@ -1314,7 +1314,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
-          photos.map((p) => ({ name: p.name, image: p.image })),
+          photos.map((p) => ({ name: p.name, image: p.image, region: p.region })),
           pages.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
@@ -1601,7 +1601,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...x,
             media: [
               ...x.media,
-              ...photos.map((p) => ({ id: 'local-' + p.id, name: p.name, url: p.url, added })),
+              ...photos.map((p) => ({
+                id: 'local-' + p.id,
+                name: p.name,
+                url: p.url,
+                added,
+                region: p.region ?? null,
+              })),
             ],
             recordings: [
               ...(x.recordings ?? []),
@@ -1626,7 +1632,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         saved = await addObservationMedia(
           o.id,
           clips.map((c) => ({ name: c.name, audio: c.audio })),
-          photos.map((p) => ({ name: p.name, image: p.image })),
+          photos.map((p) => ({ name: p.name, image: p.image, region: p.region })),
           pages.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
@@ -4026,6 +4032,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fPhotoError: refused.length ? unsupportedPhotos(refused) : null,
         }))
       },
+      // Marks the area of a photo waiting to be saved, or clears it (CP-10):
+      // kept here, and sent with the photo when the observation is saved.
+      markDraftPhoto: async (id: number, region: PhotoRegion | null) =>
+        updateState((previous) => ({
+          ...previous,
+          fPhotos: previous.fPhotos.map((p) => (p.id === id ? { ...p, region } : p)),
+        })),
       removePhoto: (photo: PhotoFile) => {
         URL.revokeObjectURL(photo.url)
         updateState((previous) => ({
@@ -4376,7 +4389,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           std: '',
           // Kept in this browser: the preview stays, as the demo never uploads it.
           // Its photos are read only when the engineer asks (CP-05).
-          media: s.fPhotos.map((p) => ({ name: p.name, url: p.url })),
+          media: s.fPhotos.map((p) => ({ name: p.name, url: p.url, region: p.region ?? null })),
           // Kept in this browser too, and never transcribed without a session.
           pages: s.fPages.map((p) => demoPage('local-page-' + p.id, p.name, p.url, null)),
           detail: text,

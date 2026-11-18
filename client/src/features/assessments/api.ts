@@ -433,6 +433,15 @@ const observationsPath = (reference: string) =>
 // pages, to the assessment's active capture session. Null copeDimensions leave
 // it uncategorised. The server stores each file and starts each recording's
 // and page's initial transcription.
+// A photo to save, with any area marked on it first (CP-10).
+type NewPhotoPart = { name: string; image: Blob; region?: PhotoRegion | null }
+// Photos as `photo` parts and, when any is marked, a `photoRegion` part per
+// photo in the same order: its mark as JSON, or empty for one not marked.
+function appendPhotos(form: FormData, photos: NewPhotoPart[]) {
+  for (const p of photos) form.append('photo', p.image, p.name)
+  if (!photos.some((p) => p.region)) return
+  for (const p of photos) form.append('photoRegion', p.region ? JSON.stringify(p.region) : '')
+}
 export async function saveObservation(
   reference: string,
   details: {
@@ -445,13 +454,13 @@ export async function saveObservation(
     checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
   },
   recordings: { name: string; audio: Blob }[],
-  photos: { name: string; image: Blob }[] = [],
+  photos: NewPhotoPart[] = [],
   pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   form.append('details', JSON.stringify(details))
   for (const r of recordings) form.append('recording', r.audio, r.name)
-  for (const p of photos) form.append('photo', p.image, p.name)
+  appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
@@ -531,12 +540,12 @@ export async function restoreObservation(id: string): Promise<SavedObservation> 
 export async function addObservationMedia(
   id: string,
   recordings: { name: string; audio: Blob }[],
-  photos: { name: string; image: Blob }[],
+  photos: NewPhotoPart[],
   pages: { name: string; image: Blob }[] = [],
 ): Promise<SavedObservation> {
   const form = new FormData()
   for (const r of recordings) form.append('recording', r.audio, r.name)
-  for (const p of photos) form.append('photo', p.image, p.name)
+  appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
 }
@@ -1442,6 +1451,8 @@ export type AppendixPhoto = {
   location: string | null
   category: string | null
   note: string | null
+  // The area the engineer marked (CP-10); null, or absent from older answers, when none is.
+  region?: PhotoRegion | null
   selected: boolean
 }
 export type AppendixList = {

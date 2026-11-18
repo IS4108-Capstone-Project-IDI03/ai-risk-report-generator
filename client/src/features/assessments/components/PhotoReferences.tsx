@@ -45,6 +45,20 @@ export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: (
       setBusy(false)
     }
   }
+  const actions = photo.mark ? (
+    <MarkActions
+      marking={marking}
+      region={region}
+      busy={busy}
+      onStart={() => {
+        setProblem(null)
+        setDraft(region ?? STARTING_MARK)
+      }}
+      onCancel={() => setDraft(null)}
+      onSave={() => void save(draft)}
+      onClear={() => void save(null)}
+    />
+  ) : null
   return createPortal(
     <Dialog
       title={photo.name}
@@ -73,45 +87,6 @@ export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: (
           {'As sent to AI · no faces found'}
         </p>
       )}
-      {!!photo.mark && (
-        <div className="photo-mark-actions">
-          {marking ? (
-            <>
-              <Button variant="secondary" size="sm" disabled={busy} onClick={() => setDraft(null)}>
-                {'Cancel'}
-              </Button>
-              <Button variant="primary" size="sm" loading={busy} onClick={() => void save(draft)}>
-                {'Save mark'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft="crop"
-                onClick={() => {
-                  setProblem(null)
-                  setDraft(region ?? STARTING_MARK)
-                }}
-              >
-                {region ? 'Change mark' : 'Mark area'}
-              </Button>
-              {!!region && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft="eraser"
-                  loading={busy}
-                  onClick={() => void save(null)}
-                >
-                  {'Clear mark'}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      )}
       {problem && (
         <p className="photo-mark-problem" role="alert">
           {problem}
@@ -122,9 +97,61 @@ export function PhotoDialog({ photo, onClose }: { photo: ViewedPhoto; onClose: (
         alt={photo.name}
         region={draft ?? region}
         onMark={marking ? setDraft : undefined}
+        actions={actions}
       />
     </Dialog>,
     document.body,
+  )
+}
+
+// The mark's controls (CP-10), for the photo's toolbar.
+function MarkActions({
+  marking,
+  region,
+  busy,
+  onStart,
+  onCancel,
+  onSave,
+  onClear,
+}: {
+  marking: boolean
+  region: PhotoRegion | null
+  busy: boolean
+  onStart: () => void
+  onCancel: () => void
+  onSave: () => void
+  onClear: () => void
+}) {
+  return (
+    <span className="photo-mark-actions">
+      {marking ? (
+        <>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onCancel}>
+            {'Cancel'}
+          </Button>
+          <Button variant="primary" size="sm" loading={busy} onClick={onSave}>
+            {'Save mark'}
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button variant="secondary" size="sm" iconLeft="crop" onClick={onStart}>
+            {region ? 'Change mark' : 'Mark area'}
+          </Button>
+          {!!region && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="eraser"
+              loading={busy}
+              onClick={onClear}
+            >
+              {'Clear mark'}
+            </Button>
+          )}
+        </>
+      )}
+    </span>
   )
 }
 

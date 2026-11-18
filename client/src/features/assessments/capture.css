@@ -657,12 +657,12 @@
   bottom: auto;
 }
 
-/* Marking the area of a photo that matters (CP-10), in the photo popup. */
+/* Marking the area of a photo that matters (CP-10), in the photo popup's toolbar. */
 .photo-mark-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  margin-left: var(--space-3);
 }
 .photo-mark-problem {
   margin: 0 0 var(--space-4);

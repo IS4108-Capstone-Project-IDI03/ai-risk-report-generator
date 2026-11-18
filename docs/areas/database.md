@@ -205,11 +205,14 @@ as `locations`. `GET /api/assessments/:reference/appendix` returns `{ selected,
 available }`: the chosen photos with their details and caption, leaving out any
 whose observation was deleted since, and every photo of the assessment's
 non-deleted observations (`photoId`, `observationId`, `name`, `url`,
-`location`, `category`, `note`, `selected`). `PUT` on the same path (JSON
+`location`, `category`, `note`, `region`, `selected`; `region` is the
+photo's mark, CP-10, or null). `PUT` on the same path (JSON
 `photos: [{ photoId, caption }]`, assigned engineer only) replaces the list:
 200 with the same shape, 400 for a photo not the assessment's, one given
 twice, or a caption over 200 characters, 403, 404, 409 archived. The export
-(EX-01) is to read it.
+(EX-01) is to read it. A marked photo's mark shows over it in the page layout,
+and the export draws it into the printed photo (`snapshot.ts` `drawMark`), so
+the PDF and the Word file both hold it while the original stays unchanged.
 
 `riskQuality` and `lossEstimates` (GN-03) are Sections 4 and 5's figures, typed
 by the engineer in Review; every score, rating and loss is computed from them

@@ -33,6 +33,8 @@ export type AppendixPhotoDto = {
   location: string | null
   category: string | null
   note: string | null
+  // The area the engineer marked (CP-10), drawn on the photo in the export; null when none is.
+  region: { x: number; y: number; w: number; h: number } | null
   selected: boolean
 }
 
@@ -49,6 +51,7 @@ async function reportPhotos(reference: string) {
       // An observation can be filed under several categories; none when uncategorised.
       category: o.copeDimensions?.length ? o.copeDimensions.join(', ') : null,
       note: o.note,
+      region: p.region,
     })),
   )
 }

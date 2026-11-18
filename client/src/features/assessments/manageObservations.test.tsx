@@ -220,8 +220,14 @@ function mockGateway() {
     // Added recordings and photos arrive as a form (CP-08); calls name its files.
     const form = init.body instanceof FormData ? init.body : null
     const names = (part: string) => (form?.getAll(part) as File[]).map((file) => file.name)
+    // Marks made before adding (CP-10) come as one `photoRegion` per photo.
+    const regions = (form?.getAll('photoRegion') ?? []) as string[]
     const body = form
-      ? { recordings: names('recording'), photos: names('photo') }
+      ? {
+          recordings: names('recording'),
+          photos: names('photo'),
+          ...(regions.length && { regions: regions.map((r) => r && JSON.parse(r)) }),
+        }
       : init.body
         ? JSON.parse(String(init.body))
         : undefined
@@ -1858,6 +1864,41 @@ describe('Marking the area of a photo that matters (CP-10)', () => {
     expect(shown(popup)).toBeNull()
     expect(shown(tile)).toBeNull()
     expect(within(popup).getByRole('button', { name: 'Mark area' })).toBeInTheDocument()
+  })
+
+  it('marks a photo before adding it to a saved observation', async () => {
+    listed = [MARKABLE]
+    await openObservations()
+    fireEvent.click(row(NOTE_TEXT))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
+    fireEvent.change(within(dialog).getByLabelText('Choose photographs'), {
+      target: { files: [new File(['jpeg'], 'IMG_0510.jpg', { type: 'image/jpeg' })] },
+    })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open IMG_0510.jpg' }))
+    const popup = screen.getByRole('dialog', { name: 'IMG_0510.jpg' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Mark area' }))
+    fireEvent.click(within(popup).getByRole('button', { name: 'Save mark' }))
+    await within(popup).findByRole('button', { name: 'Change mark' })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Close' }))
+    expect(calls).toEqual([])
+    const ready = within(dialog).getByRole('region', { name: 'Ready to add' })
+    expect(within(ready).getAllByTestId('photo-mark')).toHaveLength(1)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
+
+    await screen.findByText(/^Added 1 photo/)
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        url: '/api/observations/o11/media',
+        body: {
+          recordings: [],
+          photos: ['IMG_0510.jpg'],
+          regions: [{ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }],
+        },
+      },
+    ])
   })
 
   it('leaves the photo as it was on Cancel, and keeps the mark to retry when saving fails', async () => {

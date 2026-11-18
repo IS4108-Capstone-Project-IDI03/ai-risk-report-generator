@@ -216,7 +216,8 @@ export const photoRegionSchema = z
   .refine((r) => r.x + r.w <= 1 && r.y + r.h <= 1, 'Mark an area inside the photo.')
 export type NewRecording = { name: string; audio: Buffer; contentType: string }
 // The route has already checked it is a JPG or PNG (photoFormat).
-export type NewPhoto = { name: string; image: Buffer }
+// `region` is an area the engineer marked before saving it (CP-10).
+export type NewPhoto = { name: string; image: Buffer; region?: IPhotoRegion }
 // A handwritten page (CP-19), checked as a photo is.
 export type NewPage = { name: string; image: Buffer }
 
@@ -882,6 +883,7 @@ function storedMedia(
       key: `photos/${reference}/${id}/${photoId}.${format.extension}`,
       contentType: format.contentType,
       size: p.image.length,
+      ...(p.region && { region: p.region }),
       ...(added && { added }),
     }
   })

@@ -2578,3 +2578,20 @@ Rejected:
 - Dropping unsupported sentences, as an answer does: AC3 asks for them to be marked and to block the export.
 
 Stories: AS-04, AS-01, AS-02, AS-03, RV-02, RV-06, RV-08, EX-01.
+
+## 2026-11-18 — A photo's mark is a rectangle kept as data, and the model gets a close-up of it
+
+Chose:
+- (CP-10) The engineer marks the part of a site photo that matters with one rectangle, saved on the photo as `region: { x, y, w, h }`, fractions of the upright photo. The image in S3 is never changed (AC4). The mark is drawn over the photo wherever it is shown, and the export (EX-01) draws it into the printed photo, so the PDF and the Word file hold it. This replaces AC1's "derivative image".
+- When the photos are read (CP-05), S5 sends the full photo and then a close-up of the marked area, cut from the full-resolution upright photo, labelled `"<photo name>, marked area"`. The prompt gains a rule only when a photo is marked (`cp10-v1`), so an unmarked reading is as before. With protection on, the close-up is blurred in the same call as the photo.
+- A description records the marks it was read with (`photoReading.marks`): moving, adding or clearing one puts it out of date, as adding or removing a photo does. Reading again stays the engineer's choice.
+- Marking is optional and offered only on saved observations, so the site-walk auto-description (CP-22) and drafting are unchanged.
+
+Reason: a wide photo shows many things, so the model sometimes described the wrong detail and a report reader could not tell where the hazard was. In the photo eval, the recessed sprinkler case went from "No hazard visible" unmarked to the right hazard type once marked.
+
+Rejected:
+- Cropping: the report reader loses the surroundings, and a second image would have to be stored.
+- Freehand drawing burned into the image: the model can read red strokes as paint, rust or tape, and strokes are hard to edit or remove.
+- A box drawn on the photo the model sees: the same risk as freehand, where a separate close-up cannot be mistaken for part of the scene.
+
+Stories: CP-10, CP-05, CP-21, PV-04, GN-07, EX-01.

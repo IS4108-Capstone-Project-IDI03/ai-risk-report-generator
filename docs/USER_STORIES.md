@@ -468,9 +468,9 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: mark the hazard on a site photograph, so a report reader can locate the detail observed.
 
-  1. Given a stored site photograph, when a drawn annotation is saved, then a derivative image contains the annotation.
-  2. Given an annotated image with entered caption, when Save is selected, then the caption is stored with the annotation.
-  3. Given a saved annotated image, when it is displayed in any annotated-photo view, then its caption appears beneath it.
+  1. Given a stored site photograph, when a marked area is saved, then the photo shows the mark wherever it is displayed, and the exported report's photo contains it.
+  2. Given an annotated image with entered caption, when Save is selected, then the caption is stored with the annotation. (Covered by the Appendix A caption, GN-07.)
+  3. Given a saved annotated image, when it is displayed in any annotated-photo view, then its caption appears beneath it. (Covered by the Appendix A caption, GN-07.)
   4. Given a saved annotation, when the raw photo is opened, then the original image remains unchanged.
   </details>
 

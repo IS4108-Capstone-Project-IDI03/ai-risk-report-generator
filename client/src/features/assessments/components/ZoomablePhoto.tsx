@@ -47,11 +47,15 @@ export function ZoomablePhoto({
   alt,
   region,
   onMark,
+  actions,
 }: {
   src: string
   alt: string
   region?: PhotoRegion | null
   onMark?: (region: PhotoRegion) => void
+  // More controls for the toolbar, after the zoom buttons (the mark's, CP-10),
+  // so they take no extra row above the photo.
+  actions?: React.ReactNode
 }) {
   const frame = useRef<HTMLDivElement>(null)
   const image = useRef<HTMLImageElement>(null)
@@ -181,6 +185,7 @@ export function ZoomablePhoto({
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-4)',
@@ -228,6 +233,7 @@ export function ZoomablePhoto({
         >
           <Icon name="scan" size={18} />
         </button>
+        {actions}
         {/* Says how to zoom, plainly, until the photo is zoomed. */}
         <span style={{ marginLeft: 'auto', fontSize: '14px', color: 'var(--text-secondary)' }}>
           {marking

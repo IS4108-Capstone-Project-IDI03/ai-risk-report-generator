@@ -37,7 +37,16 @@ export function CapturePhotoPanel({
               <PhotoThumb
                 url={photo.url}
                 name={photo.name}
-                onOpen={() => onView({ name: photo.name, url: photo.url })}
+                region={photo.region}
+                // It can be marked before it is saved (CP-10).
+                onOpen={() =>
+                  onView({
+                    name: photo.name,
+                    url: photo.url,
+                    region: photo.region,
+                    mark: (region) => v.markDraftPhoto(photo.id, region),
+                  })
+                }
               />
               <RemoveButton
                 label={'Remove ' + photo.name}

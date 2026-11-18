@@ -411,4 +411,6 @@ export type PhotoFile = {
   name: string
   image: Blob
   url: string
+  // The area marked before it is saved (CP-10), sent with it.
+  region?: SavedPhoto['region']
 }
