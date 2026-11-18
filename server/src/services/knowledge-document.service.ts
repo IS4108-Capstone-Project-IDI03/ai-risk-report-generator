@@ -1276,3 +1276,72 @@ export async function retryIngestion(id: string, by: { id: string; name: string 
     throw new IngestionUnavailableError('Ingestion could not be re-queued. Try again shortly.')
   }
 }
+
+/**
+ * Saves the source type an admin chose for a document whose type labelling
+ * couldn't read, then queues its ingestion (IN-19). The type is recorded as
+ * the admin's, as a correction would (`source: 'admin'`), and the issuing
+ * body follows from it; a report also drops its edition and standard number,
+ * as `labelledRecord` does. The other details stay as labelling read them.
+ *
+ * Throws KnowledgeDocumentNotFoundError (unknown or malformed id),
+ * KnowledgeDocumentWrongStateError (not awaiting a type, which also stops a
+ * second, simultaneous choice), or IngestionUnavailableError (the job could not
+ * be queued), in which case the document is put back exactly as it was.
+ */
+export const sourceTypeChoiceSchema = z.object({
+  sourceType: z.enum(SOURCE_TYPES, { message: 'Choose a source type from the list.' }),
+})
+
+export async function chooseSourceType(
+  id: string,
+  sourceType: SourceType,
+  by: { id: string; name: string },
+): Promise<KnowledgeDocumentDto> {
+  if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
+  const before = await KnowledgeDocumentModel.findById(id).lean()
+  if (!before) throw new KnowledgeDocumentNotFoundError()
+  const wrongState = new KnowledgeDocumentWrongStateError(
+    'Only a document awaiting a type can be given one.',
+  )
+  if (before.status !== 'awaiting_type') throw wrongState
+
+  const isReport = sourceType === 'marsh_report'
+  const settled: DetailName[] = isReport
+    ? ['source_type', 'edition', 'standard_number']
+    : ['source_type']
+  const details = { ...before.labelling?.details }
+  details.source_type = { ...details.source_type, value: sourceType, source: 'admin' }
+  if (isReport) {
+    for (const name of ['edition', 'standard_number'] as const) {
+      if (details[name]) details[name] = { ...details[name], value: null }
+    }
+  }
+  // Atomic on `awaiting_type`, so two choices made together queue one run.
+  const updated = await KnowledgeDocumentModel.findOneAndUpdate(
+    { _id: id, status: 'awaiting_type' },
+    {
+      $set: {
+        status: 'queued',
+        'metadata.source_type': sourceType,
+        issuingBody: sourceType === 'local_standard' ? null : ISSUING_BODY[sourceType],
+        unconfirmed: before.unconfirmed.filter((name) => !settled.includes(name)),
+        labelling: { labelledAt: before.labelling?.labelledAt ?? new Date(), details },
+        handled: { at: new Date(), by },
+      },
+      ...(isReport ? { $unset: { edition: 1, standardNumber: 1 } } : {}),
+    },
+    { returnDocument: 'after' },
+  ).lean()
+  if (!updated) throw wrongState
+
+  try {
+    await enqueueIngestion(id)
+  } catch (error) {
+    // A document left at `queued` with no job would never be ingested.
+    console.error('Queueing ingestion failed:', error)
+    await KnowledgeDocumentModel.replaceOne({ _id: id, status: 'queued' }, before)
+    throw new IngestionUnavailableError('Ingestion could not be queued. Try again shortly.')
+  }
+  return toDtoOf(updated)
+}
