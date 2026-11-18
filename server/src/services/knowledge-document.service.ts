@@ -554,11 +554,13 @@ export class DuplicateDocumentError extends RejectedFileError {
   ) {
     const shown = stored.withdrawn
       ? 'Withdrawn'
-      : stored.status !== 'complete'
-        ? 'Being ingested'
-        : needsReview(stored)
-          ? 'Needs review'
-          : 'Active'
+      : stored.status === 'awaiting_type'
+        ? 'Awaiting a type'
+        : stored.status !== 'complete'
+          ? 'Being ingested'
+          : needsReview(stored)
+            ? 'Needs review'
+            : 'Active'
     const edition = stored.edition ? ` (${stored.edition} edition)` : ''
     super(409, `Already in the knowledge base as ${stored.title}${edition}, ${shown}.`)
     this.name = 'DuplicateDocumentError'
@@ -760,8 +762,11 @@ export async function uploadKnowledgeDocument(
   const key = `knowledge/${id}.pdf`
   await storage.putObject(key, pdf, 'application/pdf')
 
-  // f. Record it in MongoDB as `queued`. The fingerprint also proves a copy
-  // retrieved later matches the upload.
+  // f. Record it in MongoDB as `queued`, or as `awaiting_type` when labelling
+  // couldn't read its source type: it is never ingested (or redacted) as an
+  // unknown type, so an admin chooses one first (IN-19). The fingerprint also
+  // proves a copy retrieved later matches the upload.
+  const awaitingType = record.metadata.source_type === null
   let document
   try {
     document = await KnowledgeDocumentModel.create({
@@ -775,7 +780,7 @@ export async function uploadKnowledgeDocument(
         sha256,
       },
       original,
-      status: 'queued',
+      status: awaitingType ? 'awaiting_type' : 'queued',
     })
   } catch (error) {
     // No transactions on a standalone mongod, so undo the upload by hand.
@@ -789,6 +794,7 @@ export async function uploadKnowledgeDocument(
     throw error
   }
   // g. Queue its ingestion; the worker picks it up from there.
+  if (awaitingType) return toDtoOf(document.toObject())
   try {
     await enqueueIngestion(String(id))
   } catch (error) {

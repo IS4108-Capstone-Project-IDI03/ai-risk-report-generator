@@ -31,7 +31,7 @@ export async function buildKnowledgeDocumentIndex(): Promise<void> {
     await KnowledgeDocumentModel.createIndexes()
   } catch (error) {
     const groups = await KnowledgeDocumentModel.aggregate([
-      { $match: { status: { $in: ['queued', 'processing', 'complete'] } } },
+      { $match: { status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] } } },
       { $group: { _id: '$file.sha256', n: { $sum: 1 } } },
       { $match: { n: { $gt: 1 } } },
       { $count: 'groups' },

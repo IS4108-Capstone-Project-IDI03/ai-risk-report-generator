@@ -584,6 +584,18 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.body.unconfirmed).not.toContain('effectiveDate')
   })
 
+  // IN-19: a document is never ingested, or redacted, as an unknown type.
+  it('stores an upload whose type cannot be read as awaiting a type, and queues nothing', async () => {
+    const response = await upload(freshPdf(), { ...DETAILS, sourceType: 'ISO' })
+
+    expect(response.status).toBe(201)
+    expect(response.body.status).toBe('awaiting_type')
+    expect(queued).not.toHaveBeenCalled()
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved?.status).toBe('awaiting_type')
+    expect(s3.has(saved!.file.key)).toBe(true)
+  })
+
   it.each([
     ['cannot be reached', () => labelling.mockRejectedValue(new TypeError('fetch failed'))],
     ['times out', () => labelling.mockRejectedValue(new DOMException('timed out', 'TimeoutError'))],
@@ -593,7 +605,7 @@ describe('POST /api/knowledge-documents', () => {
     ],
     ['answers with bad JSON', () => labelling.mockResolvedValue(new Response('not json'))],
   ])(
-    'still uploads, with every detail but the date Unconfirmed, when /label %s',
+    'still uploads, awaiting a type, with every detail but the date Unconfirmed, when /label %s',
     async (_name, fail) => {
       vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const upload = api
@@ -618,8 +630,9 @@ describe('POST /api/knowledge-documents', () => {
           'jurisdiction',
           'facilityType',
         ],
+        status: 'awaiting_type',
       })
-      expect(queued).toHaveBeenCalledOnce()
+      expect(queued).not.toHaveBeenCalled()
     },
   )
 
@@ -704,7 +717,8 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
     ['unconfirmed', { unconfirmed: ['title'] }, 'Needs review'],
     ['matched', { match: matchTo(new Types.ObjectId()) }, 'Needs review'],
     ['still ingesting', { status: 'processing' }, 'Being ingested'],
-  ])('rejects a %s repeat with 409 naming the stored document', async (_n, state, shown) => {
+    ['awaiting a type', { status: 'awaiting_type' }, 'Awaiting a type'],
+  ])('rejects a repeat (%s) with 409 naming the stored document', async (_n, state, shown) => {
     const first = await upload(PDF)
     await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete', ...state })
 
