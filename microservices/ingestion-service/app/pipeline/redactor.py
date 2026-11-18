@@ -72,22 +72,69 @@ def _page_text(page, escape) -> tuple[str, list[dict]]:
     text sits in that text (`start`, `end`) and that text (`text`). A span's text is escaped
     (Rule 6), so the offsets /mask returns match what is drawn again."""
     text, pieces = "", []
+    for line in _lines(page):
+        if text and not text.endswith("\n"):
+            text += "\n"
+        before = None
+        for span in line:
+            # A line's spans meet without a space where a word changes font, or is drawn in
+            # two runs ("Sprinkl" + "er"). Only a visible gap between them is a space.
+            if before and _gap(before, span) and not (text[-1:] + span["text"][:1]).isspace():
+                text += " "
+            before = span
+            written = escape(span["text"])
+            pieces.append({"span": span, "start": len(text), "text": written})
+            text += written
+            pieces[-1]["end"] = len(text)
+    return text, pieces
+
+
+def _lines(page) -> list[list[dict]]:
+    """The page's lines of spans in drawing order, as PyMuPDF reads them, except that a Type3
+    run drawn a glyph at a time is joined back into one span per line (IN-19). PyMuPDF puts each
+    such glyph on a line of its own, so /mask read "J\\no\\nh\\nn" and the redraw drew each glyph
+    as its own paragraph. Only spans reported under 1 pt are joined; other text is as read."""
+    lines: list[list[dict]] = []
     for block in page.get_text("dict")["blocks"]:
         for line in block.get("lines", []):
-            if text and not text.endswith("\n"):
-                text += "\n"
-            before = None
-            for span in line["spans"]:
-                # A line's spans meet without a space where a word changes font, or is drawn in
-                # two runs ("Sprinkl" + "er"). Only a visible gap between them is a space.
-                if before and _gap(before, span) and not (text[-1:] + span["text"][:1]).isspace():
-                    text += " "
-                before = span
-                written = escape(span["text"])
-                pieces.append({"span": span, "start": len(text), "text": written})
-                text += written
-                pieces[-1]["end"] = len(text)
-    return text, pieces
+            for n, span in enumerate(line["spans"]):
+                if lines and _continues(lines[-1][-1], span):
+                    lines[-1][-1] = _joined(lines[-1][-1], span)
+                elif n == 0:
+                    lines.append([span])
+                else:
+                    lines[-1].append(span)
+    return lines
+
+
+def _continues(before: dict, span: dict) -> bool:
+    """Whether a Type3 span carries on `before`'s line: same style, same baseline, and starting
+    within a size of where it ends (a word space is about half that)."""
+    if before["size"] >= 1 or span["size"] >= 1:
+        return False
+    if (before["font"], before["flags"], before["color"]) != (
+        span["font"],
+        span["flags"],
+        span["color"],
+    ):
+        return False
+    size = _size(span)
+    on_baseline = abs(before["origin"][1] - span["origin"][1]) <= 0.2 * size
+    gap = span["bbox"][0] - before["bbox"][2]
+    return on_baseline and -0.2 * size <= gap <= size
+
+
+def _joined(before: dict, span: dict) -> dict:
+    """One span of `before` and the `span` that continues it, a space between them where a
+    visible gap is."""
+    space = (
+        " " if _gap(before, span) and not (before["text"][-1:] + span["text"][:1]).isspace() else ""
+    )
+    return {
+        **before,
+        "text": before["text"] + space + span["text"],
+        "bbox": tuple(pymupdf.Rect(before["bbox"]) | pymupdf.Rect(span["bbox"])),
+    }
 
 
 @cache
@@ -183,9 +230,16 @@ def _draw_in(page, box: pymupdf.Rect, text: str) -> None:
     )
 
 
+def _size(span: dict) -> float:
+    """The size a span's text is drawn at. A Type3 font may be set at 0.1 pt and scaled up by its
+    own FontMatrix, which PyMuPDF doesn't apply to the size it reports; the span's height is then
+    the better measure (IN-19). Redrawn at 0.1 pt, an NFPA page's text read as dust."""
+    return span["size"] if span["size"] >= 1 else pymupdf.Rect(span["bbox"]).height
+
+
 def _gap(before: dict, span: dict) -> bool:
     """Whether a visible gap, a fifth of the text's size or more, separates two spans."""
-    return span["bbox"][0] - before["bbox"][2] >= 0.2 * span["size"]
+    return span["bbox"][0] - before["bbox"][2] >= 0.2 * _size(span)
 
 
 def _with_tags(pieces: list[dict], details: list[dict]) -> list[str]:
@@ -246,7 +300,8 @@ def _draw(page, span: dict, text: str) -> None:
     style = _FONTS[(bool(flags & _BOLD), bool(flags & _ITALIC))]
     if not {ord(c) for c in text} <= _draws(style):
         style = _CJK
-    width = _font(style).text_length(text, fontsize=span["size"])
+    size = _size(span)
+    width = _font(style).text_length(text, fontsize=size)
     box = pymupdf.Rect(span["bbox"])
     squeeze = min(1.0, box.width / width) if width else 1.0
     origin = pymupdf.Point(span["origin"])
@@ -259,7 +314,7 @@ def _draw(page, span: dict, text: str) -> None:
         origin,
         text,
         **font,
-        fontsize=span["size"],
+        fontsize=size,
         color=pymupdf.sRGB_to_pdf(span["color"]),
         morph=(origin, pymupdf.Matrix(squeeze, 1)),
     )
