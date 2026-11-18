@@ -23,6 +23,7 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+import logging
 import os
 import re
 from collections.abc import Callable
@@ -52,6 +53,8 @@ from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
 from app.privacy import Session
+
+logger = logging.getLogger(__name__)
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -323,6 +326,7 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
     # chunk skips the formula path, and a crop of all its text would take
     # in the picture too.
     equations: list[dict] = []
+    glyph = None  # the last prose item, while it is a glyph a line may go on from
     for item in items:
         if item.self_ref in kept:
             picture = resolved[item.self_ref]
@@ -339,10 +343,66 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
             continue
         text = (getattr(resolved[item.self_ref], "text", "") or "").strip()
         if text and item.self_ref not in caption_refs:
-            (pictures[-1]["after"] if pictures else before).append(text)
+            prose = pictures[-1]["after"] if pictures else before
+            box = _glyph_box(item, text)
+            joined = _glyph_join(glyph, box) if prose else None
+            if joined is not None:
+                prose[-1] += joined + text
+            else:
+                prose.append(text)
+            glyph = box
             if item.label == DocItemLabel.FORMULA or _looks_like_equation(text):
                 equations.append({"text": text, "boxes": _picture_boxes(item)})
+    for picture in pictures:
+        _warn_if_glyphs(picture["before"] + picture["after"])
     return pictures
+
+
+# Text this short, set on one baseline beside the item before it, is one line drawn a glyph at a
+# time (IN-19, D3): Docling makes each glyph an item of its own.
+_GLYPH_LENGTH = 3
+
+
+def _glyph_box(item, text: str):
+    """An item's one box, if its text is short enough to be a glyph. `b` is its bottom edge in
+    either coordinate origin, so two boxes' baselines compare."""
+    provs = getattr(item, "prov", None) or []
+    if len(text) > _GLYPH_LENGTH or len(provs) != 1:
+        return None
+    prov = provs[0]
+    box = prov.bbox
+    return {
+        "page": prov.page_no,
+        "l": box.l,
+        "r": box.r,
+        "bottom": box.b,
+        "height": abs(box.t - box.b),
+    }
+
+
+def _glyph_join(before, box) -> str | None:
+    """What goes between two glyph items on one line ("" or a space), or None if `box` doesn't
+    carry on `before`'s line: same page and baseline, starting within a glyph's height."""
+    if before is None or box is None or before["page"] != box["page"]:
+        return None
+    height = max(before["height"], box["height"]) or 1
+    gap = box["l"] - before["r"]
+    if abs(before["bottom"] - box["bottom"]) > 0.2 * height or not -0.2 * height <= gap <= height:
+        return None
+    return " " if gap >= 0.2 * height else ""
+
+
+def _warn_if_glyphs(paragraphs: list[str]) -> None:
+    """Log a passage whose prose is still mostly a glyph or two a paragraph: its PDF draws text
+    in a way the join above doesn't recognise."""
+    short = sum(len(p) <= _GLYPH_LENGTH for p in paragraphs)
+    if len(paragraphs) >= 5 and short * 2 > len(paragraphs):
+        logger.warning(
+            "A picture's prose is mostly 1-3 character paragraphs (%d of %d); its text may be "
+            "drawn a glyph at a time.",
+            short,
+            len(paragraphs),
+        )
 
 
 def _pages_of(meta) -> list[int]:
