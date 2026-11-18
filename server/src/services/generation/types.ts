@@ -72,8 +72,8 @@ export interface GenerationDto {
   parts: GenerationPart[]
   tasks: GenerationTask[]
   steps: {
-    // `parts` is the rows the step's card lists, in order. Step 3 also lists an
-    // out-of-date step 1 part it will redraft first.
+    // `parts` is the rows the step's card lists, in order: always the step's own
+    // parts. An out-of-date step 1 part redrafted with step 3 stays a step 1 row.
     one: { state: StepState; draftedAt: string | null; parts: string[] }
     two: { state: StepState }
     three: { state: StepState; draftedAt: string | null; parts: string[] }

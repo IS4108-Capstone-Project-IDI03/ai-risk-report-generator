@@ -104,7 +104,7 @@ describe('the checkpoint', () => {
     expect(body.steps.two).toEqual({ state: 'now' })
   })
 
-  it('redrafts an out-of-date section first when ready for step 3 (AC5, AC6)', async () => {
+  it('redrafts an out-of-date section with step 3, as a step 1 row only (AC5, AC6)', async () => {
     const { api, ids } = await setup()
     await everyCategory(ids)
     await draftNow(api)
@@ -118,11 +118,7 @@ describe('the checkpoint', () => {
     expect(body.parts.find((p: { id: string }) => p.id === '7').outOfDate).toEqual({
       why: 'observations',
     })
-    expect(body.steps.three).toEqual({
-      state: 'now',
-      draftedAt: null,
-      parts: ['7', '4', '5', '2'],
-    })
+    expect(body.steps.three).toEqual({ state: 'now', draftedAt: null, parts: ['4', '5', '2'] })
   })
 
   it('says the report is drafted once all 11 are, then which are out of date (AC6, AC9)', async () => {

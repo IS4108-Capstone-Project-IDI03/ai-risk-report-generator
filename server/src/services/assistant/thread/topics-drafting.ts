@@ -143,11 +143,11 @@ export function nextStepTopic(ctx: TopicCtx): Built | null {
       )
     }
     case 'ready': {
-      // Step 3 redrafts out-of-date step 1 parts first (drafting-run.service.ts order).
+      // Step 3's run also redrafts out-of-date step 1 parts (drafting-run.service.ts).
       const first = c.parts.filter((id) => STEP_ONE_PARTS.includes(id))
       const redraft =
         c.step === 3 && first.length
-          ? `${sectionList(first)} ${plural(first.length, "is out of date, so it's", "are out of date, so they're")} redrafted first. `
+          ? `${sectionList(first)} ${plural(first.length, "is out of date, so it's", "are out of date, so they're")} redrafted too. `
           : ''
       return built(
         [
@@ -201,7 +201,7 @@ export function nextStepTopic(ctx: TopicCtx): Built | null {
       return built(
         [
           {
-            text: 'All 11 sections are drafted. Review them, then export the report.',
+            text: 'All 11 sections are drafted and ready for you to review before you export the report.',
             tone: 'good',
           },
         ],

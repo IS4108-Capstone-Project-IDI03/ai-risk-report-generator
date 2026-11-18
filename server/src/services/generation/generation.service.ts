@@ -291,19 +291,13 @@ function partsOf({ jobs }: Inputs, states: States): GenerationPart[] {
 }
 
 // f. The three steps, as Generation's cards show them.
-function stepsOf(
-  { run }: Inputs,
-  states: States,
-  plan: string[],
-  tasksDone: boolean,
-): DraftingState['steps'] {
+function stepsOf(states: States, tasksDone: boolean): DraftingState['steps'] {
   const drafted = (id: string) => states.get(id)!.drafted
   const oneDone = STEP_ONE_PARTS.every(drafted)
   const threeState = !oneDone || !tasksDone ? 'next' : RUN_ORDER.every(drafted) ? 'done' : 'now'
   const draftedAtOf = (ids: string[]) => newest(ids.map((id) => states.get(id)!.draftedAt))
-  // While step 3 is current its card also lists the step 1 parts it redrafts
-  // first: the running run's, else the plan's.
-  const redrafts = (run?.parts ?? plan).filter((id) => STEP_ONE_PARTS.includes(id))
+  // Each card lists only its own parts: an out-of-date step 1 part redrafted
+  // with step 3 keeps its one row in step 1, so no section shows twice.
   return {
     one: {
       state: oneDone ? 'done' : 'now',
@@ -314,7 +308,7 @@ function stepsOf(
     three: {
       state: threeState,
       draftedAt: threeState === 'done' ? draftedAtOf(STEP_THREE_PARTS) : null,
-      parts: threeState === 'now' ? [...redrafts, ...STEP_THREE_PARTS] : STEP_THREE_PARTS,
+      parts: STEP_THREE_PARTS,
     },
   }
 }
@@ -331,7 +325,7 @@ async function load(reference: string) {
     drafted: RUN_ORDER.filter((id) => states.get(id)!.drafted).length,
     parts: partsOf(inputs, states),
     tasks,
-    steps: stepsOf(inputs, states, plan, tasksDone),
+    steps: stepsOf(states, tasksDone),
   }
   return { assessment: inputs.assessment, state }
 }

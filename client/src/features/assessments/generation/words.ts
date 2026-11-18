@@ -3,7 +3,6 @@
 // Used by screens/DraftingSteps.tsx and components/DraftingPartRow.tsx. Wording from the
 // spec's "The checkpoint header" table; the three cases it has no board for are marked.
 import { plural } from '../reviewDisplay'
-import { STEP_THREE_PARTS } from './types'
 import type { GenerationDto, GenerationPart, OutOfDate } from './types'
 
 /** Returns parts as the report names them, in number order: "Section 3", "Sections 4 and 5",
@@ -64,13 +63,8 @@ export const TASKS = {
   losses: { icon: 'coins', title: 'Enter the loss estimates' },
 } as const
 
-/** Returns the line under step 3's name: "Sections 4 and 5, then Section 2", led by any
-    step 1 section it redrafts first ("Section 7, Sections 4 and 5, then Section 2"). */
-export function stepThreeParts(parts: string[]): string {
-  const first = parts.filter((id) => !STEP_THREE_PARTS.includes(id))
-  const own = 'Sections 4 and 5, then Section 2'
-  return first.length ? `${sectionList(first)}, ${own}` : own
-}
+/** The line under step 3's name. Section 2 is drafted last: it summarises the others. */
+export const STEP_THREE_LINE = 'Sections 4 and 5, then Section 2'
 
 export type HeaderAction =
   // Starts the drafting run the checkpoint offers.
@@ -103,7 +97,9 @@ export function headerWords(g: GenerationDto, phone = false): HeaderWords {
   return { ...words, line: `${words.line} ${VIEW_ONLY_NOTE}`, action: { kind: 'view_only' } }
 }
 
-// The words for each checkpoint. Lines that speak to the engineer ("your input") have a
+// The words for each checkpoint, worded with Impeccable clarify: each line reads as one
+// flowing sentence where it can, never a clipped one tacked on ("Then you can draft.").
+// Lines that speak to the engineer ("your input") have a
 // viewer's version for an admin watching someone else's assessment (`!g.canStart`).
 // `note` is a sentence only someone who can start drafting needs.
 function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note?: string } {
@@ -119,7 +115,7 @@ function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note
         busy: false,
         title: `${plural(n, 'section')} ${n === 1 ? 'needs' : 'need'} observations`,
         line: you
-          ? `Add at least 1 observation to ${sectionList(c.sections)}. Then you can draft.`
+          ? `Add at least 1 observation to ${sectionList(c.sections)}, then you can start drafting.`
           : `Drafting can start once ${sectionList(c.sections)} ${n === 1 ? 'has' : 'have'} at least 1 observation.`,
         action: { kind: 'observations' },
       }
@@ -131,7 +127,7 @@ function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note
         icon: 'mic',
         busy: true,
         title: `Transcribing ${plural(c.recordings, 'recording')}`,
-        line: `${you ? 'You can draft' : 'Drafting can start'} when ${one ? 'it finishes' : 'they finish'}, so ${one ? 'its' : 'their'} observations are included.`,
+        line: `${you ? 'You can start drafting' : 'Drafting can start'} once ${one ? 'it finishes' : 'they finish'}, so ${one ? 'its' : 'their'} observations are included.`,
         action: {
           kind: 'greyed',
           label: `Draft ${plural(c.parts.length, 'section')}`,
@@ -174,12 +170,12 @@ function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note
         title: `Drafting ${plural(c.parts.length, 'section')}`,
         line:
           c.parts.includes('2') && c.parts.length > 1
-            ? 'This takes a few minutes. Section 2 is drafted last, because it summarises the others.'
+            ? 'Drafting takes a few minutes, and Section 2 is drafted last because it summarises the other sections.'
             : !you
-              ? 'This takes a few minutes. This page updates as each section is drafted.'
+              ? 'Drafting takes a few minutes, and this page updates as each section is drafted.'
               : phone
-                ? "This takes a few minutes. You can leave; the bell tells you when it's done."
-                : "This takes a few minutes. You can leave this page; the bell tells you when it's done.",
+                ? "Drafting takes a few minutes, and the bell will tell you when it's done."
+                : "Drafting takes a few minutes, so you can leave this page and the bell will tell you when it's done.",
         action: null,
       }
     case 'failed':
@@ -218,7 +214,9 @@ function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note
         icon: 'file-text',
         busy: false,
         title: 'Report drafted',
-        line: `All ${g.parts.length} sections are drafted. ${you ? 'Review them, then export the report.' : 'The assigned engineer reviews them, then exports the report.'}`,
+        line: you
+          ? `All ${g.parts.length} sections are drafted and ready for you to review before you export the report.`
+          : `All ${g.parts.length} sections are drafted and ready for the assigned engineer to review before the report is exported.`,
         action: { kind: 'review' },
       }
     case 'out_of_date': {
@@ -236,18 +234,19 @@ function checkpointWords(g: GenerationDto, phone: boolean): HeaderWords & { note
   }
 }
 
-// Ready for step 3. With a section out of date: "Section 7 is redrafted first, because its
-// observations changed after it was drafted." Without (no board; worded with clarify): what the
+// Ready for step 3. With a section out of date: "Section 7 is also redrafted, because its
+// observations changed after it was drafted." ("Also", not "first": Sections 4 and 5 don't read
+// Section 7, so they draft alongside it; only Section 2 waits for the rest.) Without (no board; worded with clarify): what the
 // engineer's input unlocks, and that Section 2 comes last.
 function readyFromInput(parts: string[], part: (id: string) => GenerationPart, you: boolean) {
   const stale = parts.filter((id) => part(id).outOfDate)
   if (stale.length === 1) {
     const o = part(stale[0]).outOfDate as OutOfDate
     const what = o.why === 'section' ? 'inputs' : WHAT[o.why]
-    return `Section ${stale[0]} is redrafted first, because its ${what} changed after it was drafted.`
+    return `Section ${stale[0]} is also redrafted, because its ${what} changed after it was drafted.`
   }
   if (stale.length > 1)
-    return `${sectionList(stale)} are redrafted first, because their inputs changed after they were drafted.`
+    return `${sectionList(stale)} are also redrafted, because their inputs changed after they were drafted.`
   const rest = parts.filter((id) => id !== '2')
   const input = you ? 'Your input' : "The engineer's input"
   return parts.includes('2') && rest.length
@@ -259,14 +258,14 @@ function readyFromInput(parts: string[], part: (id: string) => GenerationPart, y
 // Several failed, or a failure in step 3, have no board; worded with clarify in the same voice.
 function failedLine(g: GenerationDto, failed: string[], part: (id: string) => GenerationPart) {
   const attempts = Math.max(...failed.map((id) => part(id).attempts))
-  const tried =
-    failed.length === 1 ? `Drafting failed ${attempts} times.` : `Each failed ${attempts} times.`
+  const tried = `${failed.length === 1 ? 'Drafting' : 'Each'} failed ${plural(attempts, 'time')}`
   const rows = part(failed[0]).step === 1 ? g.steps.one.parts : g.steps.three.parts
   const others = rows.filter((id) => !failed.includes(id) && part(id).drafted)
-  if (!others.length) return tried
+  if (!others.length) return `${tried}.`
   // One other section is named: "The other 1 section" reads badly.
-  if (others.length === 1) return `${tried} Section ${others[0]} is drafted and ready in Review.`
-  return `${tried} The other ${others.length} sections are drafted and ready in Review.`
+  if (others.length === 1)
+    return `${tried}, but Section ${others[0]} is drafted and ready in Review.`
+  return `${tried}, but the other ${others.length} sections are drafted and ready in Review.`
 }
 
 // Why the drafted report is out of date: "Section 7's observations changed, so Section 2 needs

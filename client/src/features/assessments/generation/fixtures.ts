@@ -113,7 +113,7 @@ export const inputNeeded: GenerationDto = {
   steps: { ...afterStepOne, two: { state: 'now' } },
 }
 
-/** Board 04: ready for step 3, Section 7 out of date and redrafted first. */
+/** Board 04: ready for step 3, Section 7 out of date and redrafted in the same run. */
 export const readyFromInput: GenerationDto = {
   ...base,
   checkpoint: { kind: 'ready', step: 3, parts: ['7', ...STEP_THREE] },
@@ -123,10 +123,7 @@ export const readyFromInput: GenerationDto = {
     '7': { drafted: true, draftedAt: STEP_ONE_AT, outOfDate: { why: 'observations' } },
   }),
   tasks: tasks('ofi', 'scores', 'losses'),
-  steps: {
-    ...afterStepOne,
-    three: { state: 'now', draftedAt: null, parts: ['7', ...STEP_THREE] },
-  },
+  steps: { ...afterStepOne, three: { state: 'now', draftedAt: null, parts: STEP_THREE } },
 }
 
 /** Board 05: step 3 running, Section 7 redrafted, Sections 4 and 5 drafting. */

@@ -101,7 +101,7 @@ describe('the checkpoint header', () => {
       '02',
       boards.draftingFromObservations,
       'Drafting 8 sections',
-      "This takes a few minutes. You can leave this page; the bell tells you when it's done.",
+      "Drafting takes a few minutes, so you can leave this page and the bell will tell you when it's done.",
       null,
       3,
     ],
@@ -117,7 +117,7 @@ describe('the checkpoint header', () => {
       '04',
       boards.readyFromInput,
       'Ready to draft from your input',
-      'Section 7 is redrafted first, because its observations changed after it was drafted.',
+      'Section 7 is also redrafted, because its observations changed after it was drafted.',
       'Draft 4 sections',
       8,
     ],
@@ -125,7 +125,7 @@ describe('the checkpoint header', () => {
       '05',
       boards.draftingFromInput,
       'Drafting 4 sections',
-      'This takes a few minutes. Section 2 is drafted last, because it summarises the others.',
+      'Drafting takes a few minutes, and Section 2 is drafted last because it summarises the other sections.',
       null,
       8,
     ],
@@ -133,7 +133,7 @@ describe('the checkpoint header', () => {
       '06',
       boards.reportDrafted,
       'Report drafted',
-      'All 11 sections are drafted. Review them, then export the report.',
+      'All 11 sections are drafted and ready for you to review before you export the report.',
       'Open Review',
       11,
     ],
@@ -141,7 +141,7 @@ describe('the checkpoint header', () => {
       '07',
       boards.noObservations,
       '2 sections need observations',
-      'Add at least 1 observation to Sections 10 and 11. Then you can draft.',
+      'Add at least 1 observation to Sections 10 and 11, then you can start drafting.',
       'Open Observations',
       0,
     ],
@@ -149,7 +149,7 @@ describe('the checkpoint header', () => {
       '08',
       boards.transcribing,
       'Transcribing 2 recordings',
-      'You can draft when they finish, so their observations are included.',
+      'You can start drafting once they finish, so their observations are included.',
       'Draft 8 sections',
       0,
     ],
@@ -157,7 +157,7 @@ describe('the checkpoint header', () => {
       '09',
       boards.sectionNotDrafted,
       'Section 9 was not drafted',
-      'Drafting failed 3 times. The other 7 sections are drafted and ready in Review.',
+      'Drafting failed 3 times, but the other 7 sections are drafted and ready in Review.',
       'Try again',
       7,
     ],
@@ -393,7 +393,7 @@ describe('the words', () => {
     } satisfies GenerationDto
     expect(headerWords(two).title).toBe('Sections 9 and 11 were not drafted')
     expect(headerWords(two).line).toBe(
-      'Each failed 3 times. The other 6 sections are drafted and ready in Review.',
+      'Each failed 3 times, but the other 6 sections are drafted and ready in Review.',
     )
   })
 
@@ -407,7 +407,7 @@ describe('the words', () => {
     } satisfies GenerationDto
     expect(headerWords(failed).title).toBe('Section 4 was not drafted')
     expect(headerWords(failed).line).toBe(
-      'Drafting failed 3 times. The other 3 sections are drafted and ready in Review.',
+      'Drafting failed 3 times, but the other 2 sections are drafted and ready in Review.',
     )
   })
 
@@ -416,10 +416,6 @@ describe('the words', () => {
     const failed = {
       ...boards.draftingFromInput,
       checkpoint: { kind: 'failed', failed: ['4'], parts: ['4', '2'] },
-      steps: {
-        ...boards.draftingFromInput.steps,
-        three: { ...boards.draftingFromInput.steps.three, parts: ['4', '5', '2'] },
-      },
       parts: boards.reportDrafted.parts.map((p) =>
         p.id === '4'
           ? { ...p, drafted: false, job: 'failed' as const, attempts: 3 }
@@ -429,7 +425,7 @@ describe('the words', () => {
       ),
     } satisfies GenerationDto
     expect(headerWords(failed).line).toBe(
-      'Drafting failed 3 times. Section 5 is drafted and ready in Review.',
+      'Drafting failed 3 times, but Section 5 is drafted and ready in Review.',
     )
   })
 })
@@ -443,6 +439,27 @@ describe('review fixes', () => {
       addEventListener: () => {},
       removeEventListener: () => {},
     }))
+
+  // Feedback round 2: Section 7 redrafted with step 3 has one row, in step 1 (as board 10).
+  it('keeps an out-of-date section in step 1 only, and counts step 3’s own rows', async () => {
+    show(boards.readyFromInput)
+    await header()
+    expect(row(1, 'Construction')).toHaveAttribute('data-flag', 'warn')
+    expect(within(step(3)).queryByText('Construction')).toBeNull()
+    expect(step(3)).toHaveTextContent('Sections 4 and 5, then Section 2')
+    cleanup()
+    show(boards.draftingFromInput)
+    await header()
+    expect(step(3)).toHaveTextContent('0of 3')
+    expect(step(1)).not.toHaveTextContent(/of 8/)
+  })
+
+  it('opens step 1 on a phone while it holds the out-of-date section', async () => {
+    asPhone()
+    show(boards.readyFromInput)
+    await header()
+    expect(within(row(1, 'Construction')).getByText('Observations changed')).toBeVisible()
+  })
 
   it('counts a run on a card only when all its parts are that card’s rows', async () => {
     // Sections 7 and 2 redrafted after everything was drafted: 7 is step 1's row, 2 is step 3's.
@@ -495,7 +512,7 @@ describe('review fixes', () => {
     show(boards.draftingFromObservations)
     expect(
       within(await header()).getByText(
-        "This takes a few minutes. You can leave; the bell tells you when it's done.",
+        "Drafting takes a few minutes, and the bell will tell you when it's done.",
       ),
     ).toBeInTheDocument()
   })

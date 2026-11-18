@@ -22,7 +22,7 @@ import { LoadingSteps } from '../components/LoadingSteps'
 import { startDraftingRun } from '../generation/api'
 import type { GenerationDto, GenerationPart } from '../generation/types'
 import { useGeneration } from '../generation/useGeneration'
-import { draftedWhen, headerWords, sectionList, stepThreeParts, TASKS } from '../generation/words'
+import { draftedWhen, headerWords, sectionList, STEP_THREE_LINE, TASKS } from '../generation/words'
 import { plural } from '../reviewDisplay'
 import '../drafting-steps.css'
 
@@ -38,14 +38,16 @@ function segmentOf(p: GenerationPart): SegmentState {
   return p.drafted ? 'done' : 'empty'
 }
 
-// "3 of 8" and its bar, on the step a drafting run is working through, or that failed. Only
-// when every part of the run is a row of this card: a run of Sections 7 and 2 spans two
-// cards, and "1 of 2" over rows 4, 5 and 2 would not add up; the header and marks show it.
-function runCount(g: GenerationDto, step: 1 | 3, rows: GenerationPart[]) {
+// "3 of 8" and its bar, on a step a drafting run is working through, or that failed. It counts
+// this card's own rows, and only when the run drafts all of them: a run of Sections 7 and 2
+// drafts 1 of step 3's 3 rows, and "0 of 1" over rows 4, 5 and 2 would not add up; the header
+// and marks show that run. A row is done once it has a draft and no job left.
+function runCount(g: GenerationDto, rows: GenerationPart[]) {
   const c = g.checkpoint
-  if (c.kind === 'drafting' && c.step === step) {
-    const mine = c.parts.every((id) => rows.some((p) => p.id === id))
-    return mine ? { done: c.done, of: c.parts.length, progress: c.done / c.parts.length } : null
+  if (c.kind === 'drafting') {
+    if (!rows.every((p) => c.parts.includes(p.id))) return null
+    const done = rows.filter((p) => p.drafted && !p.job).length
+    return { done, of: rows.length, progress: done / rows.length }
   }
   const failedStep = c.kind === 'failed' && rows.some((p) => c.failed.includes(p.id))
   if (!failedStep) return null
@@ -103,19 +105,19 @@ export function DraftingSteps({
     }
   }
 
-  // Phones show the current step open and fold the others to one line. With no current step
-  // (all drafted), a step holding an out-of-date section opens, so the flag is in view.
-  const anyNow = [g.steps.one, g.steps.two, g.steps.three].some((s) => s.state === 'now')
+  // Phones show the current step open and fold the others to one line. A step holding an
+  // out-of-date section, or one a run is drafting, opens too, so its flag or spinner is in view
+  // (Section 7 redrafted with step 3 shows only in step 1).
   const open = (n: number, state: string, rows: GenerationPart[]) =>
-    !phone || opened.includes(n) || state === 'now' || (!anyNow && rows.some((p) => p.outOfDate))
+    !phone || opened.includes(n) || state === 'now' || rows.some((p) => p.outOfDate || p.job)
   const fold = (n: number, state: string, rows: GenerationPart[], summary: string) => ({
     collapsed: !open(n, state, rows),
     onExpand: () => setOpened((o) => [...o, n]),
     summary,
   })
 
-  const oneRun = runCount(g, 1, one)
-  const threeRun = runCount(g, 3, three)
+  const oneRun = runCount(g, one)
+  const threeRun = runCount(g, three)
   const tasksDone = g.tasks.filter((t) => t.done).length
   // The engineer's turn: amber tiles and rows that open Review. An admin only watches.
   const turn = g.steps.two.state === 'now' && g.canStart
@@ -211,7 +213,7 @@ export function DraftingSteps({
             line={
               g.steps.three.state === 'done' && g.steps.three.draftedAt
                 ? { icon: 'clock', text: draftedWhen(g.steps.three.draftedAt) }
-                : { icon: 'sparkles', text: stepThreeParts(g.steps.three.parts) }
+                : { icon: 'sparkles', text: STEP_THREE_LINE }
             }
             count={threeRun ?? undefined}
             progress={threeRun?.progress}

@@ -263,7 +263,7 @@ describe("MarshBot's next step follows Generation's checkpoint (AC 12)", () => {
     expect(m.generation).toEqual({ kind: 'ready', step: 3, parts: ['7', '4', '5', '2'] })
     expect(m.says).toEqual([
       'The last sections are ready to draft from your input.',
-      "Section 7 is out of date, so it's redrafted first. Drafting 4 sections runs in the background and takes a few minutes. Start it from Generation.",
+      "Section 7 is out of date, so it's redrafted too. Drafting 4 sections runs in the background and takes a few minutes. Start it from Generation.",
     ])
     expect(m.cta).toEqual({ label: 'Open Generation', link: { tab: 'generate' } })
   })

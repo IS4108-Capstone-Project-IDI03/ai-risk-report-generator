@@ -1098,7 +1098,7 @@ describe('other stages', () => {
       'Redraft them from Generation. Redrafting keeps the findings you accepted.',
     ])
     expect(says({ kind: 'drafted' })).toEqual([
-      'All 11 sections are drafted. Review them, then export the report.',
+      'All 11 sections are drafted and ready for you to review before you export the report.',
     ])
   })
 
