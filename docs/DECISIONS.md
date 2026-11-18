@@ -2634,3 +2634,18 @@ Rejected:
 - The type control in both the upload row and Recent uploads: two controls for one document on one screen.
 
 Stories: IN-19, IN-05, PV-05.
+
+## 2026-11-18 — Type3 text is redrawn at its height and a line at a time
+
+When the redactor redraws a page, a span PyMuPDF reports under 1 pt is redrawn at its height, and the glyphs of a Type3 line, which PyMuPDF reads one per line, are joined into one span first, with a space at a visible gap. Only spans under 1 pt are changed, so other pages are read and drawn exactly as before. The chunker also joins a picture's prose items of 1-3 characters on one baseline, and logs a warning when a picture's prose is still mostly such items.
+
+Reason: NFPA standards set text in a Type3 font at 0.1 pt and scale it up through the font's FontMatrix, which PyMuPDF doesn't apply to the size it reports. Sent through redaction (D4 has since stopped that for documents whose type is unknown), they were redrawn at 0.1 pt, glyph by glyph: Docling made each glyph a paragraph, and `/mask` read lone letters, some tagged `[PERSON_n]`.
+
+Rejected:
+- A page-ink check with a scanned-page fallback: once the size and the joining are right there is no case it would catch, and none could be built to test it.
+- A minimum length for a `PERSON` tag: it treats the symptom; joining the glyphs removes the cause.
+- A flag on a passage whose prose is mostly glyphs: a warning in the log is enough to find such a PDF, and a flag would need somewhere to show.
+
+The test PDF is written by hand (a Type3 font of boxes with a ToUnicode map), as the NFPA PDFs are licensed and can't be committed.
+
+Stories: IN-19, PV-05.
