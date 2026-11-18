@@ -916,10 +916,11 @@ citing the sections it rests on as `S:<id>`), and "Changes Since Previous
 Survey" and "Planned Changes / Projects", left empty for the engineer.
 `evidence` and `sources` are empty. `summarised` records the version of each
 section it read (`{ sectionId, version }`: for 4-12, the saved draft's `_id`
-and its number of review decisions, as `<_id>:<n>`; for 3, the sorted accepted
+and a sha1 fingerprint of the text it read, as `<_id>:<sha1>` (before GN-13,
+`<_id>:<n>` with the number of review decisions; still compared); for 3, the sorted accepted
 OFI `_id`s, or `none` when a background job drafted Section 3 and the AI
 suggested no OFIs at all, GN-13), so a new draft, an accepted replacement, an edit or a rejection
-marks it out of date. It summarises each section's saved draft as reviewed
+marks it out of date; accepting a finding does not, as the text is unchanged. It summarises each section's saved draft as reviewed
 (RV-02): an edited finding as edited, a rejected one not at all, and a
 replacement only once accepted.
 `metadata.COPE_dimension` is `all`. Section 1, Purpose and Scope, is not
