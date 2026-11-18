@@ -284,6 +284,28 @@ describe('NotificationBell', () => {
     expect(await screen.findByText(/· Sana Patel reassigned it$/)).toBeInTheDocument()
   })
 
+  // GN-13 board 17: time · site; a failure's reason sits behind Show more, not on the line.
+  it('names the site on a drafting item and keeps a failure’s reason behind Show more', async () => {
+    const drafting = (id: string, status: string, message: string, details: string | null) => ({
+      ...makeItems(1)[0],
+      id,
+      purpose: 'drafting_status' as const,
+      message,
+      details,
+      context: { reference: 'RPT-2026-0039', status, site: 'Ridgeline Centre' },
+    })
+    stubGateway([
+      drafting('d1', 'ready', 'Your draft of Section 3 and Sections 6 to 12 is ready.', null),
+      drafting('d2', 'failed', 'Section 9 was not drafted.', 'The model did not answer.'),
+    ])
+    render(<Bell counts={{ total: 2, unread: 2 }} pageSize={5} />)
+    open()
+    expect(await screen.findAllByText(/· Ridgeline Centre$/)).toHaveLength(2)
+    expect(screen.queryByText(/The model did not answer/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(screen.getByText('The model did not answer.')).toBeInTheDocument()
+  })
+
   it('shows an error with a next step when the gateway fails, without blanking', async () => {
     const fetchMock = vi.fn(() => Promise.reject(new TypeError('network down')))
     vi.stubGlobal('fetch', fetchMock)

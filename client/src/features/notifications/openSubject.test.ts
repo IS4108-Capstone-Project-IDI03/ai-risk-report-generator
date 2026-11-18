@@ -43,6 +43,13 @@ describe('openSubject', () => {
     expect(heard.seen).toEqual([{ reference: 'RPT-2026-0009' }])
   })
 
+  it.each(['ready', 'failed'])('opens the assessment for a drafting update (%s)', (status) => {
+    const heard = listen(assessmentOpen.event)
+    openSubject(note('drafting_status', { reference: 'RPT-2026-0009', status }))
+    heard.stop()
+    expect(heard.seen).toEqual([{ reference: 'RPT-2026-0009' }])
+  })
+
   it.each(['site_walk_ready', 'site_walk_failed'] as const)(
     'opens the site walk review for %s',
     (purpose) => {

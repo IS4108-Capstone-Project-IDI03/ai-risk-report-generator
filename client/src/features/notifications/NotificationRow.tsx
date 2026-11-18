@@ -11,7 +11,9 @@ import { NotificationIcon } from './components/NotificationIcon'
 const FITS_ONE_LINE = 44
 
 // What the line beside the time says (board 11): the details' first line, or who moved it.
+// A drafting item (GN-13 board 17) names the site; a failure's reason waits behind Show more.
 function detailLine(n: Notification) {
+  if (n.purpose === 'drafting_status') return n.context?.site || null
   if (n.details) return n.details.split('\n')[0]
   return n.purpose === 'assessment_moved' && n.context?.sender
     ? `${n.context.sender} reassigned it`
@@ -42,7 +44,11 @@ export function NotificationRow({
   const line = detailLine(notification)
   // Only when there is more to read than the one line shows.
   const hasMore =
-    !!details && (!!request || details.includes('\n') || details.length > FITS_ONE_LINE)
+    !!details &&
+    (!!request ||
+      notification.purpose === 'drafting_status' ||
+      details.includes('\n') ||
+      details.length > FITS_ONE_LINE)
 
   const activate = () => {
     if (!notification.read) onMarkRead(notification.id)
