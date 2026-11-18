@@ -137,6 +137,62 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(posted[0].body).toBeInstanceOf(File)
   })
 
+  // IN-19: the type is chosen in Recent uploads, the server's record, so one control serves both.
+  it('marks an upload whose type could not be read Type needed, and lists it to choose one', async () => {
+    const awaiting = { ...NFPA, fileName: 'scan.pdf', title: 'scan.pdf', status: 'awaiting_type' }
+    const list: unknown[] = []
+    mockGateway(list, {
+      'scan.pdf': () => {
+        list.push(awaiting)
+        return json(201, awaiting)
+      },
+    })
+    await openAddDocuments()
+
+    choose(pdf('scan.pdf'))
+
+    const row = screen.getByRole('group', { name: 'scan.pdf' })
+    expect(await within(row).findByText('Type needed')).toBeInTheDocument()
+    expect(within(row).getByText('Choose its source type in Recent uploads.')).toBeInTheDocument()
+    expect(within(row).queryByRole('combobox')).not.toBeInTheDocument()
+    const recent = screen.getByRole('region', { name: 'Recent uploads' })
+    expect(
+      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows an upload as Uploaded once its type is chosen in Recent uploads', async () => {
+    const awaiting = { ...NFPA, fileName: 'scan.pdf', title: 'scan.pdf', status: 'awaiting_type' }
+    const list: Record<string, unknown>[] = []
+    mockGateway(list, {
+      'scan.pdf': () => {
+        list.push({ ...awaiting })
+        return json(201, awaiting)
+      },
+      // The source-type POST carries no fileName.
+      '': () => {
+        list[0].status = 'queued'
+        return json(200, list[0])
+      },
+    })
+    await openAddDocuments()
+    choose(pdf('scan.pdf'))
+    const row = screen.getByRole('group', { name: 'scan.pdf' })
+    await within(row).findByText('Type needed')
+    const recent = screen.getByRole('region', { name: 'Recent uploads' })
+
+    fireEvent.change(
+      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
+      { target: { value: 'nfpa_standard' } },
+    )
+    fireEvent.click(within(recent).getByRole('button', { name: 'Start ingestion' }))
+
+    expect(await within(row).findByText('Uploaded')).toBeInTheDocument()
+    expect(
+      within(row).queryByText('Choose its source type in Recent uploads.'),
+    ).not.toBeInTheDocument()
+  })
+
   it('uploads a Word file the same way, sending its own type', async () => {
     const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     const posted = mockGateway([])

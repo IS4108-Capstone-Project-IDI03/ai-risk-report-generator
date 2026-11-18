@@ -2,6 +2,7 @@
 the OCR crops, embedding and storage all read tags. privacy-service is faked (`fake_privacy`);
 PDFs are built with pymupdf and read back as text."""
 
+import re
 from functools import cache
 from pathlib import Path
 
@@ -230,6 +231,115 @@ def test_a_word_drawn_in_two_pieces_reaches_mask_as_one_word(fake_privacy):
     redact_pdf(doc.tobytes(), session(PRIVACY))
 
     assert fake_privacy.requests[0]["texts"][0].split() == ["Sprinkler", "Test"]
+
+
+# --- IN-19 (D3): text in a Type3 font set at 0.1 pt, which a FontMatrix scales to 7 pt, as in
+# the NFPA PDFs. No such PDF can be committed (they are licensed), so one is written by hand.
+
+
+def type3_pdf_of(*lines: str, tracking: float = 0.0) -> bytes:
+    """A one-page PDF whose lines are drawn in a Type3 font (each glyph a box, mapped back to
+    its character by a ToUnicode CMap) at `0.1 Tf`, each glyph placed and drawn on its own,
+    `tracking` points apart within a word. Glyphs are 6 pt wide and 7 pt tall on the page."""
+    codes = range(32, 127)
+    objects: list[bytes] = []
+
+    def add(body: bytes) -> int:
+        objects.append(body)
+        return len(objects)
+
+    def stream(data: bytes) -> int:
+        return add(b"<< /Length %d >>\nstream\n%b\nendstream" % (len(data), data))
+
+    glyph = {
+        c: stream(b"600 0 d0" if c == 32 else b"600 0 0 0 550 700 d1 50 0 500 700 re f")
+        for c in codes
+    }
+    cmap = stream(
+        b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /T3 def"
+        b" /CMapType 2 def 1 begincodespacerange <00> <FF> endcodespacerange"
+        b" 1 beginbfrange <20> <7E> <0020> endbfrange endcmap"
+        b" CMapName currentdict /CMap defineresource pop end end"
+    )
+    font = add(
+        b"<< /Type /Font /Subtype /Type3 /FontBBox [0 0 600 700] /FontMatrix [0.1 0 0 0.1 0 0]"
+        b" /CharProcs << %b >>"
+        % b" ".join(b"/g%d %d 0 R" % (c, n) for c, n in glyph.items())
+        + b" /Encoding << /Differences [32 %b] >>" % b" ".join(b"/g%d" % c for c in codes)
+        + b" /FirstChar 32 /LastChar 126 /Widths [%b]" % b" ".join(b"600" for _ in codes)
+        + b" /ToUnicode %d 0 R >>" % cmap
+    )
+    drawn = [b"BT /F1 0.1 Tf"]
+    for n, line in enumerate(lines):
+        x, y = 50.0, 750.0 - 20 * n
+        for character in line:
+            if character != " ":
+                code = re.sub(rb"([()\\])", rb"\\\1", character.encode())
+                drawn.append(b"1 0 0 1 %.2f %.2f Tm (%b) Tj" % (x, y, code))
+            x += 6 + (tracking if character != " " else 0)
+    contents = stream(b"\n".join([*drawn, b"ET"]))
+    pages = len(objects) + 2  # the page comes next, then its parent
+    page = add(
+        b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 595 842] /Contents %d 0 R"
+        b" /Resources << /Font << /F1 %d 0 R >> >> >>" % (pages, contents, font)
+    )
+    add(b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
+    catalog = add(b"<< /Type /Catalog /Pages %d 0 R >>" % pages)
+    pdf = bytearray(b"%PDF-1.7\n")
+    offsets = []
+    for n, body in enumerate(objects, 1):
+        offsets.append(len(pdf))
+        pdf += b"%d 0 obj\n%b\nendobj\n" % (n, body)
+    table = len(pdf)
+    pdf += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    pdf += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    pdf += b"trailer\n<< /Size %d /Root %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objects) + 1,
+        catalog,
+        table,
+    )
+    return bytes(pdf)
+
+
+def test_the_type3_fixture_reports_text_at_a_tenth_of_a_point():
+    # The fixture reproduces the NFPA PDFs: PyMuPDF reports the set size, not the rendered one.
+    [span, *_] = spans_of(type3_pdf_of("Inspected by John Tan."))
+
+    assert span["text"] == "Inspected"
+    assert span["size"] == pytest.approx(0.1)
+    assert pymupdf.Rect(span["bbox"]).height == pytest.approx(7)
+
+
+def test_a_type3_page_is_redrawn_at_the_size_it_renders_and_reads_the_same(fake_privacy):
+    # Redrawn at the reported 0.1 pt, the page's text was too small for Docling to read in order.
+    redacted, _ = redact_pdf(type3_pdf_of("Inspected by John Tan on 3 May."), session(PRIVACY))
+
+    assert text_of(redacted) == ["Inspected by [PERSON_1] on 3 May."]
+    assert min(span["size"] for span in spans_of(redacted)) >= 5
+
+
+def test_a_type3_word_drawn_a_glyph_at_a_time_reaches_mask_as_one_word(fake_privacy):
+    # With a little space between glyphs PyMuPDF gives each glyph its own line, so /mask read
+    # "J\no\nh\nn" and the name model tagged single letters as people.
+    pdf = type3_pdf_of("Inspected by John Tan on 3 May.", "The riser was shut.", tracking=0.3)
+
+    redact_pdf(pdf, session(PRIVACY))
+
+    assert fake_privacy.requests[0]["texts"][0] == (
+        "Inspected by John Tan on 3 May.\nThe riser was shut."
+    )
+
+
+def test_a_type3_line_is_redrawn_as_one_run_not_a_glyph_at_a_time(fake_privacy):
+    # Redrawn glyph by glyph, Docling read each glyph as a paragraph of its own.
+    pdf = type3_pdf_of("Inspected by John Tan on 3 May.", "The riser was shut.", tracking=0.3)
+
+    redacted, _ = redact_pdf(pdf, session(PRIVACY))
+
+    assert [span["text"] for span in spans_of(redacted)] == [
+        "Inspected by [PERSON_1] on 3 May.",
+        "The riser was shut.",
+    ]
 
 
 # --- PV-06: a scanned page (no text layer) is read with RapidOCR, and its details blanked.

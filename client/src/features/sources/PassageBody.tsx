@@ -1,6 +1,8 @@
 // A cited passage's text (CB-02 AC1, KB-02 AC5): the quoted words marked, and a formula the OCR
 // read as LaTeX shown as math when the LaTeX is valid, else as written.
-// Used by the chat's citation panel and the review workspace's source panel.
+// Used by the chat's citation panel, the review workspace's source panel and the Passages view.
+// `folded`: the text sits in a closed disclosure, for a table or formula whose region of the
+// original page is drawn above it (useFoldedText); open when it holds the quoted words.
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { quoteSpan } from '../chat/components/quoteSpan'
 import { runsOf } from './mathText'
@@ -11,6 +13,8 @@ type Props = {
   /** The element and class it is drawn as: the chat's paragraph, or review's blockquote. */
   as?: 'p' | 'blockquote'
   className?: string
+  /** Behind "Show extracted text", as the drawn region above already shows it. */
+  folded?: boolean
 }
 type RenderMath = (latex: string, display: boolean) => string | null
 
@@ -52,6 +56,7 @@ export function PassageBody({
   quote,
   as: Tag = 'p',
   className = 'chat-passage-text',
+  folded = false,
 }: Props) {
   const renderMath = useMathRenderer()
   const span = quoteSpan(quote, text)
@@ -63,10 +68,19 @@ export function PassageBody({
     if (html) return <span key={run.start} dangerouslySetInnerHTML={{ __html: html }} />
     return <Fragment key={run.start}>{marked(text, run.start, run.end, span)}</Fragment>
   })
-  return (
+  const body = (
     // Focusable, so a keyboard user can scroll a long passage.
     <Tag className={className} tabIndex={0} aria-label="Passage text">
       {parts}
     </Tag>
+  )
+  if (!folded) return body
+  return (
+    // Native <details>: keyboard and screen readers open it with no script. A found quote opens it,
+    // so the highlight is never hidden.
+    <details className="src-extracted" open={span !== null || undefined}>
+      <summary>Show extracted text</summary>
+      {body}
+    </details>
   )
 }

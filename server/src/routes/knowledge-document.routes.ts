@@ -8,6 +8,8 @@ import type { z } from 'zod'
 import {
   correctKnowledgeDocument,
   cancelIngestion,
+  chooseSourceType,
+  sourceTypeChoiceSchema,
   documentDetailsSchema,
   getKnowledgeDocument,
   getKnowledgeDocumentFile,
@@ -183,6 +185,24 @@ router.post('/:id/retry', requirePermission('knowledge:manage'), async (req, res
     const { id, name } = res.locals.user!
     await retryIngestion(req.params.id, { id, name })
     res.status(202).end()
+  } catch (error: unknown) {
+    answerStateChange(error, res)
+  }
+})
+
+// Chooses the source type of a document labelling couldn't type, and queues
+// its ingestion (IN-19). Answers: 200 the document, queued · 400 a type not on
+// the list · 404 unknown · 409 not awaiting a type · 503 the queue could not be
+// reached (still awaiting a type).
+router.post('/:id/source-type', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = sourceTypeChoiceSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.json(await chooseSourceType(req.params.id, parsed.data.sourceType, { id, name }))
   } catch (error: unknown) {
     answerStateChange(error, res)
   }

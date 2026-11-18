@@ -1,7 +1,8 @@
 // The part of the original page a table, formula or picture passage was read from (KB-02 AC1-AC4),
 // drawn by react-pdf like the chat's PDF tab and cut to the region's box, one frame per page.
 // Loaded lazily by PassageDetails, so pdf.js stays out of the first download. Shows nothing when
-// the file or a page can't be drawn: the passage text below still stands.
+// the file or a page can't be drawn: the passage text below still stands. `onDrawn` says when every
+// page's frame is cut, so a view can fold a table's or formula's text behind it.
 import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { Document, Page } from 'react-pdf'
@@ -24,10 +25,24 @@ const MARGIN = 8
 
 type Size = { width: number; height: number }
 
-type Props = { fileUrl: string; kind: RegionKind; boxes: PageBox[] }
+type Props = {
+  fileUrl: string
+  kind: RegionKind
+  boxes: PageBox[]
+  /** Called once every page's frame is cut; never when one fails. */
+  onDrawn?: () => void
+}
 
 /** One frame per page the region covers, in page order, each cut to its box. */
-export function SourceRegion({ fileUrl, kind, boxes }: Props) {
+export function SourceRegion({ fileUrl, kind, boxes, onDrawn }: Props) {
+  const frames = boxesByPage(boxes)
+  // The frames cut so far, by key; a ref, as only the call to onDrawn depends on it. A frame is
+  // keyed by its box, so another region on the same page is cut afresh.
+  const cutFrames = useRef(new Set<string>())
+  const frameCut = (key: string) => {
+    cutFrames.current.add(key)
+    if (frames.every((box) => cutFrames.current.has(frameKey(box)))) onDrawn?.()
+  }
   // Wrapped as { range }, react-pdf's form for a byte-range source; kept in state so it is the
   // same object every render (a new one would reload the document).
   const [source, setSource] = useState<{
@@ -58,17 +73,20 @@ export function SourceRegion({ fileUrl, kind, boxes }: Props) {
       onLoadError={() => setFailed(true)}
     >
       <div className="src-regions">
-        {boxesByPage(boxes).map((box) => (
+        {frames.map((box) => (
           <RegionFrame
-            key={box.page}
+            key={frameKey(box)}
             box={box}
             name={`${NAMES[kind]} on page ${box.page} of the original`}
+            onCut={() => frameCut(frameKey(box))}
           />
         ))}
       </div>
     </Document>
   )
 }
+
+const frameKey = (b: PageBox) => `${b.page}:${b.l},${b.t},${b.r},${b.b}`
 
 /** The region's boxes as one box per page (their union), in page order. */
 function boxesByPage(boxes: PageBox[]): PageBox[] {
@@ -111,12 +129,26 @@ function withMargin(box: PageBox, page: Size | null): PageBox {
 
 /** The box cut out of the drawn page as an image, which the panel scales down to fit like any
  * picture. The page is drawn out of sight, then let go once its box is copied. */
-function RegionFrame({ box: tight, name }: { box: PageBox; name: string }) {
+function RegionFrame({
+  box: tight,
+  name,
+  onCut,
+}: {
+  box: PageBox
+  name: string
+  onCut: () => void
+}) {
   const [size, setSize] = useState<Size | null>(null)
   // The cut image and its shape (width over height), which a view may size it by.
   const [cut, setCut] = useState<{ src: string; ratio: number } | null>(null)
   const [failed, setFailed] = useState(false)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const isCut = cut !== null
+  useEffect(() => {
+    if (isCut) onCut()
+    // Once per cut; onCut is a new function every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCut])
   if (failed) return null
   if (cut)
     return (

@@ -99,6 +99,56 @@ def test_the_prose_around_a_picture_stays_with_it_and_the_caption_appears_once(r
     )
 
 
+def glyphs(doc, line, left, top, page=1):
+    """`line` as Docling reads text drawn a glyph at a time (IN-19, D3): one 6 pt wide item per
+    character on one baseline, a word space between words."""
+    x = left
+    for character in line:
+        if character != " ":
+            doc.add_text(DocItemLabel.TEXT, character, prov=_prov(page, x, top, x + 6, top - 7))
+        x += 6 if character != " " else 3
+
+
+def test_prose_read_a_glyph_at_a_time_beside_a_picture_is_joined_into_its_lines(reader):
+    # Found in NFPA 25 after redaction: a picture's prose was one paragraph per glyph.
+    doc = _document()
+    doc.add_heading("Fire Protection", level=1, prov=_prov(1, 10, 390, 200, 380))
+    glyphs(doc, "Riser valve", 10, 375)
+    glyphs(doc, "is shut.", 10, 365)
+    _picture(doc, (50, 350, 250, 200), caption="Figure 3 Pump room")
+
+    [passage] = _chunk(doc)
+
+    assert passage["text"] == f"Riser valve\n\nis shut.\n\nFigure 3 Pump room\n{PUMP_ROOM}"
+
+
+def test_short_prose_paragraphs_that_are_not_on_one_line_stay_apart(reader):
+    # A guard: list markers and figure labels stacked down the page are not one word.
+    doc = _document()
+    doc.add_heading("Fire Protection", level=1, prov=_prov(1, 10, 390, 200, 380))
+    doc.add_text(DocItemLabel.TEXT, "A", prov=_prov(1, 10, 375, 16, 368))
+    doc.add_text(DocItemLabel.TEXT, "B", prov=_prov(1, 10, 360, 16, 353))
+    _picture(doc, (50, 350, 250, 200), caption="Figure 3 Pump room")
+
+    [passage] = _chunk(doc)
+
+    assert passage["text"].startswith("A\n\nB\n\n")
+
+
+def test_prose_still_mostly_single_glyphs_is_logged(reader, caplog):
+    # No passage flag: a warning, so a PDF drawn in a way the join misses is noticed.
+    doc = _document()
+    doc.add_heading("Fire Protection", level=1, prov=_prov(1, 10, 390, 200, 380))
+    for n, character in enumerate("ABCDEF"):
+        top = 375 - 12 * n
+        doc.add_text(DocItemLabel.TEXT, character, prov=_prov(1, 10, top, 16, top - 7))
+    _picture(doc, (50, 300, 250, 200), caption="Figure 3 Pump room")
+
+    _chunk(doc)
+
+    assert "mostly 1-3 character paragraphs (6 of 6)" in caplog.text
+
+
 def test_a_described_picture_is_marked_as_generated_with_who_wrote_it(reader, monkeypatch):
     monkeypatch.setenv("OCR_PROVIDER", "anthropic")
     monkeypatch.delenv("OCR_MODEL", raising=False)

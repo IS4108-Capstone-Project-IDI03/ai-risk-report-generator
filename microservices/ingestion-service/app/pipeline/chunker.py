@@ -23,6 +23,7 @@ We embed with Cohere ``embed-v4.0`` (128k-token limit), so 512 is far too small.
 Adjust ``MAX_CHUNK_TOKENS`` (and ``CHUNK_TOKENIZER_MODEL`` if desired) below.
 """
 
+import logging
 import os
 import re
 from collections.abc import Callable
@@ -52,6 +53,8 @@ from app.pipeline.chunking_helper.table_parser import parse_table
 from app.pipeline.chunking_helper.table_text import group_records, split_tables
 from app.pipeline.parser import ParsedDocument
 from app.privacy import Session
+
+logger = logging.getLogger(__name__)
 
 # --- chunk sizing
 MAX_CHUNK_TOKENS = 1024
@@ -253,6 +256,31 @@ def _chunk_bbox(dl_chunk) -> list[dict]:
     return _bbox_area_deduplication(chunk_bboxes)
 
 
+def _formula_boxes(dl_chunk) -> list[dict]:
+    """The boxes of a chunk's one FORMULA item, or [] if it has none or several."""
+    items = [
+        item
+        for item in getattr(dl_chunk.meta, "doc_items", None) or []
+        if getattr(item, "label", None) == DocItemLabel.FORMULA
+    ]
+    if len(items) != 1:
+        return []
+    return _item_boxes(items[0])
+
+
+def _item_boxes(item) -> list[dict]:
+    """An item's own boxes, one per provenance, as `_region` reads them."""
+    return [
+        {
+            "page": getattr(prov, "page_no", None),
+            "bbox": [float(v) for v in (prov.bbox.l, prov.bbox.t, prov.bbox.r, prov.bbox.b)],
+            "coord_origin": str(getattr(prov.bbox, "coord_origin", "")),
+        }
+        for prov in getattr(item, "prov", None) or []
+        if getattr(prov, "bbox", None) is not None
+    ]
+
+
 def _is_table_chunk(dl_chunk) -> bool:
     """True if a chunk is derived (wholly or partly) from a table.
 
@@ -323,6 +351,7 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
     # chunk skips the formula path, and a crop of all its text would take
     # in the picture too.
     equations: list[dict] = []
+    glyph = None  # the last prose item, while it is a glyph a line may go on from
     for item in items:
         if item.self_ref in kept:
             picture = resolved[item.self_ref]
@@ -339,10 +368,66 @@ def _pictures_of(dl_chunk, doc, seen_bboxes: list[dict]) -> list[dict]:
             continue
         text = (getattr(resolved[item.self_ref], "text", "") or "").strip()
         if text and item.self_ref not in caption_refs:
-            (pictures[-1]["after"] if pictures else before).append(text)
+            prose = pictures[-1]["after"] if pictures else before
+            box = _glyph_box(item, text)
+            joined = _glyph_join(glyph, box) if prose else None
+            if joined is not None:
+                prose[-1] += joined + text
+            else:
+                prose.append(text)
+            glyph = box
             if item.label == DocItemLabel.FORMULA or _looks_like_equation(text):
                 equations.append({"text": text, "boxes": _picture_boxes(item)})
+    for picture in pictures:
+        _warn_if_glyphs(picture["before"] + picture["after"])
     return pictures
+
+
+# Text this short, set on one baseline beside the item before it, is one line drawn a glyph at a
+# time (IN-19, D3): Docling makes each glyph an item of its own.
+_GLYPH_LENGTH = 3
+
+
+def _glyph_box(item, text: str):
+    """An item's one box, if its text is short enough to be a glyph. `b` is its bottom edge in
+    either coordinate origin, so two boxes' baselines compare."""
+    provs = getattr(item, "prov", None) or []
+    if len(text) > _GLYPH_LENGTH or len(provs) != 1:
+        return None
+    prov = provs[0]
+    box = prov.bbox
+    return {
+        "page": prov.page_no,
+        "l": box.l,
+        "r": box.r,
+        "bottom": box.b,
+        "height": abs(box.t - box.b),
+    }
+
+
+def _glyph_join(before, box) -> str | None:
+    """What goes between two glyph items on one line ("" or a space), or None if `box` doesn't
+    carry on `before`'s line: same page and baseline, starting within a glyph's height."""
+    if before is None or box is None or before["page"] != box["page"]:
+        return None
+    height = max(before["height"], box["height"]) or 1
+    gap = box["l"] - before["r"]
+    if abs(before["bottom"] - box["bottom"]) > 0.2 * height or not -0.2 * height <= gap <= height:
+        return None
+    return " " if gap >= 0.2 * height else ""
+
+
+def _warn_if_glyphs(paragraphs: list[str]) -> None:
+    """Log a passage whose prose is still mostly a glyph or two a paragraph: its PDF draws text
+    in a way the join above doesn't recognise."""
+    short = sum(len(p) <= _GLYPH_LENGTH for p in paragraphs)
+    if len(paragraphs) >= 5 and short * 2 > len(paragraphs):
+        logger.warning(
+            "A picture's prose is mostly 1-3 character paragraphs (%d of %d); its text may be "
+            "drawn a glyph at a time.",
+            short,
+            len(paragraphs),
+        )
 
 
 def _pages_of(meta) -> list[int]:
@@ -367,22 +452,78 @@ def _update_section_stack(stack: list[tuple[int, str]], level: int, text: str) -
 
 
 def _build_section_trails(doc) -> dict[str, list[str]]:
-    """Map each document item's self_ref -> its heading trail (outermost first)."""
+    """Map each document item's self_ref -> its heading trail (outermost first).
+
+    Heading text is normalised (`_heading_text`), and two kinds of heading are left out of every
+    trail (IN-19, D1): a text repeated on many pages, which is a running header or a watermark
+    Docling read as a body heading ("25 NFPA ®", "EDUFIRE"; true page headers are already in
+    Docling's furniture layer), and a "Table … Continued" label, which would cut the clause
+    trail in the middle of a section.
+    """
+    items = list(doc.iterate_items(with_groups=False))
+    headings = [(item, level) for item, _ in items if (level := _heading_level(item)) is not None]
+    repeated = _repeated_headings([item for item, _ in headings], doc)
     trails: dict[str, list[str]] = {}
     stack: list[tuple[int, str]] = []
-    for item, _tree_level in doc.iterate_items(with_groups=False):
-        label = getattr(item, "label", None)
-        if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
-            _update_section_stack(stack, 0, item.text)
-
-        elif isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
-            level = getattr(item, "level", 1) or 1
-            _update_section_stack(stack, level, item.text)
+    for item, _tree_level in items:
+        level = _heading_level(item)
+        if level is not None:
+            text = _heading_text(item.text)
+            if text and text not in repeated and not _CONTINUED.match(text):
+                _update_section_stack(stack, level, text)
 
         self_ref = getattr(item, "self_ref", None)
         if self_ref is not None:
             trails[self_ref] = [text for _lvl, text in stack]
     return trails
+
+
+def _heading_level(item) -> int | None:
+    """0 for a title, a section heading's level (1 if unknown), or None if not a heading."""
+    label = getattr(item, "label", None)
+    if isinstance(item, TitleItem) or label == DocItemLabel.TITLE:
+        return 0
+    if isinstance(item, SectionHeaderItem) or label == DocItemLabel.SECTION_HEADER:
+        return getattr(item, "level", 1) or 1
+    return None
+
+
+# A table or figure label repeated where it carries on: "Table 3.3.1 Continued",
+# "Figure A.4 (continued)".
+_CONTINUED = re.compile(r"^(?:Table|Figure|Exhibit)\b.*\bcontinued\W*$", re.IGNORECASE)
+# NFPA's change markers before a clause number ("Δ 3.3.1", "N 3.3.2"), and the "*" after one
+# that points to its Annex note ("3.3.1*"). IN-17's outline (`app/outline.py` `_CLAUSE`) reads
+# clause numbers with or without them.
+_CLAUSE_NUMBER = r"(?:\d{1,2}|[A-Z])(?:\.\d+)+"
+_CHANGE_MARKER = re.compile(rf"^(?:Δ\s*)?(?:N\s*(?={_CLAUSE_NUMBER}))?")
+_ANNEX_STAR = re.compile(rf"^({_CLAUSE_NUMBER})\*")
+# A heading on at least this many pages, and on more than this share of them, is a running
+# header or a watermark, not a section.
+_REPEATED_PAGES = 3
+_REPEATED_SHARE = 0.2
+
+
+def _heading_text(text: str) -> str:
+    """A heading as a trail shows it: whitespace collapsed, NFPA's change markers and a clause
+    number's Annex "*" removed."""
+    text = " ".join((text or "").split())
+    text = _CHANGE_MARKER.sub("", text, count=1)
+    return _ANNEX_STAR.sub(r"\1", text, count=1)
+
+
+def _repeated_headings(headings: list, doc) -> set[str]:
+    """The heading texts found on so many pages that they are a running header or watermark."""
+    pages_of: dict[str, set[int]] = {}
+    for item in headings:
+        text = _heading_text(item.text)
+        for item_prov in getattr(item, "prov", None) or []:
+            pages_of.setdefault(text, set()).add(item_prov.page_no)
+    total = len(getattr(doc, "pages", None) or {}) or len(set().union(*pages_of.values(), set()))
+    return {
+        text
+        for text, pages in pages_of.items()
+        if len(pages) >= _REPEATED_PAGES and len(pages) > _REPEATED_SHARE * total
+    }
 
 
 def _resolved(item, doc):
@@ -508,6 +649,38 @@ def _build_metadata(
     return metadata
 
 
+def _region(kind: str, boxes: list[dict], page_heights: dict[int, float] | None) -> dict:
+    """The region keys of a passage read from `boxes` (IN-19, D2): `region_kind`, and the boxes
+    as a flat `[l, t, r, b, ...]` from the page's bottom-left with each one's page, so a citation
+    can show only that part of the page (KB-02; rag-service `chat/passages.py`). Empty when a box
+    is measured from the top and its page's height is unknown: no region beats a wrong one."""
+    flat: list[float] = []
+    pages: list[int] = []
+    for box in boxes:
+        left, top, right, bottom = (float(v) for v in box["bbox"])
+        if "TOP" in str(box.get("coord_origin", "")).upper():
+            height = (page_heights or {}).get(box.get("page"))
+            if height is None:
+                return {}
+            top, bottom = height - top, height - bottom
+        if not isinstance(box.get("page"), int):
+            return {}
+        flat += [left, top, right, bottom]
+        pages.append(box["page"])
+    if not flat:
+        return {}
+    return {"region_kind": kind, "region_bbox": flat, "region_pages": pages}
+
+
+def _page_heights(doc) -> dict[int, float]:
+    """Each page's height in points, to measure a box from the bottom instead of the top."""
+    return {
+        number: float(page.size.height)
+        for number, page in (getattr(doc, "pages", None) or {}).items()
+        if getattr(page, "size", None) is not None
+    }
+
+
 def _extract_table_chunk(
     table_bboxes: list[dict],
     doc_path: str,
@@ -518,6 +691,7 @@ def _extract_table_chunk(
     caption: str = "",
     position: int | None = None,
     protection: Session | None = None,
+    page_heights: dict[int, float] | None = None,
 ) -> list[dict] | None:
     """Extract a region's tables into index-ready chunks, or None.
 
@@ -534,16 +708,19 @@ def _extract_table_chunk(
     groups that each repeat the title, so one answering row is not drowned by
     the rest. Every chunk carries `table_id`, shared by its groups, so a hit can
     be widened to the whole table at search time. A table spanning pages is
-    decoded page by page and its pages joined in order.
+    decoded page by page and its pages joined in order. Each table item is read
+    on its own, so a second, untitled table is not taken for the first one's next
+    page, and its passages record only its own boxes as their region (IN-19).
 
     Returns None when nothing decoded, so the caller skips the table rather
     than indexing an empty chunk.
     """
     before: list[str] = []
     after: list[str] = []
-    readings: list[str] = []
+    # Each table item's page readings and the boxes they were read from, in order.
+    readings: dict[Any, list[str]] = {}
+    read_boxes: dict[Any, list[dict]] = {}
     unread: list[dict] = []
-    read_items: set = set()
     for box in table_bboxes:
         if not box.get("is_table", True):
             text = str(box.get("text", "")).strip()
@@ -559,15 +736,19 @@ def _extract_table_chunk(
             protection=protection,
         )
         if parsed and any(table.records for table in split_tables(parsed)):
-            readings.append(parsed)
-            read_items.add(box.get("item"))
+            readings.setdefault(box.get("item"), []).append(parsed)
+            read_boxes.setdefault(box.get("item"), []).append(box)
         else:
             unread.append(box)
 
-    text = "\n\n".join(readings)
-    if text and _is_first_pages(table_bboxes):
-        text = _clean_toc_leaders(text)
-    tables = [table for table in split_tables(text) if table.records]
+    first_pages = _is_first_pages(table_bboxes)
+    tables: list[tuple[Any, Any]] = []  # (table, the item it was read from)
+    for item, pages in readings.items():
+        text = "\n\n".join(pages)
+        if first_pages:
+            text = _clean_toc_leaders(text)
+        tables += [(table, item) for table in split_tables(text) if table.records]
+    read_items = set(readings)
     metadata = _build_metadata(
         meta, doc_id, headings=headings, bboxes=table_bboxes, position=position
     )
@@ -595,6 +776,7 @@ def _extract_table_chunk(
             headings=headings,
             position=position,
             protection=protection,
+            page_heights=page_heights,
         )
 
     if not tables:
@@ -605,10 +787,12 @@ def _extract_table_chunk(
         return [{"id": chunk_id, "text": prose, "metadata": metadata}] if prose else None
 
     chunks: list[dict] = []
-    for index, table in enumerate(tables):
+    for index, (table, item) in enumerate(tables):
         table_id = chunk_id if len(tables) == 1 else f"{chunk_id}:t{index}"
         title = (caption.strip() if index == 0 else "") or table.title
         groups = group_records(table.records)
+        # Every row group shows the whole table it belongs to.
+        region = _region("table", read_boxes[item], page_heights)
         for part, records in enumerate(groups):
             chunk_text = "\n".join(([title] if title else []) + records)
             chunks.append(
@@ -619,6 +803,7 @@ def _extract_table_chunk(
                         **metadata,
                         "table_id": table_id,
                         **({"table_title": title} if title else {}),
+                        **region,
                     },
                 }
             )
@@ -647,6 +832,7 @@ def _extract_picture_chunk(
     headings: list[str] | None = None,
     position: int | None = None,
     protection: Session | None = None,
+    page_heights: dict[int, float] | None = None,
 ) -> list[dict]:
     """Describe a chunk's pictures as passages, one per picture.
 
@@ -698,6 +884,8 @@ def _extract_picture_chunk(
                 generated_text="picture_description",
                 generated_by=reader(),
                 prompt_version=PICTURE_PROMPT_VERSION,
+                # A citation shows the picture it describes (IN-19).
+                **_region("picture", picture["boxes"], page_heights),
             )
         text = "\n\n".join(part for part in [*picture["before"], body, *picture["after"]] if part)
         if not text:
@@ -793,6 +981,7 @@ def chunk(
     # Precompute nested heading trails (self_ref -> trail) from heading levels,
     # since a chunk's own meta.headings is flat.
     section_trails = _build_section_trails(doc)
+    page_heights = _page_heights(doc)
 
     total_pages = parsed.page_count
     page_reached = 0
@@ -835,6 +1024,7 @@ def chunk(
                 headings=trail,
                 position=n,
                 protection=protection,
+                page_heights=page_heights,
             )
 
             if _is_table_chunk(dl_chunk):
@@ -859,6 +1049,7 @@ def chunk(
                         caption=_table_caption(dl_chunk, doc),
                         position=n,
                         protection=protection,
+                        page_heights=page_heights,
                     )
                     ocr_jobs.append((len(chunks), "table", job))
                     chunks.append(None)  # filled (or dropped) in pass 2
@@ -881,7 +1072,10 @@ def chunk(
                 continue
 
             chunk_bboxes: list[dict[Any, Any]] = _chunk_bbox(dl_chunk)
+            region: dict = {}
             if _has_formula_chunk(dl_chunk) or _looks_like_equation(text):
+                # The equation's own boxes when one item is the equation, else the chunk's (IN-19).
+                region = _region("formula", _formula_boxes(dl_chunk) or chunk_bboxes, page_heights)
                 # With formula enrichment OFF, formula text gets replaced with
                 #  <!-- formula-not-decoded -->, and an equation Docling took for
                 # text comes out flattened; pass 2 re-reads the region and keeps
@@ -895,13 +1089,16 @@ def chunk(
                 {
                     "id": f"{resolved_doc_id}:{n}",
                     "text": text,
-                    "metadata": _build_metadata(
-                        dl_chunk.meta,
-                        resolved_doc_id,
-                        headings=trail,
-                        bboxes=chunk_bboxes,
-                        position=n,
-                    ),
+                    "metadata": {
+                        **_build_metadata(
+                            dl_chunk.meta,
+                            resolved_doc_id,
+                            headings=trail,
+                            bboxes=chunk_bboxes,
+                            position=n,
+                        ),
+                        **region,
+                    },
                 }
             )
 

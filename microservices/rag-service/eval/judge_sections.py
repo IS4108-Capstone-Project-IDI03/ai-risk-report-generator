@@ -152,10 +152,11 @@ def scores_from(issues: list[Issue]) -> dict[str, float]:
 def _without_own_report(search, own_doc_id: str | None):
     """Wrap search so a case cannot use its own report's passages as precedent."""
 
-    def wrapped(requests):
+    # Search also takes the privacy session (and may take more): pass them through.
+    def wrapped(requests, *args, **kwargs):
         return [
             [h for h in hits if (h["metadata"] or {}).get("doc_id") != own_doc_id]
-            for hits in search(requests)
+            for hits in search(requests, *args, **kwargs)
         ]
 
     return wrapped

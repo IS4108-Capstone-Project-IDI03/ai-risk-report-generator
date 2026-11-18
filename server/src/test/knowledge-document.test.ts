@@ -584,6 +584,18 @@ describe('POST /api/knowledge-documents', () => {
     expect(response.body.unconfirmed).not.toContain('effectiveDate')
   })
 
+  // IN-19: a document is never ingested, or redacted, as an unknown type.
+  it('stores an upload whose type cannot be read as awaiting a type, and queues nothing', async () => {
+    const response = await upload(freshPdf(), { ...DETAILS, sourceType: 'ISO' })
+
+    expect(response.status).toBe(201)
+    expect(response.body.status).toBe('awaiting_type')
+    expect(queued).not.toHaveBeenCalled()
+    const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
+    expect(saved?.status).toBe('awaiting_type')
+    expect(s3.has(saved!.file.key)).toBe(true)
+  })
+
   it.each([
     ['cannot be reached', () => labelling.mockRejectedValue(new TypeError('fetch failed'))],
     ['times out', () => labelling.mockRejectedValue(new DOMException('timed out', 'TimeoutError'))],
@@ -593,7 +605,7 @@ describe('POST /api/knowledge-documents', () => {
     ],
     ['answers with bad JSON', () => labelling.mockResolvedValue(new Response('not json'))],
   ])(
-    'still uploads, with every detail but the date Unconfirmed, when /label %s',
+    'still uploads, awaiting a type, with every detail but the date Unconfirmed, when /label %s',
     async (_name, fail) => {
       vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const upload = api
@@ -618,8 +630,9 @@ describe('POST /api/knowledge-documents', () => {
           'jurisdiction',
           'facilityType',
         ],
+        status: 'awaiting_type',
       })
-      expect(queued).toHaveBeenCalledOnce()
+      expect(queued).not.toHaveBeenCalled()
     },
   )
 
@@ -704,7 +717,8 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
     ['unconfirmed', { unconfirmed: ['title'] }, 'Needs review'],
     ['matched', { match: matchTo(new Types.ObjectId()) }, 'Needs review'],
     ['still ingesting', { status: 'processing' }, 'Being ingested'],
-  ])('rejects a %s repeat with 409 naming the stored document', async (_n, state, shown) => {
+    ['awaiting a type', { status: 'awaiting_type' }, 'Awaiting a type'],
+  ])('rejects a repeat (%s) with 409 naming the stored document', async (_n, state, shown) => {
     const first = await upload(PDF)
     await KnowledgeDocumentModel.updateOne({ _id: first.body.id }, { status: 'complete', ...state })
 
@@ -770,11 +784,115 @@ describe('POST /api/knowledge-documents with a file already stored (IN-07 AC1)',
   })
 })
 
+describe('POST /api/knowledge-documents/:id/source-type (IN-19)', () => {
+  // An upload whose type /label couldn't read; its other details are read as usual.
+  const awaiting = async (details: Record<string, string> = DETAILS) =>
+    (await upload(freshPdf(), { ...details, sourceType: 'ISO' })).body.id as string
+  const choose = (id: string, sourceType: string) =>
+    api.post(`/api/knowledge-documents/${id}/source-type`).send({ sourceType })
+
+  it("saves the chosen type as the admin's and queues the document once", async () => {
+    const id = await awaiting()
+
+    const response = await choose(id, 'nfpa_standard')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      status: 'queued',
+      sourceType: 'nfpa_standard',
+      issuingBody: 'NFPA',
+      edition: '2022',
+      standardNumber: '13',
+      // Without a type, "all" facility types couldn't be accepted; the admin fills it in.
+      unconfirmed: ['facilityType'],
+    })
+    expect(response.body.handled.at).toBeTruthy()
+    expect(queued).toHaveBeenCalledExactlyOnceWith(id)
+    const saved = await KnowledgeDocumentModel.findById(id).lean()
+    expect(saved?.metadata.source_type).toBe('nfpa_standard')
+    expect(saved?.labelling?.details.source_type).toMatchObject({
+      value: 'nfpa_standard',
+      source: 'admin',
+    })
+  })
+
+  it('drops the edition and standard number, and their Unconfirmed marks, for a report', async () => {
+    const id = await awaiting({ ...REPORT, edition: '2022', standardNumber: 'nope!' })
+
+    const response = await choose(id, 'marsh_report')
+
+    expect(response.body).toMatchObject({
+      sourceType: 'marsh_report',
+      issuingBody: 'Marsh',
+      edition: null,
+      standardNumber: null,
+      unconfirmed: [],
+    })
+  })
+
+  it("leaves a local standard's issuing body empty", async () => {
+    const id = await awaiting()
+
+    const response = await choose(id, 'local_standard')
+
+    expect(response.body).toMatchObject({ sourceType: 'local_standard', issuingBody: null })
+  })
+
+  it('queues once when the type is chosen twice at the same time', async () => {
+    const id = await awaiting()
+
+    const [a, b] = await Promise.all([choose(id, 'nfpa_standard'), choose(id, 'fm_standard')])
+
+    expect([a.status, b.status].sort()).toEqual([200, 409])
+    expect(queued).toHaveBeenCalledOnce()
+  })
+
+  it('answers 409 for a document that is not awaiting a type, and changes nothing', async () => {
+    const queuedDoc = (await upload()).body.id as string
+    queued.mockClear()
+
+    const response = await choose(queuedDoc, 'fm_standard')
+
+    expect(response.status).toBe(409)
+    expect(queued).not.toHaveBeenCalled()
+    const saved = await KnowledgeDocumentModel.findById(queuedDoc).lean()
+    expect(saved?.metadata.source_type).toBe('nfpa_standard')
+  })
+
+  it('answers 400 for a type that is not on the list, and 404 for an unknown document', async () => {
+    const id = await awaiting()
+
+    expect((await choose(id, 'ISO')).status).toBe(400)
+    expect((await choose(String(new Types.ObjectId()), 'fm_standard')).status).toBe(404)
+    expect((await choose('not-an-id', 'fm_standard')).status).toBe(404)
+    expect((await KnowledgeDocumentModel.findById(id).lean())?.status).toBe('awaiting_type')
+  })
+
+  it('answers 503 and leaves the document awaiting a type when the queue cannot be reached', async () => {
+    const id = await awaiting()
+    const before = await KnowledgeDocumentModel.findById(id).lean()
+    queued.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:6379'))
+
+    const response = await choose(id, 'nfpa_standard')
+
+    expect(response.status).toBe(503)
+    const after = await KnowledgeDocumentModel.findById(id).lean()
+    expect(after).toMatchObject({
+      status: 'awaiting_type',
+      metadata: { source_type: null },
+      unconfirmed: before!.unconfirmed,
+      issuingBody: null,
+    })
+    expect(after?.handled).toBeUndefined()
+  })
+})
+
 describe('GET /api/knowledge-documents', () => {
-  it('lists recent uploads: in progress, complete for 24 hours, failed or cancelled for 7 days', async () => {
+  it('lists recent uploads: awaiting a type or in progress, complete for 24 hours, failed or cancelled for 7 days', async () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000)
     // The ingestion worker writes status and finishedAt; set them as it would.
     const cases = [
+      ['awaiting a type', { status: 'awaiting_type' }],
       ['queued', { status: 'queued' }],
       ['processing', { status: 'processing' }],
       ['complete 23 h ago', { status: 'complete', finishedAt: hoursAgo(23) }],
@@ -792,6 +910,7 @@ describe('GET /api/knowledge-documents', () => {
     const { body } = await api.get('/api/knowledge-documents')
 
     expect(body.map((d: { title: string }) => d.title).sort()).toEqual([
+      'awaiting a type',
       'cancelled 6 days ago',
       'complete 23 h ago',
       'failed 6 days ago',
@@ -2060,6 +2179,29 @@ describe('buildKnowledgeDocumentIndex', () => {
     error.mockRestore()
     await KnowledgeDocumentModel.deleteMany({})
     await KnowledgeDocumentModel.syncIndexes()
+  })
+
+  // IN-19 added awaiting_type to the index's statuses. MongoDB won't build an index under a
+  // name an index with another filter already has, so a database from before kept the old one.
+  it('replaces an index built with an older status filter', async () => {
+    await KnowledgeDocumentModel.collection.dropIndexes()
+    const older = { status: { $in: ['queued', 'processing', 'complete'] } }
+    await KnowledgeDocumentModel.collection.createIndex(
+      { 'file.sha256': 1 },
+      { unique: true, partialFilterExpression: older },
+    )
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await buildKnowledgeDocumentIndex()
+
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
+    const index = (await KnowledgeDocumentModel.collection.indexes()).find(
+      (i) => i.name === 'file.sha256_1',
+    )
+    expect(index?.partialFilterExpression).toEqual({
+      status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] },
+    })
   })
 })
 

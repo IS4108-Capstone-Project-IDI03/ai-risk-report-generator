@@ -22,6 +22,8 @@ const gone = (error: unknown) => {
 }
 
 const FAILED_TITLE = {
+  // A failed document never goes back to awaiting a type (IN-19); listed so every status has a title.
+  awaiting_type: 'Document already being retried',
   queued: 'Document already being retried',
   processing: 'Document already being retried',
   complete: 'Document already retried',

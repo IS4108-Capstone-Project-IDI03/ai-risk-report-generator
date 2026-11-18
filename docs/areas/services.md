@@ -269,7 +269,12 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
 4. The gateway stores the original in S3 at `knowledge/<id>.pdf`, records it in
    `knowledge_documents` as `queued` and adds a BullMQ job (`jobId` = document
    id) to the `ingestion` queue in Redis. If the queue is down, it removes the
-   record and the file and answers 503.
+   record and the file and answers 503. If labelling couldn't read the source
+   type, it records the document as `awaiting_type` instead and queues nothing
+   (IN-19): Recent uploads shows it as Type needed with a type select, and
+   Start ingestion (`POST .../source-type`) saves the type and queues the job.
+   The worker would redact a document with no type as a precaution (PV-05),
+   which garbled standards set in Type3 fonts.
 5. `ingestion-worker` (same image as the ingestion service, `python -m
    app.worker`, concurrency 1) claims the document, downloads the original,
    runs `app.pipeline.run(path, doc_id=<id>, labels=..., reporter=<ProgressReporter>)`
@@ -355,6 +360,13 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   answer that finds no table is not unusable: that table is still read as a picture.
 - **Passage metadata** gains `position` (the chunk's number in reading order),
   and table passages `table_id` (shared by a table's groups) and `table_title`.
+- **Heading trails** (`chunker._build_section_trails`). Each passage's `headings` is
+  the stack of headings above it. A heading text on 3 or more pages, and on more than
+  20% of them, is a running header or a watermark Docling read as a body heading
+  ("25 NFPA ®", "EDUFIRE") and is in no trail; a "Table/Figure … Continued" label is
+  skipped, so the clause trail before it carries on. Heading text is normalised:
+  whitespace collapsed, NFPA's `Δ`/`N` change markers and a clause number's Annex `*`
+  removed (IN-19). The picture reader's `Section:` line is the same trail.
 - **What search reads.** The embedder and the reranker both see the heading trail
   and then the text (`indexer.embedding_text`, `retriever.rank_text`; change them
   together), while the stored text, quotes and pages stay plain. Short forms in a
@@ -410,8 +422,9 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   gateway's `GET /api/chat/passages/:id`, adds `region` (`{ kind, boxes }` or null)
   and `generated`. A table or formula region comes only from the passage's
   `region_kind`/`region_bbox`/`region_pages` keys (see database.md); a described
-  picture with no region keys gets its own `bbox`; anything else is null, so today's
-  table and formula passages show as text. No box is guessed: the largest box of a
+  picture with no region keys gets its own `bbox`; anything else is null. Ingestion
+  writes the keys from IN-19 (see database.md); a passage ingested before then shows
+  as text. No box is guessed: the largest box of a
   table chunk is often its prose.
 - **What is quotable.** `quotable_text` (`app/generation/generator.py`) leaves out a
   described picture's `Image description (generated …)` block, up to its
@@ -670,8 +683,8 @@ refuses them (403) whatever the client shows.
    words typed, so a pause in typing is never a paid call.
 5. **Opening a passage** shows its full text (`PassageBody`) and, for a table,
    formula or picture, the region of the original page through the chat's
-   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Today only described
-   pictures record a region (`IN-__`; D2 in the ingestion fixes plan).
+   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Ingestion records the
+   region from IN-19.
 6. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
    document are never edited; amending passages comes with manual entry (IN-18).
 

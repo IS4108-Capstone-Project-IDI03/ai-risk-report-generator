@@ -27,7 +27,10 @@ async function send(path: string, init: RequestInit): Promise<void> {
 }
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'local_standard' | 'marsh_report'
-export type IngestionStatus = 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+// `awaiting_type`: labelling couldn't read the source type, so the document is
+// not ingested until an admin chooses one (IN-19).
+export type IngestionStatus =
+  'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
@@ -253,6 +256,20 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
 // unreachable.
 export function retryIngestion(id: string): Promise<void> {
   return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+}
+
+// Chooses the source type of a document awaiting one and starts its ingestion
+// (IN-19); returns the document, now queued. Rejects with the gateway's
+// reason: 409 if it no longer awaits a type, 503 if the queue is unreachable.
+export function chooseSourceType(id: string, sourceType: SourceType): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(
+    `/api/knowledge-documents/${encodeURIComponent(id)}/source-type`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceType }),
+    },
+  )
 }
 
 // Stops a queued or processing ingestion. 202 on accept; queued documents
