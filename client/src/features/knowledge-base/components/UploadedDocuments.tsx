@@ -21,6 +21,7 @@ import {
   reviewReasons,
   SOURCE_LABELS,
 } from '../display'
+import { followList } from '../uploads'
 import { ChooseSourceType } from './ChooseSourceType'
 import { ReviewBadge } from './ReviewBadge'
 
@@ -113,6 +114,8 @@ export function UploadedDocuments({
         (list) => {
           setDocuments(list)
           setUnreachable(false)
+          // An upload row waiting on a type turns Uploaded once one is chosen here (IN-19).
+          followList(list)
           // An upload finishing changes what the knowledge base holds, so the
           // Documents tab's count is re-read from it (IN-05).
           onCompleted(list.filter((d) => d.status === 'complete').length)

@@ -161,6 +161,36 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows an upload as Uploaded once its type is chosen in Recent uploads', async () => {
+    const awaiting = { ...NFPA, fileName: 'scan.pdf', title: 'scan.pdf', status: 'awaiting_type' }
+    const list: Record<string, unknown>[] = []
+    mockGateway(list, {
+      'scan.pdf': () => {
+        list.push({ ...awaiting })
+        return json(201, awaiting)
+      },
+      // The source-type POST carries no fileName.
+      '': () => {
+        list[0].status = 'queued'
+        return json(200, list[0])
+      },
+    })
+    await openAddDocuments()
+    choose(pdf('scan.pdf'))
+    const row = screen.getByRole('group', { name: 'scan.pdf' })
+    await within(row).findByText('Type needed')
+    const recent = screen.getByRole('region', { name: 'Recent uploads' })
+
+    fireEvent.change(
+      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
+      { target: { value: 'nfpa_standard' } },
+    )
+    fireEvent.click(within(recent).getByRole('button', { name: 'Start ingestion' }))
+
+    expect(await within(row).findByText('Uploaded')).toBeInTheDocument()
+    expect(within(row).queryByText('Choose its source type in Recent uploads.')).not.toBeInTheDocument()
+  })
+
   it('uploads a Word file the same way, sending its own type', async () => {
     const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     const posted = mockGateway([])

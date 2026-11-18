@@ -16,6 +16,8 @@ export type Upload = {
   file: File
   state: 'uploading' | 'queued' | 'awaiting_type' | 'rejected' | 'failed'
   error: string | null
+  // The gateway's id once accepted, so the row can follow the uploads list.
+  documentId?: string
 }
 
 // Kept outside React so uploads keep going, and their outcomes stay visible,
@@ -84,8 +86,11 @@ export function clearFinished() {
 async function send(upload: Upload) {
   try {
     // 201: accepted. Its ingestion progress now shows in the uploaded list.
-    const { status } = await uploadKnowledgeDocument(upload.file)
-    patch(upload.key, { state: status === 'awaiting_type' ? 'awaiting_type' : 'queued' })
+    const { id, status } = await uploadKnowledgeDocument(upload.file)
+    patch(upload.key, {
+      state: status === 'awaiting_type' ? 'awaiting_type' : 'queued',
+      documentId: id,
+    })
   } catch (error: unknown) {
     // Nothing wrong with the file: the gateway, ingestion or the converter is
     // down. Keep the row so the admin can upload it again.
@@ -106,6 +111,24 @@ async function send(upload: Upload) {
       error: error instanceof Error ? error.message : 'The file was not uploaded.',
     })
   }
+}
+
+/**
+ * Marks a row Uploaded once the uploads list shows its document no longer awaiting a type
+ * (IN-19: the type is chosen there); returns nothing.
+ */
+export function followList(documents: { id: string; status: string }[]) {
+  const started = new Set(
+    documents.filter((d) => d.status !== 'awaiting_type').map((d) => d.id),
+  )
+  if (uploads.some((u) => u.state === 'awaiting_type' && started.has(u.documentId ?? '')))
+    set(
+      uploads.map((u) =>
+        u.state === 'awaiting_type' && started.has(u.documentId ?? '')
+          ? { ...u, state: 'queued' }
+          : u,
+      ),
+    )
 }
 
 // For tests: forget every row between cases.
