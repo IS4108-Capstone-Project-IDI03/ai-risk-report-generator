@@ -188,7 +188,9 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     fireEvent.click(within(recent).getByRole('button', { name: 'Start ingestion' }))
 
     expect(await within(row).findByText('Uploaded')).toBeInTheDocument()
-    expect(within(row).queryByText('Choose its source type in Recent uploads.')).not.toBeInTheDocument()
+    expect(
+      within(row).queryByText('Choose its source type in Recent uploads.'),
+    ).not.toBeInTheDocument()
   })
 
   it('uploads a Word file the same way, sending its own type', async () => {

@@ -118,9 +118,7 @@ async function send(upload: Upload) {
  * (IN-19: the type is chosen there); returns nothing.
  */
 export function followList(documents: { id: string; status: string }[]) {
-  const started = new Set(
-    documents.filter((d) => d.status !== 'awaiting_type').map((d) => d.id),
-  )
+  const started = new Set(documents.filter((d) => d.status !== 'awaiting_type').map((d) => d.id))
   if (uploads.some((u) => u.state === 'awaiting_type' && started.has(u.documentId ?? '')))
     set(
       uploads.map((u) =>
