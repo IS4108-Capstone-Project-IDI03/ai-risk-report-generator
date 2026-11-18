@@ -1606,9 +1606,14 @@ picture alone.
 | `region_pages` | the page of each box in `region_bbox`, in the same order |
 
 `bbox`/`bbox_pages` stay as they are (the chat's PDF tab outlines the whole passage
-with them). Ingestion doesn't write the region keys yet (IN-__); until it does, S4
-gives a described picture (`generated_text: picture_description`) its `bbox` as its
-region, and every other passage none.
+with them). Ingestion writes the region keys (IN-19, `chunker._region`): a table's
+passages, every row group included, hold that table item's boxes; a formula holds its
+FORMULA item's boxes, or the chunk's when no single item is the equation; a described
+picture, or a table reread as one, holds the picture's boxes. A plain text passage, and
+the prose left when a table doesn't read, have none. A box Docling measured from the
+page's top is flipped with the page's height. Passages ingested before IN-19 have no
+region keys: S4 then gives a described picture its `bbox` as its region, and every
+other passage none.
 
 Knowledge documents carry no `COPE_dimension` (an exception to the
 five-field rule): each passage carries its own `section` instead (IN-05).

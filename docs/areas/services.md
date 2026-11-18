@@ -415,8 +415,9 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   gateway's `GET /api/chat/passages/:id`, adds `region` (`{ kind, boxes }` or null)
   and `generated`. A table or formula region comes only from the passage's
   `region_kind`/`region_bbox`/`region_pages` keys (see database.md); a described
-  picture with no region keys gets its own `bbox`; anything else is null, so today's
-  table and formula passages show as text. No box is guessed: the largest box of a
+  picture with no region keys gets its own `bbox`; anything else is null. Ingestion
+  writes the keys from IN-19 (see database.md); a passage ingested before then shows
+  as text. No box is guessed: the largest box of a
   table chunk is often its prose.
 - **What is quotable.** `quotable_text` (`app/generation/generator.py`) leaves out a
   described picture's `Image description (generated …)` block, up to its
@@ -675,8 +676,8 @@ refuses them (403) whatever the client shows.
    words typed, so a pause in typing is never a paid call.
 5. **Opening a passage** shows its full text (`PassageBody`) and, for a table,
    formula or picture, the region of the original page through the chat's
-   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Today only described
-   pictures record a region (`IN-__`; D2 in the ingestion fixes plan).
+   `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Ingestion records the
+   region from IN-19.
 6. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
    document are never edited; amending passages comes with manual entry (IN-18).
 

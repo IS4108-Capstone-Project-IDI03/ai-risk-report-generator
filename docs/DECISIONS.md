@@ -2433,7 +2433,7 @@ Stories: AS-02, AS-01, RV-03, RV-08, RV-01.
 
 Chose:
 - (KB-02) A cited table, formula or picture shows the part of the original page it was read from, cropped from the PDF in the browser with react-pdf, above the passage text. The table or formula is not rebuilt from its reading: the reading is what may be wrong, and a tidy rebuild would make an OCR error look authoritative. Ingestion keeps no table grid to rebuild from anyway.
-- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-__, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
+- The crop comes from new passage keys, `region_kind`, `region_bbox` and `region_pages` (database.md), which only ingestion can fill correctly (IN-19, after KB-02). Until then a table or formula shows as text. A described picture uses its own `bbox`, already the picture alone. The GLM path, which leaves pictures unread, is out of scope.
 - Shown in the chat's Passage tab and the review workspace's source panel. Review looks the passage up live, only for its region; the text stays as the draft was given it (RV-01 AC7), and a passage gone since shows text only.
 - LaTeX in passage text is rendered with KaTeX (lazy-loaded) when valid, and shown as written when not, with no error. Detection is by text (delimiters, or a command on a line with no run of prose), so it also works for documents ingested before; it never decides whether a crop is shown.
 - A picture's generated description stays in the citation, under the picture, noted as written by AI: it is what the answer read, so the engineer can catch a misreading. `quotable_text` leaves it out, so a quote of it is never "found in the document".
@@ -2450,7 +2450,7 @@ Rejected:
 
 Known limits: the checklist and the drafting screen's evidence panel don't open passages, so they show no regions. Formula detection by text can miss an unread formula (Docling's placeholder or flattened arithmetic) and render a rare non-formula line with a command as math.
 
-Stories: KB-02, IN-__, CB-02, RV-01, IN-13.
+Stories: KB-02, IN-19, CB-02, RV-01, IN-13.
 
 ## 2026-11-13 — A quote from a picture's AI description is "from the AI's reading", not "not found"
 
@@ -2649,3 +2649,20 @@ Rejected:
 The test PDF is written by hand (a Type3 font of boxes with a ToUnicode map), as the NFPA PDFs are licensed and can't be committed.
 
 Stories: IN-19, PV-05.
+
+## 2026-11-18 — Each table item in a chunk is read as its own table, and records its own region
+
+Ingestion writes `region_kind`, `region_bbox` and `region_pages` (IN-19). A chunk's table items are now split into tables one item at a time: before, all their readings were joined and split as one text, where an untitled block counts as the previous table's next page.
+
+- Two tables in one chunk give `:t0` and `:t1`, each with its own boxes, even when the second has no title.
+- A table over two pages is one item with two boxes, so it is still one table, its pages joined in order, with a box on each page.
+- Every row group (`:g<n>`) carries the whole table's region, since a citation of one row is best seen in its table.
+- The region is bottom-left, like `bbox`; a box Docling measured from the top is flipped with the page's height, and left out if the height isn't known.
+
+Reason: a citation's crop (KB-02) must show the table it was read from, not the prose and the other table beside it. A region needs to know which item a table came from, which the joined text had lost.
+
+Rejected:
+- Keeping the joined split and giving every table the chunk's table boxes: the second table's citation would show both.
+- Joining an untitled table to the one before only when on the next page: two items in one chunk are two tables to Docling; a long table is one item with several boxes.
+
+Stories: IN-19, KB-02.
