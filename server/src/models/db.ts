@@ -28,6 +28,7 @@ export async function connectDb(): Promise<void> {
  */
 export async function buildKnowledgeDocumentIndex(): Promise<void> {
   try {
+    await dropOutdatedFilters()
     await KnowledgeDocumentModel.createIndexes()
   } catch (error) {
     const groups = await KnowledgeDocumentModel.aggregate([
@@ -41,5 +42,28 @@ export async function buildKnowledgeDocumentIndex(): Promise<void> {
         'the duplicate-upload race guard is off until they are removed. ' +
         `Remove the extra copies and restart. (${error})`,
     )
+  }
+}
+
+// Drops each stored index whose name a schema index has but whose partial filter differs, so
+// createIndexes builds it again with the schema's filter: MongoDB refuses to build an index
+// under a name another filter already holds. IN-19 added `awaiting_type` to the fingerprint
+// indexes' statuses, which every database built before then holds without.
+async function dropOutdatedFilters(): Promise<void> {
+  const stored = await KnowledgeDocumentModel.collection.indexes().catch(() => [])
+  for (const [fields, options] of KnowledgeDocumentModel.schema.indexes()) {
+    const name =
+      (options.name as string | undefined) ??
+      Object.entries(fields)
+        .map(([key, direction]) => `${key}_${direction}`)
+        .join('_')
+    const existing = stored.find((index) => index.name === name)
+    const wanted = options.partialFilterExpression ?? null
+    if (
+      existing &&
+      JSON.stringify(existing.partialFilterExpression ?? null) !== JSON.stringify(wanted)
+    ) {
+      await KnowledgeDocumentModel.collection.dropIndex(name)
+    }
   }
 }
