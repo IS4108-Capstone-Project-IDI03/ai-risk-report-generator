@@ -31,6 +31,7 @@ import {
 import { needsReview } from '../display'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
+import { useFoldedText } from '../../sources/useFoldedText'
 import { usePassage } from '../../sources/usePassage'
 
 const PAGE_SIZE = 25
@@ -471,18 +472,19 @@ function PassageDetail({
   fileUrl: string
 }) {
   const loaded = usePassage(p.kind === 'text' ? undefined : p.id)
+  const fold = useFoldedText(loaded.status === 'ready' ? loaded.passage.region : null)
   return (
     <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
       {/* The original first, as in chat (KB-02): a picture's description can run long. */}
       {loaded.status === 'ready' && (
-        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} />
+        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} onDrawn={fold.onDrawn} />
       )}
       {p.generated && (
         <p className="kb-pgenerated">
           A model described this picture; these aren’t the document’s words.
         </p>
       )}
-      <PassageBody text={p.text} quote="" className="kb-passage-body" />
+      <PassageBody text={p.text} quote="" className="kb-passage-body" folded={fold.folded} />
       <p className="kb-pid">
         <span>Passage ID</span> {p.id}
       </p>

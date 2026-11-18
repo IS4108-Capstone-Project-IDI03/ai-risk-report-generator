@@ -482,6 +482,45 @@ describe('Source region', () => {
     expect(cutFrom(4).height).toBeCloseTo(416)
   })
 
+  // Once the table is drawn the crop shows it, so its flattened text folds behind a disclosure.
+  it("folds a drawn table's text, and opens it when it holds the quote", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'not in the table' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+    const fold = await waitFor(() => {
+      const details = panel.querySelector('details.src-extracted')
+      expect(details).not.toBeNull()
+      return details as HTMLDetailsElement
+    })
+    expect(fold).toHaveTextContent('Show extracted text')
+    expect(fold.open).toBe(false)
+    expect(within(fold).getByLabelText('Passage text')).toBeInTheDocument()
+  })
+
+  it("keeps a drawn table's text open when it holds the quoted words", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'gpm: 250' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+    await waitFor(() => expect(panel.querySelector('details.src-extracted')).not.toBeNull())
+    expect((panel.querySelector('details.src-extracted') as HTMLDetailsElement).open).toBe(true)
+    expect(panel.querySelector('mark')).toHaveTextContent('gpm: 250')
+  })
+
+  it("never folds a picture's description", async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      text: 'Figure 3\nImage description (generated, photograph): Two cylinders on a rack.',
+      generated: true,
+      region: { kind: 'picture', boxes: [{ page: 2, l: 50, t: 350, r: 250, b: 200 }] },
+    })
+    renderPanel(cited({ quote: 'Figure 3' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Picture on page 2 of the original' })
+    expect(panel.querySelector('details.src-extracted')).toBeNull()
+  })
+
   it('shows only the text when the passage records no region', async () => {
     renderPanel(cited())
     const panel = await screen.findByRole('tabpanel', { name: 'Passage' })

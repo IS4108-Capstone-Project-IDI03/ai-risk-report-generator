@@ -30,3 +30,49 @@
   overflow: hidden;
   visibility: hidden;
 }
+
+/* A table's or formula's extracted text, folded once its region is drawn (PassageBody `folded`):
+   a quiet one-line disclosure, as the chat's search steps. */
+.src-extracted > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  transition: color 120ms ease-out;
+}
+.src-extracted > summary::-webkit-details-marker {
+  display: none;
+}
+.src-extracted > summary:hover {
+  color: var(--text-secondary);
+}
+.src-extracted > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* A small chevron: right when closed, down when open. */
+.src-extracted > summary::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 160ms ease-out;
+}
+.src-extracted[open] > summary::after {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+.src-extracted[open] > summary {
+  margin-bottom: var(--space-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .src-extracted > summary,
+  .src-extracted > summary::after {
+    transition: none;
+  }
+}
