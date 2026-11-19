@@ -24,12 +24,28 @@
   align-items: center;
   gap: 2px;
 }
-.cal-stepper strong {
-  min-width: 152px;
+/* Wide enough for the longest month, so the arrows don't move. */
+.cal-period {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+}
+.cal-period > strong,
+.cal-period-pick {
   color: var(--marsh-navy);
   font: 700 16px/1.2 var(--font-sans);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+.cal-period > strong {
+  min-width: 152px;
+}
+/* The month or year chooser that opens from it: at least the date picker calendar's width,
+   and filling its popover. */
+.cal-period-chooser {
+  min-width: 280px;
+  box-sizing: border-box;
 }
 .cal-toolbar .cal-pills {
   display: flex;
@@ -480,8 +496,8 @@ button.cal-date {
   .cal-layout {
     gap: 0;
   }
-  .cal-stepper strong {
-    min-width: 132px;
+  .cal-period {
+    min-width: 184px;
   }
   .cal-toolbar .cal-pills {
     margin-left: 0;

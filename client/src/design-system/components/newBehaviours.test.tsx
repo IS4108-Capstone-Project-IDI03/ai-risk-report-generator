@@ -340,6 +340,107 @@ describe('DatePicker', () => {
     fireEvent.change(box, { target: { value: '01//2027', selectionStart: 3 } })
     expect(box).toHaveValue('01//2027')
   })
+  it('picks a year from the year chooser, keeping the month and day', () => {
+    const onChange = vi.fn()
+    render(<DatePicker label="End" value="2027-02-16" onChange={onChange} />)
+    open()
+    const yearButton = screen.getByRole('button', { name: '2027, choose a year' })
+    fireEvent.click(yearButton)
+    expect(yearButton).toHaveAttribute('aria-expanded', 'true')
+    // Twelve years with 2027 fifth, so the years ahead show; the days are gone.
+    const years = screen.getByRole('group', { name: 'Years' })
+    expect(years.querySelectorAll('button')).toHaveLength(12)
+    expect(screen.getByRole('button', { name: '2023' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2034' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2027' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('group', { name: 'Days' })).not.toBeInTheDocument()
+    // The arrows page twelve years at a time.
+    fireEvent.click(screen.getByRole('button', { name: 'Later years' }))
+    fireEvent.click(screen.getByRole('button', { name: '2040' }))
+    // Back to the days of February 2040, the 16th still chosen to pick.
+    expect(screen.getByRole('button', { name: '2040, choose a year' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    fireEvent.click(screen.getByRole('button', { name: /16 February 2040/ }))
+    expect(onChange).toHaveBeenCalledWith('2040-02-16', { beforeMin: false })
+  })
+  it('picks a month from the month chooser, keeping the day, and steps the year there', () => {
+    const onChange = vi.fn()
+    render(<DatePicker label="End" value="2027-01-31" onChange={onChange} />)
+    open()
+    const monthButton = screen.getByRole('button', { name: 'January, choose a month' })
+    fireEvent.click(monthButton)
+    expect(monthButton).toHaveAttribute('aria-expanded', 'true')
+    const months = screen.getByRole('group', { name: 'Months' })
+    expect(months.querySelectorAll('button')).toHaveLength(12)
+    expect(screen.getByRole('button', { name: 'January 2027' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    // The arrows step a year here.
+    fireEvent.click(screen.getByRole('button', { name: 'Next year' }))
+    expect(screen.getByRole('button', { name: '2028, choose a year' })).toBeInTheDocument()
+    // 31 January to April, which has 30 days: the 30th.
+    fireEvent.click(screen.getByRole('button', { name: 'April 2028' }))
+    expect(screen.getByRole('group', { name: 'Days' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /30 April 2028/ })).toHaveAttribute('tabindex', '0')
+    fireEvent.click(screen.getByRole('button', { name: /30 April 2028/ }))
+    expect(onChange).toHaveBeenCalledWith('2028-04-30', { beforeMin: false })
+  })
+  it('greys months before min, and goes from the months to the years', () => {
+    render(<DatePicker label="End" value="2999-06-10" min="2999-03-15" onChange={vi.fn()} />)
+    open()
+    fireEvent.click(screen.getByRole('button', { name: 'June, choose a month' }))
+    expect(screen.getByRole('button', { name: 'February 2999' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'March 2999' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Previous year' })).toBeDisabled()
+    // Arrow keys stay within the year and never before min's month.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'June 2999' }), { key: 'ArrowUp' })
+    expect(screen.getByRole('button', { name: 'March 2999' })).toHaveAttribute('tabindex', '0')
+    fireEvent.keyDown(screen.getByRole('button', { name: 'March 2999' }), { key: 'ArrowUp' })
+    expect(screen.getByRole('button', { name: 'March 2999' })).toHaveAttribute('tabindex', '0')
+    // Picking a month whose same day falls before min lands on min.
+    fireEvent.click(screen.getByRole('button', { name: 'March 2999' }))
+    expect(screen.getByRole('button', { name: /15 March 2999/ })).toHaveAttribute('tabindex', '0')
+    // The year button from the months view shows the years instead.
+    fireEvent.click(screen.getByRole('button', { name: 'March, choose a month' }))
+    fireEvent.click(screen.getByRole('button', { name: '2999, choose a year' }))
+    expect(screen.getByRole('group', { name: 'Years' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Months' })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('button', { name: '2999' }), { key: 'Escape' })
+    expect(screen.getByRole('group', { name: 'Days' })).toBeInTheDocument()
+  })
+  it('moves 29 February to the 28th in a year without one', () => {
+    render(<DatePicker label="End" value="2028-02-29" onChange={vi.fn()} />)
+    open()
+    fireEvent.click(screen.getByRole('button', { name: '2028, choose a year' }))
+    fireEvent.click(screen.getByRole('button', { name: '2029' }))
+    expect(screen.getByRole('button', { name: /28 February 2029/ })).toHaveAttribute(
+      'tabindex',
+      '0',
+    )
+  })
+  it('greys years before min, and Esc goes back to the days with the calendar still open', () => {
+    render(<DatePicker label="End" value="2999-06-10" min="2999-02-15" onChange={vi.fn()} />)
+    open()
+    fireEvent.click(screen.getByRole('button', { name: '2999, choose a year' }))
+    expect(screen.getByRole('button', { name: '2998' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '3000' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Earlier years' })).toBeDisabled()
+    // Arrow keys move through the years and never before min's.
+    fireEvent.keyDown(screen.getByRole('button', { name: '2999' }), { key: 'ArrowLeft' })
+    expect(screen.getByRole('button', { name: '2999' })).toHaveAttribute('tabindex', '0')
+    fireEvent.keyDown(screen.getByRole('button', { name: '2999' }), { key: 'ArrowDown' })
+    expect(screen.getByRole('button', { name: '3002' })).toHaveAttribute('tabindex', '0')
+    fireEvent.keyDown(screen.getByRole('button', { name: '3002' }), { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'End' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Days' })).toBeInTheDocument()
+    // Picking a year whose same day falls before min lands on min.
+    fireEvent.click(screen.getByRole('button', { name: '2999, choose a year' }))
+    fireEvent.click(screen.getByRole('button', { name: '2999' }))
+    expect(screen.getByRole('button', { name: /10 June 2999/ })).toHaveAttribute('tabindex', '0')
+  })
   it('arrow moves stop at min, and Today is disabled when today is before min', () => {
     render(<DatePicker label="End" value="2999-02-15" min="2999-02-15" onChange={vi.fn()} />)
     open()
