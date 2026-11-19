@@ -4,9 +4,10 @@
 // when (AC14), Reinstate and Edit history, but no Edit details (AC15);
 // Reinstate is off while another edition is active (IN-07 AC15). Withdraw and
 // Reinstate both open components/StatusChangeDialog.tsx. Delete (IN-12) opens
-// components/DeleteDocumentDialog.tsx. Used by
-// components/DocumentRow.tsx.
-import type { ReactNode } from 'react'
+// components/DeleteDocumentDialog.tsx. A manual draft (IN-18) has only Publish
+// and Delete draft: its details, history and passages wait until it is published.
+// Used by components/DocumentRow.tsx.
+import { useState, type ReactNode } from 'react'
 import { Button, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import {
@@ -15,6 +16,7 @@ import {
   dateTime,
   facilityName,
   fileSize,
+  isDraft,
   needsReview,
   sourceLabel,
 } from '../display'
@@ -29,6 +31,7 @@ export function DocumentDetails({
   onChangeStatus,
   onDelete,
   onPassages,
+  onPublish,
   canManage,
 }: {
   id: string
@@ -39,10 +42,18 @@ export function DocumentDetails({
   onDelete: () => void
   // Opens the document's passages (IN-17); for everyone.
   onPassages: () => void
+  // Publishes a manual draft (IN-18); settles once the gateway has answered.
+  onPublish: () => Promise<void>
   // Off for a risk engineer: the details show, no action that changes them (IN-17).
   canManage: boolean
 }) {
   const standard = d.sourceType !== 'marsh_report'
+  const draft = isDraft(d)
+  const [publishing, setPublishing] = useState(false)
+  const publish = () => {
+    setPublishing(true)
+    onPublish().finally(() => setPublishing(false))
+  }
   return (
     <section id={id} className="kb-details" aria-label={`Details of ${d.title}`}>
       <dl className="kb-facts">
@@ -85,6 +96,11 @@ export function DocumentDetails({
         )}
       </dl>
       <div className="kb-details-actions">
+        {canManage && draft && (
+          <Button variant="tonal" size="sm" iconLeft="check" loading={publishing} onClick={publish}>
+            Publish
+          </Button>
+        )}
         {canManage && d.withdrawn && (
           <Button
             variant="tonal"
@@ -97,23 +113,27 @@ export function DocumentDetails({
             Reinstate
           </Button>
         )}
-        {canManage && !d.withdrawn && !needsReview(d) && (
+        {canManage && !draft && !d.withdrawn && !needsReview(d) && (
           <Button variant="tonal" size="sm" iconLeft={IconRegistry.action.edit} onClick={onEdit}>
             Edit details
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          iconLeft={IconRegistry.object.history}
-          onClick={onHistory}
-        >
-          Edit history
-        </Button>
-        <Button variant="ghost" size="sm" iconLeft="list" onClick={onPassages}>
-          View passages
-        </Button>
-        {canManage && !d.withdrawn && (
+        {!draft && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={IconRegistry.object.history}
+              onClick={onHistory}
+            >
+              Edit history
+            </Button>
+            <Button variant="ghost" size="sm" iconLeft="list" onClick={onPassages}>
+              View passages
+            </Button>
+          </>
+        )}
+        {canManage && !draft && !d.withdrawn && (
           <Button
             variant="danger-tonal"
             size="sm"
@@ -130,9 +150,18 @@ export function DocumentDetails({
               row. Its name is left out: the title and View original stand for the file,
               and a long name pushed Delete onto a second line (IN-12). */}
           <span className="kb-file-line">
-            {/* Hidden on a phone, so the upload time and Delete still fit one line. */}
-            <span className="kb-file-size">{fileSize(d.size)} · </span>
-            Uploaded {dateTime(d.uploadedAt)}
+            {d.entryMethod === 'manual' ? (
+              // No file to size: a manual entry was started, then published (IN-18).
+              <>
+                {draft ? 'Started' : 'Entered'} {dateTime(d.uploadedAt)}
+              </>
+            ) : (
+              <>
+                {/* Hidden on a phone, so the upload time and Delete still fit one line. */}
+                {d.size !== null && <span className="kb-file-size">{fileSize(d.size)} · </span>}
+                Uploaded {dateTime(d.uploadedAt)}
+              </>
+            )}
           </span>
           {/* Last in the row, set apart from Withdraw by the file's facts. Not while it
               is being ingested: Cancel covers that. A cited document gets a muted,
@@ -147,7 +176,7 @@ export function DocumentDetails({
               style={d.cited ? { color: 'var(--text-muted)' } : undefined}
               onClick={onDelete}
             >
-              Delete
+              {draft ? 'Delete draft' : 'Delete'}
             </Button>
           )}
         </div>

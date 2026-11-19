@@ -28,9 +28,14 @@ async function send(path: string, init: RequestInit): Promise<void> {
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'local_standard' | 'marsh_report'
 // `awaiting_type`: labelling couldn't read the source type, so the document is
-// not ingested until an admin chooses one (IN-19).
+// not ingested until an admin chooses one (IN-19). `draft`: a standard being
+// entered clause by clause, not yet published (IN-18).
 export type IngestionStatus =
-  'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+  'draft' | 'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+
+// How a document entered the knowledge base: an uploaded file, or typed in clause
+// by clause (IN-18). A manual document has no file.
+export type EntryMethod = 'upload' | 'manual'
 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
@@ -97,7 +102,9 @@ export type UnconfirmedDetail =
 // What a document matches in the knowledge base (IN-07). The counts always
 // come from the copy check, also for an edition match; matches the DTO in
 // server/src/services/knowledge-document.service.ts.
-export type MatchKind = 'newer_edition' | 'earlier_edition' | 'possible_copy'
+// `replaces_manual`: one side was entered manually, the other is the same edition
+// uploaded (IN-18).
+export type MatchKind = 'newer_edition' | 'earlier_edition' | 'possible_copy' | 'replaces_manual'
 export type DocumentMatch = {
   kind: MatchKind
   // `withdrawn`: Keep both then keeps this document withdrawn too.
@@ -121,18 +128,20 @@ export type KnowledgeDocument = {
   edition: string | null
   // A standard's number, e.g. "13" for NFPA 13; null like edition (IN-07).
   standardNumber: string | null
-  fileName: string
+  entryMethod: EntryMethod
+  // The file's name, size and link; null on a manual document, which has none (IN-18).
+  fileName: string | null
   sourceType: SourceType | null
   jurisdiction: string | null
   facilityType: string | null
   effectiveDate: string | null
   // The details still Unconfirmed; non-empty means "Needs review".
   unconfirmed: UnconfirmedDetail[]
-  size: number
+  size: number | null
   status: IngestionStatus
   error: string | null
   uploadedAt: string
-  fileUrl: string
+  fileUrl: string | null
   // The details each correction replaced, newest first (KB-01 AC9).
   history: DocumentVersion[]
   // Who took it out of use and when (KB-01 AC14); null while it is active.
@@ -224,6 +233,14 @@ export function correctKnowledgeDocument(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(Object.fromEntries(filled(details))),
+  })
+}
+
+// Publishes a manual draft and returns it, active or Needs review (IN-18).
+// Rejects with the gateway's reason: 409 when a clause isn't indexed or checked yet.
+export function publishManualDocument(id: string): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
   })
 }
 
@@ -379,7 +396,13 @@ export type Comparison = {
 // The choices on the Review page; discard_new and discard_other both delete a
 // document, so the page asks first.
 export type DecisionChoice =
-  'keep_both' | 'discard_new' | 'discard_other' | 'supersede' | 'add_as_older'
+  | 'keep_both'
+  | 'discard_new'
+  | 'discard_other'
+  | 'supersede'
+  | 'add_as_older'
+  // IN-18: the PDF of a manually entered edition replaces the manual entry.
+  | 'replace_manual'
 
 // Returns a document set beside the document it matches (IN-07 AC7).
 export function getComparison(id: string, signal?: AbortSignal): Promise<Comparison> {

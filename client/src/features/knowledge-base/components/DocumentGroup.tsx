@@ -22,6 +22,7 @@ export function DocumentGroup({
   onDelete,
   onReview,
   onPassages,
+  onPublish,
   canManage,
 }: {
   group: Group
@@ -35,6 +36,8 @@ export function DocumentGroup({
   onDelete: (document: KnowledgeDocument) => void
   onReview: (document: KnowledgeDocument) => void
   onPassages: (document: KnowledgeDocument) => void
+  // Publishes a manual draft (IN-18); settles once the gateway has answered.
+  onPublish: (document: KnowledgeDocument) => Promise<void>
   // Off for a risk engineer, who browses read-only (IN-17).
   canManage: boolean
 }) {
@@ -70,6 +73,7 @@ export function DocumentGroup({
             onDelete={() => onDelete(d)}
             onReview={() => onReview(d)}
             onPassages={() => onPassages(d)}
+            onPublish={() => onPublish(d)}
             canManage={canManage}
           />
         ))

@@ -4,10 +4,23 @@
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
 // Shown by KnowledgeBase.tsx; talks to the gateway through api.ts.
 import { useEffect, useState } from 'react'
-import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../../design-system'
+import {
+  Button,
+  Callout,
+  EmptyState,
+  IconRegistry,
+  Input,
+  Select,
+  toast,
+} from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
-import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
-import { needsReview } from '../display'
+import {
+  listIngestedDocuments,
+  publishManualDocument,
+  type DocumentVersion,
+  type KnowledgeDocument,
+} from '../api'
+import { isDraft, needsReview } from '../display'
 import { CitedDeleteDialog } from '../components/CitedDeleteDialog'
 import { DeleteDocumentDialog } from '../components/DeleteDocumentDialog'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
@@ -51,15 +64,20 @@ const STATUS_FILTER = [
   { value: 'active', label: 'Active' },
   { value: 'needs_review', label: 'Needs review' },
   { value: 'withdrawn', label: 'Withdrawn' },
+  // A manual entry still being typed in (IN-18).
+  { value: 'draft', label: 'Draft' },
 ]
 // Whether a document shows the status badge chosen in the filter; must match
-// components/DocumentRow.tsx, where Needs review is never Active (IN-05).
+// components/DocumentRow.tsx, where Needs review is never Active (IN-05) and a
+// draft is neither (IN-18).
 const hasStatus = (d: KnowledgeDocument, status: string) =>
   status === 'withdrawn'
     ? Boolean(d.withdrawn)
-    : status === 'needs_review'
-      ? needsReview(d)
-      : !d.withdrawn && !needsReview(d)
+    : status === 'draft'
+      ? isDraft(d)
+      : status === 'needs_review'
+        ? needsReview(d)
+        : !d.withdrawn && !isDraft(d) && !needsReview(d)
 
 // A fuzzy title match: the typed letters appear in the title in order, with
 // gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
@@ -181,6 +199,18 @@ export function KnowledgeDocuments({
     setOpenId(null)
     setAttempt((n) => n + 1)
     notify(`${gone.title} deleted.`)
+  }
+  // Publish (IN-18): the row turns Active, or Needs review if it matched its PDF. A
+  // refusal (clauses left to check or embed) says why; the draft stays as it is.
+  const publish = async (draft: KnowledgeDocument) => {
+    try {
+      replaced(await publishManualDocument(draft.id))
+      notify(`${draft.title} published.`)
+    } catch (error: unknown) {
+      toast.error("Can't publish yet", {
+        description: error instanceof Error ? error.message : 'Try again shortly.',
+      })
+    }
   }
   const clearFilters = () => setFilters(NO_FILTERS)
   const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
@@ -345,6 +375,7 @@ export function KnowledgeDocuments({
                   onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
                   onPassages={setPassagesOf}
+                  onPublish={publish}
                   canManage={canManage}
                 />
               )

@@ -408,7 +408,8 @@ function PassageRow({
   onToggle,
 }: {
   passage: DocumentPassage
-  fileUrl: string
+  // Null for a manual document, which has no file (IN-18).
+  fileUrl: string | null
   open: boolean
   onToggle: () => void
 }) {
@@ -469,14 +470,15 @@ function PassageDetail({
 }: {
   id: string
   passage: DocumentPassage
-  fileUrl: string
+  // Null for a manual document: there is no page to draw a region from (IN-18).
+  fileUrl: string | null
 }) {
   const loaded = usePassage(p.kind === 'text' ? undefined : p.id)
   const fold = useFoldedText(loaded.status === 'ready' ? loaded.passage.region : null)
   return (
     <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
       {/* The original first, as in chat (KB-02): a picture's description can run long. */}
-      {loaded.status === 'ready' && (
+      {loaded.status === 'ready' && fileUrl && (
         <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} onDrawn={fold.onDrawn} />
       )}
       {p.generated && (

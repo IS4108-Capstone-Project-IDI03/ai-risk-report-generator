@@ -25,7 +25,9 @@ function summaryOf(d: KnowledgeDocument): DocSummary {
     kind: report ? 'report' : 'standard',
     edition: d.edition,
     date: d.effectiveDate,
-    fileUrl: d.fileUrl,
+    // A manual document has no file (IN-18). Until the citation view shows its
+    // screenshot instead (IN-18 T18), it gets no link here.
+    fileUrl: d.fileUrl ?? '',
     withdrawn: Boolean(d.withdrawn),
     newerEdition: d.newerEdition,
   }
