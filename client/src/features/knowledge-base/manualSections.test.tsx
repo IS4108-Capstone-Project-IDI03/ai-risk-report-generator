@@ -41,6 +41,7 @@ const UPLOADED = {
   ...STANDARD,
   id: 'pdf',
   title: 'NFPA 25 Inspection',
+  standardNumber: '25',
   entryMethod: 'upload',
   status: 'complete',
   fileName: 'nfpa-25.pdf',
@@ -103,6 +104,11 @@ function mockGateway({
     const key = `${method} ${url.replace(/\/s\d+/, '/:sid')}`
     for (const [route, reply] of Object.entries(answer)) if (key.endsWith(route)) return reply(body)
     if (url === '/api/knowledge-documents/ingested') return json(200, documents)
+    const publish = url.match(/^\/api\/knowledge-documents\/([^/]+)\/publish$/)?.[1]
+    if (publish && method === 'POST') {
+      const doc = (documents as { id: string }[]).find((d) => d.id === publish)
+      return json(200, { ...doc, status: 'complete' })
+    }
     if (url === '/api/knowledge-documents/manual' && method === 'POST') {
       const created = { ...DRAFT, id: 'new', title: body.title, edition: body.edition }
       documents.push(created)
@@ -512,5 +518,134 @@ describe('screenshots of tables, formulas and pictures', () => {
     expect(within(editor()).getByLabelText(field('Text read from table 1'))).toHaveValue(
       'Pipe: 25 mm',
     )
+  })
+})
+
+// T16: Start from, the clause filter, and Publish on the clauses page.
+const EARLIER_PDF = {
+  ...UPLOADED,
+  id: 'nfpa13-2022',
+  title: 'NFPA 13 Installation of Sprinkler Systems',
+  standardNumber: '13',
+  edition: '2022',
+}
+const EARLIER_MANUAL = {
+  ...PUBLISHED,
+  id: 'nfpa13-2019',
+  title: 'NFPA 13 (typed in)',
+  standardNumber: '13',
+  edition: '2019',
+}
+
+async function startDialog() {
+  await openKnowledgeBase()
+  fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
+  const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
+  const set = (label: string, value: string) =>
+    fireEvent.change(within(dialog).getByLabelText(field(label)), { target: { value } })
+  return { dialog, set }
+}
+
+describe('starting from an earlier edition', () => {
+  it('offers the same standard’s other editions in the knowledge base, and copies the one chosen', async () => {
+    const { sent } = mockGateway({
+      documents: [DRAFT, EARLIER_PDF, EARLIER_MANUAL, UPLOADED],
+    })
+    const { dialog, set } = await startDialog()
+    set('Source type', 'nfpa_standard')
+    set('Standard number', '13')
+    set('Title', 'NFPA 13 Installation of Sprinkler Systems')
+    set('Edition', '2026')
+
+    const from = await within(dialog).findByLabelText(field('Start from'))
+    expect(
+      within(from)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'A blank entry',
+      'NFPA 13 Installation of Sprinkler Systems (2022 edition)',
+      'NFPA 13 (typed in) (2019 edition, entered manually)',
+    ])
+    fireEvent.change(from, { target: { value: 'nfpa13-2022' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Start entering' }))
+
+    await waitFor(() => expect(sent[0]?.body).toMatchObject({ copyFrom: 'nfpa13-2022' }))
+  })
+
+  it('asks for the standard number before offering editions', async () => {
+    mockGateway({ documents: [EARLIER_PDF] })
+    const { dialog, set } = await startDialog()
+    set('Source type', 'nfpa_standard')
+
+    expect(within(dialog).queryByLabelText(field('Start from'))).not.toBeInTheDocument()
+  })
+})
+
+describe('working through the clauses', () => {
+  const MIXED = () => [
+    clause(1),
+    clause(2, { checked: false, copiedFrom: { documentId: 'old', clause: '8.2' } }),
+    clause(3, { indexed: false, indexError: 'down' }),
+  ]
+
+  it('filters the list to the clauses left to check or that failed to embed', async () => {
+    mockGateway({ sections: MIXED() })
+    const list = await openClauses(DRAFT.title)
+    const show = await within(list).findByLabelText('Show')
+
+    expect(
+      within(show)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['All clauses (3)', 'To check (1)', 'Failed to embed (1)'])
+    fireEvent.change(show, { target: { value: 'unchecked' } })
+    expect(
+      within(list)
+        .getAllByRole('button', { name: /^8\./ })
+        .map((b) => b.textContent),
+    ).toEqual([expect.stringMatching(/^8\.2/)])
+    fireEvent.change(show, { target: { value: 'failed' } })
+    expect(within(list).getByRole('button', { name: /^8\.3/ })).toBeInTheDocument()
+    expect(within(list).queryByRole('button', { name: /^8\.1/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps Publish greyed out, saying what is left, until every clause is ready', async () => {
+    mockGateway({ sections: MIXED() })
+    await openClauses(DRAFT.title)
+
+    const publish = await screen.findByRole('button', { name: 'Publish' })
+
+    expect(publish).toHaveAttribute('aria-disabled', 'true')
+    expect(publish).toHaveAccessibleDescription(/1 clause is left to check and 1 failed to embed/)
+  })
+
+  it('says a draft with no clauses has nothing to publish yet', async () => {
+    mockGateway()
+    await openClauses(DRAFT.title)
+
+    expect(await screen.findByRole('button', { name: 'Publish' })).toHaveAccessibleDescription(
+      /Add at least one clause/,
+    )
+  })
+
+  it('publishes a finished draft from its clauses page', async () => {
+    const { sent } = mockGateway({ sections: [clause(1), clause(2)] })
+    await openClauses(DRAFT.title)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+
+    expect(await screen.findByText(`${DRAFT.title} published.`)).toBeInTheDocument()
+    expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/publish')
+    expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
+  })
+
+  it('offers no Publish once a manual entry is published', async () => {
+    mockGateway({ sections: [clause(1)] })
+    await openClauses(PUBLISHED.title, 'Edit clauses')
+
+    await screen.findByRole('heading', { name: PUBLISHED.title })
+    expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
   })
 })

@@ -8,6 +8,15 @@
   gap: 24px;
 }
 
+/* Publish is the page's main action, at the end of the title row. */
+.kb-manual .kb-review-head,
+.kb-manual .kb-review-title {
+  align-self: stretch;
+}
+.kb-manual-publish {
+  margin-left: auto;
+}
+
 /* The clause list: one card, a row per clause. */
 .kb-manual-list {
   display: flex;

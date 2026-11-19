@@ -12,6 +12,7 @@ import {
   Dialog,
   IconButton,
   Input,
+  Select,
   StatusPill,
   Textarea,
   toast,
@@ -23,6 +24,7 @@ import {
   deleteManualSection,
   getKnowledgeDocument,
   listManualSections,
+  publishManualDocument,
   reembedManualSection,
   type ClauseInput,
   type KnowledgeDocument,
@@ -55,6 +57,28 @@ const inputOf = (form: Form): ClauseInput => ({
   images: form.images,
 })
 const byOrder = (a: ManualSection, b: ManualSection) => a.order - b.order || a.seq - b.seq
+const clauses = (n: number) => `${n} clause${n === 1 ? '' : 's'}`
+
+// The list's filter, to work through what Publish waits for (IN-18).
+type Show = 'all' | 'unchecked' | 'failed'
+const SHOWN: Record<Show, (s: ManualSection) => boolean> = {
+  all: () => true,
+  unchecked: (s) => !s.checked,
+  failed: (s) => !s.indexed,
+}
+
+// Why Publish waits, or null when every clause is ready (the gateway's own rule).
+function publishWait(sections: ManualSection[]) {
+  if (sections.length === 0) return 'Add at least one clause first.'
+  const unchecked = sections.filter(SHOWN.unchecked).length
+  const failed = sections.filter(SHOWN.failed).length
+  if (!unchecked && !failed) return null
+  const left = unchecked
+    ? `${clauses(unchecked)} ${unchecked === 1 ? 'is' : 'are'} left to check`
+    : ''
+  const broken = failed ? `${left ? failed : clauses(failed)} failed to embed` : ''
+  return `${[left, broken].filter(Boolean).join(' and ')}. Finish them, then publish.`
+}
 
 // Where a clause stands: in search as saved, copied and not yet checked, or not embedded.
 function ClauseState({ section: s }: { section: ManualSection }) {
@@ -85,6 +109,8 @@ export function ManualSections({
   // An action waiting on "Discard your changes?", and a delete waiting on its confirm.
   const [pending, setPending] = useState<(() => void) | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [show, setShow] = useState<Show>('all')
+  const [publishing, setPublishing] = useState(false)
   const heading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
@@ -198,6 +224,24 @@ export function ManualSections({
     }
   }
 
+  // Publish (IN-18): the draft becomes searchable, or Needs review if it matches its PDF.
+  const publish = async () => {
+    if (!doc) return
+    setPublishing(true)
+    try {
+      setDoc(await publishManualDocument(doc.id))
+      notify(`${doc.title} published.`)
+    } catch (error: unknown) {
+      toast.error("Can't publish yet", {
+        description: error instanceof Error ? error.message : 'Try again shortly.',
+      })
+    } finally {
+      setPublishing(false)
+    }
+  }
+  const wait = sections ? publishWait(sections) : null
+  const shown = (sections ?? []).filter(SHOWN[show])
+
   const label = selected ? `Clause ${selected.clause}` : 'New clause'
   return (
     <section className="kb-review kb-manual" aria-labelledby="kb-manual-title">
@@ -210,6 +254,19 @@ export function ManualSections({
             {doc?.title ?? 'Clauses'}
           </h2>
           {doc && isDraft(doc) && <StatusPill status="draft" />}
+          {doc && isDraft(doc) && sections && (
+            <span className="kb-manual-publish">
+              <Button
+                variant="primary"
+                iconLeft="check"
+                loading={publishing}
+                disabledReason={wait ? { title: "Can't publish yet", text: wait } : undefined}
+                onClick={publish}
+              >
+                Publish
+              </Button>
+            </span>
+          )}
         </div>
         {doc && (
           <p className="kb-review-meta">
@@ -240,15 +297,33 @@ export function ManualSections({
               >
                 New clause
               </Button>
-              <span className="kb-count">
-                <b>{sections.length}</b> {sections.length === 1 ? 'clause' : 'clauses'}
-              </span>
+              {sections.length > 0 && (
+                <Select
+                  size="sm"
+                  label="Show"
+                  options={[
+                    { value: 'all', label: `All clauses (${sections.length})` },
+                    {
+                      value: 'unchecked',
+                      label: `To check (${sections.filter(SHOWN.unchecked).length})`,
+                    },
+                    {
+                      value: 'failed',
+                      label: `Failed to embed (${sections.filter(SHOWN.failed).length})`,
+                    },
+                  ]}
+                  value={show}
+                  onChange={(e) => setShow(e.target.value as Show)}
+                />
+              )}
             </div>
             {sections.length === 0 ? (
               <p className="kb-list-note">No clauses yet. Add the first one in the editor.</p>
+            ) : shown.length === 0 ? (
+              <p className="kb-list-note">None left. Choose All clauses to see the rest.</p>
             ) : (
               <ol className="kb-manual-rows">
-                {sections.map((s) => (
+                {shown.map((s) => (
                   <li key={s.id} data-selected={selected?.id === s.id || undefined}>
                     <button
                       type="button"
