@@ -33,6 +33,8 @@ export const DECISIONS = [
   'discard_other',
   'supersede',
   'add_as_older',
+  // IN-18: the PDF of a manually entered edition replaces the manual entry.
+  'replace_manual',
 ] as const
 export type Decision = (typeof DECISIONS)[number]
 export const decisionSchema = z.object({
@@ -100,8 +102,8 @@ export async function compareKnowledgeDocument(id: string): Promise<{
 }
 
 // The choices that fit this match (IN-07 Decision): every match can be kept or
-// discarded; an edition can also be added, and a pair that both wait for a
-// decision lets either be discarded.
+// discarded; an edition can also be added, a manual entry replaced by its PDF
+// (IN-18), and a pair that both wait for a decision lets either be discarded.
 function allowedChoices(document: Doc, other: Doc): Decision[] {
   const kind = document.match?.kind
   return [
@@ -109,6 +111,7 @@ function allowedChoices(document: Doc, other: Doc): Decision[] {
     'discard_new',
     ...(kind === 'newer_edition' ? (['supersede'] as const) : []),
     ...(kind === 'earlier_edition' ? (['add_as_older'] as const) : []),
+    ...(kind === 'replaces_manual' ? (['replace_manual'] as const) : []),
     ...(needsReview(other) ? (['discard_other'] as const) : []),
   ]
 }
@@ -258,12 +261,21 @@ export async function decideKnowledgeDocument(
       ...clearOther,
     ])
   } else {
-    // supersede and add_as_older put both in one edition family: the stored
-    // document's own, or its id if it had none. The older edition is withdrawn
-    // (who and when recorded, as KB-01); one already withdrawn keeps its record.
+    // supersede, add_as_older and replace_manual put both in one edition family:
+    // the stored document's own, or its id if it had none. The older edition is
+    // withdrawn (who and when recorded, as KB-01); one already withdrawn keeps its
+    // record. Replacing a manual entry withdraws the manual side, whichever was
+    // reviewed: it is kept, with its clauses, but no longer searched (IN-18).
     const editionFamily = other.editionFamily ?? other._id
     const withdrawal = { at: new Date(), by }
-    const older = choice === 'supersede' ? other : document
+    const older =
+      choice === 'replace_manual'
+        ? document.entryMethod === 'manual'
+          ? document
+          : other
+        : choice === 'supersede'
+          ? other
+          : document
     const change = (doc: Doc, set: Change['set']): Change => ({
       doc,
       set: {
