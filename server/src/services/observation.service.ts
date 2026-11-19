@@ -36,6 +36,7 @@ import { onTranscriptionJob, transcriptionQueue } from './background-queues.serv
 import { retryJobId, type JobContext } from './job-queue.service'
 import { queueAssessmentCheck } from './assistant/check-queue.service'
 import { duplicateKeyField } from './mongo-errors'
+import { observationFacts } from './section.service'
 import { readingPrivacyFor } from './privacy.service'
 import {
   interpret,
@@ -474,7 +475,9 @@ function readableText(t: IRecording['transcription'] | IPage['transcription']): 
 // and photos not removed, by their own names, a repeated name numbered.
 function readingItems(o: StoredObservation): IReadItem[] {
   const items: IReadItem[] = [
-    ...(o.note?.trim() ? [{ label: 'Note', kind: 'note' as const, text: o.note }] : []),
+    ...(observationFacts(o)?.trim()
+      ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(o)! }]
+      : []),
     ...kept(o.recordings).map((r) => ({
       label: r.name,
       kind: 'recording' as const,
@@ -1059,7 +1062,12 @@ export async function updateObservation(
       deleted: { $exists: false },
       ...(unset.note && { $or: [KEEPS_RECORDING, KEEPS_PHOTO, KEEPS_PAGE] }),
     },
-    { $set: { ...set, edited: stamp(user) }, ...(Object.keys(unset).length && { $unset: unset }) },
+    {
+      // Confirmed parts describe the note as it was split; a changed or removed note clears
+      // them, or drafting would cite text the engineer replaced.
+      $set: { ...set, ...(('note' in set || unset.note) && { parts: [] }), edited: stamp(user) },
+      ...(Object.keys(unset).length && { $unset: unset }),
+    },
     { returnDocument: 'after' },
   ).lean<StoredObservation>()
   // Deleted, or left with only its note, between the read and the write.
@@ -1851,8 +1859,8 @@ export async function runInterpretation(
   const items: IReadItem[] = categories
     ? (reading.items ?? [])
     : [
-        ...(observation.note?.trim()
-          ? [{ label: 'Note', kind: 'note' as const, text: observation.note }]
+        ...(observationFacts(observation)?.trim()
+          ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(observation)! }]
           : []),
         ...(reading.photoReading?.photoIds ?? []).map((photoId) => ({
           label: observation.photos?.find((p) => p._id.equals(photoId))?.name ?? 'Photo',

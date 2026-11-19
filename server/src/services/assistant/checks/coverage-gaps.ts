@@ -2,6 +2,7 @@
 // items no observation covers, by area, and observations too thin for their
 // section. Raised from the stored result, so they show after the rest.
 import { locationText } from '../../location.service'
+import { observationFacts } from '../../section.service'
 import type { CheckContext } from '../context'
 import { plural, raise, type RaisedItem } from '../item'
 import { stageIndex } from '../stage'
@@ -56,7 +57,7 @@ export function coverageGaps(ctx: CheckContext): RaisedItem[] {
           fact: `An observation at ${o.location ? locationText(o.location) : 'the site'} is thin for ${section}.`,
           icon: 'file-minus',
           link: { tab: 'observations', params: { obs: o.id } },
-          facts: { section, reason: t.reason, note: o.note },
+          facts: { section, reason: t.reason, note: observationFacts(o) },
         }),
       ]
     }),

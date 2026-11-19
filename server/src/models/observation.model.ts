@@ -545,7 +545,8 @@ const observationSchema = new Schema<IObservation>(
             id: { type: String, required: true },
             kind: { type: String, enum: PART_KINDS, required: true },
             text: { type: String, required: true, maxlength: 1000 },
-            shorthand: { type: String, required: true },
+            // Empty for a part the engineer added by hand; Mongoose rejects '' on a required String.
+            shorthand: { type: String, default: '' },
             inferred: { type: Boolean, required: true },
             flags: {
               type: [

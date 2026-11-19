@@ -15,7 +15,7 @@ import { locationText } from './location.service'
 import { listObservationsOf, type ObservationDto } from './observation.service'
 import { acceptedOfiPriorities } from './ofi.service'
 import { rate } from './risk-quality.service'
-import { handwritingOf, transcriptsOf } from './section.service'
+import { handwritingOf, observationFacts, transcriptsOf } from './section.service'
 
 // The rules below, named so a change to them can be told apart in a saved summary.
 export const INSIGHTS_RULES = 'insights-v1'
@@ -337,7 +337,7 @@ function findingsOf(sites: InsightSite[], byCategory: InsightCell[]): InsightFin
 // The text of an observation the engineer recorded: its note, then finished
 // transcripts and handwritten pages, as drafting reads them (section.service).
 function recorded(o: ObservationDto): string {
-  return [o.note, ...transcriptsOf(o), ...handwritingOf(o)]
+  return [observationFacts(o), ...transcriptsOf(o), ...handwritingOf(o)]
     .filter((t): t is string => !!t?.trim())
     .join(' ')
     .replace(/\s+/g, ' ')

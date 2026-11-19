@@ -83,18 +83,21 @@ describe('splitting a shorthand note (CP-35)', () => {
             kind: 'fact',
             text: 'Northgate FE missing',
             shorthand: 'Northgate FE missing',
+            line: 0,
             flags: [],
           },
           {
             kind: 'info_request',
             text: 'Ask for the plan',
             shorthand: 'Northgate FE missing',
+            line: 0,
             flags: [],
           },
           {
             kind: 'recommendation',
             text: 'Fit a sprinkler',
             shorthand: 'sprinkler pls',
+            line: 1,
             flags: [{ type: 'unknown_term', detail: 'pls' }],
           },
         ],
@@ -129,6 +132,38 @@ describe('splitting a shorthand note (CP-35)', () => {
     ])
     expect(res.body.parts[3].flags).toEqual([{ type: 'unknown_term', detail: 'pls' }])
     expect((await AiCallModel.findOne({ feature: 'split-note' }).lean())?.reportId).toBe('RPT-1')
+  })
+
+  const texts = (res: { body: { parts: { text: string }[] } }) => res.body.parts.map((p) => p.text)
+  const part = (text: string, line: number, shorthand = 'frag') => ({
+    kind: 'fact',
+    text,
+    shorthand,
+    line,
+  })
+
+  it('keeps a line split into two fragments together at its position', async () => {
+    rag.mockReturnValue(json({ parts: [part('a1', 0), part('a2', 0), part('b1', 1)] }))
+    const res = await split('line a\nF: coded\nline b')
+    expect(texts(res)).toEqual(['a1', 'a2', 'coded', 'b1'])
+  })
+
+  it('gives two identical uncoded lines their own parts', async () => {
+    rag.mockReturnValue(json({ parts: [part('first', 0, 'same'), part('second', 1, 'same')] }))
+    const res = await split('same\nsame')
+    expect(texts(res)).toEqual(['first', 'second'])
+  })
+
+  it('keeps mixed coded and uncoded lines in note order', async () => {
+    rag.mockReturnValue(json({ parts: [part('u1', 0), part('u2', 1)] }))
+    const res = await split('F: c1\nraw1\nF: c2\nraw2')
+    expect(texts(res)).toEqual(['c1', 'u1', 'c2', 'u2'])
+  })
+
+  it('puts a part with an out-of-range line after the last position', async () => {
+    rag.mockReturnValue(json({ parts: [part('stray', 9), part('u1', 0)] }))
+    const res = await split('raw1\nF: c1')
+    expect(texts(res)).toEqual(['u1', 'c1', 'stray'])
   })
 
   it('passes real names from rag straight through (rag unmasks inside)', async () => {

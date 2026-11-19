@@ -670,6 +670,36 @@ describe('asking about a selected passage (AS-02)', () => {
     )
   })
 
+  it('sends only the confirmed facts of a split note (CP-35)', async () => {
+    const { valve } = await draftedNine()
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent(JSON.parse(String(init!.body)))
+      return new Response(event({ type: 'result', value: {} }))
+    })
+    const noteSent = async () => {
+      sent.mockClear()
+      await asEngineer.post(base).send({ question: 'Valve?' })
+      const o = sent.mock.calls[0][0].observations.find(
+        (x: { id: string }) => x.id === String(valve._id),
+      )
+      return o ? o.note : 'left out'
+    }
+    expect(await noteSent()).toBe('B1 sprinkler control valve found shut.')
+    const parts = (kinds: string[]) =>
+      kinds.map((kind) => ({
+        id: kind,
+        kind,
+        text: `${kind} text`,
+        shorthand: '',
+        inferred: false,
+      }))
+    await ObservationModel.updateOne({ _id: valve._id }, { parts: parts(['info_request']) })
+    expect(await noteSent()).toBe('left out')
+    await ObservationModel.updateOne({ _id: valve._id }, { parts: parts(['info_request', 'fact']) })
+    expect(await noteSent()).toBe('fact text')
+  })
+
   it('passes on a line naming where the sources disagree, and saves it', async () => {
     const { valve, valveRef } = await draftedNine()
     const differs = {

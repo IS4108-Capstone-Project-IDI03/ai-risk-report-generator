@@ -8,7 +8,7 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import { copeDimensionsOf, ObservationModel, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
-import { toEvidence } from '../services/section.service'
+import { observationFacts, toEvidence } from '../services/section.service'
 import type { ObservationDto } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -817,5 +817,23 @@ describe('drafting evidence of a split note (CP-35)', () => {
   })
   it('keeps the note as typed when it has no parts', () => {
     expect(toEvidence(dto([])).note).toBe('raw note')
+  })
+  it('observationFacts: a request-only note gives no fact, a fact part only its fact, no parts the note', () => {
+    expect(
+      observationFacts({
+        note: 'IR: ask for roof plan',
+        parts: [{ kind: 'info_request', text: 'roof plan' }],
+      }),
+    ).toBeNull()
+    expect(
+      observationFacts(
+        dto([
+          { kind: 'fact', text: 'A' },
+          { kind: 'recommendation', text: 'C' },
+        ]),
+      ),
+    ).toBe('A')
+    expect(observationFacts({ note: 'raw note', parts: [] })).toBe('raw note')
+    expect(observationFacts({})).toBeNull()
   })
 })

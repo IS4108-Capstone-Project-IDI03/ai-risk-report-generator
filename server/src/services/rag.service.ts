@@ -324,6 +324,8 @@ export type SplitNoteResult = {
     kind: string
     text: string
     shorthand: string
+    // Index into the lines sent: which uncoded line this part came from.
+    line?: number
     flags?: { type: string; detail: string }[]
   }[]
   // One item per paid call (EV-03); saved by split-note.service.ts.

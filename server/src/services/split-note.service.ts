@@ -87,29 +87,32 @@ export async function splitNote(
   }
   if (!Array.isArray(result.parts)) throw new RagServiceError('The split came back unreadable.')
 
-  // d. Put each inferred part back at its line. A part whose shorthand names a later line
-  // moves on to it; one that names none stays with the line before, so a split line stays together.
+  // d. Put each inferred part back at the uncoded line rag says it came from (`line`, an index
+  // into the lines sent). Parts of one line stay together in the order returned. A part with no
+  // valid line goes after the whole note; without this it would be dropped or misplaced.
   const inferred = new Map<number, IPart[]>()
-  let at = 0
+  const stray: IPart[] = []
   for (const p of result.parts) {
-    const found = uncoded.findIndex((l, i) => i >= at && l === String(p.shorthand ?? '').trim())
-    if (found >= 0) at = found
     const kind = (PART_KINDS as readonly string[]).includes(p.kind) ? (p.kind as PartKind) : 'fact'
     const flags = (p.flags ?? []).filter(
       (f) => f.type === 'unknown_term' || f.type === 'number_changed',
     ) as IPart['flags']
-    inferred.set(at, [
-      ...(inferred.get(at) ?? []),
-      {
-        id: randomUUID(),
-        kind,
-        text: String(p.text),
-        shorthand: String(p.shorthand ?? uncoded[at]),
-        inferred: true,
-        flags,
-      },
-    ])
+    const made: IPart = {
+      id: randomUUID(),
+      kind,
+      text: String(p.text),
+      shorthand: String(p.shorthand ?? ''),
+      inferred: true,
+      flags,
+    }
+    const line = p.line
+    if (line !== undefined && Number.isInteger(line) && line >= 0 && line < uncoded.length) {
+      inferred.set(line, [...(inferred.get(line) ?? []), made])
+    } else stray.push(made)
   }
   let next = 0
-  return slots.flatMap((s) => (typeof s === 'string' ? (inferred.get(next++) ?? []) : s))
+  return [
+    ...slots.flatMap((s) => (typeof s === 'string' ? (inferred.get(next++) ?? []) : s)),
+    ...stray,
+  ]
 }

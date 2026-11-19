@@ -134,8 +134,25 @@ export function handwritingOf(o: ObservationDto): string[] {
     return p.transcription.status === 'transcribed' && text?.trim() ? [text] : []
   })
 }
+/**
+ * Returns what the engineer observed as fact: a split note's confirmed fact parts joined by
+ * newlines (null when it has none), else the raw note. Info requests and recommendations are
+ * never stated as fact, so every reader that shows or sends the note as evidence uses this.
+ */
+export function observationFacts(o: {
+  note?: string | null
+  parts?: { kind: string; text: string }[] | null
+}): string | null {
+  if (!o.parts?.length) return o.note ?? null
+  const facts = o.parts.filter((p) => p.kind === 'fact').map((p) => p.text)
+  return facts.length ? facts.join('\n') : null
+}
 export function isUsable(o: ObservationDto): boolean {
-  return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0 || handwritingOf(o).length > 0
+  return (
+    Boolean(observationFacts(o)?.trim()) ||
+    transcriptsOf(o).length > 0 ||
+    handwritingOf(o).length > 0
+  )
 }
 
 // An observation as the draft is given it, and as the draft saves it.
@@ -148,12 +165,7 @@ export function toEvidence(o: ObservationDto): Evidence {
     COPE_dimension: o.copeDimensions!,
     // A split shorthand note (CP-35): only the confirmed facts are evidence; info requests and
     // recommendations are never stated as fact. No new key: it would date every earlier draft.
-    note: o.parts.length
-      ? o.parts
-          .filter((p) => p.kind === 'fact')
-          .map((p) => p.text)
-          .join('\n')
-      : o.note,
+    note: o.parts.length ? (observationFacts(o) ?? '') : o.note,
     transcripts: transcriptsOf(o),
     // Only when there is some (CP-19): changesSince compares evidence as JSON,
     // so an observation without pages must read exactly as it did before pages
