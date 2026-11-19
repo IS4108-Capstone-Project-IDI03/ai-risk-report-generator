@@ -50,6 +50,8 @@ import {
   reembedManualSection,
   addScreenshot,
   getScreenshot,
+  publishManualDocument,
+  PublishBlockedError,
   screenshotQuerySchema,
 } from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
@@ -203,6 +205,23 @@ router.delete('/:id/sections/:sid', requirePermission('knowledge:manage'), async
     await deleteManualSection(req.params.id, req.params.sid)
     res.status(204).end()
   } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Publishes a manual draft (IN-18): its clauses become searchable, or Needs review if
+// it matches another document, such as its own PDF. Answers: 200 the document · 404 ·
+// 409 not a manual draft, or not finished (`unindexed`, `unchecked` say how many
+// clauses are left) · 503 the match couldn't run (still a draft).
+router.post('/:id/publish', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    res.json(await publishManualDocument(req.params.id))
+  } catch (error: unknown) {
+    if (error instanceof PublishBlockedError) {
+      const { message, unindexed, unchecked } = error
+      res.status(409).json({ error: message, unindexed, unchecked })
+      return
+    }
     answerClause(error, res)
   }
 })

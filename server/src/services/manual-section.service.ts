@@ -16,11 +16,13 @@ import {
   deleteManualSectionPassages,
   indexManualSection,
   IngestionUnavailableError,
+  matchDocument,
   recogniseScreenshot,
   ScreenshotRejectedError,
 } from './ingestion.service'
 import {
   documentDetailsSchema,
+  getKnowledgeDocument,
   KnowledgeDocumentNotFoundError,
   KnowledgeDocumentWrongStateError,
   recordFields,
@@ -399,6 +401,71 @@ export async function deleteManualSection(documentId: string, sectionId: string)
   await Promise.all(
     section.images.map((image) => storage.deleteObject(image.key).catch(() => undefined)),
   )
+}
+
+// ─── Publish ────────────────────────────────────────────────────────────────
+
+// A draft that isn't finished (409): no clause yet, or some not indexed or not checked.
+export class PublishBlockedError extends Error {
+  constructor(
+    message: string,
+    readonly unindexed: number,
+    readonly unchecked: number,
+  ) {
+    super(message)
+    this.name = 'PublishBlockedError'
+  }
+}
+
+const clauses = (n: number) => `${n} clause${n === 1 ? '' : 's'}`
+
+/**
+ * Publishes a manual draft (IN-18): refused (PublishBlockedError) until it has a
+ * clause, every clause is indexed and every copied one checked. Then the document
+ * is complete and ingestion matches it (IN-07), which relabels its passages:
+ * active, or needs_review if it matched something (such as its PDF). If the match
+ * can't run, it stays a draft (IngestionUnavailableError, a 503).
+ */
+export async function publishManualDocument(id: string) {
+  const doc = await manualDocument(id)
+  if (doc.status !== 'draft') {
+    throw new KnowledgeDocumentWrongStateError('This document is already published.')
+  }
+  const [total, unindexed, unchecked] = await Promise.all([
+    ManualSectionModel.countDocuments({ documentId: doc._id }),
+    ManualSectionModel.countDocuments({ documentId: doc._id, indexed: false }),
+    ManualSectionModel.countDocuments({ documentId: doc._id, checked: false }),
+  ])
+  if (total === 0) {
+    throw new PublishBlockedError('Add at least one clause before publishing.', 0, 0)
+  }
+  if (unindexed || unchecked) {
+    const left = [
+      unindexed && `${clauses(unindexed)} failed to embed`,
+      unchecked && `${clauses(unchecked)} ${unchecked === 1 ? 'is' : 'are'} left to check`,
+    ].filter(Boolean)
+    throw new PublishBlockedError(
+      `${left.join(' and ')}. Finish them before publishing.`,
+      unindexed,
+      unchecked,
+    )
+  }
+  // Only from draft, so two publishes at once run the match once.
+  const moved = await KnowledgeDocumentModel.updateOne(
+    { _id: doc._id, status: 'draft' },
+    { $set: { status: 'complete' } },
+  )
+  if (moved.modifiedCount === 0) {
+    throw new KnowledgeDocumentWrongStateError('This document is already published.')
+  }
+  try {
+    // Ingestion matches only complete documents, and relabels the passages itself.
+    await matchDocument(id)
+  } catch (error) {
+    await KnowledgeDocumentModel.updateOne({ _id: doc._id }, { $set: { status: 'draft' } })
+    throw error
+  }
+  return getKnowledgeDocument(id)
 }
 
 // ─── Screenshots ────────────────────────────────────────────────────────────
