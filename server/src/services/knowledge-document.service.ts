@@ -290,17 +290,25 @@ const PASSAGE_CITATION = /^[CP]:([0-9a-f]{24}):/
  * pointing at passages that no longer exist.
  */
 export async function citedDocumentIds(): Promise<Set<string>> {
+  const ids = new Set<string>()
+  for (const citation of await reportCitations()) {
+    const id = PASSAGE_CITATION.exec(citation)?.[1]
+    if (id) ids.add(id)
+  }
+  return ids
+}
+
+// Every passage citation in report section statements and OFIs (`C:` / `P:` + passage id).
+// IN-12 reads it for documents; a manual clause's delete (IN-18) for its own passages.
+export async function reportCitations(): Promise<string[]> {
   const [fromSections, standards, precedents] = await Promise.all([
     ReportSectionModel.distinct('subsections.statements.citations') as Promise<string[]>,
     ReportOfiModel.distinct('standards') as Promise<string[]>,
     ReportOfiModel.distinct('precedent') as Promise<(string | null)[]>,
   ])
-  const ids = new Set<string>()
-  for (const citation of [...fromSections, ...standards, ...precedents]) {
-    const id = typeof citation === 'string' ? PASSAGE_CITATION.exec(citation)?.[1] : undefined
-    if (id) ids.add(id)
-  }
-  return ids
+  return [...fromSections, ...standards, ...precedents].filter(
+    (citation): citation is string => typeof citation === 'string',
+  )
 }
 
 // Builds the progress field from an ingestion job, computing elapsed times on

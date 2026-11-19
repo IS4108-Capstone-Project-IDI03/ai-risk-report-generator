@@ -50,7 +50,8 @@ const manualSectionSchema = new Schema<IManualSection>(
     order: { type: Number, required: true, min: 0 },
     clause: { type: String, required: true, trim: true },
     headings: { type: [String], default: [] },
-    text: { type: String, required: true },
+    // May be empty when the clause is only a screenshot (its corrected text is searched).
+    text: { type: String, default: '' },
     images: {
       type: [
         new Schema(

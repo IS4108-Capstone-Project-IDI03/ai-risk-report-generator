@@ -36,9 +36,18 @@ import {
   passageQuerySchema,
 } from '../services/knowledge-passages.service'
 import {
+  addManualSection,
+  changeManualSection,
+  ClauseExistsError,
   createManualDocument,
+  deleteManualSection,
+  listManualSections,
   ManualEntryExistsError,
   manualDocumentSchema,
+  ManualSectionInvalidError,
+  manualSectionChangeSchema,
+  manualSectionSchema,
+  reembedManualSection,
 } from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -127,6 +136,86 @@ router.post('/manual', requirePermission('knowledge:manage'), async (req, res) =
     throw error
   }
 })
+
+// A manual document's clauses (IN-18). Saving indexes the clause at once; if
+// ingestion is down the clause is still saved, with `indexed: false`, and
+// Re-embed tries again. Every change answers 409 for an uploaded document
+// (its passages are read-only) or a withdrawn one.
+function answerClause(error: unknown, res: express.Response) {
+  if (error instanceof ClauseExistsError) {
+    res.status(409).json({ error: error.message, fields: { clause: error.message } })
+    return
+  }
+  if (error instanceof ManualSectionInvalidError) {
+    res.status(400).json({ error: error.message, fields: { [error.field]: error.message } })
+    return
+  }
+  answerStateChange(error, res)
+}
+
+// Lists the clauses in their order. Answers: 200 · 404 unknown · 409 an uploaded document.
+router.get('/:id/sections', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json(await listManualSections(req.params.id))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Adds a clause. Answers: 201 · 400 bad clause · 404 · 409 clause number taken, or not editable.
+router.post('/:id/sections', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualSectionSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.status(201).json(await addManualSection(req.params.id, parsed.data, { id, name }))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Saves a change, with the `updatedAt` it was loaded with. Answers: 200 · 400 · 404 · 409
+// clause number taken, someone else saved it meanwhile, or not editable.
+router.put('/:id/sections/:sid', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualSectionChangeSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.json(await changeManualSection(req.params.id, req.params.sid, parsed.data, { id, name }))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Deletes a clause. Answers: 204 · 404 · 409 a report cites it, or not editable · 503 its
+// passages couldn't be removed from search (the clause is kept).
+router.delete('/:id/sections/:sid', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    await deleteManualSection(req.params.id, req.params.sid)
+    res.status(204).end()
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Indexes a clause again as saved. Answers: 200 (`indexed` says whether it worked) · 404 · 409.
+router.post(
+  '/:id/sections/:sid/reembed',
+  requirePermission('knowledge:manage'),
+  async (req, res) => {
+    try {
+      res.json(await reembedManualSection(req.params.id, req.params.sid))
+    } catch (error: unknown) {
+      answerClause(error, res)
+    }
+  },
+)
 
 // Corrects a document's details (KB-01). The body is the full set of details,
 // as JSON. Answers: 200 corrected · 400 bad details · 404 unknown · 409 not

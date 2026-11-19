@@ -147,6 +147,59 @@ export async function relabelPassages(
   if (!response.ok) throw failed
 }
 
+// One clause of a manual document as ingestion indexes it (IN-18): its text with
+// its screenshots' corrected text, and each screenshot's key and kind only.
+export type ManualSectionPayload = {
+  seq: number
+  order: number
+  clause: string
+  headings: string[]
+  text: string
+  images: { key: string; kind: string }[]
+}
+
+// One clause is one embedding call, but Cohere can be slow or rate-limited.
+const MANUAL_SECTION_TIMEOUT_MS = 60_000
+
+// Indexes one clause of a manual document, replacing its passages (IN-18), and
+// records the embedding against the document. Throws IngestionUnavailableError
+// if ingestion is down or refuses; the clause's old passages are then kept.
+export async function indexManualSection(
+  documentId: string,
+  sectionId: string,
+  payload: ManualSectionPayload,
+): Promise<void> {
+  const failed = new IngestionUnavailableError(
+    "Search couldn't be updated with this clause. Re-embed it to try again.",
+  )
+  const response = await fetch(
+    `${config.ingestionServiceUrl}/documents/${documentId}/manual-sections/${sectionId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(MANUAL_SECTION_TIMEOUT_MS),
+    },
+  ).catch(() => {
+    throw failed
+  })
+  if (!response.ok) throw failed
+  const answer = (await response.json().catch(() => ({}))) as { usage?: unknown }
+  await recordAiCalls(answer.usage, { documentId })
+}
+
+// Deletes one clause's passages from search (IN-18). Throws IngestionUnavailableError.
+export async function deleteManualSectionPassages(
+  documentId: string,
+  sectionId: string,
+): Promise<void> {
+  await callIngestion(
+    `/documents/${documentId}/manual-sections/${sectionId}`,
+    'DELETE',
+    "The clause couldn't be removed from search, so it was kept. Try again shortly.",
+  )
+}
+
 // Calls an ingestion endpoint that must succeed; any failure is an
 // IngestionUnavailableError carrying `failureMessage` (a 503 for the caller).
 async function callIngestion<T>(path: string, method: string, failureMessage: string): Promise<T> {
