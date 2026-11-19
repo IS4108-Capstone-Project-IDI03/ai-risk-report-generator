@@ -2276,6 +2276,20 @@ describe('document authority tier (RT-04)', () => {
     expect(again.body.tier).toEqual({ value: 'national_code', source: 'admin' })
   })
 
+  it('saves a tier-only change without calling the ingestion service (the tier is not in Chroma)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'national_code' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
   it('answers 400 for an unknown tier and 403 to an engineer', async () => {
     const id = await stored(REPORT)
     const put = (who: typeof api, tier: string) =>

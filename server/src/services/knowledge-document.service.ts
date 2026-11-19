@@ -1054,8 +1054,13 @@ export async function correctKnowledgeDocument(
   // this, MongoDB would show the correction while search still used the old
   // labels (or a stale match).
   const rematch = Boolean(old.match) || identityDiffers(old, next)
+  // Only the tier changed: it is not stored in Chroma, so there is nothing to relabel. Without this
+  // a tier change would fail whenever the ingestion service is down.
+  const tierOnly = tierChanged && !differs(old, next)
   try {
-    if (rematch) {
+    if (tierOnly) {
+      // nothing to send
+    } else if (rematch) {
       await matchDocument(id).catch(() => {
         throw new IngestionUnavailableError(
           "The knowledge base couldn't be updated, so nothing changed. Try again shortly.",
