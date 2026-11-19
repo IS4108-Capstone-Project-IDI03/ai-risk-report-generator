@@ -41,6 +41,23 @@ export type PopoverProps = {
   closeOnFocusOut?: boolean
 }
 
+// The top and bottom of the boxes round the trigger that cut off what overflows them, as a
+// card with overflow hidden does: a surface opened from a checklist item's ⋯ at the foot of
+// its card was hidden by it (CP-31). A scrolling box is left out, since what overflows it can
+// still be scrolled to, and so are the body and html, whose overflow is the window's.
+function clipEdges(from: Element | null) {
+  let top = -Infinity
+  let bottom = Infinity
+  for (let el = from?.parentElement; el && el !== document.body; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el)
+    if (overflowY !== 'hidden' && overflowY !== 'clip') continue
+    const r = el.getBoundingClientRect()
+    top = Math.max(top, r.top)
+    bottom = Math.min(bottom, r.bottom)
+  }
+  return { top, bottom }
+}
+
 // A small floating surface anchored to a trigger. It owns the overlay
 // behaviour — Escape, outside click, focus return — and nothing about
 // notifications; that stays in the feature.
@@ -168,11 +185,13 @@ export function Popover({
       // Vertical: stay above a sticky bottom bar and the window edge. Flip above the trigger
       // when there is more room there, else cap the height and scroll.
       const bar = document.querySelector('.ds-action-bar')?.getBoundingClientRect().top
-      const limit = Math.min(window.innerHeight, bar ?? Infinity) - margin
+      const clip = clipEdges(anchor.current)
+      const limit = Math.min(window.innerHeight, bar ?? Infinity, clip.bottom) - margin
       const box = el.getBoundingClientRect()
       const trigger = anchor.current?.getBoundingClientRect()
       if (!trigger || box.bottom <= limit) return
-      if (trigger.top - margin * 2 >= box.height) el.setAttribute('data-flip', '')
+      if (trigger.top - Math.max(0, clip.top) - margin * 2 >= box.height)
+        el.setAttribute('data-flip', '')
       else {
         el.style.setProperty('--cap', `${Math.max(160, limit - box.top)}px`)
         el.setAttribute('data-cap', '')

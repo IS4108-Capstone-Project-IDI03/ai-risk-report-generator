@@ -57,7 +57,18 @@ export function useIsPhone() {
   return phone
 }
 
-/** Returns the sheet, portalled to the body; renders nothing when closed (after the exit fade). */
+// Where the sheet is portalled: the open modal dialog, if there is one, else the body. The
+// browser shows a modal dialog above the whole page and makes the rest inert, so a sheet
+// opened from inside one (a checklist item's ⋯ menu over the capture screen, CP-31) and
+// portalled to the body would open behind it, out of reach. A closing dialog's fading copy
+// is inert, so it is passed over; the last open dialog is the innermost.
+function sheetHost(): HTMLElement {
+  const dialogs = document.querySelectorAll<HTMLDialogElement>('dialog[open]:not([inert])')
+  return dialogs[dialogs.length - 1] ?? document.body
+}
+
+/** Returns the sheet, portalled to the body (or the open modal dialog); renders nothing when
+    closed (after the exit fade). */
 export function Sheet({
   open,
   onClose,
@@ -92,7 +103,10 @@ export function Sheet({
   useEffect(() => {
     closeRef.current = onClose
   })
-  const isTop = useOverlayStack(open, true)
+  const host = open || leaving ? sheetHost() : document.body
+  // Over a modal dialog, the dialog already makes the page behind inert; locking the app root
+  // as well would make the dialog, and the sheet inside it, inert too.
+  const isTop = useOverlayStack(open, host === document.body)
 
   // Focus moves in on open and returns to the opener on close; Tab stays inside; Esc closes
   // (only the topmost overlay answers).
@@ -103,7 +117,11 @@ export function Sheet({
     first?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (!isTop()) return
-      if (e.key === 'Escape') return closeRef.current()
+      if (e.key === 'Escape') {
+        // Cancelled, so a dialog the sheet is over does not close on the same press.
+        e.preventDefault()
+        return closeRef.current()
+      }
       if (e.key !== 'Tab') return
       const items = [...(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
       if (!items.length) return
@@ -186,6 +204,6 @@ export function Sheet({
         )}
       </div>
     </div>,
-    document.body,
+    host,
   )
 }
