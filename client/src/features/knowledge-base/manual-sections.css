@@ -115,6 +115,51 @@
   margin-right: auto;
 }
 
+/* Screenshots (IN-18): each image beside the text read from it, then the picker. */
+.kb-shots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kb-shots legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.kb-shot {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+.kb-shot img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.kb-shot-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+.kb-shot-add .kb-pick[aria-disabled] {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 @media (max-width: 1079px) {
   .kb-manual-body {
     grid-template-columns: minmax(0, 1fr);
@@ -123,5 +168,11 @@
 @media (max-width: 767px) {
   .kb-manual-actions > * {
     flex: 1;
+  }
+  .kb-shot {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .kb-shot img {
+    grid-column: 1 / -1;
   }
 }

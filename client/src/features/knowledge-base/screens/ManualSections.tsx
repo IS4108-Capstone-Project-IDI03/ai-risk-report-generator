@@ -28,28 +28,31 @@ import {
   type KnowledgeDocument,
   type ManualSection,
 } from '../api'
+import { ClauseScreenshots } from '../components/ClauseScreenshots'
 import { isDraft } from '../display'
 import '../review-document.css'
 import '../manual-sections.css'
 
-// What the editor holds: the heading trail as typed, "Chapter 8 > 8.6 Hangers".
-type Form = { clause: string; trail: string; text: string }
-const BLANK: Form = { clause: '', trail: '', text: '' }
+// What the editor holds: the heading trail as typed, "Chapter 8 > 8.6 Hangers", and
+// the screenshots with their corrected text.
+type Form = { clause: string; trail: string; text: string; images: ClauseInput['images'] }
+const BLANK: Form = { clause: '', trail: '', text: '', images: [] }
 const TRAIL = ' > '
 
 const formOf = (s: ManualSection): Form => ({
   clause: s.clause,
   trail: s.headings.join(TRAIL),
   text: s.text,
+  images: s.images,
 })
-const inputOf = (form: Form, images: ClauseInput['images']): ClauseInput => ({
+const inputOf = (form: Form): ClauseInput => ({
   clause: form.clause.trim(),
   headings: form.trail
     .split('>')
     .map((h) => h.trim())
     .filter(Boolean),
   text: form.text,
-  images,
+  images: form.images,
 })
 const byOrder = (a: ManualSection, b: ManualSection) => a.order - b.order || a.seq - b.seq
 
@@ -76,7 +79,7 @@ export function ManualSections({
   // The clause in the editor, or null for a new one.
   const [selected, setSelected] = useState<ManualSection | null>(null)
   const [form, setForm] = useState<Form>(BLANK)
-  const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({})
+  const [errors, setErrors] = useState<Partial<Record<'clause' | 'text', string>>>({})
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // An action waiting on "Discard your changes?", and a delete waiting on its confirm.
@@ -106,7 +109,7 @@ export function ManualSections({
   useEffect(() => heading.current?.focus(), [])
 
   const baseline = selected ? formOf(selected) : BLANK
-  const dirty = (Object.keys(BLANK) as (keyof Form)[]).some((k) => form[k] !== baseline[k])
+  const dirty = JSON.stringify(form) !== JSON.stringify(baseline)
   // Runs `action` now, or once the admin agrees to drop the changes in the editor.
   const guard = (action: () => void) => (dirty ? setPending(() => action) : action())
   const edit = (section: ManualSection | null) => {
@@ -123,8 +126,9 @@ export function ManualSections({
   const save = async () => {
     const missing: typeof errors = {
       ...(!form.clause.trim() && { clause: 'Enter the clause number.' }),
-      ...(!form.text.trim() && !selected?.images.some((i) => i.text.trim())
-        ? { text: 'Enter the clause text.' }
+      // A clause that is only a screenshot is searched by the screenshot's text.
+      ...(!form.text.trim() && !form.images.some((i) => i.text.trim())
+        ? { text: 'Enter the clause text, or add a screenshot.' }
         : {}),
     }
     setErrors(missing)
@@ -132,7 +136,7 @@ export function ManualSections({
     setBusy(true)
     setProblem(null)
     try {
-      const input = inputOf(form, selected?.images ?? [])
+      const input = inputOf(form)
       const saved = selected
         ? await changeManualSection(id, selected.id, input, selected.updatedAt)
         : await addManualSection(id, input)
@@ -316,6 +320,14 @@ export function ManualSections({
               value={form.text}
               error={errors.text}
               onChange={(e) => setForm({ ...form, text: e.target.value })}
+            />
+            <ClauseScreenshots
+              documentId={id}
+              images={form.images}
+              context={form.trail}
+              onChange={(change) =>
+                setForm((current) => ({ ...current, images: change(current.images) }))
+              }
             />
             <div className="kb-manual-actions">
               {selected && (

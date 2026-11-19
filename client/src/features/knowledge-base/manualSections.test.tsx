@@ -78,13 +78,28 @@ function mockGateway({
   documents = [DRAFT, PUBLISHED, UPLOADED] as object[],
   sections = [] as ReturnType<typeof clause>[],
   answer = {} as Record<string, (body: unknown) => Promise<Response>>,
+  // What /screenshots answers: the OCR's reading, or a status and error.
+  screenshot = { text: 'Pipe size: 25 mm; Max spacing: 3.7 m', readError: null } as
+    { text: string; readError: string | null } | { status: number; error: string },
 } = {}) {
   const sent: Sent[] = []
   let next = sections.length + 1
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
-    const body = init?.body ? JSON.parse(String(init.body)) : null
+    // A screenshot's body is the image itself, recorded as its file name.
+    const body =
+      init?.body instanceof File
+        ? init.body.name
+        : init?.body
+          ? JSON.parse(String(init.body))
+          : null
     if (method !== 'GET') sent.push({ method, url, body })
+    if (url.includes('/sections/screenshots?') && method === 'POST') {
+      if ('status' in screenshot) return json(screenshot.status, { error: screenshot.error })
+      const kind = new URL(url, 'http://x').searchParams.get('kind')
+      const name = `0b7c7c3e-6d1b-4a6e-9a51-6a0f8c1e2f${String(sent.length).padStart(2, '0')}.png`
+      return json(201, { key: `knowledge/nfpa13/sections/${name}`, kind, ...screenshot })
+    }
     const key = `${method} ${url.replace(/\/s\d+/, '/:sid')}`
     for (const [route, reply] of Object.entries(answer)) if (key.endsWith(route)) return reply(body)
     if (url === '/api/knowledge-documents/ingested') return json(200, documents)
@@ -147,7 +162,19 @@ const field = (label: string) => new RegExp(`^${label}`)
 const type = (label: string, value: string) =>
   fireEvent.change(within(editor()).getByLabelText(field(label)), { target: { value } })
 
+// Chooses an image for a screenshot of `kind` in the editor.
+function attach(kind: string, name = 'table.png') {
+  fireEvent.change(within(editor()).getByLabelText('Screenshot of a'), { target: { value: kind } })
+  const file = new File(['png bytes'], name, { type: 'image/png' })
+  fireEvent.change(within(editor()).getByLabelText('Add screenshot'), {
+    target: { files: [file] },
+  })
+}
+
 beforeAll(() => {
+  // jsdom has no object URLs; the editor previews a new screenshot with one.
+  URL.createObjectURL = () => 'blob:preview'
+  URL.revokeObjectURL = () => undefined
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
   }
@@ -338,7 +365,9 @@ describe('the clauses page', () => {
     fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
 
     expect(within(editor()).getByText('Enter the clause number.')).toBeInTheDocument()
-    expect(within(editor()).getByText('Enter the clause text.')).toBeInTheDocument()
+    expect(
+      within(editor()).getByText('Enter the clause text, or add a screenshot.'),
+    ).toBeInTheDocument()
     expect(sent).toEqual([])
   })
 
@@ -389,5 +418,99 @@ describe('the clauses page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
 
     expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+  })
+})
+
+describe('screenshots of tables, formulas and pictures', () => {
+  it('reads a screenshot, lets you correct its text, and saves both with the clause', async () => {
+    const { sent } = mockGateway()
+    await openClauses(DRAFT.title)
+    type('Clause number', '8.6.1')
+    type('Heading trail', 'Chapter 8 > 8.6 Hangers')
+    type('Text', 'Hangers shall be spaced as in the table.')
+
+    attach('table')
+
+    const read = await within(editor()).findByLabelText(field('Text read from table 1'))
+    expect(read).toHaveValue('Pipe size: 25 mm; Max spacing: 3.7 m')
+    expect(sent[0]).toEqual({
+      method: 'POST',
+      url: '/api/knowledge-documents/nfpa13/sections/screenshots?kind=table&context=Chapter+8+%3E+8.6+Hangers',
+      body: 'table.png',
+    })
+    expect(within(editor()).getByRole('img', { name: 'Table 1' })).toHaveAttribute(
+      'src',
+      'blob:preview',
+    )
+    fireEvent.change(read, { target: { value: 'Pipe size: 25 mm; Max spacing: 3.6 m' } })
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    await waitFor(() => expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/sections'))
+    expect(sent.at(-1)?.body).toMatchObject({
+      images: [
+        {
+          key: expect.stringMatching(/^knowledge\/nfpa13\/sections\/.+\.png$/),
+          kind: 'table',
+          text: 'Pipe size: 25 mm; Max spacing: 3.6 m',
+        },
+      ],
+    })
+  })
+
+  it('says when OCR read nothing, so the text can be typed', async () => {
+    const reason = "The image couldn't be read automatically. Type its text in, or try again."
+    mockGateway({ screenshot: { text: '', readError: reason } })
+    await openClauses(DRAFT.title)
+
+    attach('formula')
+
+    expect(await within(editor()).findByText(reason)).toBeInTheDocument()
+    expect(within(editor()).getByLabelText(field('Text read from formula 1'))).toHaveValue('')
+  })
+
+  it('keeps a refused file out of the clause and says why', async () => {
+    mockGateway({ screenshot: { status: 415, error: 'Add a PNG, JPG or WebP image.' } })
+    await openClauses(DRAFT.title)
+
+    attach('picture', 'diagram.gif')
+
+    expect(await screen.findByText('Add a PNG, JPG or WebP image.')).toBeInTheDocument()
+    expect(within(editor()).queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('saves a clause that is only a screenshot, and drops one removed before saving', async () => {
+    const { sent } = mockGateway()
+    await openClauses(DRAFT.title)
+    type('Clause number', 'Table 8.6.1')
+    attach('table')
+    await within(editor()).findByLabelText(field('Text read from table 1'))
+    attach('picture', 'figure.png')
+    await within(editor()).findByLabelText(field('Text read from picture 2'))
+
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Remove picture 2' }))
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    await waitFor(() => expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/sections'))
+    const saved = sent.at(-1)?.body as { text: string; images: { kind: string }[] }
+    expect(saved.text).toBe('')
+    expect(saved.images.map((i) => i.kind)).toEqual(['table'])
+  })
+
+  it('shows a saved clause’s screenshots from the gateway', async () => {
+    const key = 'knowledge/nfpa13/sections/0b7c7c3e-6d1b-4a6e-9a51-6a0f8c1e2f3a.png'
+    mockGateway({
+      sections: [clause(1, { images: [{ key, kind: 'table', text: 'Pipe: 25 mm' }] })],
+    })
+    const list = await openClauses(DRAFT.title)
+
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.1/ }))
+
+    expect(within(editor()).getByRole('img', { name: 'Table 1' })).toHaveAttribute(
+      'src',
+      `/api/knowledge-documents/nfpa13/sections/screenshots/${key.split('/').pop()}`,
+    )
+    expect(within(editor()).getByLabelText(field('Text read from table 1'))).toHaveValue(
+      'Pipe: 25 mm',
+    )
   })
 })

@@ -312,15 +312,39 @@ export function changeManualSection(
   })
 }
 
+// A screenshot read by OCR and stored, for a clause to hold once saved. `text` is
+// '' with `readError` saying why when OCR read nothing, so the admin types it.
+export type Screenshot = ManualImage & { readError: string | null }
+
+// Reads a table, formula or picture screenshot with OCR and stores it (IN-18).
+// `context` is the clause's heading trail, which helps a picture's description.
+// Rejects with the gateway's reason: 415 not a PNG, JPG or WebP, 413 over 10 MB.
+export function uploadScreenshot(
+  id: string,
+  file: File,
+  kind: ManualImageKind,
+  context: string,
+): Promise<Screenshot> {
+  const query = new URLSearchParams({ kind, context })
+  return request<Screenshot>(`${sectionsPath(id)}/screenshots?${query}`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  })
+}
+
+// Where a saved clause's screenshot is shown from (a key's last part is its name).
+export const screenshotUrl = (id: string, key: string) =>
+  `${sectionsPath(id)}/screenshots/${encodeURIComponent(key.split('/').pop() ?? '')}`
+
 export function deleteManualSection(id: string, sectionId: string): Promise<void> {
   return send(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}`, { method: 'DELETE' })
 }
 
 export function reembedManualSection(id: string, sectionId: string): Promise<ManualSection> {
-  return request<ManualSection>(
-    `${sectionsPath(id)}/${encodeURIComponent(sectionId)}/reembed`,
-    { method: 'POST' },
-  )
+  return request<ManualSection>(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}/reembed`, {
+    method: 'POST',
+  })
 }
 
 // Publishes a manual draft and returns it, active or Needs review (IN-18).
