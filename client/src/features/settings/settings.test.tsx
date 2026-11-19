@@ -439,6 +439,19 @@ describe('Settings Drafting (GN-16)', () => {
     expect(JSON.parse(patches(f)[0][1]!.body as string)).toEqual({ standardCiteTarget: 60 })
   })
 
+  it('saves when Enter is pressed in the box (found by the swarm)', async () => {
+    const f = mock(data(true), (_url, init) =>
+      init?.method === 'PATCH' ? reply(200, { ...data(true), standardCiteTarget: 60 }) : null,
+    )
+    render(<Settings />)
+    open('Drafting')
+    const input = await screen.findByLabelText(/Sections citing a standard/)
+    fireEvent.change(input, { target: { value: '60' } })
+    fireEvent.submit(input.closest('form')!)
+    await screen.findByText('Saved')
+    expect(patches(f)).toHaveLength(1)
+  })
+
   it.each(['101', '-1', '1.5', ''])(
     'blocks %j with a plain message and sends nothing',
     async (v) => {

@@ -19,7 +19,7 @@ export function StandardsBanner({
     <div
       className={below ? 'st-warn' : 'rv-viewer-note'}
       role="status"
-      style={{ margin: '0 0 12px', flexDirection: 'column', gap: 4 }}
+      style={{ margin: '0 18px 12px', flexDirection: 'column', gap: 4 }}
     >
       <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
         <Icon

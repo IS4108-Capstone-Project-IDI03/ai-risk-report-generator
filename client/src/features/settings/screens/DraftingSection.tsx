@@ -31,7 +31,13 @@ export function DraftingSection({ settings, onSaved }: Props) {
     run(() => saveGlobal({ standardCiteTarget: n }))
   }
   return (
-    <div className="st-stack">
+    <form
+      className="st-stack"
+      onSubmit={(e) => {
+        e.preventDefault() // Enter saves, as the Save button does
+        if (edit && state.status !== 'saving') save()
+      }}
+    >
       {!edit && <SetByAdmin />}
       <div className="st-row st-narrow">
         <Input
@@ -51,12 +57,12 @@ export function DraftingSection({ settings, onSaved }: Props) {
       </div>
       {edit && (
         <div className="st-row-head">
-          <Button variant="primary" size="lg" disabled={state.status === 'saving'} onClick={save}>
+          <Button variant="primary" size="lg" type="submit" disabled={state.status === 'saving'}>
             Save
           </Button>
           <SaveStatus state={state} />
         </div>
       )}
-    </div>
+    </form>
   )
 }
