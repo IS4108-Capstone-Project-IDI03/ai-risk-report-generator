@@ -36,7 +36,8 @@
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
   own `section` instead (a template section, `Appendix`, `Not applicable` or
-  `Undefined`; IN-05). A client intake and a client document (CP-23), and a
+  `Undefined`; IN-05). A manually entered standard's clauses
+  (`manual_sections`, IN-18) carry no labels: they are their document's. A client intake and a client document (CP-23), and a
   client's insight summary (CP-29), also store `null` for the fields they don't
   have (see docs/areas/database.md).
 - `review_audit_log` (RV-02) is append-only: never update or delete an entry.
