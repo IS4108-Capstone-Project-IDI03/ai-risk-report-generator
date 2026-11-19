@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import * as UI from './index'
 
@@ -12,6 +13,68 @@ it('lets the browser close a dialog only when it has a way to close', () => {
   expect(document.querySelector('dialog')).toHaveAttribute('closedby', 'none')
   rerender(<UI.Dialog title="Closable" onClose={() => {}} />)
   expect(document.querySelector('dialog')).not.toHaveAttribute('closedby')
+})
+
+it('opens a phone sheet over the modal dialog it was opened from, not behind it', () => {
+  // A phone, and modal dialogs that at least mark themselves open (jsdom has none).
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(max-width: 767px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }))
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    this.removeAttribute('open')
+  }
+  // A ⋯ menu, as on a checklist item (CP-31), which becomes a sheet on a phone.
+  function Menu({ name }: { name: string }) {
+    const [open, setOpen] = useState(false)
+    return (
+      <UI.Popover
+        open={open}
+        onOpenChange={setOpen}
+        ariaLabel={name}
+        trigger={<button onClick={() => setOpen(!open)}>{name}</button>}
+      >
+        <button>Not seen</button>
+      </UI.Popover>
+    )
+  }
+  const root = document.createElement('div')
+  root.id = 'root'
+  document.body.append(root)
+  try {
+    const { rerender } = render(<Menu name="Page menu" />, { container: root })
+    // Off any dialog, it is portalled to the body and the app behind is locked.
+    fireEvent.click(screen.getByRole('button', { name: 'Page menu' }))
+    const pageSheet = screen.getByRole('dialog', { name: 'Page menu' })
+    expect(root).not.toContainElement(pageSheet)
+    expect(root).toHaveAttribute('inert')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(root).not.toHaveAttribute('inert')
+
+    // Inside a modal dialog it opens in that dialog, which stays usable, and Esc closes only it.
+    rerender(
+      <UI.Dialog title="Checklist" onClose={() => {}}>
+        <Menu name="More actions" />
+      </UI.Dialog>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    const sheet = screen.getByRole('dialog', { name: 'More actions' })
+    expect(document.querySelector('dialog')).toContainElement(sheet)
+    expect(root).not.toHaveAttribute('inert')
+    expect(within(sheet).getByRole('button', { name: 'Not seen' })).toBeInTheDocument()
+    // Cancelled, so the browser does not close the dialog on the same press.
+    expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false)
+    expect(screen.queryByRole('dialog', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(document.querySelector('dialog')).toHaveAttribute('open')
+  } finally {
+    cleanup()
+    root.remove()
+    vi.unstubAllGlobals()
+  }
 })
 
 it('renders every shared component and preserves the icon vocabulary', () => {

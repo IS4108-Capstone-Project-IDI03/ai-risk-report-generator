@@ -56,6 +56,7 @@ export type { Reason } from './components/feedback/ReasonBox'
 export { Sheet, useIsPhone } from './components/feedback/Sheet'
 export type { SheetAction } from './components/feedback/Sheet'
 export { DatePicker } from './components/forms/DatePicker'
+export { MonthYearGrid } from './components/forms/MonthYearGrid'
 export { FormActionBar } from './components/display/FormActionBar'
 // A journey of steps (GN-13): Generation's header, bar, step cards and their rows.
 export { CheckpointHeader } from './components/display/CheckpointHeader'

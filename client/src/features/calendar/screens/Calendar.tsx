@@ -44,6 +44,7 @@ import {
 import { CalendarGrid } from '../components/CalendarGrid'
 import { DayList } from '../components/DayList'
 import { EntryRow, type EntryContext } from '../components/Entry'
+import { PeriodPicker } from '../components/PeriodPicker'
 import { RescheduleDialog } from '../components/RescheduleDialog'
 import { keptViews, type KeptView } from '../keptView'
 import '../../assessments/assessment-list.css'
@@ -175,9 +176,24 @@ export function Calendar({
                   label={`Previous ${view}`}
                   onClick={() => step(-1)}
                 />
-                <strong role="status" aria-label="Period shown">
-                  {periodLabel(view, cursor)}
-                </strong>
+                <div className="cal-period">
+                  {/* In the month view the month and the year are buttons that choose
+                      another; the period is still read out from the hidden line. */}
+                  {view === 'month' && (
+                    <PeriodPicker
+                      year={+cursor.slice(0, 4)}
+                      month={+cursor.slice(5, 7) - 1}
+                      onGo={(y, m) => set({ day: `${y}-${String(m + 1).padStart(2, '0')}-01` })}
+                    />
+                  )}
+                  <strong
+                    role="status"
+                    aria-label="Period shown"
+                    className={view === 'month' ? 'ds-sr-only' : undefined}
+                  >
+                    {periodLabel(view, cursor)}
+                  </strong>
+                </div>
                 <IconButton icon="chevron-right" label={`Next ${view}`} onClick={() => step(1)} />
               </div>
               <Button variant="pill" pill onClick={() => set({ day: today })}>

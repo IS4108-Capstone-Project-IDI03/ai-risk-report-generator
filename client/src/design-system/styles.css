@@ -57,6 +57,10 @@
   gap: var(--space-6);
   padding: var(--space-7) var(--space-7) var(--space-5);
   background: var(--surface-card);
+  /* The card's own corners, so a dialog that lets its contents out (overflow: visible, as
+     Reschedule does for its date calendars) still shows round top corners (CP-60). */
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 .ds-dialog-header > div {
   flex: 1;
@@ -69,7 +73,9 @@
     height: 44px !important;
   }
 }
-.ds-dialog h2 {
+/* Not a phone sheet's own text when the sheet opens over a dialog (Sheet.tsx); :where keeps
+   the specificity, so .ds-dialog--v2's rules still win. */
+.ds-dialog h2:where(:not(.ds-sheet-root *)) {
   margin: 0;
   font-size: var(--text-h2-size);
   line-height: var(--text-h2-lh);
@@ -77,7 +83,7 @@
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
-.ds-dialog p {
+.ds-dialog p:where(:not(.ds-sheet-root *)) {
   margin: var(--space-3) 0 0;
   font-size: var(--text-body-size);
   line-height: var(--text-body-lh);
@@ -93,6 +99,9 @@
   padding: var(--space-6) var(--space-7);
   border-top: 1px solid var(--border-subtle);
   background: var(--surface-sunken);
+  /* Likewise the bottom corners, for the footer band. */
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
 }
 .ds-dialog-footer > div {
   flex-wrap: wrap;
