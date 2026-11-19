@@ -70,3 +70,10 @@ def test_fallback_also_runs_when_every_exact_hit_is_too_far(monkeypatch):
     calls, body = run(monkeypatch, lambda f: [far] if "facility_type" in f else [STANDARD])
     assert len(calls) == 2
     assert body["sources"]["C:fm:4"]["broader"] is True
+
+
+def test_a_none_distance_does_not_crash_and_counts_as_near(monkeypatch):
+    """Found by the swarm: a hit with distance None made drafting raise TypeError."""
+    unknown = {**STANDARD, "distance": None}
+    _, body = run(monkeypatch, lambda f: [unknown])
+    assert body["standards_report"]["kept"] == 1

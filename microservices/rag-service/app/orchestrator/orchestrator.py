@@ -193,7 +193,7 @@ def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
     next nearest, so if rerank fails a cap still keeps every observation's nearest."""
     standards: dict[str, dict] = {}
     per_observation = [
-        [h for h in hits if h.get("distance", 0) <= MAX_STANDARD_DISTANCE]
+        [h for h in hits if (h.get("distance") or 0) <= MAX_STANDARD_DISTANCE]
         for hits in per_observation
     ]
     for rank in range(STANDARDS_PER_OBSERVATION):
@@ -712,7 +712,7 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
         for key, hits in zip(keys, results):
             is_area = key in areas
             for hit in hits:
-                rank = (is_area, hit["distance"], key)
+                rank = (is_area, hit.get("distance") or 0, key)
                 if hit["id"] in kept and (hit["id"] not in owner or rank < owner[hit["id"]]):
                     owner[hit["id"]] = rank
         found_for = {

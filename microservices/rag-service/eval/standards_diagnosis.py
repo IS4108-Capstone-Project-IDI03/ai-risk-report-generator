@@ -12,6 +12,8 @@ import sys
 
 def verdict(r: dict) -> str:
     """Why a section has few standards: the reading of one standards_report."""
+    if r["found"] != r["kept"] + r["dropped"]["distance"] + r["dropped"]["cap"]:
+        return "counts do not add up"
     if r["found"] == 0:
         return "no standards found"
     if r["kept"] == 0 and r["dropped"]["distance"] > 0:
@@ -19,7 +21,7 @@ def verdict(r: dict) -> str:
     return "capped" if r["dropped"]["cap"] else "ok"
 
 
-def reports(data) -> list[dict]:
+def reports(data) -> list[dict]:  # a string or number holds no reports
     """The standards_report objects in a report, a list of them, or a /sections response."""
     if isinstance(data, dict):
         if "standards_report" in data:
@@ -27,7 +29,7 @@ def reports(data) -> list[dict]:
         if "sections" in data:
             return reports(data["sections"])
         return [data] if "found" in data else []
-    return [r for item in data for r in reports(item)]
+    return [r for item in data for r in reports(item)] if isinstance(data, list) else []
 
 
 def table(rows: list[dict]) -> str:
@@ -54,6 +56,17 @@ def table(rows: list[dict]) -> str:
     )
 
 
+def main(argv: list[str]) -> None:
+    """Print the table for the file named in argv (or stdin); on bad input say why and exit 1."""
+    try:
+        rows = reports(json.load(open(argv[0]) if argv else sys.stdin))
+        if not rows:
+            raise ValueError("no standards_report found in the input")
+        print(table(rows))
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"standards_diagnosis: {type(e).__name__}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    source = open(sys.argv[1]) if len(sys.argv) > 1 else sys.stdin
-    print(table(reports(json.load(source))))
+    main(sys.argv[1:])

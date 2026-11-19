@@ -30,3 +30,22 @@ def test_table_reads_sections_response_and_aligns():
     assert lines[0].split()[0] == "Section" and len(lines) == 3
     assert "no standards found" in lines[1] and lines[2].endswith("ok")
     assert len({line.index("2") for line in lines[1:]}) == 1
+
+
+def test_inconsistent_counts_are_named():
+    assert diagnosis.verdict(report("a", 5, 1)) == "counts do not add up"
+
+
+def test_bad_input_gives_one_clear_line_and_exit_1(tmp_path, capsys):
+    import pytest
+
+    bad = tmp_path / "bad.json"
+    for text in ["{nope", "", '"hi"', "5", '{"standards_report":{"section":"S"}}', "{}"]:
+        bad.write_text(text)
+        with pytest.raises(SystemExit) as e:
+            diagnosis.main([str(bad)])
+        assert e.value.code == 1
+        assert capsys.readouterr().err.startswith("standards_diagnosis:")
+    with pytest.raises(SystemExit):
+        diagnosis.main([str(tmp_path / "missing.json")])
+    assert "standards_diagnosis:" in capsys.readouterr().err
