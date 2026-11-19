@@ -171,3 +171,66 @@ def test_an_unknown_document_answers_404(store):
 )
 def test_a_clause_without_text_or_number_is_refused(store, over):
     assert put(store, **over).status_code == 422
+
+
+# IN-17's Passages view, for a manual document (T3).
+def listing(store, **params) -> dict:
+    return client.get(f"/documents/{store.id}/passages", params=params).json()
+
+
+def test_the_outline_groups_clauses_by_their_number_even_with_a_plain_heading_trail(store):
+    for seq, number in enumerate(["8.1", "8.2.3", "9.1"], start=1):
+        put(store, section_id=f"s{seq}", seq=seq, clause=number, headings=["Installation"])
+
+    outline = listing(store)["outline"]
+
+    assert outline["by"] == "clause"
+    assert [(c["name"], c["count"]) for c in outline["chapters"]] == [("8", 2), ("9", 1)]
+    sections = listing(store, chapter="8")["outline"]["sections"]
+    assert [(s["name"], s["count"]) for s in sections] == [("8.1", 1), ("8.2", 1)]
+
+
+def test_a_clause_numbered_only_by_its_chapter_opens_that_chapter(store):
+    put(store, clause="8", headings=[])
+    put(store, section_id="s2", seq=2, clause="8.1")
+
+    chapters = listing(store)["outline"]["chapters"]
+
+    assert [(c["name"], c["count"]) for c in chapters] == [("8", 2)]
+
+
+def test_chapter_and_section_titles_come_from_the_heading_trail(store):
+    put(store, headings=["Chapter 8 Installation", "8.1 Sprinklers"])
+
+    outline = listing(store, chapter="8")["outline"]
+
+    assert outline["chapters"][0]["title"] == "Installation"
+    assert outline["sections"][0]["title"] == "Sprinklers"
+
+
+def test_clauses_are_listed_in_their_order_not_by_when_they_were_added(store, monkeypatch):
+    monkeypatch.setattr(manual, "MAX_CHUNK_TOKENS", 12)
+    put(store, order=20, text="one two three four five\n\nsix seven eight nine ten")
+    put(store, section_id="s2", seq=2, order=10, clause="8.0")
+
+    passages = listing(store)["passages"]
+
+    assert [p["id"] for p in passages] == [
+        f"{store.id}:2",
+        f"{store.id}:1:part1",
+        f"{store.id}:1:part2",
+    ]
+    assert [p["position"] for p in passages] == [1, 2, 3]
+
+
+def test_a_clause_with_a_table_screenshot_lists_as_a_table(store):
+    put(store, images=[{"key": "knowledge/x/sections/1.png", "kind": "table"}])
+
+    assert listing(store)["passages"][0]["kind"] == "table"
+
+
+def test_a_manual_passage_has_no_pages_and_no_page_range_returns_it(store):
+    put(store)
+
+    assert listing(store)["passages"][0]["pageStart"] is None
+    assert listing(store, pageFrom=1, pageTo=999)["total"] == 0

@@ -241,6 +241,15 @@ def _reading_order(passage_id: str) -> tuple:
     return (n, kind == "picture", rest)
 
 
+def _sort_key(passage_id: str, meta: dict) -> tuple:
+    """Reading order: a manual clause's place in its list first (IN-18), then its id.
+
+    Uploaded passages have no `order`, so they sort by id alone. A manual clause's id holds
+    its fixed number, not its place, so moving a clause never changes its ids.
+    """
+    return (meta.get("order", 0), *_reading_order(passage_id))
+
+
 def _passages(doc_id: str) -> list[dict]:
     """Return a document's passages in reading order, with text, pages and vector."""
     collection = passages_collection()
@@ -261,7 +270,8 @@ def _passages(doc_id: str) -> list[dict]:
             found["ids"], found["documents"], found["metadatas"], found["embeddings"]
         )
     ]
-    return sorted(rows, key=lambda r: _reading_order(r["id"]))
+    metas = dict(zip(found["ids"], found["metadatas"]))
+    return sorted(rows, key=lambda r: _sort_key(r["id"], metas[r["id"]]))
 
 
 def _kind(passage_id: str, meta: dict) -> str:
@@ -317,7 +327,7 @@ def document_passages(
     if collection is None:
         return empty
     found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
-    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
+    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _sort_key(*row))
     by, where = outline.places([meta for _, meta in ordered])
     rows = [(row, place, n + 1) for n, (row, place) in enumerate(zip(ordered, where))]
     in_chapter = [row for row in rows if chapter is None or row[1][0] == chapter]
