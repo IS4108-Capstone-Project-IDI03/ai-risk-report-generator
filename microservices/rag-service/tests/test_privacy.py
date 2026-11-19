@@ -166,3 +166,22 @@ def test_a_vehicle_plate_is_masked_and_restored(fake_privacy):
 
     assert masked == "Lorry [VEHICLE_1] blocks the hydrant"
     assert s.unmask("[VEHICLE_1] was moved") == ("PU 104 J was moved", [])
+
+
+@pytest.mark.parametrize("body", [{"nonsense": 1}, "<html>not json</html>", {"texts": 5}])
+def test_a_garbled_mask_answer_fails_closed_as_unavailable(monkeypatch, body):
+    """Found by the swarm: privacy-service answering with junk was a 500; it is a refusal (503)."""
+    handler = lambda request: (  # noqa: E731
+        httpx.Response(200, json=body)
+        if not isinstance(body, str)
+        else httpx.Response(200, text=body)
+    )
+    monkeypatch.setattr(
+        privacy,
+        "_client",
+        lambda: httpx.Client(
+            base_url="http://privacy.test", transport=httpx.MockTransport(handler)
+        ),
+    )
+    with pytest.raises(privacy.PrivacyUnavailable):
+        privacy.Session(ON).mask(["Acme Holdings leaks"])

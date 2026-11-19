@@ -1,5 +1,6 @@
 """CP-35: /split-note with the model mocked (privacy served by conftest's fake_privacy)."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -131,3 +132,31 @@ def test_a_changed_number_or_unit_is_flagged(monkeypatch):
     assert flags_of(monkeypatch, "pipe 10 mm", "The pipe is 100 mm.") != []
     assert flags_of(monkeypatch, "pipe 10 mm", "The pipe is 10 cm.") != []
     assert flags_of(monkeypatch, "tank 20000 L", "The tank is 20000 L.") == []
+
+
+# Number formats found by the swarm: same value written another way is not a change.
+@pytest.mark.parametrize(
+    "shorthand,text",
+    [
+        ("tank 1,000 L", "The tank holds 1000 L."),
+        ("tank 1000 L", "The tank holds 1,000 L."),
+        ("tank 20000 L", "The tank holds 20 000 L."),
+        ("run 4,5 m", "The run is 4.5 m."),
+        ("fill 50% full", "The tank is 50 percent full."),
+        ("pipe 1.5 m", "The pipe is 1.50 m."),
+    ],
+)
+def test_the_same_value_in_another_format_is_not_flagged(monkeypatch, shorthand, text):
+    assert flags_of(monkeypatch, shorthand, text) == []
+
+
+@pytest.mark.parametrize(
+    "shorthand,text",
+    [
+        ("temp -5 C", "The temperature is 5 C."),
+        ("pressure 100 kPa", "The pressure is 10 kPa."),
+        ("tank 1000 L", "The tank holds 100 L."),
+    ],
+)
+def test_a_lost_sign_or_a_changed_value_is_flagged(monkeypatch, shorthand, text):
+    assert flags_of(monkeypatch, shorthand, text) != []

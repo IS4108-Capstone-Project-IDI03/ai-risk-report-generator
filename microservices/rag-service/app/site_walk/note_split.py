@@ -29,10 +29,38 @@ _MARSH = {
     ).items()
     if not k.startswith("_")
 }
-# A number with optional decimals and an optional unit: "150 mm", "7.5bar", "30%", "500 L/min".
-_NUMBER = re.compile(
-    r"\d+(?:\.\d+)?\s*(?:l/min|gpm|mm|kg|bar|psi|hr|min|m|%)?(?![a-z])", re.IGNORECASE
+# A number as written: an optional sign, thousands groups ("1,000" or "20 000"), a decimal part
+# ("4.5" or "4,5"), then an optional unit. A "-" glued to a digit or word is a range dash,
+# not a sign.
+_UNITS = (
+    r"l/min|gpm|mm|kpa|mpa|kg|bar|psi|hrs?|hours?|minutes?|min|metres?|meters?|m|"
+    r"litres?|liters?|l|%|per cent|percent"
 )
+_NUMBER = re.compile(
+    rf"(?:(?<![\w.])-)?\d+(?:[ ,]\d{{3}}(?!\d))*(?:[.,]\d+)?\s*(?:{_UNITS})?(?![a-z])",
+    re.IGNORECASE,
+)
+_UNIT_CANON = {
+    "hrs": "hr", "hour": "hr", "hours": "hr", "minute": "min", "minutes": "min",
+    "metre": "m", "metres": "m", "meter": "m", "meters": "m",
+    "litre": "l", "litres": "l", "liter": "l", "liters": "l",
+    "percent": "%", "per cent": "%",
+}  # fmt: skip
+
+
+def _split_number(text: str) -> tuple[float, str]:
+    """A matched number as (value, canonical unit): '1,000 L' and '1000 l' give the same pair."""
+    m = re.match(r"(-?[\d ,.]+?)\s*([a-z/%][a-z /]*)?$", text.strip(), re.IGNORECASE)
+    raw, unit = (m.group(1), m.group(2) or "") if m else (text, "")
+    raw = raw.replace(" ", "")
+    # "1,000" and "20 000" are thousands; "4,5" is a decimal comma.
+    raw = (
+        raw.replace(",", "")
+        if re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", raw)
+        else raw.replace(",", ".")
+    )
+    unit = unit.strip().lower()
+    return float(raw), _UNIT_CANON.get(unit, unit)
 
 
 class _Model(BaseModel):
@@ -86,30 +114,20 @@ def _known(term: str, terms: dict[str, str]) -> bool:
     return t in terms or (bool(words) and all(w in terms for w in words))
 
 
-# How a unit may be written out in full words; a unit not listed must appear as written.
-_UNIT_WORDS = {
-    "hr": r"(?:hr|hrs|h|hours?)",
-    "min": r"(?:min|mins|minutes?)",
-    "m": r"(?:m|metres?|meters?)",
-    "gpm": r"(?:gpm|gallons? per minute)",
-    "l/min": r"(?:l/min|litres? per minute|liters? per minute)",
-    "kg": r"(?:kg|kilograms?)",
-    "mm": r"(?:mm|millimet(?:re|er)s?)",
-}
-
-
-def _kept(number: str, text: str) -> bool:
-    """True if a number like '2hr' or '4.5m' (from `_numbers`) is still in `text`, as the same
-    value (not inside a longer number) with the same unit, written short or in words."""
-    value, unit = re.match(r"(\d+(?:\.\d+)?)(.*)", number).groups()
-    unit_re = _UNIT_WORDS.get(unit, re.escape(unit)) if unit else ""
-    pattern = rf"(?<![\d.]){re.escape(value)}(?!\d|\.\d)\s*{unit_re}(?![a-z])"
-    return re.search(pattern, text, re.IGNORECASE) is not None
-
-
 def _numbers(text: str) -> list[str]:
     """Numbers (with unit) in `text`, lower-case with spaces removed, so '10 mm' == '10mm'."""
     return [re.sub(r"\s+", "", m.group(0).lower()) for m in _NUMBER.finditer(text)]
+
+
+def _kept(number: str, text: str) -> bool:
+    """True if a number from the engineer's words is still in `text` with the same value (so
+    '1,000' = '1000', '4,5' = '4.5', '-5' is not '5') and the same unit, short or in words."""
+    value, unit = _split_number(number)
+    for m in _NUMBER.finditer(text):
+        found, found_unit = _split_number(m.group(0))
+        if found == value and (not unit or found_unit == unit):
+            return True
+    return False
 
 
 def _flags(part: ModelPart, terms: dict[str, str]) -> list[dict]:
