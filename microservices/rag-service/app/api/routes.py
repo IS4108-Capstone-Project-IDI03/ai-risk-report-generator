@@ -33,6 +33,7 @@ from app.privacy import PrivacyUnavailable
 from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
+from app.site_walk.note_split import split_note
 from app.site_walk.propose import propose_site_walk
 
 router = APIRouter()
@@ -794,6 +795,30 @@ def assistant_wording(request: AssistantWordingRequest) -> dict:
     """Reword MarshBot's messages as OpenUI programs that point at items by id (AS-06)."""
     try:
         return word_messages(request, privacy=_privacy(request))
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+class GlossaryTerm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    term: Annotated[str, Field(min_length=1)]
+    meaning: str
+
+
+class SplitNoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    lines: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+    glossary: list[GlossaryTerm] = []
+    privacy: Privacy | None = None
+
+
+@router.post("/split-note")
+def split_note_route(request: SplitNoteRequest) -> dict:
+    """Split a shorthand note's lines into typed, expanded parts (CP-35)."""
+    try:
+        return split_note(request.lines, request.glossary, _privacy(request))
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:

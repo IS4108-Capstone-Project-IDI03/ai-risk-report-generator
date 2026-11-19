@@ -2025,3 +2025,14 @@ knowledge chatbot stays on 0.4.1.
 **Numbers.** Server thresholds are in `services/assistant/settings.ts`, Focus's
 work-left days in `focus.service.ts`, and the browser's activity numbers in
 `client/src/features/marshbot/settings.ts`.
+
+## Splitting a shorthand note (CP-35)
+
+`POST /split-note` (rag-service `site_walk/note_split.py`) takes a note's lines, the engineer's
+own glossary and `privacy`. It masks the lines through privacy-service (fail closed: 503, no model
+call), makes one model call under `LLM_PROVIDER` (feature `split-note`, prompt `cp35-v1`), then
+unmasks and checks in code: a number or unit in a part's shorthand that its text lacks is flagged
+`number_changed`, and a model-reported unknown term is flagged `unknown_term` only if neither the
+Marsh list (`retrieval/site_abbreviations.json`) nor the glossary holds it. Empty parts are
+dropped; a line the model skipped comes back as one fact part. `scripts/make-shorthand-notes.py`
+is a dev script that asks Gemini once for invented test notes (needs `GEMINI_API_KEY`).
