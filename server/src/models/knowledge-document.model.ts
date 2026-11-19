@@ -98,6 +98,9 @@ export interface IKnowledgeDocument {
   standardNumber?: string
   // Absent means `upload` (IN-18).
   entryMethod?: EntryMethod
+  // A manual document's last clause number given (`manual_sections.seq`), raised
+  // with $inc so two saves at once never share one. Absent on an upload.
+  manualSeq?: number
   // The name the file had on the admin's machine. Absent on a manual document.
   fileName?: string
   // The unaltered original in S3. MongoDB holds only its key; sha256 lets
@@ -196,6 +199,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     edition: { type: String, trim: true },
     standardNumber: { type: String, trim: true },
     entryMethod: { type: String, enum: ENTRY_METHODS },
+    manualSeq: Number,
     fileName: { type: String, required: hasFile },
     file: {
       key: { type: String, required: hasFile },

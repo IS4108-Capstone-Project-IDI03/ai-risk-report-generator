@@ -458,7 +458,7 @@ function adminLabelling(
 
 // The record fields a document's details decide. `edition` is undefined for a
 // past report, which removes it when a standard is corrected into a report.
-function recordFields(details: DocumentDetails) {
+export function recordFields(details: DocumentDetails) {
   return {
     title: details.title,
     issuingBody:

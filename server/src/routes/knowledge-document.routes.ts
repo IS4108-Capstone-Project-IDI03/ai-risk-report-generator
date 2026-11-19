@@ -35,6 +35,11 @@ import {
   listKnowledgeDocumentPassages,
   passageQuerySchema,
 } from '../services/knowledge-passages.service'
+import {
+  createManualDocument,
+  ManualEntryExistsError,
+  manualDocumentSchema,
+} from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -101,6 +106,27 @@ router.post(
     }
   },
 )
+
+// Starts a standard entered clause by clause, for one with no PDF (IN-18): a
+// draft with these details, no file and nothing queued. The body is a
+// standard's details, as JSON. Answers: 201 created · 400 bad details, or not a
+// standard · 409 a manual entry of this standard and edition exists (names it).
+router.post('/manual', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualDocumentSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    res.status(201).json(await createManualDocument(parsed.data))
+  } catch (error: unknown) {
+    if (error instanceof ManualEntryExistsError) {
+      res.status(409).json({ error: error.message, documentId: error.documentId })
+      return
+    }
+    throw error
+  }
+})
 
 // Corrects a document's details (KB-01). The body is the full set of details,
 // as JSON. Answers: 200 corrected · 400 bad details · 404 unknown · 409 not
