@@ -7,6 +7,7 @@ import {
   getSettings,
   saveGlobal,
   saveModelChoice,
+  savePersonal,
   saveSourcePriority,
 } from '../services/settings.service'
 
@@ -37,6 +38,17 @@ router.put('/models/:task', requirePermission('settings:manage'), async (req, re
 router.patch('/global', requirePermission('settings:manage'), async (req, res) => {
   try {
     await saveGlobal(res.locals.user!, req.body ?? {})
+    res.json(await getSettings(res.locals.user!))
+  } catch (error) {
+    if (!answer(error, res)) throw error
+  }
+})
+
+// Saves the signed-in engineer's own note codes and glossary (CP-35). No permission beyond
+// signing in: it only ever writes the caller's own document.
+router.patch('/me', async (req, res) => {
+  try {
+    await savePersonal(res.locals.user!.id, req.body ?? {})
     res.json(await getSettings(res.locals.user!))
   } catch (error) {
     if (!answer(error, res)) throw error

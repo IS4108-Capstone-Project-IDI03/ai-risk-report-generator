@@ -10,6 +10,11 @@ import {
 } from '../models/app-settings.model'
 import { SettingsLogModel } from '../models/settings-log.model'
 import {
+  UserSettingsModel,
+  type GlossaryEntry,
+  type NoteCodes,
+} from '../models/user-settings.model'
+import {
   MODEL_CATALOG,
   MODEL_TASKS,
   findOption,
@@ -160,10 +165,26 @@ function rowWarning(task: ModelTask, selected: ModelOption, saved: IAppSettings)
   return null
 }
 
-/** Returns everything the Settings screen shows for this person: models with lights, warnings, QA strictness. */
+// The shorthand codes a note starts a line with (CP-35). Defaults live here, not in the
+// database: nobody sets them for everyone.
+export const NOTE_KINDS = ['fact', 'info_request', 'recommendation'] as const
+export const DEFAULT_NOTE_CODES = { fact: 'F', info_request: 'IR', recommendation: 'REC' }
+export type EffectiveNoteCodes = Record<(typeof NOTE_KINDS)[number], string>
+
+/** Returns this engineer's note codes (theirs, else the defaults) and glossary (CP-35). */
+export async function noteTakingFor(userId: string) {
+  const mine = await UserSettingsModel.findOne({ user: userId }).lean()
+  return {
+    codes: { ...DEFAULT_NOTE_CODES, ...mine?.noteCodes } as EffectiveNoteCodes,
+    glossary: (mine?.glossary ?? []).map(({ term, meaning }) => ({ term, meaning })),
+  }
+}
+
+/** Returns everything the Settings screen shows for this person: models with lights, warnings, QA strictness, note-taking. */
 export async function getSettings(user: SessionUser) {
   const saved = await appSettings()
   return {
+    noteTaking: await noteTakingFor(user.id),
     canEditGlobal: hasPermission(user.role, 'settings:manage'),
     models: MODEL_TASKS.map((task) => {
       const selected = selectedOption(task, saved)
@@ -280,4 +301,81 @@ export async function saveSourcePriority(by: SessionUser, order: unknown) {
   const was = (previous as IAppSettings).sourcePriority
   const before = was?.length ? was : DEFAULT_TIER_ORDER
   if (before.join() !== after.join()) await log(by, 'sourcePriority', before, after)
+}
+
+const CODE_PATTERN = /^[A-Za-z0-9]+$/
+
+// Checks the codes part of a personal save; returns the codes to store (null = reset).
+function checkCodes(input: unknown): NoteCodes | null {
+  if (input === null) return null
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new SettingsInputError('Note codes must be an object.')
+  }
+  const out: NoteCodes = {}
+  for (const key of Object.keys(input)) {
+    if (!(NOTE_KINDS as readonly string[]).includes(key)) {
+      throw new SettingsInputError(`"${key}" is not a note code.`)
+    }
+    const raw = (input as Record<string, unknown>)[key]
+    const code = typeof raw === 'string' ? raw.trim() : ''
+    if (!code || code.length > 8 || !CODE_PATTERN.test(code)) {
+      throw new SettingsInputError('A code is 1 to 8 letters or digits.')
+    }
+    out[key as keyof NoteCodes] = code
+  }
+  return out
+}
+
+// Checks the glossary part of a personal save; returns the trimmed entries.
+function checkGlossary(input: unknown): GlossaryEntry[] {
+  if (!Array.isArray(input) || input.length > 200) {
+    throw new SettingsInputError('The glossary can hold at most 200 terms.')
+  }
+  const seen = new Set<string>()
+  return input.map((entry) => {
+    const e = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {}
+    const term = typeof e.term === 'string' ? e.term.trim() : ''
+    const meaning = typeof e.meaning === 'string' ? e.meaning.trim() : ''
+    if (!term || term.length > 30) throw new SettingsInputError('A term is 1 to 30 characters.')
+    if (!meaning || meaning.length > 120) {
+      throw new SettingsInputError('A meaning is 1 to 120 characters.')
+    }
+    // Without this, two meanings for one term would leave the model guessing which applies.
+    if (seen.has(term.toLowerCase())) throw new SettingsInputError(`"${term}" is listed twice.`)
+    seen.add(term.toLowerCase())
+    return { term, meaning }
+  })
+}
+
+/** Saves this engineer's own note codes and glossary (CP-35); returns nothing. Throws SettingsInputError on a bad value, saving nothing. */
+export async function savePersonal(userId: string, input: unknown) {
+  const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const keys = Object.keys(body)
+  const bad = keys.find((k) => k !== 'noteCodes' && k !== 'glossary')
+  if (bad) throw new SettingsInputError(`"${bad}" is not a setting.`)
+  if (!keys.length) throw new SettingsInputError('Nothing to save.')
+
+  const set: Record<string, unknown> = {}
+  const unset: Record<string, ''> = {}
+  if (Object.hasOwn(body, 'noteCodes')) {
+    const codes = checkCodes(body.noteCodes)
+    // The three codes in force must differ, or a line could not say which kind it is.
+    const effective = { ...DEFAULT_NOTE_CODES, ...codes }
+    const lower = Object.values(effective).map((c) => c.toLowerCase())
+    if (new Set(lower).size !== lower.length) {
+      throw new SettingsInputError('The three codes must be different from each other.')
+    }
+    if (codes) set.noteCodes = codes
+    else unset.noteCodes = ''
+  }
+  if (Object.hasOwn(body, 'glossary')) set.glossary = checkGlossary(body.glossary)
+  await UserSettingsModel.updateOne(
+    { user: userId },
+    {
+      ...(Object.keys(set).length && { $set: set }),
+      ...(Object.keys(unset).length && { $unset: unset }),
+      $setOnInsert: { user: userId, metadata: metadata('settings') },
+    },
+    { upsert: true },
+  )
 }

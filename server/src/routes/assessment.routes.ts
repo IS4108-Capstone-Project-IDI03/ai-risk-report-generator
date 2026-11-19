@@ -1,4 +1,5 @@
 import { Router, type Response } from 'express'
+import { splitNote, splitNoteSchema } from '../services/split-note.service'
 import type { z } from 'zod'
 import type { SessionUser } from '../services/auth.service'
 import {
@@ -520,6 +521,33 @@ router.post(
     }
   },
 )
+
+// Sorts a shorthand note into parts for the engineer to confirm (CP-35); saves nothing. Same
+// permission and assigned-engineer rule as saving an observation. 503 when client details
+// could not be protected (nothing was sent), 502 when the splitting service failed.
+router.post('/:reference/split-note', requirePermission('assessments:edit'), async (req, res) => {
+  const parsed = splitNoteSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0].message })
+    return
+  }
+  try {
+    res.json({ parts: await splitNote(req.params.reference, parsed.data.note, res.locals.user!) })
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) res.status(404).json({ error: error.message })
+    else if (error instanceof NotAssignedError) res.status(403).json({ error: error.message })
+    else if (error instanceof AssessmentArchivedError)
+      res.status(409).json({ error: error.message })
+    else if (error instanceof RagServiceError) {
+      res.status(error.status === 503 ? 503 : 502).json({
+        error:
+          error.status === 503
+            ? "Client details couldn't be protected, so the note was not sent. Try again shortly."
+            : 'The note could not be sorted just now. You can sort it yourself.',
+      })
+    } else throw error
+  }
+})
 
 // The assessment's observations, newest first. Deleted ones are left out
 // unless `?include=deleted` asks for them too (CP-08 AC14).

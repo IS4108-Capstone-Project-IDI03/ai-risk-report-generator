@@ -8,6 +8,8 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import { copeDimensionsOf, ObservationModel, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
+import { toEvidence } from '../services/section.service'
+import type { ObservationDto } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
 
@@ -784,5 +786,36 @@ describe('PII protection for drafting (PV-02)', () => {
 
     const saved = await ReportSectionModel.findOne().lean()
     expect(saved?.provenance.privacy).toEqual({ enabled: true, masked_count: 3 })
+  })
+})
+
+describe('drafting evidence of a split note (CP-35)', () => {
+  const dto = (parts: object[]) =>
+    ({
+      id: 'o1',
+      copeDimensions: ['Protection'],
+      note: 'raw note',
+      parts,
+      recordings: [],
+      pages: [],
+      photos: [],
+      severity: 'high',
+      location: null,
+      standard: null,
+    }) as unknown as ObservationDto
+  it('uses only the confirmed facts, one per line', () => {
+    const e = toEvidence(
+      dto([
+        { kind: 'fact', text: 'A' },
+        { kind: 'info_request', text: 'B' },
+        { kind: 'recommendation', text: 'C' },
+        { kind: 'fact', text: 'D' },
+      ]),
+    )
+    expect(e.note).toBe('A\nD')
+    expect(Object.keys(e)).not.toContain('parts')
+  })
+  it('keeps the note as typed when it has no parts', () => {
+    expect(toEvidence(dto([])).note).toBe('raw note')
   })
 })

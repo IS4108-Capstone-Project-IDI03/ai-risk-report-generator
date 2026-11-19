@@ -146,7 +146,14 @@ export function toEvidence(o: ObservationDto): Evidence {
   return {
     id: o.id,
     COPE_dimension: o.copeDimensions!,
-    note: o.note,
+    // A split shorthand note (CP-35): only the confirmed facts are evidence; info requests and
+    // recommendations are never stated as fact. No new key: it would date every earlier draft.
+    note: o.parts.length
+      ? o.parts
+          .filter((p) => p.kind === 'fact')
+          .map((p) => p.text)
+          .join('\n')
+      : o.note,
     transcripts: transcriptsOf(o),
     // Only when there is some (CP-19): changesSince compares evidence as JSON,
     // so an observation without pages must read exactly as it did before pages

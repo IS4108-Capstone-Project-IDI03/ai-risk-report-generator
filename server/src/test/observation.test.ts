@@ -158,6 +158,36 @@ async function settled(id: string) {
   return (await ObservationModel.findById(id).lean())!
 }
 
+describe('confirmed parts of a shorthand note (CP-35)', () => {
+  const parts = [
+    { kind: 'fact', text: 'Hose reel blocked', shorthand: 'F: hose reel blocked' },
+    { kind: 'info_request', text: 'Ask for plan', shorthand: 'IR: ask for plan', inferred: true },
+  ]
+  it('saves the parts with ids, keeps the note word for word and returns them', async () => {
+    await assessmentWithSession()
+    const text = 'F: hose reel blocked\nIR: ask for plan'
+    const res = await note({ note: text, parts })
+    expect(res.status).toBe(201)
+    expect(res.body.note).toBe(text)
+    expect(res.body.parts).toHaveLength(2)
+    expect(res.body.parts[0]).toMatchObject({ kind: 'fact', inferred: false })
+    expect(res.body.parts[0].id).toBeTruthy()
+    expect((await ObservationModel.findById(res.body.id).lean())?.parts?.[1].kind).toBe(
+      'info_request',
+    )
+  })
+  it('refuses a bad kind', async () => {
+    await assessmentWithSession()
+    expect((await note({ parts: [{ kind: 'opinion', text: 'x', shorthand: 'x' }] })).status).toBe(
+      400,
+    )
+  })
+  it('returns no parts for an observation saved without any', async () => {
+    await assessmentWithSession()
+    expect((await note()).body.parts).toEqual([])
+  })
+})
+
 describe('creating a reviewed site walk observation', () => {
   async function walkObservationInput() {
     const assessment = await assessmentWithSession()

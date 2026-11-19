@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
@@ -23,6 +24,8 @@ import {
   type CheckResult,
   type IChecklistLink,
   type ReadItemKind,
+  PART_KINDS,
+  type IPart,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
@@ -163,6 +166,35 @@ export const newObservationSchema = z.object({
     .optional()
     .transform((note) => (note?.trim() ? note : undefined)),
 
+  // The engineer's confirmed parts of a shorthand note (CP-35); the note stays as typed.
+  parts: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        kind: z.enum(PART_KINDS, 'A part is a fact, an info request or a recommendation.'),
+        text: z
+          .string()
+          .trim()
+          .min(1, 'A part needs text.')
+          .max(1000, 'A part is 1,000 characters or fewer.'),
+        shorthand: z.string().max(5000).default(''),
+        inferred: z.boolean().default(false),
+        flags: z
+          .array(
+            z.object({
+              type: z.enum(['unknown_term', 'number_changed']),
+              detail: z.string().max(500),
+            }),
+          )
+          .max(10)
+          .optional(),
+      }),
+    )
+    .max(50, 'A note can have at most 50 parts.')
+    .optional()
+    // A part without an id gets one here, so the client can always key on it.
+    .transform((parts) => parts?.map((p) => ({ ...p, id: p.id || randomUUID() }))),
+
   // Sent explicitly: null or [] leaves the observation uncategorised (CP-02 AC4).
   copeDimensions: copeDimensionsField,
   severity: severityField,
@@ -300,6 +332,8 @@ export type ObservationDto = {
   // null only if the location is no longer listed.
   location: LocationDto | null
   note: string | null
+  // The confirmed parts of a shorthand note (CP-35); empty when it was not split.
+  parts: IPart[]
   // Its evidence: the recordings and photos not removed. Everything that
   // reads these, drafting included, leaves removed ones out (CP-08).
   recordings: RecordingDto[]
@@ -686,6 +720,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     severity: o.severity,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
+    parts: o.parts ?? [],
     recordings: kept(o.recordings).map(recording),
     photos: keptPhotos.map(photo),
     pages: kept(pages).map(page),
@@ -766,6 +801,7 @@ export async function saveObservation(
       engineer: user.name,
       engineerId: user.id,
       note: details.note,
+      ...(details.parts?.length && { parts: details.parts }),
       recordings: media.recordings,
       photos: media.photos,
       pages: media.pages,
