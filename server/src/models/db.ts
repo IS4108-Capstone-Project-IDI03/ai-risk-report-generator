@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 import { config } from '../config'
-import { KnowledgeDocumentModel } from './knowledge-document.model'
+import { HOLDS_A_FILE, KnowledgeDocumentModel } from './knowledge-document.model'
 
 // Mongoose connection, driven by MONGODB_URI (never hardcode credentials).
 export async function connectDb(): Promise<void> {
@@ -32,7 +32,7 @@ export async function buildKnowledgeDocumentIndex(): Promise<void> {
     await KnowledgeDocumentModel.createIndexes()
   } catch (error) {
     const groups = await KnowledgeDocumentModel.aggregate([
-      { $match: { status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] } } },
+      { $match: HOLDS_A_FILE },
       { $group: { _id: '$file.sha256', n: { $sum: 1 } } },
       { $match: { n: { $gt: 1 } } },
       { $count: 'groups' },
@@ -48,7 +48,8 @@ export async function buildKnowledgeDocumentIndex(): Promise<void> {
 // Drops each stored index whose name a schema index has but whose partial filter differs, so
 // createIndexes builds it again with the schema's filter: MongoDB refuses to build an index
 // under a name another filter already holds. IN-19 added `awaiting_type` to the fingerprint
-// indexes' statuses, which every database built before then holds without.
+// indexes' statuses, and IN-18 left documents without a file out of the `file.sha256` one,
+// so a database built before either holds the older filter.
 async function dropOutdatedFilters(): Promise<void> {
   const stored = await KnowledgeDocumentModel.collection.indexes().catch(() => [])
   for (const [fields, options] of KnowledgeDocumentModel.schema.indexes()) {

@@ -532,6 +532,16 @@ def test_a_withdrawn_document_stays_withdrawn_even_with_a_match(documents):
     assert worker.labels(documents.doc)["status"] == "withdrawn"
 
 
+def test_a_manual_draft_keeps_its_passages_out_of_search(documents):
+    # IN-18: clauses typed into a draft are indexed as they are saved, but stay
+    # needs_review until the document is published.
+    documents.doc["unconfirmed"] = []
+    documents.doc["entryMethod"] = "manual"
+    documents.doc["status"] = "draft"
+
+    assert worker.labels(documents.doc)["status"] == "needs_review"
+
+
 def test_relabelling_passages_leaves_out_their_own_section(documents, monkeypatch):
     seen = {}
     monkeypatch.undo()  # the fixture's recorder replaced relabel_passages; use the real one

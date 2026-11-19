@@ -10,6 +10,7 @@ import {
   KnowledgeDocumentModel,
   SOURCE_TYPES,
   type DetailName,
+  type EntryMethod,
   type IDocumentMatch,
   type IKnowledgeDocument,
   type ILabelledDetail,
@@ -203,7 +204,10 @@ export type KnowledgeDocumentDto = {
   edition: string | null
   // Standards only (IN-07); null for a report or while Unconfirmed.
   standardNumber: string | null
-  fileName: string
+  // How it entered the knowledge base (IN-18); `upload` for records from before.
+  entryMethod: EntryMethod
+  // The file's name, size, fingerprint and link; null on a manual document (IN-18).
+  fileName: string | null
   // A detail labelling could not confirm is null (IN-05).
   sourceType: string | null
   jurisdiction: string | null
@@ -211,12 +215,12 @@ export type KnowledgeDocumentDto = {
   effectiveDate: string | null
   // The details still Unconfirmed; non-empty = "needs review" (IN-05).
   unconfirmed: DetailDtoName[]
-  size: number
-  sha256: string
+  size: number | null
+  sha256: string | null
   status: IKnowledgeDocument['status']
   error: string | null
   uploadedAt: Date
-  fileUrl: string
+  fileUrl: string | null
   // Who withdrew the document and when (KB-01 AC14); null while it is active.
   withdrawn: { at: Date; by: { id: string; name: string } } | null
   // Who last corrected, decided on, retried or cancelled it, and when (F-10); null if none did.
@@ -331,19 +335,20 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     issuingBody: d.issuingBody ?? null,
     edition: d.edition ?? null,
     standardNumber: d.standardNumber ?? null,
-    fileName: d.fileName,
+    entryMethod: d.entryMethod ?? 'upload',
+    fileName: d.fileName ?? null,
     sourceType: d.metadata.source_type,
     jurisdiction: d.metadata.jurisdiction,
     facilityType: d.metadata.facility_type,
     effectiveDate: isoDay(d.metadata.effective_date),
     // Records from before IN-05 have no field.
     unconfirmed: (d.unconfirmed ?? []).map((name) => DETAIL_DTO_NAME[name]),
-    size: d.file.size,
-    sha256: d.file.sha256,
+    size: d.file?.size ?? null,
+    sha256: d.file?.sha256 ?? null,
     status: d.status,
     error: d.error ?? null,
     uploadedAt: d.createdAt,
-    fileUrl: `/api/knowledge-documents/${d._id}/file`,
+    fileUrl: d.file ? `/api/knowledge-documents/${d._id}/file` : null,
     withdrawn: d.withdrawn ? { at: d.withdrawn.at, by: d.withdrawn.by } : null,
     handled: d.handled ? { at: d.handled.at, by: d.handled.by } : null,
     // Records from before history existed have no field; `?? []` gives them none.
@@ -504,7 +509,8 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
  * Returns the labels every passage of the document carries, so search can
  * filter on them: its metadata, the date as YYYY-MM-DD, and `status`, which
  * search uses to skip passages that are not `active`: `withdrawn` (KB-01) or
- * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match). Null details are left out
+ * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match, IN-18 a manual draft not yet
+ * published). Null details are left out
  * (Chroma can't store null, and no filter should match them), and
  * `section` is never sent, so a relabel can't overwrite each passage's own
  * report section (IN-05).
@@ -516,7 +522,8 @@ export function labels({
   withdrawn,
   unconfirmed,
   match,
-}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed' | 'match'>) {
+  status,
+}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed' | 'match' | 'status'>) {
   const details = {
     source_type: metadata.source_type,
     jurisdiction: metadata.jurisdiction,
@@ -527,7 +534,7 @@ export function labels({
     ...Object.fromEntries(Object.entries(details).filter(([, value]) => value != null)),
     status: withdrawn
       ? 'withdrawn'
-      : needsReview({ unconfirmed, match })
+      : status === 'draft' || needsReview({ unconfirmed, match })
         ? 'needs_review'
         : 'active',
   }
@@ -832,15 +839,17 @@ export async function knowledgeDocumentPrivacy(id: string): Promise<IngestionPri
 export async function getKnowledgeDocumentFile(id: string) {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
   const document = await KnowledgeDocumentModel.findById(id, 'file fileName').lean()
-  if (!document) throw new KnowledgeDocumentNotFoundError()
+  // A manually entered standard has no file (IN-18).
+  const file = document?.file
+  if (!file) throw new KnowledgeDocumentNotFoundError()
   return {
-    fileName: document.fileName,
-    size: document.file.size,
-    sha256: document.file.sha256,
+    fileName: document.fileName ?? 'document.pdf',
+    size: file.size,
+    sha256: file.sha256,
     open: (range?: [number, number]) =>
       range
-        ? getObjectRangeStream(document.file.key, `${document.file.sha256}.pdf`, range)
-        : storage.getObjectStream(document.file.key),
+        ? getObjectRangeStream(file.key, `${file.sha256}.pdf`, range)
+        : storage.getObjectStream(file.key),
   }
 }
 

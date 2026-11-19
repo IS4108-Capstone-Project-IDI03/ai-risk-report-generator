@@ -157,7 +157,8 @@ async function saveAndRelabel(changes: Change[]): Promise<void> {
 async function discard(doc: Doc): Promise<void> {
   await deletePassages(String(doc._id))
   try {
-    await storage.deleteObject(doc.file.key)
+    // A manually entered standard has no file (IN-18).
+    if (doc.file) await storage.deleteObject(doc.file.key)
   } catch (error) {
     console.error('Deleting the file failed:', error)
     throw new IngestionUnavailableError(

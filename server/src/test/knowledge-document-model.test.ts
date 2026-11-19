@@ -64,3 +64,37 @@ describe('a knowledge document privacy mapping', () => {
     expect(read).not.toHaveProperty('privacyMapping')
   })
 })
+
+// IN-18: a standard entered clause by clause has no file. It starts as a draft
+// whose passages stay out of search until it is published.
+describe('a manually entered knowledge document', () => {
+  const manual = (status: 'draft' | 'complete' = 'draft') => {
+    const { file: _file, fileName: _fileName, ...rest } = validDocument()
+    return { ...rest, _id: new Types.ObjectId(), entryMethod: 'manual' as const, status }
+  }
+
+  it('saves without a file, as a draft', async () => {
+    const created = await KnowledgeDocumentModel.create(manual())
+
+    const found = await KnowledgeDocumentModel.findById(created._id).lean()
+
+    expect(found!.entryMethod).toBe('manual')
+    expect(found!.status).toBe('draft')
+    expect(found!.file).toBeUndefined()
+  })
+
+  it('still requires a file for an upload', async () => {
+    const { file: _file, ...noFile } = validDocument()
+
+    await expect(KnowledgeDocumentModel.create(noFile)).rejects.toThrow(/validation/i)
+  })
+
+  // The file fingerprint index would read a missing file as null, so a second
+  // published manual document would clash with the first.
+  it('lets two published manual documents sit beside each other', async () => {
+    await KnowledgeDocumentModel.syncIndexes()
+
+    await KnowledgeDocumentModel.create(manual('complete'))
+    await expect(KnowledgeDocumentModel.create(manual('complete'))).resolves.toBeDefined()
+  })
+})
