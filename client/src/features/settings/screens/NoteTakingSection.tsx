@@ -16,18 +16,36 @@ const FIELDS: { key: keyof NoteCodes; label: string }[] = [
 ]
 
 export function NoteTakingSection({ settings, onSaved }: Props) {
-  const { state, run } = useSave(onSaved)
+  const { state, run, reset: clearState } = useSave(onSaved)
+  const glossary = useSave(onSaved)
   const [codes, setCodes] = useState<NoteCodes>(settings.noteTaking.codes)
   const [problem, setProblem] = useState('')
+  const [glossaryError, setGlossaryError] = useState('')
+
+  // Every action starts by clearing both areas' old messages. Without it an old red alert
+  // stays beside a new "Saved", or lingers after the other area's action.
+  const clearCodes = () => {
+    setProblem('')
+    clearState()
+  }
+  const clearGlossary = () => {
+    setGlossaryError('')
+    glossary.reset()
+  }
+  const startCodeAction = () => {
+    clearCodes()
+    clearGlossary()
+  }
 
   // Without the check, a duplicate code would only come back as a gateway error.
   const save = () => {
+    startCodeAction()
     const found = codeProblem(codes)
     setProblem(found)
     if (!found) void run(() => saveMine({ noteCodes: codes }))
   }
   const reset = () => {
-    setProblem('')
+    startCodeAction()
     setCodes(DEFAULT_CODES)
     void run(() => saveMine({ noteCodes: null }))
   }
@@ -46,7 +64,10 @@ export function NoteTakingSection({ settings, onSaved }: Props) {
               size="lg"
               value={codes[f.key]}
               maxLength={8}
-              onChange={(e) => setCodes({ ...codes, [f.key]: e.target.value })}
+              onChange={(e) => {
+                startCodeAction()
+                setCodes({ ...codes, [f.key]: e.target.value })
+              }}
             />
           ))}
         </div>
@@ -65,7 +86,16 @@ export function NoteTakingSection({ settings, onSaved }: Props) {
           <SaveStatus state={state} />
         </div>
       </div>
-      <GlossaryEditor glossary={settings.noteTaking.glossary} onSaved={onSaved} />
+      <GlossaryEditor
+        glossary={settings.noteTaking.glossary}
+        save={glossary}
+        problem={glossaryError}
+        onProblem={setGlossaryError}
+        onStart={() => {
+          clearCodes()
+          clearGlossary()
+        }}
+      />
     </div>
   )
 }

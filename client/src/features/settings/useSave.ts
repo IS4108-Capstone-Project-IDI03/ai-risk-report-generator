@@ -6,7 +6,7 @@ import type { Settings } from './api'
 
 export type SaveState = { status: 'idle' | 'saving' | 'saved' | 'failed'; message: string }
 
-/** Returns the save state and a `run` that calls the save and hands the new settings on. */
+/** Returns the save state, a `run` and a `reset` that calls the save and hands the new settings on. */
 export function useSave(onSaved: (settings: Settings) => void) {
   const [state, setState] = useState<SaveState>({ status: 'idle', message: '' })
   const run = async (save: () => Promise<Settings>) => {
@@ -19,5 +19,7 @@ export function useSave(onSaved: (settings: Settings) => void) {
       setState({ status: 'failed', message })
     }
   }
-  return { state, run }
+  // Back to idle: a new action starts by clearing the last result, so none shows stale.
+  const reset = () => setState({ status: 'idle', message: '' })
+  return { state, run, reset }
 }

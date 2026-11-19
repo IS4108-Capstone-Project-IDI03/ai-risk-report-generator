@@ -112,4 +112,72 @@ describe('Settings > Note-taking (CP-35)', () => {
     await waitFor(() => expect(patches).toHaveLength(2))
     expect(patches[1]).toEqual({ glossary: [{ term: 'bsmt', meaning: 'basement' }] })
   })
+
+  // CP-35: an alert or "Saved" must not outlive the action that made it.
+  describe('stale messages', () => {
+    const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
+    const gloss = [{ term: 'fcc', meaning: 'fire control centre' }]
+    const codeError = () => screen.queryByText('Two types cannot share a code.')
+    const termError = () => screen.queryByText('That term is already in your glossary.')
+    const dupCode = () => {
+      type('Fact code', 'ir')
+      click('Save')
+    }
+    const dupTerm = () => {
+      type('Term', 'FCC')
+      type('Meaning', 'x')
+      click('Add')
+    }
+
+    it('clears a code error when the next glossary Add errors or succeeds', async () => {
+      await openIt(base(false, gloss))
+      dupCode()
+      expect(codeError()).toBeInTheDocument()
+      dupTerm()
+      expect(codeError()).toBeNull()
+      expect(termError()).toBeInTheDocument()
+      type('Fact code', 'ir')
+      click('Save')
+      type('Term', 'bsmt')
+      type('Meaning', 'basement')
+      click('Add')
+      expect(codeError()).toBeNull()
+      await screen.findByText('Saved')
+    })
+
+    it('clears a term error after Remove and after Reset to defaults', async () => {
+      await openIt(base(false, gloss))
+      dupTerm()
+      expect(termError()).toBeInTheDocument()
+      click('Remove fcc')
+      expect(termError()).toBeNull()
+      await screen.findByText('Saved')
+      dupTerm()
+      click('Reset to defaults')
+      expect(termError()).toBeNull()
+    })
+
+    it('clears a code error when typing in a code box', async () => {
+      await openIt(base(false))
+      dupCode()
+      type('Fact code', 'x')
+      expect(codeError()).toBeNull()
+    })
+
+    it('never shows Saved beside an error alert, in either area', async () => {
+      await openIt(base(false, gloss))
+      click('Save')
+      await screen.findByText('Saved')
+      dupCode()
+      expect(codeError()).toBeInTheDocument()
+      expect(screen.queryByText('Saved')).toBeNull()
+      type('Fact code', 'F')
+      click('Save')
+      await screen.findByText('Saved')
+      expect(codeError()).toBeNull()
+      dupTerm()
+      expect(termError()).toBeInTheDocument()
+      expect(screen.queryByText('Saved')).toBeNull()
+    })
+  })
 })

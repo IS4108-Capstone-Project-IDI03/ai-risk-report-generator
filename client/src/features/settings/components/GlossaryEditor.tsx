@@ -3,23 +3,31 @@
 // Each change saves at once with saveMine.
 import { useState } from 'react'
 import { Button, Icon, Input } from '../../../design-system'
-import { saveMine, type GlossaryEntry, type Settings } from '../api'
+import { saveMine, type GlossaryEntry } from '../api'
 import { glossaryProblem } from '../noteRules'
-import { useSave } from '../useSave'
+import type { useSave } from '../useSave'
 import { SaveStatus } from './SaveStatus'
 
-type Props = { glossary: GlossaryEntry[]; onSaved: (settings: Settings) => void }
+// The save state and the problem live in NoteTakingSection, so the two areas can clear each
+// other's messages. onStart runs first on every action to do that.
+type Props = {
+  glossary: GlossaryEntry[]
+  save: ReturnType<typeof useSave>
+  problem: string
+  onProblem: (problem: string) => void
+  onStart: () => void
+}
 
-export function GlossaryEditor({ glossary, onSaved }: Props) {
-  const { state, run } = useSave(onSaved)
+export function GlossaryEditor({ glossary, save, problem, onProblem, onStart }: Props) {
+  const { state, run } = save
   const [term, setTerm] = useState('')
   const [meaning, setMeaning] = useState('')
-  const [problem, setProblem] = useState('')
 
   // Checks the entry first, so a bad one never reaches the gateway.
   const add = async () => {
+    onStart()
     const found = glossaryProblem({ term, meaning }, glossary)
-    setProblem(found)
+    onProblem(found)
     if (found) return
     await run(() =>
       saveMine({ glossary: [...glossary, { term: term.trim(), meaning: meaning.trim() }] }),
@@ -46,7 +54,10 @@ export function GlossaryEditor({ glossary, onSaved }: Props) {
                 variant="ghost"
                 size="lg"
                 aria-label={`Remove ${g.term}`}
-                onClick={() => run(() => saveMine({ glossary: glossary.filter((x) => x !== g) }))}
+                onClick={() => {
+                  onStart()
+                  void run(() => saveMine({ glossary: glossary.filter((x) => x !== g) }))
+                }}
               >
                 Remove
               </Button>
