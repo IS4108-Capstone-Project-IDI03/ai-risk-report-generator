@@ -413,6 +413,40 @@ describe('the review workspace (RV-01)', () => {
     })
   })
 
+  it('carries the standards cite target (GN-16): 50 by default, then the saved value', async () => {
+    await assessment()
+    const get = async () => (await api.get(`/api/assessments/${REFERENCE}/review`)).body
+    expect((await get()).standardCiteTarget).toBe(50)
+    const admin = signedInAsRole(app, 'knowledge_admin')
+    await admin.patch('/api/settings/global').send({ standardCiteTarget: 75 })
+    expect((await get()).standardCiteTarget).toBe(75)
+  })
+
+  it('keeps `broader` on a source found by the fallback search (GN-16)', async () => {
+    const { assessment: a } = await assessment()
+    const standard = await knowledgeDocument({
+      title: 'NFPA 13',
+      sourceType: 'nfpa_standard',
+      effectiveDate: '2022-01-01',
+    })
+    const id = `C:${standard._id}:1`
+    await draft(a._id, '7', {
+      subsections: [
+        {
+          heading: 'Construction Narrative',
+          kind: 'narrative',
+          statements: [{ text: 'Sprinklers per NFPA 13.', citations: [id], supported: true }],
+        },
+      ],
+      sources: {
+        [id]: { text: 'Sprinkler rules.', doc_id: String(standard._id), broader: true },
+      },
+      evidence: [],
+    })
+    const [construction] = (await api.get(`/api/assessments/${REFERENCE}/review`)).body.sections
+    expect(construction.sources[id].broader).toBe(true)
+  })
+
   it('opens for anyone who can read the assessment, and reports what it cannot find', async () => {
     await assessment()
     const admin = signedInAsRole(app, 'knowledge_admin')

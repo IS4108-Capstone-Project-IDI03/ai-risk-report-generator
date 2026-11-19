@@ -199,6 +199,7 @@ export async function getSettings(user: SessionUser) {
       }
     }),
     qaStrictness: saved.qaStrictness,
+    standardCiteTarget: saved.standardCiteTarget ?? DEFAULT_STANDARD_CITE_TARGET,
     sourcePriority: { order: await getSourcePriority(), history: await sourcePriorityHistory() },
   }
 }
@@ -267,19 +268,58 @@ export async function saveModelChoice(by: SessionUser, task: string, choice: unk
   if (savedBefore !== optionId(option)) await log(by, `models.${t}`, before, optionId(option))
 }
 
-/** Saves the admin's QA strictness for everyone and logs a real change. Checks it first, so a bad value saves nothing. */
+// How many percent of a section's standards the engineer should cite (GN-16); a document
+// from before the setting has none and counts as this.
+export const DEFAULT_STANDARD_CITE_TARGET = 50
+
+/** Returns the cite target in force (0-100), the default when none was saved. */
+export async function getStandardCiteTarget(): Promise<number> {
+  const saved = await appSettings()
+  return saved.standardCiteTarget ?? DEFAULT_STANDARD_CITE_TARGET
+}
+
+/** Saves the admin's QA strictness and standards cite target for everyone and logs each real change. Checks both first, so a bad value saves nothing. */
 export async function saveGlobal(by: SessionUser, input: unknown) {
   const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
-  const unknown = Object.keys(body).filter((k) => k !== 'qaStrictness')
+  const unknown = Object.keys(body).filter(
+    (k) => k !== 'qaStrictness' && k !== 'standardCiteTarget',
+  )
   if (unknown.length) throw new SettingsInputError(`"${unknown[0]}" is not a setting.`)
-  if (body.qaStrictness === undefined) throw new SettingsInputError('Nothing to save.')
-  if (!(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)) {
+  const hasQa = body.qaStrictness !== undefined
+  const hasTarget = Object.hasOwn(body, 'standardCiteTarget')
+  if (!hasQa && !hasTarget) throw new SettingsInputError('Nothing to save.')
+  if (hasQa && !(QA_STRICTNESS as readonly unknown[]).includes(body.qaStrictness)) {
     throw new SettingsInputError('QA strictness must be strict, standard or lenient.')
   }
+  // Number.isInteger is false for strings, null, booleans, arrays, NaN and floats.
+  const target = body.standardCiteTarget
+  if (
+    hasTarget &&
+    !(Number.isInteger(target) && (target as number) >= 0 && (target as number) <= 100)
+  ) {
+    throw new SettingsInputError('The target must be a whole number from 0 to 100.')
+  }
   const saved = await appSettings()
-  if (body.qaStrictness === saved.qaStrictness) return
-  await AppSettingsModel.updateOne({ key: 'global' }, { $set: { qaStrictness: body.qaStrictness } })
-  await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
+  const set: Record<string, unknown> = {}
+  if (hasQa && body.qaStrictness !== saved.qaStrictness) set.qaStrictness = body.qaStrictness
+  if (hasTarget && target !== (saved.standardCiteTarget ?? DEFAULT_STANDARD_CITE_TARGET)) {
+    set.standardCiteTarget = target
+  }
+  if (!Object.keys(set).length) return
+  // The document as it was just before this write, so each log's "before" is right even when
+  // two admins save at once.
+  const previous = (await AppSettingsModel.findOneAndUpdate(
+    { key: 'global' },
+    { $set: set },
+    { returnDocument: 'before', lean: true },
+  )) as IAppSettings
+  if ('qaStrictness' in set) {
+    await log(by, 'qaStrictness', previous.qaStrictness, set.qaStrictness as QaStrictness)
+  }
+  if ('standardCiteTarget' in set) {
+    const before = previous.standardCiteTarget ?? DEFAULT_STANDARD_CITE_TARGET
+    if (before !== target) await log(by, 'standardCiteTarget', before, target)
+  }
 }
 
 /** Saves the admin's tier order (RT-04) and logs a real change. Throws SettingsInputError unless `order` is each tier exactly once. */

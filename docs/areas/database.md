@@ -898,7 +898,10 @@ accepted, and from when it was accepted. Each document has:
 - `sources`: the cited passages by citation ID, with their text, `doc_id`,
   `headings` and `page_start`/`page_end`: every cited standard (`C:`), and any
   past-report passage (`P:`) a statement cites, kept so the review workspace
-  can open it (RV-01). Drafts saved before RV-01 hold standards only.
+  can open it (RV-01). Drafts saved before RV-01 hold standards only. A
+  passage may carry `broader: true` (GN-16): rag-service found that standard by
+  the jurisdiction-only fallback search, not the exact jurisdiction and facility.
+  The review workspace returns it as `broader` on the source.
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
@@ -2105,6 +2108,15 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 - Only the owner can read or change a fact; another user's fact answers 404.
 - The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
 - Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.
+
+## Standards cite target (GN-16)
+
+`app_settings.standardCiteTarget`: an integer 0-100, the share of a section's
+standards the engineer should cite. Absent on documents from before GN-16, which
+read as 50. Saved only by `PATCH /api/settings/global` (`settings:manage`), alone
+or with `qaStrictness`; a real change appends a `settings_log` row
+(`setting: 'standardCiteTarget'`, `before` and `after` numbers). `GET /api/settings`
+and the review workspace both return `standardCiteTarget`.
 
 ## Source priority (RT-04)
 

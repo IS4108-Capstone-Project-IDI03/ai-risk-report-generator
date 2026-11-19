@@ -212,6 +212,26 @@ describe('drafting a report section (GN-01)', () => {
     expect(list.body[1]).toMatchObject({ id: '12', usableObservations: 0, latestDraft: null })
   })
 
+  it('stores `broader` on a source and ignores an unknown standards_report (GN-16)', async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers on L3 not fire-stopped.',
+    })
+    drafts.mockImplementation(() =>
+      json({
+        ...DRAFT,
+        sources: { 'C:d:1': { text: 'Rule.', broader: true } },
+        standards_report: { cited: 1, found: 3 },
+      }),
+    )
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(response.status).toBe(201)
+    expect(response.body.sources['C:d:1'].broader).toBe(true)
+    expect((await ReportSectionModel.findOne().lean())?.sources['C:d:1']).toMatchObject({
+      broader: true,
+    })
+  })
+
   it('records the usage of the calls that wrote a draft, under the report (EV-03)', async () => {
     const { assessment: a, session } = await assessment()
     await observation({ assessment: a._id, session: session._id }, 'Construction', {

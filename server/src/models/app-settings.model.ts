@@ -15,6 +15,8 @@ export interface IAppSettings {
   qaStrictness: QaStrictness
   // RT-04: tiers, highest authority first. Absent on documents from before RT-04: read as the default.
   sourcePriority?: TierId[]
+  // GN-16: the share (0-100) of a section's standards the engineer should cite. Absent on older documents: read as 50.
+  standardCiteTarget?: number
   metadata: SettingsMetadata
 }
 
@@ -41,6 +43,7 @@ const appSettingsSchema = new Schema<IAppSettings>(
     models: { type: Schema.Types.Mixed, default: {} },
     qaStrictness: { type: String, enum: QA_STRICTNESS, default: 'standard' },
     sourcePriority: { type: [String], enum: TIER_IDS, default: () => [...DEFAULT_TIER_ORDER] },
+    standardCiteTarget: { type: Number, min: 0, max: 100 },
     metadata: metadataSchema,
   },
   { collection: 'app_settings', minimize: false },

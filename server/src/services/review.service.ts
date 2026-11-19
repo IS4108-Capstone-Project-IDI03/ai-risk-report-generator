@@ -36,6 +36,7 @@ import {
   type SectionDraftDto,
 } from './section.service'
 import { captureTimes } from './observation.service'
+import { getStandardCiteTarget } from './settings.service'
 import type { TemplateSection } from './rag.service'
 import {
   assessmentIdOf,
@@ -74,6 +75,8 @@ export type SourcePassageDto = {
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
+  // GN-16: found by the jurisdiction-only fallback search, so a broader match; absent otherwise.
+  broader?: true
   documentId: string | null
   // From the knowledge base now, so a correction or withdrawal since drafting
   // shows; null when the document has no record there.
@@ -243,6 +246,8 @@ export type ReviewWorkspaceDto = {
   summary: FindingCounts
   // When the gateway read it, so the browser can keep the newest of several.
   asOf: Date
+  // GN-16: the percent of standards the engineer should cite, from Settings.
+  standardCiteTarget: number
 }
 
 // The chunk metadata S4 saves with each cited passage (see rag-service orchestrator).
@@ -252,6 +257,7 @@ type SavedPassage = {
   headings?: unknown
   page_start?: unknown
   page_end?: unknown
+  broader?: unknown
 }
 
 // A chunk ID is `<document id>:<n>`, should a passage lack its `doc_id`.
@@ -278,6 +284,7 @@ export function toPassage(
     headings: Array.isArray(passage.headings) ? passage.headings.map(String) : [],
     pageStart: pageOf(passage.page_start),
     pageEnd: pageOf(passage.page_end),
+    ...(passage.broader === true && { broader: true as const }),
     documentId,
     document: record
       ? {
@@ -646,6 +653,7 @@ export async function getReviewWorkspace(
     },
     summary: sections.reduce((sum, s) => addCounts(sum, s.findings), NO_FINDINGS),
     asOf,
+    standardCiteTarget: await getStandardCiteTarget(),
   }
 }
 
