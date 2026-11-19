@@ -288,3 +288,20 @@
   gap: 6px;
   color: var(--graphite-600);
 }
+
+/* Note-taking (CP-35): the glossary list. */
+.st-gloss {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.st-gloss-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border-default);
+}

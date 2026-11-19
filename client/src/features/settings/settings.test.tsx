@@ -35,6 +35,7 @@ const data = (
   models: ModelRowData[] = [row('Drafting')],
 ): SettingsData => ({
   canEditGlobal,
+  noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models,
   qaStrictness: 'standard',
   sourcePriority: { order: [...TIER_IDS], history: [] },
@@ -87,13 +88,10 @@ describe('Settings', () => {
   it('shows Coming soon with the owner, and no controls', async () => {
     mock(data(false))
     render(<Settings />)
-    for (const [name, owner] of [
-      ['Checklist', 'Xuren'],
-      ['Note-taking', 'Chris'],
-    ]) {
-      open(name)
-      expect(screen.getByText(`Coming soon. Being built by ${owner}.`)).toBeInTheDocument()
-    }
+    open('Checklist')
+    expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
+    // Note-taking works now (CP-35): not a Coming soon tile.
+    expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 

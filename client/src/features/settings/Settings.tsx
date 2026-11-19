@@ -7,6 +7,7 @@ import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
+import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
 import { QaSection } from './screens/QaSection'
@@ -49,12 +50,14 @@ const WORKING: Section[] = [
     label: 'Chat and voice',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
   },
+  {
+    id: 'note-taking',
+    label: 'Note-taking',
+    render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
+  },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
-const SOON: Section[] = [
-  ['Checklist', 'Xuren'],
-  ['Note-taking', 'Chris'],
-].map(([name, owner]) => ({
+const SOON: Section[] = [['Checklist', 'Xuren']].map(([name, owner]) => ({
   id: name,
   label: name,
   owner,

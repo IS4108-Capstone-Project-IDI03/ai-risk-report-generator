@@ -1,0 +1,140 @@
+/* Split note panel (CP-35). Design-system v2 tokens only; every control is at least 44 px. */
+.sp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+}
+.sp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--surface-card);
+}
+.sp-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.sp-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sp-chip--fact {
+  color: var(--ink-600);
+  background: var(--ink-50);
+}
+.sp-chip--info_request {
+  color: var(--violet-600);
+  background: var(--violet-50);
+}
+.sp-chip--recommendation {
+  color: var(--teal-600);
+  background: var(--teal-50);
+}
+.sp-count,
+.sp-wrote,
+.sp-fix,
+.sp-none,
+.sp-note {
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+.sp-none,
+.sp-note {
+  margin: 0;
+}
+.sp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.sp-part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+}
+.sp-text {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: 400 16px/1.5 var(--font-sans);
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.sp-text:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.sp-inferred {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--graphite-700);
+  background: var(--graphite-100);
+  font-size: 12px;
+}
+.sp-flag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--status-moderate-fg);
+  background: var(--status-moderate-bg);
+}
+.sp-flag-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.sp-flag-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sp-actions,
+.sp-foot,
+.sp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sp-summary {
+  align-items: center;
+  margin: 0;
+}
+.sp-err {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--red-600);
+  font-size: 14px;
+}

@@ -21,6 +21,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'client-insights': 'Client insights summary',
   // Searching a knowledge document by meaning in the Passages view (IN-17).
   'knowledge-search': 'Knowledge base search',
+  // Sorting a shorthand note into facts, requests and recommendations (CP-35).
+  'split-note': 'Shorthand note split',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {
