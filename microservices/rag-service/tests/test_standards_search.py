@@ -62,3 +62,11 @@ def test_report_counts_add_up(monkeypatch):
 def test_no_observations_searches_nothing(monkeypatch):
     calls, _ = run(monkeypatch, lambda f: [STANDARD], {**REQUEST, "observations": []})
     assert all(f["source_type"] == "marsh_report" for r in calls for _, f, _ in r)
+
+
+def test_fallback_also_runs_when_every_exact_hit_is_too_far(monkeypatch):
+    """Found by review: hits beyond the distance cut-off are as good as none."""
+    far = {**STANDARD, "distance": 0.99}
+    calls, body = run(monkeypatch, lambda f: [far] if "facility_type" in f else [STANDARD])
+    assert len(calls) == 2
+    assert body["sources"]["C:fm:4"]["broader"] is True

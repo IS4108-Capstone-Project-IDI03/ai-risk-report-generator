@@ -347,7 +347,8 @@ def draft(
 
     # GN-01 AC: when this facility type has no standards at all, search the whole
     # jurisdiction instead, and mark those passages `broader` so the reviewer sees it.
-    broader = not any(per_observation) and bool(queries)
+    # Hits beyond the distance cut-off count as none: they would all be dropped below anyway.
+    broader = not _nearest_first(per_observation) and bool(queries)
     if broader:
         per_observation = search(
             [

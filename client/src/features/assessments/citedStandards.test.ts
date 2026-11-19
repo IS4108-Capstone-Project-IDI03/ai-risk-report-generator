@@ -54,6 +54,9 @@ describe('clauseOf', () => {
     [['8 General'], null],
     [['Chapter 8.6 Spacing', 'Section 8.6.2 Hangers'], '8.6.2'],
     [['Section 8.6.2 Hangers', 'Notes'], '8.6.2'],
+    [['Table 8.6.2 Hose demand'], null],
+    [['Figure 4.2 Layout'], null],
+    [['NFPA 13 edition 2022.1 notes'], null],
   ])('%j -> %j', (headings, want) => expect(clauseOf(headings)).toBe(want))
 })
 
@@ -65,6 +68,12 @@ describe('passageLabel', () => {
     expect(
       passageLabel(p({ document: doc('2022'), headings: ['8.6.2 Spacing'], pageStart: 114 })),
     ).toBe('NFPA 13 (2022), 8.6.2, p. 114')
+  })
+  it('does not repeat an edition the title already carries', () => {
+    const titled = { title: 'NFPA 13 (2022)', edition: '2022' } as SourcePassage['document']
+    expect(passageLabel(p({ document: titled, headings: ['8.6.2'], pageStart: 1 }))).toBe(
+      'NFPA 13 (2022), 8.6.2, p. 1',
+    )
   })
   it('leaves out what is missing, with no stray commas', () => {
     expect(passageLabel(p({ document: doc(null), pageStart: 114 }))).toBe('NFPA 13, p. 114')

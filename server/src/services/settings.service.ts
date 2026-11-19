@@ -313,7 +313,8 @@ export async function saveGlobal(by: SessionUser, input: unknown) {
     { $set: set },
     { returnDocument: 'before', lean: true },
   )) as IAppSettings
-  if ('qaStrictness' in set) {
+  // Not when a second admin saved the same value first: the log would show before equal to after.
+  if ('qaStrictness' in set && previous.qaStrictness !== set.qaStrictness) {
     await log(by, 'qaStrictness', previous.qaStrictness, set.qaStrictness as QaStrictness)
   }
   if ('standardCiteTarget' in set) {

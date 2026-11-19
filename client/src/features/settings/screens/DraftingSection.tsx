@@ -10,7 +10,15 @@ import { useSave } from '../useSave'
 type Props = { settings: Settings; onSaved: (settings: Settings) => void }
 
 export function DraftingSection({ settings, onSaved }: Props) {
-  const [text, setText] = useState(String(settings.standardCiteTarget))
+  // The box starts from the saved target and starts over when that changes (without this, another
+  // admin's save would leave the old number here, and Save would put it back).
+  const saved = String(settings.standardCiteTarget)
+  const [text, setText] = useState(saved)
+  const [base, setBase] = useState(saved)
+  if (base !== saved) {
+    setBase(saved)
+    setText(saved)
+  }
   const [problem, setProblem] = useState('')
   const { state, run, reset } = useSave(onSaved)
   const edit = settings.canEditGlobal

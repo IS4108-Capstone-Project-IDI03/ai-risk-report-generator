@@ -219,9 +219,11 @@ export type ReviewFocus = { citation: string | null; statement: string | null }
 // The clause number of a passage (GN-16): the first one like 8.6.2 (digits with dots) found
 // scanning its headings from the last to the first; null when none has one.
 export function clauseOf(headings: string[]): string | null {
+  // The number must open the heading, or follow "Section" or "Clause": a "Table 8.6.2" or a
+  // "Figure 4.2" is not a clause, and a year like 2022.1 inside a title must not pass for one.
   for (const h of [...headings].reverse()) {
-    const found = h.match(/\d+(?:\.\d+)+/)
-    if (found) return found[0]
+    const found = h.trim().match(/^(?:(?:section|clause)\s+)?(\d+(?:\.\d+)+)(?![\d.])/i)
+    if (found) return found[1]
   }
   return null
 }
@@ -231,7 +233,8 @@ export function passageLabel(passage: SourcePassage): string {
   const doc = passage.document
   const title = doc?.title ?? 'Document not found'
   return [
-    doc?.edition ? `${title} (${doc.edition})` : title,
+    // Not again when the title already carries the edition ("NFPA 13 (2022)").
+    doc?.edition && !title.includes(doc.edition) ? `${title} (${doc.edition})` : title,
     clauseOf(passage.headings),
     pageLocator(passage),
   ]
