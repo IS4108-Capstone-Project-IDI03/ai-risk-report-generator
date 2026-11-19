@@ -28,6 +28,8 @@ import { ReviewBadge } from './ReviewBadge'
 const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
   // Waits for the admin to choose a source type before it is ingested (IN-19).
   awaiting_type: { label: 'Type needed', tone: 'moderate' },
+  // Recent uploads never lists a manual draft (IN-18); listed so every status has a label.
+  draft: { label: 'Draft', tone: 'neutral' },
   queued: { label: 'Queued', tone: 'neutral' },
   processing: { label: 'Processing', tone: 'info' },
   complete: { label: 'Complete', tone: 'low' },
@@ -237,7 +239,7 @@ export function UploadedDocuments({
   const original = (d: KnowledgeDocument) => (
     <a
       className="kb-link"
-      href={d.fileUrl}
+      href={d.fileUrl ?? undefined}
       target="_blank"
       rel="noreferrer"
       aria-label={`View original of ${d.title}`}

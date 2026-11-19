@@ -9,7 +9,7 @@ import { Icon, IconButton } from '../../../design-system'
 import type { Passage } from '../api'
 import { PDF_OPTIONS } from './pdfSetup'
 import { openPdfSource } from './pdfSource'
-import { quoteRects, type PdfText, type Rect } from './quoteRects'
+import { quoteRects, toPdfText, type PdfText, type Rect } from './quoteRects'
 
 type Props = {
   fileUrl: string
@@ -62,16 +62,6 @@ function place(r: Rect, size: Size) {
     height: `${(Math.abs(r.t - r.b) / size.height) * 100}%`,
   }
 }
-
-/** Returns a pdf.js text item's page, text, baseline start, width and font height. */
-const toPdfText = (i: TextItem, page: number): PdfText => ({
-  page,
-  str: i.str,
-  x: i.transform[4],
-  y: i.transform[5],
-  width: i.width,
-  height: i.height,
-})
 
 /** The source PDF at the cited page, with the passage and quoted words highlighted. */
 export function PdfViewer({ fileUrl, passage, quote, shown, expanded, onToggleExpand }: Props) {

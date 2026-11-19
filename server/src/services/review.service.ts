@@ -88,7 +88,8 @@ export type SourcePassageDto = {
     // with its year (EX-01 AC6); null while Unconfirmed.
     facilityType: string | null
     withdrawnAt: Date | null
-    fileUrl: string
+    // Null for a manually entered standard, which has no file (IN-18).
+    fileUrl: string | null
   } | null
 }
 

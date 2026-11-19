@@ -412,3 +412,65 @@ def test_a_changed_number_in_a_paired_passage_is_highlighted(passages):
     rows = matching.comparison_rows("new", "old")
 
     assert [r["differs"] for r in rows] == [True, False]  # tidying ignores case and punctuation
+
+
+# IN-18: the real PDF of a standard that was entered manually.
+def manual_doc(**extra) -> dict:
+    return stored_doc(edition="2025", entryMethod="manual", **extra)
+
+
+def test_a_pdf_of_a_manually_entered_edition_replaces_it_whatever_the_share(passages):
+    manual = manual_doc()
+    pdf = stored_doc(edition="2025")
+    passages.add(str(manual["_id"]), [A])  # a partial entry: one clause
+    passages.add(str(pdf["_id"]), [B, C])
+
+    match = matching.find_match(pdf, FakeDocuments(manual, pdf))
+
+    assert match == {
+        "kind": "replaces_manual",
+        "documentId": manual["_id"],
+        "newMatched": 0,
+        "newTotal": 2,
+        "storedMatched": 0,
+        "storedTotal": 1,
+    }
+
+
+def test_publishing_a_manual_entry_of_an_uploaded_edition_also_matches(passages):
+    pdf, manual = stored_doc(edition="2025"), manual_doc()
+
+    match = matching.find_match(manual, FakeDocuments(pdf, manual))
+
+    assert (match["kind"], match["documentId"]) == ("replaces_manual", pdf["_id"])
+
+
+def test_a_copy_of_an_uploaded_pdf_is_still_a_copy_beside_a_manual_entry(passages):
+    manual, upload, new = manual_doc(), stored_doc(edition="2025"), stored_doc(edition="2025")
+    for doc in (upload, new):
+        passages.add(str(doc["_id"]), [A, B, C])
+
+    match = matching.find_match(new, FakeDocuments(manual, upload, new))
+
+    assert (match["kind"], match["documentId"]) == ("possible_copy", upload["_id"])
+
+
+def test_a_manual_entry_of_another_edition_is_an_edition_match(passages):
+    manual = stored_doc(edition="2022", entryMethod="manual")
+    pdf = stored_doc(edition="2025")
+
+    assert matching.find_match(pdf, FakeDocuments(manual, pdf))["kind"] == "newer_edition"
+
+
+def test_a_manual_entry_already_replaced_is_not_matched_again(passages):
+    manual = manual_doc(withdrawn={"at": 1})
+    pdf = stored_doc(edition="2025")
+
+    assert matching.find_match(pdf, FakeDocuments(manual, pdf)) is None
+
+
+def test_a_draft_is_never_matched(passages):
+    draft = manual_doc(status="draft")
+    pdf = stored_doc(edition="2025")
+
+    assert matching.find_match(pdf, FakeDocuments(draft, pdf)) is None

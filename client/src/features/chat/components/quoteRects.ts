@@ -1,8 +1,9 @@
 // Where to draw the quoted words on the PDF (CB-02 AC2): a rectangle per text line the quote
 // covers, on whichever of the passage's pages it falls (a passage, and a quote, can run over a
 // page break), in PDF points with the origin bottom-left, like the passage boxes.
-// Used by PdfViewer. Drawn by us, not by marking pdf.js's text layer: some PDFs report a
+// Used by PdfViewer, and by SourceRegion for a cited table's crop. Drawn by us, not by marking pdf.js's text layer: some PDFs report a
 // font twice the printed size, and the text layer's spans then cover two lines.
+import type { TextItem } from 'pdfjs-dist/types/src/display/api'
 import { quoteSpan } from './quoteSpan'
 
 /** One pdf.js text item: its page, text, baseline start (x, y), width and font height. */
@@ -14,6 +15,16 @@ export type PdfText = {
   width: number
   height: number
 }
+
+/** Returns a pdf.js text item's page, text, baseline start, width and font height. */
+export const toPdfText = (i: TextItem, page: number): PdfText => ({
+  page,
+  str: i.str,
+  x: i.transform[4],
+  y: i.transform[5],
+  width: i.width,
+  height: i.height,
+})
 
 export type Rect = { l: number; r: number; t: number; b: number }
 export type PageRect = Rect & { page: number }

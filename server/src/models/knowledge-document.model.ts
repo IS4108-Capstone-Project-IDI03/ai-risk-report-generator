@@ -4,7 +4,10 @@ import { Schema, model, type Types } from 'mongoose'
 // `awaiting_type` when labelling couldn't read the source type: such a
 // document is not ingested until an admin chooses one (IN-19). The ingestion
 // worker moves it on (see microservices/ingestion-service/app/worker.py).
+// A manually entered standard (IN-18) is `draft` while its clauses are typed in,
+// and `complete` once published; it never goes through the queue.
 export const INGESTION_STATUSES = [
+  'draft',
   'awaiting_type',
   'queued',
   'processing',
@@ -13,6 +16,12 @@ export const INGESTION_STATUSES = [
   'cancelled',
 ] as const
 export type IngestionStatus = (typeof INGESTION_STATUSES)[number]
+
+// How a document entered the knowledge base: an uploaded file, or a standard
+// typed in clause by clause (IN-18). Records from before IN-18 have no field:
+// read a missing one as `upload`.
+export const ENTRY_METHODS = ['upload', 'manual'] as const
+export type EntryMethod = (typeof ENTRY_METHODS)[number]
 
 export const SOURCE_TYPES = [
   'fm_standard',
@@ -60,7 +69,14 @@ export interface ILabelledDetail {
 // Why a document needs review besides Unconfirmed details (IN-07). Written only
 // by the ingestion service's match module (microservices/ingestion-service);
 // the counts always come from the copy check, also for an edition match.
-export const MATCH_KINDS = ['newer_edition', 'earlier_edition', 'possible_copy'] as const
+// `replaces_manual` (IN-18): one side was entered manually and the other is the
+// same edition uploaded, matched whatever the share of passages.
+export const MATCH_KINDS = [
+  'newer_edition',
+  'earlier_edition',
+  'possible_copy',
+  'replaces_manual',
+] as const
 export interface IDocumentMatch {
   kind: (typeof MATCH_KINDS)[number]
   documentId: Types.ObjectId
@@ -80,11 +96,17 @@ export interface IKnowledgeDocument {
   // The designation without the issuing body, e.g. "13" or "2-81"; identity for
   // matching (IN-07). Standards only; absent for a report.
   standardNumber?: string
-  // The name the file had on the admin's machine.
-  fileName: string
+  // Absent means `upload` (IN-18).
+  entryMethod?: EntryMethod
+  // A manual document's last clause number given (`manual_sections.seq`), raised
+  // with $inc so two saves at once never share one. Absent on an upload.
+  manualSeq?: number
+  // The name the file had on the admin's machine. Absent on a manual document.
+  fileName?: string
   // The unaltered original in S3. MongoDB holds only its key; sha256 lets
-  // anyone confirm a retrieved copy matches what was uploaded.
-  file: { key: string; contentType: 'application/pdf'; size: number; sha256: string }
+  // anyone confirm a retrieved copy matches what was uploaded. Absent on a
+  // manual document (IN-18), which has no file.
+  file?: { key: string; contentType: 'application/pdf'; size: number; sha256: string }
   // The file as uploaded, when it was converted to the PDF in `file` (a Word,
   // PowerPoint, RTF or ODT file); absent for a PDF upload. Only its fingerprint is
   // kept, not its bytes, so a repeat upload is still recognised (IN-07).
@@ -165,18 +187,25 @@ const labelledDetailSchema = new Schema(
   { _id: false },
 )
 
+// A file and its name are required on every document except a manual one (IN-18).
+function hasFile(this: { entryMethod?: EntryMethod }) {
+  return this.entryMethod !== 'manual'
+}
+
 const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
   {
     title: { type: String, required: true, trim: true },
     issuingBody: { type: String, trim: true },
     edition: { type: String, trim: true },
     standardNumber: { type: String, trim: true },
-    fileName: { type: String, required: true },
+    entryMethod: { type: String, enum: ENTRY_METHODS },
+    manualSeq: Number,
+    fileName: { type: String, required: hasFile },
     file: {
-      key: { type: String, required: true },
-      contentType: { type: String, enum: ['application/pdf'], required: true },
-      size: { type: Number, required: true },
-      sha256: { type: String, required: true },
+      key: { type: String, required: hasFile },
+      contentType: { type: String, enum: ['application/pdf'], required: hasFile },
+      size: { type: Number, required: hasFile },
+      sha256: { type: String, required: hasFile },
     },
     original: {
       type: new Schema(
@@ -276,11 +305,13 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
 // One stored copy of each file (IN-07 AC1), counting one awaiting a type (IN-19).
 // Failed and cancelled documents are outside the index so their files can be
 // uploaded again; without this index, two identical files uploaded together
-// would both pass the upload's fingerprint lookup. Same statuses as models/db.ts.
-const HOLDS_ITS_FILE = ['awaiting_type', 'queued', 'processing', 'complete']
+// would both pass the upload's fingerprint lookup. Same filter as models/db.ts.
+// A manual document has no file (IN-18), so it is left out rather than clashing as null.
+export const HOLDS_ITS_FILE = ['awaiting_type', 'queued', 'processing', 'complete']
+export const HOLDS_A_FILE = { status: { $in: HOLDS_ITS_FILE }, 'file.sha256': { $exists: true } }
 knowledgeDocumentSchema.index(
   { 'file.sha256': 1 },
-  { unique: true, partialFilterExpression: { status: { $in: HOLDS_ITS_FILE } } },
+  { unique: true, partialFilterExpression: HOLDS_A_FILE },
 )
 // The same for a converted upload's original, since each conversion's PDF differs.
 // PDF uploads have no `original`, so they are left out rather than all clashing as null.

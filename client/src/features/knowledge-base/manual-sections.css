@@ -1,0 +1,187 @@
+/* A manual document's clauses (IN-18): the clause list beside the editor, which
+   stacks under it on a narrow screen. The header is the Review page's
+   (review-document.css). Colours and spacing are the design system's tokens. */
+.kb-manual-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+/* Publish is the page's main action, at the end of the title row. */
+.kb-manual .kb-review-head,
+.kb-manual .kb-review-title {
+  align-self: stretch;
+}
+.kb-manual-publish {
+  margin-left: auto;
+}
+
+/* The clause list: one card, a row per clause. */
+.kb-manual-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.kb-manual-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.kb-manual-list > .kb-list-note {
+  margin: 0;
+  padding: 16px;
+}
+.kb-manual-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kb-manual-rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.kb-manual-rows li:last-child {
+  border-bottom: 0;
+}
+/* The open clause holds a soft blue tint, as an open row does elsewhere. */
+.kb-manual-rows li[data-selected] {
+  background: var(--surface-selected);
+}
+.kb-manual-row {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kb-manual-rows li:not([data-selected]):hover {
+  background: var(--surface-hover);
+}
+.kb-manual-row strong {
+  font-family: var(--font-mono);
+  font-size: var(--text-small-size);
+}
+.kb-manual-row span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
+.kb-manual-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.kb-manual-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The editor: one full-width column, its actions at the end. */
+.kb-manual-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+.kb-manual-editor h3 {
+  margin: 0;
+  font-size: var(--text-h3-size);
+  color: var(--text-primary);
+}
+.kb-manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* The bin sits apart, at the start. */
+.kb-manual-actions > :first-child:not(:last-child):not(button[type='submit']) {
+  margin-right: auto;
+}
+
+/* Screenshots (IN-18): each image beside the text read from it, then the picker. */
+.kb-shots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kb-shots legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.kb-shot {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+.kb-shot img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.kb-shot-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+.kb-shot-add .kb-pick[aria-disabled] {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+@media (max-width: 1079px) {
+  .kb-manual-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .kb-manual-actions > * {
+    flex: 1;
+  }
+  .kb-shot {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .kb-shot img {
+    grid-column: 1 / -1;
+  }
+}

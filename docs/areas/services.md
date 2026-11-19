@@ -531,14 +531,19 @@ never gets this far: the gateway rejects it at upload.
    that fits wins:
    1. a copy candidate with the same edition (same year, or both without one):
       `possible_copy`, highest share first (a withdrawn one still counts);
-   2. another edition of the same body and number (both standards, both
+      a manual entry of that edition goes to rule 2 instead;
+   2. (IN-18) the same body, number and edition year, with one of the two
+      entered by hand (`entryMethod: 'manual'`) and the other not withdrawn,
+      whatever the share: `replaces_manual`. A manual entry is often partial,
+      so no share is needed; ties go to the one sharing more passages;
+   3. another edition of the same body and number (both standards, both
       editions known, different year), whatever the share: `newer_edition` /
       `earlier_edition`, against the family's non-withdrawn edition, else the
       newest; ties go to the one sharing more passages;
-   3. a copy candidate that is a standard of the same body with a known,
+   4. a copy candidate that is a standard of the same body with a known,
       different edition, when a number is unknown: the same edition kinds;
-   4. any other copy candidate: `possible_copy`;
-   5. otherwise no match. Same number and edition with a low share (different
+   5. any other copy candidate: `possible_copy`;
+   6. otherwise no match. Same number and edition with a low share (different
       chapters of one edition) is no match. A report never gets an edition.
    The counts always come from the copy check (zeros when no passage is shared).
 
@@ -561,7 +566,8 @@ reads Chroma):
 with 409 while the document's details are Unconfirmed, when it has no match, when
 the matched document is gone, or when the choice doesn't fit. Every kind allows
 `keep_both` and `discard_new`; `newer_edition` adds `supersede`;
-`earlier_edition` adds `add_as_older`; if the matched document also needs
+`earlier_edition` adds `add_as_older`; `replaces_manual` adds `replace_manual`;
+if the matched document also needs
 review, `discard_other` is added.
 
 | Choice | Effect |
@@ -571,6 +577,7 @@ review, `discard_other` is added.
 | `discard_other` | The same, for the matched document. The reviewed document is then re-matched too |
 | `supersede` | The reviewed (newer) edition becomes active; the stored one is withdrawn (who and when, as KB-01; an existing withdrawal is kept). Both get the same `editionFamily`: the stored document's, or its `_id` if it had none |
 | `add_as_older` | The reviewed (earlier) edition joins the stored one's family and is stored withdrawn |
+| `replace_manual` | (IN-18) As `supersede`, but the manual side is withdrawn, whichever was reviewed: the uploaded PDF becomes active, and the manual entry is kept, with its clauses, in the same `editionFamily`. A withdrawn manual entry takes no clause changes until reinstated |
 
 Saving a decision and relabelling the passages go together: if the relabel
 fails, the gateway writes the old values back and answers 503 (as for withdraw).
@@ -686,7 +693,107 @@ refuses them (403) whatever the client shows.
    `GET /api/chat/passages/:id` and `CitedRegion` (KB-02). Ingestion records the
    region from IN-19.
 6. Nothing is changed: no relabel, no re-embedding. Passages of an uploaded
-   document are never edited; amending passages comes with manual entry (IN-18).
+   document are never edited; only a manually entered document's clauses can
+   be amended (IN-18, below).
+7. A manual passage (IN-18) has no page: the Pages column shows "—" and a page
+   range never matches it. The outline takes its clause number from its
+   `clause`, its titles from its headings, and orders it by `order`. Opening
+   it shows its screenshots (`CitedImage`) where a PDF region would go; no PDF
+   is requested, as the document has none. A draft's passages show the note
+   for a document that isn't active, with no search.
+
+## Entering a standard by hand (IN-18)
+
+For a standard that can only be read online, clause by clause. Gateway code:
+`server/src/services/manual-section.service.ts`; ingestion:
+`microservices/ingestion-service/app/manual.py`; client:
+`client/src/features/knowledge-base/screens/ManualSections.tsx`. Records in
+[database.md](database.md) "Manual entry".
+
+1. **Start.** Add documents' "No PDF? Enter it manually" opens the details form
+   (`ManualEntryDialog.tsx`). `POST /api/knowledge-documents/manual` creates a
+   `draft` with no file and queues nothing. One entry per standard and edition:
+   a second answers 409 naming the first, and the client offers Continue
+   editing. A draft is shared: any admin sees it in the Documents list (Draft
+   status) and can continue it.
+2. **Start from** (optional): another edition of the same standard. From a
+   manual document, its `manual_sections` are copied; from an uploaded one, the
+   gateway asks ingestion's `GET /documents/{id}/clauses`, which groups its
+   passages by the clause number of their nearest heading (as the outline reads
+   it), joins their text, and leaves out front matter and pictures' AI
+   descriptions. Copying writes Mongo only (no embedding), so copied clauses
+   are `indexed: false, checked: false` until an admin saves each one. Each
+   gets a new `seq` and its screenshots new S3 keys, so the copy never depends
+   on the old edition: its citations don't block deleting a copied clause, and
+   deleting either document leaves the other.
+3. **Save a clause.** The editor sends `{ clause, headings, text, images }`.
+   The gateway saves it to `manual_sections` first (clause number unique in
+   the document; a change carries its `updatedAt` and a stale one answers 409),
+   then calls ingestion's `PUT /documents/{id}/manual-sections/{sectionId}`
+   with `seq`, `order`, `clause`, `headings`, the text (typed text then each
+   screenshot's corrected text) and the screenshots' keys and kinds. That runs
+   in the request: `manual.save` splits the text at paragraphs into passages of
+   at most `MAX_CHUNK_TOKENS` (the chunker's tokenizer, heading trail
+   included), indexes them with the document's current labels (`worker.labels`,
+   so `needs_review` while a draft), then deletes any of the clause's older
+   passages (`where section_id`) it no longer has. New passages go in first, so
+   a failed embed leaves the old ones searchable. If ingestion is down, the
+   clause is kept with `indexed: false` and the reason, and Re-embed
+   (`POST .../sections/:sid/reembed`) tries again. Deleting a clause deletes
+   its passages first (`DELETE /documents/{id}/manual-sections/{sectionId}`),
+   and is refused (409) while a report cites any of them (`C:<doc>:<seq>` or a
+   `:part<n>` of it); amending a cited clause is allowed, and the citation then
+   shows the new text.
+4. **Screenshots.** `POST .../sections/screenshots` checks the image's bytes
+   (PNG, JPG or WebP), sends it to ingestion's `POST /recognise` (multipart:
+   the image, `kind`, `documentId`, the heading trail as `context`), which
+   converts it to PNG with Pillow and reads it with `ocr_model.recognise` under
+   `OCR_PROVIDER` (a table as records, a formula as LaTeX, a picture as a
+   description). The gateway stores the image at
+   `knowledge/<id>/sections/<uuid>.<ext>` and returns the text for the admin to
+   correct; when nothing was read, the image is still kept and the text is left
+   to type. Only a key under the document's own prefix may be saved on a
+   clause. Screenshots are streamed by `GET .../sections/screenshots/:name`,
+   only when a clause holds them.
+5. **Usage.** The clause and `/recognise` routes collect their own model calls
+   with `usage.collecting(doc_id)` (a per-request collector, since the API
+   process has no worker run to collect into) and return them as `usage`, as
+   `/label` does. The gateway records them with `recordAiCalls`: embedding as
+   `embed-document`, OCR as `ocr` (the Usage screen's Ingestion tab).
+6. **Publish** (`POST /:id/publish`) is refused (409, with `unindexed` and
+   `unchecked` counts) until the draft has a clause, every clause is indexed and
+   every copied clause checked; the editor shows what is left, with To check
+   and Failed filters, and Publish's reason box. Publishing sets `complete`
+   (only from `draft`, so two publishes run once) and calls ingestion's
+   `POST /documents/{id}/match`, which saves the match and relabels the
+   passages: `active`, or `needs_review` if it matched something. If the match
+   can't run, the document goes back to `draft` (503).
+7. **After Publish.** Edit clauses stays available: a clause saved later is
+   indexed at once with the document's labels (`active`, or `needs_review`
+   while in review), with no second Publish. Matching runs only at Publish;
+   clauses added later don't re-run it (`replaces_manual` compares body, number
+   and edition only, so it isn't affected; the other rules keep the share
+   worked out at Publish). A withdrawn manual document takes no changes (409)
+   and offers no Edit clauses; reinstating it allows them again.
+8. **The real PDF.** Uploaded later, it is ingested as usual and matched: rule
+   2 gives `replaces_manual` against the manual entry of the same edition,
+   whatever the share, and the review offers Replace manual entry
+   (`replace_manual`). A PDF that arrives while the manual entry is still a
+   draft matches nothing (drafts aren't candidates); the manual entry then
+   matches the PDF at its own Publish, as the rule holds with either side
+   manual.
+9. **Citations.** rag-service's passage details (`chat/passages.py`) add
+   `manual` and `images` (the `image_keys`). Chat's Passage tab, the knowledge
+   base's passage detail and the review workspace's source panel show a Manual
+   entry badge and the screenshots instead of a PDF page.
+
+Only uploaded documents' passages stay read-only: every clause route answers
+409 for a document whose `entryMethod` isn't `manual`.
+
+Privacy: manual entry takes standards only, which are public, so as for
+uploaded standards nothing is masked or redacted: the typed text and the
+screenshot go to Cohere and `OCR_PROVIDER` as they are (see
+[privacy.md](privacy.md), Known gaps).
 
 ## Report section drafting (S4, GN-01)
 

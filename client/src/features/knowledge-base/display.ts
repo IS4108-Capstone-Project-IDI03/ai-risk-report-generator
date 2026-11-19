@@ -13,10 +13,14 @@ export const UNCONFIRMED = 'Unconfirmed'
 export const needsReview = (d: KnowledgeDocument) =>
   !d.withdrawn && (d.unconfirmed.length > 0 || !!d.match)
 
+/** Returns whether a document is a manual entry not yet published (IN-18). */
+export const isDraft = (d: Pick<KnowledgeDocument, 'status'>) => d.status === 'draft'
+
 const MATCH_WORDS: Record<MatchKind, string> = {
   newer_edition: 'Possible newer edition of',
   earlier_edition: 'Possible earlier edition of',
   possible_copy: 'Possible copy of',
+  replaces_manual: 'Same edition as the manual entry',
 }
 
 /** Returns what a match says, e.g. "Possible copy of NFPA 13 (2019 edition, withdrawn)". */

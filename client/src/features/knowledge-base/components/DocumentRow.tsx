@@ -4,9 +4,9 @@
 // details. The title is the disclosure button; the rest of the row also opens
 // it, as an observation's row does, while its actions keep their job. Used by
 // components/DocumentGroup.tsx.
-import { Badge, Icon, IconRegistry } from '../../../design-system'
+import { Badge, Icon, IconRegistry, StatusPill } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
-import { calendarDate, needsReview, reviewReasons } from '../display'
+import { calendarDate, isDraft, needsReview, reviewReasons } from '../display'
 import { DocumentDetails } from './DocumentDetails'
 import { ReviewBadge } from './ReviewBadge'
 
@@ -22,6 +22,8 @@ export function DocumentRow({
   onDelete,
   onReview,
   onPassages,
+  onPublish,
+  onClauses,
   canManage,
 }: {
   document: KnowledgeDocument
@@ -35,6 +37,10 @@ export function DocumentRow({
   onDelete: () => void
   onReview: () => void
   onPassages: () => void
+  // Publishes a manual draft (IN-18).
+  onPublish: () => Promise<void>
+  // Opens a manual document's clauses (IN-18).
+  onClauses: () => void
   // Off for a risk engineer: no Review link, no actions in the details (IN-17).
   canManage: boolean
 }) {
@@ -68,6 +74,12 @@ export function DocumentRow({
                   ? `Report date ${calendarDate(d.effectiveDate)}`
                   : 'Edition unconfirmed'}
             </small>
+            {/* Typed in clause by clause, not uploaded (IN-18). */}
+            {d.entryMethod === 'manual' && (
+              <span className="kb-entry">
+                <Badge tone="neutral">Manual entry</Badge>
+              </span>
+            )}
             {/* Why it needs review, or which edition replaced it (IN-07). */}
             {needsReview(d) && <small className="kb-why">{reviewReasons(d).join(' · ')}</small>}
             {d.withdrawn && d.newerEdition && (
@@ -85,6 +97,9 @@ export function DocumentRow({
               searchable, so it is never shown as Active (IN-05). */}
           {d.withdrawn ? (
             <Badge tone="danger">Withdrawn</Badge>
+          ) : isDraft(d) ? (
+            // A manual entry still being typed in (IN-18): Draft without the AI sparkles.
+            <StatusPill status="manual_draft" />
           ) : needsReview(d) ? (
             canManage ? (
               <ReviewBadge title={d.title} onReview={onReview} />
@@ -97,17 +112,20 @@ export function DocumentRow({
         </td>
         <td className="kb-col-actions">
           <span className="kb-row-actions">
-            <a
-              className="kb-link"
-              href={d.fileUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`View original of ${d.title}`}
-              // The file's name, on hover: the details panel leaves it out.
-              title={d.fileName}
-            >
-              View original
-            </a>
+            {/* A manual document has no file to open (IN-18). */}
+            {d.fileUrl && (
+              <a
+                className="kb-link"
+                href={d.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`View original of ${d.title}`}
+                // The file's name, on hover: the details panel leaves it out.
+                title={d.fileName ?? undefined}
+              >
+                View original
+              </a>
+            )}
           </span>
         </td>
       </tr>
@@ -122,6 +140,8 @@ export function DocumentRow({
               onChangeStatus={onChangeStatus}
               onDelete={onDelete}
               onPassages={onPassages}
+              onPublish={onPublish}
+              onClauses={onClauses}
               canManage={canManage}
             />
           </td>

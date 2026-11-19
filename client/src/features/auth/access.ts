@@ -81,9 +81,22 @@ export function clientIdForPath(pathname: string): string | null {
 // '/admin/knowledge-base/review/<id>'.
 export const KNOWLEDGE_REVIEW_PATH = `${SCREEN_PATHS.knowledge}/review/`
 
+// A manual document's clauses (IN-18), also part of the knowledge screen:
+// '/admin/knowledge-base/manual/<id>'.
+export const KNOWLEDGE_MANUAL_PATH = `${SCREEN_PATHS.knowledge}/manual/`
+
 // The id of the document a path asks to review, or null for any other path.
 export function reviewIdForPath(pathname: string): string | null {
-  const id = pathname.match(new RegExp(`^${KNOWLEDGE_REVIEW_PATH}([^/]+)/*$`))?.[1]
+  return idAfter(KNOWLEDGE_REVIEW_PATH, pathname)
+}
+
+// The id of the manual document whose clauses a path opens, or null for any other path.
+export function manualIdForPath(pathname: string): string | null {
+  return idAfter(KNOWLEDGE_MANUAL_PATH, pathname)
+}
+
+function idAfter(prefix: string, pathname: string): string | null {
+  const id = pathname.match(new RegExp(`^${prefix}([^/]+)/*$`))?.[1]
   if (!id) return null
   try {
     return decodeURIComponent(id)
@@ -113,7 +126,7 @@ const HOME: Record<UserRole, Screen> = {
 // The screen a path names; '/' and unknown paths name the role's home.
 export function screenForPath(pathname: string, session: Session): Screen {
   const path = pathname.replace(/\/+$/, '') || '/'
-  if (reviewIdForPath(path)) return 'knowledge'
+  if (reviewIdForPath(path) || manualIdForPath(path)) return 'knowledge'
   if (clientIdForPath(path)) return 'client'
   // '/clients' alone is the list of clients.
   const match = (Object.keys(SCREEN_PATHS) as Screen[]).find(

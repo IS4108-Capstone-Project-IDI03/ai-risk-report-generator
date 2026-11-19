@@ -13,6 +13,7 @@ const STATUSES: Record<
   string,
   // `ink`: the colour for the icon on a plain surface (a filter menu), where it differs from `fg`.
   // `lines`: the label as the pill draws it on two lines; the space that may break is the plain one.
+  // `icon` '' draws the word alone.
   { label: string; icon: string; fg: string; bg: string; bd?: string; ink?: string; lines?: string }
 > = {
   not_started: {
@@ -29,6 +30,9 @@ const STATUSES: Record<
     bg: 'var(--teal-50)',
   },
   draft: { label: 'Draft', icon: 'sparkles', fg: 'var(--violet-600)', bg: 'var(--violet-50)' },
+  // A standard being typed in by a person (IN-18): Draft's colour, but no sparkles, which
+  // mean AI-written; the word alone.
+  manual_draft: { label: 'Draft', icon: '', fg: 'var(--violet-600)', bg: 'var(--violet-50)' },
   under_review: {
     label: 'Under review',
     icon: 'eye',
@@ -128,7 +132,7 @@ export function StatusPill({ status }: StatusPillProps) {
         } as CSSProperties
       }
     >
-      <Icon name={s.icon} size={14} />
+      {s.icon && <Icon name={s.icon} size={14} />}
       {s.lines ? <span className="ds-pill-lines">{s.lines}</span> : s.label}
     </span>
   )

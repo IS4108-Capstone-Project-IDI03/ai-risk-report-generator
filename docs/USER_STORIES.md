@@ -277,6 +277,30 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   14. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
   </details>
 
+- [ ] **IN-18** — Enter a standard clause by clause when no PDF is available (knowledge admin, Should, deps: IN-07, IN-17, KB-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: enter a standard that can only be read online (such as a new NFPA edition) clause by clause, with screenshots of its tables, formulas and figures, so search and reports can use it before its PDF exists, and replace it with the PDF when that arrives.
+
+  Only standards (FM, NFPA, local) can be entered this way, and only by a knowledge admin (`knowledge:manage`). A manual document's clauses can be amended later; an uploaded PDF's passages stay read-only (IN-17). Check the publisher's terms before transcribing a standard: a free online view may forbid copying. See `docs/areas/services.md` (Entering a standard by hand) and `docs/DECISIONS.md` (2026-11-20).
+
+  1. Given I am a knowledge admin on Add documents, when I choose "No PDF? Enter it manually" and give a standard's details, then a draft is created with no file and the clause editor opens; a past report can't be entered this way.
+  2. Given a draft or published manual entry of the same standard and edition exists, when I start another, then it is refused, naming the existing entry, with Continue editing to open it.
+  3. Given a draft, when I save a clause with its number, heading trail and text, then it is listed in order and marked as indexed; given another clause of the document has that number, then the save is refused on the clause number field.
+  4. Given I am entering a heading trail, when I type a heading and press Enter, then it becomes a bubble without saving the clause, and the suggestions offer the headings already used at that level under the same parent headings in this document.
+  5. Given I add a screenshot of a table, formula or picture to a clause, when it has been read, then its text appears for me to correct before I save; given it can't be read, then I am told so and can type the text myself. The screenshot is kept with the clause.
+  6. Given the search index can't be reached when I save a clause, then the clause is still saved and marked as failed, with Re-embed; when Re-embed succeeds, the failure clears.
+  7. Given a manual draft, when I view the Documents list, then it is listed with a Draft status, and its details offer Continue editing, Publish and Delete draft, but no History, Passages or Withdraw; its passages are not used in answers or search.
+  8. Given I choose an earlier edition in "Start from", when the draft is created, then it holds that edition's clauses, each to check, with its own ids and screenshots; citations of the earlier edition never stop me changing or deleting a copied clause, and deleting either document leaves the other intact.
+  9. Given a draft with no clause, a clause that failed to embed or a copied clause not yet checked, when I look at Publish, then it is disabled and says what is left; when nothing is left and I publish, then its clauses are used in answers and search, or it shows Needs review if it matched another document.
+  10. Given a published manual document, when I choose Edit clauses and save a change or a new clause, then search uses it at once without publishing again; given the document is withdrawn, then Edit clauses isn't offered and changes are refused.
+  11. Given a report cites a clause, when I delete it, then it is refused, and I can still change its text.
+  12. Given another admin saved a clause after I opened it, when I save mine, then it is refused and I am asked to reload it.
+  13. Given documents entered both ways, when I filter by Entry, then only manual or only uploaded documents are listed, and manual ones carry a Manual entry badge; an uploaded document offers no Edit clauses.
+  14. Given an answer or a report cites a manual clause, when I open the citation, then it shows Manual entry and the clause's screenshots, and no PDF page.
+  15. Given the PDF of a manually entered standard is uploaded later, when it has the same issuing body, number and edition, then its review offers Replace manual entry, whatever share of passages the two have in common; choosing it makes the PDF active and withdraws the manual entry into the same edition family, kept with its clauses.
+  </details>
+
 ## E3 — Knowledge Base & Online RAG Pipeline
 
 - [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)

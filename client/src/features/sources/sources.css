@@ -31,8 +31,16 @@
   visibility: hidden;
 }
 
-/* A table's or formula's extracted text, folded once its region is drawn (PassageBody `folded`):
-   a quiet one-line disclosure, as the chat's search steps. */
+/* A passage's text, folded once its region or screenshot shows above it (PassageBody `folded`):
+   a quiet one-line disclosure, as the chat's search steps. Its label reads Show when closed and
+   Hide when open. */
+.src-extracted-hide,
+.src-extracted[open] .src-extracted-show {
+  display: none;
+}
+.src-extracted[open] .src-extracted-hide {
+  display: inline;
+}
 .src-extracted > summary {
   display: inline-flex;
   align-items: center;

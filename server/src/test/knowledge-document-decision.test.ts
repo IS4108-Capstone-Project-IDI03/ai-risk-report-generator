@@ -516,7 +516,7 @@ describe('decision: discard_new and discard_other', () => {
     expect(response.body).toEqual({ document: null })
     expect(order).toEqual(['passages', 's3'])
     expect(calls[0]).toMatchObject({ method: 'DELETE', url: `/documents/${upload._id}/passages` })
-    expect(s3Deleted).toEqual([upload.file.key])
+    expect(s3Deleted).toEqual([upload.file!.key])
     expect(await IngestionJobModel.countDocuments()).toBe(0)
     expect(await reload(upload._id)).toBeNull()
     expect(await reload(stored._id)).not.toBeNull()
@@ -558,7 +558,7 @@ describe('decision: discard_new and discard_other', () => {
     expect(response.status).toBe(200)
     expect(response.body.document).toMatchObject({ id: String(upload._id), match: null })
     expect(await reload(stored._id)).toBeNull()
-    expect(s3Deleted).toEqual([stored.file.key])
+    expect(s3Deleted).toEqual([stored.file!.key])
     expect(calls.map((c) => c.url)).toContain(`/documents/${upload._id}/match`)
   })
 
@@ -690,7 +690,7 @@ describe('DELETE /api/knowledge-documents/:id (IN-12)', () => {
 
     expect(response.status).toBe(204)
     expect(calls[0]).toMatchObject({ method: 'DELETE', url: `/documents/${doc._id}/passages` })
-    expect(s3Deleted).toEqual([doc.file.key])
+    expect(s3Deleted).toEqual([doc.file!.key])
     expect(await IngestionJobModel.countDocuments()).toBe(0)
     expect(await reload(doc._id)).toBeNull()
   })

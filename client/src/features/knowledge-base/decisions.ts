@@ -22,6 +22,8 @@ const USUAL: Record<DocumentMatch['kind'], DecisionChoice> = {
   newer_edition: 'supersede',
   earlier_edition: 'add_as_older',
   possible_copy: 'discard_new',
+  // The real PDF is what the manual entry stood in for (IN-18).
+  replaces_manual: 'replace_manual',
 }
 
 // "NFPA 13" (2022 edition)", or just the title when the edition is unknown.
@@ -57,6 +59,14 @@ const CHOICES: Record<
     consequence: (_d, other) =>
       `This document is kept as withdrawn, so reports never use it. ${named(other.title, other.edition)} stays as it is.`,
   },
+  // The manual side is withdrawn whichever document is under review (the gateway's rule).
+  replace_manual: {
+    label: 'Replace manual entry',
+    consequence: (d, other) =>
+      d.entryMethod === 'manual'
+        ? `${named(other.title, other.edition)} stays active. This manual entry is withdrawn and kept, with its clauses.`
+        : `This document becomes active. The manual entry ${named(other.title, other.edition)} is withdrawn and kept, with its clauses.`,
+  },
   discard_new: {
     label: 'Delete this document',
     consequence: () => 'Deletes this document, its file and its passages. This cannot be undone.',
@@ -79,6 +89,7 @@ export function choicesFor(d: KnowledgeDocument): Choice[] {
     'keep_both',
     ...(match.kind === 'newer_edition' ? (['supersede'] as const) : []),
     ...(match.kind === 'earlier_edition' ? (['add_as_older'] as const) : []),
+    ...(match.kind === 'replaces_manual' ? (['replace_manual'] as const) : []),
     'discard_new',
     ...(match.otherNeedsReview ? (['discard_other'] as const) : []),
   ]
@@ -114,5 +125,9 @@ export function outcomeMessage(d: KnowledgeDocument, choice: DecisionChoice): st
       return `${mine} is now active. ${theirs} is withdrawn.`
     case 'add_as_older':
       return `${mine} kept as an older edition. It is withdrawn.`
+    case 'replace_manual':
+      return d.entryMethod === 'manual'
+        ? `${theirs} replaces this manual entry. ${mine} is withdrawn.`
+        : `${mine} is now active. The manual entry ${theirs} is withdrawn.`
   }
 }

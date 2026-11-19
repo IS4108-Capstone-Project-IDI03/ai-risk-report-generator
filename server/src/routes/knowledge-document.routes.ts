@@ -35,6 +35,26 @@ import {
   listKnowledgeDocumentPassages,
   passageQuerySchema,
 } from '../services/knowledge-passages.service'
+import {
+  addManualSection,
+  changeManualSection,
+  ClauseExistsError,
+  createManualDocument,
+  deleteManualSection,
+  listManualSections,
+  ManualEntryExistsError,
+  manualDocumentSchema,
+  ManualSectionInvalidError,
+  manualSectionChangeSchema,
+  manualSectionSchema,
+  reembedManualSection,
+  addScreenshot,
+  getScreenshot,
+  publishManualDocument,
+  PublishBlockedError,
+  screenshotQuerySchema,
+  startFromSchema,
+} from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -98,6 +118,172 @@ router.post(
         return
       }
       throw error
+    }
+  },
+)
+
+// Starts a standard entered clause by clause, for one with no PDF (IN-18): a
+// draft with these details, no file and nothing queued. The body is a
+// standard's details, as JSON. Answers: 201 created · 400 bad details, or not a
+// standard, or a `copyFrom` that isn't another edition of it · 409 a manual entry of this
+// standard and edition exists (names it) · 503 the edition to copy couldn't be read.
+// With `copyFrom` ("Start from"), the draft starts with that edition's clauses, unchecked.
+router.post('/manual', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualDocumentSchema.safeParse(req.body)
+  const start = startFromSchema.safeParse(req.body)
+  if (!parsed.success || !start.success) {
+    res.status(400).json(invalidDetails((parsed.error ?? start.error)!))
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.status(201).json(await createManualDocument(parsed.data, { id, name }, start.data.copyFrom))
+  } catch (error: unknown) {
+    if (error instanceof ManualEntryExistsError) {
+      res.status(409).json({ error: error.message, documentId: error.documentId })
+      return
+    }
+    answerClause(error, res)
+  }
+})
+
+// A manual document's clauses (IN-18). Saving indexes the clause at once; if
+// ingestion is down the clause is still saved, with `indexed: false`, and
+// Re-embed tries again. Every change answers 409 for an uploaded document
+// (its passages are read-only) or a withdrawn one.
+function answerClause(error: unknown, res: express.Response) {
+  if (error instanceof ClauseExistsError) {
+    res.status(409).json({ error: error.message, fields: { clause: error.message } })
+    return
+  }
+  if (error instanceof ManualSectionInvalidError) {
+    res.status(400).json({ error: error.message, fields: { [error.field]: error.message } })
+    return
+  }
+  answerStateChange(error, res)
+}
+
+// Lists the clauses in their order. Answers: 200 · 404 unknown · 409 an uploaded document.
+router.get('/:id/sections', requirePermission('knowledge:view'), async (req, res) => {
+  try {
+    res.json(await listManualSections(req.params.id))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Adds a clause. Answers: 201 · 400 bad clause · 404 · 409 clause number taken, or not editable.
+router.post('/:id/sections', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualSectionSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.status(201).json(await addManualSection(req.params.id, parsed.data, { id, name }))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Saves a change, with the `updatedAt` it was loaded with. Answers: 200 · 400 · 404 · 409
+// clause number taken, someone else saved it meanwhile, or not editable.
+router.put('/:id/sections/:sid', requirePermission('knowledge:manage'), async (req, res) => {
+  const parsed = manualSectionChangeSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(invalidDetails(parsed.error))
+    return
+  }
+  try {
+    const { id, name } = res.locals.user!
+    res.json(await changeManualSection(req.params.id, req.params.sid, parsed.data, { id, name }))
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Deletes a clause. Answers: 204 · 404 · 409 a report cites it, or not editable · 503 its
+// passages couldn't be removed from search (the clause is kept).
+router.delete('/:id/sections/:sid', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    await deleteManualSection(req.params.id, req.params.sid)
+    res.status(204).end()
+  } catch (error: unknown) {
+    answerClause(error, res)
+  }
+})
+
+// Publishes a manual draft (IN-18): its clauses become searchable, or Needs review if
+// it matches another document, such as its own PDF. Answers: 200 the document · 404 ·
+// 409 not a manual draft, or not finished (`unindexed`, `unchecked` say how many
+// clauses are left) · 503 the match couldn't run (still a draft).
+router.post('/:id/publish', requirePermission('knowledge:manage'), async (req, res) => {
+  try {
+    res.json(await publishManualDocument(req.params.id))
+  } catch (error: unknown) {
+    if (error instanceof PublishBlockedError) {
+      const { message, unindexed, unchecked } = error
+      res.status(409).json({ error: message, unindexed, unchecked })
+      return
+    }
+    answerClause(error, res)
+  }
+})
+
+// Reads a screenshot of a table, formula or picture with OCR and stores it, for a
+// clause to hold once saved. The body is the image; `kind` and the clause's heading
+// trail (`context`) are in the query. Answers: 201 `{ key, kind, text, readError }`
+// (text '' with a reason when OCR read nothing) · 400 no kind · 404 · 409 not
+// editable · 413 over 10 MB · 415 not a PNG, JPG or WebP · 422 an image that won't open.
+router.post(
+  '/:id/sections/screenshots',
+  requirePermission('knowledge:manage'),
+  express.raw({ type: '*/*', limit: '10mb' }),
+  async (req, res) => {
+    const parsed = screenshotQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json(invalidDetails(parsed.error))
+      return
+    }
+    try {
+      const image = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)
+      res.status(201).json(await addScreenshot(req.params.id, image, parsed.data))
+    } catch (error: unknown) {
+      if (error instanceof RejectedFileError) {
+        res.status(error.status).json({ error: error.message })
+        return
+      }
+      answerClause(error, res)
+    }
+  },
+)
+
+// Streams a screenshot a clause holds, to anyone who can view (the citation view shows it).
+// Answers: 200 the image · 404 not one a clause of this document holds.
+router.get(
+  '/:id/sections/screenshots/:name',
+  requirePermission('knowledge:view'),
+  async (req, res) => {
+    try {
+      const shot = await getScreenshot(req.params.id, req.params.name)
+      res.set({ 'Content-Type': shot.contentType, 'Cache-Control': 'private, max-age=86400' })
+      pipeline(await shot.open(), res, () => undefined)
+    } catch (error: unknown) {
+      answerClause(error, res)
+    }
+  },
+)
+
+// Indexes a clause again as saved. Answers: 200 (`indexed` says whether it worked) · 404 · 409.
+router.post(
+  '/:id/sections/:sid/reembed',
+  requirePermission('knowledge:manage'),
+  async (req, res) => {
+    try {
+      res.json(await reembedManualSection(req.params.id, req.params.sid))
+    } catch (error: unknown) {
+      answerClause(error, res)
     }
   },
 )
@@ -311,7 +497,9 @@ router.get('/:id/file', requirePermission('knowledge:view'), async (req, res) =>
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type !== 'entity.too.large') return next(error)
-  res.status(413).json({ error: 'The file is larger than 100 MB.' })
+  // The route's own limit: 100 MB for a document, 10 MB for a screenshot (IN-18).
+  const mb = typeof error.limit === 'number' ? Math.round(error.limit / 1024 / 1024) : 100
+  res.status(413).json({ error: `The file is larger than ${mb} MB.` })
 }
 router.use(tooLarge)
 

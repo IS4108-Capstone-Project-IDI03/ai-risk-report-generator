@@ -358,7 +358,7 @@ describe('POST /api/knowledge-documents', () => {
       size: DOCX.length,
       sha256: createHash('sha256').update(DOCX).digest('hex'),
     })
-    expect(saved!.file.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
+    expect(saved!.file!.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
   })
 
   it('records no original for a PDF, which is stored as uploaded', async () => {
@@ -593,7 +593,7 @@ describe('POST /api/knowledge-documents', () => {
     expect(queued).not.toHaveBeenCalled()
     const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
     expect(saved?.status).toBe('awaiting_type')
-    expect(s3.has(saved!.file.key)).toBe(true)
+    expect(s3.has(saved!.file!.key)).toBe(true)
   })
 
   it.each([
@@ -1031,6 +1031,32 @@ describe('GET /api/knowledge-documents/:id (F-10)', () => {
     const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
 
     expect(body.handled).toEqual({ at: at.toISOString(), by: BY })
+  })
+
+  // IN-18: a standard entered clause by clause has no file, so no file link.
+  it('returns a manual document with no file link, size or fingerprint', async () => {
+    const { _id } = await KnowledgeDocumentModel.create({
+      title: 'NFPA 13',
+      entryMethod: 'manual',
+      status: 'draft',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        effective_date: new Date('2025-01-01'),
+      },
+    })
+
+    const { body } = await api.get(`/api/knowledge-documents/${_id}`).expect(200)
+
+    expect(body).toMatchObject({
+      entryMethod: 'manual',
+      status: 'draft',
+      fileName: null,
+      fileUrl: null,
+      size: null,
+      sha256: null,
+    })
   })
 
   it('answers 404 for an unknown or malformed id, and does not capture /ingested', async () => {
@@ -2201,6 +2227,8 @@ describe('buildKnowledgeDocumentIndex', () => {
     )
     expect(index?.partialFilterExpression).toEqual({
       status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] },
+      // IN-18: a manual document has no file.
+      'file.sha256': { $exists: true },
     })
   })
 })

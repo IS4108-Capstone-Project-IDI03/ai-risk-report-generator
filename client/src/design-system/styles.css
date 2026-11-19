@@ -401,3 +401,163 @@
     min-width: 44px;
   }
 }
+
+/* ChipInput (IN-18, NEW pattern): a field of bubbles, like a mail app's To field. The
+   field grows as bubbles wrap; each bubble is the grey code chip with an × to remove it,
+   and `›` marks a new level. Colours and sizes are the system's tokens. */
+.ds-chip-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-family: var(--font-sans);
+}
+.ds-chip-label {
+  font-size: var(--text-label-size);
+  line-height: var(--text-label-lh);
+  font-weight: var(--text-label-weight);
+  color: var(--graphite-700);
+}
+.ds-chip-required {
+  margin-left: 3px;
+  color: var(--action-danger);
+}
+.ds-chip-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+  box-sizing: border-box;
+  min-height: var(--control-height-md);
+  padding: 5px 8px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
+  transition: var(--transition-control);
+  cursor: text;
+}
+.ds-chip-field[data-focus] {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.ds-chip-field[data-error] {
+  border-color: var(--action-danger);
+}
+.ds-chip-input[data-disabled] .ds-chip-field {
+  background: var(--surface-sunken);
+  cursor: default;
+}
+/* The bubbles wrap like words, and the box follows them. A flex list, not
+   display: contents, which some browsers strip of its list semantics. */
+.ds-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-chip-list:empty {
+  display: none;
+}
+.ds-chip-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* The box at the end takes the rest of the line, so its placeholder isn't cut off. */
+.ds-chip-end {
+  flex: 1 1 16ch;
+}
+.ds-chip-sep {
+  color: var(--text-muted);
+  font-size: var(--text-small-size);
+}
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font-size: var(--text-small-size);
+}
+.ds-chip-text {
+  overflow: hidden;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ds-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-chip:hover {
+    background: var(--graphite-200);
+  }
+  .ds-chip-remove:hover {
+    color: var(--text-primary);
+  }
+}
+.ds-chip-text:focus-visible,
+.ds-chip-remove:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.ds-chip-box {
+  flex: 1 0 8ch;
+  min-width: 8ch;
+  height: 24px;
+  padding: 0 2px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-small-size);
+}
+.ds-chip-description {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-muted);
+}
+.ds-chip-description[data-error] {
+  color: var(--action-danger);
+}
+/* Fingers: 44 px bubbles and remove buttons, 16 px text so iOS doesn't zoom on focus. */
+@media (pointer: coarse), (max-width: 767px) {
+  .ds-chip-field {
+    min-height: 44px;
+  }
+  .ds-chip {
+    height: 36px;
+  }
+  .ds-chip-remove {
+    width: 36px;
+    height: 36px;
+  }
+  .ds-chip-box {
+    height: 36px;
+    font-size: 16px;
+  }
+}

@@ -1093,7 +1093,8 @@ export type SourcePassage = {
     // (EX-01); absent from a gateway before then.
     facilityType?: string | null
     withdrawnAt: string | null
-    fileUrl: string
+    // Null for a manually entered standard, which has no file (IN-18).
+    fileUrl: string | null
   } | null
 }
 

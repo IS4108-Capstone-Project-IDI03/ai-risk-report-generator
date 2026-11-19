@@ -28,6 +28,7 @@ export function DetailsFields({
   details,
   errors,
   unconfirmed = [],
+  standardsOnly = false,
   onChange,
 }: {
   details: DocumentDetails
@@ -35,6 +36,8 @@ export function DetailsFields({
   errors: Record<string, string>
   // The details still Unconfirmed; each is marked while it is empty.
   unconfirmed?: UnconfirmedDetail[]
+  // Only a standard may be entered manually (IN-18): no Marsh report choice.
+  standardsOnly?: boolean
   onChange: (change: Partial<DocumentDetails>) => void
 }) {
   const standard = isStandard(details.sourceType)
@@ -59,7 +62,9 @@ export function DetailsFields({
       <Select
         label="Source type"
         required
-        options={SOURCE_OPTIONS}
+        options={
+          standardsOnly ? SOURCE_OPTIONS.filter((o) => o.value !== 'marsh_report') : SOURCE_OPTIONS
+        }
         value={details.sourceType}
         error={errors.sourceType}
         hint={hint('sourceType', details.sourceType)}
