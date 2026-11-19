@@ -1706,6 +1706,17 @@ uncategorised observations. The title falls back to the file name, and
   'admin'`. Absent when labelling failed, in which case every detail is
   Unconfirmed.
 
+- `authorityTier`, `tierSource` (RT-04): the authority tier an admin chose
+  (`national_code`, `manufacturer_rating`, `marsh_precedent` or
+  `international_standard`) and `'admin'`. Both are absent until an admin saves a
+  tier, so there is no migration: the API suggests a tier on read from the source
+  type (`local_standard` to national code, `fm_standard` to manufacturer rating,
+  `marsh_report` to Marsh precedent, `nfpa_standard` to international standard) and
+  sends `tier: { value, source: 'auto' | 'admin' }`, or `tier: null` when the source
+  type is Unconfirmed (it ranks last). Kept outside `metadata` and not in Chroma;
+  rag-service gets it per request from the gateway. A correction that changes the
+  tier also adds a history version carrying the tier before (`authorityTier`).
+
 `status` is `queued` (set by the gateway), or `awaiting_type` when labelling
 couldn't read the source type (IN-19): such a document is stored but not
 queued until an admin chooses a type (`POST .../source-type`), so it is never
@@ -2086,3 +2097,14 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 - Only the owner can read or change a fact; another user's fact answers 404.
 - The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
 - Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.
+
+## Source priority (RT-04)
+
+`app_settings.sourcePriority`: the four tier ids, highest authority first. Absent
+on documents from before RT-04, which read as the default (`national_code`,
+`manufacturer_rating`, `marsh_precedent`, `international_standard`). Saved only by
+`PUT /api/settings/source-priority` (`settings:manage`); a change appends a
+`settings_log` row (`setting: 'sourcePriority'`, `before` and `after` as arrays),
+and an unchanged order writes none. `GET /api/settings` returns
+`sourcePriority: { order, history }`, history being the last 20 log rows, newest
+first. The gateway sends the order to rag-service as `tier_order` on every `/chat`.

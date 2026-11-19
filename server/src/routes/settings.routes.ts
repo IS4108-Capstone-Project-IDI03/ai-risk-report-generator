@@ -7,6 +7,7 @@ import {
   getSettings,
   saveGlobal,
   saveModelChoice,
+  saveSourcePriority,
 } from '../services/settings.service'
 
 const router = Router()
@@ -36,6 +37,16 @@ router.put('/models/:task', requirePermission('settings:manage'), async (req, re
 router.patch('/global', requirePermission('settings:manage'), async (req, res) => {
   try {
     await saveGlobal(res.locals.user!, req.body ?? {})
+    res.json(await getSettings(res.locals.user!))
+  } catch (error) {
+    if (!answer(error, res)) throw error
+  }
+})
+
+// Saves the order sources are ranked by (RT-04).
+router.put('/source-priority', requirePermission('settings:manage'), async (req, res) => {
+  try {
+    await saveSourcePriority(res.locals.user!, req.body?.order)
     res.json(await getSettings(res.locals.user!))
   } catch (error) {
     if (!answer(error, res)) throw error

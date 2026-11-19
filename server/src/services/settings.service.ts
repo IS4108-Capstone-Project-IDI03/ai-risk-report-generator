@@ -21,6 +21,7 @@ import {
 } from './model-catalog'
 import type { SessionUser } from './auth.service'
 import { hasPermission } from './permissions.service'
+import { DEFAULT_TIER_ORDER, TIER_IDS, type TierId } from './source-tiers'
 
 // A bad request to the settings API; `status` is the HTTP code the route answers with.
 export class SettingsInputError extends Error {
@@ -177,7 +178,28 @@ export async function getSettings(user: SessionUser) {
       }
     }),
     qaStrictness: saved.qaStrictness,
+    sourcePriority: { order: await getSourcePriority(), history: await sourcePriorityHistory() },
   }
+}
+
+/** Returns the saved tier order, highest authority first; the default when none was saved (RT-04). */
+export async function getSourcePriority(): Promise<TierId[]> {
+  const saved = await appSettings()
+  return [...(saved.sourcePriority?.length ? saved.sourcePriority : DEFAULT_TIER_ORDER)]
+}
+
+// The last 20 order changes, newest first, read from the append-only log.
+async function sourcePriorityHistory() {
+  const rows = await SettingsLogModel.find({ setting: 'sourcePriority' })
+    .sort({ at: -1 })
+    .limit(20)
+    .lean()
+  return rows.map((r) => ({
+    at: r.at,
+    by: r.by,
+    before: r.before as TierId[],
+    after: r.after as TierId[],
+  }))
 }
 
 async function log(by: SessionUser, setting: string, before: unknown, after: unknown) {
@@ -237,4 +259,18 @@ export async function saveGlobal(by: SessionUser, input: unknown) {
   if (body.qaStrictness === saved.qaStrictness) return
   await AppSettingsModel.updateOne({ key: 'global' }, { $set: { qaStrictness: body.qaStrictness } })
   await log(by, 'qaStrictness', saved.qaStrictness, body.qaStrictness as QaStrictness)
+}
+
+/** Saves the admin's tier order (RT-04) and logs a real change. Throws SettingsInputError unless `order` is each tier exactly once. */
+export async function saveSourcePriority(by: SessionUser, order: unknown) {
+  const valid =
+    Array.isArray(order) &&
+    order.length === TIER_IDS.length &&
+    TIER_IDS.every((id) => order.includes(id))
+  if (!valid) throw new SettingsInputError('The order must list each of the four tiers once.')
+  const before = await getSourcePriority()
+  const after = order as TierId[]
+  if (before.join() === after.join()) return
+  await AppSettingsModel.updateOne({ key: 'global' }, { $set: { sourcePriority: after } })
+  await log(by, 'sourcePriority', before, after)
 }

@@ -28,6 +28,7 @@ import {
 } from './ingestion.service'
 import { ingestionPrivacy, type IngestionPrivacy } from './privacy.service'
 import * as storage from './storage.service'
+import { suggestTier, type TierId } from './source-tiers'
 import { getObjectRangeStream } from './file-copy.service'
 import { toPdf } from './converter.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
@@ -209,6 +210,9 @@ export type KnowledgeDocumentDto = {
   jurisdiction: string | null
   facilityType: string | null
   effectiveDate: string | null
+  // RT-04: the authority tier; stored if an admin chose one, else suggested from the source
+  // type ('auto'). null while the source type is Unconfirmed (ranks last).
+  tier: { value: TierId; source: 'auto' | 'admin' } | null
   // The details still Unconfirmed; non-empty = "needs review" (IN-05).
   unconfirmed: DetailDtoName[]
   size: number
@@ -319,6 +323,13 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
   }
 }
 
+// The tier shown for a document: the saved one, else the rule's suggestion (RT-04).
+function tierOf(d: Doc): KnowledgeDocumentDto['tier'] {
+  if (d.authorityTier) return { value: d.authorityTier, source: d.tierSource ?? 'admin' }
+  const suggested = suggestTier(d.metadata.source_type)
+  return suggested ? { value: suggested, source: 'auto' } : null
+}
+
 // Turns a database row into the shape the browser's api.ts expects. When a
 // processing document has an ingestion job, its progress is folded in (E2).
 function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): KnowledgeDocumentDto {
@@ -336,6 +347,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     jurisdiction: d.metadata.jurisdiction,
     facilityType: d.metadata.facility_type,
     effectiveDate: isoDay(d.metadata.effective_date),
+    tier: tierOf(d),
     // Records from before IN-05 have no field.
     unconfirmed: (d.unconfirmed ?? []).map((name) => DETAIL_DTO_NAME[name]),
     size: d.file.size,
@@ -980,6 +992,7 @@ export async function correctKnowledgeDocument(
   id: string,
   details: DocumentDetails,
   by: { id: string; name: string },
+  tier?: TierId,
 ): Promise<KnowledgeDocumentDto> {
   // a. Find it, and check it is active.
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
@@ -1006,6 +1019,8 @@ export async function correctKnowledgeDocument(
     labelling,
     match,
     handled,
+    authorityTier,
+    tierSource,
   } = old
   const next = recordFields(details)
   document.set({
@@ -1013,14 +1028,18 @@ export async function correctKnowledgeDocument(
     unconfirmed: [],
     labelling: adminLabelling(labelling, next),
     handled: { at: new Date(), by },
+    ...(tier && { authorityTier: tier, tierSource: 'admin' }),
   })
-  if (differs(old, next)) {
+  // A tier change counts as a change, so the earlier tier joins the history too (RT-04).
+  const tierChanged = Boolean(tier) && tier !== tierOf(old)?.value
+  if (differs(old, next) || tierChanged) {
     document.history.push({
       title,
       issuingBody,
       edition,
       standardNumber,
       metadata,
+      authorityTier: tierOf(old)?.value,
       replacedAt: new Date(),
       replacedBy: by,
     })
@@ -1063,6 +1082,9 @@ export async function correctKnowledgeDocument(
       match: match ?? null,
       // Without this the failed correction would still show as the last handler.
       handled,
+      // Without this a failed save would keep the tier the admin just chose.
+      authorityTier,
+      tierSource,
     })
     // The in-memory match never changed, so Mongoose must be told to write it
     // back over the one /match saved behind its back.

@@ -263,3 +263,66 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
     })
   })
 })
+
+// RT-04: the order sources are ranked by.
+describe('source priority (RT-04)', () => {
+  const DEFAULT = [
+    'national_code',
+    'manufacturer_rating',
+    'marsh_precedent',
+    'international_standard',
+  ]
+  const NEW = [...DEFAULT].reverse()
+  const put = (who: typeof admin, order: unknown) =>
+    who.put('/api/settings/source-priority').send({ order })
+
+  it('starts as the default order with no history', async () => {
+    const res = await engineer.get('/api/settings')
+    expect(res.body.sourcePriority).toEqual({ order: DEFAULT, history: [] })
+  })
+
+  it('saves a new order and logs who changed it, with before and after', async () => {
+    const res = await put(admin, NEW)
+    expect(res.status).toBe(200)
+    expect(res.body.sourcePriority.order).toEqual(NEW)
+    expect(res.body.sourcePriority.history).toHaveLength(1)
+    expect(res.body.sourcePriority.history[0]).toMatchObject({
+      by: { name: 'Sana' },
+      before: DEFAULT,
+      after: NEW,
+    })
+    expect((await engineer.get('/api/settings')).body.sourcePriority.order).toEqual(NEW)
+  })
+
+  it('lists history newest first', async () => {
+    await put(admin, NEW)
+    await put(admin, DEFAULT)
+    const { history } = (await admin.get('/api/settings')).body.sourcePriority
+    expect(history.map((h: { after: string[] }) => h.after)).toEqual([DEFAULT, NEW])
+  })
+
+  it('writes no log row when the order is unchanged', async () => {
+    await put(admin, DEFAULT)
+    expect(await SettingsLogModel.countDocuments({ setting: 'sourcePriority' })).toBe(0)
+  })
+
+  it.each([
+    ['too short', DEFAULT.slice(1)],
+    ['a repeat', [DEFAULT[0], DEFAULT[0], DEFAULT[2], DEFAULT[3]]],
+    ['an unknown tier', [...DEFAULT.slice(1), 'nope']],
+    ['not a list', 'national_code'],
+  ])('answers 400 for an order that is %s, and saves nothing', async (_name, order) => {
+    expect((await put(admin, order)).status).toBe(400)
+    expect(await SettingsLogModel.countDocuments({ setting: 'sourcePriority' })).toBe(0)
+  })
+
+  it('answers 403 to an engineer', async () => {
+    expect((await put(engineer, NEW)).status).toBe(403)
+  })
+
+  it('still refuses sourcePriority through the global setting route', async () => {
+    expect((await admin.patch('/api/settings/global').send({ sourcePriority: NEW })).status).toBe(
+      400,
+    )
+  })
+})
