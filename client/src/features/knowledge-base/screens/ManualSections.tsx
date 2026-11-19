@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   Callout,
+  ChipInput,
   Dialog,
   IconButton,
   Input,
@@ -35,27 +36,39 @@ import { isDraft } from '../display'
 import '../review-document.css'
 import '../manual-sections.css'
 
-// What the editor holds: the heading trail as typed, "Chapter 8 > 8.6 Hangers", and
-// the screenshots with their corrected text.
-type Form = { clause: string; trail: string; text: string; images: ClauseInput['images'] }
-const BLANK: Form = { clause: '', trail: '', text: '', images: [] }
-const TRAIL = ' > '
+// What the editor holds: the heading trail as bubbles, one per level, and the
+// screenshots with their corrected text.
+type Form = { clause: string; headings: string[]; text: string; images: ClauseInput['images'] }
+const BLANK: Form = { clause: '', headings: [], text: '', images: [] }
 
 const formOf = (s: ManualSection): Form => ({
   clause: s.clause,
-  trail: s.headings.join(TRAIL),
+  headings: s.headings,
   text: s.text,
   images: s.images,
 })
 const inputOf = (form: Form): ClauseInput => ({
   clause: form.clause.trim(),
-  headings: form.trail
-    .split('>')
-    .map((h) => h.trim())
-    .filter(Boolean),
+  headings: form.headings,
   text: form.text,
   images: form.images,
 })
+
+// The headings the other clauses use at `level` under the same parent headings
+// (`before`), in clause order: what the trail's dropdown offers (IN-18).
+function headingsAt(sections: ManualSection[], level: number, before: string[]): string[] {
+  const found = new Set<string>()
+  for (const s of sections) {
+    const parent = s.headings.slice(0, level)
+    if (
+      s.headings.length > level &&
+      parent.length === before.length &&
+      parent.every((h, i) => h === before[i])
+    )
+      found.add(s.headings[level])
+  }
+  return [...found]
+}
 const byOrder = (a: ManualSection, b: ManualSection) => a.order - b.order || a.seq - b.seq
 const clauses = (n: number) => `${n} clause${n === 1 ? '' : 's'}`
 
@@ -382,11 +395,21 @@ export function ManualSections({
               error={errors.clause}
               onChange={(e) => setForm({ ...form, clause: e.target.value })}
             />
-            <Input
+            <ChipInput
               label="Heading trail"
-              placeholder="e.g. Chapter 8 Installation > 8.6 Hangers"
-              value={form.trail}
-              onChange={(e) => setForm({ ...form, trail: e.target.value })}
+              itemName="heading"
+              placeholder="Type a heading, then press Enter"
+              hint="One bubble per level, outermost first."
+              value={form.headings}
+              onChange={(headings) => setForm((current) => ({ ...current, headings }))}
+              // The other clauses' headings; the clause being edited doesn't suggest its own.
+              suggest={(level, before) =>
+                headingsAt(
+                  (sections ?? []).filter((s) => s.id !== selected?.id),
+                  level,
+                  before,
+                )
+              }
             />
             <Textarea
               label="Text"
@@ -399,7 +422,7 @@ export function ManualSections({
             <ClauseScreenshots
               documentId={id}
               images={form.images}
-              context={form.trail}
+              context={form.headings.join(' > ')}
               onChange={(change) =>
                 setForm((current) => ({ ...current, images: change(current.images) }))
               }

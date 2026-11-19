@@ -167,6 +167,20 @@ const editor = () => screen.getByRole('form', { name: /clause/i })
 const field = (label: string) => new RegExp(`^${label}`)
 const type = (label: string, value: string) =>
   fireEvent.change(within(editor()).getByLabelText(field(label)), { target: { value } })
+// The heading trail's box, and its bubbles (ChipInput).
+const trailBox = () => within(editor()).getByRole('combobox', { name: 'Heading trail' })
+const bubbles = () =>
+  within(within(editor()).getByRole('list', { name: 'Added to Heading trail' }))
+    .queryAllByRole('listitem')
+    .map((b) => b.textContent?.replace(/^›/, ''))
+// Types each heading into the trail and presses Enter, one bubble each.
+function trail(...headings: string[]) {
+  fireEvent.focus(trailBox())
+  for (const heading of headings) {
+    fireEvent.change(trailBox(), { target: { value: heading } })
+    fireEvent.keyDown(trailBox(), { key: 'Enter' })
+  }
+}
 
 // Chooses an image for a screenshot of `kind` in the editor.
 function attach(kind: string, name = 'table.png') {
@@ -276,7 +290,7 @@ describe('the clauses page', () => {
     await openClauses(DRAFT.title)
 
     type('Clause number', '8.6.1')
-    type('Heading trail', 'Chapter 8 Installation > 8.6 Hangers')
+    trail('Chapter 8 Installation', '8.6 Hangers')
     type('Text', 'Hangers shall be listed.')
     fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
 
@@ -432,7 +446,7 @@ describe('screenshots of tables, formulas and pictures', () => {
     const { sent } = mockGateway()
     await openClauses(DRAFT.title)
     type('Clause number', '8.6.1')
-    type('Heading trail', 'Chapter 8 > 8.6 Hangers')
+    trail('Chapter 8', '8.6 Hangers')
     type('Text', 'Hangers shall be spaced as in the table.')
 
     attach('table')
@@ -647,5 +661,74 @@ describe('working through the clauses', () => {
 
     await screen.findByRole('heading', { name: PUBLISHED.title })
     expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
+  })
+})
+
+// T20: the heading trail as bubbles, with the headings already used at each level.
+describe('the heading trail as bubbles', () => {
+  const TREE = () => [
+    clause(1, { clause: '8.1', headings: ['Chapter 8 Installation', '8.1 General'] }),
+    clause(2, { clause: '8.6.1', headings: ['Chapter 8 Installation', '8.6 Hangers'] }),
+    clause(3, { clause: '9.1', headings: ['Chapter 9 Hangers', '9.1 Support'] }),
+  ]
+  const offered = () =>
+    within(within(editor()).getByRole('listbox', { name: 'Suggestions for Heading trail' }))
+      .queryAllByRole('option')
+      .map((o) => o.textContent)
+
+  it('offers each level the headings used under the bubbles before it, not another chapter’s', async () => {
+    mockGateway({ sections: TREE() })
+    await openClauses(DRAFT.title)
+
+    fireEvent.focus(trailBox())
+    fireEvent.click(trailBox())
+    expect(offered()).toEqual(['Chapter 8 Installation', 'Chapter 9 Hangers'])
+
+    trail('Chapter 8 Installation')
+    fireEvent.click(trailBox())
+    expect(offered()).toEqual(['8.1 General', '8.6 Hangers'])
+  })
+
+  it('picks a suggested heading, and saves the bubbles as the headings', async () => {
+    const { sent } = mockGateway({ sections: TREE() })
+    await openClauses(DRAFT.title)
+    type('Clause number', '8.6.2')
+    type('Text', 'Hanger rods shall be steel.')
+
+    trail('Chapter 8 Installation')
+    fireEvent.change(trailBox(), { target: { value: 'hang' } })
+    fireEvent.keyDown(trailBox(), { key: 'ArrowDown' })
+    fireEvent.keyDown(trailBox(), { key: 'Enter' })
+    expect(bubbles()).toEqual(['Chapter 8 Installation', '8.6 Hangers'])
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    await waitFor(() => expect(sent.at(-1)?.method).toBe('POST'))
+    expect(sent.at(-1)?.body).toMatchObject({
+      headings: ['Chapter 8 Installation', '8.6 Hangers'],
+    })
+  })
+
+  it('opens a saved clause with its bubbles, and Undo changes brings them back', async () => {
+    mockGateway({ sections: TREE() })
+    const list = await openClauses(DRAFT.title)
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.6\.1/ }))
+    expect(bubbles()).toEqual(['Chapter 8 Installation', '8.6 Hangers'])
+
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Remove heading 8.6 Hangers' }))
+    expect(bubbles()).toEqual(['Chapter 8 Installation'])
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Undo changes' }))
+
+    expect(bubbles()).toEqual(['Chapter 8 Installation', '8.6 Hangers'])
+  })
+
+  it('asks before dropping a change to the bubbles', async () => {
+    mockGateway({ sections: TREE() })
+    const list = await openClauses(DRAFT.title)
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.6\.1/ }))
+
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Remove heading 8.6 Hangers' }))
+    fireEvent.click(within(list).getByRole('button', { name: /^9\.1/ }))
+
+    expect(screen.getByRole('dialog', { name: 'Discard your changes?' })).toBeInTheDocument()
   })
 })
