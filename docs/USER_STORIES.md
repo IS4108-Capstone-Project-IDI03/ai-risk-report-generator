@@ -903,37 +903,46 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 15 Nov 2026 (DECISIONS 2026-11-15). The figures and every sentence but the summary are counted and worded by the gateway (`insights-v1`); only the summary asks a model (`cp29-v1`). Not in this story: findings recurring across sites from checklist answers, the weakest Section 4 categories across sites, and loss expectancy before and after the OFIs (a follow-up); an evaluation set for the summary; a knowledge admin's cross-engineer management of clients (CP-44).
   </details>
 
-- [ ] **CP-60** — Calendar of surveys and report due dates (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
+- [ ] **CP-60** — Survey and deadline calendar: my whole workload on one screen (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
   <details><summary>Goal / AC</summary>
 
-  Goal: a calendar I open every day that shows my surveys and report due dates by month or week, so I can plan site surveys around each other and see which reports are coming due, without reading dates off the Assessments list.
+  Goal: see every site survey and every report deadline on one calendar, by month or week, so I can spot clashes at a glance, plan surveys around each other, move dates on the spot and catch a late report before the client chases it, instead of piecing my week together from the Assessments list.
 
-  Viewing
+  Seeing my schedule
 
-  1. Given assessments assigned to me, when I open Calendar from the sidebar, then the month shows each survey on its days, a survey of several days as one bar across them, and each report due date on its day, with today marked. Archived assessments are not shown.
-  2. Given a report due date, when it is shown, then it reads as late, due within 7 days, on track or finalised, counted as the Report due column counts it. A finalised report is never late.
-  3. Given the month, when I step back or forward, choose Today or switch to Week, then that period shows. A day's date opens its week.
-  4. Given a day in the month holds more than three entries, when I view it, then three show with "+N more", which opens that week, where every entry shows.
-  5. Given the calendar, when I filter to survey dates or report due dates only, or to one assessment type, then only those show, and the lists beside it and the count follow the type.
-  6. Given reports past due, or assessments with no survey date, when I view the calendar, then each is listed beside it, the late ones oldest first with how late they are. The footer's late count opens the month of the oldest late report.
+  1. Given assessments assigned to me, when I open Calendar from the sidebar, then I see this month with each of their surveys and report due dates on its day, and today ringed.
+  2. Given a survey lasts several days, when I view the calendar, then it is one bar across all its days, in its assessment type's colour.
+  3. Given a report due date, when I view it, then its colour tells me where it stands: red when late, amber when due within 7 days, grey when on track, and a green tick once the report is finalised.
+  4. Given a day with more than three entries, when I view the month, then I see three of them and "+N more", which opens that week with all of them.
+  5. Given an archived assessment, when I view the calendar, then it is not shown.
 
-  Opening and planning
+  Moving around
 
-  7. Given an entry, when I choose it, then I see the assessment's site, client, reference, type, status, survey days, report due date and site contacts, and can open the assessment. Its Back returns to the calendar on the same period and filters.
-  8. Given an assessment assigned to me, when I choose Reschedule and save a new survey start, survey end or report due date, then they are saved and show on the calendar, the Assessments list and the assessment's Overview.
-  9. Given a survey end before its start, a survey end with no start, or a report due date before the survey start, when I save, then the field says what to pick and nothing is saved.
-  10. Given an assessment with no survey date, when I choose Set dates on it, then the same form opens and its saved dates put it on the calendar.
-  11. Given a day, when I choose its +, then New Assessment opens with that day as the survey start, and Cancel returns to the calendar.
+  6. Given the calendar, when I use the arrows, Today, or the Month and Week switch, then it shows that period. A day's date opens its week.
+  7. Given the filters, when I choose survey dates only, report due dates only, or one assessment type, then only those entries show, and the count under the calendar follows.
 
-  Who sees what
+  What needs my attention
 
-  12. Given I am a risk engineer, when I view the calendar, then only assessments assigned to me show. A knowledge admin sees every engineer's, each entry naming its engineer, and can filter to one engineer.
-  13. Given an assessment assigned to someone else, when I view its entry, then Reschedule is greyed out with the reason, and the gateway refuses the change from anyone but its assigned engineer.
+  8. Given reports past their due date, when I view the calendar, then they are listed beside it, the oldest first, each saying how many days late it is. The "N reports late" link under the calendar jumps to the oldest one.
+  9. Given assessments with no survey date yet, when I view the calendar, then they are listed beside it, so nothing unscheduled is forgotten.
+
+  Acting on an entry
+
+  10. Given an entry, when I click it, then I see its site, client, reference, assessment type, status, survey days, report due date and site contacts, and can open the assessment.
+  11. Given I opened an assessment from the calendar, when I press Back to calendar, then I return to the same month or week with my filters still on.
+  12. Given an assessment assigned to me, when I choose Reschedule and save a new survey start, survey end or report due date, then the calendar, the Assessments list and the assessment's Overview all show the new dates at once.
+  13. Given a survey end before its start, or a report due date before the survey starts, when I save, then the field tells me which date to pick and nothing is saved.
+  14. Given an assessment with no survey date, when I choose Set dates and save, then it appears on the calendar.
+  15. Given any day, when I press its +, then New Assessment opens with that day as the survey start, and Cancel brings me back to the calendar.
+
+  Who sees and changes what
+
+  16. Given I am a knowledge admin, when I open the calendar, then I can see the whole team's surveys and report due dates, each with its engineer's name, and filter to one engineer, but I cannot change another engineer's dates: Reschedule is greyed out and says only the assigned engineer can, and the gateway refuses the change too.
 
   Phone and keyboard
 
-  14. Given a phone, when I open the calendar, then the month is a list of its days that hold something, with the late and unscheduled lists above it, and an entry's details open as a sheet.
-  15. Given a keyboard, when I am on the month, then the arrow keys move between days from one tab stop, and every entry is a button whose name says what it is, where and when.
+  17. Given a phone, when I open the calendar, then the month is a list of the days that have something on, with the late reports and unscheduled assessments at the top, and an entry's details slide up as a sheet.
+  18. Given a keyboard, when I am on the month, then the arrow keys move from day to day, and every entry can be reached and says what it is, where and when.
 
   Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
   </details>
