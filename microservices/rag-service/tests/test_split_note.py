@@ -109,3 +109,25 @@ def test_raw_client_text_never_reaches_the_model_and_is_restored(monkeypatch, fa
     assert response.status_code == 200
     assert "John Tan" not in prompts[0]
     assert response.json()["parts"][0]["text"] == "John Tan said the valve is shut"
+
+
+# Found by code review: the unknown-term and number checks were too loose.
+def flags_of(monkeypatch, shorthand, text, unknown=()):
+    mock(monkeypatch, [part(0, "fact", text, shorthand, unknown)])
+    return post([shorthand]).json()["parts"][0]["flags"]
+
+
+def test_a_term_with_one_unknown_word_is_still_flagged(monkeypatch):
+    flags = flags_of(monkeypatch, "xyz pump noisy", "The xyz pump is noisy.", ["xyz pump"])
+    assert {"type": "unknown_term", "detail": "xyz pump"} in flags
+
+
+def test_a_spelled_out_unit_is_not_a_change(monkeypatch):
+    assert flags_of(monkeypatch, "refuge 2 hr rating", "The refuge has a 2 hours rating.") == []
+    assert flags_of(monkeypatch, "spacing 4.5 m", "Spacing is 4.5 metres.") == []
+
+
+def test_a_changed_number_or_unit_is_flagged(monkeypatch):
+    assert flags_of(monkeypatch, "pipe 10 mm", "The pipe is 100 mm.") != []
+    assert flags_of(monkeypatch, "pipe 10 mm", "The pipe is 10 cm.") != []
+    assert flags_of(monkeypatch, "tank 20000 L", "The tank is 20000 L.") == []

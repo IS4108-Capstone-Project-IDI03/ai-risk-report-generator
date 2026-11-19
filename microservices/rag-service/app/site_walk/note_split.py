@@ -79,9 +79,32 @@ def _terms(glossary) -> dict[str, str]:
 
 
 def _known(term: str, terms: dict[str, str]) -> bool:
-    """True if `term` is in the lists or is made only of words that are."""
+    """True if `term` is in the lists, or every word of it is. One unknown word (as in
+    'xyz pump') keeps it unknown: without this, a guessed expansion would pass as known."""
     t = term.lower().strip()
-    return t in terms or any(re.search(rf"\b{re.escape(k)}\b", t) for k in terms)
+    words = re.findall(r"[a-z0-9/.\-]+", t)
+    return t in terms or (bool(words) and all(w in terms for w in words))
+
+
+# How a unit may be written out in full words; a unit not listed must appear as written.
+_UNIT_WORDS = {
+    "hr": r"(?:hr|hrs|h|hours?)",
+    "min": r"(?:min|mins|minutes?)",
+    "m": r"(?:m|metres?|meters?)",
+    "gpm": r"(?:gpm|gallons? per minute)",
+    "l/min": r"(?:l/min|litres? per minute|liters? per minute)",
+    "kg": r"(?:kg|kilograms?)",
+    "mm": r"(?:mm|millimet(?:re|er)s?)",
+}
+
+
+def _kept(number: str, text: str) -> bool:
+    """True if a number like '2hr' or '4.5m' (from `_numbers`) is still in `text`, as the same
+    value (not inside a longer number) with the same unit, written short or in words."""
+    value, unit = re.match(r"(\d+(?:\.\d+)?)(.*)", number).groups()
+    unit_re = _UNIT_WORDS.get(unit, re.escape(unit)) if unit else ""
+    pattern = rf"(?<![\d.]){re.escape(value)}(?!\d|\.\d)\s*{unit_re}(?![a-z])"
+    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 def _numbers(text: str) -> list[str]:
@@ -92,11 +115,10 @@ def _numbers(text: str) -> list[str]:
 def _flags(part: ModelPart, terms: dict[str, str]) -> list[dict]:
     """The checks done in code: a number missing from the text, and unknown terms."""
     flags = []
-    shown = re.sub(r"\s+", "", part.text.lower())
     # A number in the words the engineer wrote that is gone from the wording means the model
     # changed it; without this check a dropped "150 mm" would go into the report unnoticed.
     for number in dict.fromkeys(_numbers(part.shorthand)):
-        if number not in shown:
+        if not _kept(number, part.text):
             flags.append({"type": "number_changed", "detail": number})
     # The model only reports candidates; code decides what is unknown.
     for term in dict.fromkeys(t.strip() for t in part.unknown_terms if t.strip()):
