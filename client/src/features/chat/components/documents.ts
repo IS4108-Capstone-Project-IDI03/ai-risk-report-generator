@@ -9,8 +9,11 @@ export type DocSummary = {
   kind: 'standard' | 'report'
   edition?: string | null
   date?: string | null
-  fileUrl: string
+  // Null for a manual document, which has no file (IN-18).
+  fileUrl: string | null
   withdrawn: boolean
+  // Typed in clause by clause, not uploaded (IN-18).
+  manual?: boolean
   // Set when this edition has a later one in the knowledge base (CB-02 AC4).
   newerEdition?: KnowledgeDocument['newerEdition']
 }
@@ -25,9 +28,8 @@ function summaryOf(d: KnowledgeDocument): DocSummary {
     kind: report ? 'report' : 'standard',
     edition: d.edition,
     date: d.effectiveDate,
-    // A manual document has no file (IN-18). Until the citation view shows its
-    // screenshot instead (IN-18 T18), it gets no link here.
-    fileUrl: d.fileUrl ?? '',
+    fileUrl: d.fileUrl,
+    manual: d.entryMethod === 'manual',
     withdrawn: Boolean(d.withdrawn),
     newerEdition: d.newerEdition,
   }

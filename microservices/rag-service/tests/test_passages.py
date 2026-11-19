@@ -52,6 +52,8 @@ def test_returns_text_headings_pages_and_boxes(monkeypatch):
         # A plain passage has no region to crop (KB-02).
         "region": None,
         "generated": False,
+        "manual": False,
+        "images": [],
     }
 
 
@@ -162,3 +164,31 @@ def test_a_marked_formula_region_keeps_each_box_on_its_own_page(monkeypatch):
             {"page": 9, "l": 40.0, "t": 780.0, "r": 160.0, "b": 740.0},
         ],
     }
+
+
+# IN-18: a manually entered clause has no page to crop; its screenshots are the original.
+def test_a_manual_passage_names_its_screenshots_and_says_it_was_entered_manually(monkeypatch):
+    meta = {
+        "doc_id": "d1",
+        "entry_method": "manual",
+        "clause": "8.6.1",
+        "image_keys": ["knowledge/d1/sections/a.png"],
+        "region_kind": "table",
+    }
+    fake_chroma(monkeypatch, ["d1:3"], ["Pipe size: 25 mm"], [meta])
+
+    passage = client.get("/passages/d1:3").json()
+
+    assert passage["images"] == ["knowledge/d1/sections/a.png"]
+    assert passage["manual"] is True
+    # A screenshot's kind is recorded, but there is no page region to draw.
+    assert passage["region"] is None
+
+
+def test_an_uploaded_passage_has_no_screenshots(monkeypatch):
+    fake_chroma(monkeypatch, ["d1:0"], ["Text"], [{"doc_id": "d1", "page_start": 1}])
+
+    passage = client.get("/passages/d1:0").json()
+
+    assert passage["images"] == []
+    assert passage["manual"] is False

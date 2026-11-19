@@ -16,7 +16,9 @@ import {
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
 import { usePassage } from '../../sources/usePassage'
+import { CitedImage } from '../../sources/CitedImage'
 import { CitedRegion } from '../../sources/CitedRegion'
+import { screenshotUrl } from '../../knowledge-base/api'
 import { PassageBody } from '../../sources/PassageBody'
 import { useFoldedText } from '../../sources/useFoldedText'
 import { ReviewInspector, type InspectorAsk } from './ReviewInspector'
@@ -67,6 +69,12 @@ export function PassageView({
   const live = usePassage(passage.id.slice(2))
   const region = live.status === 'ready' ? live.passage.region : null
   const fold = useFoldedText(region)
+  // A manually entered clause (IN-18): no file or page; its screenshots stand in.
+  const manual = (live.status === 'ready' && !!live.passage.manual) || doc?.fileUrl === null
+  const images =
+    live.status === 'ready' && passage.documentId
+      ? (live.passage.images ?? []).map((key) => screenshotUrl(passage.documentId!, key))
+      : []
   return (
     <>
       <ViewerHead number={number} onClose={onClose}>
@@ -81,6 +89,7 @@ export function PassageView({
             Withdrawn
           </Badge>
         )}
+        {manual && <Badge tone="neutral">Manual entry</Badge>}
       </ViewerHead>
       <h3>{doc ? doc.title : 'Document details not found'}</h3>
       <dl className="rv-meta">
@@ -116,10 +125,15 @@ export function PassageView({
             <dd>{passage.headings.join(' › ')}</dd>
           </>
         )}
-        <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
-        <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
+        {!manual && (
+          <>
+            <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
+            <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
+          </>
+        )}
       </dl>
-      {doc && <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />}
+      {doc?.fileUrl && <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />}
+      <CitedImage urls={images} alt="Screenshot" />
       {/* Focusable, since a long passage scrolls on its own. */}
       <PassageBody
         as="blockquote"
@@ -140,7 +154,7 @@ export function PassageView({
           resting on one alone is marked Unsupported.
         </p>
       )}
-      {doc ? (
+      {doc?.fileUrl ? (
         <a
           className="rv-viewer-link"
           href={doc.fileUrl + (passage.pageStart != null ? `#page=${passage.pageStart}` : '')}
@@ -151,10 +165,13 @@ export function PassageView({
           {passage.pageStart != null ? ` at page ${passage.pageStart}` : ''}
         </a>
       ) : (
-        <p className="rv-viewer-note">
-          This document has no record in the knowledge base, so its title, edition and dates cannot
-          be shown.
-        </p>
+        // A manual document has a record, just no file (IN-18).
+        !doc && (
+          <p className="rv-viewer-note">
+            This document has no record in the knowledge base, so its title, edition and dates
+            cannot be shown.
+          </p>
+        )
       )}
     </>
   )

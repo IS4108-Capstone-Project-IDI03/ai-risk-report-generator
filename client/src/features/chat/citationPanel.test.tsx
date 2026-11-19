@@ -234,6 +234,63 @@ describe('Source panel', () => {
     expect(screen.queryByText('Document details loading')).not.toBeInTheDocument()
   })
 
+  // IN-18: a standard typed in clause by clause has no file; its screenshot is the original.
+  it('shows a manual clause as a manual entry with its screenshot, and no PDF tab', async () => {
+    vi.mocked(fetchPassage).mockResolvedValue({
+      id: 'm1:3',
+      documentId: 'm1',
+      text: 'Pipe size: 25 mm; Max spacing: 3.7 m',
+      headings: ['8.6 Hangers'],
+      pageStart: null,
+      pageEnd: null,
+      boxes: [],
+      region: null,
+      manual: true,
+      images: ['knowledge/m1/sections/a.png'],
+    })
+    render(
+      <DocumentsContext.Provider
+        value={
+          new Map<string, DocSummary>([
+            [
+              'm1',
+              {
+                title: 'NFPA 72',
+                kind: 'standard',
+                edition: '2025',
+                fileUrl: null,
+                withdrawn: false,
+                manual: true,
+              },
+            ],
+          ])
+        }
+      >
+        <CitationPanel
+          selected={cited({
+            source: {
+              label: 'P1',
+              documentId: 'm1',
+              passageId: 'm1:3',
+              withdrawn: false,
+            },
+          })}
+          onClose={vi.fn()}
+        />
+      </DocumentsContext.Provider>,
+    )
+    const panel = screen.getByRole('complementary', { name: 'Source of citation 2' })
+
+    expect(await within(panel).findByRole('img', { name: 'Screenshot' })).toHaveAttribute(
+      'src',
+      '/api/knowledge-documents/m1/sections/screenshots/a.png',
+    )
+    expect(within(panel).getByText('Manual entry')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'PDF' })).not.toBeInTheDocument()
+    expect(panel).not.toHaveTextContent('Not recorded')
+    expect(pdf.loads).toBe(0)
+  })
+
   it('labels a withdrawn edition (AC14)', () => {
     renderPanel(
       cited({ source: { label: 'P1', documentId: 'd2', pageStart: 40, withdrawn: true } }),
