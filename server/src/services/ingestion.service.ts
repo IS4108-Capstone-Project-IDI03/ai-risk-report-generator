@@ -3,6 +3,7 @@
 // library, reading a file's details (IN-05 /label), relabelling a document's passages (KB-01),
 // and matching, comparing and deleting passages (IN-07), because only the Python
 // services touch Chroma.
+import type { IDocumentMatch } from '../models/knowledge-document.model'
 import { config } from '../config'
 import { labelUsageToWire, recordAiCalls } from './ai-usage.service'
 import { ingestionPrivacy } from './privacy.service'
@@ -161,7 +162,7 @@ async function callIngestion<T>(path: string, method: string, failureMessage: st
 
 // What the ingestion service finds for a document (IN-07); `documentId` is a string.
 export type MatchAnswer = {
-  kind: 'newer_edition' | 'earlier_edition' | 'possible_copy'
+  kind: IDocumentMatch['kind']
   documentId: string
   newMatched: number
   newTotal: number

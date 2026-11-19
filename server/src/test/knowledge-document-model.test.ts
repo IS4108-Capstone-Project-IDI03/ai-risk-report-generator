@@ -98,3 +98,24 @@ describe('a manually entered knowledge document', () => {
     await expect(KnowledgeDocumentModel.create(manual('complete'))).resolves.toBeDefined()
   })
 })
+
+// IN-18: ingestion writes `replaces_manual` when an upload is the same edition as a manual
+// entry. The gateway must still be able to save such a document (a correction, a decision).
+describe('a replaces_manual match', () => {
+  it('is a match kind the document saves with', async () => {
+    const match = {
+      kind: 'replaces_manual' as const,
+      documentId: new Types.ObjectId(),
+      newMatched: 0,
+      newTotal: 2,
+      storedMatched: 0,
+      storedTotal: 1,
+    }
+
+    const created = await KnowledgeDocumentModel.create({ ...validDocument(), match })
+
+    expect((await KnowledgeDocumentModel.findById(created._id).lean())!.match!.kind).toBe(
+      'replaces_manual',
+    )
+  })
+})

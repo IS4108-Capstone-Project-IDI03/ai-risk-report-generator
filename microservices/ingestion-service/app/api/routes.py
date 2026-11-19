@@ -1,3 +1,4 @@
+import io
 import json
 from typing import Annotated, Literal
 
@@ -6,11 +7,13 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app import extract_text, manual, matching, usage, worker
 from app.labelling import label_pdf
 from app.matching import comparison_rows, find_match
+from app.pipeline.chunking_helper import ocr_model
 from app.pipeline.indexer import index_chunks, relabel
 
 router = APIRouter()
@@ -145,6 +148,52 @@ def index(request: IndexRequest) -> dict:
     """Internal dev endpoint for pre-anonymised chunks, not raw documents."""
     count = index_chunks([chunk.model_dump() for chunk in request.chunks])
     return {"status": "indexed", "chunks_indexed": count}
+
+
+# A screenshot bigger than this is refused (IN-18); a clause's table is far smaller.
+MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
+
+
+def screenshot_png(body: bytes) -> bytes:
+    """Return the screenshot as PNG bytes, or raise 422 if it is not a readable image."""
+    if len(body) > MAX_SCREENSHOT_BYTES:
+        raise HTTPException(422, "The image is over 10 MB. Crop it to the table or figure.")
+    try:
+        with Image.open(io.BytesIO(body)) as image:
+            image.load()
+            out = io.BytesIO()
+            image.convert("RGB").save(out, format="PNG")
+            return out.getvalue()
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as error:
+        raise HTTPException(422, "The file is not an image that can be read.") from error
+
+
+def read_screenshot(png: bytes, kind: str, context: str, doc_id: str) -> tuple[str | None, list]:
+    """OCR one screenshot, collecting its usage in this thread; returns the text and usage."""
+    with usage.collecting(doc_id) as used:
+        text = ocr_model.recognise(png, kind, context)
+    return text, used
+
+
+@router.post("/recognise")
+async def recognise(
+    file: Annotated[UploadFile, File()],
+    kind: Annotated[Literal["table", "formula", "picture"], Form()],
+    document_id: Annotated[NonEmpty, Form(alias="documentId")],
+    context: Annotated[str, Form(max_length=2000)] = "",
+) -> dict:
+    """Read a manual clause's screenshot with OCR_PROVIDER (IN-18); saves nothing.
+
+    A table comes back as records, a formula as LaTeX, a picture as a description (with the
+    clause's heading trail as context). The admin checks the text before the clause is saved.
+    Returns the usage for the gateway to record against `documentId` (EV-03), as /label does.
+    """
+    png = screenshot_png(await file.read())
+    # In a thread: the model call would block the event loop.
+    text, used = await run_in_threadpool(read_screenshot, png, kind, context, document_id)
+    if not text:
+        raise HTTPException(502, "The image couldn't be read. Try again, or type the text in.")
+    return {"text": text, "usage": used}
 
 
 @router.put("/documents/{doc_id}/labels")

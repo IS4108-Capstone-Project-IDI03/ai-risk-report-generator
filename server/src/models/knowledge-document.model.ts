@@ -69,7 +69,14 @@ export interface ILabelledDetail {
 // Why a document needs review besides Unconfirmed details (IN-07). Written only
 // by the ingestion service's match module (microservices/ingestion-service);
 // the counts always come from the copy check, also for an edition match.
-export const MATCH_KINDS = ['newer_edition', 'earlier_edition', 'possible_copy'] as const
+// `replaces_manual` (IN-18): one side was entered manually and the other is the
+// same edition uploaded, matched whatever the share of passages.
+export const MATCH_KINDS = [
+  'newer_edition',
+  'earlier_edition',
+  'possible_copy',
+  'replaces_manual',
+] as const
 export interface IDocumentMatch {
   kind: (typeof MATCH_KINDS)[number]
   documentId: Types.ObjectId
