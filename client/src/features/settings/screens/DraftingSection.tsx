@@ -33,10 +33,10 @@ export function DraftingSection({ settings, onSaved }: Props) {
   return (
     <div className="st-stack">
       {!edit && <SetByAdmin />}
-      <div className="st-row">
+      <div className="st-row st-narrow">
         <Input
           label="Sections citing a standard"
-          hint="Review warns when fewer drafted sections cite a standard than this. It never blocks."
+          hint="A percentage, 0 to 100. Review warns when fewer drafted sections cite a standard than this. It never blocks."
           error={problem || undefined}
           inputMode="numeric"
           size="lg"
@@ -48,7 +48,6 @@ export function DraftingSection({ settings, onSaved }: Props) {
             reset()
           }}
         />
-        <span className="st-note">%</span>
       </div>
       {edit && (
         <div className="st-row-head">

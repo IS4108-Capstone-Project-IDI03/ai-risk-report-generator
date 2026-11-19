@@ -305,3 +305,8 @@
   min-height: 44px;
   border-bottom: 1px solid var(--border-default);
 }
+
+/* A short numeric box, not the full panel width. */
+.st-narrow {
+  max-width: 320px;
+}

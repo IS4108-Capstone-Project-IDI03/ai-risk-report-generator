@@ -428,7 +428,7 @@ describe('Settings Drafting (GN-16)', () => {
     expect(input).toHaveValue('50')
     expect(
       screen.getByText(
-        'Review warns when fewer drafted sections cite a standard than this. It never blocks.',
+        'A percentage, 0 to 100. Review warns when fewer drafted sections cite a standard than this. It never blocks.',
       ),
     ).toBeInTheDocument()
     fireEvent.change(input, { target: { value: '60' } })
