@@ -75,7 +75,8 @@ export function DetailsFields({
         <Select
           label="Tier"
           options={[
-            { value: '', label: 'Unranked' },
+            // Offered only while no tier is chosen: a saved tier cannot be cleared, so the option would do nothing.
+            ...(tier ? [] : [{ value: '', label: 'Unranked' }]),
             ...TIER_IDS.map((t) => ({ value: t, label: TIER_LABELS[t] })),
           ]}
           value={tier ?? ''}

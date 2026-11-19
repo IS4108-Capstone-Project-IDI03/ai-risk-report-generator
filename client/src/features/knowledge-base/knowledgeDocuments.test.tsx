@@ -1119,6 +1119,15 @@ describe('Source tier (RT-04)', () => {
     expect(within(details).getByText('Unranked')).toBeInTheDocument()
   })
 
+  it('offers Unranked only while no tier is chosen, since a saved tier cannot be cleared', async () => {
+    mockGateway([{ ...FM, tier: { value: 'national_code', source: 'admin' } }], () =>
+      json(200, { ...FM }),
+    )
+    await openKnowledgeBase()
+    const dialog = await edit(FM.title)
+    expect(within(within(dialog).getByLabelText('Tier')).queryByText('Unranked')).toBeNull()
+  })
+
   it('sends the tier only when the admin changes it', async () => {
     const puts = mockGateway([{ ...FM, tier: null }], () => json(200, { ...FM }))
     await openKnowledgeBase()

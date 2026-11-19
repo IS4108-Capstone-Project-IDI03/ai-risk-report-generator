@@ -268,9 +268,16 @@ export async function saveSourcePriority(by: SessionUser, order: unknown) {
     order.length === TIER_IDS.length &&
     TIER_IDS.every((id) => order.includes(id))
   if (!valid) throw new SettingsInputError('The order must list each of the four tiers once.')
-  const before = await getSourcePriority()
   const after = order as TierId[]
-  if (before.join() === after.join()) return
-  await AppSettingsModel.updateOne({ key: 'global' }, { $set: { sourcePriority: after } })
-  await log(by, 'sourcePriority', before, after)
+  await appSettings() // makes sure the one admin document exists
+  // The document as it was just before this write, so the log's "before" is right even when
+  // two admins save at once (a separate read first could give both the same "before").
+  const previous = await AppSettingsModel.findOneAndUpdate(
+    { key: 'global' },
+    { $set: { sourcePriority: after } },
+    { returnDocument: 'before', lean: true },
+  )
+  const was = (previous as IAppSettings).sourcePriority
+  const before = was?.length ? was : DEFAULT_TIER_ORDER
+  if (before.join() !== after.join()) await log(by, 'sourcePriority', before, after)
 }

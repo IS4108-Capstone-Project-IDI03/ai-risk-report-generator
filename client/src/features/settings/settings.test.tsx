@@ -285,6 +285,11 @@ describe('Settings Source priority (RT-04)', () => {
     expect(screen.getByRole('button', { name: 'Move International standard down' })).toBeDisabled()
   })
 
+  it('says a national code ranks only when the question names its country', async () => {
+    await openIt(data(true))
+    expect(screen.getByText(/ranks only when the question names its country/)).toBeInTheDocument()
+  })
+
   it('moves a tier down and up with the buttons', async () => {
     await openIt(data(true))
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))

@@ -20,7 +20,12 @@ const when = (iso: string) => {
 
 export function SourcePrioritySection({ settings, onSaved }: Props) {
   const { order: saved, history } = settings.sourcePriority
-  const [draft, setDraft] = useState(saved)
+  // The draft starts from the saved order and starts over when that changes (without this, another
+  // admin's save would leave a stale list that Save could overwrite). Not a `key`: remounting would hide "Saved".
+  const [draftState, setDraftState] = useState({ base: saved.join(), order: saved })
+  if (draftState.base !== saved.join()) setDraftState({ base: saved.join(), order: saved })
+  const draft = draftState.order
+  const setDraft = (order: typeof saved) => setDraftState((d) => ({ ...d, order }))
   const { state, run } = useSave(onSaved)
   const edit = settings.canEditGlobal
   const changed = draft.join() !== saved.join()
@@ -28,6 +33,9 @@ export function SourcePrioritySection({ settings, onSaved }: Props) {
     <div className="st-stack">
       {!edit && <SetByAdmin />}
       <p className="st-note">Rank 1 is trusted most. When sources disagree, the higher one wins.</p>
+      <p className="st-note">
+        A national code ranks only when the question names its country (for example Singapore).
+      </p>
       <TierList order={draft} canEdit={edit} onChange={setDraft} />
       {edit && (
         <div className="st-row-head">
