@@ -53,6 +53,7 @@ import {
   publishManualDocument,
   PublishBlockedError,
   screenshotQuerySchema,
+  startFromSchema,
 } from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -124,21 +125,25 @@ router.post(
 // Starts a standard entered clause by clause, for one with no PDF (IN-18): a
 // draft with these details, no file and nothing queued. The body is a
 // standard's details, as JSON. Answers: 201 created · 400 bad details, or not a
-// standard · 409 a manual entry of this standard and edition exists (names it).
+// standard, or a `copyFrom` that isn't another edition of it · 409 a manual entry of this
+// standard and edition exists (names it) · 503 the edition to copy couldn't be read.
+// With `copyFrom` ("Start from"), the draft starts with that edition's clauses, unchecked.
 router.post('/manual', requirePermission('knowledge:manage'), async (req, res) => {
   const parsed = manualDocumentSchema.safeParse(req.body)
-  if (!parsed.success) {
-    res.status(400).json(invalidDetails(parsed.error))
+  const start = startFromSchema.safeParse(req.body)
+  if (!parsed.success || !start.success) {
+    res.status(400).json(invalidDetails((parsed.error ?? start.error)!))
     return
   }
   try {
-    res.status(201).json(await createManualDocument(parsed.data))
+    const { id, name } = res.locals.user!
+    res.status(201).json(await createManualDocument(parsed.data, { id, name }, start.data.copyFrom))
   } catch (error: unknown) {
     if (error instanceof ManualEntryExistsError) {
       res.status(409).json({ error: error.message, documentId: error.documentId })
       return
     }
-    throw error
+    answerClause(error, res)
   }
 })
 

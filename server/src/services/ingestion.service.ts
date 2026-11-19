@@ -188,6 +188,20 @@ export async function indexManualSection(
   await recordAiCalls(answer.usage, { documentId })
 }
 
+// One clause of an earlier edition, as ingestion groups its passages (IN-18).
+export type DocumentClause = { clause: string; headings: string[]; text: string }
+
+// An uploaded document's text grouped into clauses, to start a new manual edition
+// from (IN-18). Throws IngestionUnavailableError if ingestion is down.
+export async function documentClauses(id: string): Promise<DocumentClause[]> {
+  const answer = await callIngestion<{ clauses: DocumentClause[] }>(
+    `/documents/${id}/clauses`,
+    'GET',
+    "The earlier edition couldn't be read, so nothing was created. Try again shortly.",
+  )
+  return answer.clauses
+}
+
 // Ingestion couldn't open a screenshot as an image (its 422): the reason is shown to the admin.
 export class ScreenshotRejectedError extends Error {
   constructor(reason: string) {

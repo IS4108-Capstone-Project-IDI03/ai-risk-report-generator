@@ -3,7 +3,7 @@
 // the ingestion queue: each clause is indexed as it is saved
 // (ingestion-service app/manual.py), and `manual_sections` holds its text.
 import { randomUUID } from 'crypto'
-import { isValidObjectId, type Types } from 'mongoose'
+import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import {
@@ -14,6 +14,7 @@ import {
 } from '../models/manual-section.model'
 import {
   deleteManualSectionPassages,
+  documentClauses,
   indexManualSection,
   IngestionUnavailableError,
   matchDocument,
@@ -33,6 +34,8 @@ import {
 import * as storage from './storage.service'
 
 // ─── The draft document ─────────────────────────────────────────────────────
+
+type Actor = { id: string; name: string }
 
 // The details a manual entry starts from: those of a standard (FM, NFPA or
 // local), never a past report. Edition and standard number are required, as for
@@ -63,12 +66,83 @@ export class ManualEntryExistsError extends Error {
 // Matching's identity, tidied as ingestion tidies it (app/matching.py `_number`, `_body`).
 const tidy = (value: string | null | undefined) => (value ?? '').toLowerCase().replace(/\s+/g, '')
 
+// "Start from": an earlier edition whose clauses the new draft copies (optional).
+export const startFromSchema = z.object({
+  copyFrom: z.string().optional(),
+})
+
+type Fields = ReturnType<typeof recordFields>
+type CopiedClause = {
+  clause: string
+  headings: string[]
+  text: string
+  images: { key: string; kind: ManualImageKind; text: string }[]
+}
+
+// The clauses to copy from `sourceId`, an earlier (or later) edition of the same
+// standard: a manual one's own clauses, or an uploaded one's passages grouped
+// into clauses by ingestion. Refuses (400 on copyFrom) any other document.
+async function clausesToCopy(sourceId: string, fields: Fields): Promise<CopiedClause[]> {
+  const refuse = (message: string) => new ManualSectionInvalidError('copyFrom', message)
+  const source = isValidObjectId(sourceId)
+    ? await KnowledgeDocumentModel.findById(sourceId).lean()
+    : null
+  if (!source || source.status !== 'complete') {
+    throw refuse('Choose an edition that is in the knowledge base.')
+  }
+  const sameStandard =
+    source.metadata.source_type === fields.metadata.source_type &&
+    tidy(source.issuingBody) === tidy(fields.issuingBody) &&
+    tidy(source.standardNumber) === tidy(fields.standardNumber)
+  if (!sameStandard || tidy(source.edition) === tidy(fields.edition)) {
+    throw refuse('Choose another edition of the same standard.')
+  }
+  if (source.entryMethod === 'manual') {
+    const sections = await ManualSectionModel.find({ documentId: source._id })
+      .sort({ order: 1, seq: 1 })
+      .lean()
+    return sections.map(({ clause, headings, text, images }) => ({
+      clause,
+      headings,
+      text,
+      images: images.map(({ key, kind, text }) => ({ key, kind, text })),
+    }))
+  }
+  // Clause numbers stay unique however ingestion grouped them; one too long to save is left out.
+  const seen = new Set<string>()
+  return (await documentClauses(String(source._id)))
+    .map((c) => ({ ...c, clause: c.clause.replace(/\s+/g, ' ').trim(), images: [] }))
+    .filter((c) => c.clause && c.clause.length <= 40 && !seen.has(c.clause) && seen.add(c.clause))
+}
+
+// Copies a screenshot to the new document's own key, so deleting either edition
+// never touches the other's. Returns null when it can't be copied: the clause
+// keeps its text, and the admin can add the screenshot again.
+async function copyScreenshot(key: string, documentId: string): Promise<string | null> {
+  const to = `knowledge/${documentId}/sections/${randomUUID()}.${key.split('.').pop()}`
+  try {
+    await storage.copyObject(key, to)
+    return to
+  } catch (error) {
+    console.error('Copying a screenshot failed:', error)
+    return null
+  }
+}
+
 /**
  * Creates a manual draft from its details and returns it (IN-18). Refuses with
  * ManualEntryExistsError when a draft or published manual entry of the same
  * standard and edition exists; one withdrawn (replaced) doesn't count.
+ * With `copyFrom`, the draft starts with that edition's clauses, each unchecked
+ * and unindexed until an admin saves it, and new: new ids and screenshot keys,
+ * with `copiedFrom` kept only for the editor's note. If the edition can't be
+ * read (IngestionUnavailableError), nothing is created.
  */
-export async function createManualDocument(details: ManualDocumentDetails) {
+export async function createManualDocument(
+  details: ManualDocumentDetails,
+  by: Actor,
+  copyFrom?: string,
+) {
   const fields = recordFields(details)
   const others = await KnowledgeDocumentModel.find(
     {
@@ -92,19 +166,46 @@ export async function createManualDocument(details: ManualDocumentDetails) {
       same.status === 'draft',
     )
   }
+  const copied = copyFrom ? await clausesToCopy(copyFrom, fields) : []
   const created = await KnowledgeDocumentModel.create({
     ...fields,
     entryMethod: 'manual',
     status: 'draft',
-    manualSeq: 0,
+    manualSeq: copied.length,
     unconfirmed: [],
   })
+  if (copied.length) {
+    const documentId = String(created._id)
+    const sections = await Promise.all(
+      copied.map(async (c, i) => {
+        const images = await Promise.all(
+          c.images.map(async (image) => {
+            const key = await copyScreenshot(image.key, documentId)
+            return key ? { ...image, key } : null
+          }),
+        )
+        return {
+          documentId: created._id,
+          seq: i + 1,
+          order: (i + 1) * 10,
+          clause: c.clause,
+          headings: c.headings,
+          text: c.text,
+          images: images.filter((image) => image !== null),
+          indexed: false,
+          checked: false,
+          copiedFrom: { documentId: new Types.ObjectId(copyFrom), clause: c.clause },
+          updatedBy: by,
+        }
+      }),
+    )
+    await ManualSectionModel.insertMany(sections)
+  }
   return toDtoOf(created.toObject())
 }
 
 // ─── Clauses ────────────────────────────────────────────────────────────────
 
-type Actor = { id: string; name: string }
 type Section = IManualSection & { _id: Types.ObjectId }
 
 // A clause as the client gets it. `text` is the typed text only; each

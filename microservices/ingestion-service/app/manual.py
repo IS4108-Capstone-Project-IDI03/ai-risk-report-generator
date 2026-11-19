@@ -13,7 +13,7 @@ the document (`worker.labels`), so a draft's passages stay out of search.
 
 from functools import lru_cache
 
-from app import matching, worker
+from app import matching, outline, worker
 from app.pipeline.chunker import CHUNK_TOKENIZER_MODEL, MAX_CHUNK_TOKENS
 from app.pipeline.indexer import get_all, index_chunks, storable
 
@@ -125,6 +125,40 @@ def save(doc: dict, section: dict) -> int:
     if stale:
         collection.delete(ids=sorted(stale))
     return count
+
+
+def clauses(doc_id: str) -> list[dict]:
+    """A document's text as clauses, in reading order, to start a new manual edition from.
+
+    Each passage belongs to the clause its nearest heading numbers ("Δ 8.2.1* Hangers."
+    is 8.2.1); a heading with no number ("Notes:") continues the clause before it, as the
+    outline reads it. A manual passage names its clause itself. Passages before the first
+    numbered clause are not copied, nor a model's picture description (not the standard's
+    words). A number met again later joins its first group. Each clause keeps the heading
+    trail of its first passage, and its passages' text joined by blank lines.
+    """
+    collection = matching.passages_collection()
+    if collection is None:
+        return []
+    found = get_all(collection, where={"doc_id": doc_id}, include=["documents", "metadatas"])
+    rows = sorted(
+        zip(found["ids"], found["documents"], found["metadatas"]),
+        key=lambda row: matching.sort_key(row[0], row[2]),
+    )
+    grouped: dict[str, dict] = {}
+    current = None
+    for _, text, meta in rows:
+        headings = list(meta.get("headings") or [])
+        number = meta.get("clause") or outline.clause_number(headings[-1] if headings else "")
+        current = number or current
+        if not current or meta.get("generated_text") or not (text or "").strip():
+            continue
+        clause = grouped.setdefault(current, {"clause": current, "headings": headings, "parts": []})
+        clause["parts"].append(text.strip())
+    return [
+        {"clause": c["clause"], "headings": c["headings"], "text": "\n\n".join(c["parts"])}
+        for c in grouped.values()
+    ]
 
 
 def delete(doc_id: str, section_id: str) -> int:

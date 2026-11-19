@@ -263,6 +263,16 @@ def delete_manual_section(doc_id: str, section_id: str) -> dict:
     return {"passagesDeleted": manual.delete(doc_id, section_id)}
 
 
+@router.get("/documents/{doc_id}/clauses")
+def document_clauses(doc_id: str) -> dict:
+    """A document's text grouped into clauses, to start a new manual edition from (IN-18).
+
+    Reads the index only; the gateway copies the clauses into the new draft, unchecked.
+    """
+    stored_document(doc_id)
+    return {"clauses": manual.clauses(doc_id)}
+
+
 @router.delete("/documents/{doc_id}/passages")
 def delete_passages(doc_id: str) -> dict:
     """Delete a document's passages from the search index; returns how many (IN-07)."""

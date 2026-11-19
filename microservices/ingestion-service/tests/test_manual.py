@@ -46,7 +46,9 @@ def store(monkeypatch):
     monkeypatch.setattr(worker, "documents", lambda: documents)
     # One token a word, so the tests can say where a clause splits.
     monkeypatch.setattr(manual, "count_tokens", lambda text: len(text.split()))
-    return SimpleNamespace(doc=doc, id=str(doc["_id"]), passages=passages, embedded=embedded)
+    return SimpleNamespace(
+        doc=doc, id=str(doc["_id"]), passages=passages, embedded=embedded, documents=documents
+    )
 
 
 def clause(seq=1, **over) -> dict:
@@ -234,3 +236,72 @@ def test_a_manual_passage_has_no_pages_and_no_page_range_returns_it(store):
 
     assert listing(store)["passages"][0]["pageStart"] is None
     assert listing(store, pageFrom=1, pageTo=999)["total"] == 0
+
+
+# Copying an earlier edition's clauses into a new manual entry (T12).
+def uploaded(store, rows: list[tuple[str, list[str], str, dict]]) -> str:
+    """An uploaded edition's passages: (id suffix, heading trail, text, extra metadata)."""
+    old = stored_doc(edition="2022")
+    store.documents.docs.append(old)
+    doc_id = str(old["_id"])
+    for suffix, headings, text, extra in rows:
+        meta = {"doc_id": doc_id, **({"headings": headings} if headings else {}), **extra}
+        store.passages.rows[f"{doc_id}:{suffix}"] = {"text": text, "meta": meta, "vector": None}
+    return doc_id
+
+
+def clauses(doc_id: str):
+    return client.get(f"/documents/{doc_id}/clauses")
+
+
+def test_an_uploaded_edition_is_grouped_into_clauses_in_reading_order(store):
+    doc_id = uploaded(
+        store,
+        [
+            ("10", ["8.2.1* Hangers."], "Hangers shall be listed.", {}),
+            ("0", ["NFPA 13 2022 Edition"], "Front matter.", {}),
+            ("1", ["Chapter 8 Installation"], "This chapter covers installation.", {}),
+            ("2", ["Chapter 8 Installation", "8.1 General."], "Sprinklers throughout.", {}),
+            ("3", ["8.1 General.", "Notes:"], "See Annex A.", {}),
+            ("table:4:t1:g0", ["8.1 General."], "Pipe: 25 mm; Spacing: 3.7 m", {}),
+            ("11", ["Δ 8.2.1 Hangers."], "Hangers shall be fixed.", {}),
+            (
+                "picture:12:g0",
+                ["8.2.1 Hangers."],
+                "A diagram showing a hanger.",
+                {"generated_text": "picture_description"},
+            ),
+        ],
+    )
+
+    response = clauses(doc_id)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "clauses": [
+            {
+                "clause": "8.1",
+                "headings": ["Chapter 8 Installation", "8.1 General."],
+                "text": "Sprinklers throughout.\n\nSee Annex A.\n\nPipe: 25 mm; Spacing: 3.7 m",
+            },
+            {
+                "clause": "8.2.1",
+                "headings": ["8.2.1* Hangers."],
+                "text": "Hangers shall be listed.\n\nHangers shall be fixed.",
+            },
+        ]
+    }
+
+
+def test_a_manual_edition_is_read_by_its_clause_numbers(store):
+    put(store, headings=["Installation"], text="First.")
+    put(store, section_id="s2", seq=2, clause="8.2", headings=[], text="Second.")
+
+    assert clauses(store.id).json()["clauses"] == [
+        {"clause": "8.1", "headings": ["Installation"], "text": "First."},
+        {"clause": "8.2", "headings": [], "text": "Second."},
+    ]
+
+
+def test_clauses_of_an_unknown_document_answer_404(store):
+    assert clauses("6abb28ae16068a0793e99999").status_code == 404

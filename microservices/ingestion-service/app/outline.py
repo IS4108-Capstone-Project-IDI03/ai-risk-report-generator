@@ -42,6 +42,13 @@ def _clause(heading: str) -> tuple[str, str] | None:
     return None
 
 
+def clause_number(heading: str) -> str | None:
+    """The whole clause number a heading starts with ("Δ 8.2.1* Hangers." is "8.2.1"), or None."""
+    if found := _CLAUSE.match(heading):
+        return found.group(1) + found.group(2)
+    return None
+
+
 def _opens(meta: dict) -> tuple[str, str] | None:
     """The chapter and section a passage opens: its manual clause (IN-18), else its last heading."""
     if number := meta.get("clause"):
