@@ -106,3 +106,7 @@ ASSISTANT_COVERAGE_MODEL = os.getenv("ASSISTANT_COVERAGE_MODEL", "claude-sonnet-
 ASSISTANT_COVERAGE_EFFORT = os.getenv("ASSISTANT_COVERAGE_EFFORT", "high")
 ASSISTANT_WORDING_MODEL = os.getenv("ASSISTANT_WORDING_MODEL", "claude-sonnet-5-5")
 ASSISTANT_WORDING_EFFORT = os.getenv("ASSISTANT_WORDING_EFFORT", "low")
+
+# RT-04: passages scoring within this fraction of the top relevance score count as equally
+# relevant, and only they are re-ordered by source tier. A first guess, not yet tuned.
+RANK_BAND = 0.1

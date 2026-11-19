@@ -495,6 +495,9 @@ class ChatDocument(BaseModel):
     issuingBody: str | None = None
     standardNumber: str | None = None
     edition: str | None = None
+    # RT-04: the document's source tier and its jurisdiction, set by the gateway.
+    tier: str | None = None
+    jurisdiction: str | None = None
 
 
 # One page of a file attached to the chat (CB-09), sent by the gateway from what it stored.
@@ -522,6 +525,8 @@ class ChatRequest(BaseModel):
     privacy: Privacy | None = None
     # The files attached to this chat (CB-09), read from storage by the gateway.
     attachments: list[ChatAttachment] = []
+    # RT-04: tier ids, highest authority first. Empty keeps the relevance order.
+    tier_order: list[str] = []
 
 
 @router.post("/chat")
@@ -538,6 +543,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
         request.role,
         privacy=_privacy(request),
         attachments=attachments,
+        tier_order=request.tier_order,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 

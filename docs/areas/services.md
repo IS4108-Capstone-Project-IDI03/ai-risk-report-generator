@@ -1741,6 +1741,10 @@ missed mock fail instead of spending:
 Scoring the chat for real (`eval.chat_eval`) does spend: a full re-score (answers for
 all 61 cases plus two judge runs) costs about $2.
 
+## Chat retrieval ranking by source tier (RT-04)
+
+`POST /chat` takes an optional `tier_order` (tier ids, highest authority first) and each `documents` item an optional `tier` and `jurisdiction`, both set by the gateway. Right after search, `retrieval/ranking.py` `apply_rank` re-orders only the passages scoring within `RANK_BAND` (0.1, `config.py`) of the top relevance score, by tier, ties by score; weaker passages follow in their order, so a tier never lifts a clearly worse passage. A `national_code` document ranks only when its jurisdiction equals the question's `jurisdiction` filter, else it counts as no tier. Passages match their document by `metadata.doc_id`. No `tier_order` leaves the order unchanged.
+
 ## Password reset email (F-06)
 
 `requestPasswordReset` in `server/src/services/auth.service.ts` emails a link `APP_URL/?reset=<code>`. The sign-in screen reads `?reset=`, opens the new-password step with the code filled in, and removes it from the address bar.
