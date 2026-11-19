@@ -202,7 +202,7 @@ Use **Sonner** (`ask-sonner` skill), styled to this system and wrapped in our ow
 
 - Sonner's default behaviour: stacked (newest in front, older ones peek behind and spread on hover), swipe to dismiss, pauses on hover and while the tab is hidden, a loading toast that turns into success or error (`toast.promise`).
 - Our styling: white card, radius 14, 1 px `--graphite-200`, the popover shadow, 14 px text with the title in `--graphite-900`; icon only coloured: green tick for success (our own `SuccessIcon`, the tick raised 0.4 units to its optical centre), red alert for errors; an icon-button close. The icon is centred in the toast's height, on every toast. The toast hugs its message, centred, up to 356 px; longer text wraps.
-- Both toast paths (Sonner `toast.*` and the older `Toast` still used for archive and create) share the icon and the layout.
+- Every toast goes through the one `toast.*` helper (success, info, error); the older `Toast` component is gone, so there is one icon and one layout.
 - Actions are small buttons inside the toast: "Undo" after archive/delete, "View" after create. Errors don't auto-close.
 - Every confirmed action gets one (section 2).
 

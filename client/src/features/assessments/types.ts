@@ -200,10 +200,6 @@ export type WorkflowState = {
   // The assessment opened from the calendar (CP-60): its Back returns there.
   calendarReturn: string | null
   tab: string
-  toast: string | null
-  toastTone: string
-  // The observation a toast's View opens, e.g. the one just saved in capture (CP-22).
-  toastView: string | null
   q: string
   fStatus: string
   // The Due pill's filter, or null for none.

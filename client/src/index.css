@@ -80,8 +80,7 @@ button:disabled {
   .ds-dialog-header,
   .ds-swap,
   .cl-panel,
-  .cl-docs tr[data-retagged] td[data-label='Tag'],
-  .workflow-toast {
+  .cl-docs tr[data-retagged] td[data-label='Tag'] {
     animation: ds-fade-in var(--duration-fast) var(--ease-out) !important;
   }
   .na-done.is-leaving .na-done-card,

@@ -183,7 +183,7 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     fireEvent.click(screen.getByRole('button', { name: 'Retry Site walk' }))
     expect(await screen.findByRole('button', { name: /Reading your walk$/ })).toBeInTheDocument()
     expect(calls).toContain(`POST ${WALKS}/w1/retry`)
-    expect(await screen.findByRole('status')).toHaveTextContent('Reading the walk again')
+    expect(await screen.findByText(/Reading the walk again/)).toBeInTheDocument()
   })
 
   it('deletes a proposal after the confirmation, and says so', async () => {
@@ -195,7 +195,7 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     expect(dialog.getByText(/1 proposed observation/)).toBeInTheDocument()
     walks = []
     fireEvent.click(dialog.getByRole('button', { name: 'Delete proposal' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Proposal deleted')
+    expect(await screen.findByText(/Proposal deleted/)).toBeInTheDocument()
     expect(calls).toContain(`DELETE ${WALKS}/w1`)
   })
 

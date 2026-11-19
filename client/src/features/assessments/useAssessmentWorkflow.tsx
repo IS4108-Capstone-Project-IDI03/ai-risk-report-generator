@@ -704,7 +704,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...placeAfterBack(previous, placeFromUrl()),
         clientPage: clientIdForPath(window.location.pathname),
         navOpen: false,
-        toast: null,
         // Back from capture is a way of leaving it too.
         fLeaveOpen: false,
       }))
@@ -943,13 +942,27 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       clearInterval(recorder)
     }
   }, [])
+  // Confirms or reports something through the design system's toast (v2 section 7).
+  // `tone` picks the icon: success (tick), info, or anything else (red alert, stays until closed).
   // `view` names an observation the toast offers to open.
   function toast(message: string, tone = 'success', view: string | null = null) {
-    setState({
-      toast: message,
-      toastTone: tone || 'success',
-      toastView: view,
-    })
+    const action = view
+      ? {
+          label: 'View',
+          onClick: () =>
+            setState({
+              screen: 'assessment',
+              tab: 'observations',
+              obsOpen: view,
+              obsFrom: null,
+              obsShowDeleted: false,
+              of: NO_FILTERS,
+            }),
+        }
+      : undefined
+    if (tone === 'success') sonner.success(message, { action })
+    else if (tone === 'info') sonner.info(message, { action })
+    else sonner.error(message, { action })
   }
   // The workspace and capture both act on the assessment last opened from the list.
   function navigate(screen: string): Partial<WorkflowState> {
@@ -1358,9 +1371,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fSev: previous.fSev === severity ? '' : previous.fSev,
         fChecklistItem: previous.fChecklistItem === item ? null : previous.fChecklistItem,
         fToast: null,
-        // A toast with View, so the engineer stays on the form for the next one.
-        toast:
-          'Observation saved' +
+      }))
+      // A toast with View, so the engineer stays on the form for the next one.
+      toast(
+        'Observation saved' +
           (item ? ', and the checklist item answered as Differs' : '') +
           '.' +
           (clips.length || pages.length
@@ -1373,9 +1387,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 .join(' and ') +
               ' now.'
             : ''),
-        toastTone: 'success',
-        toastView: observation.id,
-      }))
+        'success',
+        observation.id,
+      )
     }
     // Changes the observation kept in this browser under a local-<n> row key,
     // a sample one: the demo keeps the change in memory only.
@@ -2359,7 +2373,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         clientDialog: null,
         clientTab: tab,
         clientReturn: null,
-        toast: null,
       })
     // A client page's occasional actions (CP-18), behind the header's ⋯:
     // each disabled, with its reason, when it isn't the engineer's to take.
@@ -2986,7 +2999,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                   screen: 'client',
                   clientPage: s.clientReturn!.clientId,
                   clientDialog: null,
-                  toast: null,
                 }),
             }
           : isAssessment &&
@@ -2994,7 +3006,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               canOpen('calendar', session)
             ? {
                 label: 'Back to calendar',
-                onClick: () => setState({ screen: 'calendar', toast: null }),
+                onClick: () => setState({ screen: 'calendar' }),
               }
             : null,
       canDraftSections: isMine && canCapture && can('reports:generate', session),
@@ -3020,11 +3032,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Leaves a blocked screen for the role's home, or a blocked tab for the
       // workspace overview.
       leaveBlocked: () =>
-        setState(
-          tabBlocked
-            ? { tab: 'overview', toast: null }
-            : { screen: homeScreen(session), toast: null },
-        ),
+        setState(tabBlocked ? { tab: 'overview' } : { screen: homeScreen(session) }),
       /* chrome */
       navSections,
       // The workspace and capture both highlight the assessment they are for;
@@ -3065,7 +3073,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           ...navigateTo(v),
           navOpen: false,
-          toast: null,
         }),
       wideTable: !narrow,
       stackTable: narrow,
@@ -3113,7 +3120,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       go: (v: string) => {
         setState({
           ...navigateTo(v),
-          toast: null,
         })
       },
       // New assessment's two starts (CP-23 screen 2A); the screen opens blank.
@@ -3295,7 +3301,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...openAssessment({ reference, site }, s),
             calendarReturn: reference,
             clientReturn: null,
-            toast: null,
           })
         },
         onStart: (mode: 'form' | 'documents', siteVisitDate?: string) =>
@@ -3323,7 +3328,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...clientPage,
         menu: clientMenuModel,
         onNewAssessment: clientNewAssessment,
-        onClients: () => setState({ screen: 'clients', clientDialog: null, toast: null }),
+        onClients: () => setState({ screen: 'clients', clientDialog: null }),
         startTab: s.clientTab ?? undefined,
         // A visit as the work list shows it: its status, dates and countdown.
         visit: (reference: string) => {
@@ -3349,7 +3354,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...openAssessment({ reference, site }, s),
             clientReturn: s.clientPage ? { clientId: s.clientPage, tab, reference } : null,
             calendarReturn: null,
-            toast: null,
           })
         },
         // The tab to open on: the one an assessment was opened from, when the
@@ -3750,24 +3754,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           count: isDemoCapture && !openRow?.persisted ? open.length : undefined,
         },
       ].filter((item) => canOpenTab(item.value, session)),
-      toast: s.toast,
-      toastTone: s.toastTone,
-      clearToast: () =>
-        setState({
-          toast: null,
-        }),
-      // The toast's View: the saved observation on its own page (CP-22).
-      toastView: s.toastView,
-      openToastView: () =>
-        setState({
-          screen: 'assessment',
-          tab: 'observations',
-          obsOpen: s.toastView,
-          obsFrom: null,
-          obsShowDeleted: false,
-          of: NO_FILTERS,
-          toast: null,
-        }),
       // Lets a screen outside this hook confirm an action, e.g. KB-01's saves.
       notify: (message: string, tone?: 'danger') => toast(message, tone),
       openEvidenceSource: () =>
@@ -3861,7 +3847,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         releaseDraft(row.id)
         setState({
           ...openAssessment({ reference: row.id, site: row.site }, s),
-          toast: null,
         })
       },
       /* create (CP-23) */
@@ -4413,11 +4398,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fCats: [],
           fSev: '',
           fToast: null,
-          // Listed first, so it is local-0 (see obsReturn above).
-          toast: 'Observation saved in this demo only.',
-          toastTone: 'success',
-          toastView: 'local-0',
         })
+        // Listed first, so it is local-0 (see obsReturn above).
+        toast('Observation saved in this demo only.', 'success', 'local-0')
       },
       /* generation */
       gsecs,
@@ -4502,7 +4485,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         setState({
           gsecs: g,
           running: true,
-          toast: null,
         })
       },
       retrySection: () => {

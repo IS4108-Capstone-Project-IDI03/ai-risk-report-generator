@@ -1,7 +1,7 @@
 // The toasts' green tick (CP-23 round 13): lucide's circle-check with the tick raised
 // 0.4 units, since its weight sits in the bottom of the V and the stock one reads low
 // in the circle. An inline SVG, as Icon draws lucide glyphs as CSS masks and can't take
-// a custom path. Used by notify.tsx (Sonner) and Toast.tsx (the older toast).
+// a custom path. Used by notify.tsx (Sonner).
 
 /** Returns the 18 px green success tick at its optical centre. */
 export function SuccessIcon() {

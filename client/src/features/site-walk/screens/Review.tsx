@@ -6,7 +6,8 @@
 // observations. Every edit is autosaved; Create all adds everything once.
 // Opened from the Observations tab's walk list or the bell; state lives in
 // useProposal, the edits in proposal.ts.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { toast } from '../../../design-system'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
 import { ScreenHeader } from '../../assessments/components/ScreenHeader'
 import { setLeaveGuard } from '../../assessments/leaveGuard'
@@ -18,7 +19,6 @@ import { ProposalHeader } from '../components/ProposalHeader'
 import { ProposalNavigator } from '../components/ProposalNavigator'
 import { DeletedProposalTable, ProposalTable } from '../components/ProposalTables'
 import { RemoveLocationDialog } from '../components/RemoveLocationDialog'
-import { UndoToast } from '../components/UndoToast'
 import { WalkNameDialog } from '../components/WalkNameDialog'
 import { WalkStatusMessage } from '../components/WalkStatusMessage'
 import type { ProposedObservation } from '../api'
@@ -102,14 +102,13 @@ export function SiteWalkReview({
   const [matching, setMatching] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
-  const [undo, setUndo] = useState<{ stamp: number; ref: string; at: number } | null>(null)
+  // The "Observation deleted" toast, so moving on can close it.
+  const undoToast = useRef<string | number | null>(null)
   // Moving on ends the Undo offer; without this it sat beside Restore on the deleted page.
-  const view = `${openRef}|${screen}`
-  const [lastView, setLastView] = useState(view)
-  if (view !== lastView) {
-    setLastView(view)
-    if (openRef || screen !== 'list') setUndo(null)
-  }
+  useEffect(() => {
+    if ((openRef || screen !== 'list') && undoToast.current !== null)
+      toast.dismiss(undoToast.current)
+  }, [openRef, screen])
   const p = r.proposal
   const ready = !!p && r.walk?.status === 'ready'
 
@@ -172,7 +171,13 @@ export function SiteWalkReview({
     const at = p!.observations.findIndex((x) => x.ref === o.ref)
     r.change((cur) => edit.removeObservation(cur, o.ref))
     setOpenRef(null)
-    setUndo({ stamp: Date.now(), ref: o.ref, at })
+    undoToast.current = toast.success('Observation deleted.', {
+      action: {
+        label: 'Undo',
+        onClick: () => r.change((cur) => edit.restoreObservation(cur, o.ref, at)),
+      },
+      duration: 10_000, // double the default, so there is time to reach Undo
+    })
   }
   function restore(ref: string) {
     r.change((cur) => edit.restoreObservation(cur, ref))
@@ -316,16 +321,6 @@ export function SiteWalkReview({
         </div>
       )}
 
-      {undo && (
-        <UndoToast
-          key={undo.stamp}
-          onUndo={() => {
-            r.change((cur) => edit.restoreObservation(cur, undo.ref, undo.at))
-            setUndo(null)
-          }}
-          onDismiss={() => setUndo(null)}
-        />
-      )}
       {naming && r.walk && (
         <WalkNameDialog
           title="Rename proposal"

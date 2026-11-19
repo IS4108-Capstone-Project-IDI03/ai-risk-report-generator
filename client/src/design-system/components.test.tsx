@@ -103,7 +103,6 @@ it('renders every shared component and preserves the icon vocabulary', () => {
       <UI.Callout title="Callout" />
       <UI.Dialog open={false} />
       <UI.Popover open={false} onOpenChange={() => {}} trigger={<button>Bell</button>} />
-      <UI.Toast message="Toast" />
       <UI.EmptyState title="Empty" />
       <UI.ProgressBar label="Complete" value={150} />
       <UI.Tooltip label="Hint">

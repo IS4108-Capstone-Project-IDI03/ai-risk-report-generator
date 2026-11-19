@@ -3,7 +3,7 @@
 // walk and name it (round 3). Opened from the Observations tab. Calls useWalk (keeps and sends) and
 // useWalkRecorder (microphone, camera).
 import { useCallback, useEffect, useState } from 'react'
-import { Icon } from '../../../design-system'
+import { Icon, toast } from '../../../design-system'
 import { CameraView } from '../components/CameraView'
 import { HelpSheet } from '../components/HelpSheet'
 import { NoteComposer } from '../components/NoteComposer'
@@ -12,7 +12,6 @@ import { RecordPanel } from '../components/RecordPanel'
 import { WalkList } from '../components/WalkList'
 import { BackButton } from '../../assessments/components/BackButton'
 import { WalkNameDialog } from '../components/WalkNameDialog'
-import { WalkToast, type WalkToastState } from '../components/WalkToast'
 import { clock, mediaProblem } from '../recorder'
 import { acceptFiles, audioLength } from '../pickFiles'
 import { readDraft, writeDraft } from '../typedDraft'
@@ -42,20 +41,17 @@ export function SiteWalkRecording({
   // Finish walk first asks for the walk's name (AC13).
   const [naming, setNaming] = useState(false)
   const phone = usePhone()
-  const [toast, setToast] = useState<WalkToastState | null>(null)
   // Set only when a microphone attempt failed, so the alert never greets a fresh screen.
   const [micProblem, setMicProblem] = useState<string | null>(null)
   const { setProblem } = w
 
-  const say = useCallback(
-    (message: string) => setToast({ stamp: Date.now() + Math.random(), message }),
-    [],
-  )
   // At the cap the recording was stopped and kept for them: tell them, in words.
   const onCap = useCallback(
     () =>
-      say('That recording reached 20 minutes and is saved. Start the next one when you’re ready.'),
-    [say],
+      toast.success(
+        'That recording reached 20 minutes and is saved. Start the next one when you’re ready.',
+      ),
+    [],
   )
   const rec = useWalkRecorder(w.claimSeq, w.addRecording, onCap)
 
@@ -83,7 +79,7 @@ export function SiteWalkRecording({
   // can take a while on a poor connection; the list shows where it has got to.
   function save() {
     void rec.stop()
-    say('Recording saved')
+    toast.success('Recording saved')
   }
 
   // The unsent note is kept per walk on the device; it is dropped once sent.
@@ -256,7 +252,6 @@ export function SiteWalkRecording({
           onClose={() => setNaming(false)}
         />
       )}
-      {toast && <WalkToast toast={toast} onDismiss={() => setToast(null)} />}
       {help && <HelpSheet onClose={() => setHelp(false)} />}
       {camera && (
         <CameraView

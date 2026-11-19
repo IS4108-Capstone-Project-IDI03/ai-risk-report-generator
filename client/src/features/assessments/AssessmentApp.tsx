@@ -10,7 +10,6 @@ import {
   PhoneBar,
   SideNav,
   Tabs,
-  Toast,
   Toaster,
 } from '../../design-system'
 import type { Session } from '../auth/api'
@@ -590,28 +589,6 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
           )}
           {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}
           <Toaster />
-          {!!v.toast && (
-            <>
-              {/* Keyed by message: a new toast starts fresh, even if the last one was fading out. */}
-              <div
-                key={v.toast}
-                className={v.isChat ? 'workflow-toast chat-toast' : 'workflow-toast'}
-              >
-                <Toast
-                  tone={v.toastTone}
-                  message={v.toast}
-                  onDismiss={v.clearToast}
-                  action={
-                    !!v.toastView && (
-                      <Button variant="link" size="sm" onClick={v.openToastView}>
-                        {'View'}
-                      </Button>
-                    )
-                  }
-                ></Toast>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </>
