@@ -43,6 +43,8 @@ export type Settings = {
   canEditGlobal: boolean
   models: ModelRowData[]
   qaStrictness: QaStrictness
+  // Review warns when fewer drafted sections cite a standard than this %, GN-16.
+  standardCiteTarget: number
   sourcePriority: { order: TierId[]; history: SourcePriorityChange[] }
 }
 
@@ -63,7 +65,7 @@ export function saveSourcePriority(order: TierId[]) {
   return send('PUT', '/api/settings/source-priority', { order })
 }
 /** Admin: saves the QA strictness for everyone. */
-export function saveGlobal(body: { qaStrictness: QaStrictness }) {
+export function saveGlobal(body: { qaStrictness: QaStrictness } | { standardCiteTarget: number }) {
   return send('PATCH', '/api/settings/global', body)
 }
 /** Saves my own note codes (null = back to F, IR, REC) and/or glossary (CP-35); returns the settings. */

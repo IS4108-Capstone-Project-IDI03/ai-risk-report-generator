@@ -216,14 +216,34 @@ export function excerpt(text: string, max = 180) {
 // the draft, and the statement (a Claim key) it belongs to.
 export type ReviewFocus = { citation: string | null; statement: string | null }
 
+// The clause number of a passage (GN-16): the first one like 8.6.2 (digits with dots) found
+// scanning its headings from the last to the first; null when none has one.
+export function clauseOf(headings: string[]): string | null {
+  for (const h of [...headings].reverse()) {
+    const found = h.match(/\d+(?:\.\d+)+/)
+    if (found) return found[0]
+  }
+  return null
+}
+
+// "NFPA 13 (2022), 8.6.2, p. 114": a missing edition, clause or page is left out (GN-16 AC2).
+export function passageLabel(passage: SourcePassage): string {
+  const doc = passage.document
+  const title = doc?.title ?? 'Document not found'
+  return [
+    doc?.edition ? `${title} (${doc.edition})` : title,
+    clauseOf(passage.headings),
+    pageLocator(passage),
+  ]
+    .filter(Boolean)
+    .join(', ')
+}
+
 // A citation in words, for its button's accessible name: "FM Global Data
 // Sheet 1-21, p. 12" or "Site observation, Bay 3, Ground".
 export function describeCitation(section: ReviewSection, id: string): string {
   const passage = section.sources[id]
-  if (passage)
-    return [passage.document?.title ?? 'Document not found', pageLocator(passage)]
-      .filter(Boolean)
-      .join(', ')
+  if (passage) return passageLabel(passage)
   const observation = id.startsWith('O:')
     ? section.observations.find((o) => o.id === id.slice(2))
     : undefined

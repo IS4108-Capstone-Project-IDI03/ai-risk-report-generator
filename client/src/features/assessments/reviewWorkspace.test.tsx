@@ -490,7 +490,7 @@ it('opens the exact passage a citation references, with its page, title, edition
   // Citations are numbered across the section, in the order first cited.
   fireEvent.click(
     within(editor()).getByRole('button', {
-      name: 'Citation 2: FM Global Data Sheet 1-21, pp. 12–13',
+      name: 'Citation 2: FM Global Data Sheet 1-21 (2022), pp. 12–13',
     }),
   )
 
@@ -1508,4 +1508,15 @@ describe('Source region in review (KB-02)', () => {
     await waitFor(() => expect(text.querySelector('.katex')).not.toBeNull())
     expect(text).toHaveTextContent('Agent weight:')
   })
+})
+
+it('warns below the standards target and still lets the engineer accept (GN-16)', async () => {
+  await openReview(() =>
+    json(200, { ...workspace([CONSTRUCTION, FIRE, EXPOSURES]), standardCiteTarget: 80 }),
+  )
+  expect(
+    await screen.findByText('1 of 2 sections cite a standard (target 80%)'),
+  ).toBeInTheDocument()
+  expect(screen.getByText('Below target. Drafts still go ahead.')).toBeInTheDocument()
+  expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled()
 })

@@ -6,6 +6,7 @@ import { GatewayError } from '../assessments/api'
 import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
+import { DraftingSection } from './screens/DraftingSection'
 import { ModelsSection } from './screens/ModelsSection'
 import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
@@ -39,6 +40,11 @@ const WORKING: Section[] = [
     id: 'source-priority',
     label: 'Source priority',
     render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
+  },
+  {
+    id: 'drafting',
+    label: 'Drafting',
+    render: needs((s, f) => <DraftingSection settings={s} onSaved={f} />),
   },
   {
     id: 'qa',

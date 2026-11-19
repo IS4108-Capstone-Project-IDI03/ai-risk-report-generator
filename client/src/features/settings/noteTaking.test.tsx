@@ -11,6 +11,7 @@ const base = (canEditGlobal: boolean, glossary: GlossaryEntry[] = []): SettingsD
   noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary },
   models: [],
   qaStrictness: 'standard',
+  standardCiteTarget: 50,
   sourcePriority: { order: [...TIER_IDS], history: [] },
 })
 const reply = (body: unknown, status = 200) =>

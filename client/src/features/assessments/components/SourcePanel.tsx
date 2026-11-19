@@ -387,6 +387,11 @@ export function SourcePanel({
                   source={
                     <>
                       {p.document?.title ?? p.documentId ?? 'Document not found'}
+                      {p.broader && (
+                        <span className="rv-flag" title="Found by country only, not facility type">
+                          <Badge tone="neutral">Broader match</Badge>
+                        </span>
+                      )}
                       {p.document?.withdrawnAt && (
                         <span className="rv-flag">
                           <Badge tone="danger">Withdrawn</Badge>

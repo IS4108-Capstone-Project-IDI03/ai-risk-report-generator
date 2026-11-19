@@ -38,6 +38,7 @@ const data = (
   noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models,
   qaStrictness: 'standard',
+  standardCiteTarget: 50,
   sourcePriority: { order: [...TIER_IDS], history: [] },
 })
 const reply = (status: number, body: unknown) =>
@@ -71,6 +72,7 @@ describe('Settings', () => {
       for (const name of [
         'Password',
         'Models',
+        'Drafting',
         'QA eval',
         'Chat and voice',
         'Checklist',
@@ -78,8 +80,8 @@ describe('Settings', () => {
         'Note-taking',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
-      // Removed on request: personal drafting target and the three defaults.
-      for (const name of ['Drafting', 'Defaults', 'QA check', 'QA criteria'])
+      // Removed on request: the three defaults.
+      for (const name of ['Defaults', 'QA check', 'QA criteria'])
         expect(screen.queryByRole('button', { name })).toBeNull()
       cleanup()
     }
@@ -409,5 +411,55 @@ describe('Settings Source priority (RT-04)', () => {
   it('says there are no changes yet', async () => {
     await openIt(data(true))
     expect(screen.getByText('No changes yet.')).toBeInTheDocument()
+  })
+})
+
+describe('Settings Drafting (GN-16)', () => {
+  const patches = (f: ReturnType<typeof mock>) =>
+    f.mock.calls.filter(([, init]) => init?.method === 'PATCH')
+
+  it('lets an admin save the target, sending only that field', async () => {
+    const f = mock(data(true), (_url, init) =>
+      init?.method === 'PATCH' ? reply(200, { ...data(true), standardCiteTarget: 60 }) : null,
+    )
+    render(<Settings />)
+    open('Drafting')
+    const input = await screen.findByLabelText(/Sections citing a standard/)
+    expect(input).toHaveValue('50')
+    expect(
+      screen.getByText(
+        'Review warns when fewer drafted sections cite a standard than this. It never blocks.',
+      ),
+    ).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '60' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Saved')
+    expect(patches(f)).toHaveLength(1)
+    expect(patches(f)[0][0]).toBe('/api/settings/global')
+    expect(JSON.parse(patches(f)[0][1]!.body as string)).toEqual({ standardCiteTarget: 60 })
+  })
+
+  it.each(['101', '-1', '1.5', ''])(
+    'blocks %j with a plain message and sends nothing',
+    async (v) => {
+      const f = mock(data(true))
+      render(<Settings />)
+      open('Drafting')
+      fireEvent.change(await screen.findByLabelText(/Sections citing a standard/), {
+        target: { value: v },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(await screen.findByText('Enter a whole number from 0 to 100.')).toBeInTheDocument()
+      expect(patches(f)).toHaveLength(0)
+    },
+  )
+
+  it('shows an engineer the value read-only', async () => {
+    mock(data(false))
+    render(<Settings />)
+    open('Drafting')
+    expect(await screen.findByLabelText(/Sections citing a standard/)).toBeDisabled()
+    expect(screen.getByText('Set by an admin')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 })
