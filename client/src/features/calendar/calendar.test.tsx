@@ -144,6 +144,32 @@ it('shows the month: each survey as a bar, each report due date as a marker, not
   expect(screen.getByRole('button', { name: '1 report late' })).toBeVisible()
 })
 
+it('goes to a month or a year chosen from the heading', () => {
+  show()
+  fireEvent.click(screen.getByRole('button', { name: 'November, choose a month' }))
+  const months = screen.getByRole('group', { name: 'Months' })
+  expect(within(months).getByRole('button', { name: 'November 2026' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  // The arrows above the months step the year before one is picked.
+  fireEvent.click(screen.getByRole('button', { name: 'Next year' }))
+  fireEvent.click(screen.getByRole('button', { name: 'February 2027' }))
+  expect(period()).toBe('February 2027')
+  expect(screen.queryByRole('group', { name: 'Months' })).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: '2027, choose a year' }))
+  const years = screen.getByRole('group', { name: 'Years' })
+  expect(within(years).getAllByRole('button')).toHaveLength(12)
+  fireEvent.click(within(years).getByRole('button', { name: '2025' }))
+  // Same month, the chosen year.
+  expect(period()).toBe('February 2025')
+
+  // The week view keeps its plain heading.
+  fireEvent.click(screen.getByRole('radio', { name: 'Week' }))
+  expect(screen.queryByRole('button', { name: /choose a month/ })).not.toBeInTheDocument()
+})
+
 it('steps by month or week, returns to today, and opens a week from its day', () => {
   show()
   fireEvent.click(screen.getByRole('button', { name: 'Next month' }))

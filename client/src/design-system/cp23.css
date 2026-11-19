@@ -329,6 +329,9 @@
   align-items: center;
   gap: 8px;
   box-sizing: border-box;
+  /* Fits its column: without this the input's own width held it about 5 px wider than a
+     narrow column, past the edge of its neighbour (Reschedule's survey dates, CP-60). */
+  min-width: 0;
   height: var(--control-height-md);
   padding: 0 10px 0 4px;
   background: var(--surface-card);
@@ -435,6 +438,98 @@
   flex: 1;
   font-size: 15px;
   color: var(--graphite-900);
+}
+/* The month and the year in the heading open their choosers. */
+.ds-cal-head-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  /* Its padding given back: the month lines up with the days, the year sits close beside it. */
+  margin-left: -4px;
+  padding: 0 6px 0 4px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+/* A real space sits between the two (it reads "November 2026"); part of it is taken back. */
+.ds-cal-head-pick + .ds-cal-head-pick {
+  margin-left: -6px;
+}
+.ds-cal-head-pick > span {
+  color: var(--graphite-600);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.ds-cal-head-pick[aria-expanded='true'] > span {
+  transform: rotate(180deg);
+}
+.ds-cal-head-pick:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+.ds-cal-head-pick:active,
+.ds-cal-head-pick[aria-expanded='true'] {
+  background: var(--graphite-100);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-cal-head-pick:hover {
+    background: var(--graphite-100);
+  }
+}
+/* Twelve months or years, three to a row, in the space the days took (Calendar sets
+   min-height). */
+.ds-cal-choices {
+  display: grid;
+  align-content: center;
+}
+.ds-cal-choices-page {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 40px;
+  gap: 8px 6px;
+}
+.ds-cal-choices-page[data-animate] {
+  animation: dsCalSlide var(--duration-base) var(--ease-out);
+}
+.ds-cal-choices-page[data-animate='prev'] {
+  animation-name: dsCalSlidePrev;
+}
+.ds-cal-choice {
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--graphite-900);
+  font: 400 14px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ds-cal-choice[data-today] {
+  box-shadow: inset 0 0 0 1px var(--ink-600);
+}
+.ds-cal-choice[aria-pressed='true'] {
+  background: var(--action-primary);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+.ds-cal-choice:disabled {
+  color: var(--graphite-300);
+  cursor: not-allowed;
+}
+.ds-cal-choice:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+.ds-cal-choice:active:not(:disabled) {
+  background: var(--graphite-100);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-cal-choice:hover:not(:disabled):not([aria-pressed='true']) {
+    background: var(--graphite-100);
+  }
 }
 .ds-cal-grid {
   display: grid;
@@ -593,6 +688,12 @@
   .ds-cal-day {
     width: 44px;
     height: 44px;
+  }
+  .ds-cal-choices-page {
+    grid-auto-rows: 44px;
+  }
+  .ds-cal-head-pick {
+    min-height: 44px;
   }
   .ds-cal-head .ds-icon-button,
   .ds-cal-foot button {

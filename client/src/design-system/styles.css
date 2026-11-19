@@ -57,6 +57,10 @@
   gap: var(--space-6);
   padding: var(--space-7) var(--space-7) var(--space-5);
   background: var(--surface-card);
+  /* The card's own corners, so a dialog that lets its contents out (overflow: visible, as
+     Reschedule does for its date calendars) still shows round top corners (CP-60). */
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 .ds-dialog-header > div {
   flex: 1;
@@ -95,6 +99,9 @@
   padding: var(--space-6) var(--space-7);
   border-top: 1px solid var(--border-subtle);
   background: var(--surface-sunken);
+  /* Likewise the bottom corners, for the footer band. */
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
 }
 .ds-dialog-footer > div {
   flex-wrap: wrap;

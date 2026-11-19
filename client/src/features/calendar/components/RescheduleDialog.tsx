@@ -4,7 +4,7 @@
 // engineer, and the due date and last survey day on or after the first.
 // Called by screens/Calendar.tsx. Calls Dialog and DatePicker (the phone's own date
 // field on a phone).
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Button, DatePicker, Dialog, Input, useIsPhone } from '../../../design-system'
 import { updateAssessment } from '../../assessments/api'
 import { Problem } from '../../clients/ClientDialogs'
@@ -33,13 +33,6 @@ export function RescheduleDialog({
   // (a dialog sits above the whole page). So a phone gets its own date field here,
   // as Edit details has, which also brings up the phone's date wheel.
   const phone = useIsPhone()
-  // Esc with a date field's calendar open closes that calendar only. The browser
-  // also asks the dialog to close on the same key, so that one request is skipped.
-  const escForCalendar = useRef(false)
-  const close = () => {
-    if (escForCalendar.current) return void (escForCalendar.current = false)
-    onClose()
-  }
   const change = (key: Field) => (value: string, info: { invalid?: boolean }) => {
     setForm((f) => ({ ...f, [key]: value }))
     setTyped((t) => ({ ...t, [key]: !!info.invalid }))
@@ -94,7 +87,7 @@ export function RescheduleDialog({
       title={`Reschedule ${item.site}`}
       description={`${item.reference} for ${item.client}. The new dates show on the Assessments list and its Overview.`}
       width={480}
-      onClose={busy ? undefined : close}
+      onClose={busy ? undefined : onClose}
       footer={
         <>
           <Button pill variant="secondary" disabled={busy} onClick={onClose}>
@@ -108,9 +101,11 @@ export function RescheduleDialog({
     >
       <div
         className="cal-reschedule-fields"
+        // Esc with a date field's calendar open closes that calendar only (or takes its month
+        // or year chooser back to the days): cancelled here, so the dialog gets no close
+        // request. Chrome lets a second request in a row through however the dialog answers.
         onKeyDownCapture={(e) => {
-          if (e.key === 'Escape' && e.currentTarget.querySelector('.ds-popover'))
-            escForCalendar.current = true
+          if (e.key === 'Escape' && e.currentTarget.querySelector('.ds-popover')) e.preventDefault()
         }}
       >
         <Problem title="Dates not saved" problem={problem} />

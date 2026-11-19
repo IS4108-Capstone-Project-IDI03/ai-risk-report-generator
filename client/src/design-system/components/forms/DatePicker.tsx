@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Icon } from '../core/Icon'
 import { IconButton } from '../core/IconButton'
 import { Popover } from '../feedback/Popover'
+import { MonthYearGrid } from './MonthYearGrid'
 import { useIsPhone } from '../feedback/Sheet'
 
 export type DatePickerProps = {
@@ -60,7 +61,9 @@ function maskTyped(raw: string): string {
   return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join('/')
 }
 
-/** Returns a calendar for the month of `focus`; Monday first, six weeks, days before min disabled. */
+/** Returns a calendar for the month of `focus`; Monday first, six weeks, days before min disabled.
+ *  A click on the month or the year swaps the days for twelve months or years to choose from
+ *  (those before min disabled). */
 // Exported for MarshBot's "I need another visit" (AS-06 board 04), which opens it straight from a button.
 export function Calendar({
   value,
@@ -115,52 +118,169 @@ export function Calendar({
     moved.current = true
     move(step)
   }
+
+  // Month and year choosers: a click on the month or the year in the heading shows twelve
+  // months, or twelve years (MonthYearGrid), in place of the days. Picking one goes back to the
+  // days there.
+  const year = f.getFullYear()
+  const month = f.getMonth()
+  const minYear = min ? +min.slice(0, 4) : undefined
+  const minMonth = min ? { year: +min.slice(0, 4), month: +min.slice(5, 7) - 1 } : undefined
+  const [view, setView] = useState<'days' | 'months' | 'years'>('days')
+  // The first year on the years page.
+  const [yearsFrom, setYearsFrom] = useState(year - 4)
+  const [pageAnimate, setPageAnimate] = useState<'next' | 'prev' | undefined>()
+  // The day grid's height, so a chooser fills the same space and the calendar keeps its size.
+  const [daysHeight, setDaysHeight] = useState<number>()
+  const monthButton = useRef<HTMLButtonElement>(null)
+  const yearButton = useRef<HTMLButtonElement>(null)
+  // Where focus goes once the days are back: the day after a pick, the heading's button after Esc.
+  const back = useRef<'day' | 'months' | 'years' | null>(null)
+  const backToDays = (focusOn: 'day' | 'months' | 'years') => {
+    back.current = focusOn
+    setAnimate(undefined)
+    setView('days')
+  }
+  useEffect(() => {
+    if (view !== 'days') return
+    if (back.current === 'day') grid.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus()
+    else if (back.current === 'months') monthButton.current?.focus()
+    else if (back.current === 'years') yearButton.current?.focus()
+    back.current = null
+  }, [view])
+  const choose = (to: 'months' | 'years') => {
+    if (view === to) return backToDays(to)
+    if (view === 'days') setDaysHeight(grid.current?.offsetHeight)
+    setPageAnimate(undefined)
+    // This year is fifth on the page, so the years ahead (where survey dates fall) show.
+    if (to === 'years') setYearsFrom(year - 4)
+    setView(to)
+  }
+  /** Goes to the days of a month: same day, or the month's last (29 February), never before min. */
+  const jump = (y: number, m: number) => {
+    const last = new Date(y, m + 1, 0).getDate()
+    let d = toIso(new Date(y, m, Math.min(f.getDate(), last)))
+    if (min && d < min) d = min
+    setFocus(d)
+    backToDays('day')
+  }
+  const pageYears = (by: number) => {
+    setPageAnimate(by > 0 ? 'next' : 'prev')
+    setYearsFrom((y) => y + by)
+  }
+  // The months view's arrows step a year; the day kept in focus moves with them (never before min).
+  const stepYear = (by: number) => {
+    setPageAnimate(by > 0 ? 'next' : 'prev')
+    move(0, 12 * by)
+  }
+  const headButton = (
+    to: 'months' | 'years',
+    ref: React.RefObject<HTMLButtonElement | null>,
+    text: string | number,
+    noun: string,
+  ) => (
+    <button
+      ref={ref}
+      type="button"
+      className="ds-cal-head-pick"
+      aria-label={`${text}, choose a ${noun}`}
+      aria-expanded={view === to}
+      onClick={() => choose(to)}
+    >
+      {text}
+      <Icon name="chevron-down" size={14} />
+    </button>
+  )
+
   return (
     <div className="ds-cal">
       <div className="ds-cal-head">
         <strong aria-live="polite">
-          {MONTHS[f.getMonth()]} {f.getFullYear()}
+          {headButton('months', monthButton, MONTHS[month], 'month')}{' '}
+          {headButton('years', yearButton, year, 'year')}
         </strong>
-        <IconButton icon="chevron-left" label="Previous month" onClick={() => move(0, -1)} />
-        <IconButton icon="chevron-right" label="Next month" onClick={() => move(0, 1)} />
+        {view === 'days' && (
+          <>
+            <IconButton icon="chevron-left" label="Previous month" onClick={() => move(0, -1)} />
+            <IconButton icon="chevron-right" label="Next month" onClick={() => move(0, 1)} />
+          </>
+        )}
+        {view === 'months' && (
+          <>
+            <IconButton
+              icon="chevron-left"
+              label="Previous year"
+              disabled={minYear !== undefined && year <= minYear}
+              onClick={() => stepYear(-1)}
+            />
+            <IconButton icon="chevron-right" label="Next year" onClick={() => stepYear(1)} />
+          </>
+        )}
+        {view === 'years' && (
+          <>
+            <IconButton
+              icon="chevron-left"
+              label="Earlier years"
+              disabled={minYear !== undefined && yearsFrom <= minYear}
+              onClick={() => pageYears(-12)}
+            />
+            <IconButton icon="chevron-right" label="Later years" onClick={() => pageYears(12)} />
+          </>
+        )}
       </div>
-      <div
-        className="ds-cal-grid"
-        role="group"
-        aria-label="Days"
-        ref={grid}
-        onKeyDown={onKey}
-        // Keyed by month so a month change replays the slide (CSS .ds-cal-grid).
-        key={f.getFullYear() * 12 + f.getMonth()}
-        data-animate={animate}
-      >
-        {'Mo Tu We Th Fr Sa Su'.split(' ').map((d) => (
-          <span key={d} className="ds-cal-dow" aria-hidden="true">
-            {d}
-          </span>
-        ))}
-        {days.map((d) => {
-          const iso = toIso(d)
-          const outside = d.getMonth() !== f.getMonth()
-          const off = (!!min && iso < min) || outside
-          return (
-            <button
-              key={iso}
-              type="button"
-              tabIndex={iso === focus ? 0 : -1}
-              disabled={off}
-              aria-label={d.toLocaleDateString('en-GB', { dateStyle: 'long' })}
-              aria-pressed={iso === value}
-              data-outside={outside ? '' : undefined}
-              data-today={iso === today ? '' : undefined}
-              className="ds-cal-day"
-              onClick={() => onPick(iso)}
-            >
-              {d.getDate()}
-            </button>
-          )
-        })}
-      </div>
+      {view !== 'days' ? (
+        <MonthYearGrid
+          key={view}
+          kind={view}
+          year={year}
+          month={month}
+          page={view === 'months' ? year : yearsFrom}
+          min={minMonth}
+          onPick={(v) => (view === 'months' ? jump(year, v) : jump(v, month))}
+          onPage={pageYears}
+          onEscape={() => backToDays(view)}
+          animate={pageAnimate}
+          minHeight={daysHeight}
+        />
+      ) : (
+        <div
+          className="ds-cal-grid"
+          role="group"
+          aria-label="Days"
+          ref={grid}
+          onKeyDown={onKey}
+          // Keyed by month so a month change replays the slide (CSS .ds-cal-grid).
+          key={f.getFullYear() * 12 + f.getMonth()}
+          data-animate={animate}
+        >
+          {'Mo Tu We Th Fr Sa Su'.split(' ').map((d) => (
+            <span key={d} className="ds-cal-dow" aria-hidden="true">
+              {d}
+            </span>
+          ))}
+          {days.map((d) => {
+            const iso = toIso(d)
+            const outside = d.getMonth() !== f.getMonth()
+            const off = (!!min && iso < min) || outside
+            return (
+              <button
+                key={iso}
+                type="button"
+                tabIndex={iso === focus ? 0 : -1}
+                disabled={off}
+                aria-label={d.toLocaleDateString('en-GB', { dateStyle: 'long' })}
+                aria-pressed={iso === value}
+                data-outside={outside ? '' : undefined}
+                data-today={iso === today ? '' : undefined}
+                className="ds-cal-day"
+                onClick={() => onPick(iso)}
+              >
+                {d.getDate()}
+              </button>
+            )
+          })}
+        </div>
+      )}
       {onClear && (
         <div className="ds-cal-foot">
           <button type="button" disabled={!!min && today < min} onClick={() => onPick(today)}>
