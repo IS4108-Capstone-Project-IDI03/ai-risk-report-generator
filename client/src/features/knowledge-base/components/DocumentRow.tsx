@@ -23,6 +23,7 @@ export function DocumentRow({
   onReview,
   onPassages,
   onPublish,
+  onClauses,
   canManage,
 }: {
   document: KnowledgeDocument
@@ -38,6 +39,8 @@ export function DocumentRow({
   onPassages: () => void
   // Publishes a manual draft (IN-18).
   onPublish: () => Promise<void>
+  // Opens a manual document's clauses (IN-18).
+  onClauses: () => void
   // Off for a risk engineer: no Review link, no actions in the details (IN-17).
   canManage: boolean
 }) {
@@ -132,6 +135,7 @@ export function DocumentRow({
               onDelete={onDelete}
               onPassages={onPassages}
               onPublish={onPublish}
+              onClauses={onClauses}
               canManage={canManage}
             />
           </td>

@@ -5,6 +5,7 @@
 // displays it.
 import { useState } from 'react'
 import { Button, Icon } from '../../../design-system'
+import { ManualEntryDialog } from '../components/ManualEntryDialog'
 import { UploadedDocuments } from '../components/UploadedDocuments'
 import { UploadRow } from '../components/UploadRow'
 import { addFiles, clearFinished, useUploads, type Upload } from '../uploads'
@@ -14,14 +15,18 @@ export function AddDocuments({
   narrow,
   onCompleted,
   onReview,
+  onEnterManually,
 }: {
   narrow: boolean
   onCompleted: (count: number) => void
   // Opens a document's Review page (IN-07).
   onReview: (id: string) => void
+  // Opens a manual draft's clauses, new or already being entered (IN-18).
+  onEnterManually: (id: string) => void
 }) {
   const uploads = useUploads()
   const [dragging, setDragging] = useState(false)
+  const [manual, setManual] = useState(false)
   const uploading = uploads.some((u) => u.state === 'uploading')
   // One awaiting a type (IN-19) was accepted too: it is in Recent uploads.
   const accepted = (u: Upload) => u.state === 'queued' || u.state === 'awaiting_type'
@@ -81,6 +86,14 @@ export function AddDocuments({
           </div>
         )}
 
+        {/* For a standard with no file, such as an edition only readable online (IN-18). */}
+        <p className="kb-manual-offer">
+          No PDF?{' '}
+          <Button variant="ghost" size="sm" iconLeft="pen-line" onClick={() => setManual(true)}>
+            Enter a standard manually
+          </Button>
+        </p>
+
         {uploads.length > 0 && (
           <footer className="kb-panel-foot">
             {finished && (
@@ -94,6 +107,8 @@ export function AddDocuments({
           </footer>
         )}
       </section>
+
+      {manual && <ManualEntryDialog onClose={() => setManual(false)} onOpen={onEnterManually} />}
 
       <UploadedDocuments
         narrow={narrow}

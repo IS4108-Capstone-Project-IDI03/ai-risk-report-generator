@@ -1,0 +1,393 @@
+// IN-18: entering a standard clause by clause. "Enter a standard manually" in
+// Add documents starts a draft; its page lists the clauses, and the editor adds,
+// changes and deletes them. The gateway is a stubbed fetch that keeps state.
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import App from '../../App'
+import { signIn } from '../../test/session'
+import { knowledgeTab } from './openTab'
+
+const STANDARD = {
+  issuingBody: 'NFPA',
+  standardNumber: '13',
+  sourceType: 'nfpa_standard',
+  jurisdiction: 'all',
+  facilityType: 'all',
+  edition: '2025',
+  effectiveDate: '2025-01-01',
+  error: null,
+  uploadedAt: '2026-11-19T03:00:00.000Z',
+  history: [],
+  unconfirmed: [],
+  withdrawn: null,
+  handled: null,
+  match: null,
+  newerEdition: null,
+  reinstateBlockedBy: null,
+  fileName: null,
+  fileUrl: null,
+  size: null,
+}
+const DRAFT = {
+  ...STANDARD,
+  id: 'nfpa13',
+  title: 'NFPA 13 Installation of Sprinkler Systems',
+  entryMethod: 'manual',
+  status: 'draft',
+}
+const PUBLISHED = { ...DRAFT, id: 'nfpa20', title: 'NFPA 20 Fire Pumps', status: 'complete' }
+const UPLOADED = {
+  ...STANDARD,
+  id: 'pdf',
+  title: 'NFPA 25 Inspection',
+  entryMethod: 'upload',
+  status: 'complete',
+  fileName: 'nfpa-25.pdf',
+  fileUrl: '/api/knowledge-documents/pdf/file',
+  size: 2048,
+}
+const clause = (n: number, over: object = {}) => ({
+  id: `s${n}`,
+  seq: n,
+  order: n * 10,
+  clause: `8.${n}`,
+  headings: ['Chapter 8 Installation'],
+  text: `Clause ${n} text.`,
+  images: [],
+  indexed: true,
+  indexError: null,
+  checked: true,
+  copiedFrom: null,
+  updatedBy: { id: 'u1', name: 'Sana Patel' },
+  updatedAt: `2026-11-19T0${n}:00:00.000Z`,
+  ...over,
+})
+
+const json = (status: number, body: unknown) =>
+  Promise.resolve(
+    new Response(body === null ? null : JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
+
+// The gateway as these screens use it. `answer` lets a test decide one route's reply.
+type Sent = { method: string; url: string; body: unknown }
+function mockGateway({
+  documents = [DRAFT, PUBLISHED, UPLOADED] as object[],
+  sections = [] as ReturnType<typeof clause>[],
+  answer = {} as Record<string, (body: unknown) => Promise<Response>>,
+} = {}) {
+  const sent: Sent[] = []
+  let next = sections.length + 1
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET'
+    const body = init?.body ? JSON.parse(String(init.body)) : null
+    if (method !== 'GET') sent.push({ method, url, body })
+    const key = `${method} ${url.replace(/\/s\d+/, '/:sid')}`
+    for (const [route, reply] of Object.entries(answer)) if (key.endsWith(route)) return reply(body)
+    if (url === '/api/knowledge-documents/ingested') return json(200, documents)
+    if (url === '/api/knowledge-documents/manual' && method === 'POST') {
+      const created = { ...DRAFT, id: 'new', title: body.title, edition: body.edition }
+      documents.push(created)
+      return json(201, created)
+    }
+    const doc = url.match(/^\/api\/knowledge-documents\/([^/]+)/)?.[1]
+    if (url.endsWith('/sections') && method === 'GET') return json(200, sections)
+    if (url.endsWith('/sections') && method === 'POST') {
+      const saved = clause(next, { ...body, id: `s${next}`, seq: next, order: next * 10 })
+      next += 1
+      sections.push(saved)
+      return json(201, saved)
+    }
+    const sid = url.match(/\/sections\/([^/]+)$/)?.[1]
+    if (sid && method === 'PUT') {
+      const i = sections.findIndex((s) => s.id === sid)
+      sections[i] = { ...sections[i], ...body, updatedAt: '2026-11-19T09:00:00.000Z' }
+      return json(200, sections[i])
+    }
+    if (sid && method === 'DELETE') {
+      sections.splice(
+        sections.findIndex((s) => s.id === sid),
+        1,
+      )
+      return json(204, null)
+    }
+    const reembed = url.match(/\/sections\/([^/]+)\/reembed$/)?.[1]
+    if (reembed) {
+      const i = sections.findIndex((s) => s.id === reembed)
+      sections[i] = { ...sections[i], indexed: true, indexError: null }
+      return json(200, sections[i])
+    }
+    if (doc && method === 'GET') {
+      return json(200, (documents as { id: string }[]).find((d) => d.id === doc) ?? {})
+    }
+    if (url.startsWith('/api/knowledge-documents')) return json(200, [])
+    return Promise.reject(new TypeError('Failed to fetch'))
+  })
+  return { sent, sections }
+}
+
+async function openKnowledgeBase() {
+  render(<App />)
+  await signIn('knowledge_admin')
+  fireEvent.click(screen.getAllByRole('button', { name: 'Knowledge base' })[0])
+}
+async function openClauses(title: string, action = 'Continue editing') {
+  await openKnowledgeBase()
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
+  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  fireEvent.click(within(details).getByRole('button', { name: action }))
+  return screen.findByRole('region', { name: 'Clauses' })
+}
+const editor = () => screen.getByRole('form', { name: /clause/i })
+// A required field's label ends with its marker, so labels are matched from the start.
+const field = (label: string) => new RegExp(`^${label}`)
+const type = (label: string, value: string) =>
+  fireEvent.change(within(editor()).getByLabelText(field(label)), { target: { value } })
+
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  window.history.replaceState(null, '', '/')
+  // The open tab outlives a render; each test starts on Documents.
+  knowledgeTab.current = 'documents'
+})
+
+describe('starting a manual entry', () => {
+  it('collects a standard’s details, creates the draft and opens its clauses', async () => {
+    const { sent } = mockGateway()
+    await openKnowledgeBase()
+    fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
+    const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
+    expect(within(dialog).queryByRole('option', { name: 'Marsh report' })).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
+      target: { value: 'nfpa_standard' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
+      target: { value: '72' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Title')), {
+      target: { value: 'NFPA 72 Fire Alarm Code' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Edition')), { target: { value: '2025' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Start entering' }))
+
+    expect(await screen.findByRole('heading', { name: 'NFPA 72 Fire Alarm Code' })).toBeVisible()
+    expect(window.location.pathname).toBe('/admin/knowledge-base/manual/new')
+    expect(sent[0]).toMatchObject({
+      method: 'POST',
+      url: '/api/knowledge-documents/manual',
+      body: { sourceType: 'nfpa_standard', standardNumber: '72', edition: '2025' },
+    })
+    expect(await screen.findByText(/No clauses yet/)).toBeInTheDocument()
+  })
+
+  it('offers the entry already being made of the same standard', async () => {
+    const reason = 'NFPA 13 (2025) is already being entered. Continue editing that entry.'
+    mockGateway({
+      answer: {
+        'POST /api/knowledge-documents/manual': () =>
+          json(409, { error: reason, documentId: 'nfpa13' }),
+      },
+    })
+    await openKnowledgeBase()
+    fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
+    const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
+    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
+      target: { value: 'nfpa_standard' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
+      target: { value: '13' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Title')), {
+      target: { value: 'NFPA 13' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(field('Edition')), { target: { value: '2025' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Start entering' }))
+
+    expect(await within(dialog).findByText(reason)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue editing' }))
+    expect(await screen.findByRole('heading', { name: DRAFT.title })).toBeVisible()
+  })
+})
+
+describe('the clauses page', () => {
+  it('opens from a draft’s Continue editing and a published entry’s Edit clauses, not a PDF’s', async () => {
+    mockGateway({ sections: [clause(1)] })
+    await openClauses(PUBLISHED.title, 'Edit clauses')
+    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: /^NFPA 25/ }))
+    const details = screen.getByRole('region', { name: `Details of ${UPLOADED.title}` })
+    expect(within(details).queryByRole('button', { name: /clauses/i })).not.toBeInTheDocument()
+    expect(
+      within(details).queryByRole('button', { name: 'Continue editing' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('adds a clause, then lists it as ready', async () => {
+    const { sent } = mockGateway()
+    await openClauses(DRAFT.title)
+
+    type('Clause number', '8.6.1')
+    type('Heading trail', 'Chapter 8 Installation > 8.6 Hangers')
+    type('Text', 'Hangers shall be listed.')
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    const list = screen.getByRole('region', { name: 'Clauses' })
+    expect(await within(list).findByRole('button', { name: /^8\.6\.1/ })).toBeInTheDocument()
+    expect(within(list).getByText('Ready')).toBeInTheDocument()
+    expect(sent.at(-1)).toEqual({
+      method: 'POST',
+      url: '/api/knowledge-documents/nfpa13/sections',
+      body: {
+        clause: '8.6.1',
+        headings: ['Chapter 8 Installation', '8.6 Hangers'],
+        text: 'Hangers shall be listed.',
+        images: [],
+      },
+    })
+    // Ready for the next clause.
+    expect(within(editor()).getByLabelText(field('Clause number'))).toHaveValue('')
+  })
+
+  it('shows a clause that failed to embed, and Re-embed clears it', async () => {
+    const { sent } = mockGateway({
+      sections: [clause(1, { indexed: false, indexError: "Search couldn't be updated." })],
+    })
+    const list = await openClauses(DRAFT.title)
+
+    expect(await within(list).findByText('Failed to embed')).toBeInTheDocument()
+    fireEvent.click(within(list).getByRole('button', { name: 'Re-embed 8.1' }))
+
+    expect(await within(list).findByText('Ready')).toBeInTheDocument()
+    expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/sections/s1/reembed')
+  })
+
+  it('changes a clause, sending the time it was loaded', async () => {
+    const { sent } = mockGateway({ sections: [clause(1)] })
+    const list = await openClauses(DRAFT.title)
+
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.1/ }))
+    expect(within(editor()).getByLabelText(field('Text'))).toHaveValue('Clause 1 text.')
+    type('Text', 'Amended text.')
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    await waitFor(() => expect(sent.at(-1)?.method).toBe('PUT'))
+    expect(sent.at(-1)).toMatchObject({
+      url: '/api/knowledge-documents/nfpa13/sections/s1',
+      body: { text: 'Amended text.', updatedAt: '2026-11-19T01:00:00.000Z' },
+    })
+  })
+
+  it('shows a clause number already used under the field', async () => {
+    mockGateway({
+      sections: [clause(1)],
+      answer: {
+        'POST /api/knowledge-documents/nfpa13/sections': () =>
+          json(409, {
+            error: 'Clause 8.1 already exists.',
+            fields: { clause: 'Clause 8.1 already exists.' },
+          }),
+      },
+    })
+    await openClauses(DRAFT.title)
+
+    type('Clause number', '8.1')
+    type('Text', 'Again.')
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    expect(await within(editor()).findByText('Clause 8.1 already exists.')).toBeInTheDocument()
+  })
+
+  it('says when someone else saved the clause first', async () => {
+    const reason =
+      'Someone else saved this clause since you opened it. Reload it to see their change.'
+    mockGateway({
+      sections: [clause(1)],
+      answer: {
+        'PUT /api/knowledge-documents/nfpa13/sections/:sid': () => json(409, { error: reason }),
+      },
+    })
+    const list = await openClauses(DRAFT.title)
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.1/ }))
+    type('Text', 'Mine.')
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    expect(await within(editor()).findByText(reason)).toBeInTheDocument()
+    expect(within(editor()).getByLabelText(field('Text'))).toHaveValue('Mine.')
+  })
+
+  it('needs a clause number and some text before saving', async () => {
+    const { sent } = mockGateway()
+    await openClauses(DRAFT.title)
+
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Save clause' }))
+
+    expect(within(editor()).getByText('Enter the clause number.')).toBeInTheDocument()
+    expect(within(editor()).getByText('Enter the clause text.')).toBeInTheDocument()
+    expect(sent).toEqual([])
+  })
+
+  it('deletes a clause after asking', async () => {
+    const { sent } = mockGateway({ sections: [clause(1), clause(2)] })
+    const list = await openClauses(DRAFT.title)
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.1/ }))
+
+    fireEvent.click(within(editor()).getByRole('button', { name: 'Delete clause' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete clause 8.1?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(within(list).queryByRole('button', { name: /^8\.1 / })).not.toBeInTheDocument(),
+    )
+    expect(sent.at(-1)).toMatchObject({
+      method: 'DELETE',
+      url: '/api/knowledge-documents/nfpa13/sections/s1',
+    })
+    expect(await screen.findByText('Clause 8.1 deleted.')).toBeInTheDocument()
+  })
+
+  it('asks before dropping unsaved changes, and keeps them if you stay', async () => {
+    mockGateway({ sections: [clause(1), clause(2)] })
+    const list = await openClauses(DRAFT.title)
+    fireEvent.click(await within(list).findByRole('button', { name: /^8\.1/ }))
+    type('Text', 'Half typed')
+
+    fireEvent.click(within(list).getByRole('button', { name: /^8\.2/ }))
+    const ask = screen.getByRole('dialog', { name: 'Discard your changes?' })
+    fireEvent.click(within(ask).getByRole('button', { name: 'Keep editing' }))
+
+    expect(within(editor()).getByLabelText(field('Text'))).toHaveValue('Half typed')
+
+    fireEvent.click(within(list).getByRole('button', { name: /^8\.2/ }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Discard your changes?' })).getByRole('button', {
+        name: 'Discard',
+      }),
+    )
+    expect(within(editor()).getByLabelText(field('Text'))).toHaveValue('Clause 2 text.')
+  })
+
+  it('goes back to the documents', async () => {
+    mockGateway()
+    await openClauses(DRAFT.title)
+
+    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+
+    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+  })
+})

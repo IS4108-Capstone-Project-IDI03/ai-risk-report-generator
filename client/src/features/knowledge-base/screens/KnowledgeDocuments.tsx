@@ -111,6 +111,7 @@ export function KnowledgeDocuments({
   onAdd,
   onNeedReview,
   onReview,
+  onClauses,
   canManage,
 }: {
   // The document a notification opened (F-10), marked once and scrolled into view.
@@ -121,6 +122,8 @@ export function KnowledgeDocuments({
   onNeedReview: (count: number) => void
   // Opens a document's Review page (IN-07), keeping the filters for the way back.
   onReview: (id: string, filters: Filters) => void
+  // Opens a manual document's clauses (IN-18), keeping the filters for the way back.
+  onClauses: (id: string, filters: Filters) => void
   // Off for a risk engineer, who browses read-only (IN-17).
   canManage: boolean
 }) {
@@ -376,6 +379,7 @@ export function KnowledgeDocuments({
                   onReview={(document) => onReview(document.id, filters)}
                   onPassages={setPassagesOf}
                   onPublish={publish}
+                  onClauses={(document) => onClauses(document.id, filters)}
                   canManage={canManage}
                 />
               )

@@ -35,6 +35,17 @@
 .kb-panel > .kb-empty {
   padding: 20px;
 }
+/* "No PDF? Enter a standard manually" (IN-18): a quiet line under the files. */
+.kb-manual-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 20px 16px;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
 .kb-panel-head {
   display: flex;
   flex-wrap: wrap;

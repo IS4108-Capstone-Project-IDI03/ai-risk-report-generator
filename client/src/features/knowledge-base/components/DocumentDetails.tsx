@@ -32,6 +32,7 @@ export function DocumentDetails({
   onDelete,
   onPassages,
   onPublish,
+  onClauses,
   canManage,
 }: {
   id: string
@@ -44,6 +45,8 @@ export function DocumentDetails({
   onPassages: () => void
   // Publishes a manual draft (IN-18); settles once the gateway has answered.
   onPublish: () => Promise<void>
+  // Opens a manual document's clauses (IN-18).
+  onClauses: () => void
   // Off for a risk engineer: the details show, no action that changes them (IN-17).
   canManage: boolean
 }) {
@@ -96,6 +99,18 @@ export function DocumentDetails({
         )}
       </dl>
       <div className="kb-details-actions">
+        {/* A manual entry's clauses: still being entered, or amended once published (IN-18).
+            Not once withdrawn: its PDF replaced it. */}
+        {canManage && d.entryMethod === 'manual' && !d.withdrawn && (
+          <Button
+            variant={draft ? 'secondary' : 'tonal'}
+            size="sm"
+            iconLeft={IconRegistry.action.edit}
+            onClick={onClauses}
+          >
+            {draft ? 'Continue editing' : 'Edit clauses'}
+          </Button>
+        )}
         {canManage && draft && (
           <Button variant="tonal" size="sm" iconLeft="check" loading={publishing} onClick={publish}>
             Publish

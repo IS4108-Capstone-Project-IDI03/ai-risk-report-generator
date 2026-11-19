@@ -236,6 +236,93 @@ export function correctKnowledgeDocument(
   })
 }
 
+// ─── Manual entry (IN-18) ───────────────────────────────────────────────────
+
+// A standard's details for a new manual entry, as Edit details sends them.
+// `copyFrom` starts it from another edition's clauses (Start from).
+export function createManualDocument(
+  details: DocumentDetails,
+  copyFrom?: string,
+): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>('/api/knowledge-documents/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...Object.fromEntries(filled(details)), ...(copyFrom && { copyFrom }) }),
+  })
+}
+
+export type ManualImageKind = 'table' | 'formula' | 'picture'
+export type ManualImage = { key: string; kind: ManualImageKind; text: string }
+
+// One clause of a manual document; matches ManualSectionDto in
+// server/src/services/manual-section.service.ts.
+export type ManualSection = {
+  id: string
+  // Its fixed number (its passages' ids); `order` is its place in the list.
+  seq: number
+  order: number
+  clause: string
+  headings: string[]
+  text: string
+  images: ManualImage[]
+  // In search as saved; false after a failed embedding (`indexError` says why).
+  indexed: boolean
+  indexError: string | null
+  // Saved by an admin for this edition; false for a clause copied from another.
+  checked: boolean
+  copiedFrom: { documentId: string; clause: string } | null
+  updatedBy: { id: string; name: string }
+  updatedAt: string
+}
+
+// What the admin saves for a clause.
+export type ClauseInput = {
+  clause: string
+  headings: string[]
+  text: string
+  images: ManualImage[]
+  order?: number
+}
+
+const sectionsPath = (id: string) => `/api/knowledge-documents/${encodeURIComponent(id)}/sections`
+
+export function listManualSections(id: string, signal?: AbortSignal): Promise<ManualSection[]> {
+  return request<ManualSection[]>(sectionsPath(id), { signal })
+}
+
+export function addManualSection(id: string, clause: ClauseInput): Promise<ManualSection> {
+  return request<ManualSection>(sectionsPath(id), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(clause),
+  })
+}
+
+// Saves a change; `updatedAt` is the one it was loaded with, so a newer save is not overwritten.
+export function changeManualSection(
+  id: string,
+  sectionId: string,
+  clause: ClauseInput,
+  updatedAt: string,
+): Promise<ManualSection> {
+  return request<ManualSection>(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...clause, updatedAt }),
+  })
+}
+
+export function deleteManualSection(id: string, sectionId: string): Promise<void> {
+  return send(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}`, { method: 'DELETE' })
+}
+
+export function reembedManualSection(id: string, sectionId: string): Promise<ManualSection> {
+  return request<ManualSection>(
+    `${sectionsPath(id)}/${encodeURIComponent(sectionId)}/reembed`,
+    { method: 'POST' },
+  )
+}
+
 // Publishes a manual draft and returns it, active or Needs review (IN-18).
 // Rejects with the gateway's reason: 409 when a clause isn't indexed or checked yet.
 export function publishManualDocument(id: string): Promise<KnowledgeDocument> {

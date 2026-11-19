@@ -66,7 +66,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       error?: string
       fields?: Record<string, string>
     }
-    throw new GatewayError(response.status, problem.error, problem.fields)
+    // The whole body too, for routes that say more (e.g. which document a 409 names, IN-18).
+    throw new GatewayError(response.status, problem.error, problem.fields, problem)
   }
   return (await response.json()) as T
 }
