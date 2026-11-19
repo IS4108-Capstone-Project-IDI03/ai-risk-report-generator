@@ -48,6 +48,9 @@ import {
   manualSectionChangeSchema,
   manualSectionSchema,
   reembedManualSection,
+  addScreenshot,
+  getScreenshot,
+  screenshotQuerySchema,
 } from '../services/manual-section.service'
 import { requirePermission } from '../middleware/auth.middleware'
 
@@ -203,6 +206,50 @@ router.delete('/:id/sections/:sid', requirePermission('knowledge:manage'), async
     answerClause(error, res)
   }
 })
+
+// Reads a screenshot of a table, formula or picture with OCR and stores it, for a
+// clause to hold once saved. The body is the image; `kind` and the clause's heading
+// trail (`context`) are in the query. Answers: 201 `{ key, kind, text, readError }`
+// (text '' with a reason when OCR read nothing) · 400 no kind · 404 · 409 not
+// editable · 413 over 10 MB · 415 not a PNG, JPG or WebP · 422 an image that won't open.
+router.post(
+  '/:id/sections/screenshots',
+  requirePermission('knowledge:manage'),
+  express.raw({ type: '*/*', limit: '10mb' }),
+  async (req, res) => {
+    const parsed = screenshotQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json(invalidDetails(parsed.error))
+      return
+    }
+    try {
+      const image = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)
+      res.status(201).json(await addScreenshot(req.params.id, image, parsed.data))
+    } catch (error: unknown) {
+      if (error instanceof RejectedFileError) {
+        res.status(error.status).json({ error: error.message })
+        return
+      }
+      answerClause(error, res)
+    }
+  },
+)
+
+// Streams a screenshot a clause holds, to anyone who can view (the citation view shows it).
+// Answers: 200 the image · 404 not one a clause of this document holds.
+router.get(
+  '/:id/sections/screenshots/:name',
+  requirePermission('knowledge:view'),
+  async (req, res) => {
+    try {
+      const shot = await getScreenshot(req.params.id, req.params.name)
+      res.set({ 'Content-Type': shot.contentType, 'Cache-Control': 'private, max-age=86400' })
+      pipeline(await shot.open(), res, () => undefined)
+    } catch (error: unknown) {
+      answerClause(error, res)
+    }
+  },
+)
 
 // Indexes a clause again as saved. Answers: 200 (`indexed` says whether it worked) · 404 · 409.
 router.post(
@@ -426,7 +473,9 @@ router.get('/:id/file', requirePermission('knowledge:view'), async (req, res) =>
 // express.raw rejects a body over the limit before the handler runs.
 const tooLarge: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type !== 'entity.too.large') return next(error)
-  res.status(413).json({ error: 'The file is larger than 100 MB.' })
+  // The route's own limit: 100 MB for a document, 10 MB for a screenshot (IN-18).
+  const mb = typeof error.limit === 'number' ? Math.round(error.limit / 1024 / 1024) : 100
+  res.status(413).json({ error: `The file is larger than ${mb} MB.` })
 }
 router.use(tooLarge)
 

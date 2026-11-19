@@ -188,6 +188,61 @@ export async function indexManualSection(
   await recordAiCalls(answer.usage, { documentId })
 }
 
+// Ingestion couldn't open a screenshot as an image (its 422): the reason is shown to the admin.
+export class ScreenshotRejectedError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'ScreenshotRejectedError'
+  }
+}
+
+// OCR on a screenshot takes one model call; a big table can take a while.
+const RECOGNISE_TIMEOUT_MS = 90_000
+
+/**
+ * Reads a manual clause's screenshot with OCR_PROVIDER (IN-18): table records,
+ * LaTeX or a picture's description, recorded against the document. Returns
+ * null when it couldn't be read (the provider read nothing, or ingestion is
+ * down), so the admin can type the text instead. Throws ScreenshotRejectedError
+ * when the file isn't an image ingestion can open.
+ */
+export async function recogniseScreenshot(
+  documentId: string,
+  image: Buffer,
+  kind: string,
+  context: string,
+): Promise<string | null> {
+  const form = new FormData()
+  form.append('file', new Blob([new Uint8Array(image)]), 'screenshot')
+  form.append('kind', kind)
+  form.append('documentId', documentId)
+  form.append('context', context)
+  try {
+    const response = await fetch(`${config.ingestionServiceUrl}/recognise`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(RECOGNISE_TIMEOUT_MS),
+    })
+    const answer = (await response.json().catch(() => ({}))) as {
+      text?: unknown
+      usage?: unknown
+      detail?: unknown
+    }
+    if (response.status === 422) {
+      throw new ScreenshotRejectedError(
+        typeof answer.detail === 'string' ? answer.detail : 'The image could not be opened.',
+      )
+    }
+    if (!response.ok || typeof answer.text !== 'string') return null
+    await recordAiCalls(answer.usage, { documentId })
+    return answer.text
+  } catch (error) {
+    if (error instanceof ScreenshotRejectedError) throw error
+    console.error('Reading a screenshot failed:', error)
+    return null
+  }
+}
+
 // Deletes one clause's passages from search (IN-18). Throws IngestionUnavailableError.
 export async function deleteManualSectionPassages(
   documentId: string,

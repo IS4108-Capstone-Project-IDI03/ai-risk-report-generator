@@ -2,6 +2,7 @@
 // the draft document, then its clauses. A manual document never goes through
 // the ingestion queue: each clause is indexed as it is saved
 // (ingestion-service app/manual.py), and `manual_sections` holds its text.
+import { randomUUID } from 'crypto'
 import { isValidObjectId, type Types } from 'mongoose'
 import { z } from 'zod'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
@@ -15,12 +16,15 @@ import {
   deleteManualSectionPassages,
   indexManualSection,
   IngestionUnavailableError,
+  recogniseScreenshot,
+  ScreenshotRejectedError,
 } from './ingestion.service'
 import {
   documentDetailsSchema,
   KnowledgeDocumentNotFoundError,
   KnowledgeDocumentWrongStateError,
   recordFields,
+  RejectedFileError,
   reportCitations,
   toDtoOf,
 } from './knowledge-document.service'
@@ -395,4 +399,96 @@ export async function deleteManualSection(documentId: string, sectionId: string)
   await Promise.all(
     section.images.map((image) => storage.deleteObject(image.key).catch(() => undefined)),
   )
+}
+
+// ─── Screenshots ────────────────────────────────────────────────────────────
+
+// The image types a screenshot may be, by their first bytes (the Content-Type
+// is ignored, as for uploads). Ingestion reads each as PNG.
+const SCREENSHOT_TYPES = [
+  {
+    ext: 'png',
+    type: 'image/png',
+    is: (b: Buffer) => b.subarray(0, 8).toString('hex') === '89504e470d0a1a0a',
+  },
+  {
+    ext: 'jpg',
+    type: 'image/jpeg',
+    is: (b: Buffer) => b.subarray(0, 3).toString('hex') === 'ffd8ff',
+  },
+  {
+    ext: 'webp',
+    type: 'image/webp',
+    is: (b: Buffer) =>
+      b.subarray(0, 4).toString('latin1') === 'RIFF' &&
+      b.subarray(8, 12).toString('latin1') === 'WEBP',
+  },
+]
+// A stored screenshot's file name: the id given at upload and its type.
+const SCREENSHOT_NAME = /^[0-9a-f-]{36}\.(png|jpg|webp)$/
+
+export const screenshotQuerySchema = z.object({
+  kind: z.enum(MANUAL_IMAGE_KINDS, 'Say whether the screenshot is a table, formula or picture.'),
+  // The clause's heading trail, which helps a picture's description.
+  context: z.string().max(2000).default(''),
+})
+
+export type ScreenshotDto = {
+  key: string
+  kind: ManualImageKind
+  // What OCR read, for the admin to correct before saving the clause; '' if it read nothing.
+  text: string
+  // Why there is no text to correct, or null.
+  readError: string | null
+}
+
+/**
+ * Reads a screenshot with OCR and stores it under the document
+ * (`knowledge/<id>/sections/<uuid>.<ext>`), returning its key and the text to
+ * correct. The clause holds it once saved. Refuses (RejectedFileError 415) a
+ * file that isn't a PNG, JPG or WebP, and (422) one ingestion can't open.
+ * When OCR reads nothing, the image is still kept and the text is left to type.
+ */
+export async function addScreenshot(
+  documentId: string,
+  image: Buffer,
+  { kind, context }: z.infer<typeof screenshotQuerySchema>,
+): Promise<ScreenshotDto> {
+  await editableDocument(documentId)
+  const type = SCREENSHOT_TYPES.find((t) => t.is(image))
+  if (!type) throw new RejectedFileError(415, 'Add a PNG, JPG or WebP image.')
+  let text: string | null
+  try {
+    text = await recogniseScreenshot(documentId, image, kind, context)
+  } catch (error) {
+    if (error instanceof ScreenshotRejectedError) throw new RejectedFileError(422, error.message)
+    throw error
+  }
+  const key = `knowledge/${documentId}/sections/${randomUUID()}.${type.ext}`
+  await storage.putObject(key, image, type.type)
+  return {
+    key,
+    kind,
+    text: text ?? '',
+    readError: text
+      ? null
+      : "The image couldn't be read automatically. Type its text in, or try again.",
+  }
+}
+
+/**
+ * Returns a screenshot a clause of this document holds, to stream (IN-18). Anything
+ * else, including one uploaded but never saved, is not found.
+ */
+export async function getScreenshot(documentId: string, name: string) {
+  await manualDocument(documentId)
+  const found = SCREENSHOT_NAME.exec(name)
+  const key = `knowledge/${documentId}/sections/${name}`
+  if (!found || !(await ManualSectionModel.exists({ documentId, 'images.key': key }))) {
+    throw new KnowledgeDocumentNotFoundError()
+  }
+  return {
+    contentType: SCREENSHOT_TYPES.find((t) => t.ext === found[1])!.type,
+    open: () => storage.getObjectStream(key),
+  }
 }
