@@ -52,7 +52,13 @@ export async function splitNote(
   // b. Split by my codes; remember each uncoded line's position.
   const { codes, glossary } = await noteTakingFor(user.id)
   const slots: (IPart[] | string)[] = [] // typed parts, or the uncoded line waiting for rag
-  for (const line of note.split(/\r?\n/).filter((l) => l.trim())) {
+  // A line that is only a code ("F:") has nothing to sort. Without this it goes to the AI, which
+  // invents a part such as "the line contains only the code F".
+  const bareCode = new RegExp(
+    `^\\s*(${NOTE_KINDS.map((k) => escapeRegex(codes[k])).join('|')})\\s*:\\s*$`,
+    'i',
+  )
+  for (const line of note.split(/\r?\n/).filter((l) => l.trim() && !bareCode.test(l))) {
     const coded = codedLine(line, codes)
     slots.push(
       coded

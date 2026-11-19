@@ -142,6 +142,14 @@ describe('splitting a shorthand note (CP-35)', () => {
     line,
   })
 
+  it('drops a line that is only a code, and makes no AI call for it', async () => {
+    const res = await split('F:\nIR:   \nREC :\nF: pump room dry')
+    expect(res.status).toBe(200)
+    expect(res.body.parts).toHaveLength(1)
+    expect(res.body.parts[0]).toMatchObject({ kind: 'fact', text: 'pump room dry' })
+    expect(rag).not.toHaveBeenCalled()
+  })
+
   it('keeps a line split into two fragments together at its position', async () => {
     rag.mockReturnValue(json({ parts: [part('a1', 0), part('a2', 0), part('b1', 1)] }))
     const res = await split('line a\nF: coded\nline b')

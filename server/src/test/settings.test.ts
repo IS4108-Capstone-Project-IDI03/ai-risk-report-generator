@@ -390,3 +390,11 @@ describe('note-taking settings (CP-35)', () => {
     expect((await me.get('/api/settings')).body.noteTaking.codes.fact).toBe('F')
   })
 })
+
+describe('glossary messages (CP-35)', () => {
+  it('says a glossary must be a list when it is not one', async () => {
+    const res = await engineer.patch('/api/settings/me').send({ glossary: { a: 1 } })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/must be a list/)
+  })
+})

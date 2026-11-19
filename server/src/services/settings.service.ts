@@ -328,9 +328,8 @@ function checkCodes(input: unknown): NoteCodes | null {
 
 // Checks the glossary part of a personal save; returns the trimmed entries.
 function checkGlossary(input: unknown): GlossaryEntry[] {
-  if (!Array.isArray(input) || input.length > 200) {
-    throw new SettingsInputError('The glossary can hold at most 200 terms.')
-  }
+  if (!Array.isArray(input)) throw new SettingsInputError('The glossary must be a list.')
+  if (input.length > 200) throw new SettingsInputError('The glossary can hold at most 200 terms.')
   const seen = new Set<string>()
   return input.map((entry) => {
     const e = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {}

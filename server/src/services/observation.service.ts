@@ -194,7 +194,8 @@ export const newObservationSchema = z.object({
     .max(50, 'A note can have at most 50 parts.')
     .optional()
     // A part without an id gets one here, so the client can always key on it.
-    .transform((parts) => parts?.map((p) => ({ ...p, id: p.id || randomUUID() }))),
+    // Always a fresh id: a client-sent id could repeat, and two parts would then share one.
+    .transform((parts) => parts?.map((p) => ({ ...p, id: randomUUID() }))),
 
   // Sent explicitly: null or [] leaves the observation uncategorised (CP-02 AC4).
   copeDimensions: copeDimensionsField,

@@ -176,6 +176,19 @@ describe('confirmed parts of a shorthand note (CP-35)', () => {
       'info_request',
     )
   })
+  it('gives every part its own id, ignoring any id the client sends', async () => {
+    await assessmentWithSession()
+    const res = await note({
+      parts: [
+        { id: 'same', kind: 'fact', text: 'One', shorthand: '' },
+        { id: 'same', kind: 'fact', text: 'Two', shorthand: '' },
+      ],
+    })
+    expect(res.status).toBe(201)
+    const [a, b] = res.body.parts
+    expect(a.id).not.toBe('same')
+    expect(a.id).not.toBe(b.id)
+  })
   it('saves an added part with an empty shorthand', async () => {
     await assessmentWithSession()
     const res = await note({
