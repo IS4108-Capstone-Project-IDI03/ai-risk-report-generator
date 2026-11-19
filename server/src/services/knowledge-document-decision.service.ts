@@ -6,6 +6,7 @@ import { isValidObjectId, type HydratedDocument } from 'mongoose'
 import { z } from 'zod'
 import { KnowledgeDocumentModel, type IKnowledgeDocument } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
+import { ManualSectionModel } from '../models/manual-section.model'
 import {
   deletePassages,
   getComparison,
@@ -150,21 +151,27 @@ async function saveAndRelabel(changes: Change[]): Promise<void> {
   }
 }
 
-// Removes a document completely, in order: passages, file, ingestion job, record.
-// Passages go first so that if Chroma is down nothing has changed yet (a 503);
-// each step is safe to repeat, so the admin can retry after a later failure.
-// Then every document that pointed at it is matched again.
+// Removes a document completely, in order: passages, file, a manual document's
+// clauses and screenshots (IN-18), ingestion job, record. Passages go first so
+// that if Chroma is down nothing has changed yet (a 503); each step is safe to
+// repeat, so the admin can retry after a later failure. Then every document
+// that pointed at it is matched again.
 async function discard(doc: Doc): Promise<void> {
   await deletePassages(String(doc._id))
   try {
-    // A manually entered standard has no file (IN-18).
-    if (doc.file) await storage.deleteObject(doc.file.key)
+    // A manually entered standard has no file (IN-18). On a hydrated document a
+    // missing nested `file` still reads as {}, so the key is what's checked.
+    if (doc.file?.key) await storage.deleteObject(doc.file.key)
   } catch (error) {
     console.error('Deleting the file failed:', error)
     throw new IngestionUnavailableError(
       "The file couldn't be removed from storage, so the document was not discarded. Try again shortly.",
     )
   }
+  const shots = await ManualSectionModel.distinct('images.key', { documentId: doc._id })
+  // Best effort: an orphaned screenshot costs storage, never correctness.
+  await Promise.all(shots.map((key: string) => storage.deleteObject(key).catch(() => undefined)))
+  await ManualSectionModel.deleteMany({ documentId: doc._id })
   await IngestionJobModel.deleteMany({ documentId: doc._id })
   await KnowledgeDocumentModel.deleteOne({ _id: doc._id })
 

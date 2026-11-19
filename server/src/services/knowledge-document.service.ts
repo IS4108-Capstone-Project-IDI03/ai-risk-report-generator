@@ -356,7 +356,7 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     status: d.status,
     error: d.error ?? null,
     uploadedAt: d.createdAt,
-    fileUrl: d.file ? `/api/knowledge-documents/${d._id}/file` : null,
+    fileUrl: d.file?.key ? `/api/knowledge-documents/${d._id}/file` : null,
     withdrawn: d.withdrawn ? { at: d.withdrawn.at, by: d.withdrawn.by } : null,
     handled: d.handled ? { at: d.handled.at, by: d.handled.by } : null,
     // Records from before history existed have no field; `?? []` gives them none.
@@ -930,11 +930,12 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
 
 /**
  * Returns every ingested document (ingestion complete), active or withdrawn,
- * sorted by title A–Z (KB-01). The collation sorts as a reader would:
- * "apple" beside "Apple", not after every capital letter.
+ * and every manual draft (IN-18), so any admin can continue one, sorted by
+ * title A–Z (KB-01). The collation sorts as a reader would: "apple" beside
+ * "Apple", not after every capital letter.
  */
 export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
-  const documents = await KnowledgeDocumentModel.find({ status: 'complete' })
+  const documents = await KnowledgeDocumentModel.find({ status: { $in: ['complete', 'draft'] } })
     .collation({ locale: 'en' })
     .sort({ title: 1 })
     .lean()
