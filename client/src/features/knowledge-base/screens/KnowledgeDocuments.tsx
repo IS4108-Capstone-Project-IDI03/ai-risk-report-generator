@@ -67,6 +67,12 @@ const STATUS_FILTER = [
   // A manual entry still being typed in (IN-18).
   { value: 'draft', label: 'Draft' },
 ]
+// How a document entered the knowledge base (IN-18).
+const ENTRY_FILTER = [
+  { value: '', label: 'Any entry' },
+  { value: 'upload', label: 'Uploaded' },
+  { value: 'manual', label: 'Manual entry' },
+]
 // Whether a document shows the status badge chosen in the filter; must match
 // components/DocumentRow.tsx, where Needs review is never Active (IN-05) and a
 // draft is neither (IN-18).
@@ -170,7 +176,8 @@ export function KnowledgeDocuments({
       (!filters.sourceType || d.sourceType === filters.sourceType) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
-      (!filters.status || hasStatus(d, filters.status)),
+      (!filters.status || hasStatus(d, filters.status)) &&
+      (!filters.entry || d.entryMethod === filters.entry),
   )
   // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
@@ -292,6 +299,13 @@ export function KnowledgeDocuments({
             options={STATUS_FILTER}
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          />
+          <Select
+            size="sm"
+            aria-label="Entry"
+            options={ENTRY_FILTER}
+            value={filters.entry}
+            onChange={(e) => setFilters({ ...filters, entry: e.target.value })}
           />
           {filtering && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>

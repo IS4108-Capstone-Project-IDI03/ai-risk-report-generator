@@ -74,6 +74,12 @@ export function DocumentRow({
                   ? `Report date ${calendarDate(d.effectiveDate)}`
                   : 'Edition unconfirmed'}
             </small>
+            {/* Typed in clause by clause, not uploaded (IN-18). */}
+            {d.entryMethod === 'manual' && (
+              <span className="kb-entry">
+                <Badge tone="neutral">Manual entry</Badge>
+              </span>
+            )}
             {/* Why it needs review, or which edition replaced it (IN-07). */}
             {needsReview(d) && <small className="kb-why">{reviewReasons(d).join(' · ')}</small>}
             {d.withdrawn && d.newerEdition && (

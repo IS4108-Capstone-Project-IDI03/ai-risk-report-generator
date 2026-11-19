@@ -441,6 +441,9 @@ export type DocumentPassage = {
   status: string | null
   kind: 'text' | 'table' | 'formula' | 'picture'
   generated: boolean
+  // A manual clause's screenshot keys, shown in place of a page region (IN-18); absent
+  // from answers before IN-18.
+  images?: string[]
 }
 
 // A chapter or section of a document's outline and how many passages it holds. "" is

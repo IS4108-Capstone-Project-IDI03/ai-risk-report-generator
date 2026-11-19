@@ -7,6 +7,8 @@ export const NO_FILTERS = {
   jurisdiction: '',
   facilityType: '',
   status: '',
+  // How it entered the knowledge base: 'upload' or 'manual' (IN-18).
+  entry: '',
 }
 
 export type Filters = typeof NO_FILTERS

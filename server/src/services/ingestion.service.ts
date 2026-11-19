@@ -337,6 +337,8 @@ export type DocumentPassage = {
   status: string | null
   kind: 'text' | 'table' | 'formula' | 'picture'
   generated: boolean
+  // A manual clause's screenshot keys (IN-18); empty for every other passage.
+  images: string[]
 }
 
 // A chapter or section of the document's outline, with how many passages it holds. ""

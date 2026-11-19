@@ -60,13 +60,24 @@ const json = (status: number, body: unknown) =>
   )
 
 // The Documents list answers `documents`; Publish answers `onPublish`. Returns each publish's id.
+// Every URL the screens asked for, to check what a manual document never fetches.
+const requested: string[] = []
 function mockGateway(
   documents: object[],
   onPublish: (id: string) => Promise<Response> = () => json(500, {}),
+  // What a document's Passages view lists (IN-17).
+  listing: object = {
+    total: 0,
+    passages: [],
+    outline: { by: 'section', chapters: [], sections: [] },
+  },
 ) {
   const published: string[] = []
+  requested.length = 0
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    requested.push(url)
     if (url === '/api/knowledge-documents/ingested') return json(200, documents)
+    if (/^\/api\/knowledge-documents\/[^/]+\/passages/.test(url)) return json(200, listing)
     const publish = url.match(/^\/api\/knowledge-documents\/([^/]+)\/publish$/)
     if (publish && init?.method === 'POST') {
       published.push(publish[1])
@@ -235,5 +246,70 @@ describe('the Review page’s choices for a manual entry’s match (IN-18)', () 
 
     expect(choicesFor(manual)[1].consequence).toMatch(/This manual entry is withdrawn/)
     expect(outcomeMessage(manual, 'replace_manual')).toMatch(/replaces this manual entry/)
+  })
+})
+
+// T17: telling manual entries apart in the Documents list, and their passages.
+describe('manual entries in the IN-17 browser (IN-18)', () => {
+  it('filters by how a document was entered, and marks a manual entry', async () => {
+    mockGateway([DRAFT, UPLOADED])
+    await openKnowledgeBase()
+
+    expect(within(await row(DRAFT.title)).getByText('Manual entry')).toBeInTheDocument()
+    expect(within(await row(UPLOADED.title)).queryByText('Manual entry')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Entry'), { target: { value: 'manual' } })
+    expect(screen.queryByRole('button', { name: /^NFPA 20/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^NFPA 13/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Entry'), { target: { value: 'upload' } })
+    expect(screen.queryByRole('button', { name: /^NFPA 13/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^NFPA 20/ })).toBeInTheDocument()
+  })
+
+  it('shows a manual passage’s screenshot above its text, with no page and no file fetched', async () => {
+    const PUBLISHED = { ...DRAFT, id: 'manual', status: 'complete' }
+    const shot = 'knowledge/manual/sections/0b7c7c3e-6d1b-4a6e-9a51-6a0f8c1e2f3a.png'
+    mockGateway([PUBLISHED], undefined, {
+      total: 1,
+      passages: [
+        {
+          id: 'manual:1',
+          position: 1,
+          text: 'Pipe size: 25 mm; Max spacing: 3.7 m',
+          headings: ['Chapter 8 Installation', '8.6 Hangers'],
+          section: 'Not applicable',
+          pageStart: null,
+          pageEnd: null,
+          status: 'active',
+          kind: 'table',
+          generated: false,
+          images: [shot],
+        },
+      ],
+      outline: {
+        by: 'clause',
+        chapters: [{ name: '8', count: 1, title: 'Installation' }],
+        sections: [],
+      },
+    })
+    await openKnowledgeBase('risk_engineer')
+    const details = await open(PUBLISHED.title)
+    fireEvent.click(within(details).getByRole('button', { name: 'View passages' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Passages' })
+
+    const passage = (await within(dialog).findByRole('button', { name: /8\.6 Hangers/ })).closest(
+      'tr',
+    )!
+    expect(within(passage).getByText('—')).toBeInTheDocument()
+    fireEvent.click(within(passage).getByRole('button', { name: /8\.6 Hangers/ }))
+
+    const image = await within(dialog).findByRole('img', { name: 'Table' })
+    expect(image).toHaveAttribute(
+      'src',
+      '/api/knowledge-documents/manual/sections/screenshots/0b7c7c3e-6d1b-4a6e-9a51-6a0f8c1e2f3a.png',
+    )
+    expect(requested.some((u) => u.includes('/api/chat/passages/'))).toBe(false)
+    expect(requested.some((u) => u.endsWith('/file'))).toBe(false)
   })
 })

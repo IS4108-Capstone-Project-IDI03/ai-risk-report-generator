@@ -484,6 +484,11 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+/* "Manual entry" (IN-18), on its own line under the edition. */
+.kb-toggle .kb-entry {
+  display: block;
+  margin-top: 4px;
+}
 
 /* An open document's details: the full table width, indented to the title,
    on the sunken surface with the 2px ink rule the system uses for a selected

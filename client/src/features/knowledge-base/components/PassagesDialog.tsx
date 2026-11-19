@@ -21,6 +21,7 @@ import {
 } from '../../../design-system'
 import {
   listDocumentPassages,
+  screenshotUrl,
   type DocumentPassage,
   type KnowledgeDocument,
   type OutlineEntry,
@@ -29,6 +30,7 @@ import {
   type SearchMode,
 } from '../api'
 import { needsReview } from '../display'
+import { CitedImage } from '../../sources/CitedImage'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
 import { useFoldedText } from '../../sources/useFoldedText'
@@ -239,6 +241,7 @@ export function PassagesDialog({
                     <PassageRow
                       key={p.id}
                       passage={p}
+                      documentId={d.id}
                       fileUrl={d.fileUrl}
                       open={openId === p.id}
                       onToggle={() => setOpenId(openId === p.id ? null : p.id)}
@@ -403,11 +406,13 @@ function LoadingRows() {
 /** One passage's row, and beneath it when open, the passage in full. */
 function PassageRow({
   passage: p,
+  documentId,
   fileUrl,
   open,
   onToggle,
 }: {
   passage: DocumentPassage
+  documentId: string
   // Null for a manual document, which has no file (IN-18).
   fileUrl: string | null
   open: boolean
@@ -453,7 +458,7 @@ function PassageRow({
       {open && (
         <tr className="kb-pdetail-row">
           <td colSpan={5}>
-            <PassageDetail id={panel} passage={p} fileUrl={fileUrl} />
+            <PassageDetail id={panel} passage={p} documentId={documentId} fileUrl={fileUrl} />
           </td>
         </tr>
       )}
@@ -462,18 +467,22 @@ function PassageRow({
 }
 
 /** The opened passage: the region of the page a table, formula or picture was read
-    from (loaded only for those), then its full text, and its id. */
+    from (loaded only for those), or a manual clause's screenshots (IN-18), then its
+    full text, and its id. */
 function PassageDetail({
   id,
   passage: p,
+  documentId,
   fileUrl,
 }: {
   id: string
   passage: DocumentPassage
+  documentId: string
   // Null for a manual document: there is no page to draw a region from (IN-18).
   fileUrl: string | null
 }) {
-  const loaded = usePassage(p.kind === 'text' ? undefined : p.id)
+  // A manual document has no file, so no region to load for it.
+  const loaded = usePassage(p.kind === 'text' || !fileUrl ? undefined : p.id)
   const fold = useFoldedText(loaded.status === 'ready' ? loaded.passage.region : null)
   return (
     <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
@@ -481,6 +490,10 @@ function PassageDetail({
       {loaded.status === 'ready' && fileUrl && (
         <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} onDrawn={fold.onDrawn} />
       )}
+      <CitedImage
+        urls={(p.images ?? []).map((key) => screenshotUrl(documentId, key))}
+        alt={KINDS[p.kind]}
+      />
       {p.generated && (
         <p className="kb-pgenerated">
           A model described this picture; these aren’t the document’s words.

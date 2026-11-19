@@ -231,6 +231,15 @@ def test_a_clause_with_a_table_screenshot_lists_as_a_table(store):
     assert listing(store)["passages"][0]["kind"] == "table"
 
 
+def test_a_listed_passage_names_its_screenshots_so_the_browser_can_show_them(store):
+    put(store, images=[{"key": "knowledge/x/sections/1.png", "kind": "table"}])
+    put(store, section_id="s2", seq=2)
+
+    passages = listing(store)["passages"]
+
+    assert [p["images"] for p in passages] == [["knowledge/x/sections/1.png"], []]
+
+
 def test_a_manual_passage_has_no_pages_and_no_page_range_returns_it(store):
     put(store)
 

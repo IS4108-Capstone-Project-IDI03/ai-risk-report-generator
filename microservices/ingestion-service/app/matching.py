@@ -379,6 +379,8 @@ def document_passages(
             "kind": _kind(id_, meta),
             # Machine-written text, such as a picture's description (IN-13).
             "generated": bool(meta.get("generated_text")),
+            # A manual clause's screenshots, shown in place of a page region (IN-18).
+            "images": list(meta.get("image_keys") or []),
         }
         for id_, meta, position in page
     ]
