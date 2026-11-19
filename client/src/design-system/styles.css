@@ -459,6 +459,10 @@
   min-width: 0;
   max-width: 100%;
 }
+/* The box at the end takes the rest of the line, so its placeholder isn't cut off. */
+.ds-chip-end {
+  flex: 1 1 16ch;
+}
 .ds-chip-sep {
   color: var(--text-muted);
   font-size: var(--text-small-size);

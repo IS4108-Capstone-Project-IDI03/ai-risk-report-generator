@@ -2,14 +2,17 @@
 // drawn by react-pdf like the chat's PDF tab and cut to the region's box, one frame per page.
 // Loaded lazily by PassageDetails, so pdf.js stays out of the first download. Shows nothing when
 // the file or a page can't be drawn: the passage text below still stands. `onDrawn` says when every
-// page's frame is cut, so a view can fold a table's or formula's text behind it.
+// page's frame is cut, so a view can fold a table's or formula's text behind it. A table's crop
+// shows the quoted words in yellow, as the PDF tab does, when they are in the table's printed text.
 import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { Document, Page } from 'react-pdf'
+import type { PDFPageProxy, TextItem } from 'pdfjs-dist/types/src/display/api'
 import type { PageBox } from '../chat/api'
 import { openPdfSource } from '../chat/components/pdfSource'
 // Also sets pdf.js's worker, before <Document> renders.
 import { PDF_OPTIONS } from '../chat/components/pdfSetup'
+import { quoteRects, toPdfText, type Rect } from '../chat/components/quoteRects'
 import './sources.css'
 
 export type RegionKind = 'table' | 'formula' | 'picture'
@@ -22,6 +25,9 @@ const MAX_PAGE = 1600
 // Docling's boxes sit tight on a table's top rule or a formula's ink, so the frame shows this many
 // points more on each side, kept inside the page.
 const MARGIN = 8
+// The quoted words' wash: the chat's highlighter (--chat-highlight), multiplied into the page so
+// the black text stays crisp under it, as on the PDF tab.
+const HIGHLIGHT = '#fde68a'
 
 type Size = { width: number; height: number }
 
@@ -29,12 +35,17 @@ type Props = {
   fileUrl: string
   kind: RegionKind
   boxes: PageBox[]
+  /** The cited words, marked on a table's crop when its printed text holds them; '' for none. */
+  quote?: string
   /** Called once every page's frame is cut; never when one fails. */
   onDrawn?: () => void
 }
 
 /** One frame per page the region covers, in page order, each cut to its box. */
-export function SourceRegion({ fileUrl, kind, boxes, onDrawn }: Props) {
+export function SourceRegion({ fileUrl, kind, boxes, quote = '', onDrawn }: Props) {
+  // Only a table's printed words can match: a picture's description was written by AI, and a
+  // formula's text is the OCR's LaTeX.
+  const marked = kind === 'table' ? quote : ''
   const frames = boxesByPage(boxes)
   // The frames cut so far, by key; a ref, as only the call to onDrawn depends on it. A frame is
   // keyed by its box, so another region on the same page is cut afresh.
@@ -75,8 +86,10 @@ export function SourceRegion({ fileUrl, kind, boxes, onDrawn }: Props) {
       <div className="src-regions">
         {frames.map((box) => (
           <RegionFrame
-            key={frameKey(box)}
+            // Cut afresh for another quote, so its words are the ones marked.
+            key={`${frameKey(box)}|${marked}`}
             box={box}
+            quote={marked}
             name={`${NAMES[kind]} on page ${box.page} of the original`}
             onCut={() => frameCut(frameKey(box))}
           />
@@ -132,10 +145,12 @@ function withMargin(box: PageBox, page: Size | null): PageBox {
 function RegionFrame({
   box: tight,
   name,
+  quote,
   onCut,
 }: {
   box: PageBox
   name: string
+  quote: string
   onCut: () => void
 }) {
   const [size, setSize] = useState<Size | null>(null)
@@ -163,12 +178,28 @@ function RegionFrame({
   const width = box.r - box.l
   if (width <= 0 || box.t - box.b <= 0) return null
   const pageWidth = Math.min(MAX_PAGE, size ? (REGION_WIDTH * size.width) / width : REGION_WIDTH)
-  const cutOut = (page: Size) => {
+  const cutOut = (proxy: PDFPageProxy, page: Size) => {
     const drawn = canvas.current
     const shown = withMargin(tight, page)
+    // Copied at once: the drawn page is let go as soon as the frame is cut.
     const crop = drawn && cropOf(drawn, shown, page)
-    if (crop) setCut({ src: crop, ratio: (shown.r - shown.l) / (shown.t - shown.b) })
-    else setFailed(true)
+    if (!crop) return setFailed(true)
+    const done = () =>
+      setCut({ src: crop.toDataURL('image/png'), ratio: (shown.r - shown.l) / (shown.t - shown.b) })
+    if (!quote) return done()
+    // The page's words inside the table's box, so the same words elsewhere on the page don't count.
+    // Unmarked when they can't be read or don't hold the quote: the crop still shows.
+    Promise.resolve()
+      .then(() => proxy.getTextContent())
+      .then((content) => {
+        const words = content.items
+          .filter((i): i is TextItem => 'str' in i)
+          .map((i) => toPdfText(i, tight.page))
+          .filter((t) => inside(t.x, t.y, tight))
+        markQuote(crop, quoteRects(words, quote), shown)
+      })
+      .catch(() => undefined)
+      .finally(done)
   }
   return (
     <div className="src-region-draw" aria-hidden="true">
@@ -182,7 +213,7 @@ function RegionFrame({
         renderAnnotationLayer={false}
         onLoadSuccess={(p) => setSize({ width: p.originalWidth, height: p.originalHeight })}
         onLoadError={() => setFailed(true)}
-        onRenderSuccess={(p) => cutOut({ width: p.originalWidth, height: p.originalHeight })}
+        onRenderSuccess={(p) => cutOut(p, { width: p.originalWidth, height: p.originalHeight })}
         onRenderError={() => setFailed(true)}
         error=""
       />
@@ -190,8 +221,33 @@ function RegionFrame({
   )
 }
 
-/** The box's pixels from the drawn page, as a PNG data URL; null when the browser can't copy. */
-function cropOf(drawn: HTMLCanvasElement, box: PageBox, page: Size): string | null {
+/** Whether a word's baseline start lies in the box, give or take MARGIN points. */
+function inside(x: number, y: number, box: PageBox) {
+  return x >= box.l - MARGIN && x <= box.r + MARGIN && y >= box.b - MARGIN && y <= box.t + MARGIN
+}
+
+/** Washes the quote's rectangles (PDF points) yellow on the crop of `box`. */
+function markQuote(crop: HTMLCanvasElement, rects: Rect[], box: PageBox) {
+  const context = crop.getContext('2d')
+  if (!context || rects.length === 0) return
+  // Pixels per point, as the crop was copied: its width over the box's.
+  const scale = crop.width / (box.r - box.l)
+  context.globalCompositeOperation = 'multiply'
+  context.fillStyle = HIGHLIGHT
+  for (const r of rects) {
+    // PDF points run up from the page's bottom-left; the crop's pixels down from the box's top-left.
+    context.fillRect(
+      (r.l - box.l) * scale,
+      (box.t - r.t) * scale,
+      (r.r - r.l) * scale,
+      (r.t - r.b) * scale,
+    )
+  }
+  context.globalCompositeOperation = 'source-over'
+}
+
+/** The box's pixels from the drawn page, on a canvas of their own; null when the browser can't copy. */
+function cropOf(drawn: HTMLCanvasElement, box: PageBox, page: Size): HTMLCanvasElement | null {
   // Pixels per point: react-pdf draws the page at its width times the screen's pixel ratio.
   const scale = drawn.width / page.width
   // PDF points run up from the page's bottom-left; canvas pixels run down from its top-left.
@@ -205,5 +261,5 @@ function cropOf(drawn: HTMLCanvasElement, box: PageBox, page: Size): string | nu
   const context = out.getContext('2d')
   if (!context) return null
   context.drawImage(drawn, sx, sy, sw, sh, 0, 0, sw, sh)
-  return out.toDataURL('image/png')
+  return out
 }

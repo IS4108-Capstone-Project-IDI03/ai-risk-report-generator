@@ -483,7 +483,10 @@ function PassageDetail({
 }) {
   // A manual document has no file, so no region to load for it.
   const loaded = usePassage(p.kind === 'text' || !fileUrl ? undefined : p.id)
-  const fold = useFoldedText(loaded.status === 'ready' ? loaded.passage.region : null)
+  const fold = useFoldedText(
+    loaded.status === 'ready' ? loaded.passage.region : null,
+    (p.images ?? []).length > 0,
+  )
   return (
     <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
       {/* The original first, as in chat (KB-02): a picture's description can run long. */}

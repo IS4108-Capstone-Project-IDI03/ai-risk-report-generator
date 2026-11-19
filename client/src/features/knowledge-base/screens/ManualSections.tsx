@@ -266,7 +266,7 @@ export function ManualSections({
           <h2 id="kb-manual-title" ref={heading} tabIndex={-1}>
             {doc?.title ?? 'Clauses'}
           </h2>
-          {doc && isDraft(doc) && <StatusPill status="draft" />}
+          {doc && isDraft(doc) && <StatusPill status="manual_draft" />}
           {doc && isDraft(doc) && sections && (
             <span className="kb-manual-publish">
               <Button
@@ -391,6 +391,7 @@ export function ManualSections({
               label="Clause number"
               required
               placeholder="e.g. 8.6.1"
+              hint="This clause's own number, e.g. 8.6.1. Put its title, if it has one, as the last heading in the trail."
               value={form.clause}
               error={errors.clause}
               onChange={(e) => setForm({ ...form, clause: e.target.value })}
@@ -398,8 +399,8 @@ export function ManualSections({
             <ChipInput
               label="Heading trail"
               itemName="heading"
-              placeholder="Type a heading, then press Enter"
-              hint="One bubble per level, outermost first."
+              placeholder="Type a heading and press Enter"
+              hint="Press Enter after each heading to add it. One per level, outermost first, e.g. Chapter 8 Installation, then 8.6 Hangers."
               value={form.headings}
               onChange={(headings) => setForm((current) => ({ ...current, headings }))}
               // The other clauses' headings; the clause being edited doesn't suggest its own.

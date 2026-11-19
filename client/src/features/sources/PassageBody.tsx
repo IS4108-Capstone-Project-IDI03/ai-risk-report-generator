@@ -1,8 +1,9 @@
 // A cited passage's text (CB-02 AC1, KB-02 AC5): the quoted words marked, and a formula the OCR
 // read as LaTeX shown as math when the LaTeX is valid, else as written.
 // Used by the chat's citation panel, the review workspace's source panel and the Passages view.
-// `folded`: the text sits in a closed disclosure, for a table or formula whose region of the
-// original page is drawn above it (useFoldedText); open when it holds the quoted words.
+// `folded`: the text sits in a closed disclosure, for a table, formula or picture whose region of
+// the original page (or manual screenshot) is shown above it (useFoldedText); open when it holds
+// the quoted words.
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { quoteSpan } from '../chat/components/quoteSpan'
 import { runsOf } from './mathText'
@@ -13,7 +14,7 @@ type Props = {
   /** The element and class it is drawn as: the chat's paragraph, or review's blockquote. */
   as?: 'p' | 'blockquote'
   className?: string
-  /** Behind "Show extracted text", as the drawn region above already shows it. */
+  /** Behind "Show passage text", as the region or screenshot above already shows it. */
   folded?: boolean
 }
 type RenderMath = (latex: string, display: boolean) => string | null
@@ -77,9 +78,13 @@ export function PassageBody({
   if (!folded) return body
   return (
     // Native <details>: keyboard and screen readers open it with no script. A found quote opens it,
-    // so the highlight is never hidden.
+    // so the highlight is never hidden. The summary reads Show or Hide by the open state, in CSS
+    // (sources.css), so it is right however the fold opened.
     <details className="src-extracted" open={span !== null || undefined}>
-      <summary>Show extracted text</summary>
+      <summary>
+        <span className="src-extracted-show">Show passage text</span>
+        <span className="src-extracted-hide">Hide passage text</span>
+      </summary>
       {body}
     </details>
   )

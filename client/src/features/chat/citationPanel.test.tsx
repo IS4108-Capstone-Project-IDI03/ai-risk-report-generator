@@ -74,7 +74,12 @@ vi.mock('react-pdf', () => ({
     pdf.suspense.push(props.suspense)
     pdf.pageLoading = props.loading
     if (pdf.crash) throw new Error('getOrInsertComputed is not a function')
-    const page = { pageNumber: props.pageNumber, originalWidth: 600, originalHeight: 800 }
+    const page = {
+      pageNumber: props.pageNumber,
+      originalWidth: 600,
+      originalHeight: 800,
+      getTextContent: () => Promise.resolve(pdf.texts[props.pageNumber] ?? TEXT),
+    }
     // Called when a page has loaded, as react-pdf does.
     React.useEffect(() => {
       props.onLoadSuccess?.(page)
@@ -286,6 +291,10 @@ describe('Source panel', () => {
       '/api/knowledge-documents/m1/sections/screenshots/a.png',
     )
     expect(within(panel).getByText('Manual entry')).toBeInTheDocument()
+    // The screenshot shows the clause, so its read text folds away as a drawn table's does.
+    const fold = panel.querySelector('details.src-extracted') as HTMLDetailsElement
+    expect(fold).toHaveTextContent('Show passage text')
+    expect(within(fold).getByLabelText('Passage text')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'PDF' })).not.toBeInTheDocument()
     expect(panel).not.toHaveTextContent('Not recorded')
     expect(pdf.loads).toBe(0)
@@ -393,11 +402,13 @@ describe('Source region', () => {
 
   // jsdom has no canvas drawing: the crop is recorded instead of drawn.
   const drawImage = vi.fn()
+  const fillRect = vi.fn()
   beforeEach(() => {
     drawImage.mockClear()
+    fillRect.mockClear()
     const context = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
-      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+      .mockReturnValue({ drawImage, fillRect } as unknown as CanvasRenderingContext2D)
     const toDataURL = vi
       .spyOn(HTMLCanvasElement.prototype, 'toDataURL')
       .mockReturnValue('data:image/png;base64,AA')
@@ -539,6 +550,57 @@ describe('Source region', () => {
     expect(cutFrom(4).height).toBeCloseTo(416)
   })
 
+  // A table's crop marks the quoted words as the PDF tab does, from the page's text inside the box.
+  const TABLE_PAGE = {
+    items: [
+      { str: 'Inside Hose', transform: [10, 0, 0, 10, 60, 650], width: 110, height: 10 },
+      { str: '250', transform: [10, 0, 0, 10, 200, 650], width: 30, height: 10 },
+      // The same words below the table, outside its box.
+      { str: 'Outside Hose', transform: [10, 0, 0, 10, 60, 300], width: 120, height: 10 },
+    ],
+  }
+
+  it("marks the quoted words on a table's crop", async () => {
+    pdf.texts[4] = TABLE_PAGE
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'Inside Hose' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+    expect(fillRect).toHaveBeenCalledTimes(1)
+    // 8 points in from the crop's edge (its margin), 110 wide: the words' place in the box.
+    const [x, , width] = fillRect.mock.calls[0] as number[]
+    expect(x / width).toBeCloseTo(8 / 110)
+    delete pdf.texts[4]
+  })
+
+  it('leaves the crop unmarked when the words are on the page but outside the table', async () => {
+    pdf.texts[4] = TABLE_PAGE
+    vi.mocked(fetchPassage).mockResolvedValue(TABLE)
+    renderPanel(cited({ quote: 'Outside Hose' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+    expect(fillRect).not.toHaveBeenCalled()
+    delete pdf.texts[4]
+  })
+
+  it("never marks a picture's crop, whose description is not on the page", async () => {
+    pdf.texts[2] = {
+      items: [{ str: 'Figure 3', transform: [10, 0, 0, 10, 60, 300], width: 80, height: 10 }],
+    }
+    vi.mocked(fetchPassage).mockResolvedValue({
+      ...PASSAGE,
+      text: 'Figure 3
+Image description (generated, photograph): Two cylinders on a rack.',
+      generated: true,
+      region: { kind: 'picture', boxes: [{ page: 2, l: 50, t: 350, r: 250, b: 200 }] },
+    })
+    renderPanel(cited({ quote: 'Figure 3' }))
+    const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
+    await within(panel).findByRole('img', { name: 'Picture on page 2 of the original' })
+    expect(fillRect).not.toHaveBeenCalled()
+    delete pdf.texts[2]
+  })
+
   // Once the table is drawn the crop shows it, so its flattened text folds behind a disclosure.
   it("folds a drawn table's text, and opens it when it holds the quote", async () => {
     vi.mocked(fetchPassage).mockResolvedValue(TABLE)
@@ -550,7 +612,7 @@ describe('Source region', () => {
       expect(details).not.toBeNull()
       return details as HTMLDetailsElement
     })
-    expect(fold).toHaveTextContent('Show extracted text')
+    expect(fold).toHaveTextContent('Show passage text')
     expect(fold.open).toBe(false)
     expect(within(fold).getByLabelText('Passage text')).toBeInTheDocument()
   })
@@ -565,17 +627,24 @@ describe('Source region', () => {
     expect(panel.querySelector('mark')).toHaveTextContent('gpm: 250')
   })
 
-  it("never folds a picture's description", async () => {
+  // A picture folds its description like a table its text, so every crop reads the same way.
+  it("folds a drawn picture's description behind 'Show passage text'", async () => {
     vi.mocked(fetchPassage).mockResolvedValue({
       ...PASSAGE,
       text: 'Figure 3\nImage description (generated, photograph): Two cylinders on a rack.',
       generated: true,
       region: { kind: 'picture', boxes: [{ page: 2, l: 50, t: 350, r: 250, b: 200 }] },
     })
-    renderPanel(cited({ quote: 'Figure 3' }))
+    renderPanel(cited({ quote: 'not in the description' }))
     const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
     await within(panel).findByRole('img', { name: 'Picture on page 2 of the original' })
-    expect(panel.querySelector('details.src-extracted')).toBeNull()
+    const fold = await waitFor(() => {
+      const details = panel.querySelector('details.src-extracted')
+      expect(details).not.toBeNull()
+      return details as HTMLDetailsElement
+    })
+    expect(fold.querySelector('summary')).toHaveTextContent('Show passage text')
+    expect(fold.open).toBe(false)
   })
 
   it('shows only the text when the passage records no region', async () => {

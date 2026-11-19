@@ -666,6 +666,16 @@ describe('working through the clauses', () => {
 
 // T20: the heading trail as bubbles, with the headings already used at each level.
 describe('the heading trail as bubbles', () => {
+  it('says to press Enter after each heading, and what the clause number is', async () => {
+    mockGateway()
+    await openClauses(DRAFT.title)
+
+    expect(trailBox()).toHaveAccessibleDescription(/Press Enter after each heading/)
+    expect(within(editor()).getByLabelText(field('Clause number'))).toHaveAccessibleDescription(
+      /This clause's own number, e\.g\. 8\.6\.1\. Put its title, if it has one, as the last heading/,
+    )
+  })
+
   const TREE = () => [
     clause(1, { clause: '8.1', headings: ['Chapter 8 Installation', '8.1 General'] }),
     clause(2, { clause: '8.6.1', headings: ['Chapter 8 Installation', '8.6 Hangers'] }),

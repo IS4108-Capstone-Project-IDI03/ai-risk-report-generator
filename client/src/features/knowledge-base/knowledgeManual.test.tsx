@@ -122,6 +122,8 @@ describe('a manual draft in the Documents list (IN-18)', () => {
     const draft = await row(DRAFT.title)
 
     expect(within(draft).getByText('Draft')).toBeInTheDocument()
+    // A person is typing it in: no AI sparkles, the word alone.
+    expect(within(draft).getByText('Draft').querySelector('[role="presentation"]')).toBeNull()
     expect(within(draft).queryByRole('link', { name: /view original/i })).not.toBeInTheDocument()
     expect(
       within(await row(UPLOADED.title)).getByRole('link', { name: /view original/i }),
@@ -309,6 +311,10 @@ describe('manual entries in the IN-17 browser (IN-18)', () => {
       'src',
       '/api/knowledge-documents/manual/sections/screenshots/0b7c7c3e-6d1b-4a6e-9a51-6a0f8c1e2f3a.png',
     )
+    // Its text folds behind the screenshot, closed.
+    const fold = dialog.querySelector('details.src-extracted') as HTMLDetailsElement
+    expect(fold).toHaveTextContent('Pipe size: 25 mm')
+    expect(fold.open).toBe(false)
     expect(requested.some((u) => u.includes('/api/chat/passages/'))).toBe(false)
     expect(requested.some((u) => u.endsWith('/file'))).toBe(false)
   })

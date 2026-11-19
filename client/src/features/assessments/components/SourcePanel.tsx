@@ -68,13 +68,13 @@ export function PassageView({
   // draft was given it (AC7). The citation ID is `C:` or `P:` and the passage's id.
   const live = usePassage(passage.id.slice(2))
   const region = live.status === 'ready' ? live.passage.region : null
-  const fold = useFoldedText(region)
   // A manually entered clause (IN-18): no file or page; its screenshots stand in.
   const manual = (live.status === 'ready' && !!live.passage.manual) || doc?.fileUrl === null
   const images =
     live.status === 'ready' && passage.documentId
       ? (live.passage.images ?? []).map((key) => screenshotUrl(passage.documentId!, key))
       : []
+  const fold = useFoldedText(region, images.length > 0)
   return (
     <>
       <ViewerHead number={number} onClose={onClose}>

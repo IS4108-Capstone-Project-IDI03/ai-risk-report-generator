@@ -201,7 +201,7 @@ function ChipInput({
             )}
           </ul>
           {editing === null && (
-            <span className="ds-chip-slot">
+            <span className="ds-chip-slot ds-chip-end">
               {value.length > 0 && <Sep />}
               {box}
             </span>

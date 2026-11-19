@@ -41,7 +41,7 @@ type Props = {
 export function PassageDetails(props: Props) {
   const { number, doc, withdrawn, range, state, quote, passageText, status, title } = props
   const { region, generated, manual = false, images = [] } = props
-  const fold = useFoldedText(region ?? null)
+  const fold = useFoldedText(region ?? null, images.length > 0)
   const many = Boolean(range?.includes('–'))
   const where = range ? `${many ? 'pages' : 'page'} ${range}` : 'the passage'
 
@@ -112,7 +112,7 @@ export function PassageDetails(props: Props) {
         </Callout>
       )}
       {!status && doc?.fileUrl && (
-        <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />
+        <CitedRegion fileUrl={doc.fileUrl} region={region} quote={quote} onDrawn={fold.onDrawn} />
       )}
       {!status && <CitedImage urls={images} alt="Screenshot" />}
       {/* KB-02 AC6: the description is shown, as what the answer read, but never as the

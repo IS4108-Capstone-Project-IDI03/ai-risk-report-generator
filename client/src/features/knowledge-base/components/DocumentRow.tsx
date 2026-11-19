@@ -98,8 +98,8 @@ export function DocumentRow({
           {d.withdrawn ? (
             <Badge tone="danger">Withdrawn</Badge>
           ) : isDraft(d) ? (
-            // A manual entry still being typed in (IN-18): the app's Draft pill.
-            <StatusPill status="draft" />
+            // A manual entry still being typed in (IN-18): Draft without the AI sparkles.
+            <StatusPill status="manual_draft" />
           ) : needsReview(d) ? (
             canManage ? (
               <ReviewBadge title={d.title} onReview={onReview} />

@@ -279,7 +279,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.12 (16 Nov 2026, AS-04): Draft text and Rewrite this, the proposed-text card with Insert, Replace and Undo, and AI-drafted text in a section with Accept and Delete (section 6), built without a board; to approve on the canvas.
   - v2.13 (18 Nov 2026, AS-06 and AS-07): one-size conversation text with bold for names only; two-line stage pill and the pill icon's ink colour on white menus; shaded icon action.
   - v2.14 (18 Nov 2026, GN-13): the checkpoint header, step card, section row and its one mark, row count with the tab's icon, task row, flagged row, segment bar and View only chip (section 6) with their motions (section 8); and a copy rule that a line reads as one flowing sentence (section 2).
-  - v2.15 (19 Nov 2026, IN-18): chip input (section 6), built without a board; to approve on the canvas. Combobox's suggestion list and keys now shared with it (`Suggestions.tsx`), unchanged in look and behaviour.
+  - v2.15 (19 Nov 2026, IN-18): chip input (section 6), built without a board; to approve on the canvas. A manual knowledge entry's Draft pill (`manual_draft`) is Draft's violet with the word alone: the sparkles mean AI-written, and a person types it in. Combobox's suggestion list and keys now shared with it (`Suggestions.tsx`), unchanged in look and behaviour.
 
 ## 10. When this file says nothing
 
