@@ -162,7 +162,7 @@ describe('Capture session (CP-01)', () => {
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(screen.getByText('Observation saved in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved in this demo only.')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))

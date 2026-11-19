@@ -10,66 +10,6 @@
   overflow: hidden;
   background: var(--surface-page);
 }
-/* The toast sits bottom centre of the content column (Jesper, 21 Oct: the old place,
-   where the eye lands after an action). left grows by the sidebar's width, or the rail's when
-   collapsed, so it centres on the content, not the window. Under 760px it spans the screen
-   with 12px insets. */
-.workflow-toast {
-  position: fixed;
-  bottom: 20px;
-  left: 24px;
-  right: 24px;
-  margin-inline: auto;
-  z-index: 90;
-  width: max-content;
-  max-width: min(356px, calc(100vw - 48px));
-  /* Rises and scales up into place on a long exponential settle (no bounce). */
-  animation: toast-in var(--duration-slow) var(--ease-out) both;
-}
-.workflow[data-sidenav='open'] .workflow-toast {
-  left: calc(var(--sidebar-width) + 24px);
-}
-.workflow[data-sidenav='rail'] .workflow-toast {
-  left: calc(var(--nav-rail-width) + 24px);
-}
-.workflow-toast > div {
-  max-width: 100%;
-}
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.96);
-  }
-}
-/* Thin bar along the card's bottom edge, draining over the auto-close time (5s in
-   design-system/components/feedback/Toast.tsx). Low opacity: a cue, not a banner. */
-.workflow-toast .toast-bar {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 3px;
-  opacity: 0.35;
-  transform-origin: left;
-}
-@keyframes toast-countdown {
-  to {
-    transform: scaleX(0);
-  }
-}
-@media (max-width: 767px) {
-  .workflow-toast,
-  .workflow[data-sidenav] .workflow-toast {
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    max-width: calc(100vw - 24px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  /* The close fades only, without the small drop. */
-  .workflow-toast > div {
-    transform: none !important;
-  }
-}
 /* The old page while it fades out (ScreenMotion.tsx). Its copy must not replay its entrances. */
 .screen-exit {
   position: fixed;
@@ -81,15 +21,6 @@
 .screen-exit * {
   animation: none !important;
   transition: none !important;
-}
-/* The chat's look (apple-design): a pill shape in the app's system font. */
-.workflow-toast.chat-toast {
-  font-family: var(--font-sans);
-}
-.workflow-toast.chat-toast > div {
-  --radius-md: 999px;
-  font-family: var(--font-sans);
-  padding-inline: var(--space-5) var(--space-3);
 }
 .user-footer {
   display: flex;

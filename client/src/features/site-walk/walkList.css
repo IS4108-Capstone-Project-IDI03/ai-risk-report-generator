@@ -1,4 +1,4 @@
-/* The Recording screen's photo strip, note box, walk list and toast (CP-22 round 1).
+/* The Recording screen's photo strip, note box, walk list (CP-22 round 1).
    The clock and controls are in recording.css. */
 
 /* ---- Photo strip ---- */
@@ -190,31 +190,6 @@
   flex: 0 0 auto;
 }
 
-/* ---- Toast: the design system's, above Finish and the camera ---- */
-.sw-toast {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(96px + env(safe-area-inset-bottom));
-  z-index: 90;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  animation: toast-in var(--duration-slow) var(--sw-ease) both;
-}
-.sw-toast > div {
-  pointer-events: auto;
-}
-.sw-toast .toast-bar {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 3px;
-  opacity: 0.35;
-  transform-origin: left;
-}
-/* The toast-in and toast-countdown keyframes come from assessments/workflow.css,
-   which is always loaded, as the site walk screens render inside the workspace. */
-
 @media (pointer: coarse), (max-width: 559px) {
   .sw-item .sw-icon-button {
     width: 44px;
@@ -227,4 +202,11 @@
   .sw-more {
     min-height: 44px;
   }
+}
+
+/* On Record a site walk, the app's toasts sit 96 px up, above the record bar and camera, as the
+   walk's own toast did; without this "Recording saved" covers Finish while it shows. Sonner sets
+   its bottom offset inline, hence !important. */
+body:has(.sw-recording) [data-sonner-toaster][data-y-position='bottom'] {
+  bottom: calc(96px + env(safe-area-inset-bottom)) !important;
 }

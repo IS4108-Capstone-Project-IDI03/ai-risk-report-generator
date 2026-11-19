@@ -186,7 +186,7 @@
   font-weight: 600;
 }
 
-/* ---- Messages, dialogs, toast ---- */
+/* ---- Messages, dialogs ---- */
 .swr-problem {
   margin: 0;
   color: var(--red-600);
@@ -221,22 +221,4 @@
 }
 .swr-existing button:hover {
   background: var(--ink-50);
-}
-.swr-toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  z-index: 60;
-  width: max-content;
-  max-width: calc(100vw - 32px);
-}
-.swr-undo {
-  min-height: 44px;
-  padding: 0 8px;
-  border: 0;
-  background: none;
-  color: var(--marsh-navy);
-  font: 600 14px/1 var(--font-sans);
-  cursor: pointer;
 }

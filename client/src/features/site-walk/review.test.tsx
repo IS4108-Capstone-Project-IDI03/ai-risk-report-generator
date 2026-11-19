@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Toaster } from '../../design-system'
 import { guardLeave } from '../assessments/leaveGuard'
 import type { Proposal, SiteWalk } from './api'
 import { siteWalkReview } from './openReview'
@@ -142,13 +143,17 @@ function pick(trigger: RegExp, option: string, within_: HTMLElement = document.b
 const notify = vi.fn()
 async function openReview(onCreated = () => {}, onClose = () => {}) {
   render(
-    <SiteWalkReview
-      reference={REF}
-      walkId="w1"
-      onClose={onClose}
-      onCreated={onCreated}
-      notify={notify}
-    />,
+    <>
+      <SiteWalkReview
+        reference={REF}
+        walkId="w1"
+        onClose={onClose}
+        onCreated={onCreated}
+        notify={notify}
+      />
+      {/* The "Observation deleted" toast is the app's own toaster, mounted in AssessmentApp. */}
+      <Toaster />
+    </>,
   )
   await screen.findByRole('navigation', { name: 'Locations' })
 }
@@ -419,11 +424,11 @@ describe('site walk review', () => {
     openObservation('Coils iced over')
     fireEvent.click(screen.getByRole('button', { name: 'Delete observation' }))
     expect(screen.queryByText('Coils iced over.')).not.toBeInTheDocument()
-    expect(screen.getByText('Observation deleted.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation deleted.')).toBeInTheDocument()
     await wait(AUTOSAVE_MS + 50)
     expect((saves()[0].body as Proposal).observations.map((o) => o.ref)).toEqual(['obs-2', 'obs-3'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
     expect(screen.getByText('Coils iced over.')).toBeInTheDocument()
     await wait(AUTOSAVE_MS + 50)
     expect((saves().at(-1)!.body as Proposal).observations.map((o) => o.ref)).toEqual([

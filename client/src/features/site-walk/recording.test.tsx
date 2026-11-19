@@ -13,6 +13,7 @@ import {
 } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Toaster } from '../../design-system'
 import { recordingKey, type PendingUpload, type UploadStore } from './pendingUploads'
 import { SiteWalkRecording } from './screens/Recording'
 import { useWalk } from './useWalk'
@@ -23,7 +24,12 @@ const BASE = `/api/assessments/${REF}/site-walks`
 const tick = (ms: number) => act(async () => void vi.advanceTimersByTime(ms))
 const sent = (path: RegExp) => gw.calls.filter((c) => c.method === 'PUT' && path.test(c.url))
 async function openAndStart() {
-  render(<SiteWalkRecording reference={REF} onClose={() => {}} />)
+  render(
+    <>
+      <Toaster />
+      <SiteWalkRecording reference={REF} onClose={() => {}} />
+    </>,
+  )
   fireEvent.click(await screen.findByRole('button', { name: 'Start recording' }))
   await screen.findByRole('button', { name: 'Save recording' })
 }

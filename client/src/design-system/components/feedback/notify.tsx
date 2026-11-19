@@ -27,6 +27,8 @@ const wrap = (o: ToastOptions = {}) => ({
 export const toast = {
   /** Shows a green-tick toast that closes itself; returns its id. */
   success: (message: string, o?: ToastOptions) => sonner.success(message, wrap(o)),
+  /** Shows a neutral info toast that closes itself (for notes that are neither done nor wrong); returns its id. */
+  info: (message: string, o?: ToastOptions) => sonner.info(message, wrap(o)),
   /** Shows a red-alert toast that stays until closed (errors don't auto-close); returns its id. */
   error: (title: string, o?: ToastOptions) =>
     sonner.error(title, { ...wrap(o), duration: Infinity }),
@@ -52,6 +54,7 @@ export function Toaster({ id, className }: { id?: string; className?: string } =
       mobileOffset={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }}
       icons={{
         success: <SuccessIcon />,
+        info: <Icon name="info" size={18} color="var(--ink-600)" />,
         error: <Icon name="circle-alert" size={18} color="var(--red-600)" />,
         loading: (
           <Icon name="loader-circle" size={18} color="var(--marsh-navy)" className="ds-spin" />

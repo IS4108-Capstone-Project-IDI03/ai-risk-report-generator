@@ -191,7 +191,7 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeDisabled()
     tab(/^Review/)
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    expect(screen.getByRole('status')).toHaveTextContent('Resolve the open review item')
+    expect(await screen.findByText(/Resolve the open review item/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Remove the sentence' }))
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
