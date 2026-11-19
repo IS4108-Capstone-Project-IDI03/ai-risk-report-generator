@@ -41,12 +41,14 @@ export function SourcePrioritySection({ settings, onSaved }: Props) {
         <div className="st-row-head">
           <Button
             variant="primary"
+            size="lg"
             disabled={!changed || state.status === 'saving'}
             onClick={() => run(() => saveSourcePriority(draft))}
           >
             Save order
           </Button>
-          <SaveStatus state={state} />
+          {/* A "Saved" tick beside an unsaved change would mislead, so show only failures then */}
+          {(!changed || state.status === 'failed') && <SaveStatus state={state} />}
         </div>
       )}
       <div className="st-row">

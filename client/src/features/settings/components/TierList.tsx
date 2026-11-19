@@ -32,9 +32,12 @@ export function TierList({
           onDragEnd={() => setDragging(null)}
         >
           <span className="st-tier-rank">{i + 1}</span>
-          <span className="st-tier-grip" data-testid="tier-handle" aria-hidden="true">
-            <Icon name="grip-vertical" size={16} color="var(--text-muted)" />
-          </span>
+          {/* No grip on a read-only list: it would invite a drag that does nothing */}
+          {canEdit && (
+            <span className="st-tier-grip" data-testid="tier-handle" aria-hidden="true">
+              <Icon name="grip-vertical" size={16} color="var(--text-muted)" />
+            </span>
+          )}
           <span className="st-tier-name">{TIER_LABELS[tier]}</span>
           <IconButton
             icon="chevron-up"

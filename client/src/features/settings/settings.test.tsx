@@ -290,6 +290,30 @@ describe('Settings Source priority (RT-04)', () => {
     expect(screen.getByText(/ranks only when the question names its country/)).toBeInTheDocument()
   })
 
+  it('shows no drag grips to an engineer, and no Saved tick beside an unsaved change', async () => {
+    await openIt(data(false))
+    expect(screen.queryAllByTestId('tier-handle')).toHaveLength(0)
+    cleanup()
+    const after: SettingsData = {
+      ...data(true),
+      sourcePriority: {
+        ...data(true).sourcePriority,
+        order: [
+          'manufacturer_rating',
+          'national_code',
+          'marsh_precedent',
+          'international_standard',
+        ],
+      },
+    }
+    await openIt(data(true), (_u, init) => (init?.method === 'PUT' ? reply(200, after) : null))
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    await screen.findByText('Saved')
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    expect(screen.queryByText('Saved')).toBeNull()
+  })
+
   it('moves a tier down and up with the buttons', async () => {
     await openIt(data(true))
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
