@@ -51,7 +51,7 @@ from app.retrieval.retriever import rerank, retrieve, search
 log = logging.getLogger("uvicorn.error")
 
 # Citable standards. Past reports (`marsh_report`) are fetched separately as precedent.
-STANDARD_SOURCES = ["fm_standard", "nfpa_standard"]
+STANDARD_SOURCES = ["fm_standard", "nfpa_standard", "local_standard"]
 # Candidates per observation for the reranker to choose from (AC14). Only the top
 # MAX_STANDARDS are sent, since every passage sent is paid for as input tokens.
 STANDARDS_PER_OBSERVATION = 8
@@ -329,10 +329,11 @@ def draft(
     # reports for the section as a whole. Past reports are filtered by country only:
     # their wording and judgements carry across facility types, and few reports share
     # one site's type.
+    queries = standard_queries(section, masked)
     *per_observation, past = search(
         [
             (query, {**site, "source_type": STANDARD_SOURCES}, STANDARDS_PER_OBSERVATION)
-            for query in standard_queries(section, masked)
+            for query in queries
         ]
         + [
             (
@@ -344,6 +345,22 @@ def draft(
         protection,
     )
 
+    # GN-01 AC: when this facility type has no standards at all, search the whole
+    # jurisdiction instead, and mark those passages `broader` so the reviewer sees it.
+    broader = not any(per_observation) and bool(queries)
+    if broader:
+        per_observation = search(
+            [
+                (
+                    q,
+                    {"jurisdiction": assessment.jurisdiction, "source_type": STANDARD_SOURCES},
+                    STANDARDS_PER_OBSERVATION,
+                )
+                for q in queries
+            ],
+            protection,
+        )
+    found = {h["id"] for hits in per_observation for h in hits}
     standards = _nearest_first(per_observation)
 
     # Past reports' passages under the same section heading, as wording and precedent.
@@ -366,7 +383,17 @@ def draft(
         log.warning("Rerank failed for section %s; using vector order", section_id, exc_info=True)
     standard_ids = set(standards)
     standards = {c["id"]: c for c in candidates if c["id"] in standard_ids}
+    ranked = len(standards)
     standards = dict(list(standards.items())[:MAX_STANDARDS])
+    standards_report = {
+        "section": title,
+        "searched": len(queries),
+        "fallback_searched": len(queries) if broader else 0,
+        "found": len(found),
+        "kept": len(standards),
+        "dropped": {"distance": len(found) - ranked, "cap": ranked - len(standards)},
+        "broader": broader and bool(standards),
+    }
     precedents = [c for c in candidates if c["id"] not in standard_ids][:MAX_PRECEDENTS]
 
     result, model = draft_section(
@@ -417,6 +444,7 @@ def draft(
     }
     sources = {
         ref: {"text": chunk["text"], **(chunk["metadata"] or {})}
+        | ({"broader": True} if broader and ref.startswith("C:") else {})
         for ref, chunk in passages.items()
         if ref in cited
     }
@@ -426,6 +454,7 @@ def draft(
         "subsections": subsections,
         "questions": questions,
         "sources": sources,
+        "standards_report": standards_report,
         "guardrail": guardrail,
         "usage": paid_calls,
         "provenance": {

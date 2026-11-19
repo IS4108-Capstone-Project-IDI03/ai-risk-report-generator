@@ -752,6 +752,10 @@ refuses them (403) whatever the client shows.
     [database](database.md#report-sections-gn-01)). Any S4 failure reaches
     the client as a 503 with the reason.
 
+### Standards search and its fallback (GN-16)
+
+A section draft searches standards (`fm_standard`, `nfpa_standard`, `local_standard`) once per observation, by the site's jurisdiction and facility type. If that returns no passage at all, `draft()` runs the same queries once more by jurisdiction only; the kept passages come back in `sources` with `broader: true`. A section with no observations searches nothing. Each draft also returns `standards_report` (`section`, `searched`, `fallback_searched`, `found`, `kept`, `dropped: {distance, cap}`, `broader`); the gateway ignores it. To see why a section has few standards, pipe a real response into `microservices/rag-service/eval/standards_diagnosis.py`.
+
 ## Opportunities for Improvement (S4, GN-05)
 
 Section 3's OFIs are drafted on the Report generation tab, as the first row of
