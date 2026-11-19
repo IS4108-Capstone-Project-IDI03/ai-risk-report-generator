@@ -46,7 +46,7 @@ def test_parts_are_typed_and_keep_their_line(monkeypatch):
         ("info_request", 0),
         ("recommendation", 1),
     ]
-    assert body["provenance"]["prompt_version"] == "cp35-v1"
+    assert body["provenance"]["prompt_version"] == "cp35-v2"
     assert "usage" in body
 
 
@@ -160,3 +160,24 @@ def test_the_same_value_in_another_format_is_not_flagged(monkeypatch, shorthand,
 )
 def test_a_lost_sign_or_a_changed_value_is_flagged(monkeypatch, shorthand, text):
     assert flags_of(monkeypatch, shorthand, text) != []
+
+
+def test_an_unknown_term_is_flagged_on_every_part_that_uses_it(monkeypatch):
+    mock(
+        monkeypatch,
+        [
+            part(0, "fact", "The zxq unit is loud.", "zxq loud", ["zxq"]),
+            part(0, "recommendation", "Service the zxq unit.", "service zxq"),
+        ],
+    )
+    out = post(["zxq loud, service zxq"]).json()["parts"]
+    assert [p["flags"] for p in out] == [
+        [{"type": "unknown_term", "detail": "zxq"}],
+        [{"type": "unknown_term", "detail": "zxq"}],
+    ]
+
+
+def test_the_prompt_says_a_code_in_the_middle_of_a_line_starts_a_new_part(monkeypatch):
+    prompts = mock(monkeypatch, [part(0, "fact", "x", "x")])
+    post(["F: a; IR: b"])
+    assert "anywhere in a line" in prompts[0]

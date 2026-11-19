@@ -19,7 +19,7 @@ from app.generation.llm import complete
 
 # Must match AI_FEATURES in server/src/models/ai-call.model.ts.
 FEATURE = "split-note"
-PROMPT_VERSION = "cp35-v1"
+PROMPT_VERSION = "cp35-v2"
 
 # The Marsh shorthand list (lower-case keys), without its "_about" note.
 _MARSH = {
@@ -97,6 +97,8 @@ guess them: leave them as written in text.
 
 Rules:
 - Never invent facts, numbers or names. Keep every number, unit and name exactly as written.
+- A code such as F:, IR: or REC: anywhere in a line starts a new part of that kind (F is fact, \
+IR is info_request, REC is recommendation); drop the code from text and shorthand.
 - If a line has no clear split, return it as one fact part.
 - Return every line at least once."""
 
@@ -187,6 +189,15 @@ def split_note(lines: list[str], glossary, privacy=None) -> dict:
         parts.append(
             {**restored.model_dump(exclude={"unknown_terms"}), "flags": _flags(restored, terms)}
         )
+
+    # c2. A term flagged unknown on one part is unknown on every part that uses it: the model
+    # reports it only once, and the engineer would add it to the glossary for one part only.
+    unknown = {f["detail"] for p in parts for f in p["flags"] if f["type"] == "unknown_term"}
+    for p in parts:
+        have = {f["detail"] for f in p["flags"] if f["type"] == "unknown_term"}
+        for term in sorted(unknown - have):
+            if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", p["shorthand"], re.IGNORECASE):
+                p["flags"].append({"type": "unknown_term", "detail": term})
 
     # d. A line the model skipped (or no output at all) comes back as one fact part.
     seen = {p["line"] for p in parts}
