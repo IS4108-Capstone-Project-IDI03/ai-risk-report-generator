@@ -55,3 +55,26 @@ def test_an_unknown_tier_or_document_ranks_last():
 
 def test_chat_works_without_the_new_fields(fake):  # noqa: F811
     assert _ask("What clearance?")  # no tier_order, documents without tier
+
+
+# Odd inputs found by the swarm tester: chat must never crash or drop a passage over them.
+def test_odd_scores_never_drop_a_passage_or_crash():
+    nan = float("nan")
+    out = apply_rank([p("nfpa", nan), p("fm", 0.5), p("sg", None)], ORDER, DOCS, "SG")
+    assert sorted(ids(out)) == ["fm", "nfpa", "sg"]
+
+
+def test_negative_scores_still_form_a_band():
+    out = apply_rank([p("nfpa", -0.50), p("fm", -0.52)], ORDER, DOCS, None)
+    assert ids(out) == ["fm", "nfpa"]
+
+
+def test_missing_metadata_or_doc_tiers_is_treated_as_unranked():
+    odd = [
+        {"id": "x", "relevance_score": 0.9},
+        {"id": "y", "metadata": None, "relevance_score": 0.9},
+    ]
+    assert len(apply_rank(odd + [p("fm", 0.9)], ORDER, DOCS, None)) == 3
+    assert len(apply_rank([p("fm", 0.9)], ORDER, None, None)) == 1
+    unhashable = {"id": "z", "metadata": {"doc_id": ["a"]}, "relevance_score": 0.9}
+    assert len(apply_rank([unhashable, p("fm", 0.9)], ORDER, DOCS, None)) == 2

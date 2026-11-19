@@ -21,11 +21,20 @@ def apply_rank(
     """
     if not tier_order or not passages:
         return passages
-    top = max(p.get("relevance_score", 0) for p in passages)
-    cut = top - RANK_BAND * top
+    doc_tiers = doc_tiers or {}
+
+    def score(p: dict) -> float:
+        # A missing, None or NaN score counts as 0: without this, one odd passage would crash
+        # the chat, or (NaN) fall out of both lists and vanish from the answer.
+        s = p.get("relevance_score")
+        return float(s) if isinstance(s, int | float) and s == s else 0.0
+
+    top = max(score(p) for p in passages)
+    cut = top - RANK_BAND * abs(top)  # abs: a negative top would otherwise put the cut above it
 
     def rank(p: dict) -> int:
-        doc = doc_tiers.get(p["metadata"].get("doc_id")) or {}
+        doc_id = (p.get("metadata") or {}).get("doc_id")
+        doc = (doc_tiers.get(doc_id) if isinstance(doc_id, str) else None) or {}
         tier = doc.get("tier")
         if tier == "national_code" and (
             not jurisdiction or doc.get("jurisdiction") != jurisdiction
@@ -33,8 +42,7 @@ def apply_rank(
             tier = None
         return tier_order.index(tier) if tier in tier_order else len(tier_order)
 
-    band = [p for p in passages if p.get("relevance_score", 0) >= cut]
-    rest = [p for p in passages if p.get("relevance_score", 0) < cut]
-    # sorted is stable, so ties on tier keep the score order; the sort key adds it explicitly.
-    band.sort(key=lambda p: (rank(p), -p.get("relevance_score", 0)))
+    band = [p for p in passages if score(p) >= cut]
+    rest = [p for p in passages if score(p) < cut]
+    band.sort(key=lambda p: (rank(p), -score(p)))
     return band + rest
