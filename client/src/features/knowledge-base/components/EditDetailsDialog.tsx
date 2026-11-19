@@ -21,7 +21,10 @@ export function EditDetailsDialog({
   onClose: () => void
   onSaved: (updated: KnowledgeDocument) => void
 }) {
-  const { details, errors, problem, busy, change, save } = useDetailsForm(document, version)
+  const { details, tier, setTier, errors, problem, busy, change, save } = useDetailsForm(
+    document,
+    version,
+  )
 
   return (
     <Dialog
@@ -60,6 +63,8 @@ export function EditDetailsDialog({
           errors={errors}
           unconfirmed={version ? [] : document.unconfirmed}
           onChange={change}
+          tier={tier}
+          onTierChange={setTier}
         />
       </div>
     </Dialog>

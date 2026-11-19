@@ -1,6 +1,7 @@
 // Gateway (S2) calls for the Settings screen (S-01).
 // Called by Settings.tsx and its sections. Calls /api/settings and /api/auth/change-password.
 import { request } from '../accounts/api'
+import type { TierId } from './tiers'
 
 export type ModelOption = {
   id: string
@@ -26,10 +27,18 @@ export type ModelRowData = {
   options: ModelOption[]
 }
 export type QaStrictness = 'strict' | 'standard' | 'lenient'
+// One saved change of the source order (RT-04); newest first, at most 20.
+export type SourcePriorityChange = {
+  at: string
+  by: { id: string; name: string }
+  before: TierId[]
+  after: TierId[]
+}
 export type Settings = {
   canEditGlobal: boolean
   models: ModelRowData[]
   qaStrictness: QaStrictness
+  sourcePriority: { order: TierId[]; history: SourcePriorityChange[] }
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -43,6 +52,10 @@ export function getSettings(): Promise<Settings> {
 /** Admin: saves the model for one task; returns the new settings. */
 export function saveModel(task: string, option: string) {
   return send('PUT', `/api/settings/models/${encodeURIComponent(task)}`, { option })
+}
+/** Admin: saves the source authority order (highest first); returns the new settings. */
+export function saveSourcePriority(order: TierId[]) {
+  return send('PUT', '/api/settings/source-priority', { order })
 }
 /** Admin: saves the QA strictness for everyone. */
 export function saveGlobal(body: { qaStrictness: QaStrictness }) {

@@ -8,6 +8,7 @@ import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
 import { PasswordSection } from './screens/PasswordSection'
+import { SourcePrioritySection } from './screens/SourcePrioritySection'
 import { QaSection } from './screens/QaSection'
 import './settings.css'
 
@@ -34,6 +35,11 @@ const WORKING: Section[] = [
     render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
   },
   {
+    id: 'source-priority',
+    label: 'Source priority',
+    render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
+  },
+  {
     id: 'qa',
     label: 'QA eval',
     render: needs((s, f) => <QaSection settings={s} onSaved={f} />),
@@ -47,7 +53,6 @@ const WORKING: Section[] = [
 // Built by teammates later; each shows who. Order here is the order in the menu.
 const SOON: Section[] = [
   ['Checklist', 'Xuren'],
-  ['Source priority', 'Chris'],
   ['Note-taking', 'Chris'],
 ].map(([name, owner]) => ({
   id: name,

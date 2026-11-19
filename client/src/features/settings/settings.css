@@ -241,3 +241,50 @@
     white-space: nowrap;
   }
 }
+
+/* Source priority (RT-04): the ranked tier list and its history. */
+.st-tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+.st-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 4px 8px 4px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+.st-tier[draggable='true'] {
+  cursor: grab;
+}
+.st-tier.is-dragging {
+  opacity: 0.5;
+}
+.st-tier-rank {
+  width: 24px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.st-tier-grip {
+  display: inline-flex;
+}
+.st-tier-name {
+  flex: 1;
+  font-weight: var(--weight-medium);
+}
+.st-history {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--graphite-600);
+}

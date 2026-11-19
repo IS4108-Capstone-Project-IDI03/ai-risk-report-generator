@@ -18,6 +18,7 @@ import {
   needsReview,
   sourceLabel,
 } from '../display'
+import { TIER_LABELS } from '../../settings/tiers'
 import { DetailText } from './DetailText'
 
 /** Returns one document's details and actions. */
@@ -48,6 +49,16 @@ export function DocumentDetails({
       <dl className="kb-facts">
         <Fact label="Source type">
           <DetailText text={sourceLabel(d.sourceType)} />
+        </Fact>
+        <Fact label="Tier">
+          {d.tier ? (
+            <>
+              {TIER_LABELS[d.tier.value]}
+              {d.tier.source === 'auto' && <span className="kb-tier-note"> (suggested)</span>}
+            </>
+          ) : (
+            'Unranked'
+          )}
         </Fact>
         <Fact label="Issuing body">
           {/* A local standard may have none; that is not an Unconfirmed detail. */}

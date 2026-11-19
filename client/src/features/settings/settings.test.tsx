@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ModelOption, ModelRowData, Settings as SettingsData } from './api'
 import { Settings } from './Settings'
+import { TIER_IDS } from './tiers'
 
 const opt = (id: string, o: Partial<ModelOption> = {}): ModelOption => ({
   id,
@@ -36,6 +37,7 @@ const data = (
   canEditGlobal,
   models,
   qaStrictness: 'standard',
+  sourcePriority: { order: [...TIER_IDS], history: [] },
 })
 const reply = (status: number, body: unknown) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -87,7 +89,6 @@ describe('Settings', () => {
     render(<Settings />)
     for (const [name, owner] of [
       ['Checklist', 'Xuren'],
-      ['Source priority', 'Chris'],
       ['Note-taking', 'Chris'],
     ]) {
       open(name)
@@ -253,5 +254,133 @@ describe('Settings: tasks nothing reads yet', () => {
     open('Models')
     expect(await screen.findByText(/Not used yet/)).toBeInTheDocument()
     expect(screen.getAllByText(/Not used yet/)).toHaveLength(1)
+  })
+})
+
+describe('Settings Source priority (RT-04)', () => {
+  const names = () =>
+    screen.getAllByRole('listitem').map((li) => li.querySelector('.st-tier-name')?.textContent)
+  const DEFAULT = [
+    'National code',
+    'Manufacturer rating',
+    'Marsh precedent',
+    'International standard',
+  ]
+  const openIt = async (settings: SettingsData, extra?: Parameters<typeof mock>[1]) => {
+    const fetchMock = mock(settings, extra)
+    render(<Settings />)
+    await screen.findByRole('button', { name: 'Models' })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    open('Source priority')
+    await screen.findByRole('list', { name: /Source priority/ })
+    return fetchMock
+  }
+
+  it('is a working screen, not Coming soon, and shows the default order', async () => {
+    await openIt(data(true))
+    expect(names()).toEqual(DEFAULT)
+    expect(screen.queryByText(/Coming soon. Being built by Chris.*/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move National code up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move International standard down' })).toBeDisabled()
+  })
+
+  it('moves a tier down and up with the buttons', async () => {
+    await openIt(data(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    expect(names().slice(0, 2)).toEqual(['Manufacturer rating', 'National code'])
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code up' }))
+    expect(names()).toEqual(DEFAULT)
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+  })
+
+  it('saves the new order with a PUT and shows the saved history', async () => {
+    const after: SettingsData = {
+      ...data(true),
+      sourcePriority: {
+        order: [
+          'manufacturer_rating',
+          'national_code',
+          'marsh_precedent',
+          'international_standard',
+        ],
+        history: [
+          {
+            at: '2026-11-01T06:05:00.000Z',
+            by: { id: 'a1', name: 'Ada Admin' },
+            before: [...TIER_IDS],
+            after: [
+              'manufacturer_rating',
+              'national_code',
+              'marsh_precedent',
+              'international_standard',
+            ],
+          },
+        ],
+      },
+    }
+    const fetchMock = await openIt(data(true), (_u, init) =>
+      init?.method === 'PUT' ? reply(200, after) : null,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+    expect(put[0]).toBe('/api/settings/source-priority')
+    expect(put[1]?.body).toBe(JSON.stringify({ order: after.sourcePriority.order }))
+    expect(screen.getByText(/Ada Admin: National code, Manufacturer rating/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+  })
+
+  it('reorders by dragging a row onto another', async () => {
+    await openIt(data(true))
+    const items = screen.getAllByRole('listitem')
+    fireEvent.dragStart(items[0])
+    fireEvent.dragOver(items[2])
+    fireEvent.drop(items[2])
+    expect(names()).toEqual([
+      'Manufacturer rating',
+      'Marsh precedent',
+      'National code',
+      'International standard',
+    ])
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeEnabled()
+  })
+
+  it('shows a failed save with its reason', async () => {
+    await openIt(data(true), (_u, init) =>
+      init?.method === 'PUT' ? reply(400, { error: 'Order must list every tier once.' }) : null,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Order must list every tier once.')
+  })
+
+  it('is read-only for an engineer, who still sees the history', async () => {
+    const withHistory: SettingsData = {
+      ...data(false),
+      sourcePriority: {
+        order: [...TIER_IDS],
+        history: [
+          {
+            at: '2026-11-01T06:05:00.000Z',
+            by: { id: 'a1', name: 'Ada Admin' },
+            before: ['marsh_precedent', ...TIER_IDS.filter((t) => t !== 'marsh_precedent')],
+            after: [...TIER_IDS],
+          },
+        ],
+      },
+    }
+    await openIt(withHistory)
+    expect(screen.getByText('Set by an admin')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save order' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Move National code down' })).toBeDisabled()
+    expect(screen.getAllByRole('listitem')[0]).toHaveAttribute('draggable', 'false')
+    expect(screen.getByText(/Ada Admin: Marsh precedent, National code/)).toBeInTheDocument()
+  })
+
+  it('says there are no changes yet', async () => {
+    await openIt(data(true))
+    expect(screen.getByText('No changes yet.')).toBeInTheDocument()
   })
 })
