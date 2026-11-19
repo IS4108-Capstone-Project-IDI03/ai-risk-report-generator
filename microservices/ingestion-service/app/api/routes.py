@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app import extract_text, matching, worker
+from app import extract_text, manual, matching, usage, worker
 from app.labelling import label_pdf
 from app.matching import comparison_rows, find_match
 from app.pipeline.indexer import index_chunks, relabel
@@ -61,6 +61,23 @@ class IndexRequest(BaseModel):
         if len({chunk.id for chunk in self.chunks}) != len(self.chunks):
             raise ValueError("Chunk IDs must be unique within a request")
         return self
+
+
+# A manual clause's screenshot (IN-18): where it is stored and what it shows.
+class ManualImage(BaseModel):
+    key: NonEmpty
+    kind: Literal["table", "formula", "picture"]
+
+
+# One clause of a manually entered standard (IN-18), as the gateway stores it in
+# `manual_sections`. `seq` is its fixed number (passage ids), `order` its place in the list.
+class ManualSection(BaseModel):
+    seq: int = Field(ge=1)
+    order: int = Field(ge=0)
+    clause: NonEmpty
+    headings: list[NonEmpty] = Field(default_factory=list, max_length=20)
+    text: Annotated[NonEmpty, Field(max_length=200_000)]
+    images: list[ManualImage] = Field(default_factory=list, max_length=20)
 
 
 @router.get("/health")
@@ -166,6 +183,35 @@ def match_document(doc_id: str) -> dict:
     worker.documents().update_one({"_id": doc["_id"]}, {"$set": {"match": match}})
     worker.relabel_passages({**doc, "match": match})
     return {"match": {**match, "documentId": str(match["documentId"])} if match else None}
+
+
+def manual_document(doc_id: str) -> dict:
+    """Return a manually entered document, or raise 404 / 409 (an uploaded one takes no clauses)."""
+    doc = stored_document(doc_id)
+    if doc.get("entryMethod") != "manual":
+        raise HTTPException(409, "Only a manually entered document has clauses to change.")
+    return doc
+
+
+@router.put("/documents/{doc_id}/manual-sections/{section_id}")
+def save_manual_section(doc_id: str, section_id: str, section: ManualSection) -> dict:
+    """Index one clause of a manual document, replacing its passages (IN-18).
+
+    Called by the gateway after it saves the clause to `manual_sections`. Synchronous: one
+    clause is one embedding call. Returns how many passages it has, and the embedding's
+    usage for the gateway to record (EV-03), as /label does.
+    """
+    doc = manual_document(doc_id)
+    with usage.collecting(doc_id) as used:
+        count = manual.save(doc, {**section.model_dump(), "section_id": section_id})
+    return {"passagesIndexed": count, "usage": used}
+
+
+@router.delete("/documents/{doc_id}/manual-sections/{section_id}")
+def delete_manual_section(doc_id: str, section_id: str) -> dict:
+    """Delete one clause's passages from the search index (IN-18); returns how many."""
+    manual_document(doc_id)
+    return {"passagesDeleted": manual.delete(doc_id, section_id)}
 
 
 @router.delete("/documents/{doc_id}/passages")

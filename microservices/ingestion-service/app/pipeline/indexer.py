@@ -101,7 +101,7 @@ def split_for_storage(text: str, limit: int = MAX_DOCUMENT_BYTES) -> list[str]:
     return parts + [current] if current else parts
 
 
-def _storable(chunks: list[dict]) -> list[dict]:
+def storable(chunks: list[dict]) -> list[dict]:
     """Chunks too big for one stored document become `<id>:partN`, same metadata."""
     out = []
     for chunk in chunks:
@@ -135,7 +135,7 @@ def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = Non
         embedding batch against `page_total`. Chunks arrive in reading order, so
         the furthest `page_end` embedded so far is the page reached.
     """
-    chunks = _storable(chunks)
+    chunks = storable(chunks)
     texts = [chunk["text"] for chunk in chunks]
     # Furthest page_end among the first n chunks, for each n.
     page_reached, furthest = [0], 0
