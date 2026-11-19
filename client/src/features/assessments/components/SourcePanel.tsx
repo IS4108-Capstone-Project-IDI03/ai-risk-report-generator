@@ -9,6 +9,7 @@ import {
   claimsOf,
   excerpt,
   FINDING_BADGE,
+  clauseOf,
   pageLocator,
   pages,
   severityLabel,
@@ -386,7 +387,15 @@ export function SourcePanel({
                   kind={p.kind === 'precedent' ? 'report' : 'standard'}
                   source={
                     <>
-                      {p.document?.title ?? p.documentId ?? 'Document not found'}
+                      {[
+                        // "NFPA 13 (2022), 8.6.2": the page follows as the locator (GN-16 AC5).
+                        p.document?.edition && !p.document.title.includes(p.document.edition)
+                          ? `${p.document.title} (${p.document.edition})`
+                          : (p.document?.title ?? p.documentId ?? 'Document not found'),
+                        clauseOf(p.headings),
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
                       {p.broader && (
                         <span className="rv-flag" title="Found by country only, not facility type">
                           <Badge tone="neutral">Broader match</Badge>

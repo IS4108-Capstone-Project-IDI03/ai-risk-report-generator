@@ -438,7 +438,7 @@ it('shows the draft editor with its sources, observations and claims beside it (
 
   // The reference source panel sits beside it, listing every cited passage (AC2).
   const sources = within(panel()).getByRole('region', { name: 'Reference sources' })
-  expect(within(sources).getByText('FM Global Data Sheet 1-21')).toBeInTheDocument()
+  expect(within(sources).getByText('FM Global Data Sheet 1-21 (2022)')).toBeInTheDocument()
   expect(within(sources).getByText('pp. 12–13')).toBeInTheDocument()
   expect(within(sources).getByText('Jurong Logistics Hub PRE 2024')).toBeInTheDocument()
 
