@@ -566,7 +566,8 @@ describe('Source region', () => {
     renderPanel(cited({ quote: 'Inside Hose' }))
     const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
     await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
-    expect(fillRect).toHaveBeenCalledTimes(1)
+    // Washed on once the page's words are read, after the crop first shows.
+    await waitFor(() => expect(fillRect).toHaveBeenCalledTimes(1))
     // 8 points in from the crop's edge (its margin), 110 wide: the words' place in the box.
     const [x, , width] = fillRect.mock.calls[0] as number[]
     expect(x / width).toBeCloseTo(8 / 110)
@@ -579,6 +580,8 @@ describe('Source region', () => {
     renderPanel(cited({ quote: 'Outside Hose' }))
     const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
     await within(panel).findByRole('img', { name: 'Table on page 4 of the original' })
+    // Past the page's words being read.
+    await new Promise((resolve) => setTimeout(resolve, 20))
     expect(fillRect).not.toHaveBeenCalled()
     delete pdf.texts[4]
   })
@@ -589,14 +592,15 @@ describe('Source region', () => {
     }
     vi.mocked(fetchPassage).mockResolvedValue({
       ...PASSAGE,
-      text: 'Figure 3
-Image description (generated, photograph): Two cylinders on a rack.',
+      text: 'Figure 3\nImage description (generated, photograph): Two cylinders on a rack.',
       generated: true,
       region: { kind: 'picture', boxes: [{ page: 2, l: 50, t: 350, r: 250, b: 200 }] },
     })
     renderPanel(cited({ quote: 'Figure 3' }))
     const panel = await screen.findByRole('tabpanel', { name: 'Passage' })
     await within(panel).findByRole('img', { name: 'Picture on page 2 of the original' })
+    // Past the page's words being read.
+    await new Promise((resolve) => setTimeout(resolve, 20))
     expect(fillRect).not.toHaveBeenCalled()
     delete pdf.texts[2]
   })

@@ -184,11 +184,13 @@ function RegionFrame({
     // Copied at once: the drawn page is let go as soon as the frame is cut.
     const crop = drawn && cropOf(drawn, shown, page)
     if (!crop) return setFailed(true)
-    const done = () =>
-      setCut({ src: crop.toDataURL('image/png'), ratio: (shown.r - shown.l) / (shown.t - shown.b) })
-    if (!quote) return done()
-    // The page's words inside the table's box, so the same words elsewhere on the page don't count.
-    // Unmarked when they can't be read or don't hold the quote: the crop still shows.
+    const ratio = (shown.r - shown.l) / (shown.t - shown.b)
+    // Shown at once, so the hidden page is let go before anything redraws it.
+    setCut({ src: crop.toDataURL('image/png'), ratio })
+    if (!quote) return
+    // Then the quote, washed onto the kept crop once the page's words are read: only those inside
+    // the table's box, so the same words elsewhere on the page don't count. Left unmarked when
+    // they can't be read or don't hold the quote.
     Promise.resolve()
       .then(() => proxy.getTextContent())
       .then((content) => {
@@ -196,10 +198,10 @@ function RegionFrame({
           .filter((i): i is TextItem => 'str' in i)
           .map((i) => toPdfText(i, tight.page))
           .filter((t) => inside(t.x, t.y, tight))
-        markQuote(crop, quoteRects(words, quote), shown)
+        if (markQuote(crop, quoteRects(words, quote), shown))
+          setCut({ src: crop.toDataURL('image/png'), ratio })
       })
       .catch(() => undefined)
-      .finally(done)
   }
   return (
     <div className="src-region-draw" aria-hidden="true">
@@ -226,10 +228,10 @@ function inside(x: number, y: number, box: PageBox) {
   return x >= box.l - MARGIN && x <= box.r + MARGIN && y >= box.b - MARGIN && y <= box.t + MARGIN
 }
 
-/** Washes the quote's rectangles (PDF points) yellow on the crop of `box`. */
-function markQuote(crop: HTMLCanvasElement, rects: Rect[], box: PageBox) {
+/** Washes the quote's rectangles (PDF points) yellow on the crop of `box`; false when none. */
+function markQuote(crop: HTMLCanvasElement, rects: Rect[], box: PageBox): boolean {
   const context = crop.getContext('2d')
-  if (!context || rects.length === 0) return
+  if (!context || rects.length === 0) return false
   // Pixels per point, as the crop was copied: its width over the box's.
   const scale = crop.width / (box.r - box.l)
   context.globalCompositeOperation = 'multiply'
@@ -244,6 +246,7 @@ function markQuote(crop: HTMLCanvasElement, rects: Rect[], box: PageBox) {
     )
   }
   context.globalCompositeOperation = 'source-over'
+  return true
 }
 
 /** The box's pixels from the drawn page, on a canvas of their own; null when the browser can't copy. */
