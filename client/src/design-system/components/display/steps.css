@@ -471,7 +471,8 @@ div.ds-step-head:focus:not(:focus-visible) {
 .ds-mark-tick[data-in] path {
   animation: ds-draw var(--duration-slow) var(--ease-out) both;
 }
-.ds-mark-stale {
+.ds-mark-stale,
+.ds-mark-unsure {
   color: var(--amber-600);
 }
 .ds-mark-failed {

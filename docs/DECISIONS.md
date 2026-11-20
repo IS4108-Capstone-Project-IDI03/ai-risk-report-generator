@@ -647,6 +647,11 @@ reports keep only two OFI photos, so the reference set in
 hit rate means much.
 
 Stories: CP-05, CP-04, CP-08.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes a
+category or a quote-checked reason; it describes the photos only, and the
+gateway starts it by itself (see "Manual observations are read in the
+background"). One reading per observation and the proposal not being drafting
+evidence stand.
 
 ## 2026-10-08 — AI-call usage is returned by the services and saved by the gateway
 
@@ -759,6 +764,7 @@ client's photos to a third party should be a deliberate act, and Marsh pays
 only for proposals someone wants. The cost is one tap per observation.
 
 Stories: CP-05 (CP-04 in the vetted sheet).
+Superseded 2026-11-20 by CP-24 ("Manual observations are read in the background"): the photos are described without being asked, on saving and when they or their marks change.
 
 ## 2026-10-08 — Repeats and newer editions: fingerprint at upload, one match check after ingestion, one Needs review status
 
@@ -909,6 +915,7 @@ wall penetration is both Construction and Protection), and with one category
 an engineer had to pick a section to leave it out of.
 
 Stories: CP-02, CP-06, GN-01.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes a category; the category is suggested from the observation's text (see "Manual observations are read in the background"), and is still one.
 
 ## 2026-10-10 — Ingestion moves to one cloud instance; tables and formulas are read by Claude Haiku 5.5, several at once
 
@@ -2093,6 +2100,7 @@ Rejected:
 Known limits: street addresses are not detected, only a postal code after "Singapore". A second `/mask` call per reading bends Rule 2 (one call per request); it adds nothing to the mapping.
 
 Stories: PV-04.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes categories, so only the description is checked for added details, and there are no quotes or reasons.
 
 ## 2026-11-05 — privacy-service detects street addresses and vehicle plates; detectors.json switches each kind
 
@@ -2596,6 +2604,7 @@ Rejected:
 - Drawing the mark on Appendix A's photos and in the export: the report shows photos as taken; the mark only tells the AI reading where to look. Asked on 18 Nov.
 
 Stories: CP-10, CP-05, CP-21, PV-04.
+Partly superseded 2026-11-20 (CP-24): "Reading again stays the engineer's choice" no longer holds. A moved, added or cleared mark queues the description again by itself.
 
 ## 2026-11-17 — A knowledge document's passages are paged and outlined by the ingestion service, from clause numbers
 
@@ -2680,6 +2689,35 @@ Rejected:
 The embedded text (`indexer.embedding_text`) and the reranker's (`retriever.rank_text`) both read the trail, so they change together. The E8 evaluation on the standards set is to be run before and after, after the knowledge base is rebuilt; scores must not drop.
 
 Stories: IN-19, IN-17.
+
+## 2026-11-20 — Manual observations are read in the background; category and severity are filled in and marked, never offered
+
+Chose:
+- (CP-24) An engineer adds an observation with a location and what they saw. Everything else is done in the background, with no button: recordings and pages are transcribed, photos are described, and an empty category or severity is suggested.
+- Suggestions are filled in, not offered. The value is written where the engineer's would be, and the observation's `suggestion` records that it is still an AI value. Under the site walk's cutoff, `SITE_WALK_CHECK_BELOW` (0.70, unchanged), it is also marked not sure, and stays marked until the engineer confirms or changes it. Confirming keeps the value and makes it theirs.
+- The engineer's choice is never replaced. A field is theirs once they chose it at Save, changed it or confirmed it. Only an empty field or one holding an unconfirmed suggestion is suggested again, and the job's write checks that inside MongoDB, so a value chosen while it ran is kept. `PATCH /api/observations/:id` is the one write path for category and severity and clears the field's `suggestion` entry.
+- The classifier is the site walk's rating step, run on one observation's text through rag-service's `POST /observations/rate`: the same classifier, severity matrix and cutoff, and one category. No language model reads the observation, and no place is matched. The text is masked first with the same privacy session as the site walk; if masking is unavailable nothing is sent and the suggestion is stored as failed, without a retry. Its cost is saved under the feature `site-walk`.
+- One queued job per observation (`observation-reading`, concurrency 3, 2 tries, 5 s apart). Every trigger (save, media added, removed or restored, a photo's mark, a transcript or page text corrected or finished, a note change, a restore, Try again) adds 1 to `suggestion.run` and queues job `obs-reading-<id>-<run>`. A job writes only while the stored run is its own. The job describes photos first, waits while anything is transcribing (the transcript finishing queues a new run), and stops if both fields are the engineer's or there is no text. At startup `resumeReadings` queues a fresh run for any reading cut short.
+- A hidden draft observation holds the recordings made on New Observation, so each has somewhere to attach and transcribes before Save (AC1). Save turns it into the observation, leaving without saving deletes it with its files, and an hourly job deletes drafts unchanged for 24 hours (by `updatedAt`). Files go first and the record only when every file went, so a storage error keeps the draft for the next run and never leaves audio nothing points at. A draft is read by no list, count, drafting input, Ask, appendix, MarshBot check or report. It has no location; `location` is required on every other observation, and `severity` may now be `null`.
+- Drafting leaves out any observation to check: one rule, `settled` (`section.service.ts`), for an empty or not-sure category or severity or a failed suggestion. It replaces "has a category". Once an observation is settled it enters drafting, and drafts written without it show as out of date. Ask is unchanged.
+- The photo reading's category half is removed from S5 (`/interpret` returns the description and hazard type only), the gateway and the client, with Get AI proposal, Suggest again, Describe photos and Describe again, their route (`POST /api/observations/:id/interpretation` answers 404) and `eval.suggest_categories`. The description runs by itself, on saving and when photos or marks change. Old readings keep their stored categories, which nothing reads.
+- Updates are pushed, not polled: after each change the job publishes on the assessment's existing server-sent stream (`event: observations`) and the open Observations tab and observation page read again. The tab's existing 3-second poll for transcription stays.
+- A site walk proposal shows the `check` flags it already stored, with the same not-sure mark. They do not hold back Create all, and each created observation starts with the same marks. To keep them (AC17), such an observation is queued with `suggestion.rate: false`: its photos are described, but it is not rated again, and a new rating could change or clear a mark. The engineer's first change of their own (media, a transcript or page correction, a photo mark, a note edit, Try again) sets it back to true.
+
+Reason: a manual observation should need as little work as one from a site walk. The engineer's work is to check, not to ask for each step. The rating step is already tuned and scored, so it is reused as it is. The run number keeps a trigger that arrives while a job runs, and stops an older job writing last.
+
+Rejected:
+- Offering the suggestion for the engineer to accept (as the AI proposal did): it is one more step per observation. A marked value is already there, and the mark says when to look.
+- Letting a not-sure observation into drafting: a draft would cite a category nobody has seen. Leaving it out until settled keeps the report to values an engineer chose or confirmed.
+- A language model reading the observation to categorise it, as the removed photo reading did: the classifier already reaches 1.000 category agreement on the golden findings, with no cost worth counting and no free text to check.
+- A separate cutoff for category and severity, or a new cutoff: kept at 0.70 as decided. Calibrating them apart is parked.
+- Polling for the result: no new polling from sprint 5, and the stream already exists (ADR 0002 in `.local-docs/adr`).
+
+Evaluation (20 Nov 2026, `eval/site_walk/rate_eval.py`, outside CI): held-out, 79 findings (13 of 16 cases had saved notes; 13 findings skipped), category agreement 1.000 and severity 0.835 (target 0.84, one finding short); right when not marked 1.000 and 0.900; marked not sure 5.1% and 24.1%. Tuning, 145 findings: 1.000 and 0.862; right when not marked 1.000 and 0.933. About US$0.011 for both. On the tuning sweep 0.75 gives 97% severity right when not marked but marks 35%, so 0.70 stays.
+
+Known limits: the notes scored are the site walk's clean notes, not engineers' raw text. Whether Marsh allows site photos and notes to go to Google (G3) was open at PV-04 and this entry does not settle it: describing photos without being asked reverses the 2026-10-08 choice, and relies on blurring and masking.
+
+Stories: CP-24, CP-05, CP-21, CP-22, PV-04, AS-06.
 
 ## 2026-11-20 — A standard with no PDF is entered clause by clause, indexed as each clause is saved, and replaced by its PDF later
 

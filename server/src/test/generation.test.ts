@@ -73,6 +73,26 @@ describe('the checkpoint', () => {
     expect(body.checkpoint).toEqual({ kind: 'transcribing', recordings: 1, parts: STEP_ONE })
   })
 
+  it('does not wait on a recording of an observation still to check, which drafting leaves out (CP-24)', async () => {
+    const { api, ids } = await setup()
+    await everyCategory(ids)
+    const toCheck = await observation(ids, ['Protection'], { transcribing: true })
+    await toCheck.updateOne({ $set: { severity: null } })
+
+    expect((await api.get(url).expect(200)).body.checkpoint).toEqual({
+      kind: 'ready',
+      step: 1,
+      parts: STEP_ONE,
+    })
+    // Settled, its recording holds drafting up again.
+    await toCheck.updateOne({ $set: { severity: 'high' } })
+    expect((await api.get(url).expect(200)).body.checkpoint).toEqual({
+      kind: 'transcribing',
+      recordings: 1,
+      parts: STEP_ONE,
+    })
+  })
+
   it('is ready to draft the 8 sections of step 1 once each has an observation (AC1)', async () => {
     const { api, ids } = await setup()
     await everyCategory(ids)

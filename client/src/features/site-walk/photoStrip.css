@@ -1,5 +1,14 @@
 /* The walk's photo grid (CP-22 Sprint 4 fixes, board 04): tiles as wide as the recording
    box, five to a row at 460 px and four at 343 px. Used by components/PhotoStrip.tsx. */
+/* The tiles' own variables, with the values .sw (site-walk.css) gives them, so "Add photo" is
+   12 / 600 wherever the tiles are used and not only on the site walk screens (CP-24). */
+.sw-photostrip {
+  --sw-font: var(--font-sans);
+  --sw-fill: rgb(0 15 71 / 0.06);
+  --sw-hover: rgb(0 15 71 / 0.04);
+  --sw-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
+  --sw-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
 .sw-photostrip ul {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));

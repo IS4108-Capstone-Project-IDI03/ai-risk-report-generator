@@ -1,5 +1,5 @@
-"""PV-04: with protection on, the observation reader masks text and blurs faces before Gemini,
-and gives the proposal back with real values. privacy-service is faked (conftest)."""
+"""PV-04: with protection on, the photo reader masks text and blurs faces before Gemini,
+and gives the description back with real values. privacy-service is faked (conftest)."""
 
 import json
 
@@ -31,11 +31,16 @@ def sent_text() -> str:
 
 
 def test_masks_every_text_and_the_location_in_one_call(monkeypatch, fake_privacy):
-    use_fakes(monkeypatch, FakeS3({}), output_text=json.dumps({"categories": []}))
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
 
     response = client.post(
         "/interpret",
-        json={"texts": [NOTE, RECORDING, PAGE], "location": LOCATION, "privacy": PRIVACY},
+        json={
+            "photos": photos("k"),
+            "texts": [NOTE, RECORDING, PAGE],
+            "location": LOCATION,
+            "privacy": PRIVACY,
+        },
     )
 
     assert response.status_code == 200, response.text
@@ -43,21 +48,11 @@ def test_masks_every_text_and_the_location_in_one_call(monkeypatch, fake_privacy
     assert not [value for value in SEEDED if value in text]
     assert "Note (typed note):\n[PERSON_1] says the valves were left shut." in text
     assert "Location: [CLIENT_1] Tower · Level 3" in text
-    assert fake_privacy.paths() == ["/mask"]
+    assert fake_privacy.paths() == ["/redact-image", "/mask"]
 
 
 def test_gives_the_proposal_back_with_real_names(monkeypatch, fake_privacy):
     answer = {
-        "categories": [
-            {
-                "category": "Protection",
-                "reason": "Note says [PERSON_1] found the valves shut.",
-                "evidence": [
-                    {"item": "Note", "quote": "[PERSON_1] says the valves"},
-                    {"item": "Photo 1", "quote": None},
-                ],
-            }
-        ],
         "description": "At [CLIENT_1] Tower, it was observed that the valves were shut.",
         "hazard_type": "Fire Protection System Operation",
     }
@@ -72,10 +67,7 @@ def test_gives_the_proposal_back_with_real_names(monkeypatch, fake_privacy):
     assert (
         body["description"] == "At Acme Holdings Tower, it was observed that the valves were shut."
     )
-    category = body["categories"][0]
-    assert category["reason"] == "Note says John Tan found the valves shut."
-    assert category["evidence"][0]["quote"] == "John Tan says the valves"
-    assert category["evidence"][1]["quote"] is None
+    assert "categories" not in body
 
 
 def test_sends_photos_only_as_privacy_service_blurred_them(monkeypatch, fake_privacy):
@@ -100,7 +92,7 @@ def test_fails_closed_when_privacy_service_cannot_protect(monkeypatch, fake_priv
     for failure in (httpx.ConnectError("refused"), httpx.ReadTimeout("slow"), 500):
         for request in (
             {"photos": photos("k"), "privacy": PRIVACY},
-            {"texts": [NOTE], "privacy": PRIVACY},
+            {"photos": photos("k"), "texts": [NOTE], "privacy": PRIVACY},
         ):
             use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
             fake_privacy.failure = failure
@@ -169,24 +161,16 @@ def test_returns_each_photo_as_sent_for_the_gateway_to_keep(monkeypatch, fake_pr
 
 def test_a_placeholder_typed_in_the_note_stays_as_typed(monkeypatch, fake_privacy):
     note = {**NOTE, "text": "John Tan wrote [PERSON_1] on the valve tag."}
-    answer = {
-        "categories": [
-            {
-                "category": "Protection",
-                "reason": "[PERSON_1] reports the tag.",
-                "evidence": [{"item": "Note", "quote": "wrote [LITERAL_1] on the valve tag"}],
-            }
-        ]
-    }
-    use_fakes(monkeypatch, FakeS3({}), output_text=json.dumps(answer))
+    answer = {"description": "[PERSON_1] reports the tag.", "hazard_type": "Other"}
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
 
-    body = client.post("/interpret", json={"texts": [note], "privacy": PRIVACY}).json()
+    body = client.post(
+        "/interpret", json={"photos": photos("k"), "texts": [note], "privacy": PRIVACY}
+    ).json()
 
     # The typed one is set apart from the real placeholder before masking (Rule 6).
     assert "Note (typed note):\n[PERSON_1] wrote [LITERAL_1] on the valve tag." in sent_text()
-    category = body["categories"][0]
-    assert category["reason"] == "John Tan reports the tag."
-    assert category["evidence"][0]["quote"] == "wrote [PERSON_1] on the valve tag"
+    assert body["description"] == "John Tan reports the tag."
 
 
 class RecordingS3(FakeS3):
@@ -217,8 +201,8 @@ def test_leaves_the_photo_in_s3_as_it_was(monkeypatch, fake_privacy):
 
 def test_every_prompt_says_to_copy_placeholders_exactly():
     # With protection off too, so off and on evals differ only in masking (as in rag-service).
-    for parts in (("categories",), ("description",), ("categories", "description")):
-        assert "Copy bracketed placeholders" in vision.system_instruction(parts)
+    for marked in (False, True):
+        assert "Copy bracketed placeholders" in vision.system_instruction(marked)
     assert vision.PROMPT_VERSION == "cp10-v1"
 
 
@@ -255,7 +239,6 @@ def test_removes_details_the_answer_adds(monkeypatch, fake_privacy):
             "photos": photos("k"),
             "texts": [NOTE],
             "location": LOCATION,
-            "parts": ["description"],
             "privacy": CHECKED,
         },
     )
@@ -267,31 +250,6 @@ def test_removes_details_the_answer_adds(monkeypatch, fake_privacy):
     assert fake_privacy.paths() == ["/redact-image", "/mask", "/mask"]
 
 
-def test_checks_each_reason_with_the_description_in_one_call(monkeypatch, fake_privacy):
-    answer = {
-        "categories": [
-            {
-                "category": "Protection",
-                "reason": "Photo 1 shows a notice to call S7654321Z.",
-                "evidence": [{"item": "Photo 1", "quote": None}],
-            }
-        ],
-        "description": "At [CLIENT_1] Tower, a notice gives +65 8888 7777.",
-        "hazard_type": "Other",
-    }
-    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), output_text=json.dumps(answer))
-
-    response = client.post(
-        "/interpret",
-        json={"photos": photos("k"), "texts": [NOTE], "location": LOCATION, "privacy": CHECKED},
-    )
-
-    body = response.json()
-    assert body["categories"][0]["reason"] == "Photo 1 shows a notice to call [ID number removed]."
-    assert body["description"] == "At Acme Holdings Tower, a notice gives [phone number removed]."
-    assert fake_privacy.paths() == ["/redact-image", "/mask", "/mask"]
-
-
 def test_keeps_a_known_name_the_answer_adds(monkeypatch, fake_privacy):
     # The client's name on a sign: known, so it stays, as it would have in the input.
     answer = {"description": "A sign reads Acme Holdings.", "hazard_type": "Other"}
@@ -299,7 +257,7 @@ def test_keeps_a_known_name_the_answer_adds(monkeypatch, fake_privacy):
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "parts": ["description"], "privacy": CHECKED},
+        json={"photos": photos("k"), "privacy": CHECKED},
     )
 
     assert response.json()["description"] == "A sign reads Acme Holdings."
@@ -311,7 +269,7 @@ def test_leaves_the_answer_as_written_when_the_check_is_off(monkeypatch, fake_pr
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": PRIVACY},
+        json={"photos": photos("k"), "texts": [NOTE], "privacy": PRIVACY},
     )
 
     assert response.json()["description"] == "A notice gives +65 8888 7777."
@@ -332,7 +290,7 @@ def test_fails_closed_when_the_answer_cannot_be_checked(monkeypatch, fake_privac
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": CHECKED},
+        json={"photos": photos("k"), "texts": [NOTE], "privacy": CHECKED},
     )
 
     assert response.status_code == 502
@@ -351,7 +309,7 @@ def test_records_how_many_details_the_answer_lost_never_which(monkeypatch, fake_
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"], "privacy": CHECKED},
+        json={"photos": photos("k"), "texts": [NOTE], "privacy": CHECKED},
     )
 
     assert response.json()["privacy"] == {
@@ -371,7 +329,7 @@ def test_removes_an_address_and_a_plate_the_answer_adds(monkeypatch, fake_privac
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "parts": ["description"], "privacy": CHECKED},
+        json={"photos": photos("k"), "privacy": CHECKED},
     )
 
     assert response.json()["description"] == (
@@ -386,7 +344,7 @@ def test_gives_a_plate_from_the_note_back_real(monkeypatch, fake_privacy):
 
     response = client.post(
         "/interpret",
-        json={"photos": photos("k"), "texts": [note], "parts": ["description"], "privacy": PRIVACY},
+        json={"photos": photos("k"), "texts": [note], "privacy": PRIVACY},
     )
 
     assert response.json()["description"] == "Lorry PU 104 J blocks the hydrant."

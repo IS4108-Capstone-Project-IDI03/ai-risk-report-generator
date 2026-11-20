@@ -34,6 +34,7 @@ from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
 from app.site_walk.note_split import split_note
+from app.site_walk.observation_rate import rate_observation
 from app.site_walk.propose import propose_site_walk
 
 router = APIRouter()
@@ -376,6 +377,24 @@ def propose_site_walk_route(request: ProposeSiteWalkRequest) -> dict:
         )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
+
+
+class RateObservationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # The note, transcripts, page text and photo description, joined by blank lines.
+    text: Annotated[str, Field(min_length=1)]
+    privacy: Privacy | None = None
+
+
+@router.post("/observations/rate")
+def rate_observation_route(request: RateObservationRequest) -> dict:
+    """Suggest a category and severity for one observation (CP-24), with not-sure flags."""
+    try:
+        rated = rate_observation(request.text, _privacy(request))
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+    rated.pop("probabilities")
+    return rated
 
 
 # A client intake (CP-23), as the gateway sends it once each file's text is out. Must match

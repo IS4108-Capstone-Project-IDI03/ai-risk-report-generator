@@ -230,7 +230,7 @@ export function DeleteDialog({ v }: Props) {
         )}
         <p className="cap-dialog-text">
           {
-            'It moves to Deleted observations, where you can restore it. The report leaves it out until then.'
+            'It moves to Deleted Observations, where you can restore it. The report leaves it out until then.'
           }
         </p>
       </div>

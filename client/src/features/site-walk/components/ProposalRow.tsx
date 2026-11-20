@@ -1,13 +1,14 @@
-// One proposed observation in the list (CP-22 round 1, round 3, round 5): the
-// Observations tab's row (assessments/components/ObservationRow.tsx), same
-// columns and marks. One still missing something says what, in red above its
-// note, with a red mark in Status; a complete one has the green tick.
-// Pressing it opens the observation's page. A deleted one offers Restore in
-// the row itself, as on the tab. Used by ProposalList.tsx.
-import { Icon } from '../../../design-system'
+// One proposed observation in the list (CP-22 round 1, round 3, round 5; flags in CP-24): the
+// Observations tab's row (assessments/components/ObservationRow.tsx), same columns and marks.
+// A row still missing something is the red flagged row (reason under the note, red mark); else
+// one whose category or severity the AI was not sure of is the amber one ("Check severity",
+// amber mark): red is louder, so it wins. A complete one has the green tick. Pressing it opens
+// the observation's page. A deleted one offers Restore in the row itself, as on the tab.
+// Used by ProposalList.tsx.
+import { Icon, RowMark } from '../../../design-system'
 import { CategoryMark, SeverityMark } from '../../assessments/components/ObservationMarks'
 import type { ProposedObservation } from '../api'
-import { missingFields } from '../proposal'
+import { isNotSure, missingFields, notSureReason } from '../proposal'
 
 // "Needs location, severity".
 const needsLabel = (fields: string[]) => 'Needs ' + fields.join(', ')
@@ -22,40 +23,41 @@ export function ProposalRow({
   onRestore?: () => void
 }) {
   const missing = missingFields(o)
-  const status = missing.length ? needsLabel(missing) : 'Ready'
+  // a. Which look it wears: red when something is missing, else amber when not sure.
+  const unsure = !missing.length && isNotSure(o)
+  const reason = missing.length ? needsLabel(missing) : unsure ? notSureReason(o) : null
+  const status = missing.length ? reason! : unsure ? 'To check' : 'Ready'
   const row = (
     <button type="button" className="ob-row" onClick={onOpen}>
       <CategoryMark cats={o.copeDimension ? [o.copeDimension] : []} />
-      <span className="ob-row-text">
-        {missing.length > 0 && !onRestore && (
-          <span className="ob-needs">
-            <Icon name="circle-alert" size={13} />
-            {needsLabel(missing)}
-          </span>
-        )}
-        {o.note.trim()}
+      <span className="ob-row-main">
+        <span className="ob-row-text">{o.note.trim()}</span>
+        {reason && !onRestore && <span className="ob-row-reason">{reason}</span>}
       </span>
       <span className="ob-row-cat">{o.copeDimension ?? <span className="ob-none">—</span>}</span>
       {o.severity ? (
         <SeverityMark sev={o.severity} />
       ) : (
-        <span className="ob-sev ob-none" aria-label="No severity">
+        <span className="ob-sev ob-none" role="img" aria-label="No severity">
           —
         </span>
       )}
       {!onRestore && (
         <span className="ob-status" title={status}>
-          <Icon
-            name={missing.length ? 'circle-alert' : 'circle-check'}
-            size={17}
-            color={missing.length ? 'var(--red-600)' : 'var(--green-600)'}
-          />
-          <span className="ob-sr">{status}</span>
+          <RowMark kind={missing.length ? 'failed' : unsure ? 'unsure' : 'done'} label={status} />
         </span>
       )}
     </button>
   )
-  if (!onRestore) return row
+  if (!onRestore) {
+    // The same wrapper and tints as the Observations tab's rows (assessments/observations.css).
+    const tint = missing.length ? 'failed' : unsure ? 'unsure' : undefined
+    return (
+      <div className="ob-row-wrap" data-tint={tint}>
+        {row}
+      </div>
+    )
+  }
   return (
     <div className="ob-deleted">
       {row}

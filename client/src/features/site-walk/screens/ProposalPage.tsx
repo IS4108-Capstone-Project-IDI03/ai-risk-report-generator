@@ -2,31 +2,26 @@
 // Observations tab's observation page (assessments/screens/ObservationPage.tsx)
 // with its own parts. Back, its place with ‹ › arrows, the save state and
 // Delete (Restore when deleted), badged "Proposed observation"; its tags
-// (ObservationTags), note (ObservationNote) and recordings on the left, its
+// (ProposalTags, with the AI's not-sure marks), note (ObservationNote) and recordings on the left, its
 // photos and handwritten pages on the right (MediaPanel). Edits
 // go straight to the proposal (autosaved by useProposal.ts). Rendered by
 // screens/Review.tsx, in place of the proposal's header and table.
 import { useEffect, useRef, useState } from 'react'
-import { Icon } from '../../../design-system'
-import { BackButton } from '../../assessments/components/BackButton'
+import { BackButton, Icon } from '../../../design-system'
 import { MediaPanel } from '../../assessments/components/MediaPanel'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
 import { ObservationNote } from '../../assessments/components/ObservationNote'
-import { ObservationTags, type TagsView } from '../../assessments/components/ObservationTags'
 import { PathTitle } from '../../assessments/components/PathTitle'
 import { PhotoGrid } from '../../assessments/components/PhotoGrid'
 import type { ViewedPhoto } from '../../assessments/components/PhotoReferences'
 import { locationLabel } from '../../assessments/locations'
 import type { ObservationChange } from '../../assessments/useAssessmentWorkflow'
-import type { Cope, Proposal, ProposedObservation, Severity, SiteWalk } from '../api'
+import type { Proposal, ProposedObservation, SiteWalk } from '../api'
 import { pathOf, placeOptions } from '../options'
-import { ALL, sectionsAt } from '../proposal'
+import { ProposalTags } from '../components/ProposalTags'
+import { ALL, sectionsAt, type ObservationPatch } from '../proposal'
 import type { SaveState } from '../useProposal'
 import '../../assessments/observation-page.css'
-
-type Patch = Partial<
-  Pick<ProposedObservation, 'note' | 'copeDimension' | 'severity' | 'locationRef'>
->
 
 // As on the tab's page: nothing until an edit here, then how its save went.
 const SAVE_TEXT: Record<SaveState, string> = {
@@ -61,7 +56,7 @@ export function ProposalPage({
   back: { label: string; onClick: () => void }
   saveState: SaveState
   problem: string | null
-  onChange: (patch: Patch) => void
+  onChange: (patch: ObservationPatch) => void
   onDelete: () => void
   onRestore: () => void
   onStep: (ref: string) => void
@@ -81,27 +76,13 @@ export function ProposalPage({
   const place = proposal.locations.find((l) => l.ref === o.locationRef)
   const where = place ? locationLabel(pathOf(place)) : 'No location yet'
 
-  // b. The tab's tags and note, filled from the proposed observation; their
-  // saves become edits of the proposal.
-  const tags: TagsView = {
-    canChange: !deleted && !readOnly,
-    cats: o.copeDimension ? [o.copeDimension] : [],
-    catLabel: o.copeDimension ?? 'Choose a category',
-    sev: o.severity ?? '',
-    sevLabel: o.severity
-      ? o.severity.charAt(0).toUpperCase() + o.severity.slice(1)
-      : 'Choose a severity',
-    locationId: o.locationRef ?? undefined,
-    where: place ? where : 'Choose a location',
+  // b. Every edit goes straight to the proposal; the note's save is one of them.
+  const edit = (patch: ObservationPatch) => {
+    setEdited(true)
+    onChange(patch)
   }
   const save = async (change: ObservationChange) => {
-    setEdited(true)
-    onChange({
-      ...(change.cats && { copeDimension: (change.cats[0] ?? null) as Cope | null }),
-      ...(change.sev && { severity: change.sev as Severity }),
-      ...(change.locationId !== undefined && { locationRef: change.locationId || null }),
-      ...(change.note !== undefined && { note: change.note }),
-    })
+    if (change.note !== undefined) edit({ note: change.note })
     return true
   }
 
@@ -130,7 +111,7 @@ export function ProposalPage({
     <>
       {/* d. Back at the page's left; then where it is with its arrows, and how
           the last save went. */}
-      <BackButton label={back.label} onClick={back.onClick} />
+      <BackButton label={'Back to ' + back.label} onClick={back.onClick} />
       <div ref={bar} className="op-head">
         {/* Marked as a proposal's, so it never reads as a saved observation (round 6). */}
         <div className="op-badge">
@@ -202,12 +183,12 @@ export function ProposalPage({
           pages), as on the tab's page (stacked on a narrow screen). */}
       <div className="op-body">
         <div className="op-col">
-          <ObservationTags
-            o={tags}
-            proposed
+          <ProposalTags
+            o={o}
             locations={placeOptions(proposal.locations, (l) => l.ref)}
-            save={save}
-            stamps={null}
+            where={place ? where : null}
+            canChange={!deleted && !readOnly}
+            onChange={edit}
           />
           <ObservationNote
             key={o.ref}

@@ -14,8 +14,8 @@ export function RemovedMedia({
   onOpen: (photo: { name: string; url: string }) => void
 }) {
   return (
-    <details className="ob-card ob-section">
-      <summary className="ob-section-head" style={{ cursor: 'pointer', margin: 0 }}>
+    <details className="cpp-card cpp-removed">
+      <summary className="cpp-card-title" style={{ cursor: 'pointer', margin: 0 }}>
         <span>{'Removed media (' + items.length + ')'}</span>
       </summary>
       <ul aria-label="Removed media" style={{ listStyle: 'none', margin: '10px 0 0', padding: 0 }}>

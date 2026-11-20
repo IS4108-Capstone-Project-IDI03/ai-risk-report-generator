@@ -1,12 +1,13 @@
-// The top of the proposal review (CP-22 round 1, revamped round 3): the
-// Observations sub-screen bar with Back, the centred name and its rename
-// pencil, the Proposal badge above it, the save state under it, and on the right whether it is ready, a
-// help (?) and Create all. Used by screens/Review.tsx.
-import { Icon } from '../../../design-system'
+// The top of the proposal review (CP-22 round 1, revamped round 3, v2 in CP-24): the
+// Observations sub-screen bar with the round Back, the centred name and its rename
+// pencil, the Proposal badge above it, the save state under it, and on the right whether it is
+// ready, a help (?) and Create all (greyed out with its reason while something is missing).
+// Used by screens/Review.tsx.
+import { Button, Icon, IconAction } from '../../../design-system'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
 import { ScreenHeader } from '../../assessments/components/ScreenHeader'
 import type { Proposal } from '../api'
-import { incompleteCount } from '../proposal'
+import { createProblem, incompleteCount, incompleteWords } from '../proposal'
 import type { SaveState } from '../useProposal'
 import { ProposalHelp } from './ProposalHelp'
 
@@ -53,7 +54,7 @@ function ReadyState({ proposal, onFix }: { proposal: Proposal; onFix: () => void
         onClick={onFix}
       >
         <Icon name="circle-alert" size={16} />
-        {left} to fix
+        {incompleteWords(proposal)}
       </button>
     )
   return (
@@ -89,8 +90,8 @@ export function ProposalHeader({
   // Someone else's proposal (RV-11 AC2): the name and the words only, nothing to press.
   readOnly?: boolean
 }) {
-  const blocked =
-    !proposal || creating || !proposal.observations.length || incompleteCount(proposal) > 0
+  // Not-sure rows (isNotSure) never block it: only an empty field or no observation does.
+  const blocked = !proposal || !proposal.observations.length || incompleteCount(proposal) > 0
   return (
     <ScreenHeader
       title={name}
@@ -100,15 +101,12 @@ export function ProposalHeader({
       badge={<ObservationBadge kind="proposal" />}
       titleAction={
         !readOnly && (
-          <button
-            type="button"
-            className="swr-rename"
-            aria-label="Rename proposal"
-            title="Rename"
+          <IconAction
+            icon="pencil"
+            label="Rename proposal"
+            tooltip="Rename proposal"
             onClick={onRename}
-          >
-            <Icon name="pencil" size={16} />
-          </button>
+          />
         )
       }
       detail={
@@ -125,16 +123,19 @@ export function ProposalHeader({
           <>
             {!creating && <ReadyState proposal={proposal} onFix={onFix} />}
             <ProposalHelp />
-            <button
-              type="button"
-              className="ob-button ob-button--primary swr-create"
-              disabled={blocked}
-              aria-describedby="swr-state"
+            {/* Greyed out, not disabled, while something is missing: hovering says why (v2). */}
+            <Button
+              variant="create"
+              loading={creating}
+              disabledReason={
+                blocked && !creating
+                  ? { title: "Can't create yet", text: createProblem(proposal) ?? '' }
+                  : undefined
+              }
               onClick={onCreate}
             >
-              {creating && <Icon name="loader" size={16} className="ob-spin" />}
               {creating ? 'Creating…' : 'Create all'}
-            </button>
+            </Button>
           </>
         )
       }

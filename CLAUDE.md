@@ -31,7 +31,8 @@
   `COPE_dimension` is a list of one or more categories, since one finding can
   concern several. Three exceptions: an
   uncategorised observation stores `COPE_dimension: null` (present, but
-  null, never `[]`), which keeps it out of category-scoped drafting (CP-02); a
+  null, never `[]`), which keeps it out of category-scoped drafting (CP-02; so
+  does any observation to check, see below); a
   knowledge document's Unconfirmed details are `null` (IN-05), while its
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
@@ -106,6 +107,16 @@
   request calls `queueAssessmentCheck`. MarshBot pushes to the open Overview
   (server-sent events): never add polling for it. See docs/areas/services.md,
   "Assessment assistant (MarshBot)".
+- Drafting reads observations only through `settled` (`section.service.ts`):
+  one with an empty or not-sure category or severity, or a failed suggestion
+  (`toCheck`, CP-24), is left out until the engineer settles it. A suggested
+  category or severity is an AI value until the engineer chooses, changes or
+  confirms it: `updateObservation` is the one write path that makes it theirs,
+  and the reading job (`observation-reading.service.ts`) never replaces it. A
+  draft observation (`draft: true`, New Observation's recordings before Save)
+  is left out of every list, count, drafting input and report by
+  `listObservations`: read observations through it, never around it. See
+  docs/areas/database.md and docs/areas/services.md, "Reading an observation".
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

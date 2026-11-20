@@ -224,10 +224,10 @@ describe('site walk review', () => {
     expect(place('Chiller room')).toBeInTheDocument()
   })
 
-  it('names the picked place above the list, beside the Add manually button', async () => {
+  it('names the picked place above the list, beside the Add observation button', async () => {
     await openReview()
-    // The toolbar button is the tab's own: "Add" with "manually" hidden on a phone.
-    expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
+    // The toolbar's pill: "Add" with "observation" hidden where the card is narrow.
+    expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
     const where = () => document.querySelector('.ob-where')
     // The screen opens on No location yet.
     expect(where()).toHaveTextContent('No location yet')
@@ -246,10 +246,13 @@ describe('site walk review', () => {
       url.endsWith('/locations') ? json(200, []) : json(200, walk),
     )
     await openReview()
-    // obs-1 has Jev's severity flag set: the screen ignores it.
+    // obs-1 has its severity flag set (CP-24 AC17): its row is amber, with the reason and mark.
     fireEvent.click(place('Chiller room'))
-    expect(screen.queryByText(/^Check/)).not.toBeInTheDocument()
-    expect(document.querySelector('.sw-picker--check')).toBeNull()
+    const unsure = row('Coils iced over')
+    expect(unsure).toHaveTextContent('Check severity')
+    expect(unsure.closest('.ob-row-wrap')).toHaveAttribute('data-tint', 'unsure')
+    expect(within(unsure).getByRole('img', { name: 'To check' })).toBeInTheDocument()
+    expect(row('PU panels').closest('.ob-row-wrap')).not.toHaveAttribute('data-tint')
     expect(screen.queryByText(/^Needs/)).not.toBeInTheDocument()
     fireEvent.click(place('Loading bay'))
     expect(screen.getByText('No observations here')).toBeInTheDocument()
@@ -260,8 +263,11 @@ describe('site walk review', () => {
     const incomplete = row('Extinguisher missing')
     expect(incomplete).toHaveTextContent('Needs location, category, severity')
     expect(within(incomplete).getAllByText('—')).toHaveLength(2)
+    // The empty severity is a picture a screen reader names, not a bare dash.
+    expect(within(incomplete).getByRole('img', { name: 'No severity' })).toBeInTheDocument()
+    expect(incomplete.closest('.ob-row-wrap')).toHaveAttribute('data-tint', 'failed')
     expect(
-      within(incomplete).getByText('Needs location, category, severity', { selector: '.ob-sr' }),
+      within(incomplete).getByRole('img', { name: 'Needs location, category, severity' }),
     ).toBeInTheDocument()
 
     // The page keeps the plain "Choose a …" words, and a picked place clears its need.
@@ -295,6 +301,83 @@ describe('site walk review', () => {
       'Extinguisher missing at exit.',
     )
     expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
+  // CP-24 AC17: obs-1 has its severity flagged (Chiller room); its page shows the not-sure field.
+  it('shows a not-sure severity on the proposed observation, and Confirm clears it in the saved proposal', async () => {
+    await openReview()
+    fireEvent.click(place('Chiller room'))
+    openObservation('Coils iced over')
+    expect(screen.getByRole('img', { name: 'Not sure, check it' })).toBeInTheDocument()
+    // Category was sure: no Confirm for it.
+    expect(screen.queryByRole('button', { name: 'Confirm category' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm severity' }))
+    expect(screen.queryByRole('img', { name: 'Not sure, check it' })).not.toBeInTheDocument()
+
+    await wait(AUTOSAVE_MS + 50)
+    const sent = (saves().at(-1)!.body as Proposal).observations.find((o) => o.ref === 'obs-1')!
+    // The value is kept, only its flag is gone.
+    expect(sent).toMatchObject({
+      severity: 'moderate',
+      check: { severity: false, category: false, location: false },
+    })
+    // Back on the list the row is no longer amber.
+    backToProposal()
+    expect(row('Coils iced over').closest('.ob-row-wrap')).not.toHaveAttribute('data-tint')
+  })
+
+  it('clears the flag when the engineer changes the value, and keeps the other flag', async () => {
+    const walk = walkOf()
+    walk.proposal!.observations[0].check = { ...check, severity: true, category: true }
+    // Serves this walk but keeps recording the calls, so the saved proposal can be read.
+    const gateway = fetch
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) =>
+      url.endsWith('/w1') && (init.method ?? 'GET') === 'GET'
+        ? json(200, walk)
+        : gateway(url, init),
+    )
+    await openReview()
+    fireEvent.click(place('Chiller room'))
+    expect(row('Coils iced over')).toHaveTextContent('Check category and severity')
+    openObservation('Coils iced over')
+    pick(/^Severity:/, 'High')
+    await wait(AUTOSAVE_MS + 50)
+    const sent = (saves().at(-1)!.body as Proposal).observations.find((o) => o.ref === 'obs-1')!
+    expect(sent).toMatchObject({ severity: 'high', check: { severity: false, category: true } })
+    backToProposal()
+    expect(row('Coils iced over')).toHaveTextContent('Check category')
+    expect(row('Coils iced over')).not.toHaveTextContent('severity')
+  })
+
+  // Red is louder than amber, and neither holds Create all back unless something is empty.
+  it('keeps Create all open with not-sure rows, but not with a missing location', async () => {
+    const walk = walkOf()
+    walk.proposal!.observations[2].locationRef = 'loc-1'
+    vi.stubGlobal('fetch', (url: string) =>
+      url.endsWith('/locations') ? json(200, []) : json(200, walk),
+    )
+    await openReview()
+    fireEvent.click(place('Chiller room'))
+    expect(row('Coils iced over')).toHaveTextContent('Check severity')
+    // Not-sure rows are not counted as "to fix", and Create all is open.
+    expect(screen.getByText('Ready to add')).toBeVisible()
+    expect(createAll()).toBeEnabled()
+    expect(createAll()).not.toHaveAttribute('aria-disabled')
+    expect(screen.getByText('3 observations · 1 to check')).toBeVisible()
+  })
+
+  it('shows a row with no location and a flag as red, not amber', async () => {
+    const walk = walkOf()
+    walk.proposal!.observations[0].locationRef = null
+    vi.stubGlobal('fetch', (url: string) =>
+      url.endsWith('/locations') ? json(200, []) : json(200, walk),
+    )
+    await openReview()
+    const flagged = row('Coils iced over')
+    expect(flagged).toHaveTextContent('Needs location')
+    expect(flagged).not.toHaveTextContent('Check severity')
+    expect(flagged.closest('.ob-row-wrap')).toHaveAttribute('data-tint', 'failed')
+    expect(createAll()).toHaveAttribute('aria-disabled', 'true')
   })
 
   // Edits obs-3's note while every proposal save fails.
@@ -546,12 +629,14 @@ describe('site walk review', () => {
   it('keeps Create all off while a field is empty, saying how many need one', async () => {
     const onCreated = vi.fn()
     await openReview(onCreated)
-    expect(createAll()).toBeDisabled()
+    // Greyed out but focusable (v2), with its reason in a box.
+    expect(createAll()).toHaveAttribute('aria-disabled', 'true')
+    expect(createAll()).toHaveAccessibleDescription(/Choose a location for one observation first/)
     // The count is a button that opens the first observation still missing something.
     const state = screen.getByRole('button', {
       name: /^Not ready: 1 observation needs details/,
     })
-    expect(state).toHaveTextContent('1 to fix')
+    expect(state).toHaveTextContent('1 needs a location')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     fireEvent.click(createAll())
     expect(calls.some((c) => c.url.endsWith('/create'))).toBe(false)
@@ -622,7 +707,7 @@ describe('site walk review', () => {
     expect(notify).toHaveBeenCalledExactlyOnceWith('Location added')
     expect(screen.getByText('No observations here')).toBeInTheDocument()
     const opened = captureOpened()
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add manually' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add observation' })))
 
     // The new location is saved before capture opens, and capture starts there.
     expect((saves()[0].body as Proposal).locations.at(-1)).toMatchObject({ ref: 'loc-3' })
@@ -649,7 +734,7 @@ describe('a proposal someone else holds', () => {
   it('reads the proposal with no way to change it', async () => {
     await openReadOnly()
     expect(row('Extinguisher missing')).toBeInTheDocument()
-    for (const name of ['Create all', 'Rename proposal', 'Add manually', 'Add location'])
+    for (const name of ['Create all', 'Rename proposal', 'Add observation', 'Add location'])
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     fireEvent.click(place('Chiller room'))
     expect(screen.queryByRole('button', { name: /^Rename Chiller/ })).not.toBeInTheDocument()
@@ -705,7 +790,7 @@ describe('adding an observation through the Add manually screen', () => {
     await openReview()
     fireEvent.click(place('Chiller room'))
     const opened = captureOpened()
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add manually' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add observation' })))
 
     const target = await opened
     expect(target).toMatchObject({ reference: REF, walkId: 'w1', locationId: 'loc-2' })

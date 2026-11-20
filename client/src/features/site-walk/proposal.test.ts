@@ -9,6 +9,9 @@ import {
   createProblem,
   groupProposal,
   incompleteCount,
+  incompleteWords,
+  isNotSure,
+  notSureReason,
   locationProblem,
   matchesProposalFilters,
   NEEDS_LOCATION,
@@ -91,12 +94,49 @@ describe('site walk proposal edits', () => {
     expect(observationsAt(p, 'loc-1').map((o) => o.ref)).toEqual(['obs-1', 'obs-2', 'obs-4'])
   })
 
-  it('leaves Jev’s check flags in the data when a field changes', () => {
-    const p = updateObservation(proposal(), 'obs-1', { severity: 'low' })
-    expect(p.observations[0]).toMatchObject({
+  // CP-24 AC17, AC8: a value the engineer chose or confirmed is theirs, so its flag clears.
+  it('clears a not-sure flag when its value is changed or confirmed, and only that flag', () => {
+    const changed = updateObservation(proposal(), 'obs-1', { severity: 'low' })
+    expect(changed.observations[0]).toMatchObject({
       severity: 'low',
-      check: { severity: true, category: true, location: false },
+      check: { severity: false, category: true, location: false },
     })
+    const confirmed = updateObservation(changed, 'obs-1', { confirm: ['category'] })
+    expect(confirmed.observations[0].check).toEqual({
+      severity: false,
+      category: false,
+      location: false,
+    })
+    // An edit of something else keeps both flags, and Confirm does not change the value.
+    const noted = updateObservation(proposal(), 'obs-1', { note: 'New words' })
+    expect(noted.observations[0].check).toEqual({ severity: true, category: true, location: false })
+    expect(
+      updateObservation(proposal(), 'obs-1', { confirm: ['severity'] }).observations[0],
+    ).toMatchObject({
+      severity: 'high',
+      check: { severity: false, category: true, location: false },
+    })
+  })
+
+  it('words a not-sure row by what the AI was not sure of', () => {
+    const o = obs('o', 'loc-1')
+    expect(notSureReason(o)).toBe('Check category and severity')
+    expect(notSureReason({ ...o, check: { ...o.check, category: false } })).toBe('Check severity')
+    expect(notSureReason({ ...o, check: { ...o.check, severity: false } })).toBe('Check category')
+    expect(isNotSure({ ...o, check: { severity: false, category: false, location: true } })).toBe(
+      false,
+    )
+  })
+
+  it('never holds Create all back for a not-sure value, only for an empty field', () => {
+    // Every observation in this fixture carries both flags, and has a place (obs-3 has none).
+    const flagged: Proposal = { ...proposal(), observations: proposal().observations.slice(0, 2) }
+    expect(createProblem(flagged)).toBeNull()
+    expect(incompleteCount(flagged)).toBe(0)
+    expect(createProblem(proposal())).toBe('Choose a location for one observation first.')
+    expect(incompleteWords(proposal())).toBe('1 needs a location')
+    const noSeverity = updateObservation(proposal(), 'obs-1', { severity: null })
+    expect(incompleteWords(noSeverity)).toBe('2 to fix')
   })
 
   it('moves a deleted observation to the deleted list, newest first', () => {
@@ -151,7 +191,12 @@ describe('site walk proposal edits', () => {
     expect(matchesProposalFilters(base, { ...f, sev: 'low' })).toBe(false)
     expect(matchesProposalFilters(base, { ...f, cat: 'Occupancy' })).toBe(true)
     expect(matchesProposalFilters(base, { ...f, cat: 'Protection' })).toBe(false)
-    expect(matchesProposalFilters(base, { ...f, status: 'Ready' })).toBe(true)
+    // A not-sure row is findable as To check, and is not Ready until its flags clear.
+    expect(matchesProposalFilters(base, { ...f, status: 'To check' })).toBe(true)
+    expect(matchesProposalFilters(base, { ...f, status: 'Ready' })).toBe(false)
+    const settled = { ...base, check: { severity: false, category: false, location: false } }
+    expect(matchesProposalFilters(settled, { ...f, status: 'Ready' })).toBe(true)
+    expect(matchesProposalFilters(settled, { ...f, status: 'To check' })).toBe(false)
     const bare = { ...base, locationRef: null }
     expect(matchesProposalFilters(bare, { ...f, status: 'Needs details' })).toBe(true)
     expect(matchesProposalFilters(bare, { ...f, status: 'Ready' })).toBe(false)

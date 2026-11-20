@@ -57,47 +57,30 @@ Only `PUT .../site-walks/:id/photos/:photoId` and `.../recordings/:seq` take the
 - `DELETE .../recordings/:seq` and `.../photos/:photoId` remove the item and its stored file while the
   walk is recording. The client waits out a 10 s Undo before calling them, and Finish waits for them.
 
-## Reading an observation (S5, CP-05, CP-21)
+## Reading an observation (S5, rag-service, CP-05, CP-21, CP-24)
 
-An engineer can ask for any observation to be read. The model proposes, in
-two parts, the COPE categories it concerns from everything captured in it (its
-note, recording and page transcripts, and photos), and from its photos, if
-any, a description and hazard type. Both are read in one call the first time;
-after that each can be regenerated on its own.
+Nothing is asked for. When an observation is saved, or its media or a
+transcript changes, one background job reads it. It does two things: S5
+describes the photos, and rag-service suggests the category and severity the
+engineer left empty (see [database](database.md#observations)). The engineer
+checks the result; there are no buttons that start a reading. Before CP-24 an
+engineer asked for it (Get AI proposal, Describe photos), and S5 also proposed
+categories; that half is gone from S5, the gateway and the client.
 
-1. Saving an observation reads nothing: nothing goes to the model until an
-   engineer asks. Get AI proposal on the Observations tab sends `POST
-   /api/observations/:id/interpretation` with no body, which reads both
-   parts: it saves the observation with `interpretation.status:
-   'interpreting'` for the categories and, with photos,
-   `interpretation.photoReading.status: 'interpreting'` for the description
-   (see [database](database.md#observations)). The categories record
-   everything they read in `items`: the note, each recording and page with
-   the transcript read (the engineer's correction where there is one, CP-08),
-   and each kept photo. A recording or page with no transcript (failed, or a
-   page with no handwriting) is left out, and the categories are refused while
-   one is still transcribing. The description records the photos it reads.
-2. Regenerate categories and Regenerate description send the same request
-   with `{ "part": "categories" }` or `{ "part": "description" }`, reading that
-   part again from what the observation holds then and leaving the other as it
-   is; they are offered on every finished part, so the engineer can ask for
-   another whenever they like, each a paid call. The categories are out of date
-   once anything they read is added, removed or changed, except the proposal's
-   own description taken into the note by Use as note; the description only
-   once photos are added or removed. Photos added after a reading without any
-   are offered Describe photos, which asks for the description alone.
-3. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
-   kind, text }], "location": ..., "parts": [...] }` to S5's `POST
-   /interpret` without making the client wait. For the description alone it
-   sends the photos and only the note, as a hint. Each item's label is its own name (`Note`, a recording's,
-   page's or photo's name, a repeated one numbered), so the proposal can cite
-   it. The location is where the observation was made, most specific first
-   ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
-   categories and severity are not sent, so the proposed categories are the
-   model's own. A photo the engineer marked (CP-10) also carries its `region`
-   (`{ x, y, w, h }`, fractions of the upright photo); an unmarked photo has
-   no `region` key, so its request is as before.
-4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
+### Photo description (S5)
+
+1. The gateway posts `{ "photos": [{ label, s3_key, region? }], "texts": [{
+   label, kind, text }], "location": ..., "privacy": ... }` to S5's `POST
+   /interpret`. `texts` holds only the note, as a hint for what to look at.
+   Each photo's label is its own name; a name that repeats (phones name every
+   photo `image.jpg`) is numbered, `image.jpg (2)`, and the note's label
+   `Note` counts too, since S5 refuses labels that repeat. The location
+   is where the observation was made, most specific first ("Pump room, Level
+   43, Tower 1"; see `locationText`). A photo the engineer marked (CP-10)
+   carries its `region` (`{ x, y, w, h }`, fractions of the upright photo); an
+   unmarked photo has no `region` key. The request is refused (422) without
+   photos. An old gateway may still send `parts`; S5 ignores it.
+2. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
    changed. For a marked photo it also cuts the marked area from the upright
@@ -107,60 +90,226 @@ after that each can be regenerated on its own.
    the photos, and the rule added only when a photo is marked (`MARKED_RULE`)
    says to describe the marked area, use the full photo for context, and
    cite the close-up by its photo's name. A box drawn on the photo was ruled
-   out because the model can read it as paint or tape. With the gateway's
-   `privacy` enabled (PV-04), it then has
-   privacy-service blur the faces in every photo and close-up (`POST
-   /redact-image`, one call) and mask the texts and location (`POST /mask`, one call), fails
-   closed if either fails, and restores real values in the answer. With
-   `check_answers` (the gateway's `PII_CHECK_ANSWERS`, on by default), it
-   first takes details the model added out of the description and reasons
-   (one more `/mask` call); see docs/areas/privacy.md. It sends each photo after its label, then the texts, to the
-   provider named by `VISION_PROVIDER` (only Gemini is implemented:
-   `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
-   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with
-   the parts asked for, under rules for those parts only:
-   - `categories`, each of the four at most once, most relevant first, or none
-     when nothing supports one: the `category`, a one-sentence `reason` naming
-     the items, and `evidence`: every item that supports it, not only the
-     clearest, each with a `quote` copied from a note or transcript (none for
-     a photo);
-   - with photos only, `description`, in the form Marsh's reports use ("During
-     the site visit to …, it was observed that …"), stating only what the
-     photos show, whatever the texts claim; and `hazard_type`, one of the OFI
-     Types in Marsh's sample reports, `Other`, or `No hazard visible`, so the
-     model never has to invent a hazard.
-   It returns those, null for a part not asked for, with the provider, model,
-   `prompt_version` and token `usage` (null when the provider reports none),
-   or 502 with `detail`; a description asked for without photos is refused
-   with 422. Like transcription, it writes nothing to MongoDB.
-5. The gateway checks each quote against the item it cites (case, spacing,
-   curly quotes and edge punctuation aside, as `quoteFound` does) and stores
-   the proposal with each check's result, `verified`, or the failure reason,
-   on the observation. It also saves the call to `ai_calls` (EV-03) as
-   `interpret-photo` (labelled "Observation reading"; the id is kept so
-   earlier readings stay on one line), billed to `gemini-vision`, tagged with
-   the assessment: thinking tokens are added to output tokens, since Google
-   bills them as output, and the duration is the gateway's own timing of the
-   request (S5 sends none). A failed request returns no usage, so nothing is
-   saved. A part that failed is retried through the same route, by its
-   `part`; a restart marks each part still running as failed. The client
-   re-reads the list every 3 seconds while either part of any observation is
-   interpreting.
-6. The proposal is for the engineer to review and is never drafting evidence:
-   drafting does not wait for it, never reads it, and a draft does not go out
-   of date when it arrives. On the Observations tab, Use as note and each Add
-   (one per proposed category not yet the observation's own) open the Edit
-   dialog with it filled in; only saving it makes it the engineer's own. A
-   quote not found in its item is shown as Unverified, and an item it read
-   but no category cites is marked "not cited" in its Read from line, so the
-   engineer can check what it passed over.
+   out because the model can read it as paint or tape.
+3. With the gateway's `privacy` enabled (PV-04), S5 has privacy-service blur
+   the faces in every photo and close-up (`POST /redact-image`, one call) and
+   mask the note and location (`POST /mask`, one call), fails closed if either
+   fails, and restores real values in the answer. With `check_answers` (the
+   gateway's `PII_CHECK_ANSWERS`, on by default), it first takes details the
+   model added out of the description (one more `/mask` call); see
+   [privacy](privacy.md).
+4. It sends each photo after its label, then the note, to the provider named by
+   `VISION_PROVIDER` (only Gemini is implemented: `VISION_MODEL`, default
+   `gemini-3.8-flash`, needs a paid-tier `GEMINI_API_KEY`, with `store:
+   false`), and asks for a fixed answer: `description`, in the form Marsh's
+   reports use ("During the site visit to …, it was observed that …"), stating
+   only what the photos show, whatever the note claims; and `hazard_type`, one
+   of the OFI Types in Marsh's sample reports, `Other`, or `No hazard visible`,
+   so the model never has to invent a hazard.
+5. S5 returns `description` and `hazard_type` with the provider, model,
+   `prompt_version`, token `usage` (null when the provider reports none) and
+   `redacted_photos`, or 502 with `detail`. Like transcription, it writes
+   nothing to MongoDB.
+6. The gateway (`observation-reading.service.ts`, `describePhotos`) stores the
+   description in `interpretation.photoReading` with its attempt, the photos
+   and marks it read, and its provenance, or the failure reason. It saves the
+   call to `ai_calls` (EV-03) as `interpret-photo` (labelled "Observation
+   reading"; the id is kept so earlier readings stay on one line), billed to
+   `gemini-vision`, tagged with the assessment: thinking tokens are added to
+   output tokens, since Google bills them as output, and the duration is the
+   gateway's own timing of the request (S5 sends none). A failed request
+   returns no usage, so nothing is saved.
+7. The description is out of date once photos are added or removed or a mark
+   moves (CP-10): the next run describes again. It is never drafting evidence
+   by itself: drafting does not read it. It reaches a draft only if the
+   engineer copies it into the note (Copy into note). The suggestion below
+   does read it, with the rest of the observation's text.
 
-Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`. The
-evaluations are in `microservices/speech-ocr-service/eval/`:
-`eval.interpret_photos` sets photo descriptions beside Marsh's, and
-`eval.suggest_categories` scores proposed categories and quotes against
-`eval/cases/categories.json` (`uv run --extra dev python -m
-eval.suggest_categories`; drafted cases, to be checked by an engineer).
+### Suggested category and severity (the reading job)
+
+The job is `runReading` in `server/src/services/observation-reading.service.ts`.
+Its queue is `observation-reading` (BullMQ, as for transcription), with
+concurrency 3 and 2 tries, 5 seconds apart. A job survives a restart.
+
+**What queues it.** `queueReading` is called after: saving (including one
+turned from a draft observation), adding media, removing or restoring a
+recording, photo or page, marking or clearing a photo, correcting a transcript
+or a page's text, changing the note (only when it actually changed), a
+recording or page finishing or failing its transcription, restoring a deleted
+observation (a reading skipped while it was deleted runs now), restart
+recovery, creating an observation from a site walk (below), and Try again
+(`POST /api/observations/:id/suggestion/retry`). Try again is accepted after a
+failed suggestion or a failed photo description; anything else answers 409.
+Confirming or changing a category or severity queues nothing.
+
+**Site walk observations are not rated.** `suggestion.rate` is a stored flag;
+missing means true, and the API does not return it. An observation created
+from a site walk is queued with `rate: false`: its photos are described, but
+its category and severity are not rated again, so the proposal's values and
+not-sure marks stay as the walk gave them (AC17: the mark must carry from the
+proposal onto the created observation, and a new rating could change or clear
+it). A transcription finishing, restart recovery and a restore leave the flag
+as it is. The engineer's own changes (media added, removed or restored, a
+photo marking, a transcript or page correction, a note edit, Try again) set it
+to true, and from then on the observation is read like any other.
+
+**One job per observation, with a run number.** `queueReading` does one atomic
+write: it adds 1 to `suggestion.run`, sets `suggestion.status` to `reading`
+(or `done` when both fields are the engineer's), resets `attempts` and clears
+`error`. Then it adds a job with the id `obs-reading-<observation id>-<run>`.
+Every write the job makes matches `suggestion.run: <its run>`. Without that, a
+trigger arriving while a job runs, or an older job Redis kept after a restart,
+could write last and bring back text that is out of date; a stale run writes
+nothing, and the newer run does the work. If Redis cannot take the job, the
+suggestion is stored as `failed` with a message, so it never reads for ever.
+
+**The steps** (`runReading`):
+1. Stop if the run is stale. If the observation is deleted, is a draft, or its
+   assessment is archived, mark the run `done` and stop.
+2. Describe the photos first if they have no description of what they are now
+   (above), as the system and not as a user. The description step starts
+   atomically on the photo reading's own status, so two jobs never describe
+   twice. If the description fails it is stored as failed and the rating goes
+   on without it.
+3. Wait while any kept recording or page is `transcribing`: the transcript
+   finishing queues a new run, so this one just stops.
+4. If rating is off (`suggestion.rate` is false), both fields are the engineer's,
+   or there is no text at all, mark the run `done` and stop. With no text (for example the only recording failed to
+   transcribe) the empty fields stay empty and the observation stays to check.
+5. Join the text the rating reads, by blank lines: the note, each kept
+   recording's and page's finished transcript (the engineer's correction where
+   there is one), and the photo description when it matches the photos kept
+   now. Call rag-service `POST /observations/rate` (below).
+6. Fill each field that is still open at the moment of writing, in one update
+   that checks it inside MongoDB: an open field is empty or still holds an
+   unconfirmed suggestion. A value the engineer chose while the call ran is
+   kept. The category is stored as a list of one (`metadata.COPE_dimension`)
+   and the severity in `severity`; `suggestion.category` and
+   `suggestion.severity` are set to `{ notSure }`. The status becomes `done`.
+7. Tell the open page (below) and queue MarshBot's re-check (AS-06).
+
+**Failure.** The first failure of a call is thrown, so BullMQ tries again after
+5 seconds; the second is stored: `suggestion.status: 'failed'` with "The
+category and severity could not be suggested." If masking was unavailable
+(rag-service answers "Client details couldn't be protected…"), nothing was
+sent, trying again at once would not help, and the failure is stored on the
+first try with rag-service's own message. The fields stay as they were. The
+engineer can press Try again.
+
+**Restart.** `resumeReadings` runs at startup before the workers start. For
+every observation with `suggestion.status: 'reading'` or a photo description
+`interpreting`, it marks the description failed ("interrupted by a gateway
+restart") and queues a new run, which describes the photos again and rates. The
+new run number makes any older job Redis kept stale. A handwritten page cut
+short is marked failed and queues a run too (`resumeInterruptedTranscriptions`),
+since a run was waiting for it.
+
+**Cost.** The rating's usage is saved to `ai_calls` (EV-03) under the feature
+the site walk's rating step already uses, `site-walk`, tagged with the
+assessment.
+
+**Push, not polling.** After each change the job calls `publishObservations`
+(`assistant/bus.ts`). The assessment's assistant stream, `GET
+/api/assessments/:reference/assistant/events` (the same one MarshBot and
+drafting use), then sends `event: observations`, and the open Observations tab
+and observation page read the observations again. No new polling was added
+(`.local-docs/adr/0002-push-assistant-updates-no-polling.md`). The tab's own
+poll every 3 seconds while a recording or page is transcribing stays as it was.
+
+### Rating one observation (rag-service, `POST /observations/rate`)
+
+`app/site_walk/observation_rate.py`, called by `routes.py`. It is the site
+walk's rating step (see "Site walk proposal"), run on one observation's text.
+
+- Request `{ text, privacy? }`, no unknown fields; `text` is the joined text
+  above and must not be empty (422).
+- 1. **Mask** the text with `privacy_session(privacy).mask`, the same privacy
+  session as the site walk. If privacy-service fails, nothing is sent and the
+  route answers 502 ("Client details couldn't be protected…"). 2. **Rate** it
+  with `propose._rate`: the same classifier (Jev), the same severity matrix and
+  the same cutoff, `SITE_WALK_CHECK_BELOW` (0.70, unchanged). The observation is
+  rated on its own, with no walk around it, and there is no place matching.
+  3. Return `{ category, severity, check: { category, severity }, usage }`.
+  `category` is one of the four COPE categories (never several, never none) and
+  `severity` one of the four levels. A `check` flag is true when the
+  classifier's probability for that value is under the cutoff: the value is
+  still returned, and the gateway stores it marked not sure. The category and
+  severity are single words from fixed lists, so nothing needs unmasking.
+- A classifier failure answers 502, as the site walk does.
+- The probabilities are not returned; only the eval reads them.
+
+### Draft observation (transcribing before Save)
+
+So a recording added on New Observation can transcribe before the engineer
+saves, the first one creates a hidden draft observation (`draft: true`, no
+location):
+- `POST /api/assessments/:reference/observations/draft` takes `recording` parts
+  and an optional `draftId`; without one it creates the draft. Each recording
+  is stored in S3 and transcribed as a saved one is, and 201 returns `{ draft }`.
+- `GET /api/observations/:id` returns one observation, so the page can read the
+  draft's transcripts as they arrive.
+- Saving sends `details.draftId`. The draft becomes the observation: `draft`
+  is cleared in one update that matches on it, so a discard or a second Save
+  cannot race it, and the reading job is queued.
+- `DELETE /api/observations/:id/draft` discards it and its recordings' files
+  (when New Observation is left without saving). 404 for an observation that
+  is saved. It deletes the stored files first and the record only when every
+  file went; on a storage error the draft is kept for the hourly cleanup and
+  the route still answers 204, since the engineer has left.
+- Removing a draft's recording deletes it and its file for good, file first and
+  the record only once the file went. On a storage error it answers 409 "This
+  recording could not be deleted. Try again." A saved observation's removal
+  stays soft.
+- A Save that brings nothing of its own (no note, recording, photo or page) is
+  refused (400) if the draft's only recording was removed meanwhile; the
+  update that clears `draft` matches on a recording still being there.
+- An hourly job (`observation-draft-cleanup`, BullMQ, `0 * * * *`) deletes
+  drafts unchanged for 24 hours (by `updatedAt`, so adding a recording keeps an
+  open form's draft alive), with their files, files first as above. A draft
+  whose files could not all be deleted stays for the next run.
+- A draft is in no list, count, drafting input, Ask, appendix, MarshBot check
+  or report: `listObservations` and `listObservationsOf` leave it out, and
+  they are what those read. The reading job does nothing on one.
+
+### Evaluation
+
+The photo descriptions are set beside Marsh's by
+`microservices/speech-ocr-service/eval/`, `eval.interpret_photos`. The category
+proposals' own evaluation was deleted with them.
+
+The rating is scored by `eval/site_walk/rate_eval.py` in rag-service. It takes
+each golden finding's note from a saved site walk result (so no model reading
+is paid for again), rates it alone as the route does, and scores it against the
+sample reports' category and severity: agreement, the share marked not sure,
+and how often a value is right when it is not marked. It is paid (one Jev call
+per finding, needs `TYPESAFE_API_KEY`) and outside CI. From
+`microservices/rag-service`:
+
+```
+uv run python -m eval.site_walk.rate_eval --split held-out
+uv run python -m eval.site_walk.rate_eval --split tuning --sweep
+```
+
+`--sweep` also scores cutoffs 0.50 to 0.95. Results go to
+`eval/results/<date>-observation-rate[-split].json` and the scoring is
+unit-tested in `tests/test_observation_rate_eval.py`.
+
+Recorded on 20 Nov 2026 at the cutoff of 0.70, with the classifier the site
+walk uses (no language model reads the observation):
+
+| Split | Findings rated | Category agreement | Severity agreement | Right when not marked (category / severity) | Marked not sure (category / severity) |
+| --- | --- | --- | --- | --- | --- |
+| Held-out | 79 (13 skipped: no saved note) | 1.000 | 0.835 | 1.000 / 0.900 | 5.1% / 24.1% |
+| Tuning | 145 | 1.000 | 0.862 | 1.000 / 0.933 | 5.5% / 28.3% |
+
+The held-out severity is one finding short of the 0.84 target. 13 of the 16
+held-out cases had saved notes. Cost was about US$0.011 for both runs. The
+cutoff stays 0.70. On the tuning sweep 0.75 gives 97% severity right when not
+marked, but marks 35% of severities as not sure. The notes are the site walk's
+clean notes, not an engineer's raw text, so this is a first check of the
+rating on one observation at a time and not of real manual notes.
+
+Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`.
 
 ## Handwritten pages (S5, CP-19)
 
@@ -2091,8 +2240,9 @@ assessment is 409 without that code; e.g. another visit with its date moves
 `siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
 seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
 carries its `stage` and, for the engineer's own assessments, a `priority` with
-its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue, then Fix now,
-then least time to spare); the Focus list is those rows in rank order. Client
+its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue first, then
+least time to spare; Fix now puts an assessment in Focus but ranks by its spare
+time too); the Focus list is those rows in rank order. Client
 page visits carry the same. An admin, or anyone who isn't the assigned
 engineer, sees the stage and progress only, never the engineer's activity.
 

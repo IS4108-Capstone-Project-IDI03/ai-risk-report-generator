@@ -30,9 +30,10 @@ import { startWorkers } from './services/job-queue.service'
 import { resumeInterruptedSiteWalks } from './services/site-walk.service'
 import { resumeDraftingRuns } from './services/generation/drafting-run.service'
 import {
-  failInterruptedInterpretations,
   resumeInterruptedTranscriptions,
+  scheduleDraftCleanup,
 } from './services/observation.service'
+import { resumeReadings } from './services/observation-reading.service'
 import usageRoutes from './routes/usage.routes'
 import settingsRoutes from './routes/settings.routes'
 import qaRoutes from './routes/qa.routes'
@@ -136,7 +137,9 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 async function start() {
   await connectDb()
-  await failInterruptedInterpretations()
+  // CP-24: before the workers, so a description a worker has just started is
+  // never marked interrupted; it queues a fresh run of each reading cut short.
+  await resumeReadings()
   // GN-13: before the workers, so recovery never resets a job a worker has
   // just picked up (its "done" write would then match nothing).
   await resumeDraftingRuns()
@@ -147,6 +150,9 @@ async function start() {
   )
   scheduleDailyAssessmentChecks().catch((error: unknown) =>
     console.error('Scheduling the daily assessment checks failed:', error),
+  )
+  scheduleDraftCleanup().catch((error: unknown) =>
+    console.error('Scheduling the draft observation cleanup failed:', error),
   )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()

@@ -1,5 +1,5 @@
 // The Focus list (AS-07): the engineer's own assessments that need them
-// most, ranked overdue, then Fix now, then least time to spare. Called by the
+// most, ranked overdue first, then by least time to spare. Called by the
 // assessment list (assessment.service.ts), whose rows carry each one's priority
 // and rank; the browser builds Focus from them. Reads assessments, MarshBot
 // briefs and report sections.
@@ -65,11 +65,6 @@ export function priorityFor(a: PriorityInput, today: string): Unranked | null {
     const text = `Report ${plural(-due, 'day')} overdue${a.drafted ? '.' : ', nothing drafted yet.'}`
     return { reason: 'overdue', text, urgency: due }
   }
-  if (a.fixNow) {
-    // A brief saved before `fact` existed falls back to its row's words.
-    const text = a.fixNow.fact || [a.fixNow.title, a.fixNow.detail].filter(Boolean).join(' · ')
-    return { reason: 'fix_now', text, urgency: due ?? Number.MAX_SAFE_INTEGER }
-  }
   // Spare time against each deadline still ahead: the survey while preparing, and the report.
   const survey = a.siteVisitDate && daysTo(a.siteVisitDate, today)
   const spares: [number, string][] = []
@@ -78,6 +73,13 @@ export function priorityFor(a: PriorityInput, today: string): Unranked | null {
   if (due !== undefined)
     spares.push([due - workLeft(a.stage, (s) => !BEFORE_SURVEY.includes(s)), 'the report is due'])
   const [spare, before] = spares.sort((x, y) => x[0] - y[0])[0] ?? [Infinity, '']
+  // Fix now puts an assessment in Focus but ranks by its spare time too:
+  // without this, a walk to review due in a month outranked a report due in 3 days.
+  if (a.fixNow) {
+    // A brief saved before `fact` existed falls back to its row's words.
+    const text = a.fixNow.fact || [a.fixNow.title, a.fixNow.detail].filter(Boolean).join(' · ')
+    return { reason: 'fix_now', text, urgency: spare }
+  }
   if (spare >= SHORT_ON_TIME_DAYS) return null
   const days = Math.floor(spare)
   const text =
@@ -111,7 +113,8 @@ export async function rankedFocus(userId: string, now = new Date()): Promise<Foc
   ])
   const itemsOf = new Map(briefs.map((b) => [b.reference, b.items as BriefItem[]]))
   const draftedIds = new Set(drafted.map(String))
-  // c. Each one's priority, then rank: by reason, then by urgency within it.
+  // c. Each one's priority, then rank: overdue first, then everything else by
+  // least spare time (urgency); at equal spare time, Fix now goes first.
   const found = assessments.flatMap((a) => {
     // Unset until `npm run migrate:stages` has run; a missing stage counts from the start.
     const stage: Stage = a.stage ?? 'setup'
@@ -122,10 +125,13 @@ export async function rankedFocus(userId: string, now = new Date()): Promise<Foc
     )
     return priority ? [{ a, stage, priority }] : []
   })
+  const late = (p: Unranked) => (p.reason === 'overdue' ? 0 : 1)
   found.sort(
     (x, y) =>
-      REASONS.indexOf(x.priority.reason) - REASONS.indexOf(y.priority.reason) ||
-      x.priority.urgency - y.priority.urgency,
+      late(x.priority) - late(y.priority) ||
+      // Infinity − Infinity (no deadline on either) is NaN, which falls through to the reason.
+      x.priority.urgency - y.priority.urgency ||
+      REASONS.indexOf(x.priority.reason) - REASONS.indexOf(y.priority.reason),
   )
   return found.map(({ a, stage, priority: { reason, text } }, i) => ({
     reference: a.reference,

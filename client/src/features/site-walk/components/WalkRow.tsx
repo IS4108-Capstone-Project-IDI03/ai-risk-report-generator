@@ -1,36 +1,36 @@
 // One site walk as a compact row on the Site Walk Proposals list (CP-22 round 3,
-// columns round 4): its name over when it was and what it holds | up to four
-// photos | where it stands, a tinted pill centred in its own column | Retry and
-// Delete (shown on hover) | the chevron. Every row keeps every column, so they
+// columns round 4, v2 in CP-24): its name over when it was and what it holds | up to four
+// photos | where it stands, in words with one mark (WalkState) | Retry and
+// Delete, round icon buttons | the chevron. Every row keeps every column, so they
 // line up down the list. The whole row opens the
 // walk; a ready one says whether it can be added as it is or what is left to
 // fix, the same words its review shows. Rendered by screens/SiteWalks.tsx.
 import { Icon } from '../../../design-system'
+import { RowAction } from '../../clients/components/RowAction'
 import { plural } from '../../assessments/reviewDisplay'
 import type { SiteWalk } from '../api'
-import { incompleteCount } from '../proposal'
+import { incompleteWords, lacksValue } from '../proposal'
 import { STATUS, walkName, walkProblem, walkWhen } from '../walkLabels'
+import { WalkState, type WalkMark } from './WalkState'
 
 const ACTION = { recording: 'Continue', ready: 'Review' } as const
 // Thumbnails shown before "+N".
 const MAX_THUMBS = 4
 
-// Where the walk stands: words, icon and tone for its pill.
-function stateOf(walk: SiteWalk) {
+// Where the walk stands: its words and the one mark beside them.
+function stateOf(walk: SiteWalk): { words: string; mark: WalkMark } {
   const status = walk.status
   if (status === 'ready') {
     // As its review's header says (ProposalHeader.tsx): Create all refuses an empty one.
-    if (!walk.proposal?.observations.length)
-      return { words: 'No observations', icon: null, tone: 'grey' }
-    const left = incompleteCount(walk.proposal)
-    return left
-      ? { words: `${left} to fix`, icon: 'circle-alert', tone: 'red' }
-      : { words: 'Ready to add', icon: 'circle-check', tone: 'green' }
+    if (!walk.proposal?.observations.length) return { words: 'No observations', mark: null }
+    return walk.proposal.observations.some(lacksValue)
+      ? { words: incompleteWords(walk.proposal), mark: 'failed' }
+      : { words: 'Ready to add', mark: 'done' }
   }
-  if (status === 'created') return { words: 'Added', icon: 'circle-check', tone: 'green' }
-  if (status === 'failed') return { words: STATUS.failed, icon: 'circle-alert', tone: 'red' }
-  if (status === 'recording') return { words: STATUS.recording, icon: null, tone: 'red' }
-  return { words: STATUS[status], icon: 'loader', tone: 'navy' }
+  if (status === 'created') return { words: 'Added', mark: 'done' }
+  if (status === 'failed') return { words: STATUS.failed, mark: 'failed' }
+  if (status === 'recording') return { words: STATUS.recording, mark: 'live' }
+  return { words: STATUS[status], mark: 'working' }
 }
 
 // "Mon 2 Nov, 11:36 · 3 locations · 5 observations"; what failed, on a failed walk.
@@ -92,41 +92,20 @@ export function WalkRow({
         {more > 0 && <span className="wr-more">+{more}</span>}
       </div>
       <div className="wr-status-cell">
-        <span className="wr-state" data-tone={state.tone} aria-hidden="true">
-          {state.tone === 'grey' ? null : state.icon ? (
-            <Icon
-              name={state.icon}
-              size={15}
-              className={state.icon === 'loader' ? 'ob-spin' : undefined}
-            />
-          ) : (
-            <span className="wr-dot" />
-          )}
-          {state.words}
-        </span>
+        <WalkState words={state.words} mark={state.mark} />
       </div>
       <div className="wr-actions">
         {status === 'failed' && onRetry && (
-          <button
-            type="button"
-            className="wr-icon"
-            aria-label={'Retry ' + name}
-            title="Retry"
-            onClick={onRetry}
-          >
-            <Icon name="rotate-ccw" size={17} />
-          </button>
+          <RowAction icon="rotate-ccw" label={'Retry ' + name} tooltip="Retry" onClick={onRetry} />
         )}
         {status !== 'created' && onDelete && (
-          <button
-            type="button"
-            className="wr-icon wr-delete"
-            aria-label={'Delete ' + name}
-            title="Delete"
+          <RowAction
+            icon="trash-2"
+            label={'Delete ' + name}
+            tooltip="Delete proposal"
+            danger
             onClick={onDelete}
-          >
-            <Icon name="trash-2" size={17} />
-          </button>
+          />
         )}
       </div>
       <span className="wr-chevron" aria-hidden="true">

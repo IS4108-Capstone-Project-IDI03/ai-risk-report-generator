@@ -81,7 +81,7 @@ function show(
 }
 // The open group's walk rows.
 const rows = () => within(screen.getByRole('region')).queryAllByRole('listitem')
-// The tab bar across the top: three buttons, the picked one aria-current.
+// The tab bar across the top: the design system's three tabs, the picked one aria-selected.
 const tabs = () => within(screen.getByRole('navigation', { name: 'Site walk proposals' }))
 beforeAll(() => {
   // jsdom has no <dialog> modal methods; the delete confirmation needs them.
@@ -112,16 +112,19 @@ describe('the Site Walk Proposals list', () => {
       walk({ id: 'done', status: 'created', proposal: { locations: [], observations: obs(4) } }),
     ])
     const nav = tabs()
-    expect(nav.getByRole('button', { name: /^Ready to review/ })).toHaveTextContent('2')
-    expect(nav.getByRole('button', { name: /^In progress/ })).toHaveTextContent('2')
-    expect(nav.getByRole('button', { name: /^Added/ })).toHaveTextContent('1')
-    // Each tab has a full and a short name (CSS picks one) and its own count.
-    expect(nav.getAllByRole('button')).toHaveLength(3)
-    expect(nav.getByRole('button', { name: /^Ready to review/ })).toHaveAttribute('aria-current')
-    expect(nav.getByRole('button', { name: /^In progress/ })).not.toHaveAttribute('aria-current')
-    expect(
-      nav.getByRole('button', { name: /^Ready to review/ }).querySelector('.wr-count'),
-    ).toHaveTextContent('2')
+    expect(nav.getByRole('tab', { name: /^Ready to review/ })).toHaveTextContent('2')
+    expect(nav.getByRole('tab', { name: /^In progress/ })).toHaveTextContent('2')
+    expect(nav.getByRole('tab', { name: /^Added/ })).toHaveTextContent('1')
+    // Each tab has its own count.
+    expect(nav.getAllByRole('tab')).toHaveLength(3)
+    expect(nav.getByRole('tab', { name: /^Ready to review/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(nav.getByRole('tab', { name: /^In progress/ })).not.toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
 
     // The first group with walks is open; newest first inside it.
     const ready = rows()
@@ -129,17 +132,17 @@ describe('the Site Walk Proposals list', () => {
     expect(ready[0]).toHaveTextContent('2 Nov')
     expect(ready[1]).toHaveTextContent('1 Nov')
 
-    fireEvent.click(nav.getByRole('button', { name: /^In progress/ }))
-    expect(nav.getByRole('button', { name: /^In progress/ })).toHaveAttribute('aria-current')
+    fireEvent.click(nav.getByRole('tab', { name: /^In progress/ }))
+    expect(nav.getByRole('tab', { name: /^In progress/ })).toHaveAttribute('aria-selected', 'true')
     expect(rows()).toHaveLength(2)
-    fireEvent.click(nav.getByRole('button', { name: /^Added/ }))
+    fireEvent.click(nav.getByRole('tab', { name: /^Added/ }))
     expect(rows()[0]).toHaveTextContent('Site walk')
   })
 
   it('opens the first group that has walks, and says so when a picked group is empty', () => {
     show([walk({ id: 'rec', status: 'recording' })])
     expect(rows()[0]).toHaveTextContent('Recording')
-    fireEvent.click(tabs().getByRole('button', { name: /^Ready to review/ }))
+    fireEvent.click(tabs().getByRole('tab', { name: /^Ready to review/ }))
     expect(rows()).toHaveLength(0)
     expect(screen.getByText('Nothing to review')).toBeInTheDocument()
   })
@@ -182,6 +185,8 @@ describe('the Site Walk Proposals list', () => {
     expect(needsFixing).not.toHaveTextContent('Ready to add')
     expect(complete).toHaveTextContent(/1 location · 1 observation/)
     expect(complete).toHaveTextContent('Ready to add')
+    // The mark beside "Ready to add" is hidden from screen readers: the words already say it.
+    expect(within(complete).queryByRole('img', { name: 'Ready to add' })).toBeNull()
   })
 
   it('states a walk that is added, still working or failed in its own words', () => {
@@ -197,7 +202,7 @@ describe('the Site Walk Proposals list', () => {
     expect(trans).toHaveTextContent('Transcribing')
     expect(prop).toHaveTextContent('Reading your walk')
     expect(bad).toHaveTextContent('Couldn’t finish')
-    fireEvent.click(tabs().getByRole('button', { name: /^Added/ }))
+    fireEvent.click(tabs().getByRole('tab', { name: /^Added/ }))
     expect(rows()).toHaveLength(0)
   })
 
@@ -314,7 +319,7 @@ describe('the Site Walk Proposals list', () => {
     expect(screen.queryByRole('button', { name: /^Delete/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Review/ }))
     expect(onOpen).toHaveBeenCalledTimes(1)
-    fireEvent.click(tabs().getByRole('button', { name: /In progress/ }))
+    fireEvent.click(tabs().getByRole('tab', { name: /In progress/ }))
     expect(screen.queryByRole('button', { name: /^Retry/ })).not.toBeInTheDocument()
     // A walk still recording opens the recorder, which is the holder's alone.
     expect(screen.queryByRole('button', { name: /^Continue/ })).not.toBeInTheDocument()

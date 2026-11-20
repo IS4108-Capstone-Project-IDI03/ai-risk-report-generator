@@ -140,7 +140,7 @@ export function SiteWalkReview({
     setPicked(ref)
     setOpenRef(null)
   }
-  const change = (ref: string, patch: Parameters<typeof edit.updateObservation>[2]) =>
+  const change = (ref: string, patch: edit.ObservationPatch) =>
     r.change((cur) => edit.updateObservation(cur, ref, patch))
 
   // Add observation opens the Add manually screen (round 3), once the edits so
@@ -185,6 +185,12 @@ export function SiteWalkReview({
     notify('Observation restored')
   }
 
+  // The header's count and the footer's link: open the first observation still missing something.
+  function openFirstIncomplete() {
+    const first = p && edit.firstIncomplete(p)
+    if (first) setOpenRef(first.ref)
+  }
+
   const matchingLocation = p?.locations.find((l) => l.ref === matching)
   const renaming = form?.kind === 'rename' ? p?.locations.find((l) => l.ref === form.ref) : null
   const removingLocation = p?.locations.find((l) => l.ref === removing)
@@ -215,10 +221,7 @@ export function SiteWalkReview({
           creating={r.creating}
           onSave={() => void r.save()}
           onRename={() => setNaming({ busy: false, problem: null })}
-          onFix={() => {
-            const first = p && edit.firstIncomplete(p)
-            if (first) setOpenRef(first.ref)
-          }}
+          onFix={openFirstIncomplete}
           onCreate={() =>
             void r.create().then((created) => created && onCreated(edit.createdMessage(p!)))
           }
@@ -314,6 +317,7 @@ export function SiteWalkReview({
                 filters={filters}
                 onFilters={setFilters}
                 onAdd={readOnly ? undefined : () => void addObservation()}
+                onFix={readOnly ? undefined : openFirstIncomplete}
                 onOpen={setOpenRef}
               />
             </div>

@@ -1,7 +1,7 @@
-// Where a typed note is written (CP-22 round 1): a text box and "Add note". Works
+// Where a typed note is written (CP-22 round 1, v2 in CP-24): a text box and "Add note". Works
 // before, during, between and after recordings (it is numbered after the one running).
 // Used by screens/Recording.tsx.
-import { Icon } from '../../../design-system'
+import { Button, Icon } from '../../../design-system'
 export function NoteComposer({
   value,
   onChange,
@@ -26,14 +26,9 @@ export function NoteComposer({
       />
       <div className="sw-composer-row">
         <p className="sw-note">{'Say where you are, then what you see there.'}</p>
-        <button
-          type="button"
-          className="sw-button sw-button--tinted"
-          disabled={!value.trim()}
-          onClick={onAdd}
-        >
+        <Button variant="pill" disabled={!value.trim()} onClick={onAdd}>
           Add note
-        </button>
+        </Button>
       </div>
     </section>
   )

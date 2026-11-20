@@ -40,8 +40,11 @@ import {
   removeLocation,
 } from '../services/location.service'
 import {
+  addDraftRecordings,
   ChecklistItemError,
+  EmptyObservationError,
   listObservations,
+  ObservationNotFoundError,
   newObservationSchema,
   NoActiveSessionError,
   saveObservation,
@@ -439,8 +442,10 @@ router.delete(
 // `details` part holding the JSON fields (see newObservationSchema), a
 // `recording` part per audio file, a `photo` part per JPG or PNG, and a `page`
 // part per photographed page of handwritten notes, checked by mediaParts. It
-// needs at least one of a note, a recording, a photo or a page. 400 lists the
-// first problem with each invalid field, as for assessments.
+// needs at least one of a note, a recording, a photo or a page, a draft
+// observation's recordings included (`details.draftId`, CP-24). Category and
+// severity may be left empty for the AI to suggest; the location may not.
+// 400 lists the first problem with each invalid field, as for assessments.
 router.post(
   '/:reference/observations',
   requirePermission('assessments:edit'),
@@ -471,6 +476,7 @@ router.post(
       return
     }
     if (
+      !parsed.data.draftId &&
       !parsed.data.note &&
       media.recordings.length === 0 &&
       media.photos.length === 0 &&
@@ -502,7 +508,13 @@ router.post(
         })
         return
       }
-      if (error instanceof AssessmentNotFoundError) {
+      if (error instanceof EmptyObservationError) {
+        res
+          .status(400)
+          .json({ error: 'Add a note, a recording, a photo or a page to the observation.' })
+        return
+      }
+      if (error instanceof AssessmentNotFoundError || error instanceof ObservationNotFoundError) {
         res.status(404).json({ error: error.message })
         return
       }
@@ -515,6 +527,57 @@ router.post(
         error instanceof AssessmentArchivedError ||
         error instanceof ChecklistItemError
       ) {
+        res.status(409).json({ error: error.message })
+        return
+      }
+      throw error
+    }
+  },
+)
+
+// Adds recordings made on New Observation before Save to its draft observation
+// (CP-24 AC1), as a multipart form of `recording` parts and an optional
+// `draftId` text part; without one, the first creates the draft. Each starts
+// transcribing at once. 201 with { draft }. The assigned engineer only, in the
+// active capture session, as for saving.
+router.post(
+  '/:reference/observations/draft',
+  requirePermission('assessments:edit'),
+  multipartBody,
+  async (req, res) => {
+    const form = await readForm(req)
+    if (!form) {
+      res.status(400).json({ error: 'Send the recordings as a multipart form.' })
+      return
+    }
+    const media = await mediaParts(form)
+    if ('error' in media) {
+      res.status(media.status).json({ error: media.error })
+      return
+    }
+    if (!media.recordings.length) {
+      res.status(400).json({ error: 'Add a recording.' })
+      return
+    }
+    const draftId = form.get('draftId')
+    try {
+      const draft = await addDraftRecordings(
+        req.params.reference,
+        media.recordings,
+        res.locals.user!,
+        typeof draftId === 'string' && draftId ? draftId : undefined,
+      )
+      res.status(201).json({ draft })
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError || error instanceof ObservationNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof NotAssignedError) {
+        res.status(403).json({ error: error.message })
+        return
+      }
+      if (error instanceof NoActiveSessionError || error instanceof AssessmentArchivedError) {
         res.status(409).json({ error: error.message })
         return
       }

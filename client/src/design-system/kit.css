@@ -728,8 +728,10 @@
 .ds-filter-pill:active:not(:disabled) {
   transform: scale(0.97);
 }
-/* Touch targets are at least 44 px (v2 section 2): buttons, pills, tabs, icon buttons, small links. */
-@media (pointer: coarse) {
+/* Touch targets are at least 44 px (v2 section 2): buttons, pills, tabs, icon buttons, small links.
+   On a narrow screen as well as a coarse pointer (768 px is the app's phone breakpoint), since a
+   narrow desktop window is how these screens get checked. */
+@media (max-width: 767px), (pointer: coarse) {
   .ds-press,
   .ds-filter-pill,
   .ds-tabs [role='tab'] {
@@ -739,9 +741,14 @@
     min-width: 44px;
     min-height: 44px;
   }
+  /* A footer link keeps its small look; an invisible 44 px box around it takes the tap. */
   .ds-table-footer-late {
-    min-height: 44px;
-    padding-block: 12px;
+    position: relative;
+  }
+  .ds-table-footer-late::after {
+    content: '';
+    position: absolute;
+    inset: -15px -4px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,11 +1,11 @@
 // The Site Walk Proposals screen (CP-22 AC5, AC14, round 3, tabs round 4): one
 // full-width card with Ready to review, In progress and Added to the assessment
 // as tabs across its top, then that tab's walks, one compact row each, with
-// Record site walk in the header. A walk stays a
+// Record site walk in the header, on design system v2 (CP-24). A walk stays a
 // proposal until Create all adds it; until then it can be deleted. Opened from
 // the Observations toolbar; rendered by screens/Observations.tsx.
 import { useState } from 'react'
-import { EmptyState, Icon } from '../../../design-system'
+import { Button, EmptyState } from '../../../design-system'
 import type { SiteWalk } from '../../site-walk'
 import { DeleteWalkDialog } from '../../site-walk/components/DeleteWalkDialog'
 import { WalkRow } from '../../site-walk/components/WalkRow'
@@ -76,12 +76,11 @@ export function SiteWalks({
     )
   }
 
-  // The same button as on the Observations toolbar, so one action looks one way.
+  // The screen's one main action: the navy pill (v2).
   const record = onRecord && (
-    <button type="button" className="ob-button ob-button--primary" onClick={onRecord}>
-      <Icon name="mic" size={16} />
+    <Button variant="create" iconLeft="mic" onClick={onRecord}>
       Record site walk
-    </button>
+    </Button>
   )
   return (
     // .ob: the Observations tab's look (cards, buttons) for the list.

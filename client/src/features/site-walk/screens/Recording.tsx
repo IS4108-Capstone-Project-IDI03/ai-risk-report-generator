@@ -3,14 +3,13 @@
 // walk and name it (round 3). Opened from the Observations tab. Calls useWalk (keeps and sends) and
 // useWalkRecorder (microphone, camera).
 import { useCallback, useEffect, useState } from 'react'
-import { Icon, toast } from '../../../design-system'
+import { BackButton, Button, Icon, IconAction, toast } from '../../../design-system'
 import { CameraView } from '../components/CameraView'
 import { HelpSheet } from '../components/HelpSheet'
 import { NoteComposer } from '../components/NoteComposer'
 import { PhotoStrip } from '../components/PhotoStrip'
 import { RecordPanel } from '../components/RecordPanel'
 import { WalkList } from '../components/WalkList'
-import { BackButton } from '../../assessments/components/BackButton'
 import { WalkNameDialog } from '../components/WalkNameDialog'
 import { clock, mediaProblem } from '../recorder'
 import { acceptFiles, audioLength } from '../pickFiles'
@@ -159,7 +158,7 @@ export function SiteWalkRecording({
       <div className="sw sw-recording">
         <div className="sw-finished" role={w.problem ? 'alert' : 'status'}>
           <p className="sw-note">{w.problem ?? 'Starting the site walk…'}</p>
-          {w.problem && <BackButton label={back} onClick={onClose} />}
+          {w.problem && <BackButton label={'Back to ' + back} onClick={onClose} />}
         </div>
       </div>
     )
@@ -171,16 +170,20 @@ export function SiteWalkRecording({
   return (
     <div className="sw sw-recording">
       <header className="sw-bar">
-        <BackButton label={back} onClick={onClose} />
+        <div className="sw-bar-start">
+          <BackButton label={'Back to ' + back} onClick={onClose} />
+        </div>
         <h1>Site Walk</h1>
-        <button
-          type="button"
-          className="sw-button sw-icon-button"
-          aria-label="How to record a site walk"
-          onClick={() => setHelp(true)}
-        >
-          <Icon name="circle-help" size={20} />
-        </button>
+        <div className="sw-bar-end">
+          <IconAction
+            icon="circle-help"
+            label="How to record a site walk"
+            tooltip="How to record a site walk"
+            size="md"
+            placement="bottom-end"
+            onClick={() => setHelp(true)}
+          />
+        </div>
       </header>
 
       {/* Locked while finishing: a recording started now would run on unsent. */}
@@ -226,20 +229,24 @@ export function SiteWalkRecording({
       </div>
 
       <footer className="sw-finish">
-        <button
-          type="button"
-          className="sw-button sw-button--primary sw-button--wide"
-          disabled={!canFinish}
-          aria-describedby={!canFinish && !busy ? 'sw-finish-why' : undefined}
+        {/* Greyed out, not disabled, until there is something to finish: hovering says why (v2). */}
+        <Button
+          variant="create"
+          fullWidth
+          style={{ height: 48, fontSize: 16 }}
+          loading={busy}
+          disabledReason={
+            canFinish || busy
+              ? undefined
+              : {
+                  title: "Can't finish yet",
+                  text: 'Record or write something first, then finish the walk.',
+                }
+          }
           onClick={() => setNaming(true)}
         >
           {busy ? 'Finishing…' : 'Finish walk'}
-        </button>
-        {!canFinish && !busy && (
-          <p id="sw-finish-why" className="sw-note">
-            Record or write something to finish.
-          </p>
-        )}
+        </Button>
       </footer>
 
       {naming && (

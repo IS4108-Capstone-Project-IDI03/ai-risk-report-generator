@@ -1,11 +1,9 @@
-"""Observation reader (CP-05, CP-21). Stateless: reads one observation, returns a proposal.
+"""Photo reader (CP-05, CP-21, CP-24). Stateless: describes one observation's photos.
 
-The evidence is whatever the engineer captured about one finding: their typed note, the
-transcripts of their recordings and handwritten pages, and photos read from S3. The proposal is
-for the engineer to review: the COPE categories the finding concerns, each with the items it
-rests on and their exact words, and, when there are photos, a description of what they show and
-a hazard type. It is never report evidence by itself; the engineer takes it into the
-observation's note or categories if they agree with it.
+The photos are read from S3. The note and transcripts, if sent, only tell the model what to look
+at. The answer is a description of what the photos show and a hazard type, for the engineer to
+review. It is never report evidence by itself. (CP-24 removed the COPE categories half: the
+category is now suggested by rag-service's /observations/rate.)
 """
 
 import base64
@@ -30,8 +28,6 @@ def _model() -> str:
     return MODEL_OVERRIDE.get() or VISION_MODEL
 
 
-COPE_DIMENSIONS = ("Construction", "Occupancy", "Protection", "Exposure")
-
 # The OFI "Type" values in Marsh's three sample reports, so a proposal speaks Marsh's terms and
 # can carry into a Section 3 OFI later (GN-05).
 # ponytail: provisional until Marsh confirms the template's full value list.
@@ -51,9 +47,6 @@ HAZARD_TYPES = (
     "No hazard visible",
 )
 
-# One finding rarely concerns more than two; four is every category.
-MAX_CATEGORIES = 4
-
 # Gemini caps a request with inline images at 20 MB, base64 included; this leaves room for text.
 MAX_INLINE_CHARS = 18_000_000
 
@@ -69,77 +62,17 @@ class InterpretationError(Exception):
     """The reason the observation could not be read, shown to the engineer."""
 
 
-class Evidence(BaseModel):
-    # An item's name as the request gave it: "Note", "Recording 1", "Page 2", "Photo 1".
-    item: str
-    # Words copied exactly from that item's text; null for a photo, which has none.
-    quote: str | None
-
-
-class ProposedCategory(BaseModel):
-    category: Literal[COPE_DIMENSIONS]
-    reason: str
-    evidence: list[Evidence]
-
-
-# The two parts of a proposal, which can be asked for together or one at a time (CP-21): the
-# categories, from every item, and the description and hazard type, from the photos.
-PARTS = ("categories", "description")
-
-
-class CategoriesAnswer(BaseModel):
-    categories: list[ProposedCategory]
-
-
 class DescriptionAnswer(BaseModel):
     description: str
     hazard_type: Literal[HAZARD_TYPES]
 
 
-class FullAnswer(CategoriesAnswer, DescriptionAnswer):
-    pass
-
-
-ANSWERS = {
-    ("categories",): CategoriesAnswer,
-    ("description",): DescriptionAnswer,
-    PARTS: FullAnswer,
-}
-
 ITEMS = """Each item has a name, such as "Note", "Recording 1", "Page 2" or "Photo 1". Recordings \
 and pages are machine transcripts and can contain misheard or misread words."""
-
-CATEGORIES_INTRO = f"""You read what a Marsh property risk engineer captured about one finding \
-during a site survey, and propose for the engineer to review which COPE categories it concerns. \
-{ITEMS}"""
 
 DESCRIPTION_INTRO = f"""You look at the photographs a Marsh property risk engineer took of one \
 finding during a site survey, and propose a description of them for the engineer to review. \
 {ITEMS}"""
-
-# Must match rag-service app/site_walk/propose.py CATEGORIES. Fire doors and shutters are
-# Construction: the sample reports put them in section 7 under compartmentation.
-CATEGORIES_INSTRUCTION = """
-
-categories: the COPE categories the finding concerns, most relevant first. One finding can \
-concern more than one: an unsealed wall penetration is both Construction and Protection. Propose \
-a category only when an item supports it, and none when nothing does.
-- Construction: the building fabric: structure, walls, roofs, fire compartments, fire doors and \
-fire shutters, fire stopping of penetrations, combustible construction.
-- Occupancy: how the site is used: processes, storage, housekeeping, utilities, back-up power.
-- Protection: fire protection and security: sprinklers, alarms, extinguishers, hose reels, \
-pumps, their maintenance and impairment programmes, and emergency response plans.
-- Exposure: hazards from outside the site: neighbouring properties, flood, wind and other natural \
-hazards.
-
-For each category:
-- reason: one sentence in Singapore English saying what supports it, naming the items, for \
-example "Recording 1 says the sprinkler control valve was found shut."
-- evidence: every item that supports it, by its name, not only the clearest one: when a note, \
-recording, page or photo says or shows the same thing, cite it too, so the engineer can check \
-each. For a note, recording or page, quote: a few words copied exactly from that item, unchanged; \
-never reword them. For a photo, quote: null.
-An item that supports no category is left out of every category's evidence."""
 
 PHOTOS_INSTRUCTION = f"""
 
@@ -179,17 +112,11 @@ included, in descriptions, reasons and quotes. They stand for names and contact 
 invent, alter, explain or merge them."""
 
 
-def system_instruction(parts: tuple[str, ...], marked: bool = False) -> str:
-    """The rules for the parts asked for: categories may rest on any item, a description only on
-    the photos. `marked` when a photo has a marked area (CP-10)."""
-    marking = MARKED_RULE if marked else ""
-    if parts == ("description",):
-        return DESCRIPTION_INTRO + PHOTOS_INSTRUCTION + marking + PLACEHOLDER_RULE
-    rules = CATEGORIES_INTRO + CATEGORIES_INSTRUCTION
-    if "description" in parts:
-        rules += "\n\nThere are also photographs." + PHOTOS_INSTRUCTION
-        rules += " The categories may rest on any item."
-    return rules + marking + PLACEHOLDER_RULE
+def system_instruction(marked: bool = False) -> str:
+    """The rules for describing the photos. `marked` when a photo has a marked area (CP-10)."""
+    return (
+        DESCRIPTION_INTRO + PHOTOS_INSTRUCTION + (MARKED_RULE if marked else "") + PLACEHOLDER_RULE
+    )
 
 
 def _read(s3, key: str) -> bytes:
@@ -222,9 +149,9 @@ def _prompt(photos: list[str], texts: list[dict], location: str | None) -> str:
 
 
 def _interpret_gemini(
-    images: list[tuple[str, str]], prompt: str, parts: tuple[str, ...], marked: bool = False
-) -> tuple[BaseModel, str, dict | None]:
-    answer_type = ANSWERS[parts]
+    images: list[tuple[str, str]], prompt: str, marked: bool = False
+) -> tuple[DescriptionAnswer, str, dict | None]:
+    answer_type = DescriptionAnswer
     try:
         # Held open for the whole call: the client closes its connection when it is
         # discarded, so `genai.Client(...).interactions.create(...)` fails with "the
@@ -232,7 +159,7 @@ def _interpret_gemini(
         with genai.Client(api_key=GEMINI_API_KEY) as client:
             result = client.interactions.create(
                 model=_model(),
-                system_instruction=system_instruction(parts, marked),
+                system_instruction=system_instruction(marked),
                 # Each photo after its name, then the text that asks about them.
                 input=[
                     *(
@@ -283,55 +210,26 @@ def _interpret_gemini(
 _PROVIDERS = {"gemini": _interpret_gemini}
 
 
-def _check(answer: BaseModel, session: protection.Session) -> None:
-    """The answer's reasons and description with each detail Gemini added taken out, in one
-    call, while still masked so only those are found (PV-04). Quotes are not checked: they are
-    copied from the items, which were masked going in."""
-    proposed = getattr(answer, "categories", [])
-    texts = [category.reason for category in proposed]
-    if isinstance(answer, DescriptionAnswer):
-        texts.append(answer.description)
-    checked = session.check_answer(texts)
-    for category, reason in zip(proposed, checked, strict=False):
-        category.reason = reason
-    if isinstance(answer, DescriptionAnswer):
-        answer.description = checked[-1]
-
-
-def _categories(answer: BaseModel, unmask) -> list[dict] | None:
-    """Each category once, in the model's order, at most MAX_CATEGORIES, with real values back
-    in its reason and quotes; None if not asked for."""
-    if not isinstance(answer, CategoriesAnswer):
-        return None
-    seen: set[str] = set()
-    kept = []
-    for proposed in answer.categories:
-        if proposed.category not in seen:
-            seen.add(proposed.category)
-            category = proposed.model_dump()
-            category["reason"] = unmask(category["reason"])
-            for evidence in category["evidence"]:
-                if evidence["quote"]:
-                    evidence["quote"] = unmask(evidence["quote"])
-            kept.append(category)
-    return kept[:MAX_CATEGORIES]
+def _check(answer: DescriptionAnswer, session: protection.Session) -> None:
+    """The description with each detail Gemini added taken out, while still masked so only those
+    are found (PV-04)."""
+    [answer.description] = session.check_answer([answer.description])
 
 
 def interpret(
     photos: list[dict],
     texts: list[dict],
     location: str | None,
-    parts: tuple[str, ...] | None = None,
     privacy: dict | None = None,
 ) -> dict:
-    """The proposal for an observation: photos as {label, s3_key, region}, texts as {label, kind,
-    text}. `privacy` is the gateway's `{enabled, known_entities}` (PV-04), or None."""
+    """The description of an observation's photos: photos as {label, s3_key, region}, texts as
+    {label, kind, text} (a hint only). `privacy` is the gateway's `{enabled, known_entities}`
+    (PV-04), or None."""
     s3 = boto3.client("s3", region_name=AWS_REGION) if photos else None
     return interpret_images(
         [(p["label"], _read(s3, p["s3_key"])) for p in photos],
         texts,
         location,
-        parts,
         privacy,
         regions={p["label"]: p["region"] for p in photos if p.get("region")},
     )
@@ -341,18 +239,16 @@ def interpret_images(
     photos: list[tuple[str, bytes]],
     texts: list[dict],
     location: str | None,
-    parts: tuple[str, ...] | None = None,
     privacy: dict | None = None,
     regions: dict[str, dict] | None = None,
 ) -> dict:
-    """The proposal for photos already in hand; interpret() and the eval both use it. Without
-    `parts`, both when there are photos, else the categories. `regions` are the areas the
-    engineer marked (CP-10), by photo label: each goes as a close-up after its photo."""
+    """The description for photos already in hand; interpret() and the eval both use it.
+    `regions` are the areas the engineer marked (CP-10), by photo label: each goes as a close-up
+    after its photo."""
     try:
         provider = _PROVIDERS[VISION_PROVIDER]
     except KeyError:
         raise NotImplementedError(f"VISION_PROVIDER {VISION_PROVIDER!r} is not supported") from None
-    parts = tuple(p for p in PARTS if p in (parts or (PARTS if photos else ("categories",))))
     regions = regions or {}
     images = []
     for label, photo in photos:
@@ -374,15 +270,12 @@ def interpret_images(
     location = masked_location or None
     # The close-ups are part of their photos, not items the answer can cite.
     prompt = _prompt([label for label, _ in photos], texts, location)
-    answer, model, usage = provider(images, prompt, parts, bool(regions))
+    answer, model, usage = provider(images, prompt, bool(regions))
     _check(answer, session)
-    description = getattr(answer, "description", None)
-    # Real values back before the gateway checks quotes against the items (Rule 4).
     result = {
-        # None for a part not asked for.
-        "categories": _categories(answer, session.unmask),
-        "description": description and session.unmask(description),
-        "hazard_type": getattr(answer, "hazard_type", None),
+        # Real values back before the gateway saves it.
+        "description": session.unmask(answer.description),
+        "hazard_type": answer.hazard_type,
         "provider": VISION_PROVIDER,
         "model": model,
         "prompt_version": PROMPT_VERSION,

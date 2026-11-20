@@ -80,8 +80,6 @@ def main(only: list[str], protect: bool = False) -> None:
             f"   Type:     Marsh {case['marsh']['type']!r}, proposed "
             f"{proposal.get('hazard_type')!r} ({'same' if same_type else 'different'})"
         )
-        categories = [c["category"] for c in proposal.get("categories", [])]
-        print(f"   Category: {', '.join(categories) or 'none'}")
     print(f"\nHazard type matches Marsh's in {matched} of {len(cases)}. Results in {out}.")
 
 

@@ -1,83 +1,54 @@
-// One recording on the observation page (CP-03, CP-08, CP-22): its transcript
-// (as corrected), the player, and its actions. A walk clip plays only its own
-// part of the walk. A failed transcription is one small line with Retry and
-// an ✕ to dismiss it. Rendered by screens/ObservationPage.tsx.
-import { useState } from 'react'
-import { Icon } from '../../../design-system'
+// One recording on the observation page (CP-03, CP-08, CP-22, CP-24): the shared recording row
+// (site-walk/components/RecordingRow.tsx) with a pencil that corrects the transcript, the red bin
+// and the chevron that opens the transcript. A walk clip plays only its own part of the walk.
+// Rendered by components/RecordingsCard.tsx. Calls RecordingRow.
+import { useEffect, useState } from 'react'
+import { RecordingRow } from '../../site-walk/components/RecordingRow'
 import type { ObservationRowView } from '../useObservationsView'
 
 type Recording = ObservationRowView['recordings'][number]
 
-export function RecordingItem({ r }: { r: Recording }) {
-  const [dismissed, setDismissed] = useState(false)
+// A saved recording's length, read from its own audio header once it loads (the gateway stores
+// none); null until then, and for a file the browser can't read. `skip` leaves a walk clip alone.
+function useAudioSeconds(url: string, skip: boolean) {
+  const [seconds, setSeconds] = useState<number | null>(null)
+  useEffect(() => {
+    if (skip || !url) return
+    const el = new Audio()
+    el.preload = 'metadata'
+    el.onloadedmetadata = () =>
+      setSeconds(Number.isFinite(el.duration) ? Math.round(el.duration) : null)
+    el.src = url
+    // Without this the element would keep its download when the row goes.
+    return () => {
+      el.onloadedmetadata = null
+      el.removeAttribute('src')
+    }
+  }, [url, skip])
+  return seconds
+}
+
+/** Returns the row for one recording of the observation. */
+export function RecordingItem({ r, phone }: { r: Recording; phone: boolean }) {
+  const done = r.status === 'transcribed'
+  const read = useAudioSeconds(r.audioUrl, !!r.clip || !done)
   return (
-    <section className="ob-item" id={'evidence-' + r.id} aria-label={r.name}>
-      <div className="ob-item-head">
-        <Icon name="mic" size={16} color="var(--ink-600)" />
-        <span>{r.name}</span>
-        {r.canCorrect && (
-          // A pencil beside the bin, both icon-only, as the page's own actions are.
-          <button
-            type="button"
-            className="ob-button ob-button--small ob-icon-button"
-            aria-label="Edit text"
-            title="Edit text"
-            onClick={r.correct}
-          >
-            <Icon name="pencil" size={15} />
-          </button>
-        )}
-        {/* Kept to restore, never deleted (CP-08). */}
-        {!!r.remove && (
-          <button
-            type="button"
-            className="ob-button ob-button--small ob-icon-button ob-button--danger"
-            aria-label={'Remove ' + r.name}
-            title="Remove"
-            onClick={r.remove}
-          >
-            <Icon name="trash-2" size={15} />
-          </button>
-        )}
-      </div>
-      {r.status === 'failed' ? (
-        !dismissed && (
-          <p className="ob-line ob-line--problem" role="status">
-            <Icon name="circle-alert" size={14} />
-            <span>{r.error || r.text}</span>
-            {!!r.retry && (
-              <button type="button" className="ob-button ob-button--small" onClick={r.retry}>
-                {'Retry'}
-              </button>
-            )}
-            <button
-              type="button"
-              className="ob-button ob-button--small ob-icon-button"
-              aria-label="Dismiss"
-              onClick={() => setDismissed(true)}
-            >
-              <Icon name="x" size={14} />
-            </button>
-          </p>
-        )
-      ) : (
-        // Transcribing says so once, in place of the transcript.
-        <p
-          className="ob-transcript"
-          style={r.status === 'transcribing' ? { color: 'var(--text-secondary)' } : undefined}
-        >
-          {r.text}
-        </p>
-      )}
-      <audio
-        className="ob-audio"
-        controls
-        preload="none"
-        src={r.audioUrl}
-        aria-label={'Play ' + r.name}
-      />
-      {!!r.correctedLabel && <p className="ob-stamp">{r.correctedLabel}</p>}
-      {!!r.addedLabel && <p className="ob-stamp">{r.addedLabel}</p>}
-    </section>
+    <RecordingRow
+      id={'evidence-' + r.id}
+      phone={phone}
+      label={r.name}
+      error={r.error}
+      stamps={[r.correctedLabel, r.addedLabel].filter((x): x is string => !!x)}
+      item={{
+        // A walk clip's length is its part of the walk; a saved recording's is read from its audio.
+        durationSec: r.clip ? r.clip.end - r.clip.start : read,
+        status: done ? 'done' : r.status === 'transcribing' ? 'transcribing' : 'failed',
+        transcript: done ? r.text : null,
+        audioUrl: r.audioUrl,
+      }}
+      onRetry={r.retry ?? undefined}
+      onRemove={r.remove ?? undefined}
+      onEdit={r.canCorrect ? r.correct : undefined}
+    />
   )
 }

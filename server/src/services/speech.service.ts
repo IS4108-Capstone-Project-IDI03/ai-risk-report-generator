@@ -277,18 +277,10 @@ export async function transcribeHandwriting(
   }
 }
 
-// What S5 proposes from an observation (CP-05, CP-21): categories from
-// everything given, and from photos a description and hazard type; null for a
-// part not asked for.
+// What S5 says an observation's photos show (CP-05, CP-21): a description and
+// a hazard type. Since CP-24 it proposes no categories.
 export type InterpretationResult = {
-  categories:
-    | {
-        category: string
-        reason: string
-        evidence: { item: string; quote: string | null }[]
-      }[]
-    | null
-  description: string | null
+  description: string
   hazard_type: string | null
   provider: string
   model: string
@@ -309,12 +301,11 @@ export type InterpretationResult = {
   redacted_photos?: { label: string; faces: number; image: string }[]
 }
 
-// Asks S5 to read an observation: its photos already stored in S3 and its
-// texts (note and transcripts), each under the label the proposal cites it by,
-// with where it was found, for the parts asked for (CP-21). Like transcribe,
-// S5 stores nothing and the caller saves the result. `privacy` says whether S5
-// masks the text and blurs faces before the model sees them (PV-04). Throws an
-// Error whose message is the reason to show.
+// Asks S5 to describe an observation's photos already stored in S3, with its
+// note as a hint, each under its own label, and where it was found. Like
+// transcribe, S5 stores nothing and the caller saves the result. `privacy` says
+// whether S5 masks the text and blurs faces before the model sees them
+// (PV-04). Throws an Error whose message is the reason to show.
 export async function interpret(request: {
   // `region` is the area the engineer marked (CP-10), as fractions of the photo.
   photos: {
@@ -324,7 +315,6 @@ export async function interpret(request: {
   }[]
   texts: { label: string; kind: 'note' | 'recording' | 'page'; text: string }[]
   location: string | null
-  parts: ('categories' | 'description')[]
   privacy: ReadingPrivacy
 }): Promise<InterpretationResult> {
   const headers = { 'Content-Type': 'application/json', ...(await modelHeaders('photo')) }
@@ -341,7 +331,6 @@ export async function interpret(request: {
         })),
         texts: request.texts,
         location: request.location,
-        parts: request.parts,
         privacy: request.privacy,
       }),
     })
@@ -351,10 +340,7 @@ export async function interpret(request: {
   const body = (await response.json().catch(() => ({}))) as Partial<InterpretationResult> & {
     detail?: unknown
   }
-  const answered =
-    (!request.parts.includes('categories') || Array.isArray(body.categories)) &&
-    (!request.parts.includes('description') || typeof body.description === 'string')
-  if (!response.ok || !answered) {
+  if (!response.ok || typeof body.description !== 'string') {
     throw new Error(
       typeof body.detail === 'string'
         ? body.detail
