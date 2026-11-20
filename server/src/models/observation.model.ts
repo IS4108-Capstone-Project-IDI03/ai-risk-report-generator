@@ -242,6 +242,21 @@ export interface IChecklistLink {
   text: string
 }
 
+// One piece of a shorthand note the engineer confirmed (CP-35): a fact, an info request
+// or a recommendation. Only facts are drafting evidence. Kept outside `metadata`.
+export const PART_KINDS = ['fact', 'info_request', 'recommendation'] as const
+export type PartKind = (typeof PART_KINDS)[number]
+export interface IPart {
+  id: string
+  kind: PartKind
+  text: string
+  // The note's own line it came from, word for word.
+  shorthand: string
+  // True when the model chose the kind; false when the engineer's code did.
+  inferred: boolean
+  flags?: { type: 'unknown_term' | 'number_changed'; detail: string }[]
+}
+
 // One thing the engineer saw on site, with everything captured about it: a
 // note (CP-02), any number of recordings (CP-03), photographs (CP-04) and
 // handwritten pages (CP-19).
@@ -253,6 +268,8 @@ export interface IObservation {
   engineerId?: Types.ObjectId
   // Exactly as the engineer wrote it, never trimmed or reworded.
   note?: string
+  // The confirmed parts of a shorthand note (CP-35); absent when the note was not split.
+  parts?: IPart[]
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
@@ -494,6 +511,38 @@ const observationSchema = new Schema<IObservation>(
     engineer: { type: String, required: true, trim: true },
     engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
+    parts: {
+      type: [
+        new Schema<IPart>(
+          {
+            id: { type: String, required: true },
+            kind: { type: String, enum: PART_KINDS, required: true },
+            text: { type: String, required: true, maxlength: 1000 },
+            // Empty for a part the engineer added by hand; Mongoose rejects '' on a required String.
+            shorthand: { type: String, default: '' },
+            inferred: { type: Boolean, required: true },
+            flags: {
+              type: [
+                new Schema(
+                  {
+                    type: {
+                      type: String,
+                      enum: ['unknown_term', 'number_changed'],
+                      required: true,
+                    },
+                    detail: { type: String, required: true },
+                  },
+                  { _id: false },
+                ),
+              ],
+              default: undefined,
+            },
+          },
+          { _id: false },
+        ),
+      ],
+      default: undefined,
+    },
     recordings: [recordingSchema],
     photos: [photoSchema],
     pages: [pageSchema],

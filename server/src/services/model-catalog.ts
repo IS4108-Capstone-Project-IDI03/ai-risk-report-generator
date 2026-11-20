@@ -96,6 +96,8 @@ export const MODEL_CATALOG: Record<ModelTask, TaskCatalog> = {
   },
   qa: {
     label: 'QA check',
+    // Nothing reads this until EV-05 (the QA judge) is built.
+    notWiredYet: true,
     envDefault: 'QA_MODEL',
     // A different provider from drafting is recommended: the check must be independent (EV-05).
     options: [

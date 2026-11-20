@@ -10,17 +10,25 @@ const SourceRegion = lazy(() => import('./SourceRegion').then((m) => ({ default:
 type Props = {
   fileUrl: string
   region: Passage['region']
+  /** The cited words, marked on a table's crop (SourceRegion). */
+  quote?: string
   /** Called once the whole region is drawn (SourceRegion). */
   onDrawn?: () => void
 }
 
 /** The region of the original file, or nothing when the passage records none. */
-export function CitedRegion({ fileUrl, region, onDrawn }: Props) {
+export function CitedRegion({ fileUrl, region, quote, onDrawn }: Props) {
   if (!region) return null
   return (
     <PdfErrorBoundary fallback={null}>
       <Suspense fallback={null}>
-        <SourceRegion fileUrl={fileUrl} kind={region.kind} boxes={region.boxes} onDrawn={onDrawn} />
+        <SourceRegion
+          fileUrl={fileUrl}
+          kind={region.kind}
+          boxes={region.boxes}
+          quote={quote}
+          onDrawn={onDrawn}
+        />
       </Suspense>
     </PdfErrorBoundary>
   )

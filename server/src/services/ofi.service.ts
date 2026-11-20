@@ -10,7 +10,7 @@ import { recordAiCalls } from './ai-usage.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { findKnowledgeDocuments } from './knowledge-document.service'
 import { requestOfiDraft } from './rag.service'
-import { assessmentToDraft, draftingEvidence } from './section.service'
+import { assessmentToDraft, draftingEvidence, draftingRecommendations } from './section.service'
 import { privacyFor } from './privacy.service'
 
 export class OfiNotFoundError extends Error {
@@ -138,6 +138,8 @@ export async function listOfis(reference: string) {
 export async function draftOfis(reference: string, user: SessionUser) {
   const assessment = await assessmentToDraft(reference, user)
   const evidence = await draftingEvidence(reference)
+  // CP-35: each observation's recommendation parts ride with it; the OFI is based on them.
+  const recommendations = await draftingRecommendations(reference)
   const accepted = await ReportOfiModel.find({ assessment: assessment._id, state: 'accepted' })
     .select('title')
     .lean()
@@ -148,7 +150,9 @@ export async function draftOfis(reference: string, user: SessionUser) {
       jurisdiction: site.jurisdiction,
       facility_type: site.facilityType,
     },
-    observations: evidence,
+    observations: evidence.map((e) =>
+      recommendations[e.id] ? { ...e, recommendations: recommendations[e.id] } : e,
+    ),
     accepted: accepted.map((o) => o.title),
     privacy: await privacyFor(reference),
   })
@@ -167,6 +171,8 @@ export async function draftOfis(reference: string, user: SessionUser) {
       lossExpectancy: undefined,
       assessment: assessment._id,
       state: 'suggested',
+      // Shown as "From your recommendation": it rests on an observation that had one (CP-35).
+      fromRecommendation: o.observations.some((id) => id in recommendations),
       // Each OFI keeps only the passages it cites (AC2).
       sources: Object.fromEntries(
         Object.entries(draft.sources).filter(([ref]) =>

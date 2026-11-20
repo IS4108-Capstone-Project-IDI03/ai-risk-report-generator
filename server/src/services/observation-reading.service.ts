@@ -26,6 +26,7 @@ import { defineQueue, type JobContext } from './job-queue.service'
 import { locationText } from './location.service'
 import { privacyFor, readingPrivacyFor } from './privacy.service'
 import { rateObservation, RagServiceError, type RatedObservation } from './rag.service'
+import { observationFacts } from './section.service'
 import { hyphenated, interpret, type InterpretationResult } from './speech.service'
 import * as storage from './storage.service'
 
@@ -189,7 +190,9 @@ async function describePhotos(id: string): Promise<void> {
   if (!reading) return
   // S5 refuses labels that repeat, and phones name every photo image.jpg, so a
   // repeated name is numbered ("image.jpg (2)"); the note's label counts too.
-  const seen = new Map<string, number>(observation.note?.trim() ? [['Note', 1]] : [])
+  // What the engineer observed as fact (CP-35): a split note's fact parts, else the note as typed.
+  const note = observationFacts(observation)?.trim() ? observationFacts(observation)! : null
+  const seen = new Map<string, number>(note ? [['Note', 1]] : [])
   const unique = (name: string) => {
     const count = (seen.get(name) ?? 0) + 1
     seen.set(name, count)
@@ -208,9 +211,7 @@ async function describePhotos(id: string): Promise<void> {
       },
     ]
   })
-  const texts = observation.note?.trim()
-    ? [{ label: 'Note', kind: 'note' as const, text: observation.note }]
-    : []
+  const texts = note ? [{ label: 'Note', kind: 'note' as const, text: note }] : []
   const assessment = await AssessmentModel.findById(observation.assessment, 'locations reference')
     .lean()
     .catch(() => null)
@@ -457,7 +458,8 @@ const maskingUnavailable = (error: unknown) =>
 function textOf(o: StoredObservation): string {
   const photos = photoReadingOf(o)
   return [
-    o.note?.trim() ? o.note : null,
+    // A split note is read by its fact parts only (CP-35): a request is never rated as a finding.
+    observationFacts(o)?.trim() ? observationFacts(o) : null,
     ...kept(o.recordings).map((r) => readableText(r.transcription)),
     ...kept(o.pages ?? []).map((p) => readableText(p.transcription)),
     photos?.status === 'interpreted' && !photosOutOfDate(o) ? photos.description : null,

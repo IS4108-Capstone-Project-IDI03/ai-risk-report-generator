@@ -3,6 +3,7 @@ import type {
   Assessment,
   InterpretationStatus,
   MediaKind,
+  Part,
   SavedObservation,
   SavedPhoto,
   SavedSuggestion,
@@ -217,6 +218,8 @@ export type WorkflowState = {
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
+  // The parts of the note the engineer confirmed (CP-35); null while it is not split.
+  fParts: Part[] | null
   // Capture was left with something unsaved: the Leave without saving?
   // dialog, and the workspace tab leaving goes to.
   fLeaveOpen: boolean

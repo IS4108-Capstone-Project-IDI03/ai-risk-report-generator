@@ -8,6 +8,8 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import { copeDimensionsOf, ObservationModel, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
+import { observationFacts, toEvidence } from '../services/section.service'
+import type { ObservationDto } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
 
@@ -208,6 +210,26 @@ describe('drafting a report section (GN-01)', () => {
       latestDraft: { id: String(saved?._id) },
     })
     expect(list.body[1]).toMatchObject({ id: '12', usableObservations: 0, latestDraft: null })
+  })
+
+  it('stores `broader` on a source and ignores an unknown standards_report (GN-16)', async () => {
+    const { assessment: a, session } = await assessment()
+    await observation({ assessment: a._id, session: session._id }, 'Construction', {
+      note: 'Risers on L3 not fire-stopped.',
+    })
+    drafts.mockImplementation(() =>
+      json({
+        ...DRAFT,
+        sources: { 'C:d:1': { text: 'Rule.', broader: true } },
+        standards_report: { cited: 1, found: 3 },
+      }),
+    )
+    const response = await api.post(`/api/assessments/${REFERENCE}/sections/7/draft`)
+    expect(response.status).toBe(201)
+    expect(response.body.sources['C:d:1'].broader).toBe(true)
+    expect((await ReportSectionModel.findOne().lean())?.sources['C:d:1']).toMatchObject({
+      broader: true,
+    })
   })
 
   it('records the usage of the calls that wrote a draft, under the report (EV-03)', async () => {
@@ -784,5 +806,54 @@ describe('PII protection for drafting (PV-02)', () => {
 
     const saved = await ReportSectionModel.findOne().lean()
     expect(saved?.provenance.privacy).toEqual({ enabled: true, masked_count: 3 })
+  })
+})
+
+describe('drafting evidence of a split note (CP-35)', () => {
+  const dto = (parts: object[]) =>
+    ({
+      id: 'o1',
+      copeDimensions: ['Protection'],
+      note: 'raw note',
+      parts,
+      recordings: [],
+      pages: [],
+      photos: [],
+      severity: 'high',
+      location: null,
+      standard: null,
+    }) as unknown as ObservationDto
+  it('uses only the confirmed facts, one per line', () => {
+    const e = toEvidence(
+      dto([
+        { kind: 'fact', text: 'A' },
+        { kind: 'info_request', text: 'B' },
+        { kind: 'recommendation', text: 'C' },
+        { kind: 'fact', text: 'D' },
+      ]),
+    )
+    expect(e.note).toBe('A\nD')
+    expect(Object.keys(e)).not.toContain('parts')
+  })
+  it('keeps the note as typed when it has no parts', () => {
+    expect(toEvidence(dto([])).note).toBe('raw note')
+  })
+  it('observationFacts: a request-only note gives no fact, a fact part only its fact, no parts the note', () => {
+    expect(
+      observationFacts({
+        note: 'IR: ask for roof plan',
+        parts: [{ kind: 'info_request', text: 'roof plan' }],
+      }),
+    ).toBeNull()
+    expect(
+      observationFacts(
+        dto([
+          { kind: 'fact', text: 'A' },
+          { kind: 'recommendation', text: 'C' },
+        ]),
+      ),
+    ).toBe('A')
+    expect(observationFacts({ note: 'raw note', parts: [] })).toBe('raw note')
+    expect(observationFacts({})).toBeNull()
   })
 })

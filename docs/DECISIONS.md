@@ -2718,3 +2718,27 @@ Evaluation (20 Nov 2026, `eval/site_walk/rate_eval.py`, outside CI): held-out, 7
 Known limits: the notes scored are the site walk's clean notes, not engineers' raw text. Whether Marsh allows site photos and notes to go to Google (G3) was open at PV-04 and this entry does not settle it: describing photos without being asked reverses the 2026-10-08 choice, and relies on blurring and masking.
 
 Stories: CP-24, CP-05, CP-21, CP-22, PV-04, AS-06.
+
+## 2026-11-20 — A standard with no PDF is entered clause by clause, indexed as each clause is saved, and replaced by its PDF later
+
+Chose:
+- (IN-18) The unit of entry is a clause: its number, heading trail, text and screenshots, kept in `manual_sections`, which is the source of truth. The passages are rebuilt from it whenever the clause is saved, so only a manually entered document can be amended; an uploaded PDF's passages stay read-only, as there is nothing to rebuild them from but the PDF.
+- Each save indexes that clause at once, inside the request (ingestion `PUT /documents/{id}/manual-sections/{sid}`): one clause is one small embedding call, with no queue or worker. If ingestion is down, the text is kept with `indexed: false` and Re-embed tries again.
+- Each clause has a fixed `seq` beside its display `order`. Passage ids are `<doc>:<seq>[:part<n>]`, so moving a clause never changes what reports cite.
+- The document is a `draft` (read as `needs_review`, so never searched) until Publish, which is refused until every clause is indexed and every copied clause checked. Publish runs the match once; later edits go live at once and don't re-match.
+- A new match rule, `replaces_manual`: same body, number and edition year with either side manual, whatever the share of passages. Its decision, Replace manual entry, reuses supersede: the PDF becomes active, and the manual entry is withdrawn into the same edition family, kept.
+- A cited clause can be amended but not deleted. One manual entry per standard and edition, shared by every admin; a stale save is refused rather than overwriting. "Start from" copies an earlier edition into new, independent clauses (new ids, copied screenshots).
+- Screenshots are read by `OCR_PROVIDER` and corrected by the admin before saving; the image is kept and shown in citations in place of a PDF region.
+- Nothing is masked: only standards can be entered, and standards are public (as at upload). Recorded as a known gap in privacy.md.
+
+Reason: some standards, such as new NFPA editions, can only be read online, clause by clause. A clause is what an engineer cites and what the outline groups by, and indexing it on save lets an admin see each one working before Publish. A partial manual entry shares too few passages with the full PDF for the copy check, so its replacement needs a rule of its own.
+
+Rejected:
+- Indexing the whole document at Publish through the worker: a failure would surface only at the end, for every clause at once, and every later correction would re-embed everything.
+- Passage ids from `order`: moving a clause would break its citations.
+- Letting admins edit an uploaded PDF's passages: the next re-ingest would silently undo the edits.
+- Deleting the manual entry when its PDF arrives: reports cite its passages, so it is withdrawn and kept.
+- Re-running the match after every edit to a published entry: the identity that `replaces_manual` needs doesn't change with clauses, and a paid similarity check per save buys nothing.
+- Masking typed text and screenshots: standards hold no client details. If admins start pasting client material, mask and blur as PV-06 does.
+
+Stories: IN-18, IN-07, IN-17, KB-02.

@@ -230,6 +230,8 @@ describe('searching a document’s passages by words', () => {
   it.each([
     ['needs review', { unconfirmed: ['facility_type'] }],
     ['is withdrawn', { withdrawn: { at: new Date(), by: { id: 'u1', name: 'Sana Patel' } } }],
+    // IN-18: a manual document's clauses stay out of search until it is published.
+    ['is a manual draft', { entryMethod: 'manual', status: 'draft' }],
   ])('answers 409 when the document %s, as search skips its passages', async (_, over) => {
     const document = await seed(over)
 

@@ -170,7 +170,26 @@ def test_the_ofi_model_is_told_to_copy_placeholders_exactly(monkeypatch):
 
     system, _ = prompts[0]
     assert "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly" in system
-    assert response.json()["provenance"]["prompt_version"] == "gn05-v6"
+    assert response.json()["provenance"]["prompt_version"] == "gn05-v7"
+
+
+def test_an_engineers_recommendation_reaches_the_prompt_with_its_own_observation(monkeypatch):
+    """CP-35 hand-off: a recommendation part rides with its observation, and the guide says to
+    base the OFI's fix on it. An observation without one has no such line."""
+    valve = {**VALVE, "recommendations": ["Lock the valve open and fit a tamper switch"]}
+    panel = {**PANEL, "severity": "high", "recommendations": []}
+    response, _, prompts = draft(monkeypatch, [ofi()], observations=(valve, panel))
+    assert response.status_code == 200
+    system, user = prompts[0]
+    valve_block = user.split("[O2]")[0]
+    assert "Engineer's recommendation: Lock the valve open and fit a tamper switch" in valve_block
+    assert user.count("Engineer's recommendation:") == 1
+    assert "Engineer's recommendation" in system
+
+
+def test_an_observation_without_recommendations_reads_as_before(monkeypatch):
+    _, _, prompts = draft(monkeypatch, [ofi()])
+    assert "Engineer's recommendation:" not in prompts[0][1]
 
 
 def test_an_ofi_without_a_resolving_observation_is_dropped(monkeypatch):

@@ -1,3 +1,4 @@
+import { meetsRule, PASSWORD_RULE } from './passwordRule'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button, Callout, Input } from '../../design-system'
@@ -8,9 +9,6 @@ import './sign-in.css'
 // The gateway applies the same rule (newPasswordSchema in
 // server/src/services/invitation.service.ts); checking it here first saves a
 // round trip.
-const PASSWORD_RULE = 'Use at least 12 characters, including a number and a symbol.'
-const meetsRule = (password: string) =>
-  password.length >= 12 && /\d/.test(password) && /[^\w\s]/.test(password)
 
 type Link =
   | { state: 'checking' }

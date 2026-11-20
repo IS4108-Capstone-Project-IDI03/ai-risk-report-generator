@@ -16,6 +16,7 @@ import { CaptureVoicePanel } from '../components/CaptureVoicePanel'
 import { CategoryPicker } from '../components/CategoryPicker'
 import { ChecklistSheet } from '../components/ChecklistSheet'
 import { LocationPicker } from '../components/LocationSheet'
+import { SplitNotePanel } from '../components/SplitNotePanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useCaptureFit } from '../useCaptureFit'
@@ -93,14 +94,27 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             <CaptureModeSwitcher v={v} />
             <div className="cap-media">
               {!!v.isNoteMode && (
-                <Textarea
-                  aria-label="Note"
-                  maxLength={5000}
-                  rows={v.phone ? 6 : 8}
-                  placeholder="What did you see? Write as you would for the record."
-                  value={v.fNote}
-                  onChange={v.setFNote}
-                />
+                <>
+                  <Textarea
+                    aria-label="Note"
+                    maxLength={5000}
+                    rows={v.phone ? 6 : 8}
+                    placeholder="What did you see? Write as you would for the record."
+                    value={v.fNote}
+                    onChange={v.setFNote}
+                  />
+                  {/* Sorting the note into facts, requests and recommendations (CP-35).
+                      A site walk proposal saves locally, so it has no split. */}
+                  {!v.proposalCapture && (
+                    <SplitNotePanel
+                      reference={v.captureRef}
+                      note={v.fNote}
+                      saving={v.fSaving}
+                      parts={v.fParts}
+                      setParts={v.setFParts}
+                    />
+                  )}
+                </>
               )}
               {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}
               {!!v.isPhotoMode && <CapturePhotoPanel v={v} onView={setViewing} />}

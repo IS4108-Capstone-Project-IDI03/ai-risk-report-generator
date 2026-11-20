@@ -139,8 +139,9 @@ def labels(doc: dict) -> dict:
     Chroma metadata holds only strings and numbers, so the date becomes
     YYYY-MM-DD and an Unconfirmed (null) detail is left out: without that,
     Chroma would reject the whole upsert. Status is `withdrawn` if withdrawn,
-    else `needs_review` while any detail is Unconfirmed (IN-05) or the document
-    has a `match` (IN-07), else `active`. Must match `labels()` in
+    else `needs_review` while any detail is Unconfirmed (IN-05), the document
+    has a `match` (IN-07) or it is a manual draft not yet published (IN-18),
+    else `active`. Must match `labels()` in
     server/src/services/knowledge-document.service.ts, which relabels passages
     after a correction (KB-01) and emits status active, withdrawn or needs_review.
     """
@@ -150,7 +151,7 @@ def labels(doc: dict) -> dict:
     known = {key: value for key, value in metadata.items() if value is not None}
     if doc.get("withdrawn"):
         status = "withdrawn"
-    elif doc.get("unconfirmed") or doc.get("match"):
+    elif doc.get("unconfirmed") or doc.get("match") or doc.get("status") == "draft":
         status = "needs_review"
     else:
         status = "active"

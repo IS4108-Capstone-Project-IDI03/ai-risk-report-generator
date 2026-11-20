@@ -9,6 +9,7 @@ import {
   restoreAssessment as requestRestore,
   GatewayError,
   listAssessments,
+  type Part,
   retranscribePage,
   retryPageTranscription,
   retrySuggestion,
@@ -304,6 +305,7 @@ const BLANK_DRAFT = {
   fSending: 0,
   fLengths: {},
   fLocRefused: 0,
+  fParts: null,
   fClips: [],
   fPhotos: [],
   fPages: [],
@@ -1429,6 +1431,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             locationId: location.id,
             // The hidden draft becomes this observation; its recordings are not sent again.
             ...(media.draftId && { draftId: media.draftId }),
+            ...(s.fParts && note && { parts: s.fParts }),
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
@@ -1485,6 +1488,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
+        fParts: previous.fNote === note ? null : previous.fParts,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
@@ -4002,6 +4006,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
+      // The confirmed split of the note, sent with Save observation (CP-35).
+      fParts: s.fParts,
+      setFParts: (fParts: Part[] | null) => setState({ fParts }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
       setFNote: (
@@ -4470,6 +4477,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
           obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
+          fParts: null,
           fPhotos: [],
           fPages: [],
           fTrans: false,

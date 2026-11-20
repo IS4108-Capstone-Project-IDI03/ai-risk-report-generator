@@ -8,7 +8,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { locationText } from './location.service'
 import { listObservations } from './observation.service'
-import { assessmentToDraft } from './section.service'
+import { assessmentToDraft, observationFacts } from './section.service'
 
 // The whole ordered list replaces the saved one, so one write covers choosing,
 // removing, reordering and recaptioning (AC6, AC7, AC12). Caption limit as in
@@ -48,7 +48,7 @@ async function reportPhotos(reference: string) {
       location: o.location && locationText(o.location),
       // An observation can be filed under several categories; none when uncategorised.
       category: o.copeDimensions?.length ? o.copeDimensions.join(', ') : null,
-      note: o.note,
+      note: observationFacts(o),
     })),
   )
 }

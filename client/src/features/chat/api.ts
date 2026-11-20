@@ -34,6 +34,10 @@ export type Passage = {
   region?: { kind: 'table' | 'formula' | 'picture'; boxes: PageBox[] } | null
   /** The text holds a model's description of a picture, not the document's words (IN-13). */
   generated?: boolean
+  /** A manually entered clause (IN-18): no page or file; its screenshots show instead. */
+  manual?: boolean
+  /** The clause's screenshot keys, under its document (IN-18); absent or empty otherwise. */
+  images?: string[]
 }
 
 /** A rectangle on a PDF page, in points from the page's bottom-left corner. */

@@ -37,6 +37,10 @@ def get_passage(passage_id: str) -> dict | None:
         "region": _region(meta, page_start),
         # The passage holds a model's description of a picture, not the document's words (IN-13).
         "generated": _described(meta),
+        # A manually entered clause (IN-18): no page to crop, so its screenshots (keys under
+        # the document) are shown instead.
+        "manual": meta.get("entry_method") == "manual",
+        "images": list(meta.get("image_keys") or []),
     }
 
 

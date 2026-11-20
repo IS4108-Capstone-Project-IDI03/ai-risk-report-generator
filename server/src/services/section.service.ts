@@ -137,8 +137,25 @@ export function handwritingOf(o: ObservationDto): string[] {
     return p.transcription.status === 'transcribed' && text?.trim() ? [text] : []
   })
 }
+/**
+ * Returns what the engineer observed as fact: a split note's confirmed fact parts joined by
+ * newlines (null when it has none), else the raw note. Info requests and recommendations are
+ * never stated as fact, so every reader that shows or sends the note as evidence uses this.
+ */
+export function observationFacts(o: {
+  note?: string | null
+  parts?: { kind: string; text: string }[] | null
+}): string | null {
+  if (!o.parts?.length) return o.note ?? null
+  const facts = o.parts.filter((p) => p.kind === 'fact').map((p) => p.text)
+  return facts.length ? facts.join('\n') : null
+}
 export function isUsable(o: ObservationDto): boolean {
-  return Boolean(o.note?.trim()) || transcriptsOf(o).length > 0 || handwritingOf(o).length > 0
+  return (
+    Boolean(observationFacts(o)?.trim()) ||
+    transcriptsOf(o).length > 0 ||
+    handwritingOf(o).length > 0
+  )
 }
 
 // An observation as the draft is given it, and as the draft saves it.
@@ -154,7 +171,9 @@ export function toEvidence(o: ObservationDto): Evidence {
   return {
     id: o.id,
     COPE_dimension: o.copeDimensions!,
-    note: o.note,
+    // A split shorthand note (CP-35): only the confirmed facts are evidence; info requests and
+    // recommendations are never stated as fact. No new key: it would date every earlier draft.
+    note: o.parts.length ? (observationFacts(o) ?? '') : o.note,
     transcripts: transcriptsOf(o),
     // Only when there is some (CP-19): changesSince compares evidence as JSON,
     // so an observation without pages must read exactly as it did before pages
@@ -403,6 +422,23 @@ export async function draftingEvidence(reference: string): Promise<Evidence[]> {
     [...o.recordings, ...o.pages].some((m) => m.transcription.status === 'transcribing')
   if (inputs.some(transcribing)) throw new TranscriptionInProgressError()
   return inputs.filter(isUsable).map(toEvidence)
+}
+
+/**
+ * Returns each usable observation's recommendation parts (CP-35), by observation id, for OFI
+ * drafting to base its fixes on. Observations with none are left out. Kept apart from
+ * `toEvidence` so a draft's evidence does not change shape (see toEvidence).
+ */
+export async function draftingRecommendations(
+  reference: string,
+): Promise<Record<string, string[]>> {
+  const inputs = settled((await listObservations(reference)).reverse()).filter(isUsable)
+  return Object.fromEntries(
+    inputs.flatMap((o) => {
+      const texts = o.parts.filter((p) => p.kind === 'recommendation').map((p) => p.text)
+      return texts.length ? [[o.id, texts]] : []
+    }),
+  )
 }
 
 export type DraftableAssessment = Awaited<ReturnType<typeof assessmentToDraft>>

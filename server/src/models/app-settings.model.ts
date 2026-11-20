@@ -3,6 +3,7 @@
 // settings.service.ts; every change is also logged in settings_log. Metadata nulls follow
 // docs/areas/database.md (a document with no assessment stores null for those fields).
 import { Schema, model } from 'mongoose'
+import { DEFAULT_TIER_ORDER, TIER_IDS, type TierId } from '../services/source-tiers'
 
 export const QA_STRICTNESS = ['strict', 'standard', 'lenient'] as const
 export type QaStrictness = (typeof QA_STRICTNESS)[number]
@@ -12,6 +13,8 @@ export interface IAppSettings {
   // Task name to the chosen option id ("provider:model"); a task missing here uses its `.env` default.
   models: Record<string, string>
   qaStrictness: QaStrictness
+  // RT-04: tiers, highest authority first. Absent on documents from before RT-04: read as the default.
+  sourcePriority?: TierId[]
   metadata: SettingsMetadata
 }
 
@@ -37,6 +40,7 @@ const appSettingsSchema = new Schema<IAppSettings>(
     key: { type: String, enum: ['global'], default: 'global', unique: true },
     models: { type: Schema.Types.Mixed, default: {} },
     qaStrictness: { type: String, enum: QA_STRICTNESS, default: 'standard' },
+    sourcePriority: { type: [String], enum: TIER_IDS, default: () => [...DEFAULT_TIER_ORDER] },
     metadata: metadataSchema,
   },
   { collection: 'app_settings', minimize: false },

@@ -24,6 +24,8 @@ const gone = (error: unknown) => {
 const FAILED_TITLE = {
   // A failed document never goes back to awaiting a type (IN-19); listed so every status has a title.
   awaiting_type: 'Document already being retried',
+  // A manual draft is never queued, so never retried (IN-18); listed for the same reason.
+  draft: 'Document already retried',
   queued: 'Document already being retried',
   processing: 'Document already being retried',
   complete: 'Document already retried',

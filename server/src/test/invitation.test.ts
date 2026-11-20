@@ -107,17 +107,9 @@ describe('The invitation email (F-08)', () => {
   })
 
   it.each([
-    ['too short', 'short-1', 'Use at least 12 characters, including a number and a symbol.'],
-    [
-      'without a number',
-      'no-numbers-here',
-      'Use at least 12 characters, including a number and a symbol.',
-    ],
-    [
-      'without a symbol',
-      'no symbols here 1',
-      'Use at least 12 characters, including a number and a symbol.',
-    ],
+    ['without a number', 'no-numbers-here', 'Use at least one letter and one number.'],
+    ['without a letter', '12345678', 'Use at least one letter and one number.'],
+    ['empty of letters and numbers', '!!!!!!', 'Use at least one letter and one number.'],
     ['too long', `a1-${'x'.repeat(70)}`, 'Use 72 characters or fewer.'],
   ])('refuses a password %s and keeps the link open', async (_case, password, message) => {
     const { token } = await addAccount()

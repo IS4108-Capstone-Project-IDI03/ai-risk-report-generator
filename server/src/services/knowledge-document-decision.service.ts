@@ -6,6 +6,7 @@ import { isValidObjectId, type HydratedDocument } from 'mongoose'
 import { z } from 'zod'
 import { KnowledgeDocumentModel, type IKnowledgeDocument } from '../models/knowledge-document.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
+import { ManualSectionModel } from '../models/manual-section.model'
 import {
   deletePassages,
   getComparison,
@@ -32,6 +33,8 @@ export const DECISIONS = [
   'discard_other',
   'supersede',
   'add_as_older',
+  // IN-18: the PDF of a manually entered edition replaces the manual entry.
+  'replace_manual',
 ] as const
 export type Decision = (typeof DECISIONS)[number]
 export const decisionSchema = z.object({
@@ -99,8 +102,8 @@ export async function compareKnowledgeDocument(id: string): Promise<{
 }
 
 // The choices that fit this match (IN-07 Decision): every match can be kept or
-// discarded; an edition can also be added, and a pair that both wait for a
-// decision lets either be discarded.
+// discarded; an edition can also be added, a manual entry replaced by its PDF
+// (IN-18), and a pair that both wait for a decision lets either be discarded.
 function allowedChoices(document: Doc, other: Doc): Decision[] {
   const kind = document.match?.kind
   return [
@@ -108,6 +111,7 @@ function allowedChoices(document: Doc, other: Doc): Decision[] {
     'discard_new',
     ...(kind === 'newer_edition' ? (['supersede'] as const) : []),
     ...(kind === 'earlier_edition' ? (['add_as_older'] as const) : []),
+    ...(kind === 'replaces_manual' ? (['replace_manual'] as const) : []),
     ...(needsReview(other) ? (['discard_other'] as const) : []),
   ]
 }
@@ -150,20 +154,27 @@ async function saveAndRelabel(changes: Change[]): Promise<void> {
   }
 }
 
-// Removes a document completely, in order: passages, file, ingestion job, record.
-// Passages go first so that if Chroma is down nothing has changed yet (a 503);
-// each step is safe to repeat, so the admin can retry after a later failure.
-// Then every document that pointed at it is matched again.
+// Removes a document completely, in order: passages, file, a manual document's
+// clauses and screenshots (IN-18), ingestion job, record. Passages go first so
+// that if Chroma is down nothing has changed yet (a 503); each step is safe to
+// repeat, so the admin can retry after a later failure. Then every document
+// that pointed at it is matched again.
 async function discard(doc: Doc): Promise<void> {
   await deletePassages(String(doc._id))
   try {
-    await storage.deleteObject(doc.file.key)
+    // A manually entered standard has no file (IN-18). On a hydrated document a
+    // missing nested `file` still reads as {}, so the key is what's checked.
+    if (doc.file?.key) await storage.deleteObject(doc.file.key)
   } catch (error) {
     console.error('Deleting the file failed:', error)
     throw new IngestionUnavailableError(
       "The file couldn't be removed from storage, so the document was not discarded. Try again shortly.",
     )
   }
+  const shots = await ManualSectionModel.distinct('images.key', { documentId: doc._id })
+  // Best effort: an orphaned screenshot costs storage, never correctness.
+  await Promise.all(shots.map((key: string) => storage.deleteObject(key).catch(() => undefined)))
+  await ManualSectionModel.deleteMany({ documentId: doc._id })
   await IngestionJobModel.deleteMany({ documentId: doc._id })
   await KnowledgeDocumentModel.deleteOne({ _id: doc._id })
 
@@ -250,12 +261,21 @@ export async function decideKnowledgeDocument(
       ...clearOther,
     ])
   } else {
-    // supersede and add_as_older put both in one edition family: the stored
-    // document's own, or its id if it had none. The older edition is withdrawn
-    // (who and when recorded, as KB-01); one already withdrawn keeps its record.
+    // supersede, add_as_older and replace_manual put both in one edition family:
+    // the stored document's own, or its id if it had none. The older edition is
+    // withdrawn (who and when recorded, as KB-01); one already withdrawn keeps its
+    // record. Replacing a manual entry withdraws the manual side, whichever was
+    // reviewed: it is kept, with its clauses, but no longer searched (IN-18).
     const editionFamily = other.editionFamily ?? other._id
     const withdrawal = { at: new Date(), by }
-    const older = choice === 'supersede' ? other : document
+    const older =
+      choice === 'replace_manual'
+        ? document.entryMethod === 'manual'
+          ? document
+          : other
+        : choice === 'supersede'
+          ? other
+          : document
     const change = (doc: Doc, set: Change['set']): Change => ({
       doc,
       set: {

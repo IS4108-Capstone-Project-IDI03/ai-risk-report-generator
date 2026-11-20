@@ -92,6 +92,21 @@ def _same_standard(doc: dict, other: dict) -> bool:
     )
 
 
+def _replaces_manual(doc: dict, other: dict) -> bool:
+    """Return whether one of the two was entered manually and the other is that same edition.
+
+    Same body, number and edition year (IN-18): a manual entry is often partial, so no share of
+    passages is needed. One already withdrawn (already replaced) is left alone.
+    """
+    manual = "manual" in (doc.get("entryMethod"), other.get("entryMethod"))
+    return (
+        manual
+        and not other.get("withdrawn")
+        and _same_standard(doc, other)
+        and _edition_year(doc) == _edition_year(other)
+    )
+
+
 def _edition_of(doc: dict, other: dict) -> bool:
     """Return whether `other` is a different known edition of the same body, number unknown."""
     return (
@@ -178,10 +193,13 @@ def find_match(doc: dict, documents) -> dict | None:
 
     Titles are never compared. Rules in order (a copy candidate shares at least
     MATCH_MIN_SHARE of its passages either way round):
-    1. a copy candidate with the same edition (same year, or both without one);
-    2. another edition of the same body and standard number, whatever the share;
-    3. a copy candidate that is another edition of the same body (number unknown);
-    4. any other copy candidate; 5. nothing.
+    1. a copy candidate with the same edition (same year, or both without one), unless it is
+       2's manual entry;
+    2. the same edition as a manual entry, one side typed in and the other uploaded
+       (`replaces_manual`, IN-18), whatever the share;
+    3. another edition of the same body and standard number, whatever the share;
+    4. a copy candidate that is another edition of the same body (number unknown);
+    5. any other copy candidate; 6. nothing.
     Counts always come from the passage check (zeros when no passages are shared).
     `documents` is the `knowledge_documents` collection. Without the status filter
     a failed or half-ingested document could be flagged as the original.
@@ -208,17 +226,21 @@ def find_match(doc: dict, documents) -> dict | None:
     def closest(pool: list[dict]) -> dict:
         return max(pool, key=lambda c: share[str(c["_id"])])
 
-    same_edition = [c for c in copies if _edition_year(c) == _edition_year(doc)]
+    manual = [c for c in same_number if _replaces_manual(doc, c)]
+    same_edition = [c for c in copies if _edition_year(c) == _edition_year(doc) and c not in manual]
     if same_edition:  # 1
         other, kind = closest(same_edition), "possible_copy"
-    elif same_number and (edition := _edition_result(doc, same_number, shared)):  # 2
+    elif manual:  # 2
+        other = max(manual, key=lambda c: shared.get(str(c["_id"]), 0))
+        kind = "replaces_manual"
+    elif same_number and (edition := _edition_result(doc, same_number, shared)):  # 3
         other, kind = edition["doc"], edition["kind"]
-    elif pool := [c for c in copies if _edition_of(doc, c)]:  # 3
+    elif pool := [c for c in copies if _edition_of(doc, c)]:  # 4
         edition = _edition_result(doc, pool, shared)
         other, kind = edition["doc"], edition["kind"]
-    elif copies:  # 4
+    elif copies:  # 5
         other, kind = closest(copies), "possible_copy"
-    else:  # 5
+    else:  # 6
         return None
     return {"kind": kind, "documentId": other["_id"], **counts[str(other["_id"])]}
 
@@ -241,6 +263,15 @@ def _reading_order(passage_id: str) -> tuple:
     return (n, kind == "picture", rest)
 
 
+def sort_key(passage_id: str, meta: dict) -> tuple:
+    """Reading order: a manual clause's place in its list first (IN-18), then its id.
+
+    Uploaded passages have no `order`, so they sort by id alone. A manual clause's id holds
+    its fixed number, not its place, so moving a clause never changes its ids.
+    """
+    return (meta.get("order", 0), *_reading_order(passage_id))
+
+
 def _passages(doc_id: str) -> list[dict]:
     """Return a document's passages in reading order, with text, pages and vector."""
     collection = passages_collection()
@@ -261,7 +292,8 @@ def _passages(doc_id: str) -> list[dict]:
             found["ids"], found["documents"], found["metadatas"], found["embeddings"]
         )
     ]
-    return sorted(rows, key=lambda r: _reading_order(r["id"]))
+    metas = dict(zip(found["ids"], found["metadatas"]))
+    return sorted(rows, key=lambda r: sort_key(r["id"], metas[r["id"]]))
 
 
 def _kind(passage_id: str, meta: dict) -> str:
@@ -317,7 +349,7 @@ def document_passages(
     if collection is None:
         return empty
     found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
-    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: _reading_order(row[0]))
+    ordered = sorted(zip(found["ids"], found["metadatas"]), key=lambda row: sort_key(*row))
     by, where = outline.places([meta for _, meta in ordered])
     rows = [(row, place, n + 1) for n, (row, place) in enumerate(zip(ordered, where))]
     in_chapter = [row for row in rows if chapter is None or row[1][0] == chapter]
@@ -347,6 +379,8 @@ def document_passages(
             "kind": _kind(id_, meta),
             # Machine-written text, such as a picture's description (IN-13).
             "generated": bool(meta.get("generated_text")),
+            # A manual clause's screenshots, shown in place of a page region (IN-18).
+            "images": list(meta.get("image_keys") or []),
         }
         for id_, meta, position in page
     ]

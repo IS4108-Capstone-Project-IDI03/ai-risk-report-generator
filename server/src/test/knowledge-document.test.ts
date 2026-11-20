@@ -358,7 +358,7 @@ describe('POST /api/knowledge-documents', () => {
       size: DOCX.length,
       sha256: createHash('sha256').update(DOCX).digest('hex'),
     })
-    expect(saved!.file.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
+    expect(saved!.file!.sha256).toBe(createHash('sha256').update(CONVERTED_PDF).digest('hex'))
   })
 
   it('records no original for a PDF, which is stored as uploaded', async () => {
@@ -593,7 +593,7 @@ describe('POST /api/knowledge-documents', () => {
     expect(queued).not.toHaveBeenCalled()
     const saved = await KnowledgeDocumentModel.findById(response.body.id).lean()
     expect(saved?.status).toBe('awaiting_type')
-    expect(s3.has(saved!.file.key)).toBe(true)
+    expect(s3.has(saved!.file!.key)).toBe(true)
   })
 
   it.each([
@@ -1031,6 +1031,32 @@ describe('GET /api/knowledge-documents/:id (F-10)', () => {
     const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
 
     expect(body.handled).toEqual({ at: at.toISOString(), by: BY })
+  })
+
+  // IN-18: a standard entered clause by clause has no file, so no file link.
+  it('returns a manual document with no file link, size or fingerprint', async () => {
+    const { _id } = await KnowledgeDocumentModel.create({
+      title: 'NFPA 13',
+      entryMethod: 'manual',
+      status: 'draft',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'SG',
+        facility_type: 'all',
+        effective_date: new Date('2025-01-01'),
+      },
+    })
+
+    const { body } = await api.get(`/api/knowledge-documents/${_id}`).expect(200)
+
+    expect(body).toMatchObject({
+      entryMethod: 'manual',
+      status: 'draft',
+      fileName: null,
+      fileUrl: null,
+      size: null,
+      sha256: null,
+    })
   })
 
   it('answers 404 for an unknown or malformed id, and does not capture /ingested', async () => {
@@ -2201,6 +2227,8 @@ describe('buildKnowledgeDocumentIndex', () => {
     )
     expect(index?.partialFilterExpression).toEqual({
       status: { $in: ['awaiting_type', 'queued', 'processing', 'complete'] },
+      // IN-18: a manual document has no file.
+      'file.sha256': { $exists: true },
     })
   })
 })
@@ -2233,5 +2261,91 @@ describe('a knowledge document privacy mapping', () => {
       expect(JSON.stringify(response.body)).toContain(id)
       expect(JSON.stringify(response.body)).not.toMatch(/John Tan|privacyMapping/)
     }
+  })
+})
+
+// RT-04: a document's authority tier.
+describe('document authority tier (RT-04)', () => {
+  const engineer = signedInAsRole(app, 'risk_engineer')
+  const DETAILS = {
+    title: REPORT.title,
+    effectiveDate: REPORT.effectiveDate,
+    sourceType: REPORT.sourceType,
+    jurisdiction: 'SG',
+    facilityType: 'Data centre',
+  }
+
+  it('suggests a tier from the source type on read, marked auto', async () => {
+    const id = await stored(REPORT)
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.tier).toEqual({ value: 'marsh_precedent', source: 'auto' })
+  })
+
+  it('gives a document with no source type no tier', async () => {
+    const id = await stored(REPORT)
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { 'metadata.source_type': null })
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.tier).toBeNull()
+  })
+
+  it('saves an admin tier with source admin and keeps the earlier tier in history', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'national_code' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+    const doc = await KnowledgeDocumentModel.findById(id).lean()
+    expect(doc).toMatchObject({ authorityTier: 'national_code', tierSource: 'admin' })
+    expect(doc!.history.at(-1)!.authorityTier).toBe('marsh_precedent')
+    // The tier stays when a later correction sends none.
+    const again = await api.put(`/api/knowledge-documents/${id}`).send(DETAILS)
+    expect(again.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+  })
+
+  it('saves a tier-only change without calling the ingestion service (the tier is not in Chroma)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'national_code' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('confirms the suggested tier without calling the ingestion service, marking it admin (RT-04)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    const before = (await api.get(`/api/knowledge-documents/${id}`)).body.tier
+    expect(before).toEqual({ value: 'marsh_precedent', source: 'auto' })
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    // Choosing the tier it already has is a confirmation, not "nothing changed".
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'marsh_precedent', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+    // Saving it again, unchanged, still works while ingestion is down.
+    const again = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(again.status).toBe(200)
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('answers 400 for an unknown tier and 403 to an engineer', async () => {
+    const id = await stored(REPORT)
+    const put = (who: typeof api, tier: string) =>
+      who.put(`/api/knowledge-documents/${id}`).send({ ...DETAILS, tier })
+    expect((await put(api, 'gold')).status).toBe(400)
+    expect((await put(engineer, 'national_code')).status).toBe(403)
   })
 })

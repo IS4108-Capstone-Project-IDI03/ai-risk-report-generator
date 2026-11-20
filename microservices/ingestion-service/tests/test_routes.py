@@ -186,6 +186,7 @@ def test_listing_passages_returns_only_that_documents_passages_in_reading_order(
         "status": "needs_review",
         "kind": "text",
         "generated": False,
+        "images": [],
     }
     assert listed[2]["headings"] == ["Chapter 8", "8.15"]
 

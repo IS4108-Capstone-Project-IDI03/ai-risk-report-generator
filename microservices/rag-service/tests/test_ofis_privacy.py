@@ -142,3 +142,17 @@ def test_if_the_privacy_service_is_down_nothing_is_sent_and_the_reason_is_given(
     assert response.status_code == 502
     assert "privacy service" in response.json()["detail"]
     assert sent == {"search": [], "rerank": [], "prompts": []}
+
+
+def test_a_recommendation_is_masked_too(monkeypatch, fake_privacy):
+    """CP-35 hand-off: a recommendation is client text, so it is masked like the note."""
+    valve = {**VALVE, "recommendations": ["Ask John Tan at Acme Holdings to lock the valve open"]}
+    response, sent = draft(monkeypatch, request={**REQUEST, "observations": [valve]})
+
+    assert response.status_code == 200
+    for payload in sent["search"] + sent["rerank"] + sent["prompts"]:
+        assert not [s for s in SEEDED if s in payload], payload
+    assert (
+        "Engineer's recommendation: Ask [PERSON_1] at [CLIENT_1] to lock the valve open"
+        in (sent["prompts"][0])
+    )

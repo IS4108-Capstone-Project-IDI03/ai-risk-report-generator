@@ -6,6 +6,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import { Button, IconButton, Tabs } from '../../../design-system'
 import { pages } from '../../assessments/reviewDisplay'
 import type { SelectedCitation } from './citationSelection'
+import { screenshotUrl } from '../../knowledge-base/api'
 import { useDocument } from './documents'
 import { PassageDetails } from './PassageDetails'
 import { PdfErrorBoundary } from './PdfErrorBoundary'
@@ -39,6 +40,13 @@ export function CitationPanel({ selected, onClose }: Props) {
   // A page of the engineer's own attached PDF (CB-09): the gateway keeps its text, not the file, so
   // there is no PDF tab, and the file's name is the title.
   const attached = Boolean(source?.passageId?.startsWith('att:'))
+  // A manually entered clause (IN-18) has no file either: its screenshots show in the Passage tab.
+  const manual = Boolean(ready?.manual || doc?.manual)
+  const noPdf = attached || manual
+  const images =
+    source?.documentId && ready?.images
+      ? ready.images.map((key) => screenshotUrl(source.documentId!, key))
+      : []
   // Shown in either tab while the passage loads or when it can't be loaded.
   const status =
     loaded.status === 'loading' ? (
@@ -46,7 +54,7 @@ export function CitationPanel({ selected, onClose }: Props) {
     ) : loaded.status === 'error' ? (
       <p className="rv-viewer-note" role="alert">
         The passage couldn't be loaded, so the quoted words can't be highlighted: “{quote}”.
-        {doc && (
+        {doc?.fileUrl && (
           <>
             {' '}
             <a href={doc.fileUrl} target="_blank" rel="noreferrer">
@@ -63,7 +71,7 @@ export function CitationPanel({ selected, onClose }: Props) {
     loaded.status === 'error' ? (
       <p className="rv-viewer-note">
         The PDF can't be shown without its passage.
-        {doc && (
+        {doc?.fileUrl && (
           <>
             {' '}
             <a href={doc.fileUrl} target="_blank" rel="noreferrer">
@@ -121,7 +129,7 @@ export function CitationPanel({ selected, onClose }: Props) {
         <Tabs
           items={[
             { value: 'passage', label: 'Passage' },
-            ...(attached ? [] : [{ value: 'pdf', label: 'PDF' }]),
+            ...(noPdf ? [] : [{ value: 'pdf', label: 'PDF' }]),
           ]}
           value={tab}
           onChange={(value) => {
@@ -154,6 +162,8 @@ export function CitationPanel({ selected, onClose }: Props) {
           passageText={ready?.text ?? null}
           region={ready?.region}
           generated={ready?.generated}
+          manual={manual}
+          images={images}
           status={status}
           title={attached ? (ready?.headings[0] ?? 'Attached PDF') : undefined}
         />
@@ -162,13 +172,13 @@ export function CitationPanel({ selected, onClose }: Props) {
         role="tabpanel"
         aria-label="PDF"
         className="chat-tabpanel chat-tabpanel--pdf"
-        hidden={tab !== 'pdf' || attached}
+        hidden={tab !== 'pdf' || noPdf}
       >
         {/* Mounted as soon as the citation opens, hidden behind Passage, even before the passage
             arrives: the PDF's index and the cited pages load while the engineer reads, so the
             PDF tab is usually ready on click, and switching tabs never loads it again. */}
         {pdfStatus ??
-          (doc ? (
+          (doc?.fileUrl ? (
             <PdfErrorBoundary key={number}>
               <Suspense fallback={<div className="chat-pdf-scroll" />}>
                 <PdfViewer

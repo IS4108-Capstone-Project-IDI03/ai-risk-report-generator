@@ -35,6 +35,17 @@
 .kb-panel > .kb-empty {
   padding: 20px;
 }
+/* "No PDF? Enter a standard manually" (IN-18): a quiet line under the files. */
+.kb-manual-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 20px 16px;
+  font-size: var(--text-small-size);
+  color: var(--text-secondary);
+}
 .kb-panel-head {
   display: flex;
   flex-wrap: wrap;
@@ -472,6 +483,11 @@
 .kb-toggle:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+/* "Manual entry" (IN-18), on its own line under the edition. */
+.kb-toggle .kb-entry {
+  display: block;
+  margin-top: 4px;
 }
 
 /* An open document's details: the full table width, indented to the title,
@@ -1246,4 +1262,9 @@
   color: var(--text-primary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* The "suggested" note after an automatic tier (RT-04). */
+.kb-tier-note {
+  color: var(--text-muted);
 }

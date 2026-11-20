@@ -9,6 +9,7 @@ import {
   claimsOf,
   excerpt,
   FINDING_BADGE,
+  clauseOf,
   pageLocator,
   pages,
   severityLabel,
@@ -16,7 +17,9 @@ import {
 } from '../reviewDisplay'
 import { CitationMark } from './CitationMark'
 import { usePassage } from '../../sources/usePassage'
+import { CitedImage } from '../../sources/CitedImage'
 import { CitedRegion } from '../../sources/CitedRegion'
+import { screenshotUrl } from '../../knowledge-base/api'
 import { PassageBody } from '../../sources/PassageBody'
 import { useFoldedText } from '../../sources/useFoldedText'
 import { ReviewInspector, type InspectorAsk } from './ReviewInspector'
@@ -66,7 +69,13 @@ export function PassageView({
   // draft was given it (AC7). The citation ID is `C:` or `P:` and the passage's id.
   const live = usePassage(passage.id.slice(2))
   const region = live.status === 'ready' ? live.passage.region : null
-  const fold = useFoldedText(region)
+  // A manually entered clause (IN-18): no file or page; its screenshots stand in.
+  const manual = (live.status === 'ready' && !!live.passage.manual) || doc?.fileUrl === null
+  const images =
+    live.status === 'ready' && passage.documentId
+      ? (live.passage.images ?? []).map((key) => screenshotUrl(passage.documentId!, key))
+      : []
+  const fold = useFoldedText(region, images.length > 0)
   return (
     <>
       <ViewerHead number={number} onClose={onClose}>
@@ -81,6 +90,7 @@ export function PassageView({
             Withdrawn
           </Badge>
         )}
+        {manual && <Badge tone="neutral">Manual entry</Badge>}
       </ViewerHead>
       <h3>{doc ? doc.title : 'Document details not found'}</h3>
       <dl className="rv-meta">
@@ -116,10 +126,15 @@ export function PassageView({
             <dd>{passage.headings.join(' › ')}</dd>
           </>
         )}
-        <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
-        <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
+        {!manual && (
+          <>
+            <dt>{range?.includes('–') ? 'Pages' : 'Page'}</dt>
+            <dd className="rv-mono">{range ?? 'Not recorded'}</dd>
+          </>
+        )}
       </dl>
-      {doc && <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />}
+      {doc?.fileUrl && <CitedRegion fileUrl={doc.fileUrl} region={region} onDrawn={fold.onDrawn} />}
+      <CitedImage urls={images} alt="Screenshot" />
       {/* Focusable, since a long passage scrolls on its own. */}
       <PassageBody
         as="blockquote"
@@ -140,7 +155,7 @@ export function PassageView({
           resting on one alone is marked Unsupported.
         </p>
       )}
-      {doc ? (
+      {doc?.fileUrl ? (
         <a
           className="rv-viewer-link"
           href={doc.fileUrl + (passage.pageStart != null ? `#page=${passage.pageStart}` : '')}
@@ -151,10 +166,13 @@ export function PassageView({
           {passage.pageStart != null ? ` at page ${passage.pageStart}` : ''}
         </a>
       ) : (
-        <p className="rv-viewer-note">
-          This document has no record in the knowledge base, so its title, edition and dates cannot
-          be shown.
-        </p>
+        // A manual document has a record, just no file (IN-18).
+        !doc && (
+          <p className="rv-viewer-note">
+            This document has no record in the knowledge base, so its title, edition and dates
+            cannot be shown.
+          </p>
+        )
       )}
     </>
   )
@@ -386,7 +404,20 @@ export function SourcePanel({
                   kind={p.kind === 'precedent' ? 'report' : 'standard'}
                   source={
                     <>
-                      {p.document?.title ?? p.documentId ?? 'Document not found'}
+                      {[
+                        // "NFPA 13 (2022), 8.6.2": the page follows as the locator (GN-16 AC5).
+                        p.document?.edition && !p.document.title.includes(p.document.edition)
+                          ? `${p.document.title} (${p.document.edition})`
+                          : (p.document?.title ?? p.documentId ?? 'Document not found'),
+                        clauseOf(p.headings),
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                      {p.broader && (
+                        <span className="rv-flag" title="Found by country only, not facility type">
+                          <Badge tone="neutral">Broader match</Badge>
+                        </span>
+                      )}
                       {p.document?.withdrawnAt && (
                         <span className="rv-flag">
                           <Badge tone="danger">Withdrawn</Badge>

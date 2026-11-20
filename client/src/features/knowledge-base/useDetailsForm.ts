@@ -4,6 +4,7 @@
 // its reason above the fields. Calls api.ts.
 import { useState } from 'react'
 import { GatewayError } from '../assessments/api'
+import type { TierId } from '../settings/tiers'
 import {
   correctKnowledgeDocument,
   type DocumentDetails,
@@ -17,6 +18,9 @@ export function useDetailsForm(document: KnowledgeDocument, version?: DocumentVe
   const [details, setDetails] = useState(() =>
     formDetails(version ?? document, version ? [] : document.unconfirmed),
   )
+  // The tier is edited beside the details (RT-04); '' is Unranked. Sent only when changed.
+  const savedTier = document.tier?.value ?? ''
+  const [tier, setTier] = useState<TierId | ''>(savedTier)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -51,7 +55,13 @@ export function useDetailsForm(document: KnowledgeDocument, version?: DocumentVe
     setBusy(true)
     setProblem(null)
     try {
-      onSaved(await correctKnowledgeDocument(document.id, details))
+      onSaved(
+        await correctKnowledgeDocument(
+          document.id,
+          details,
+          tier && tier !== savedTier ? tier : undefined,
+        ),
+      )
     } catch (error: unknown) {
       const refused = error instanceof GatewayError && error.status === 400
       setErrors(refused ? error.fields : {})
@@ -69,5 +79,5 @@ export function useDetailsForm(document: KnowledgeDocument, version?: DocumentVe
     }
   }
 
-  return { details, errors, problem, busy, change, save }
+  return { details, tier, setTier, errors, problem, busy, change, save }
 }

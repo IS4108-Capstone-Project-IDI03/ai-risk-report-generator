@@ -11,6 +11,10 @@ do not inherit the context. The worker ingests one document at a time
 (concurrency 1), so one collection is enough. With none started (the API
 process, which serves /label) `record` does nothing.
 
+An API request that makes paid calls itself (a manual clause's embedding, IN-18)
+uses `collecting` instead: a collection for that request's thread only, so two
+requests at once never mix. Its calls run in the request's thread, never a pool.
+
 Calls are summed per feature, billed service and model, so a document with
 hundreds of OCR regions posts a handful of items, each with its `call_count`.
 Calls that reported no usage are summed apart and marked unavailable, so a
@@ -21,6 +25,8 @@ import logging
 import os
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import httpx
 
@@ -34,6 +40,20 @@ _TIMEOUT_SECONDS = 5
 _lock = threading.Lock()
 _document_id: str | None = None
 _totals: dict[tuple, dict] = {}
+# One request's own collection (`collecting`): its document id and totals.
+_request: ContextVar[tuple[str, dict[tuple, dict]] | None] = ContextVar("usage", default=None)
+
+
+@contextmanager
+def collecting(document_id: str):
+    """Collect this thread's calls for `document_id`; yields the list the items land in."""
+    items: list[dict] = []
+    token = _request.set((document_id, {}))
+    try:
+        yield items
+    finally:
+        items.extend(_request.get()[1].values())
+        _request.reset(token)
 
 
 def start(document_id: str) -> None:
@@ -48,15 +68,17 @@ def record(feature: str, billed_service: str, model: str, started: float, **amou
     duration_ms = int((time.perf_counter() - started) * 1000)
     reported = any(amounts.get(f) is not None for f in _FIELDS)
     with _lock:
-        if _document_id is None:
+        request = _request.get()
+        document_id, totals = request if request else (_document_id, _totals)
+        if document_id is None:
             return
-        item = _totals.setdefault(
+        item = totals.setdefault(
             (feature, billed_service, model, reported),
             {
                 "feature": feature,
                 "billed_service": billed_service,
                 "model": model,
-                "document_id": _document_id,
+                "document_id": document_id,
                 "call_count": 0,
                 "duration_ms": 0,
                 **{f: None for f in _FIELDS},

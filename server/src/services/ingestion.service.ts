@@ -3,6 +3,7 @@
 // library, reading a file's details (IN-05 /label), relabelling a document's passages (KB-01),
 // and matching, comparing and deleting passages (IN-07), because only the Python
 // services touch Chroma.
+import type { IDocumentMatch } from '../models/knowledge-document.model'
 import { config } from '../config'
 import { labelUsageToWire, recordAiCalls } from './ai-usage.service'
 import { ingestionPrivacy } from './privacy.service'
@@ -146,6 +147,128 @@ export async function relabelPassages(
   if (!response.ok) throw failed
 }
 
+// One clause of a manual document as ingestion indexes it (IN-18): its text with
+// its screenshots' corrected text, and each screenshot's key and kind only.
+export type ManualSectionPayload = {
+  seq: number
+  order: number
+  clause: string
+  headings: string[]
+  text: string
+  images: { key: string; kind: string }[]
+}
+
+// One clause is one embedding call, but Cohere can be slow or rate-limited.
+const MANUAL_SECTION_TIMEOUT_MS = 60_000
+
+// Indexes one clause of a manual document, replacing its passages (IN-18), and
+// records the embedding against the document. Throws IngestionUnavailableError
+// if ingestion is down or refuses; the clause's old passages are then kept.
+export async function indexManualSection(
+  documentId: string,
+  sectionId: string,
+  payload: ManualSectionPayload,
+): Promise<void> {
+  const failed = new IngestionUnavailableError(
+    "Search couldn't be updated with this clause. Re-embed it to try again.",
+  )
+  const response = await fetch(
+    `${config.ingestionServiceUrl}/documents/${documentId}/manual-sections/${sectionId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(MANUAL_SECTION_TIMEOUT_MS),
+    },
+  ).catch(() => {
+    throw failed
+  })
+  if (!response.ok) throw failed
+  const answer = (await response.json().catch(() => ({}))) as { usage?: unknown }
+  await recordAiCalls(answer.usage, { documentId })
+}
+
+// One clause of an earlier edition, as ingestion groups its passages (IN-18).
+export type DocumentClause = { clause: string; headings: string[]; text: string }
+
+// An uploaded document's text grouped into clauses, to start a new manual edition
+// from (IN-18). Throws IngestionUnavailableError if ingestion is down.
+export async function documentClauses(id: string): Promise<DocumentClause[]> {
+  const answer = await callIngestion<{ clauses: DocumentClause[] }>(
+    `/documents/${id}/clauses`,
+    'GET',
+    "The earlier edition couldn't be read, so nothing was created. Try again shortly.",
+  )
+  return answer.clauses
+}
+
+// Ingestion couldn't open a screenshot as an image (its 422): the reason is shown to the admin.
+export class ScreenshotRejectedError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'ScreenshotRejectedError'
+  }
+}
+
+// OCR on a screenshot takes one model call; a big table can take a while.
+const RECOGNISE_TIMEOUT_MS = 90_000
+
+/**
+ * Reads a manual clause's screenshot with OCR_PROVIDER (IN-18): table records,
+ * LaTeX or a picture's description, recorded against the document. Returns
+ * null when it couldn't be read (the provider read nothing, or ingestion is
+ * down), so the admin can type the text instead. Throws ScreenshotRejectedError
+ * when the file isn't an image ingestion can open.
+ */
+export async function recogniseScreenshot(
+  documentId: string,
+  image: Buffer,
+  kind: string,
+  context: string,
+): Promise<string | null> {
+  const form = new FormData()
+  form.append('file', new Blob([new Uint8Array(image)]), 'screenshot')
+  form.append('kind', kind)
+  form.append('documentId', documentId)
+  form.append('context', context)
+  try {
+    const response = await fetch(`${config.ingestionServiceUrl}/recognise`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(RECOGNISE_TIMEOUT_MS),
+    })
+    const answer = (await response.json().catch(() => ({}))) as {
+      text?: unknown
+      usage?: unknown
+      detail?: unknown
+    }
+    if (response.status === 422) {
+      throw new ScreenshotRejectedError(
+        typeof answer.detail === 'string' ? answer.detail : 'The image could not be opened.',
+      )
+    }
+    if (!response.ok || typeof answer.text !== 'string') return null
+    await recordAiCalls(answer.usage, { documentId })
+    return answer.text
+  } catch (error) {
+    if (error instanceof ScreenshotRejectedError) throw error
+    console.error('Reading a screenshot failed:', error)
+    return null
+  }
+}
+
+// Deletes one clause's passages from search (IN-18). Throws IngestionUnavailableError.
+export async function deleteManualSectionPassages(
+  documentId: string,
+  sectionId: string,
+): Promise<void> {
+  await callIngestion(
+    `/documents/${documentId}/manual-sections/${sectionId}`,
+    'DELETE',
+    "The clause couldn't be removed from search, so it was kept. Try again shortly.",
+  )
+}
+
 // Calls an ingestion endpoint that must succeed; any failure is an
 // IngestionUnavailableError carrying `failureMessage` (a 503 for the caller).
 async function callIngestion<T>(path: string, method: string, failureMessage: string): Promise<T> {
@@ -161,7 +284,7 @@ async function callIngestion<T>(path: string, method: string, failureMessage: st
 
 // What the ingestion service finds for a document (IN-07); `documentId` is a string.
 export type MatchAnswer = {
-  kind: 'newer_edition' | 'earlier_edition' | 'possible_copy'
+  kind: IDocumentMatch['kind']
   documentId: string
   newMatched: number
   newTotal: number
@@ -214,6 +337,8 @@ export type DocumentPassage = {
   status: string | null
   kind: 'text' | 'table' | 'formula' | 'picture'
   generated: boolean
+  // A manual clause's screenshot keys (IN-18); empty for every other passage.
+  images: string[]
 }
 
 // A chapter or section of the document's outline, with how many passages it holds. ""

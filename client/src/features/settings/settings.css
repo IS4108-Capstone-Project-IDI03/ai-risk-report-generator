@@ -241,3 +241,133 @@
     white-space: nowrap;
   }
 }
+
+/* Source priority (RT-04): the ranked tier list and its history. */
+.st-tiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 520px;
+}
+.st-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 4px 8px 4px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-card);
+  /* The slide to a new place (TierList.tsx sets the start position; this eases it). */
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The row that was just moved: a blue glow that fades, so the eye finds it. */
+.st-tier.is-moved {
+  position: relative;
+  z-index: 1;
+  animation: st-tier-glow 1100ms ease-out;
+}
+@keyframes st-tier-glow {
+  0% {
+    border-color: var(--action-primary);
+    background: var(--surface-selected);
+    box-shadow: 0 0 0 3px var(--surface-selected);
+  }
+  100% {
+    border-color: var(--border-default);
+    background: var(--surface-card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.st-tier-icon {
+  display: inline-flex;
+}
+/* Read out for screen readers only. */
+.st-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-tier {
+    transition: none;
+  }
+  .st-tier.is-moved {
+    animation: none;
+    border-color: var(--action-primary);
+    background: var(--surface-selected);
+  }
+}
+.st-tier[draggable='true'] {
+  cursor: grab;
+}
+.st-tier.is-dragging {
+  opacity: 0.5;
+}
+.st-tier-rank {
+  width: 24px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.st-tier-grip {
+  display: inline-flex;
+}
+.st-tier-name {
+  flex: 1;
+  font-weight: var(--weight-medium);
+}
+.st-history {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--graphite-600);
+}
+
+/* Note-taking (CP-35): the glossary list. */
+.st-gloss {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.st-gloss-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* A short numeric box, not the full panel width. */
+.st-narrow {
+  max-width: 320px;
+}
+
+/* "Not used yet" (S-01): tasks nothing reads. Separate section at the bottom, greyed out. */
+.st-unused {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.st-subtitle {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: var(--weight-semibold);
+  color: var(--graphite-600);
+}
+.st-row-unused {
+  opacity: 0.55;
+}

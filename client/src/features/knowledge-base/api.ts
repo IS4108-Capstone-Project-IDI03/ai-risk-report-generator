@@ -6,6 +6,7 @@
 // decide what happens to the row.
 import { request } from '../accounts/api'
 import { GatewayError, reportSessionEnded } from '../assessments/api'
+import type { TierId } from '../settings/tiers'
 
 // A gateway call that returns no body (e.g. the 202 from retry). The shared
 // `request` always parses JSON, which an empty 202 cannot provide, so these
@@ -28,9 +29,14 @@ async function send(path: string, init: RequestInit): Promise<void> {
 
 export type SourceType = 'fm_standard' | 'nfpa_standard' | 'local_standard' | 'marsh_report'
 // `awaiting_type`: labelling couldn't read the source type, so the document is
-// not ingested until an admin chooses one (IN-19).
+// not ingested until an admin chooses one (IN-19). `draft`: a standard being
+// entered clause by clause, not yet published (IN-18).
 export type IngestionStatus =
-  'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+  'draft' | 'awaiting_type' | 'queued' | 'processing' | 'complete' | 'failed' | 'cancelled'
+
+// How a document entered the knowledge base: an uploaded file, or typed in clause
+// by clause (IN-18). A manual document has no file.
+export type EntryMethod = 'upload' | 'manual'
 
 // The stages a document moves through while processing (E2). Mirrors
 // INGESTION_STAGES in server/src/models/ingestion-job.model.ts.
@@ -97,7 +103,9 @@ export type UnconfirmedDetail =
 // What a document matches in the knowledge base (IN-07). The counts always
 // come from the copy check, also for an edition match; matches the DTO in
 // server/src/services/knowledge-document.service.ts.
-export type MatchKind = 'newer_edition' | 'earlier_edition' | 'possible_copy'
+// `replaces_manual`: one side was entered manually, the other is the same edition
+// uploaded (IN-18).
+export type MatchKind = 'newer_edition' | 'earlier_edition' | 'possible_copy' | 'replaces_manual'
 export type DocumentMatch = {
   kind: MatchKind
   // `withdrawn`: Keep both then keeps this document withdrawn too.
@@ -121,18 +129,23 @@ export type KnowledgeDocument = {
   edition: string | null
   // A standard's number, e.g. "13" for NFPA 13; null like edition (IN-07).
   standardNumber: string | null
-  fileName: string
+  entryMethod: EntryMethod
+  // The file's name, size and link; null on a manual document, which has none (IN-18).
+  fileName: string | null
   sourceType: SourceType | null
   jurisdiction: string | null
   facilityType: string | null
   effectiveDate: string | null
+  // Authority tier (RT-04): 'auto' is a suggestion from the source type, 'admin' was set by hand.
+  // null (or absent) means Unranked.
+  tier?: { value: TierId; source: 'auto' | 'admin' } | null
   // The details still Unconfirmed; non-empty means "Needs review".
   unconfirmed: UnconfirmedDetail[]
-  size: number
+  size: number | null
   status: IngestionStatus
   error: string | null
   uploadedAt: string
-  fileUrl: string
+  fileUrl: string | null
   // The details each correction replaced, newest first (KB-01 AC9).
   history: DocumentVersion[]
   // Who took it out of use and when (KB-01 AC14); null while it is active.
@@ -219,11 +232,132 @@ const EMPTY_DETAILS: DocumentDetails = {
 export function correctKnowledgeDocument(
   id: string,
   details: DocumentDetails,
+  // Sent only when the admin changed it (RT-04).
+  tier?: TierId,
 ): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.fromEntries(filled(details))),
+    body: JSON.stringify({ ...Object.fromEntries(filled(details)), ...(tier && { tier }) }),
+  })
+}
+
+// ─── Manual entry (IN-18) ───────────────────────────────────────────────────
+
+// A standard's details for a new manual entry, as Edit details sends them.
+// `copyFrom` starts it from another edition's clauses (Start from).
+export function createManualDocument(
+  details: DocumentDetails,
+  copyFrom?: string,
+): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>('/api/knowledge-documents/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...Object.fromEntries(filled(details)), ...(copyFrom && { copyFrom }) }),
+  })
+}
+
+export type ManualImageKind = 'table' | 'formula' | 'picture'
+export type ManualImage = { key: string; kind: ManualImageKind; text: string }
+
+// One clause of a manual document; matches ManualSectionDto in
+// server/src/services/manual-section.service.ts.
+export type ManualSection = {
+  id: string
+  // Its fixed number (its passages' ids); `order` is its place in the list.
+  seq: number
+  order: number
+  clause: string
+  headings: string[]
+  text: string
+  images: ManualImage[]
+  // In search as saved; false after a failed embedding (`indexError` says why).
+  indexed: boolean
+  indexError: string | null
+  // Saved by an admin for this edition; false for a clause copied from another.
+  checked: boolean
+  copiedFrom: { documentId: string; clause: string } | null
+  updatedBy: { id: string; name: string }
+  updatedAt: string
+}
+
+// What the admin saves for a clause.
+export type ClauseInput = {
+  clause: string
+  headings: string[]
+  text: string
+  images: ManualImage[]
+  order?: number
+}
+
+const sectionsPath = (id: string) => `/api/knowledge-documents/${encodeURIComponent(id)}/sections`
+
+export function listManualSections(id: string, signal?: AbortSignal): Promise<ManualSection[]> {
+  return request<ManualSection[]>(sectionsPath(id), { signal })
+}
+
+export function addManualSection(id: string, clause: ClauseInput): Promise<ManualSection> {
+  return request<ManualSection>(sectionsPath(id), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(clause),
+  })
+}
+
+// Saves a change; `updatedAt` is the one it was loaded with, so a newer save is not overwritten.
+export function changeManualSection(
+  id: string,
+  sectionId: string,
+  clause: ClauseInput,
+  updatedAt: string,
+): Promise<ManualSection> {
+  return request<ManualSection>(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...clause, updatedAt }),
+  })
+}
+
+// A screenshot read by OCR and stored, for a clause to hold once saved. `text` is
+// '' with `readError` saying why when OCR read nothing, so the admin types it.
+export type Screenshot = ManualImage & { readError: string | null }
+
+// Reads a table, formula or picture screenshot with OCR and stores it (IN-18).
+// `context` is the clause's heading trail, which helps a picture's description.
+// Rejects with the gateway's reason: 415 not a PNG, JPG or WebP, 413 over 10 MB.
+export function uploadScreenshot(
+  id: string,
+  file: File,
+  kind: ManualImageKind,
+  context: string,
+): Promise<Screenshot> {
+  const query = new URLSearchParams({ kind, context })
+  return request<Screenshot>(`${sectionsPath(id)}/screenshots?${query}`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  })
+}
+
+// Where a saved clause's screenshot is shown from (a key's last part is its name).
+export const screenshotUrl = (id: string, key: string) =>
+  `${sectionsPath(id)}/screenshots/${encodeURIComponent(key.split('/').pop() ?? '')}`
+
+export function deleteManualSection(id: string, sectionId: string): Promise<void> {
+  return send(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}`, { method: 'DELETE' })
+}
+
+export function reembedManualSection(id: string, sectionId: string): Promise<ManualSection> {
+  return request<ManualSection>(`${sectionsPath(id)}/${encodeURIComponent(sectionId)}/reembed`, {
+    method: 'POST',
+  })
+}
+
+// Publishes a manual draft and returns it, active or Needs review (IN-18).
+// Rejects with the gateway's reason: 409 when a clause isn't indexed or checked yet.
+export function publishManualDocument(id: string): Promise<KnowledgeDocument> {
+  return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
   })
 }
 
@@ -313,6 +447,9 @@ export type DocumentPassage = {
   status: string | null
   kind: 'text' | 'table' | 'formula' | 'picture'
   generated: boolean
+  // A manual clause's screenshot keys, shown in place of a page region (IN-18); absent
+  // from answers before IN-18.
+  images?: string[]
 }
 
 // A chapter or section of a document's outline and how many passages it holds. "" is
@@ -379,7 +516,13 @@ export type Comparison = {
 // The choices on the Review page; discard_new and discard_other both delete a
 // document, so the page asks first.
 export type DecisionChoice =
-  'keep_both' | 'discard_new' | 'discard_other' | 'supersede' | 'add_as_older'
+  | 'keep_both'
+  | 'discard_new'
+  | 'discard_other'
+  | 'supersede'
+  | 'add_as_older'
+  // IN-18: the PDF of a manually entered edition replaces the manual entry.
+  | 'replace_manual'
 
 // Returns a document set beside the document it matches (IN-07 AC7).
 export function getComparison(id: string, signal?: AbortSignal): Promise<Comparison> {

@@ -31,9 +31,19 @@ class FakePassages:
             }
 
     def _select(self, where):
+        # `{"$and": [...]}` of equality filters, as a manual clause's passages are found (IN-18).
+        if "$and" in where:
+            pairs = [next(iter(c.items())) for c in where["$and"]]
+            return [
+                (i, r) for i, r in self.rows.items() if all(r["meta"].get(k) == v for k, v in pairs)
+            ]
         doc = where["doc_id"]
         wanted = set(doc["$in"]) if isinstance(doc, dict) else {doc}
         return [(i, r) for i, r in self.rows.items() if r["meta"]["doc_id"] in wanted]
+
+    def upsert(self, ids, documents, embeddings, metadatas):
+        for i, text, vector, meta in zip(ids, documents, embeddings, metadatas):
+            self.rows[i] = {"text": text, "meta": meta, "vector": np.asarray(vector, dtype=float)}
 
     def get(self, where=None, include=(), limit=None, offset=0, ids=None):
         self.gets.append((list(ids) if ids is not None else None, list(include)))

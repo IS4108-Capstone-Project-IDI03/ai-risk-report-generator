@@ -1,17 +1,25 @@
 // The Knowledge base screen, as three tabs: Documents (the knowledge base
 // itself, KB-01, in KnowledgeDocuments.tsx), Add documents (IN-01, in
 // AddDocuments.tsx) and Requests (CB-07, in Requests.tsx). At /admin/knowledge-base/review/<id> it shows one
-// document's Review page instead (IN-07, ReviewDocument.tsx). Shown by
-// AssessmentApp.tsx.
+// document's Review page instead (IN-07, ReviewDocument.tsx), and at
+// /admin/knowledge-base/manual/<id> a manual document's clauses (IN-18,
+// ManualSections.tsx). Shown by AssessmentApp.tsx.
 import { useEffect, useState } from 'react'
 import { Tabs } from '../../design-system'
-import { KNOWLEDGE_REVIEW_PATH, reviewIdForPath, SCREEN_PATHS } from '../auth/access'
+import {
+  KNOWLEDGE_MANUAL_PATH,
+  KNOWLEDGE_REVIEW_PATH,
+  manualIdForPath,
+  reviewIdForPath,
+  SCREEN_PATHS,
+} from '../auth/access'
 import { listIngestedDocuments, listKnowledgeRequests } from './api'
 import { knowledgeTab } from './openTab'
 import { needsReview } from './display'
 import { AddDocuments } from './screens/AddDocuments'
 import { NO_FILTERS, type Filters } from './documentFilters'
 import { KnowledgeDocuments } from './screens/KnowledgeDocuments'
+import { ManualSections } from './screens/ManualSections'
 import { Requests } from './screens/Requests'
 import { ReviewDocument } from './screens/ReviewDocument'
 import './knowledge-base.css'
@@ -66,9 +74,12 @@ export function KnowledgeBase({
   // Which document's Review page is open, if any. It follows the URL, so the
   // page can be linked to, reloaded, and left with the browser's Back.
   const [reviewId, setReviewId] = useState(() => reviewIdForPath(window.location.pathname))
+  // Which manual document's clauses are open (IN-18); it follows the URL the same way.
+  const [manualId, setManualId] = useState(() => manualIdForPath(window.location.pathname))
   useEffect(() => {
     const follow = () => {
       setReviewId(reviewIdForPath(window.location.pathname))
+      setManualId(manualIdForPath(window.location.pathname))
       // A tab chosen from elsewhere (openKnowledgeTab) shows on arrival.
       setTab(knowledgeTab.current)
       setFocusDoc(knowledgeTab.document)
@@ -105,7 +116,18 @@ export function KnowledgeBase({
     }
     window.history.pushState(window.history.state, '', SCREEN_PATHS.knowledge)
     setReviewId(null)
+    setManualId(null)
     then?.()
+  }
+  // Opens a manual document's clauses (IN-18), from the list or from Add documents.
+  const openManual = (id: string, filters: Filters = NO_FILTERS) => {
+    window.history.replaceState({ kbFilters: filters }, '')
+    window.history.pushState(
+      { kbFilters: filters },
+      '',
+      KNOWLEDGE_MANUAL_PATH + encodeURIComponent(id),
+    )
+    setManualId(id)
   }
   const open = (value: string) => {
     knowledgeTab.current = value
@@ -116,10 +138,25 @@ export function KnowledgeBase({
   // Reviewing a match is the admin's (IN-07): an engineer's Review link opens the list,
   // and the address says so.
   const reviewing = canManage ? reviewId : null
+  // Entering clauses is the admin's too (IN-18).
+  const entering = canManage ? manualId : null
   useEffect(() => {
-    if (reviewId && !canManage)
+    if ((reviewId || manualId) && !canManage)
       window.history.replaceState(window.history.state, '', SCREEN_PATHS.knowledge)
-  }, [reviewId, canManage])
+  }, [reviewId, manualId, canManage])
+  if (entering) {
+    return (
+      <div className="kb">
+        <ManualSections
+          key={entering}
+          id={entering}
+          notify={notify}
+          // Back to the list, which re-reads the draft's state.
+          onBack={() => closeReview()}
+        />
+      </div>
+    )
+  }
   if (reviewing) {
     return (
       <div className="kb">
@@ -170,6 +207,7 @@ export function KnowledgeBase({
           onAdd={() => open('add')}
           onNeedReview={setNeedReview}
           onReview={openReview}
+          onClauses={openManual}
           canManage={canManage}
         />
       ) : shown === 'requests' ? (
@@ -180,6 +218,7 @@ export function KnowledgeBase({
           onCompleted={setCompleted}
           // From Add documents the list has no filters to keep.
           onReview={(id) => openReview(id, NO_FILTERS)}
+          onEnterManually={(id) => openManual(id)}
         />
       )}
     </div>

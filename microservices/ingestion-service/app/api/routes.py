@@ -1,3 +1,4 @@
+import io
 import json
 from typing import Annotated, Literal
 
@@ -6,11 +7,13 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app import extract_text, matching, worker
+from app import extract_text, manual, matching, usage, worker
 from app.labelling import label_pdf
 from app.matching import comparison_rows, find_match
+from app.pipeline.chunking_helper import ocr_model
 from app.pipeline.indexer import index_chunks, relabel
 
 router = APIRouter()
@@ -61,6 +64,23 @@ class IndexRequest(BaseModel):
         if len({chunk.id for chunk in self.chunks}) != len(self.chunks):
             raise ValueError("Chunk IDs must be unique within a request")
         return self
+
+
+# A manual clause's screenshot (IN-18): where it is stored and what it shows.
+class ManualImage(BaseModel):
+    key: NonEmpty
+    kind: Literal["table", "formula", "picture"]
+
+
+# One clause of a manually entered standard (IN-18), as the gateway stores it in
+# `manual_sections`. `seq` is its fixed number (passage ids), `order` its place in the list.
+class ManualSection(BaseModel):
+    seq: int = Field(ge=1)
+    order: int = Field(ge=0)
+    clause: NonEmpty
+    headings: list[NonEmpty] = Field(default_factory=list, max_length=20)
+    text: Annotated[NonEmpty, Field(max_length=200_000)]
+    images: list[ManualImage] = Field(default_factory=list, max_length=20)
 
 
 @router.get("/health")
@@ -130,6 +150,52 @@ def index(request: IndexRequest) -> dict:
     return {"status": "indexed", "chunks_indexed": count}
 
 
+# A screenshot bigger than this is refused (IN-18); a clause's table is far smaller.
+MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
+
+
+def screenshot_png(body: bytes) -> bytes:
+    """Return the screenshot as PNG bytes, or raise 422 if it is not a readable image."""
+    if len(body) > MAX_SCREENSHOT_BYTES:
+        raise HTTPException(422, "The image is over 10 MB. Crop it to the table or figure.")
+    try:
+        with Image.open(io.BytesIO(body)) as image:
+            image.load()
+            out = io.BytesIO()
+            image.convert("RGB").save(out, format="PNG")
+            return out.getvalue()
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as error:
+        raise HTTPException(422, "The file is not an image that can be read.") from error
+
+
+def read_screenshot(png: bytes, kind: str, context: str, doc_id: str) -> tuple[str | None, list]:
+    """OCR one screenshot, collecting its usage in this thread; returns the text and usage."""
+    with usage.collecting(doc_id) as used:
+        text = ocr_model.recognise(png, kind, context)
+    return text, used
+
+
+@router.post("/recognise")
+async def recognise(
+    file: Annotated[UploadFile, File()],
+    kind: Annotated[Literal["table", "formula", "picture"], Form()],
+    document_id: Annotated[NonEmpty, Form(alias="documentId")],
+    context: Annotated[str, Form(max_length=2000)] = "",
+) -> dict:
+    """Read a manual clause's screenshot with OCR_PROVIDER (IN-18); saves nothing.
+
+    A table comes back as records, a formula as LaTeX, a picture as a description (with the
+    clause's heading trail as context). The admin checks the text before the clause is saved.
+    Returns the usage for the gateway to record against `documentId` (EV-03), as /label does.
+    """
+    png = screenshot_png(await file.read())
+    # In a thread: the model call would block the event loop.
+    text, used = await run_in_threadpool(read_screenshot, png, kind, context, document_id)
+    if not text:
+        raise HTTPException(502, "The image couldn't be read. Try again, or type the text in.")
+    return {"text": text, "usage": used}
+
+
 @router.put("/documents/{doc_id}/labels")
 def relabel_document(doc_id: str, labels: Labels) -> dict:
     """Put a corrected document's labels on all its passages (KB-01).
@@ -166,6 +232,45 @@ def match_document(doc_id: str) -> dict:
     worker.documents().update_one({"_id": doc["_id"]}, {"$set": {"match": match}})
     worker.relabel_passages({**doc, "match": match})
     return {"match": {**match, "documentId": str(match["documentId"])} if match else None}
+
+
+def manual_document(doc_id: str) -> dict:
+    """Return a manually entered document, or raise 404 / 409 (an uploaded one takes no clauses)."""
+    doc = stored_document(doc_id)
+    if doc.get("entryMethod") != "manual":
+        raise HTTPException(409, "Only a manually entered document has clauses to change.")
+    return doc
+
+
+@router.put("/documents/{doc_id}/manual-sections/{section_id}")
+def save_manual_section(doc_id: str, section_id: str, section: ManualSection) -> dict:
+    """Index one clause of a manual document, replacing its passages (IN-18).
+
+    Called by the gateway after it saves the clause to `manual_sections`. Synchronous: one
+    clause is one embedding call. Returns how many passages it has, and the embedding's
+    usage for the gateway to record (EV-03), as /label does.
+    """
+    doc = manual_document(doc_id)
+    with usage.collecting(doc_id) as used:
+        count = manual.save(doc, {**section.model_dump(), "section_id": section_id})
+    return {"passagesIndexed": count, "usage": used}
+
+
+@router.delete("/documents/{doc_id}/manual-sections/{section_id}")
+def delete_manual_section(doc_id: str, section_id: str) -> dict:
+    """Delete one clause's passages from the search index (IN-18); returns how many."""
+    manual_document(doc_id)
+    return {"passagesDeleted": manual.delete(doc_id, section_id)}
+
+
+@router.get("/documents/{doc_id}/clauses")
+def document_clauses(doc_id: str) -> dict:
+    """A document's text grouped into clauses, to start a new manual edition from (IN-18).
+
+    Reads the index only; the gateway copies the clauses into the new draft, unchecked.
+    """
+    stored_document(doc_id)
+    return {"clauses": manual.clauses(doc_id)}
 
 
 @router.delete("/documents/{doc_id}/passages")

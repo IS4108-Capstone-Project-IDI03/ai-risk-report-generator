@@ -114,6 +114,21 @@ describe('Appendix A site photos (GN-07)', () => {
     ])
   })
 
+  it('shows only the confirmed facts of a split note as the photo note (CP-35)', async () => {
+    const ids = await assessment()
+    const part = (kind: string) => ({ id: kind, kind, text: `${kind} text`, inferred: false })
+    await observation(ids, [photo('a.jpg')], {
+      note: 'IR: ask for roof plan',
+      parts: [part('info_request')],
+    })
+    await observation(ids, [photo('b.jpg')], { parts: [part('info_request'), part('fact')] })
+    await observation(ids, [photo('c.jpg')])
+
+    const notes = (await api.get(url)).body.available.map((p: { note: string | null }) => p.note)
+
+    expect(notes.sort()).toEqual([null, 'Fire pump controller in auto.', 'fact text'].sort())
+  })
+
   it('saves the chosen photos in order with their captions, and deselects', async () => {
     const ids = await assessment()
     const [pump, panel] = [photo('pump.jpg'), photo('panel.jpg')]

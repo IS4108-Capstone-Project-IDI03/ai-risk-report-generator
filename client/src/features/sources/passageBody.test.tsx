@@ -71,10 +71,10 @@ describe('PassageBody', () => {
     expect(body().querySelector('mark')).toHaveTextContent('C = \\frac{100}{2}')
   })
 
-  it('folds the text behind "Show extracted text", closed', () => {
+  it('folds the text behind "Show passage text", closed', () => {
     const { container } = render(<PassageBody text="Light hazard | gpm: 100" quote="" folded />)
     const details = container.querySelector('details')!
-    expect(details).toHaveTextContent('Show extracted text')
+    expect(details).toHaveTextContent('Show passage text')
     expect(details.open).toBe(false)
     expect(details).toContainElement(body())
   })
@@ -85,6 +85,14 @@ describe('PassageBody', () => {
     )
     expect(container.querySelector('details')!.open).toBe(true)
     expect(body().querySelector('mark')).toHaveTextContent('gpm: 100')
+  })
+
+  // sources.css shows one of the two by the open state; jsdom loads no CSS, so both are checked here.
+  it('labels the fold Show when closed and Hide when open', () => {
+    const { container } = render(<PassageBody text="Two cylinders on a rack." quote="" folded />)
+    const summary = container.querySelector('summary')!
+    expect(summary.querySelector('.src-extracted-show')).toHaveTextContent('Show passage text')
+    expect(summary.querySelector('.src-extracted-hide')).toHaveTextContent('Hide passage text')
   })
 
   it('shows the text with no fold unless asked', () => {

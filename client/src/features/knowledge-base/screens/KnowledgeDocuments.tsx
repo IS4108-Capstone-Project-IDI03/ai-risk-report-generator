@@ -4,10 +4,23 @@
 // one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
 // Shown by KnowledgeBase.tsx; talks to the gateway through api.ts.
 import { useEffect, useState } from 'react'
-import { Button, Callout, EmptyState, IconRegistry, Input, Select } from '../../../design-system'
+import {
+  Button,
+  Callout,
+  EmptyState,
+  IconRegistry,
+  Input,
+  Select,
+  toast,
+} from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
-import { listIngestedDocuments, type DocumentVersion, type KnowledgeDocument } from '../api'
-import { needsReview } from '../display'
+import {
+  listIngestedDocuments,
+  publishManualDocument,
+  type DocumentVersion,
+  type KnowledgeDocument,
+} from '../api'
+import { isDraft, needsReview } from '../display'
 import { CitedDeleteDialog } from '../components/CitedDeleteDialog'
 import { DeleteDocumentDialog } from '../components/DeleteDocumentDialog'
 import { DocumentGroup, type Group } from '../components/DocumentGroup'
@@ -51,15 +64,26 @@ const STATUS_FILTER = [
   { value: 'active', label: 'Active' },
   { value: 'needs_review', label: 'Needs review' },
   { value: 'withdrawn', label: 'Withdrawn' },
+  // A manual entry still being typed in (IN-18).
+  { value: 'draft', label: 'Draft' },
+]
+// How a document entered the knowledge base (IN-18).
+const ENTRY_FILTER = [
+  { value: '', label: 'Any entry' },
+  { value: 'upload', label: 'Uploaded' },
+  { value: 'manual', label: 'Manual entry' },
 ]
 // Whether a document shows the status badge chosen in the filter; must match
-// components/DocumentRow.tsx, where Needs review is never Active (IN-05).
+// components/DocumentRow.tsx, where Needs review is never Active (IN-05) and a
+// draft is neither (IN-18).
 const hasStatus = (d: KnowledgeDocument, status: string) =>
   status === 'withdrawn'
     ? Boolean(d.withdrawn)
-    : status === 'needs_review'
-      ? needsReview(d)
-      : !d.withdrawn && !needsReview(d)
+    : status === 'draft'
+      ? isDraft(d)
+      : status === 'needs_review'
+        ? needsReview(d)
+        : !d.withdrawn && !isDraft(d) && !needsReview(d)
 
 // A fuzzy title match: the typed letters appear in the title in order, with
 // gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
@@ -93,6 +117,7 @@ export function KnowledgeDocuments({
   onAdd,
   onNeedReview,
   onReview,
+  onClauses,
   canManage,
 }: {
   // The document a notification opened (F-10), marked once and scrolled into view.
@@ -103,6 +128,8 @@ export function KnowledgeDocuments({
   onNeedReview: (count: number) => void
   // Opens a document's Review page (IN-07), keeping the filters for the way back.
   onReview: (id: string, filters: Filters) => void
+  // Opens a manual document's clauses (IN-18), keeping the filters for the way back.
+  onClauses: (id: string, filters: Filters) => void
   // Off for a risk engineer, who browses read-only (IN-17).
   canManage: boolean
 }) {
@@ -149,7 +176,8 @@ export function KnowledgeDocuments({
       (!filters.sourceType || d.sourceType === filters.sourceType) &&
       (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
       (!filters.facilityType || d.facilityType === filters.facilityType) &&
-      (!filters.status || hasStatus(d, filters.status)),
+      (!filters.status || hasStatus(d, filters.status)) &&
+      (!filters.entry || d.entryMethod === filters.entry),
   )
   // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
@@ -181,6 +209,18 @@ export function KnowledgeDocuments({
     setOpenId(null)
     setAttempt((n) => n + 1)
     notify(`${gone.title} deleted.`)
+  }
+  // Publish (IN-18): the row turns Active, or Needs review if it matched its PDF. A
+  // refusal (clauses left to check or embed) says why; the draft stays as it is.
+  const publish = async (draft: KnowledgeDocument) => {
+    try {
+      replaced(await publishManualDocument(draft.id))
+      notify(`${draft.title} published.`)
+    } catch (error: unknown) {
+      toast.error("Can't publish yet", {
+        description: error instanceof Error ? error.message : 'Try again shortly.',
+      })
+    }
   }
   const clearFilters = () => setFilters(NO_FILTERS)
   const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
@@ -259,6 +299,13 @@ export function KnowledgeDocuments({
             options={STATUS_FILTER}
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          />
+          <Select
+            size="sm"
+            aria-label="Entry"
+            options={ENTRY_FILTER}
+            value={filters.entry}
+            onChange={(e) => setFilters({ ...filters, entry: e.target.value })}
           />
           {filtering && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -345,6 +392,8 @@ export function KnowledgeDocuments({
                   onDelete={setDeleting}
                   onReview={(document) => onReview(document.id, filters)}
                   onPassages={setPassagesOf}
+                  onPublish={publish}
+                  onClauses={(document) => onClauses(document.id, filters)}
                   canManage={canManage}
                 />
               )

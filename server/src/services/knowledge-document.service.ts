@@ -10,6 +10,7 @@ import {
   KnowledgeDocumentModel,
   SOURCE_TYPES,
   type DetailName,
+  type EntryMethod,
   type IDocumentMatch,
   type IKnowledgeDocument,
   type ILabelledDetail,
@@ -28,6 +29,7 @@ import {
 } from './ingestion.service'
 import { ingestionPrivacy, type IngestionPrivacy } from './privacy.service'
 import * as storage from './storage.service'
+import { suggestTier, type TierId } from './source-tiers'
 import { getObjectRangeStream } from './file-copy.service'
 import { toPdf } from './converter.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
@@ -203,20 +205,26 @@ export type KnowledgeDocumentDto = {
   edition: string | null
   // Standards only (IN-07); null for a report or while Unconfirmed.
   standardNumber: string | null
-  fileName: string
+  // How it entered the knowledge base (IN-18); `upload` for records from before.
+  entryMethod: EntryMethod
+  // The file's name, size, fingerprint and link; null on a manual document (IN-18).
+  fileName: string | null
   // A detail labelling could not confirm is null (IN-05).
   sourceType: string | null
   jurisdiction: string | null
   facilityType: string | null
   effectiveDate: string | null
+  // RT-04: the authority tier; stored if an admin chose one, else suggested from the source
+  // type ('auto'). null while the source type is Unconfirmed (ranks last).
+  tier: { value: TierId; source: 'auto' | 'admin' } | null
   // The details still Unconfirmed; non-empty = "needs review" (IN-05).
   unconfirmed: DetailDtoName[]
-  size: number
-  sha256: string
+  size: number | null
+  sha256: string | null
   status: IKnowledgeDocument['status']
   error: string | null
   uploadedAt: Date
-  fileUrl: string
+  fileUrl: string | null
   // Who withdrew the document and when (KB-01 AC14); null while it is active.
   withdrawn: { at: Date; by: { id: string; name: string } } | null
   // Who last corrected, decided on, retried or cancelled it, and when (F-10); null if none did.
@@ -286,17 +294,25 @@ const PASSAGE_CITATION = /^[CP]:([0-9a-f]{24}):/
  * pointing at passages that no longer exist.
  */
 export async function citedDocumentIds(): Promise<Set<string>> {
+  const ids = new Set<string>()
+  for (const citation of await reportCitations()) {
+    const id = PASSAGE_CITATION.exec(citation)?.[1]
+    if (id) ids.add(id)
+  }
+  return ids
+}
+
+// Every passage citation in report section statements and OFIs (`C:` / `P:` + passage id).
+// IN-12 reads it for documents; a manual clause's delete (IN-18) for its own passages.
+export async function reportCitations(): Promise<string[]> {
   const [fromSections, standards, precedents] = await Promise.all([
     ReportSectionModel.distinct('subsections.statements.citations') as Promise<string[]>,
     ReportOfiModel.distinct('standards') as Promise<string[]>,
     ReportOfiModel.distinct('precedent') as Promise<(string | null)[]>,
   ])
-  const ids = new Set<string>()
-  for (const citation of [...fromSections, ...standards, ...precedents]) {
-    const id = typeof citation === 'string' ? PASSAGE_CITATION.exec(citation)?.[1] : undefined
-    if (id) ids.add(id)
-  }
-  return ids
+  return [...fromSections, ...standards, ...precedents].filter(
+    (citation): citation is string => typeof citation === 'string',
+  )
 }
 
 // Builds the progress field from an ingestion job, computing elapsed times on
@@ -319,6 +335,13 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
   }
 }
 
+// The tier shown for a document: the saved one, else the rule's suggestion (RT-04).
+function tierOf(d: Doc): KnowledgeDocumentDto['tier'] {
+  if (d.authorityTier) return { value: d.authorityTier, source: d.tierSource ?? 'admin' }
+  const suggested = suggestTier(d.metadata.source_type)
+  return suggested ? { value: suggested, source: 'auto' } : null
+}
+
 // Turns a database row into the shape the browser's api.ts expects. When a
 // processing document has an ingestion job, its progress is folded in (E2).
 function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): KnowledgeDocumentDto {
@@ -331,19 +354,21 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     issuingBody: d.issuingBody ?? null,
     edition: d.edition ?? null,
     standardNumber: d.standardNumber ?? null,
-    fileName: d.fileName,
+    entryMethod: d.entryMethod ?? 'upload',
+    fileName: d.fileName ?? null,
     sourceType: d.metadata.source_type,
     jurisdiction: d.metadata.jurisdiction,
     facilityType: d.metadata.facility_type,
     effectiveDate: isoDay(d.metadata.effective_date),
+    tier: tierOf(d),
     // Records from before IN-05 have no field.
     unconfirmed: (d.unconfirmed ?? []).map((name) => DETAIL_DTO_NAME[name]),
-    size: d.file.size,
-    sha256: d.file.sha256,
+    size: d.file?.size ?? null,
+    sha256: d.file?.sha256 ?? null,
     status: d.status,
     error: d.error ?? null,
     uploadedAt: d.createdAt,
-    fileUrl: `/api/knowledge-documents/${d._id}/file`,
+    fileUrl: d.file?.key ? `/api/knowledge-documents/${d._id}/file` : null,
     withdrawn: d.withdrawn ? { at: d.withdrawn.at, by: d.withdrawn.by } : null,
     handled: d.handled ? { at: d.handled.at, by: d.handled.by } : null,
     // Records from before history existed have no field; `?? []` gives them none.
@@ -453,7 +478,7 @@ function adminLabelling(
 
 // The record fields a document's details decide. `edition` is undefined for a
 // past report, which removes it when a standard is corrected into a report.
-function recordFields(details: DocumentDetails) {
+export function recordFields(details: DocumentDetails) {
   return {
     title: details.title,
     issuingBody:
@@ -504,7 +529,8 @@ function differs(old: IKnowledgeDocument, next: ReturnType<typeof recordFields>)
  * Returns the labels every passage of the document carries, so search can
  * filter on them: its metadata, the date as YYYY-MM-DD, and `status`, which
  * search uses to skip passages that are not `active`: `withdrawn` (KB-01) or
- * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match). Null details are left out
+ * `needs_review` (IN-05 some detail Unconfirmed, IN-07 a match, IN-18 a manual draft not yet
+ * published). Null details are left out
  * (Chroma can't store null, and no filter should match them), and
  * `section` is never sent, so a relabel can't overwrite each passage's own
  * report section (IN-05).
@@ -516,7 +542,8 @@ export function labels({
   withdrawn,
   unconfirmed,
   match,
-}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed' | 'match'>) {
+  status,
+}: Pick<IKnowledgeDocument, 'metadata' | 'withdrawn' | 'unconfirmed' | 'match' | 'status'>) {
   const details = {
     source_type: metadata.source_type,
     jurisdiction: metadata.jurisdiction,
@@ -527,7 +554,7 @@ export function labels({
     ...Object.fromEntries(Object.entries(details).filter(([, value]) => value != null)),
     status: withdrawn
       ? 'withdrawn'
-      : needsReview({ unconfirmed, match })
+      : status === 'draft' || needsReview({ unconfirmed, match })
         ? 'needs_review'
         : 'active',
   }
@@ -832,15 +859,17 @@ export async function knowledgeDocumentPrivacy(id: string): Promise<IngestionPri
 export async function getKnowledgeDocumentFile(id: string) {
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
   const document = await KnowledgeDocumentModel.findById(id, 'file fileName').lean()
-  if (!document) throw new KnowledgeDocumentNotFoundError()
+  // A manually entered standard has no file (IN-18).
+  const file = document?.file
+  if (!file) throw new KnowledgeDocumentNotFoundError()
   return {
-    fileName: document.fileName,
-    size: document.file.size,
-    sha256: document.file.sha256,
+    fileName: document.fileName ?? 'document.pdf',
+    size: file.size,
+    sha256: file.sha256,
     open: (range?: [number, number]) =>
       range
-        ? getObjectRangeStream(document.file.key, `${document.file.sha256}.pdf`, range)
-        : storage.getObjectStream(document.file.key),
+        ? getObjectRangeStream(file.key, `${file.sha256}.pdf`, range)
+        : storage.getObjectStream(file.key),
   }
 }
 
@@ -913,11 +942,12 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
 
 /**
  * Returns every ingested document (ingestion complete), active or withdrawn,
- * sorted by title A–Z (KB-01). The collation sorts as a reader would:
- * "apple" beside "Apple", not after every capital letter.
+ * and every manual draft (IN-18), so any admin can continue one, sorted by
+ * title A–Z (KB-01). The collation sorts as a reader would: "apple" beside
+ * "Apple", not after every capital letter.
  */
 export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
-  const documents = await KnowledgeDocumentModel.find({ status: 'complete' })
+  const documents = await KnowledgeDocumentModel.find({ status: { $in: ['complete', 'draft'] } })
     .collation({ locale: 'en' })
     .sort({ title: 1 })
     .lean()
@@ -980,6 +1010,7 @@ export async function correctKnowledgeDocument(
   id: string,
   details: DocumentDetails,
   by: { id: string; name: string },
+  tier?: TierId,
 ): Promise<KnowledgeDocumentDto> {
   // a. Find it, and check it is active.
   if (!isValidObjectId(id)) throw new KnowledgeDocumentNotFoundError()
@@ -1006,6 +1037,8 @@ export async function correctKnowledgeDocument(
     labelling,
     match,
     handled,
+    authorityTier,
+    tierSource,
   } = old
   const next = recordFields(details)
   document.set({
@@ -1013,14 +1046,18 @@ export async function correctKnowledgeDocument(
     unconfirmed: [],
     labelling: adminLabelling(labelling, next),
     handled: { at: new Date(), by },
+    ...(tier && { authorityTier: tier, tierSource: 'admin' }),
   })
-  if (differs(old, next)) {
+  // A tier change counts as a change, so the earlier tier joins the history too (RT-04).
+  const tierChanged = Boolean(tier) && tier !== tierOf(old)?.value
+  if (differs(old, next) || tierChanged) {
     document.history.push({
       title,
       issuingBody,
       edition,
       standardNumber,
       metadata,
+      authorityTier: tierOf(old)?.value,
       replacedAt: new Date(),
       replacedBy: by,
     })
@@ -1035,8 +1072,14 @@ export async function correctKnowledgeDocument(
   // this, MongoDB would show the correction while search still used the old
   // labels (or a stale match).
   const rematch = Boolean(old.match) || identityDiffers(old, next)
+  // Only the tier is new, or nothing changed: the tier is not stored in Chroma, so there is nothing
+  // to relabel. Without this, choosing the suggested tier (which is no change) or saving a tier
+  // would fail whenever the ingestion service is down.
+  const tierOnly = !differs(old, next)
   try {
-    if (rematch) {
+    if (tierOnly) {
+      // nothing to send
+    } else if (rematch) {
       await matchDocument(id).catch(() => {
         throw new IngestionUnavailableError(
           "The knowledge base couldn't be updated, so nothing changed. Try again shortly.",
@@ -1063,6 +1106,9 @@ export async function correctKnowledgeDocument(
       match: match ?? null,
       // Without this the failed correction would still show as the last handler.
       handled,
+      // Without this a failed save would keep the tier the admin just chose.
+      authorityTier,
+      tierSource,
     })
     // The in-memory match never changed, so Mongoose must be told to write it
     // back over the one /match saved behind its back.

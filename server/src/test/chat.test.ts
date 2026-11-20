@@ -52,6 +52,13 @@ describe('POST /api/chat', () => {
     expect(sent).toHaveBeenCalledWith(expect.stringMatching(/\/chat$/), {
       ...BODY,
       documents: [],
+      // RT-04: the saved order, the default until an admin changes it.
+      tier_order: [
+        'national_code',
+        'manufacturer_rating',
+        'marsh_precedent',
+        'international_standard',
+      ],
       attachments: [],
       role: 'risk_engineer',
       privacy: { enabled: false, known_entities: [] },
@@ -114,9 +121,41 @@ describe('POST /api/chat', () => {
       issuingBody: 'NFPA',
       standardNumber: '13',
       edition: '2022',
+      tier: 'international_standard',
+      jurisdiction: 'SG',
     })
     // Fields a report lacks are left out, not sent as null.
-    expect(documents).toContainEqual({ id: String(report._id), title: 'Orchard Tower survey' })
+    expect(documents).toContainEqual({
+      id: String(report._id),
+      title: 'Orchard Tower survey',
+      tier: 'international_standard',
+      jurisdiction: 'SG',
+    })
+  })
+
+  // RT-04: S4 gets the saved tier order and each document's tier; the browser cannot set them.
+  it('sends S4 the tier order and each document tier, ignoring the browser', async () => {
+    await seed({ title: 'CP 52', metadata: { source_type: 'local_standard', jurisdiction: 'SG' } })
+    await seed({ title: 'Unlabelled', metadata: { source_type: null, jurisdiction: null } })
+    await seed({ title: 'Picked', authorityTier: 'marsh_precedent', tierSource: 'admin' })
+    const sent = vi.fn()
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      sent(JSON.parse(String(init!.body)))
+      return new Response(EVENTS, { headers: { 'Content-Type': 'text/event-stream' } })
+    })
+    await engineer.post('/api/chat').send({ ...BODY, tier_order: ['marsh_precedent'] })
+    const { documents, tier_order } = sent.mock.calls[0][0]
+    expect(tier_order).toEqual([
+      'national_code',
+      'manufacturer_rating',
+      'marsh_precedent',
+      'international_standard',
+    ])
+    const tierOf = (title: string) =>
+      documents.find((d: { title: string }) => d.title === title).tier
+    expect(tierOf('CP 52')).toBe('national_code')
+    expect(tierOf('Unlabelled')).toBeNull()
+    expect(tierOf('Picked')).toBe('marsh_precedent')
   })
 
   // S4 ends every answer with one chat_result event carrying the usage list (CB-01).

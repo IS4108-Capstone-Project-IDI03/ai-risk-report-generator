@@ -13,6 +13,11 @@ edition mark; see .claude/plans/ingestion-data-fixes.md, D1). So only the neares
 A document with no clause numbers at all (a past report) is outlined by its passages' template
 `section` instead, with no second level.
 
+A manually entered standard (IN-18) stores each passage's clause number apart (`clause`), and
+the admin's heading trail may carry no numbers, so its clause is read instead of a heading. A
+clause numbered only by its chapter ("8", "A") opens that chapter. Its titles come from every
+heading in its trail, since the admin types the whole trail.
+
 Each chapter and section is named only by its own heading ("Chapter 8 Installation", "2.0 LOSS
 PREVENTION…", "8.6 Component replacement."), never by a sub-clause that happens to open it.
 """
@@ -23,6 +28,8 @@ import re
 # before its "*" (explanatory note in Annex A). Two digits at most, so a year is not a chapter.
 _CLAUSE = re.compile(r"^\s*(?:Δ\s*)?N?\s*(\d{1,2}|[A-Z])((?:\.\d+)+)\*?\.?(?:\s|$)")
 _CHAPTER = re.compile(r"^\s*(?:Δ\s*)?(?:Chapter\s+(\d{1,2})|Annex\s+([A-Z]))\b", re.IGNORECASE)
+# A manual clause that is only a chapter's number or an annex's letter (IN-18).
+_CHAPTER_ONLY = re.compile(r"\s*(\d{1,2}|[A-Z])\.?\s*")
 
 
 def _clause(heading: str) -> tuple[str, str] | None:
@@ -35,14 +42,29 @@ def _clause(heading: str) -> tuple[str, str] | None:
     return None
 
 
+def clause_number(heading: str) -> str | None:
+    """The whole clause number a heading starts with ("Δ 8.2.1* Hangers." is "8.2.1"), or None."""
+    if found := _CLAUSE.match(heading):
+        return found.group(1) + found.group(2)
+    return None
+
+
+def _opens(meta: dict) -> tuple[str, str] | None:
+    """The chapter and section a passage opens: its manual clause (IN-18), else its last heading."""
+    if number := meta.get("clause"):
+        if found := _CHAPTER_ONLY.fullmatch(number):
+            return found.group(1).upper(), ""
+        return _clause(number)
+    return _clause((meta.get("headings") or [""])[-1])
+
+
 def places(metadatas: list[dict]) -> tuple[str, list[tuple[str, str]]]:
     """Return how the document is outlined ("clause" or "section") and each passage's place.
 
     `metadatas` are in reading order. A place is (chapter, section); "" is front matter as a
     chapter, or the part of a chapter before its first section.
     """
-    nearest = [(meta.get("headings") or [""])[-1] for meta in metadatas]
-    opened = [_clause(heading) for heading in nearest]
+    opened = [_opens(meta) for meta in metadatas]
     if not any(opened):
         return "section", [(meta.get("section") or "", "") for meta in metadatas]
     found, current = [], ("", "")
@@ -65,8 +87,13 @@ def titles(metadatas: list[dict]) -> tuple[dict[str, str], dict[str, str]]:
     """
     chapters: dict[str, str] = {}
     sections: dict[str, str] = {}
-    for meta in metadatas:
-        heading = (meta.get("headings") or [""])[-1]
+    headings = [
+        heading
+        for meta in metadatas
+        # A manual passage's whole trail was typed by the admin (IN-18); a PDF's only nearest.
+        for heading in (meta.get("headings") or [""])[None if meta.get("clause") else -1 :]
+    ]
+    for heading in headings:
         if found := _CHAPTER.match(heading):
             name = (found.group(1) or found.group(2)).upper()
             if title := _words(heading[found.end() :]):

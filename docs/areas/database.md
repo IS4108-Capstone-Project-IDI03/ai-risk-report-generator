@@ -544,8 +544,8 @@ The invitation is redeemed without a session: `POST /api/auth/invitation`
 `{ token }` returns the account's `{ name, email }`, and
 `POST /api/auth/invitation/accept` `{ token, password }` sets the first
 password, clears the token and returns `{ email }`. Both answer 400 for an
-invalid, used or expired link; a password shorter than 12 characters, without
-a number and a symbol, or over 72 bytes is 400 with `fields.password`. It is
+invalid, used or expired link; a password without a letter and a number, or over
+72 bytes, is 400 with `fields.password` (no length minimum, no symbol needed). It is
 separate from the reset: `POST /api/auth/request-reset` sends nothing to an
 account with no password (the response is the same as for any address), and
 neither code works in the other's route.
@@ -593,6 +593,14 @@ on site, with everything captured about it. It has an optional `note` (CP-02),
 a `recordings` list (CP-03), a `photos` list (CP-04) and a `pages` list of
 photographed pages of handwritten notes (CP-19), and needs at least one
 of them.
+
+`parts` (CP-35, optional, outside `metadata`): the engineer's confirmed split of a
+shorthand note, each `{id, kind (fact | info_request | recommendation), text, shorthand,
+inferred, flags?}`, at most 50, text 1-1000 characters. The `note` stays exactly as typed.
+Drafting evidence takes the `fact` parts' text, one per line, in place of the note; info
+requests and recommendations are never stated as fact. Splitting (`POST
+/api/assessments/:reference/split-note`) saves nothing: parts are stored only when the
+observation is created with them.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
@@ -952,7 +960,10 @@ accepted, and from when it was accepted. Each document has:
 - `sources`: the cited passages by citation ID, with their text, `doc_id`,
   `headings` and `page_start`/`page_end`: every cited standard (`C:`), and any
   past-report passage (`P:`) a statement cites, kept so the review workspace
-  can open it (RV-01). Drafts saved before RV-01 hold standards only.
+  can open it (RV-01). Drafts saved before RV-01 hold standards only. A
+  passage may carry `broader: true` (GN-16): rag-service found that standard by
+  the jurisdiction-only fallback search, not the exact jurisdiction and facility.
+  The review workspace returns it as `broader` on the source.
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
@@ -1420,6 +1431,9 @@ document has:
   `effort`. The value lists are `rag-service/app/generation/ofi.json`, taken
   from Marsh's template; `type` is provisional until Marsh sends its RQR
   sub-categories.
+- `fromRecommendation` (boolean, optional; CP-35): true when the OFI rests on an observation
+  whose split note had a recommendation part. Set when the OFI is drafted; shown as "From your
+  recommendation". Absent on OFIs from before CP-35.
 - `priority` (`Priority 1` to `Priority 4`): the Risk Assessment Matrix's
   value for `likelihood` × `consequence`, set by S4's code, never by the model.
 - `observations` (the observation `_id`s it rests on), `standards` (cited
@@ -1663,7 +1677,8 @@ A removed item can't be marked or answered (409) until restored.
 
 ## Knowledge documents (IN-01, KB-01, IN-07)
 
-`knowledge_documents` holds one record per accepted upload. Its `_id` is the
+`knowledge_documents` holds one record per accepted upload, or per standard
+entered by hand (IN-18, see "Manual entry" below). Its `_id` is the
 permanent document identifier; chunk ids in Chroma are `<_id>:<n>`.
 `fileName` is the original name. The unaltered PDF is in S3 at
 `knowledge/<_id>.pdf` (flat: no folder per source type, because a corrected
@@ -1770,6 +1785,17 @@ uncategorised observations. The title falls back to the file name, and
   'admin'`. Absent when labelling failed, in which case every detail is
   Unconfirmed.
 
+- `authorityTier`, `tierSource` (RT-04): the authority tier an admin chose
+  (`national_code`, `manufacturer_rating`, `marsh_precedent` or
+  `international_standard`) and `'admin'`. Both are absent until an admin saves a
+  tier, so there is no migration: the API suggests a tier on read from the source
+  type (`local_standard` to national code, `fm_standard` to manufacturer rating,
+  `marsh_report` to Marsh precedent, `nfpa_standard` to international standard) and
+  sends `tier: { value, source: 'auto' | 'admin' }`, or `tier: null` when the source
+  type is Unconfirmed (it ranks last). Kept outside `metadata` and not in Chroma;
+  rag-service gets it per request from the gateway. A correction that changes the
+  tier also adds a history version carrying the tier before (`authorityTier`).
+
 `status` is `queued` (set by the gateway), or `awaiting_type` when labelling
 couldn't read the source type (IN-19): such a document is stored but not
 queued until an admin chooses a type (`POST .../source-type`), so it is never
@@ -1826,8 +1852,10 @@ A failed correction or re-queue puts `handled` back as it was.
 Two more fields on `knowledge_documents`:
 
 - `match`: absent or `null`, or `{ kind, documentId, newMatched, newTotal,
-  storedMatched, storedTotal }`. `kind` is `newer_edition`, `earlier_edition` or
-  `possible_copy`; `documentId` is the stored document it repeats or updates.
+  storedMatched, storedTotal }`. `kind` is `newer_edition`, `earlier_edition`,
+  `possible_copy` or `replaces_manual` (IN-18: one of the two was entered by hand
+  and the other is the same edition); `documentId` is the stored document it
+  repeats or updates.
   The four counts always come from the passage check, also for an edition match:
   how many of this document's passages (`newMatched` of `newTotal`) and how many
   of the stored document's (`storedMatched` of `storedTotal`) have a match in the
@@ -1838,8 +1866,8 @@ Two more fields on `knowledge_documents`:
   `otherNeedsReview` (that document is also waiting).
 - `editionFamily`: absent or `null`, or an ObjectId shared by every edition of
   one standard the admin has linked. It is the `_id` of the family's first
-  document. Written only by the gateway, when a decision supersedes or adds an
-  older edition. The API returns `newerEdition: { id, title, edition } | null` on
+  document. Written only by the gateway, when a decision supersedes, adds an
+  older edition or replaces a manual entry. The API returns `newerEdition: { id, title, edition } | null` on
   a withdrawn family member when a later edition exists (the family's newest),
   and `reinstateBlockedBy: { id, title, edition } | null`, the active member of
   its family (the one the reinstate 409 names), computed on read.
@@ -1849,6 +1877,63 @@ matched one is withdrawn, the reviewed one is withdrawn too (`{ at, by }`) and
 joins its `editionFamily` (when it has one); otherwise it is active. A
 correction re-runs `/match` when the source type, standard number or edition
 changed, not the title.
+
+#### Manual entry (IN-18)
+
+A standard with no PDF can be entered clause by clause. Its record has
+`entryMethod: 'manual'` (absent, or `'upload'`, for every uploaded document) and
+no `file`, `fileName` or `original`: those are required only when `entryMethod`
+isn't `manual`. The API returns `entryMethod`, and `fileName`, `size`, `sha256`
+and `fileUrl` as `null` for a manual document. Its details are typed by the
+admin, so `unconfirmed` is `[]` and there is no `labelling`. Only a standard
+(FM, NFPA, local) can be entered, never a past report, and edition and standard
+number are required, as matching the real PDF later relies on them.
+
+- `status` starts as `draft` (no queue job, no `ingestion_jobs` row) and becomes
+  `complete` at Publish. The passage rule above reads `draft` as `needs_review`,
+  in the worker and the gateway alike, so a draft is never searched.
+- `manualSeq`: the last clause number given in this document (`$inc` per new
+  clause), so each clause's `seq` is given once and never reused.
+- One manual entry per standard and edition: creating a second, while one is a
+  draft or published and not withdrawn, is refused (409), naming it. The gateway
+  checks it (body and number tidied as matching tidies them); no index backs it.
+
+**`manual_sections`** holds the clauses, one document each, and is the source of
+truth for their passages: saving or re-embedding a clause rebuilds its passages
+from it.
+
+| Field | Meaning |
+|---|---|
+| `documentId` | the `knowledge_documents` record |
+| `seq` | its fixed number in the document, from `manualSeq`; never changed. Passage ids are `<documentId>:<seq>`, or `<documentId>:<seq>:part<n>` when the clause is split |
+| `order` | its place in the list, in steps of 10; moving a clause changes only this, so its ids and citations stay |
+| `clause` | the clause number as typed ("8.6.1"), spaces collapsed, up to 40 characters |
+| `headings` | the heading trail, outermost first (up to 20) |
+| `text` | the typed text; may be `''` when a screenshot carries the clause |
+| `images` | `[{ key, kind, text }]`: each screenshot's S3 key (`knowledge/<documentId>/sections/<uuid>.<ext>`, PNG, JPG or WebP), `table`, `formula` or `picture`, and its OCR text as the admin corrected it |
+| `indexed`, `indexError?` | whether its passages are in Chroma as saved; `false`, with the reason, after a save whose embedding failed (the clause is still saved) |
+| `checked` | `false` for a clause copied from another edition until an admin saves it; Publish waits for it |
+| `copiedFrom?` | `{ documentId, clause }` of a copied clause, for the editor's note only; citation and delete checks never read it |
+| `updatedBy`, `createdAt`, `updatedAt` | who saved it last, and when. A change carries the `updatedAt` it was loaded with, and is refused (409) when it is stale |
+
+Unique indexes: `{ documentId, clause }` (a clause number once per document) and
+`{ documentId, seq }`. Like passages, a clause carries no labels (an exception to
+the five-field rule): its `source_type`, `jurisdiction`, `facility_type` and
+`effective_date` are its document's, and knowledge documents have no
+`COPE_dimension`.
+
+A clause's **passages** carry the usual labels, `doc_id`, `section: 'Not
+applicable'` (a standard has no template section) and `headings`, plus
+`entry_method: 'manual'`, `section_id` (the clause's `_id`), `seq`, `order` and
+`clause`. A clause with screenshots also has `image_keys` (their keys) and
+`region_kind` (the first screenshot's kind) with no `region_bbox`, so it lists
+with the right type and no page region is drawn. There is no page or `bbox`.
+The searched text is the typed text followed by each screenshot's corrected
+text, split at paragraphs into passages of at most `MAX_CHUNK_TOKENS`.
+
+A copy ("Start from" an earlier edition) is a new, independent document: new
+`seq`s, so new passage ids, and each screenshot copied to a new key. Deleting a
+manual document removes its passages, its `manual_sections` and its screenshots.
 
 #### A redacted report's mapping (PV-05)
 
@@ -1863,9 +1948,10 @@ kept here and nowhere else (never in Chroma, never in a log). The schema marks
 it `select: false`, so the gateway never loads it unless it asks by name, and no
 route or DTO includes it. See [privacy.md](privacy.md) "Ingestion of past reports".
 
-`file.sha256` has a **unique partial index** covering documents whose `status`
+`file.sha256` has a **unique partial index** covering documents that have a
+`file.sha256` and whose `status`
 is `awaiting_type`, `queued`, `processing` or `complete`, so a failed document's file can be
-uploaded again. It stops two identical files uploaded together both being
+uploaded again, and manual documents (no file) are left out. It stops two identical files uploaded together both being
 stored. `original.sha256` has the same index, limited to documents that have
 an `original`, because two conversions of one Word file give different PDFs. The gateway builds it at startup. It can't build while identical files
 are already stored: the gateway then logs one error naming how many groups of
@@ -1876,7 +1962,7 @@ copies and restart. The upload's own check still rejects most repeats.
 | --- | --- |
 | `POST /api/knowledge-documents` | Body is the file, up to 100 MB: a PDF, or a Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT file, converted to PDF first. The type is read from the file's bytes; `Content-Type` is ignored; `fileName` is the only query value (IN-05: the details are read from the file, a few seconds, longer for a scanned PDF). 201 queued, or 400 `{ error, fields }` / 409 (IN-07: an identical file is stored; `error` names it and its status, e.g. "Already in the knowledge base as NFPA 13 (2019 edition), Withdrawn.") / 413 / 415 / 422 / 503, each with `error` giving the reason. A labelling failure never fails the upload: every detail is then Unconfirmed |
 | `GET /api/knowledge-documents` | Recent uploads, newest first: every document awaiting a type, queued or processing, plus complete ones for 24 hours and failed ones for 7 days after `finishedAt`. Older documents stay stored, just not listed |
-| `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, by title A–Z (KB-01) |
+| `GET /api/knowledge-documents/ingested` | Every ingested document, active or withdrawn, and every manual draft (IN-18), by title A–Z (KB-01) |
 | `GET /api/knowledge-documents/:id` | One document as the lists show it (F-10), `knowledge:view`. 200, or 404 (unknown or malformed id) |
 | `PUT /api/knowledge-documents/:id` | Corrects a document's details (KB-01): JSON with every detail (`sourceType`, `title`, `effectiveDate`, `jurisdiction`, `facilityType`, and `edition` and `standardNumber` for a standard); partial saves are refused, so a save completes a needs-review document. `facilityType` must be one of the client's `FACILITY_TYPES` (or `all` for a standard), as at upload. 200 with the updated document (its `history` gains the replaced details, if any changed), or 400 `{ error, fields }` / 404 / 409 (not active) / 503 (search not updated, old details and history kept) |
 | `POST /api/knowledge-documents/:id/withdraw` | Withdraws an active document (KB-01), no body. 200 with the document (`withdrawn` set), or 404 / 409 (not complete, or already withdrawn) / 503 (search not updated, still active) |
@@ -1884,8 +1970,17 @@ copies and restart. The upload's own check still rejects most repeats.
 | `POST /api/knowledge-documents/:id/retry` | Retries a failed or cancelled ingestion without re-uploading (the PDF and all details are kept). Flips `status` to `queued`, clears terminal error/cancellation fields, increments `retryCount`, and re-queues the ingestion job. 202 on accept, 404 unknown, 409 not retryable (someone already retried it), 503 queue unreachable (document is restored to its previous terminal state, counter rolled back). `knowledge:manage` only |
 | `POST /api/knowledge-documents/:id/source-type` | Chooses the source type of a document awaiting one (IN-19): JSON `{ sourceType }`. Saves it as the admin's (`labelling.details.source_type.source: 'admin'`), sets the issuing body from it, drops it from `unconfirmed` (a report also drops its edition and standard number), records `handled`, flips `status` to `queued` and queues the job. 200 with the document, 400 a type not on the list, 404 unknown, 409 not awaiting a type (also the second of two choices made together), 503 queue unreachable (the document is put back exactly as it was). `knowledge:manage` only |
 | `GET /api/knowledge-documents/:id/comparison` | The document, the document its `match` points to, and their passages side by side (IN-07): `{ document, matched, rows }`. 200, or 404 / 409 (no match, or the matched document is gone) / 503 |
-| `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
+| `POST /api/knowledge-documents/:id/decision` | The admin's decision on a match (IN-07): `{ choice }`, one of `keep_both`, `discard_new`, `discard_other`, `supersede`, `add_as_older`, `replace_manual` (effects in [services.md](services.md)). Needs `knowledge:manage`. 200 `{ document }`, with `document: null` after `discard_new`; or 400 (unknown choice) / 404 / 409 (details still Unconfirmed, no match, the matched document gone, a choice that doesn't fit the match, or `supersede` while another edition in the stored edition's family is still active) / 503 (nothing changed) |
 | `GET /api/knowledge-documents/:id/file` | Streams the original PDF from S3; 404 for an unknown ID |
+| `POST /api/knowledge-documents/manual` | Starts a manual entry (IN-18): JSON with a standard's details, as for a correction, plus optional `copyFrom` (another edition of the same standard to start from). 201 with the draft; 400 bad details, a past report, or a `copyFrom` that isn't another edition of it; 409 a manual entry of this standard and edition exists (`documentId` names it); 503 the edition to copy couldn't be read. `knowledge:manage` |
+| `GET /api/knowledge-documents/:id/sections` | A manual document's clauses in `order`. 200, 404, or 409 for an uploaded document. `knowledge:view` |
+| `POST /api/knowledge-documents/:id/sections` | Adds a clause `{ clause, headings, text, images, order? }` (last when no `order`), then indexes it. 201 with the clause (`indexed: false` with `indexError` if ingestion was down); 400; 404; 409 clause number taken, an uploaded document, or a withdrawn one. `knowledge:manage` |
+| `PUT /api/knowledge-documents/:id/sections/:sid` | Saves a change, with the `updatedAt` it was loaded with, marks it `checked` and indexes it. 200; 400; 404; 409 clause number taken, saved by someone else meanwhile, or not editable. `knowledge:manage` |
+| `DELETE /api/knowledge-documents/:id/sections/:sid` | Deletes a clause: its passages, then the clause, then its screenshots. 204; 404; 409 a report cites one of its passages, or not editable; 503 its passages couldn't be removed (nothing changed). `knowledge:manage` |
+| `POST /api/knowledge-documents/:id/sections/:sid/reembed` | Indexes a clause again as saved. 200 (`indexed` says whether it worked), 404, 409. `knowledge:manage` |
+| `POST /api/knowledge-documents/:id/sections/screenshots` | Body is a PNG, JPG or WebP image up to 10 MB; `kind` and the heading trail (`context`) in the query. Reads it with OCR and stores it; a clause holds it once saved. 201 `{ key, kind, text, readError }` (`text: ''` with a reason when nothing was read); 400 no kind; 404; 409 not editable; 413; 415 not an image; 422 an image that won't open. `knowledge:manage` |
+| `GET /api/knowledge-documents/:id/sections/screenshots/:name` | Streams a screenshot a clause of this document holds; 404 for any other. `knowledge:view` |
+| `POST /api/knowledge-documents/:id/publish` | Publishes a manual draft and runs the match. 200 with the document; 404; 409 not a manual draft, or not finished (`unindexed`, `unchecked` count what is left); 503 the match couldn't run (still a draft). `knowledge:manage` |
 
 ### Ingestion jobs (`ingestion_jobs`)
 
@@ -2150,3 +2245,33 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 - Only the owner can read or change a fact; another user's fact answers 404.
 - The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
 - Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.
+
+## Standards cite target (GN-16)
+
+There is no setting for it. The Review banner "n of m sections cite a standard"
+compares against a fixed 50% (`STANDARD_CITE_TARGET` in
+`client/src/features/assessments/citedStandards.ts`). The admin-set
+`app_settings.standardCiteTarget` was removed in the S-01 follow-up;
+`PATCH /api/settings/global` now accepts only `qaStrictness`.
+
+## Source priority (RT-04)
+
+`app_settings.sourcePriority`: the four tier ids, highest authority first. Absent
+on documents from before RT-04, which read as the default (`national_code`,
+`manufacturer_rating`, `marsh_precedent`, `international_standard`). Saved only by
+`PUT /api/settings/source-priority` (`settings:manage`); a change appends a
+`settings_log` row (`setting: 'sourcePriority'`, `before` and `after` as arrays),
+and an unchanged order writes none. `GET /api/settings` returns
+`sourcePriority: { order, history }`, history being the last 20 log rows, newest
+first. The gateway sends the order to rag-service as `tier_order` on every `/chat`.
+
+## User settings (CP-35)
+
+`user_settings` holds one document per user (`user` is unique): `noteCodes` (optional
+`{fact, info_request, recommendation}`, 1-8 letters or digits, unique ignoring case once
+defaults fill the gaps) and `glossary` (optional `{term, meaning}` list, at most 200, term
+1-30 characters unique ignoring case, meaning 1-120). The defaults `F`, `IR` and `REC` live in
+code (`settings.service.ts`), not in the database. Written only by `PATCH /api/settings/me`
+for the signed-in user's own document. `metadata` is the same null-filled block as
+`app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
+`COPE_dimension` null, `effective_date`.

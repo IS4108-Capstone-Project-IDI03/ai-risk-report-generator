@@ -1097,3 +1097,51 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(puts[0].body).toMatchObject({ edition: '2023', facilityType: 'Cold store' })
   })
 })
+
+describe('Source tier (RT-04)', () => {
+  const open = async (d: object) => {
+    mockGateway([d])
+    await openKnowledgeBase()
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${FM.title}`) }))
+    return screen.getByRole('region', { name: `Details of ${FM.title}` })
+  }
+
+  it('shows a tier set by an admin, a suggested one, and Unranked', async () => {
+    let details = await open({ ...FM, tier: { value: 'national_code', source: 'admin' } })
+    expect(within(details).getByText('National code')).toBeInTheDocument()
+    expect(within(details).queryByText(/suggested/)).toBeNull()
+    cleanup()
+    details = await open({ ...FM, tier: { value: 'international_standard', source: 'auto' } })
+    expect(within(details).getByText('International standard')).toBeInTheDocument()
+    expect(within(details).getByText(/suggested/)).toBeInTheDocument()
+    cleanup()
+    details = await open({ ...FM, tier: null })
+    expect(within(details).getByText('Unranked')).toBeInTheDocument()
+  })
+
+  it('offers Unranked only while no tier is chosen, since a saved tier cannot be cleared', async () => {
+    mockGateway([{ ...FM, tier: { value: 'national_code', source: 'admin' } }], () =>
+      json(200, { ...FM }),
+    )
+    await openKnowledgeBase()
+    const dialog = await edit(FM.title)
+    expect(within(within(dialog).getByLabelText('Tier')).queryByText('Unranked')).toBeNull()
+  })
+
+  it('sends the tier only when the admin changes it', async () => {
+    const puts = mockGateway([{ ...FM, tier: null }], () => json(200, { ...FM }))
+    await openKnowledgeBase()
+    const dialog = await edit(FM.title)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
+    await vi.waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0].body).not.toHaveProperty('tier')
+    cleanup()
+    const again = mockGateway([{ ...FM, tier: null }], () => json(200, { ...FM }))
+    await openKnowledgeBase()
+    const d2 = await edit(FM.title)
+    fireEvent.change(within(d2).getByLabelText('Tier'), { target: { value: 'marsh_precedent' } })
+    fireEvent.click(within(d2).getByRole('button', { name: 'Save details' }))
+    await vi.waitFor(() => expect(again).toHaveLength(1))
+    expect(again[0].body.tier).toBe('marsh_precedent')
+  })
+})

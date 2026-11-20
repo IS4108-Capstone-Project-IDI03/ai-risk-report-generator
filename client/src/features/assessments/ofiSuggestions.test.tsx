@@ -125,6 +125,20 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+it("marks an OFI that rests on the engineer's recommendation, and no other (CP-35)", async () => {
+  mockGateway([
+    { ...SUGGESTION, fromRecommendation: true },
+    { ...SECOND, fromRecommendation: false },
+  ])
+  renderReview()
+  const marks = await screen.findAllByText('From your recommendation')
+  expect(marks).toHaveLength(1)
+  // It sits with the OFI it describes, not the other one.
+  const card = marks[0].closest('[data-ofi]') as HTMLElement
+  expect(card).toHaveTextContent('Supervise sprinkler control valves')
+  expect(card).not.toHaveTextContent('Improve Hot Work Permit')
+})
+
 it("shows a suggestion's precedent and sources in Review, out of the report until accepted (AC2, AC3)", async () => {
   mockGateway([SUGGESTION])
   renderReview()
