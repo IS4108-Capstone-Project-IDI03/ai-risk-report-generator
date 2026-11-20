@@ -139,10 +139,22 @@ class Session:
                 "available, so nothing was sent to the AI model. If this keeps happening, "
                 "tell your administrator."
             ) from error
-        body = response.json()
-        self.mapping = body["mapping"]
+        # An answer that is not what /mask returns is as unusable as no answer: refuse, don't crash
+        # (without this the request would fail with a 500, and still send nothing raw).
+        try:
+            body = response.json()
+            mapping, masked = body["mapping"], body["texts"]
+            if not isinstance(mapping, dict) or not isinstance(masked, list):
+                raise TypeError
+        except (ValueError, KeyError, TypeError) as error:
+            raise PrivacyUnavailable(
+                "Client details couldn't be protected because the privacy service gave an "
+                "unexpected answer, so nothing was sent to the AI model. If this keeps happening, "
+                "tell your administrator."
+            ) from error
+        self.mapping = mapping
 
-        return body["texts"]
+        return masked
 
     def provenance(self) -> dict:
         """What the draft's provenance records (Rule 8): never the mapping itself."""

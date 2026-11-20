@@ -463,6 +463,34 @@ describe('The written summary (CP-29)', () => {
   ])
   const write = (as: Api, clientId: string) => as.post(`/api/clients/${clientId}/insights/summary`)
 
+  it('sends only the confirmed facts of a split note (CP-35)', async () => {
+    const { clientId } = await northgate()
+    rag.mockReturnValue(written)
+    const parts = (kinds: string[]) =>
+      kinds.map((kind) => ({
+        id: kind,
+        kind,
+        text: `${kind} text`,
+        shorthand: '',
+        inferred: false,
+      }))
+    const sentTexts = async () => {
+      rag.mockClear()
+      await write(api, clientId)
+      return (rag.mock.calls[0][0] as { observations: { text: string }[] }).observations.map(
+        (o) => o.text,
+      )
+    }
+    const valve = { note: 'In-rack sprinkler valve found closed.' }
+    await ObservationModel.updateOne(valve, { parts: parts(['info_request']) })
+    expect(await sentTexts()).not.toContain('info_request text')
+    expect(await sentTexts()).toHaveLength(5)
+    await ObservationModel.updateOne(valve, { parts: parts(['info_request', 'fact']) })
+    const texts = await sentTexts()
+    expect(texts[0]).toBe('fact text')
+    expect(texts).not.toContain('In-rack sprinkler valve found closed.')
+  })
+
   it('sends the figures and observations, and keeps the statements with their sources', async () => {
     const { clientId, second } = await northgate()
     rag.mockReturnValue(written)

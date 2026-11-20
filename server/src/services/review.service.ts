@@ -74,6 +74,8 @@ export type SourcePassageDto = {
   headings: string[]
   pageStart: number | null
   pageEnd: number | null
+  // GN-16: found by the jurisdiction-only fallback search, so a broader match; absent otherwise.
+  broader?: true
   documentId: string | null
   // From the knowledge base now, so a correction or withdrawal since drafting
   // shows; null when the document has no record there.
@@ -253,6 +255,7 @@ type SavedPassage = {
   headings?: unknown
   page_start?: unknown
   page_end?: unknown
+  broader?: unknown
 }
 
 // A chunk ID is `<document id>:<n>`, should a passage lack its `doc_id`.
@@ -279,6 +282,7 @@ export function toPassage(
     headings: Array.isArray(passage.headings) ? passage.headings.map(String) : [],
     pageStart: pageOf(passage.page_start),
     pageEnd: pageOf(passage.page_end),
+    ...(passage.broader === true && { broader: true as const }),
     documentId,
     document: record
       ? {

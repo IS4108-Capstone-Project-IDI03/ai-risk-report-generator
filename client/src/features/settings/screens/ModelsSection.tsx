@@ -7,16 +7,30 @@ import { SetByAdmin } from '../components/SetByAdmin'
 type Props = { settings: Settings; onSaved: (settings: Settings) => void }
 
 export function ModelsSection({ settings, onSaved }: Props) {
+  const rows = settings.models.filter((row) => row.task !== 'transcription')
+  const used = rows.filter((row) => row.inUse !== false)
+  const unused = rows.filter((row) => row.inUse === false)
   return (
     <div className="st-stack">
       {!settings.canEditGlobal && <SetByAdmin />}
       <p className="st-note">A light shows whether the API key is set. It does not test the key.</p>
       {/* Voice transcription is set under Chat and voice, next to the other voice options */}
-      {settings.models
-        .filter((row) => row.task !== 'transcription')
-        .map((row) => (
-          <ModelRow key={row.task} row={row} canEdit={settings.canEditGlobal} onSaved={onSaved} />
-        ))}
+      {used.map((row) => (
+        <ModelRow key={row.task} row={row} canEdit={settings.canEditGlobal} onSaved={onSaved} />
+      ))}
+      {unused.length > 0 && (
+        <section className="st-unused" aria-labelledby="st-unused-title">
+          <h3 id="st-unused-title" className="st-subtitle">
+            Not used yet
+          </h3>
+          <p className="st-note">
+            These tasks do not read a model setting yet, so they cannot be changed.
+          </p>
+          {unused.map((row) => (
+            <ModelRow key={row.task} row={row} canEdit={false} unused onSaved={onSaved} />
+          ))}
+        </section>
+      )}
     </div>
   )
 }

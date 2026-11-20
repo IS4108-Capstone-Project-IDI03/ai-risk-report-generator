@@ -33,6 +33,7 @@ from app.privacy import PrivacyUnavailable
 from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
+from app.site_walk.note_split import split_note
 from app.site_walk.propose import propose_site_walk
 
 router = APIRouter()
@@ -78,6 +79,9 @@ class Observation(BaseModel):
     severity: str | None = None
     location: str | None = None
     standard: str | None = None
+    # The engineer's own recommendations from a split note (CP-35 hand-off); sent only for OFI
+    # drafting, which bases its fix on them. Client text, so masked like the note.
+    recommendations: list[str] = []
 
     @field_validator("COPE_dimension", mode="before")
     @classmethod
@@ -495,6 +499,9 @@ class ChatDocument(BaseModel):
     issuingBody: str | None = None
     standardNumber: str | None = None
     edition: str | None = None
+    # RT-04: the document's source tier and its jurisdiction, set by the gateway.
+    tier: str | None = None
+    jurisdiction: str | None = None
 
 
 # One page of a file attached to the chat (CB-09), sent by the gateway from what it stored.
@@ -522,6 +529,8 @@ class ChatRequest(BaseModel):
     privacy: Privacy | None = None
     # The files attached to this chat (CB-09), read from storage by the gateway.
     attachments: list[ChatAttachment] = []
+    # RT-04: tier ids, highest authority first. Empty keeps the relevance order.
+    tier_order: list[str] = []
 
 
 @router.post("/chat")
@@ -538,6 +547,7 @@ def chat(request: ChatRequest) -> StreamingResponse:
         request.role,
         privacy=_privacy(request),
         attachments=attachments,
+        tier_order=request.tier_order,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 
@@ -788,6 +798,30 @@ def assistant_wording(request: AssistantWordingRequest) -> dict:
     """Reword MarshBot's messages as OpenUI programs that point at items by id (AS-06)."""
     try:
         return word_messages(request, privacy=_privacy(request))
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+class GlossaryTerm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    term: Annotated[str, Field(min_length=1)]
+    meaning: str
+
+
+class SplitNoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    lines: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+    glossary: list[GlossaryTerm] = []
+    privacy: Privacy | None = None
+
+
+@router.post("/split-note")
+def split_note_route(request: SplitNoteRequest) -> dict:
+    """Split a shorthand note's lines into typed, expanded parts (CP-35)."""
+    try:
+        return split_note(request.lines, request.glossary, _privacy(request))
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:

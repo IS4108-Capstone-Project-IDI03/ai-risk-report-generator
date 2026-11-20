@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
@@ -23,6 +24,8 @@ import {
   type CheckResult,
   type IChecklistLink,
   type ReadItemKind,
+  PART_KINDS,
+  type IPart,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
@@ -33,6 +36,7 @@ import { onTranscriptionJob, transcriptionQueue } from './background-queues.serv
 import { retryJobId, type JobContext } from './job-queue.service'
 import { queueAssessmentCheck } from './assistant/check-queue.service'
 import { duplicateKeyField } from './mongo-errors'
+import { observationFacts } from './section.service'
 import { readingPrivacyFor } from './privacy.service'
 import {
   interpret,
@@ -162,6 +166,36 @@ export const newObservationSchema = z.object({
     .max(5000, 'The note must be 5,000 characters or fewer.')
     .optional()
     .transform((note) => (note?.trim() ? note : undefined)),
+
+  // The engineer's confirmed parts of a shorthand note (CP-35); the note stays as typed.
+  parts: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        kind: z.enum(PART_KINDS, 'A part is a fact, an info request or a recommendation.'),
+        text: z
+          .string()
+          .trim()
+          .min(1, 'A part needs text.')
+          .max(1000, 'A part is 1,000 characters or fewer.'),
+        shorthand: z.string().max(5000).default(''),
+        inferred: z.boolean().default(false),
+        flags: z
+          .array(
+            z.object({
+              type: z.enum(['unknown_term', 'number_changed']),
+              detail: z.string().max(500),
+            }),
+          )
+          .max(10)
+          .optional(),
+      }),
+    )
+    .max(50, 'A note can have at most 50 parts.')
+    .optional()
+    // A part without an id gets one here, so the client can always key on it.
+    // Always a fresh id: a client-sent id could repeat, and two parts would then share one.
+    .transform((parts) => parts?.map((p) => ({ ...p, id: randomUUID() }))),
 
   // Sent explicitly: null or [] leaves the observation uncategorised (CP-02 AC4).
   copeDimensions: copeDimensionsField,
@@ -300,6 +334,8 @@ export type ObservationDto = {
   // null only if the location is no longer listed.
   location: LocationDto | null
   note: string | null
+  // The confirmed parts of a shorthand note (CP-35); empty when it was not split.
+  parts: IPart[]
   // Its evidence: the recordings and photos not removed. Everything that
   // reads these, drafting included, leaves removed ones out (CP-08).
   recordings: RecordingDto[]
@@ -440,7 +476,9 @@ function readableText(t: IRecording['transcription'] | IPage['transcription']): 
 // and photos not removed, by their own names, a repeated name numbered.
 function readingItems(o: StoredObservation): IReadItem[] {
   const items: IReadItem[] = [
-    ...(o.note?.trim() ? [{ label: 'Note', kind: 'note' as const, text: o.note }] : []),
+    ...(observationFacts(o)?.trim()
+      ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(o)! }]
+      : []),
     ...kept(o.recordings).map((r) => ({
       label: r.name,
       kind: 'recording' as const,
@@ -686,6 +724,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     severity: o.severity,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
+    parts: o.parts ?? [],
     recordings: kept(o.recordings).map(recording),
     photos: keptPhotos.map(photo),
     pages: kept(pages).map(page),
@@ -766,6 +805,7 @@ export async function saveObservation(
       engineer: user.name,
       engineerId: user.id,
       note: details.note,
+      ...(details.parts?.length && { parts: details.parts }),
       recordings: media.recordings,
       photos: media.photos,
       pages: media.pages,
@@ -1023,7 +1063,12 @@ export async function updateObservation(
       deleted: { $exists: false },
       ...(unset.note && { $or: [KEEPS_RECORDING, KEEPS_PHOTO, KEEPS_PAGE] }),
     },
-    { $set: { ...set, edited: stamp(user) }, ...(Object.keys(unset).length && { $unset: unset }) },
+    {
+      // Confirmed parts describe the note as it was split; a changed or removed note clears
+      // them, or drafting would cite text the engineer replaced.
+      $set: { ...set, ...(('note' in set || unset.note) && { parts: [] }), edited: stamp(user) },
+      ...(Object.keys(unset).length && { $unset: unset }),
+    },
     { returnDocument: 'after' },
   ).lean<StoredObservation>()
   // Deleted, or left with only its note, between the read and the write.
@@ -1317,6 +1362,32 @@ export async function listObservations(
     .sort({ createdAt: -1 })
     .lean<StoredObservation[]>()
   return observations.map((o) => toDto(o, assessment.locations ?? []))
+}
+
+export type ToAskItem = {
+  observationId: string
+  text: string
+  location: string | null
+  severity: string
+}
+
+/**
+ * Returns the info requests (CP-35 parts of kind info_request) of an assessment's split notes,
+ * oldest observation first, each with where it was seen and how serious: what to ask the client.
+ * Read only. Throws AssessmentNotFoundError.
+ */
+export async function toAskFor(reference: string): Promise<ToAskItem[]> {
+  const observations = (await listObservations(reference)).reverse()
+  return observations.flatMap((o) =>
+    o.parts
+      .filter((p) => p.kind === 'info_request')
+      .map((p) => ({
+        observationId: o.id,
+        text: p.text,
+        location: o.location ? locationText(o.location) : null,
+        severity: o.severity,
+      })),
+  )
 }
 
 // The observations not deleted of several assessments at once, by assessment
@@ -1815,8 +1886,8 @@ export async function runInterpretation(
   const items: IReadItem[] = categories
     ? (reading.items ?? [])
     : [
-        ...(observation.note?.trim()
-          ? [{ label: 'Note', kind: 'note' as const, text: observation.note }]
+        ...(observationFacts(observation)?.trim()
+          ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(observation)! }]
           : []),
         ...(reading.photoReading?.photoIds ?? []).map((photoId) => ({
           label: observation.photos?.find((p) => p._id.equals(photoId))?.name ?? 'Photo',

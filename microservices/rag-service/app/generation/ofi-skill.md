@@ -53,6 +53,15 @@ leave out anything that is already adequate, or that is a fact rather than a gap
   change to a procedure, programme or record. Major, Moderate and Minor are the
   relative cost and time.
 
+## The engineer's recommendation
+
+Some observations carry a line "Engineer's recommendation: ...": the fix the engineer
+proposed on site. Base that OFI's title and description on it, in Marsh's wording, and keep
+its meaning: do not add actions the recommendation or a cited standards passage does not
+support, and do not drop its main action. It is a proposal, not a finding, so the
+**observation** field still states only facts from the observation. An observation with no
+such line is drafted as before.
+
 ## Evidence
 
 - Every OFI rests on at least one current observation (O labels). Never raise an OFI

@@ -4,6 +4,7 @@
 // detail auto-labelling could not confirm opens empty and marked (IN-05).
 import { Input, Select } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { TIER_IDS, TIER_LABELS, type TierId } from '../../settings/tiers'
 import type { DocumentDetails, SourceType, UnconfirmedDetail } from '../api'
 import { editionProblem, FACILITY_UNSET, isStandard } from '../details'
 
@@ -30,6 +31,8 @@ export function DetailsFields({
   unconfirmed = [],
   standardsOnly = false,
   onChange,
+  tier,
+  onTierChange,
 }: {
   details: DocumentDetails
   // The gateway's reason per field, e.g. { facilityType: '…' }.
@@ -39,6 +42,9 @@ export function DetailsFields({
   // Only a standard may be entered manually (IN-18): no Marsh report choice.
   standardsOnly?: boolean
   onChange: (change: Partial<DocumentDetails>) => void
+  // The authority tier (RT-04), shown only where both are given (the Edit details dialog).
+  tier?: TierId | ''
+  onTierChange?: (tier: TierId | '') => void
 }) {
   const standard = isStandard(details.sourceType)
   const local = details.sourceType === 'local_standard'
@@ -70,6 +76,18 @@ export function DetailsFields({
         hint={hint('sourceType', details.sourceType)}
         onChange={(e) => onChange({ sourceType: e.target.value as SourceType | '' })}
       />
+      {onTierChange && (
+        <Select
+          label="Tier"
+          options={[
+            // Offered only while no tier is chosen: a saved tier cannot be cleared, so the option would do nothing.
+            ...(tier ? [] : [{ value: '', label: 'Unranked' }]),
+            ...TIER_IDS.map((t) => ({ value: t, label: TIER_LABELS[t] })),
+          ]}
+          value={tier ?? ''}
+          onChange={(e) => onTierChange(e.target.value as TierId | '')}
+        />
+      )}
       {details.sourceType && (
         <>
           {/* The number identifies the standard across editions, so matching

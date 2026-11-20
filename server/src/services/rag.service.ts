@@ -3,6 +3,7 @@ import { recordAiCalls } from './ai-usage.service'
 import { modelHeaders } from './model-resolver.service'
 import type { Privacy } from './privacy.service'
 import { listIngestedDocuments } from './knowledge-document.service'
+import { getSourcePriority } from './settings.service'
 
 // Stubs a call to the S4 RAG service. Real implementation will POST to
 // `${config.ragServiceUrl}/generate`.
@@ -46,8 +47,9 @@ async function callRag<T>(path: string, init?: RequestInit): Promise<T> {
 /**
  * Returns the chat body with `documents` built here, one {id, title, ...} per ingested
  * document (empty fields left out), so S4 can name each passage's document (CB-01).
- * Always replaces a `documents` the browser sent: without this, a user could put
- * invented names into the answer model's prompt.
+ * Each also carries its `tier` and `jurisdiction` (RT-04), and the body gets the saved
+ * `tier_order`. Always replaces a `documents` or `tier_order` the browser sent: without
+ * this, a user could put invented names into the answer model's prompt or reorder the sources.
  */
 export async function withChatDocuments(body: unknown): Promise<object> {
   const documents = (await listIngestedDocuments()).map((d) => ({
@@ -56,8 +58,10 @@ export async function withChatDocuments(body: unknown): Promise<object> {
     ...(d.issuingBody && { issuingBody: d.issuingBody }),
     ...(d.standardNumber && { standardNumber: d.standardNumber }),
     ...(d.edition && { edition: d.edition }),
+    tier: d.tier?.value ?? null,
+    jurisdiction: d.jurisdiction,
   }))
-  return { ...(body as object), documents }
+  return { ...(body as object), documents, tier_order: await getSourcePriority() }
 }
 
 /**
@@ -307,6 +311,30 @@ export type ChecklistDraftResult = {
 
 export async function requestChecklistDraft(body: unknown): Promise<ChecklistDraftResult> {
   return callRag<ChecklistDraftResult>('/checklist/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
+    body: JSON.stringify(body),
+  })
+}
+
+// What S4 sends back for a split shorthand note (CP-35, POST /split-note). S4 masks and
+// unmasks inside; the text comes back with real names.
+export type SplitNoteResult = {
+  parts: {
+    kind: string
+    text: string
+    shorthand: string
+    // Index into the lines sent: which uncoded line this part came from.
+    line?: number
+    flags?: { type: string; detail: string }[]
+  }[]
+  // One item per paid call (EV-03); saved by split-note.service.ts.
+  usage?: unknown
+}
+
+/** Returns S4's split of the uncoded lines; throws RagServiceError (503 when privacy-service was down). */
+export async function requestSplitNote(body: unknown): Promise<SplitNoteResult> {
+  return callRag<SplitNoteResult>('/split-note', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),

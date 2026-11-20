@@ -1263,3 +1263,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* The "suggested" note after an automatic tier (RT-04). */
+.kb-tier-note {
+  color: var(--text-muted);
+}

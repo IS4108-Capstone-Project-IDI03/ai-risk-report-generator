@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ModelOption, ModelRowData, Settings as SettingsData } from './api'
 import { Settings } from './Settings'
+import { TIER_IDS } from './tiers'
 
 const opt = (id: string, o: Partial<ModelOption> = {}): ModelOption => ({
   id,
@@ -34,8 +35,10 @@ const data = (
   models: ModelRowData[] = [row('Drafting')],
 ): SettingsData => ({
   canEditGlobal,
+  noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models,
   qaStrictness: 'standard',
+  sourcePriority: { order: [...TIER_IDS], history: [] },
 })
 const reply = (status: number, body: unknown) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }))
@@ -75,8 +78,8 @@ describe('Settings', () => {
         'Note-taking',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
-      // Removed on request: personal drafting target and the three defaults.
-      for (const name of ['Drafting', 'Defaults', 'QA check', 'QA criteria'])
+      // Removed on request: the three defaults, and the Drafting section (S-01 follow-up).
+      for (const name of ['Defaults', 'QA check', 'QA criteria', 'Drafting'])
         expect(screen.queryByRole('button', { name })).toBeNull()
       cleanup()
     }
@@ -85,15 +88,31 @@ describe('Settings', () => {
   it('shows Coming soon with the owner, and no controls', async () => {
     mock(data(false))
     render(<Settings />)
-    for (const [name, owner] of [
-      ['Checklist', 'Xuren'],
-      ['Source priority', 'Chris'],
-      ['Note-taking', 'Chris'],
-    ]) {
-      open(name)
-      expect(screen.getByText(`Coming soon. Being built by ${owner}.`)).toBeInTheDocument()
-    }
+    open('Checklist')
+    expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
+    open('QA eval')
+    expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).toBeNull()
+    // Note-taking works now (CP-35): not a Coming soon tile.
+    expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+  })
+
+  it('keeps what only an admin can change in its own Set by admin group of the menu', async () => {
+    mock(data(false))
+    render(<Settings />)
+    const menu = screen.getByRole('navigation', { name: 'Settings sections' })
+    const group = (heading: string) => within(menu).getByText(heading).parentElement!
+    const names = (el: HTMLElement) =>
+      within(el)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    expect(names(group('Set by admin'))).toEqual(['Models', 'Source priority'])
+    expect(names(group('Coming soon'))).toEqual(['QA eval', 'Checklist'])
+    // What a person sets for themselves has no heading and comes first.
+    const personal = menu.firstElementChild as HTMLElement
+    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking'])
+    expect(within(personal).queryByText('Set by admin')).toBeNull()
   })
 
   it('highlights the open menu item', async () => {
@@ -132,6 +151,20 @@ describe('Settings', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('closes when the open box is pressed again, even though Safari blurs it before the click', async () => {
+    mock(data(true))
+    render(<Settings />)
+    open('Models')
+    const box = await screen.findByRole('combobox', { name: 'Drafting' })
+    fireEvent.click(box)
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    // What Safari does on a press: pointerdown, then the button loses focus, then the click.
+    fireEvent.pointerDown(box)
+    fireEvent.blur(box, { relatedTarget: null })
+    fireEvent.click(box)
+    expect(box).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('lets an admin choose a same-provider QA option and sends the PUT', async () => {
@@ -185,8 +218,6 @@ describe('Settings', () => {
     open('Models')
     expect(await screen.findByRole('combobox', { name: 'Drafting' })).toBeDisabled()
     expect(screen.getByText('Set by an admin')).toBeInTheDocument()
-    open('QA eval')
-    expect(screen.getByRole('radio', { name: 'Strict' })).toBeDisabled()
   })
 
   it('shows the memory switch from the chat API', async () => {
@@ -194,6 +225,13 @@ describe('Settings', () => {
     render(<Settings />)
     open('Chat and voice')
     await waitFor(() => expect(screen.getByRole('switch')).toBeChecked())
+  })
+
+  it('tells the person the password rule: a letter and a number', async () => {
+    mock(data(false))
+    render(<Settings />)
+    open('Password')
+    expect(screen.getByText('Use at least one letter and one number.')).toBeInTheDocument()
   })
 
   it('shows password field errors and the lockout message', async () => {
@@ -215,17 +253,15 @@ describe('Settings', () => {
 })
 
 describe('Settings QA eval', () => {
-  it('shows what each strictness means, and QA criteria as coming soon from Chris', async () => {
+  it('is under Coming soon, with its owner and no controls', async () => {
     mock(data(true))
     render(<Settings />)
+    const menu = screen.getByRole('navigation', { name: 'Settings sections' })
+    const soon = within(menu).getByText('Coming soon').parentElement!
+    expect(within(soon).getByRole('button', { name: 'QA eval' })).toBeInTheDocument()
     open('QA eval')
-    const row = (await screen.findByText('Standard (current)')).closest('tr')!
-    expect(
-      within(row)
-        .getAllByRole('cell')
-        .map((c) => c.textContent),
-    ).toEqual(['Standard (current)', 'Warn', 'Fail', 'Fail'])
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+    expect(screen.queryByText('Standard (current)')).toBeNull()
   })
 })
 
@@ -247,11 +283,211 @@ describe('Settings Chat and voice', () => {
 })
 
 describe('Settings: tasks nothing reads yet', () => {
-  it('says the choice is saved but not used yet', async () => {
-    mock({ ...data(true), models: [row('ocr', { label: 'OCR', inUse: false }), row('drafting')] })
+  it('puts them in their own greyed-out section at the bottom, labelled Not used yet', async () => {
+    mock({
+      ...data(true),
+      models: [
+        row('ocr', { label: 'OCR', inUse: false }),
+        row('Drafting'),
+        row('qa', { label: 'QA', inUse: false }),
+      ],
+    })
     render(<Settings />)
     open('Models')
-    expect(await screen.findByText(/Not used yet/)).toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: 'Not used yet' })
     expect(screen.getAllByText(/Not used yet/)).toHaveLength(1)
+    const before = (el: HTMLElement) =>
+      Boolean(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)
+    // The working task is above the heading; the unused ones are below it, disabled.
+    expect(before(screen.getByRole('combobox', { name: 'Drafting' }))).toBe(true)
+    for (const name of ['OCR', 'QA']) {
+      const box = screen.getByRole('combobox', { name })
+      expect(before(box)).toBe(false)
+      expect(box).toBeDisabled()
+    }
+    expect(screen.getByRole('combobox', { name: 'Drafting' })).toBeEnabled()
+  })
+
+  it('shows no Not used yet section when every task is in use', async () => {
+    mock({ ...data(true), models: [row('Drafting')] })
+    render(<Settings />)
+    open('Models')
+    await screen.findByRole('combobox', { name: 'Drafting' })
+    expect(screen.queryByRole('heading', { name: 'Not used yet' })).toBeNull()
+  })
+})
+
+describe('Settings Source priority (RT-04)', () => {
+  const names = () =>
+    screen.getAllByRole('listitem').map((li) => li.querySelector('.st-tier-name')?.textContent)
+  const DEFAULT = [
+    'National code',
+    'Manufacturer rating',
+    'Marsh precedent',
+    'International standard',
+  ]
+  const openIt = async (settings: SettingsData, extra?: Parameters<typeof mock>[1]) => {
+    const fetchMock = mock(settings, extra)
+    render(<Settings />)
+    await screen.findByRole('button', { name: 'Models' })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    open('Source priority')
+    await screen.findByRole('list', { name: /Source priority/ })
+    return fetchMock
+  }
+
+  it('is a working screen, not Coming soon, and shows the default order', async () => {
+    await openIt(data(true))
+    expect(names()).toEqual(DEFAULT)
+    expect(screen.queryByText(/Coming soon. Being built by Chris.*/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move National code up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move International standard down' })).toBeDisabled()
+  })
+
+  it('shows an icon for each source type', async () => {
+    await openIt(data(true))
+    const icons = screen
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('.st-tier-icon')?.getAttribute('data-icon'))
+    expect(icons).toEqual(['landmark', 'factory', 'briefcase', 'globe'])
+  })
+
+  it('highlights the row that moved, announces its new place, and clears the highlight', async () => {
+    await openIt(data(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Move Marsh precedent up' }))
+    const moved = screen.getAllByRole('listitem').filter((li) => li.classList.contains('is-moved'))
+    expect(moved).toHaveLength(1)
+    expect(moved[0]).toHaveTextContent('Marsh precedent')
+    expect(screen.getByRole('status')).toHaveTextContent('Marsh precedent moved to position 2 of 4')
+    await waitFor(() => expect(document.querySelector('.is-moved')).toBeNull(), { timeout: 3000 })
+  })
+
+  it('says a national code ranks only when the question names its country', async () => {
+    await openIt(data(true))
+    expect(screen.getByText(/ranks only when the question names its country/)).toBeInTheDocument()
+  })
+
+  it('shows no drag grips to an engineer, and no Saved tick beside an unsaved change', async () => {
+    await openIt(data(false))
+    expect(screen.queryAllByTestId('tier-handle')).toHaveLength(0)
+    cleanup()
+    const after: SettingsData = {
+      ...data(true),
+      sourcePriority: {
+        ...data(true).sourcePriority,
+        order: [
+          'manufacturer_rating',
+          'national_code',
+          'marsh_precedent',
+          'international_standard',
+        ],
+      },
+    }
+    await openIt(data(true), (_u, init) => (init?.method === 'PUT' ? reply(200, after) : null))
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    await screen.findByText('Saved')
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    expect(screen.queryByText('Saved')).toBeNull()
+  })
+
+  it('moves a tier down and up with the buttons', async () => {
+    await openIt(data(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    expect(names().slice(0, 2)).toEqual(['Manufacturer rating', 'National code'])
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code up' }))
+    expect(names()).toEqual(DEFAULT)
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+  })
+
+  it('saves the new order with a PUT and shows the saved history', async () => {
+    const after: SettingsData = {
+      ...data(true),
+      sourcePriority: {
+        order: [
+          'manufacturer_rating',
+          'national_code',
+          'marsh_precedent',
+          'international_standard',
+        ],
+        history: [
+          {
+            at: '2026-11-01T06:05:00.000Z',
+            by: { id: 'a1', name: 'Ada Admin' },
+            before: [...TIER_IDS],
+            after: [
+              'manufacturer_rating',
+              'national_code',
+              'marsh_precedent',
+              'international_standard',
+            ],
+          },
+        ],
+      },
+    }
+    const fetchMock = await openIt(data(true), (_u, init) =>
+      init?.method === 'PUT' ? reply(200, after) : null,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+    expect(put[0]).toBe('/api/settings/source-priority')
+    expect(put[1]?.body).toBe(JSON.stringify({ order: after.sourcePriority.order }))
+    expect(screen.getByText(/Ada Admin: National code, Manufacturer rating/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+  })
+
+  it('reorders by dragging a row onto another', async () => {
+    await openIt(data(true))
+    const items = screen.getAllByRole('listitem')
+    fireEvent.dragStart(items[0])
+    fireEvent.dragOver(items[2])
+    fireEvent.drop(items[2])
+    expect(names()).toEqual([
+      'Manufacturer rating',
+      'Marsh precedent',
+      'National code',
+      'International standard',
+    ])
+    expect(screen.getByRole('button', { name: 'Save order' })).toBeEnabled()
+  })
+
+  it('shows a failed save with its reason', async () => {
+    await openIt(data(true), (_u, init) =>
+      init?.method === 'PUT' ? reply(400, { error: 'Order must list every tier once.' }) : null,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Order must list every tier once.')
+  })
+
+  it('is read-only for an engineer, who still sees the history', async () => {
+    const withHistory: SettingsData = {
+      ...data(false),
+      sourcePriority: {
+        order: [...TIER_IDS],
+        history: [
+          {
+            at: '2026-11-01T06:05:00.000Z',
+            by: { id: 'a1', name: 'Ada Admin' },
+            before: ['marsh_precedent', ...TIER_IDS.filter((t) => t !== 'marsh_precedent')],
+            after: [...TIER_IDS],
+          },
+        ],
+      },
+    }
+    await openIt(withHistory)
+    expect(screen.getByText('Set by an admin')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save order' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Move National code down' })).toBeDisabled()
+    expect(screen.getAllByRole('listitem')[0]).toHaveAttribute('draggable', 'false')
+    expect(screen.getByText(/Ada Admin: Marsh precedent, National code/)).toBeInTheDocument()
+  })
+
+  it('says there are no changes yet', async () => {
+    await openIt(data(true))
+    expect(screen.getByText('No changes yet.')).toBeInTheDocument()
   })
 })

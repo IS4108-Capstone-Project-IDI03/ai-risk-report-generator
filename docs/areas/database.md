@@ -544,8 +544,8 @@ The invitation is redeemed without a session: `POST /api/auth/invitation`
 `{ token }` returns the account's `{ name, email }`, and
 `POST /api/auth/invitation/accept` `{ token, password }` sets the first
 password, clears the token and returns `{ email }`. Both answer 400 for an
-invalid, used or expired link; a password shorter than 12 characters, without
-a number and a symbol, or over 72 bytes is 400 with `fields.password`. It is
+invalid, used or expired link; a password without a letter and a number, or over
+72 bytes, is 400 with `fields.password` (no length minimum, no symbol needed). It is
 separate from the reset: `POST /api/auth/request-reset` sends nothing to an
 account with no password (the response is the same as for any address), and
 neither code works in the other's route.
@@ -593,6 +593,14 @@ on site, with everything captured about it. It has an optional `note` (CP-02),
 a `recordings` list (CP-03), a `photos` list (CP-04) and a `pages` list of
 photographed pages of handwritten notes (CP-19), and needs at least one
 of them.
+
+`parts` (CP-35, optional, outside `metadata`): the engineer's confirmed split of a
+shorthand note, each `{id, kind (fact | info_request | recommendation), text, shorthand,
+inferred, flags?}`, at most 50, text 1-1000 characters. The `note` stays exactly as typed.
+Drafting evidence takes the `fact` parts' text, one per line, in place of the note; info
+requests and recommendations are never stated as fact. Splitting (`POST
+/api/assessments/:reference/split-note`) saves nothing: parts are stored only when the
+observation is created with them.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
@@ -890,7 +898,10 @@ accepted, and from when it was accepted. Each document has:
 - `sources`: the cited passages by citation ID, with their text, `doc_id`,
   `headings` and `page_start`/`page_end`: every cited standard (`C:`), and any
   past-report passage (`P:`) a statement cites, kept so the review workspace
-  can open it (RV-01). Drafts saved before RV-01 hold standards only.
+  can open it (RV-01). Drafts saved before RV-01 hold standards only. A
+  passage may carry `broader: true` (GN-16): rag-service found that standard by
+  the jurisdiction-only fallback search, not the exact jurisdiction and facility.
+  The review workspace returns it as `broader` on the source.
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
@@ -1358,6 +1369,9 @@ document has:
   `effort`. The value lists are `rag-service/app/generation/ofi.json`, taken
   from Marsh's template; `type` is provisional until Marsh sends its RQR
   sub-categories.
+- `fromRecommendation` (boolean, optional; CP-35): true when the OFI rests on an observation
+  whose split note had a recommendation part. Set when the OFI is drafted; shown as "From your
+  recommendation". Absent on OFIs from before CP-35.
 - `priority` (`Priority 1` to `Priority 4`): the Risk Assessment Matrix's
   value for `likelihood` × `consequence`, set by S4's code, never by the model.
 - `observations` (the observation `_id`s it rests on), `standards` (cited
@@ -1706,6 +1720,17 @@ uncategorised observations. The title falls back to the file name, and
   (`source: 'auto'`). A correction sets each detail's `value` and `source:
   'admin'`. Absent when labelling failed, in which case every detail is
   Unconfirmed.
+
+- `authorityTier`, `tierSource` (RT-04): the authority tier an admin chose
+  (`national_code`, `manufacturer_rating`, `marsh_precedent` or
+  `international_standard`) and `'admin'`. Both are absent until an admin saves a
+  tier, so there is no migration: the API suggests a tier on read from the source
+  type (`local_standard` to national code, `fm_standard` to manufacturer rating,
+  `marsh_report` to Marsh precedent, `nfpa_standard` to international standard) and
+  sends `tier: { value, source: 'auto' | 'admin' }`, or `tier: null` when the source
+  type is Unconfirmed (it ranks last). Kept outside `metadata` and not in Chroma;
+  rag-service gets it per request from the gateway. A correction that changes the
+  tier also adds a history version carrying the tier before (`authorityTier`).
 
 `status` is `queued` (set by the gateway), or `awaiting_type` when labelling
 couldn't read the source type (IN-19): such a document is stored but not
@@ -2156,3 +2181,33 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 - Only the owner can read or change a fact; another user's fact answers 404.
 - The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
 - Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.
+
+## Standards cite target (GN-16)
+
+There is no setting for it. The Review banner "n of m sections cite a standard"
+compares against a fixed 50% (`STANDARD_CITE_TARGET` in
+`client/src/features/assessments/citedStandards.ts`). The admin-set
+`app_settings.standardCiteTarget` was removed in the S-01 follow-up;
+`PATCH /api/settings/global` now accepts only `qaStrictness`.
+
+## Source priority (RT-04)
+
+`app_settings.sourcePriority`: the four tier ids, highest authority first. Absent
+on documents from before RT-04, which read as the default (`national_code`,
+`manufacturer_rating`, `marsh_precedent`, `international_standard`). Saved only by
+`PUT /api/settings/source-priority` (`settings:manage`); a change appends a
+`settings_log` row (`setting: 'sourcePriority'`, `before` and `after` as arrays),
+and an unchanged order writes none. `GET /api/settings` returns
+`sourcePriority: { order, history }`, history being the last 20 log rows, newest
+first. The gateway sends the order to rag-service as `tier_order` on every `/chat`.
+
+## User settings (CP-35)
+
+`user_settings` holds one document per user (`user` is unique): `noteCodes` (optional
+`{fact, info_request, recommendation}`, 1-8 letters or digits, unique ignoring case once
+defaults fill the gaps) and `glossary` (optional `{term, meaning}` list, at most 200, term
+1-30 characters unique ignoring case, meaning 1-120). The defaults `F`, `IR` and `REC` live in
+code (`settings.service.ts`), not in the database. Written only by `PATCH /api/settings/me`
+for the signed-in user's own document. `metadata` is the same null-filled block as
+`app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
+`COPE_dimension` null, `effective_date`.

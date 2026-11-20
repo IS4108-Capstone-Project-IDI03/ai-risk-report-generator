@@ -24,15 +24,15 @@ export class InvalidInvitationError extends Error {
   }
 }
 
-const PASSWORD_RULE = 'Use at least 12 characters, including a number and a symbol.'
+const PASSWORD_RULE = 'Use at least one letter and one number.'
 
-// The rules for a first password. The set-password screen checks the same
-// ones before sending. bcrypt reads only the first 72 bytes, so a longer
+// The rules for a new password (F-08, S-01 change-password): a letter and a number, no length
+// minimum and no symbol. The set-password screen and the sign-in "request access" form check the
+// same ones before sending. bcrypt reads only the first 72 bytes, so a longer
 // password would be cut short without anyone knowing.
 export const newPasswordSchema = z
   .string('Enter a password.')
-  .min(12, PASSWORD_RULE)
-  .refine((value) => /\d/.test(value) && /[^\w\s]/.test(value), PASSWORD_RULE)
+  .refine((value) => /[A-Za-z]/.test(value) && /\d/.test(value), PASSWORD_RULE)
   .refine((value) => Buffer.byteLength(value) <= 72, 'Use 72 characters or fewer.')
 
 function hashToken(token: string): string {

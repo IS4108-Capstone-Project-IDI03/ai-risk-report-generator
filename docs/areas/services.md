@@ -859,6 +859,10 @@ screenshot go to Cohere and `OCR_PROVIDER` as they are (see
     [database](database.md#report-sections-gn-01)). Any S4 failure reaches
     the client as a 503 with the reason.
 
+### Standards search and its fallback (GN-16)
+
+A section draft searches standards (`fm_standard`, `nfpa_standard`, `local_standard`) once per observation, by the site's jurisdiction and facility type. If that returns no passage at all, `draft()` runs the same queries once more by jurisdiction only; the kept passages come back in `sources` with `broader: true`. A section with no observations searches nothing. Each draft also returns `standards_report` (`section`, `searched`, `fallback_searched`, `found`, `kept`, `dropped: {distance, cap}`, `broader`); the gateway ignores it. To see why a section has few standards, pipe a real response into `microservices/rag-service/eval/standards_diagnosis.py`.
+
 ## Opportunities for Improvement (S4, GN-05)
 
 Section 3's OFIs are drafted on the Report generation tab, as the first row of
@@ -1848,6 +1852,10 @@ missed mock fail instead of spending:
 Scoring the chat for real (`eval.chat_eval`) does spend: a full re-score (answers for
 all 61 cases plus two judge runs) costs about $2.
 
+## Chat retrieval ranking by source tier (RT-04)
+
+`POST /chat` takes an optional `tier_order` (tier ids, highest authority first) and each `documents` item an optional `tier` and `jurisdiction`, both set by the gateway. Right after search, `retrieval/ranking.py` `apply_rank` re-orders only the passages scoring within `RANK_BAND` (0.1, `config.py`) of the top relevance score, by tier, ties by score; weaker passages follow in their order, so a tier never lifts a clearly worse passage. A `national_code` document ranks only when its jurisdiction equals the question's `jurisdiction` filter, else it counts as no tier. Passages match their document by `metadata.doc_id`. No `tier_order` leaves the order unchanged.
+
 ## Password reset email (F-06)
 
 `requestPasswordReset` in `server/src/services/auth.service.ts` emails a link `APP_URL/?reset=<code>`. The sign-in screen reads `?reset=`, opens the new-password step with the code filled in, and removes it from the address bar.
@@ -2128,3 +2136,24 @@ knowledge chatbot stays on 0.4.1.
 **Numbers.** Server thresholds are in `services/assistant/settings.ts`, Focus's
 work-left days in `focus.service.ts`, and the browser's activity numbers in
 `client/src/features/marshbot/settings.ts`.
+
+## Splitting a shorthand note (CP-35)
+
+`POST /split-note` (rag-service `site_walk/note_split.py`) takes a note's lines, the engineer's
+own glossary and `privacy`. It masks the lines through privacy-service (fail closed: 503, no model
+call), makes one model call under `LLM_PROVIDER` (feature `split-note`, prompt `cp35-v1`), then
+unmasks and checks in code: a number or unit in a part's shorthand that its text lacks is flagged
+`number_changed`, and a model-reported unknown term is flagged `unknown_term` only if neither the
+Marsh list (`retrieval/site_abbreviations.json`) nor the glossary holds it. Empty parts are
+dropped; a line the model skipped comes back as one fact part. `scripts/make-shorthand-notes.py`
+is a dev script that asks Gemini once for invented test notes (needs `GEMINI_API_KEY`).
+
+**Hand-off of the other two kinds (CP-35).** Info requests: `GET /api/assessments/:reference/to-ask`
+(`toAskFor` in `observation.service.ts`, `assessments:view`) lists the `info_request` parts of the
+assessment's observations, oldest first; the Observations tab shows them as "To ask the client".
+Recommendations: OFI drafting (`ofi.service.ts`) sends each observation's `recommendation` parts as
+`observations[].recommendations` (`draftingRecommendations` in `section.service.ts`), never in
+`toEvidence`. rag-service masks them with the note (`_mask_evidence`), prints them as
+"Engineer's recommendation:" in the OFI prompt (`gn05-v7`), and the guide says to base the fix on
+them without adding actions. An OFI that rests on such an observation is saved with
+`fromRecommendation: true`. Facts stay the only part read as evidence.

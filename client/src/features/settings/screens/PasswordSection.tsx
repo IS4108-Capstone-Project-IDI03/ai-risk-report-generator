@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button, Icon, Input } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
+import { PASSWORD_RULE } from '../../auth/passwordRule'
 import { changePassword } from '../api'
 
 export function PasswordSection() {
@@ -53,6 +54,7 @@ export function PasswordSection() {
         error={fields.newPassword}
         onChange={(e) => setNext(e.target.value)}
       />
+      <p className="st-note">{PASSWORD_RULE}</p>
       {problem && (
         <p className="st-err" role="alert">
           <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}

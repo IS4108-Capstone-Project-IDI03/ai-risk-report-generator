@@ -9,13 +9,15 @@ import { SaveStatus } from './SaveStatus'
 type Props = {
   row: ModelRowData
   canEdit: boolean
+  // True in the "Not used yet" section: greyed out and not changeable, nothing reads it yet.
+  unused?: boolean
   onSaved: (settings: Settings) => void
 }
 
-export function ModelRow({ row, canEdit, onSaved }: Props) {
+export function ModelRow({ row, canEdit, unused, onSaved }: Props) {
   const { state, run } = useSave(onSaved)
   return (
-    <div className="st-row">
+    <div className={unused ? 'st-row st-row-unused' : 'st-row'}>
       <div className="st-row-head">
         <span className="st-row-label">{row.label}</span>
         <SaveStatus state={state} />
@@ -25,15 +27,10 @@ export function ModelRow({ row, canEdit, onSaved }: Props) {
         options={row.options}
         selected={row.selected}
         // A fixed task never changes, and an engineer only reads.
-        disabled={!canEdit || row.fixed}
+        disabled={!canEdit || row.fixed || Boolean(unused)}
         onChoose={(id) => run(() => saveModel(row.task, id))}
       />
       {row.fixed && <p className="st-note">Only one model works for this task.</p>}
-      {row.inUse === false && (
-        <p className="st-note">
-          Not used yet: your choice is saved, but this feature does not read it yet.
-        </p>
-      )}
       {row.warning && (
         <p className="st-warn" role="status">
           <Icon name="triangle-alert" size={16} color="var(--amber-600)" />

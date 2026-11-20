@@ -73,6 +73,7 @@ import { toPassage, type FieldObservationDto, type SourcePassageDto } from './re
 import {
   handwritingOf,
   isUsable,
+  observationFacts,
   savedEvidence,
   sectionDrafts,
   transcriptsOf,
@@ -256,7 +257,7 @@ async function scopeOf(assessment: OpenedAssessment) {
     .map((o) => ({
       id: o.id,
       COPE_dimension: o.copeDimensions,
-      note: o.note,
+      note: observationFacts(o),
       transcripts: transcriptsOf(o),
       handwriting: handwritingOf(o),
       severity: o.severity ?? null,

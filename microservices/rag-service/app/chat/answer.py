@@ -23,6 +23,7 @@ from app import privacy as pii
 from app.chat.quotes import find_cites
 from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quote_check
 from app.generation.llm import GenerationFailed, complete_json, stream_text
+from app.retrieval.ranking import apply_rank
 from app.retrieval.retriever import retrieve
 
 # Bump on every prompt change; each scored eval run records it (AC12).
@@ -604,6 +605,7 @@ def answer_events(
     role: str = "risk_engineer",
     privacy: dict | None = None,
     attachments: list[dict] | None = None,
+    tier_order: list[str] | None = None,
 ) -> Iterator[str]:
     """SSE lines for one answer: the search step, the streamed answer, then its result.
 
@@ -613,7 +615,7 @@ def answer_events(
     # The server runs each step of a stream on a fresh thread with a fresh context, so
     # usage recorded after the first step would be lost from the cost log. Running every
     # step in one context keeps the request's usage list (app/usage.py) alive throughout.
-    steps = _events(messages, context, documents, role, privacy, attachments)
+    steps = _events(messages, context, documents, role, privacy, attachments, tier_order)
     context_ = contextvars.copy_context()
     while True:
         try:
@@ -629,6 +631,7 @@ def _events(
     role: str = "risk_engineer",
     privacy: dict | None = None,
     attachments: list[dict] | None = None,
+    tier_order: list[str] | None = None,
 ) -> Iterator[str]:
     """The answer's SSE lines, step by step (see answer_events)."""
     # The role goes in the model input, not the prompts, so the prompts stay cacheable.
@@ -643,6 +646,7 @@ def _events(
     last_user = max((i for i, t in enumerate(history) if t["role"] == "user"), default=-1)
     history = history[: last_user + 1]
     names = {d["id"]: document_name(d) for d in documents or []}
+    doc_tiers = {d["id"]: d for d in documents or []}  # RT-04: each carries tier, jurisdiction
     message_id = str(uuid.uuid4())
     citations, filters, declined, model, error, program = [], {}, False, None, None, ""
     passages: list[dict] = []
@@ -734,6 +738,10 @@ def _events(
             # already masked here, so those words reach Cohere masked, like the planner's query.
             _OWN_WORDS.set(history[-1]["content"])
             passages = search_passages(search_plan, names, **masking)
+            # RT-04: within a band of equal relevance, higher-tier sources come first.
+            passages = apply_rank(
+                passages, tier_order or [], doc_tiers, search_plan.filters.jurisdiction
+            )
             # Names are added here, after search, so cached eval searches stay valid.
             for p in passages:
                 name = names.get(p["metadata"].get("doc_id"))
@@ -812,7 +820,12 @@ def _events(
                             RETRY_TOP_N,
                             retry_protection,
                         )
-                        passages = wider or passages
+                        passages = (
+                            apply_rank(
+                                wider, tier_order or [], doc_tiers, search_plan.filters.jurisdiction
+                            )
+                            or passages
+                        )
                         attempt = 1
                         continue
                     break

@@ -5,6 +5,7 @@ import { pipeline } from 'stream'
 import { IngestionUnavailableError } from '../services/ingestion.service'
 import { ConverterUnavailableError } from '../services/converter.service'
 import type { z } from 'zod'
+import { isTierId } from '../services/source-tiers'
 import {
   correctKnowledgeDocument,
   cancelIngestion,
@@ -299,7 +300,13 @@ router.put('/:id', requirePermission('knowledge:manage'), async (req, res) => {
   }
   try {
     const { id, name } = res.locals.user!
-    res.json(await correctKnowledgeDocument(req.params.id, parsed.data, { id, name }))
+    // The tier rides beside the details (RT-04); the details schema would strip it.
+    const tier = req.body?.tier
+    if (tier !== undefined && !isTierId(tier)) {
+      res.status(400).json({ error: 'Choose a tier from the list.' })
+      return
+    }
+    res.json(await correctKnowledgeDocument(req.params.id, parsed.data, { id, name }, tier))
   } catch (error: unknown) {
     const status =
       error instanceof KnowledgeDocumentNotFoundError

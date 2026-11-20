@@ -220,8 +220,24 @@ export type LocationDetails = {
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03), photos (CP-04) and handwritten pages (CP-19).
+// One sorted piece of a shorthand note (CP-35): a fact, an info request or a recommendation.
+export type PartKind = 'fact' | 'info_request' | 'recommendation'
+export type PartFlag = { type: 'unknown_term' | 'number_changed'; detail: string }
+export type Part = {
+  id: string
+  kind: PartKind
+  text: string
+  // What the engineer wrote for this part.
+  shorthand: string
+  // True when the sorting was guessed, false when a code (like IR:) said it.
+  inferred: boolean
+  flags: PartFlag[]
+}
+
 export type SavedObservation = {
   id: string
+  // The confirmed parts, when the note was split before saving (CP-35).
+  parts?: Part[]
   engineer: string
   // Its categories in C-O-P-E order; null when not categorised yet.
   copeDimensions: string[] | null
@@ -452,6 +468,8 @@ export async function saveObservation(
     standard?: string
     // The checklist item it answers (CP-31).
     checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
+    // The parts the engineer confirmed from the note (CP-35).
+    parts?: Part[]
   },
   recordings: { name: string; audio: Blob }[],
   photos: NewPhotoPart[] = [],
@@ -463,6 +481,12 @@ export async function saveObservation(
   appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
+}
+
+/** Asks the gateway to sort a note into parts (CP-35); nothing is saved. */
+export async function splitNote(reference: string, note: string): Promise<Part[]> {
+  const path = `/api/assessments/${encodeURIComponent(reference)}/split-note`
+  return (await request<{ parts: Part[] }>('POST', path, { note })).data.parts
 }
 
 // Every saved observation of the assessment, newest first. Deleted ones are
@@ -763,6 +787,8 @@ export type Ofi = {
   sources: SectionDraft['sources']
   // The past report's title, from the knowledge base, or null if it has no record.
   precedentReport: string | null
+  // True when it rests on an observation whose note had a recommendation part (CP-35).
+  fromRecommendation?: boolean
   // Marsh's fixed fields, the same for a suggestion as once accepted.
   status: string
   issueDate: string | null
@@ -779,6 +805,23 @@ export type Ofi = {
 // An accepted OFI as it reads in the report, numbered in report order.
 export type AcceptedOfi = Ofi & { number: string }
 export type OfiList = { suggestions: Ofi[]; accepted: AcceptedOfi[] }
+
+// One thing to ask the client: an info request part of a split note (CP-35).
+export type ToAskItem = {
+  observationId: string
+  text: string
+  location: string | null
+  severity: string
+}
+
+/** Returns the info requests of an assessment's split notes (CP-35), oldest observation first. */
+export async function getToAsk(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<{ items: ToAskItem[] }> {
+  const path = `/api/assessments/${encodeURIComponent(reference)}/to-ask`
+  return (await request<{ items: ToAskItem[] }>('GET', path, undefined, signal)).data
+}
 
 const ofisPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}/ofis`
 
@@ -1083,6 +1126,8 @@ export type SourcePassage = {
   pageStart: number | null
   pageEnd: number | null
   documentId: string | null
+  // Found by the country-only fallback search, not the site's facility type (GN-16).
+  broader?: boolean
   document: {
     title: string
     issuingBody: string

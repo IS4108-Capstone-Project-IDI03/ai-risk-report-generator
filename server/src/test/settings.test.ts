@@ -192,9 +192,23 @@ describe('QA strictness (S-01 AC12, AC14)', () => {
     expect((await SettingsLogModel.find({}).lean()).map((e) => e.setting)).toContain('qaStrictness')
   })
 
-  it('has no personal settings or defaults any more', async () => {
+  it("has no admin-set personal defaults (CP-35 brings back only the engineer's own note settings)", async () => {
     expect((await admin.get('/api/settings')).body.personal).toBeUndefined()
-    expect((await engineer.patch('/api/settings/me').send({ x: 1 })).status).toBe(404)
+    expect((await engineer.patch('/api/settings/me').send({ x: 1 })).status).toBe(400)
+  })
+})
+
+// The citation target setting was removed (S-01 follow-up): the Review banner uses a fixed 50%.
+describe('no standards cite target setting', () => {
+  it('is not returned by GET /api/settings', async () => {
+    expect((await admin.get('/api/settings')).body.standardCiteTarget).toBeUndefined()
+  })
+
+  it('is not accepted by PATCH /api/settings/global', async () => {
+    const res = await admin.patch('/api/settings/global').send({ standardCiteTarget: 60 })
+    expect(res.status).toBe(400)
+    expect(res.body.error ?? res.body.message).toBe('"standardCiteTarget" is not a setting.')
+    expect(await SettingsLogModel.countDocuments()).toBe(0)
   })
 })
 
@@ -260,6 +274,143 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
       ocr: false,
       label_classifier: false,
       site_walk_classifier: false,
+      // Nothing reads the QA model until EV-05 is built.
+      qa: false,
     })
+  })
+})
+
+// RT-04: the order sources are ranked by.
+describe('source priority (RT-04)', () => {
+  const DEFAULT = [
+    'national_code',
+    'manufacturer_rating',
+    'marsh_precedent',
+    'international_standard',
+  ]
+  const NEW = [...DEFAULT].reverse()
+  const put = (who: typeof admin, order: unknown) =>
+    who.put('/api/settings/source-priority').send({ order })
+
+  it('starts as the default order with no history', async () => {
+    const res = await engineer.get('/api/settings')
+    expect(res.body.sourcePriority).toEqual({ order: DEFAULT, history: [] })
+  })
+
+  it('saves a new order and logs who changed it, with before and after', async () => {
+    const res = await put(admin, NEW)
+    expect(res.status).toBe(200)
+    expect(res.body.sourcePriority.order).toEqual(NEW)
+    expect(res.body.sourcePriority.history).toHaveLength(1)
+    expect(res.body.sourcePriority.history[0]).toMatchObject({
+      by: { name: 'Sana' },
+      before: DEFAULT,
+      after: NEW,
+    })
+    expect((await engineer.get('/api/settings')).body.sourcePriority.order).toEqual(NEW)
+  })
+
+  it('lists history newest first', async () => {
+    await put(admin, NEW)
+    await put(admin, DEFAULT)
+    const { history } = (await admin.get('/api/settings')).body.sourcePriority
+    expect(history.map((h: { after: string[] }) => h.after)).toEqual([DEFAULT, NEW])
+  })
+
+  it('writes no log row when the order is unchanged', async () => {
+    await put(admin, DEFAULT)
+    expect(await SettingsLogModel.countDocuments({ setting: 'sourcePriority' })).toBe(0)
+  })
+
+  it.each([
+    ['too short', DEFAULT.slice(1)],
+    ['a repeat', [DEFAULT[0], DEFAULT[0], DEFAULT[2], DEFAULT[3]]],
+    ['an unknown tier', [...DEFAULT.slice(1), 'nope']],
+    ['not a list', 'national_code'],
+  ])('answers 400 for an order that is %s, and saves nothing', async (_name, order) => {
+    expect((await put(admin, order)).status).toBe(400)
+    expect(await SettingsLogModel.countDocuments({ setting: 'sourcePriority' })).toBe(0)
+  })
+
+  it('answers 403 to an engineer', async () => {
+    expect((await put(engineer, NEW)).status).toBe(403)
+  })
+
+  it('still refuses sourcePriority through the global setting route', async () => {
+    expect((await admin.patch('/api/settings/global').send({ sourcePriority: NEW })).status).toBe(
+      400,
+    )
+  })
+})
+
+describe('note-taking settings (CP-35)', () => {
+  const me = signedInAsRole(app, 'risk_engineer', 'Mia')
+  const other = signedInAsRole(app, 'risk_engineer', 'Ben')
+  const save = (body: unknown) => me.patch('/api/settings/me').send(body as object)
+
+  it('starts from the default codes and an empty glossary', async () => {
+    const res = await me.get('/api/settings')
+    expect(res.body.noteTaking).toEqual({
+      codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' },
+      glossary: [],
+    })
+  })
+
+  it('saves my codes and glossary, trims them, and leaves another user unaffected', async () => {
+    const res = await save({
+      noteCodes: { fact: ' obs ' },
+      glossary: [{ term: ' FE ', meaning: 'fire extinguisher' }],
+    })
+    expect(res.status).toBe(200)
+    expect(res.body.noteTaking).toEqual({
+      codes: { fact: 'obs', info_request: 'IR', recommendation: 'REC' },
+      glossary: [{ term: 'FE', meaning: 'fire extinguisher' }],
+    })
+    expect((await other.get('/api/settings')).body.noteTaking.codes.fact).toBe('F')
+  })
+
+  it('resets to the defaults with null', async () => {
+    await save({ noteCodes: { fact: 'obs' } })
+    const res = await save({ noteCodes: null })
+    expect(res.body.noteTaking.codes.fact).toBe('F')
+  })
+
+  it.each([
+    ['a duplicate of another code', { noteCodes: { fact: 'ir' } }],
+    ['an empty code', { noteCodes: { fact: '  ' } }],
+    ['a 9-character code', { noteCodes: { fact: 'abcdefghi' } }],
+    ['a code with bad characters', { noteCodes: { fact: 'a-b' } }],
+    ['an unknown key', { other: 1 }],
+    ['a __proto__ key', JSON.parse('{"__proto__": {"x": 1}}')],
+    ['an unknown code kind', JSON.parse('{"noteCodes": {"constructor": "X"}}')],
+    ['an empty body', {}],
+    [
+      'a duplicate glossary term',
+      {
+        glossary: [
+          { term: 'A', meaning: 'x' },
+          { term: 'a', meaning: 'y' },
+        ],
+      },
+    ],
+    ['a 31-character term', { glossary: [{ term: 'x'.repeat(31), meaning: 'y' }] }],
+    ['a 121-character meaning', { glossary: [{ term: 'x', meaning: 'y'.repeat(121) }] }],
+    [
+      '201 glossary terms',
+      { glossary: Array.from({ length: 201 }, (_, i) => ({ term: `t${i}`, meaning: 'm' })) },
+    ],
+  ])('refuses %s with 400 and saves nothing', async (_name, body) => {
+    const res = await save(body)
+    expect(res.status).toBe(400)
+    expect(typeof res.body.error).toBe('string')
+    expect((await me.get('/api/settings')).body.noteTaking.codes.fact).toBe('F')
+  })
+})
+
+describe('glossary messages (CP-35)', () => {
+  it('says a glossary must be a list when it is not one', async () => {
+    const res = await engineer.patch('/api/settings/me').send({ glossary: { a: 1 } })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/must be a list/)
   })
 })

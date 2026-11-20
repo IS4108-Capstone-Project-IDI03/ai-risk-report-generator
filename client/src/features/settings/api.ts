@@ -1,6 +1,7 @@
 // Gateway (S2) calls for the Settings screen (S-01).
 // Called by Settings.tsx and its sections. Calls /api/settings and /api/auth/change-password.
 import { request } from '../accounts/api'
+import type { TierId } from './tiers'
 
 export type ModelOption = {
   id: string
@@ -26,10 +27,23 @@ export type ModelRowData = {
   options: ModelOption[]
 }
 export type QaStrictness = 'strict' | 'standard' | 'lenient'
+// One saved change of the source order (RT-04); newest first, at most 20.
+export type SourcePriorityChange = {
+  at: string
+  by: { id: string; name: string }
+  before: TierId[]
+  after: TierId[]
+}
+// How this person writes shorthand notes (CP-35): the three line codes and their glossary.
+export type NoteCodes = { fact: string; info_request: string; recommendation: string }
+export type GlossaryEntry = { term: string; meaning: string }
+export type NoteTaking = { codes: NoteCodes; glossary: GlossaryEntry[] }
 export type Settings = {
+  noteTaking: NoteTaking
   canEditGlobal: boolean
   models: ModelRowData[]
   qaStrictness: QaStrictness
+  sourcePriority: { order: TierId[]; history: SourcePriorityChange[] }
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -44,9 +58,16 @@ export function getSettings(): Promise<Settings> {
 export function saveModel(task: string, option: string) {
   return send('PUT', `/api/settings/models/${encodeURIComponent(task)}`, { option })
 }
-/** Admin: saves the QA strictness for everyone. */
-export function saveGlobal(body: { qaStrictness: QaStrictness }) {
-  return send('PATCH', '/api/settings/global', body)
+/** Admin: saves the source authority order (highest first); returns the new settings. */
+export function saveSourcePriority(order: TierId[]) {
+  return send('PUT', '/api/settings/source-priority', { order })
+}
+/** Saves my own note codes (null = back to F, IR, REC) and/or glossary (CP-35); returns the settings. */
+export function saveMine(body: {
+  noteCodes?: Partial<NoteCodes> | null
+  glossary?: GlossaryEntry[]
+}) {
+  return send('PATCH', '/api/settings/me', body)
 }
 /** Changes my password; rejects with GatewayError (400 with fields, or 429 when locked). */
 export async function changePassword(currentPassword: string, newPassword: string) {

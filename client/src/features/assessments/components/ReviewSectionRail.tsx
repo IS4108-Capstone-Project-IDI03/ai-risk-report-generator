@@ -1,5 +1,7 @@
 import { Badge, Button, Icon, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
+import { STANDARD_CITE_TARGET } from '../citedStandards'
+import { StandardsBanner } from './StandardsBanner'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
 // The review summary (RV-02 AC9): the saved drafts' findings across the
@@ -59,6 +61,7 @@ export function ReviewSectionRail({
 }: {
   sections: ReviewSection[]
   summary?: FindingCounts
+  // The % of drafted sections that should cite a standard (GN-16); no banner without it.
   // Sections being regenerated now.
   regenerating?: Set<string>
   // Of those, the ones a drafting run is redrafting (GN-13): same line, "Redrafting".
@@ -147,6 +150,7 @@ export function ReviewSectionRail({
         </div>
       )}
       {summary && <ReviewSummary summary={summary} />}
+      <StandardsBanner sections={sections} target={STANDARD_CITE_TARGET} />
       <p className="rv-label rv-rail-head">Sections</p>
       <div className="rv-rail-progress">
         <ProgressBar

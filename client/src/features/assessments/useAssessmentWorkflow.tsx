@@ -6,6 +6,7 @@ import {
   restoreAssessment as requestRestore,
   GatewayError,
   listAssessments,
+  type Part,
   readObservation,
   retranscribePage,
   retryPageTranscription,
@@ -288,6 +289,7 @@ const NO_LOCATIONS: SiteLocation[] = []
 // chosen. The location stays, as the engineer is still standing in it.
 const BLANK_DRAFT = {
   fNote: '',
+  fParts: null,
   fClips: [],
   fPhotos: [],
   fPages: [],
@@ -1324,6 +1326,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             copeDimensions: copeDimensionsOf(cats),
             severity,
             locationId: location.id,
+            ...(s.fParts && note && { parts: s.fParts }),
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
@@ -1364,6 +1367,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
+        fParts: previous.fNote === note ? null : previous.fParts,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
@@ -3917,6 +3921,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
+      // The confirmed split of the note, sent with Save observation (CP-35).
+      fParts: s.fParts,
+      setFParts: (fParts: Part[] | null) => setState({ fParts }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
       setFNote: (
@@ -4392,6 +4399,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
           obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
+          fParts: null,
           fPhotos: [],
           fPages: [],
           fTrans: false,

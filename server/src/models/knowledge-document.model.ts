@@ -1,4 +1,5 @@
 import { Schema, model, type Types } from 'mongoose'
+import { TIER_IDS, type TierId } from '../services/source-tiers'
 
 // Where a knowledge document is in ingestion. The gateway sets `queued`, or
 // `awaiting_type` when labelling couldn't read the source type: such a
@@ -39,6 +40,8 @@ export interface IDocumentVersion {
   edition?: string
   standardNumber?: string
   metadata: IKnowledgeDocument['metadata']
+  // The tier in force before the change (RT-04); absent when none was saved.
+  authorityTier?: TierId
   replacedAt: Date
   replacedBy: { id: string; name: string }
 }
@@ -140,6 +143,10 @@ export interface IKnowledgeDocument {
     labelledAt: Date
     details: Partial<Record<DetailName, ILabelledDetail>>
   }
+  // RT-04: the authority tier an admin chose. Absent until then: the DTO suggests one from the
+  // source type on read. Kept outside `metadata` and not in Chroma.
+  authorityTier?: TierId
+  tierSource?: 'auto' | 'admin'
   // Earlier versions of the details above, oldest first.
   history: IDocumentVersion[]
   // Present only while the document is withdrawn (KB-01): when, and by whom.
@@ -226,6 +233,8 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
     cancelledAt: Date,
     metadata: metadataSchema,
     unconfirmed: { type: [String], default: [] },
+    authorityTier: { type: String, enum: TIER_IDS },
+    tierSource: { type: String, enum: ['auto', 'admin'] },
     labelling: {
       type: new Schema(
         {
@@ -247,6 +256,7 @@ const knowledgeDocumentSchema = new Schema<IKnowledgeDocument>(
             edition: String,
             standardNumber: String,
             metadata: metadataSchema,
+            authorityTier: { type: String, enum: TIER_IDS },
             replacedAt: { type: Date, required: true },
             replacedBy: {
               id: { type: String, required: true },

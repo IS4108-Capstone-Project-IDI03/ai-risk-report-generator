@@ -6,6 +6,7 @@
 // decide what happens to the row.
 import { request } from '../accounts/api'
 import { GatewayError, reportSessionEnded } from '../assessments/api'
+import type { TierId } from '../settings/tiers'
 
 // A gateway call that returns no body (e.g. the 202 from retry). The shared
 // `request` always parses JSON, which an empty 202 cannot provide, so these
@@ -135,6 +136,9 @@ export type KnowledgeDocument = {
   jurisdiction: string | null
   facilityType: string | null
   effectiveDate: string | null
+  // Authority tier (RT-04): 'auto' is a suggestion from the source type, 'admin' was set by hand.
+  // null (or absent) means Unranked.
+  tier?: { value: TierId; source: 'auto' | 'admin' } | null
   // The details still Unconfirmed; non-empty means "Needs review".
   unconfirmed: UnconfirmedDetail[]
   size: number | null
@@ -228,11 +232,13 @@ const EMPTY_DETAILS: DocumentDetails = {
 export function correctKnowledgeDocument(
   id: string,
   details: DocumentDetails,
+  // Sent only when the admin changed it (RT-04).
+  tier?: TierId,
 ): Promise<KnowledgeDocument> {
   return request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.fromEntries(filled(details))),
+    body: JSON.stringify({ ...Object.fromEntries(filled(details)), ...(tier && { tier }) }),
   })
 }
 

@@ -2263,3 +2263,89 @@ describe('a knowledge document privacy mapping', () => {
     }
   })
 })
+
+// RT-04: a document's authority tier.
+describe('document authority tier (RT-04)', () => {
+  const engineer = signedInAsRole(app, 'risk_engineer')
+  const DETAILS = {
+    title: REPORT.title,
+    effectiveDate: REPORT.effectiveDate,
+    sourceType: REPORT.sourceType,
+    jurisdiction: 'SG',
+    facilityType: 'Data centre',
+  }
+
+  it('suggests a tier from the source type on read, marked auto', async () => {
+    const id = await stored(REPORT)
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.tier).toEqual({ value: 'marsh_precedent', source: 'auto' })
+  })
+
+  it('gives a document with no source type no tier', async () => {
+    const id = await stored(REPORT)
+    await KnowledgeDocumentModel.updateOne({ _id: id }, { 'metadata.source_type': null })
+    const { body } = await api.get(`/api/knowledge-documents/${id}`).expect(200)
+    expect(body.tier).toBeNull()
+  })
+
+  it('saves an admin tier with source admin and keeps the earlier tier in history', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'national_code' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+    const doc = await KnowledgeDocumentModel.findById(id).lean()
+    expect(doc).toMatchObject({ authorityTier: 'national_code', tierSource: 'admin' })
+    expect(doc!.history.at(-1)!.authorityTier).toBe('marsh_precedent')
+    // The tier stays when a later correction sends none.
+    const again = await api.put(`/api/knowledge-documents/${id}`).send(DETAILS)
+    expect(again.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+  })
+
+  it('saves a tier-only change without calling the ingestion service (the tier is not in Chroma)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'national_code' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'national_code', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('confirms the suggested tier without calling the ingestion service, marking it admin (RT-04)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    const before = (await api.get(`/api/knowledge-documents/${id}`)).body.tier
+    expect(before).toEqual({ value: 'marsh_precedent', source: 'auto' })
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    // Choosing the tier it already has is a confirmation, not "nothing changed".
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'marsh_precedent', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+    // Saving it again, unchanged, still works while ingestion is down.
+    const again = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(again.status).toBe(200)
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('answers 400 for an unknown tier and 403 to an engineer', async () => {
+    const id = await stored(REPORT)
+    const put = (who: typeof api, tier: string) =>
+      who.put(`/api/knowledge-documents/${id}`).send({ ...DETAILS, tier })
+    expect((await put(api, 'gold')).status).toBe(400)
+    expect((await put(engineer, 'national_code')).status).toBe(403)
+  })
+})

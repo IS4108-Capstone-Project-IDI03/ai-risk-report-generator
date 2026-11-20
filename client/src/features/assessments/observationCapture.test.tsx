@@ -9,6 +9,7 @@ import type { SavedObservation, SavedRecording } from './api'
 const REF = 'RPT-2026-0411'
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
+const SPLIT_URL = `/api/assessments/${REF}/split-note`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
 const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
 const CAPTURE = {
@@ -78,6 +79,17 @@ type Sent = {
   // Each photo's mark, as JSON or empty (CP-10); none when no photo is marked.
   regions: string[]
 }
+// What the stand-in sorter proposes for any note (CP-35).
+const SPLIT_PARTS = [
+  {
+    id: 'p1',
+    kind: 'fact',
+    text: 'Valve V-12 chained open.',
+    shorthand: 'v12 chained',
+    inferred: true,
+    flags: [],
+  },
+]
 let listed: SavedObservation[] = []
 let saveReply: (sent: Sent) => Promise<Response>
 const saves: Sent[] = []
@@ -85,6 +97,7 @@ const retries: string[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (url === CAPTURE_URL) return json(201, CAPTURE)
+    if (url === SPLIT_URL) return json(200, { parts: SPLIT_PARTS })
     if (url === OBS_URL && init.method === 'POST') {
       const form = init.body as FormData
       const sent = {
@@ -1020,5 +1033,44 @@ describe('Marking the area of a photo as it is captured (CP-10)', () => {
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].regions).toEqual([])
+  })
+})
+
+describe('Splitting the note on the form (CP-35)', () => {
+  const confirm = async () => {
+    click('Split note')
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm all parts' }))
+  }
+  it('sends the confirmed parts with the observation, then starts empty', async () => {
+    await openCapture()
+    write('v12 chained')
+    grade('High')
+    await confirm()
+    expect(screen.getByText('1 part confirmed (1 fact)')).toBeInTheDocument()
+    save()
+    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
+    expect(saves[0].details.parts).toEqual(SPLIT_PARTS)
+    expect(screen.queryByText(/part confirmed/)).toBeNull()
+  })
+
+  it('sends no parts when the note was not split', async () => {
+    await openCapture()
+    write('Hose reel blocked.')
+    grade('High')
+    save()
+    await screen.findByText('Observation saved.')
+    expect(saves[0].details).not.toHaveProperty('parts')
+  })
+
+  it('drops the confirmed parts when the note is edited, and says so', async () => {
+    await openCapture()
+    write('v12 chained')
+    grade('High')
+    await confirm()
+    write('v12 chained and tagged')
+    expect(await screen.findByText('The note changed, so split it again.')).toBeInTheDocument()
+    save()
+    await screen.findByText('Observation saved.')
+    expect(saves[0].details).not.toHaveProperty('parts')
   })
 })

@@ -118,6 +118,83 @@ async function observation(
 
 const url = `/api/assessments/${REFERENCE}/ofis`
 
+const PARTS = [
+  {
+    id: 'p1',
+    kind: 'fact',
+    text: 'The valve was shut.',
+    shorthand: 'F: valve shut',
+    inferred: false,
+  },
+  {
+    id: 'p2',
+    kind: 'info_request',
+    text: 'Ask for the valve schedule.',
+    shorthand: 'IR: schedule',
+    inferred: false,
+  },
+  {
+    id: 'p3',
+    kind: 'recommendation',
+    text: 'Lock the valve open and fit a tamper switch.',
+    shorthand: 'REC: lock open',
+    inferred: false,
+  },
+]
+
+describe('OFI hand-off of recommendations (CP-35)', () => {
+  it('sends an observation its recommendation parts, with only its facts as the note', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const split = await observation(ids, 'F: valve shut\nIR: schedule\nREC: lock open')
+    await ObservationModel.updateOne({ _id: split._id }, { parts: PARTS })
+    const plain = await observation(ids, 'Panel is monitored.', 'high')
+
+    expect((await api.post(`${url}/draft`)).status).toBe(201)
+
+    const sent = drafts.mock.calls[0][0].observations as {
+      id: string
+      note: string
+      recommendations?: string[]
+    }[]
+    const withRec = sent.find((o) => o.id === String(split._id))!
+    expect(withRec.note).toBe('The valve was shut.')
+    expect(withRec.recommendations).toEqual(['Lock the valve open and fit a tamper switch.'])
+    // Info requests are never sent as evidence or as recommendations.
+    expect(JSON.stringify(withRec)).not.toContain('valve schedule')
+    // An observation with no recommendation reads exactly as before.
+    expect(sent.find((o) => o.id === String(plain._id))).not.toHaveProperty('recommendations')
+  })
+
+  it('marks an OFI that rests on an observation with a recommendation', async () => {
+    const { assessment: a, session } = await assessment()
+    const ids = { assessment: a._id, session: session._id }
+    const split = await observation(ids, 'F: valve shut\nREC: lock open')
+    await ObservationModel.updateOne({ _id: split._id }, { parts: PARTS })
+    const plain = await observation(ids, 'Panel is monitored.', 'high')
+    drafts.mockImplementation(() =>
+      json(
+        reply([
+          { ...OFI, title: 'Lock the valve open', observations: [String(split._id)] },
+          { ...OFI, title: 'Improve panel monitoring', observations: [String(plain._id)] },
+        ]),
+      ),
+    )
+
+    const { suggestions } = (await api.post(`${url}/draft`)).body
+
+    const flag = (title: string) =>
+      suggestions.find((x: { title: string }) => x.title === title).fromRecommendation
+    expect(flag('Lock the valve open')).toBe(true)
+    expect(flag('Improve panel monitoring')).toBe(false)
+    // It survives a reload: it is stored, not worked out in the browser.
+    const listed = (await api.get(url)).body.suggestions
+    expect(
+      listed.find((x: { title: string }) => x.title === 'Lock the valve open').fromRecommendation,
+    ).toBe(true)
+  })
+})
+
 describe('Opportunities for Improvement (GN-05)', () => {
   it('drafts suggestions from usable observations and keeps them out of the report', async () => {
     const { assessment: a, session } = await assessment()

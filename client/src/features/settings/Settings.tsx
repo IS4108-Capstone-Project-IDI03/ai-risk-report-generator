@@ -7,8 +7,9 @@ import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
+import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
-import { QaSection } from './screens/QaSection'
+import { SourcePrioritySection } from './screens/SourcePrioritySection'
 import './settings.css'
 
 type Save = (settings: SettingsData) => void
@@ -26,36 +27,50 @@ const needs =
   (s, onSaved) =>
     s ? show(s, onSaved) : <p className="st-note">Loading…</p>
 
-const WORKING: Section[] = [
+// What each person sets for themselves comes first, with no heading.
+const MINE: Section[] = [
   { id: 'password', label: 'Password', render: () => <PasswordSection /> },
+  {
+    id: 'chat',
+    label: 'Chat and voice',
+    render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
+  },
+  {
+    id: 'note-taking',
+    label: 'Note-taking',
+    render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
+  },
+]
+// What only a knowledge admin can change, for everyone. An engineer sees these read-only.
+const ADMIN: Section[] = [
   {
     id: 'models',
     label: 'Models',
     render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
   },
   {
-    id: 'qa',
-    label: 'QA eval',
-    render: needs((s, f) => <QaSection settings={s} onSaved={f} />),
-  },
-  {
-    id: 'chat',
-    label: 'Chat and voice',
-    render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
+    id: 'source-priority',
+    label: 'Source priority',
+    render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
 const SOON: Section[] = [
+  ['QA eval', 'Chris'],
   ['Checklist', 'Xuren'],
-  ['Source priority', 'Chris'],
-  ['Note-taking', 'Chris'],
 ].map(([name, owner]) => ({
   id: name,
   label: name,
   owner,
   render: () => <ComingSoonSection name={name} owner={owner} />,
 }))
-const SECTIONS = [...WORKING, ...SOON]
+// The menu's groups, top to bottom, each with an optional heading.
+const GROUPS: { heading?: string; items: Section[] }[] = [
+  { items: MINE },
+  { heading: 'Set by admin', items: ADMIN },
+  { heading: 'Coming soon', items: SOON },
+]
+const SECTIONS = GROUPS.flatMap((g) => g.items)
 
 export function Settings() {
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -72,10 +87,10 @@ export function Settings() {
   return (
     <div className="st">
       <nav className="st-menu" aria-label="Settings sections">
-        {[WORKING, SOON].map((group, i) => (
+        {GROUPS.map((group, i) => (
           <div key={i} className="st-menu-group">
-            {i === 1 && <div className="st-menu-heading">Coming soon</div>}
-            {group.map((s) => (
+            {group.heading && <div className="st-menu-heading">{group.heading}</div>}
+            {group.items.map((s) => (
               <button
                 key={s.id}
                 type="button"
