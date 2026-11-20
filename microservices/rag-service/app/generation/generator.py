@@ -49,7 +49,7 @@ DRAFTING_GUIDE = re.sub(
 
 # Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and matrix, and
 # the OFI drafting guide. Bump OFI_PROMPT_VERSION whenever the prompt or guide changes.
-OFI_PROMPT_VERSION = "gn05-v6"  # v6: copy placeholders exactly (PV-02)
+OFI_PROMPT_VERSION = "gn05-v7"  # v7: base the fix on the engineer's recommendation (CP-35)
 OFI_CONFIG = json.loads((HERE / "ofi.json").read_text())
 OFI_GUIDE = re.sub(r"\A---\n.*?\n---\n", "", (HERE / "ofi-skill.md").read_text(), flags=re.S)
 
@@ -159,6 +159,8 @@ def _observation_block(label: str, o) -> str:
     body += [f"Voice transcript: {t}" for t in o.transcripts]
     # A photographed page of the engineer's handwritten notes, transcribed (CP-19).
     body += [f"Handwritten note: {t}" for t in o.handwriting]
+    # What the engineer proposed as the fix (CP-35 hand-off); only OFI drafting sends any.
+    body += [f"Engineer's recommendation: {r}" for r in o.recommendations]
     return f"[{label}] ({details})\n" + "\n".join(body)
 
 

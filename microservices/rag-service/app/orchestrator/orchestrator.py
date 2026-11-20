@@ -211,7 +211,14 @@ def _mask_evidence(protection: pii.Session, observations, extras: list[str | Non
     texts = [
         value or ""
         for o in observations
-        for value in (o.note, *o.transcripts, *o.handwriting, o.location, o.standard)
+        for value in (
+            o.note,
+            *o.transcripts,
+            *o.handwriting,
+            o.location,
+            o.standard,
+            *o.recommendations,
+        )
     ] + [value or "" for value in extras]
     masked = iter(protection.mask(texts))
 
@@ -227,6 +234,7 @@ def _mask_evidence(protection: pii.Session, observations, extras: list[str | Non
                 "handwriting": [take(t) for t in o.handwriting],
                 "location": take(o.location),
                 "standard": take(o.standard),
+                "recommendations": [take(r) for r in o.recommendations],
             }
         )
         for o in observations

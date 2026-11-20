@@ -79,6 +79,9 @@ class Observation(BaseModel):
     severity: str | None = None
     location: str | None = None
     standard: str | None = None
+    # The engineer's own recommendations from a split note (CP-35 hand-off); sent only for OFI
+    # drafting, which bases its fix on them. Client text, so masked like the note.
+    recommendations: list[str] = []
 
     @field_validator("COPE_dimension", mode="before")
     @classmethod
