@@ -196,7 +196,13 @@ export function ObservationPage({
       {/* c. The cards: the left column never ends above Details (the Note card grows to it). */}
       <div className="cpp-body">
         <div className="cpp-main">
-          <ObservationNote key={o.key} note={o.detail ?? ''} canChange={o.canChange} save={save} />
+          <ObservationNote
+            key={o.key}
+            note={o.detail ?? ''}
+            canChange={o.canChange}
+            save={save}
+            reference={v.liveReference ?? undefined}
+          />
           {hasRecordings && <RecordingsCard o={o} phone={phone} playSample={v.playSampleAudio} />}
           <PhotosCard
             tiles={o.media.map((m) => ({

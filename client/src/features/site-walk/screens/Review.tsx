@@ -254,6 +254,7 @@ export function SiteWalkReview({
           {page ? (
             <ProposalPage
               key={page.ref}
+              reference={reference}
               proposal={p}
               observation={page}
               walk={r.walk!}

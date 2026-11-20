@@ -1,0 +1,23 @@
+/* The dictate button beside a text field (CP-27), and what went wrong under it. */
+.dictate {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* A failed step, as in design system v2: red icon and short problem, then the fix in grey. */
+.dictate__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-caption-size);
+  color: var(--graphite-600);
+}
+.dictate__note strong {
+  color: var(--red-600);
+  font-weight: 600;
+}
+.dictate__note .ds-icon {
+  color: var(--red-600);
+}

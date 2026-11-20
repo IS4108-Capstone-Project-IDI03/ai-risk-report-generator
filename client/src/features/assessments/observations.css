@@ -914,7 +914,8 @@
   font-weight: 600;
   color: var(--text-secondary);
 }
-.ob-section-head > span:first-child {
+.ob-section-head > span:first-child,
+.ob-section-label {
   flex: 1 1 auto;
 }
 .ob-line {

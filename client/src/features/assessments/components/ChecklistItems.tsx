@@ -996,6 +996,7 @@ export function ChecklistItems({
 
       {answeringItem && answering && (
         <AnswerDialog
+          reference={reference}
           kind={answeringItem.kind}
           item={answeringItem.item}
           place={answering.place}
