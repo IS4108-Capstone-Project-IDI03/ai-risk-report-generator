@@ -5,8 +5,9 @@
 // (screens/ObservationPage.tsx), and adding recordings and photos is AddMediaDialog.tsx. A failed save shows why and keeps what was typed
 // for another try (AC18), as the knowledge base's StatusChangeDialog does.
 // Opened by screens/Observations.tsx; the saves are in useAssessmentWorkflow.tsx.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Callout, Dialog, Textarea } from '../../../design-system'
+import { DictateButton } from '../dictation/DictateButton'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useSave } from './useSave'
 import '../capture.css'
@@ -14,11 +15,14 @@ import '../capture.css'
 type Props = { v: AssessmentWorkflow; dialog: NonNullable<AssessmentWorkflow['obsDialog']> }
 
 // Corrects a finished transcript (AC10): only the text to edit. The gateway
-// keeps what Whisper wrote, and drafting uses the correction.
+// keeps what Whisper wrote, and drafting uses the correction. It can be
+// dictated (CP-27), as when the engineer says again what the recording missed.
 export function TranscriptDialog({ v, dialog }: Props) {
   const recording = dialog.recording!
   const [text, setText] = useState(recording.text)
   const { busy, problem, run } = useSave()
+  // Holds the text box, for dictation to find: the shared Textarea takes no ref.
+  const box = useRef<HTMLDivElement>(null)
   return (
     <Dialog
       className="ds-dialog-sheet"
@@ -55,13 +59,22 @@ export function TranscriptDialog({ v, dialog }: Props) {
             </Callout>
           </div>
         )}
-        <Textarea
-          label="Transcript"
-          rows={8}
-          maxLength={20000}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
+        <div ref={box}>
+          <Textarea
+            label="Transcript"
+            rows={8}
+            maxLength={20000}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+        </div>
+        {v.liveReference && (
+          <DictateButton
+            reference={v.liveReference}
+            field={() => box.current?.querySelector('textarea')}
+            onChange={setText}
+          />
+        )}
       </div>
     </Dialog>
   )

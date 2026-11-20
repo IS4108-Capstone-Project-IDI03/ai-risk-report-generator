@@ -47,6 +47,7 @@ export function ProposalPage({
   onStep,
   onView,
   readOnly = false,
+  reference,
 }: {
   proposal: Proposal
   observation: ProposedObservation
@@ -63,6 +64,8 @@ export function ProposalPage({
   onView: (photo: ViewedPhoto) => void
   // Someone else's proposal (RV-11 AC2): every word shows, nothing can be changed.
   readOnly?: boolean
+  // The walk's assessment, so the note can be dictated into (CP-27).
+  reference?: string
 }) {
   const [edited, setEdited] = useState(false)
   // a. Its list's order (No location yet first, then each location; the
@@ -193,6 +196,7 @@ export function ProposalPage({
           <ObservationNote
             key={o.ref}
             live
+            reference={reference}
             note={o.note}
             canChange={!deleted && !readOnly}
             save={save}

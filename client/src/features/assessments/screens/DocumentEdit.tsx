@@ -5,6 +5,7 @@ import { Button, Callout, Dialog, IconRegistry, toast } from '../../../design-sy
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import type { AskDrafting } from '../ask/AskPanel'
+import { DictationScope } from '../dictation/scope'
 import { DocumentAsk } from '../ask/DocumentAsk'
 import { editorPassage, type AskPassage } from '../ask/passage'
 import { isAskShortcut } from '../ask/shortcut'
@@ -686,13 +687,16 @@ function DocumentBody({
                 </div>
                 {/* Open threads beside their text (RV-03 AC1). */}
                 {marginShown && (
-                  <CommentMargin
-                    editor={editor}
-                    comments={comments}
-                    me={me}
-                    canComment={canComment}
-                    actions={actions}
-                  />
+                  // Its comment boxes can be dictated into (CP-27).
+                  <DictationScope reference={reference}>
+                    <CommentMargin
+                      editor={editor}
+                      comments={comments}
+                      me={me}
+                      canComment={canComment}
+                      actions={actions}
+                    />
+                  </DictationScope>
                 )}
               </div>
             </div>
@@ -712,19 +716,21 @@ function DocumentBody({
             )}
             {/* The comments list (AC8), and threads where there is no margin. */}
             {comments.panel && (
-              <CommentsPanel
-                comments={comments}
-                parts={report.parts}
-                me={me}
-                canComment={canComment}
-                actions={actions}
-                marginShown={room}
-                overlay={!room}
-                onClose={() => {
-                  if (comments.active === DRAFT) comments.cancelDraft()
-                  comments.setPanel(null)
-                }}
-              />
+              <DictationScope reference={reference}>
+                <CommentsPanel
+                  comments={comments}
+                  parts={report.parts}
+                  me={me}
+                  canComment={canComment}
+                  actions={actions}
+                  marginShown={room}
+                  overlay={!room}
+                  onClose={() => {
+                    if (comments.active === DRAFT) comments.cancelDraft()
+                    comments.setPanel(null)
+                  }}
+                />
+              </DictationScope>
             )}
           </div>
         </section>

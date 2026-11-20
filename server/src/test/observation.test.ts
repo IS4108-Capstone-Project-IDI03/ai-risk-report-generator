@@ -554,7 +554,7 @@ describe('POST /api/observations/:id/recordings/:recordingId/transcription/retry
     expect(done.transcription.error).toBeUndefined()
     expect(done.transcription.attempts).toHaveLength(2)
     expect(done.transcription.attempts[1].finishedAt).toBeInstanceOf(Date)
-    expect(speech).toHaveBeenLastCalledWith({ s3_key: recording.key })
+    expect(speech).toHaveBeenLastCalledWith(expect.objectContaining({ s3_key: recording.key }))
   })
 
   it('fails a recording whose job cannot be queued, so Retry works', async () => {
@@ -2994,5 +2994,73 @@ describe('marking the area of a photo that matters (CP-10)', () => {
     expect((await unmark(id, photos[0].id)).status).toBe(409)
     const stored = await ObservationModel.findById(id).lean()
     expect(stored!.photos![0]).not.toHaveProperty('region')
+  })
+})
+
+describe('tidied transcripts (CP-27)', () => {
+  it('stores the tidy text as the transcript and keeps what Whisper heard as spoken', async () => {
+    speech.mockImplementation(() =>
+      s5(200, { transcript: 'The pump is wet.', spoken: 'Um, the the pump is wet.' }),
+    )
+    await assessmentWithSession()
+
+    const done = await settled((await save()).body.id)
+
+    expect(done.recordings[0].transcription).toMatchObject({
+      status: 'transcribed',
+      transcript: 'The pump is wet.',
+      spoken: 'Um, the the pump is wet.',
+    })
+  })
+
+  it("records the tidy model's call for the cost report", async () => {
+    speech.mockImplementation(() =>
+      s5(200, {
+        transcript: 'Fine.',
+        usage: [
+          {
+            feature: 'tidy-transcript',
+            billed_service: 'gemini-vision',
+            model: 'gemini-3.8-flash',
+            duration_ms: 400,
+            input_tokens: 120,
+            output_tokens: 30,
+            cache_read_tokens: null,
+            search_units: null,
+            audio_seconds: null,
+            usage_status: 'recorded',
+          },
+        ],
+      }),
+    )
+    await assessmentWithSession()
+
+    await settled((await save()).body.id)
+
+    expect(await AiCallModel.find({ feature: 'tidy-transcript' }).lean()).toEqual([
+      expect.objectContaining({ billedService: 'gemini-vision', reportId: 'RPT-2026-0411' }),
+    ])
+  })
+
+  it("sends S5 the assessment's privacy, so its tidy model only sees masked text", async () => {
+    const before = config.piiProtection
+    config.piiProtection = 'required'
+    try {
+      speech.mockImplementation(() => s5(200, { transcript: 'Fine.' }))
+      await assessmentWithSession()
+
+      await settled((await save()).body.id)
+
+      expect(speech.mock.calls[0][0]).toMatchObject({
+        privacy: {
+          enabled: true,
+          known_entities: expect.arrayContaining([
+            { type: 'CLIENT', names: expect.arrayContaining(['Northgate Logistics']) },
+          ]),
+        },
+      })
+    } finally {
+      config.piiProtection = before
+    }
   })
 })

@@ -661,10 +661,16 @@ severity, building (Elsewhere on site among them), level, location and status
 (Transcribing, Reading, To check, Transcription failed, Reading failed,
 Complete) in the browser, like the dashboard.
 
+A recording's `transcription.transcript` is S5's tidy text (CP-27: fillers,
+stumbles and taken-back words deleted, nothing reworded), and everything that
+reads a transcript reads it. `transcription.spoken` keeps Whisper's text as it
+came, as evidence of what was said; it is not shown. A recording transcribed
+before CP-27 has no `spoken`, and its `transcript` is Whisper's own.
+
 A finished transcript can be corrected (CP-08): the recording's
-`transcription.correction` holds `{ text, at, by }`, and `transcript` stays as
-Whisper wrote it, as evidence of what was said. Drafting uses the correction.
-Writing Whisper's words back removes it. Only a `transcribed` recording can be
+`transcription.correction` holds `{ text, at, by }`, and `transcript` and
+`spoken` stay as S5 wrote them. Drafting uses the correction.
+Writing the transcript's words back removes it. Only a `transcribed` recording can be
 corrected; one still transcribing, or failed, is refused (409).
 
 Deleting is a soft delete (CP-08): `deleted: { at, by }` is set, present only
@@ -920,7 +926,7 @@ none.
 | Route | Does |
 | --- | --- |
 | `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null`, `[]` or left out to leave it uncategorised for the AI to suggest), `severity` (optional the same way), `locationId` (required: one of the assessment's locations), optional `draftId` (a draft observation made by the draft route below, whose recordings it keeps; CP-24), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. When a photo was marked before saving (CP-10), one `photoRegion` part per `photo` part, in the same order: the mark as JSON `{ x, y, w, h }`, or empty for a photo not marked; none at all when no photo is marked. A mark that is not an area inside its photo, or a count that doesn't match the photos, is a 400 and nothing is stored. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, no location or one not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ photos }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until they are described, CP-05, CP-21, CP-24), its `suggestion` (`{ status, error, category, severity }`, each field `{ notSure }` or `null`, or `null` when nothing is suggested and nothing is running; CP-24) and `toCheck` (true when a category or severity is empty or not sure, or the suggestion failed), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation, and `severity` is `null` while empty. A draft observation is never listed. `?include=deleted` lists deleted ones too |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript`, tidied by S5 (CP-27), and any `correction`; `spoken` is not sent), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ photos }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until they are described, CP-05, CP-21, CP-24), its `suggestion` (`{ status, error, category, severity }`, each field `{ notSure }` or `null`, or `null` when nothing is suggested and nothing is running; CP-24) and `toCheck` (true when a category or severity is empty or not sure, or the suggestion failed), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation, and `severity` is `null` while empty. A draft observation is never listed. `?include=deleted` lists deleted ones too |
 | `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity` (`null` empties it), `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it), `note` (5,000 characters, stored as typed; `null` or blank removes it) and `confirm` (`["category"]`, `["severity"]` or both: keeps a suggested value as it is, CP-24). Sending a category or severity, or confirming it, makes it the engineer's and clears its `suggestion` entry, even for the same value. A changed note queues the reading job again (CP-24). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
@@ -1484,8 +1490,9 @@ Create all. Each document has:
   when `failed`.
 - `recordings[]`: `seq` (one per (walk, seq); a repeat upload changes nothing),
   `key` (S3), `contentType`, `size`, `durationSec`, and `transcription`
-  (`status`: `queued`, `transcribing`, `transcribed` or `failed`; `text`;
-  `segments`: Whisper's `[start, end, text]`; `attempts`; `error`).
+  (`status`: `queued`, `transcribing`, `transcribed` or `failed`; `text`, tidied by
+  S5 (CP-27); `spoken`, Whisper's own text kept as evidence, absent before CP-27;
+  `segments`: Whisper's `[start, end, text]`, each text tidied by rules; `attempts`; `error`).
 - `photos[]`: `photoId` (the client's UUID, so a repeat is recognised), `key`,
   `contentType`, `size`, `recordingSeq` and `offsetSec` (seconds into that
   recording; null if none), and `description` (S5's reading, set while the
@@ -1497,7 +1504,7 @@ Create all. Each document has:
   the proposal by hand (Add observation on the review reuses the Add manually
   screen): `mediaId` (the client's UUID; a repeat changes nothing), `kind`
   (`photo`, `page` or `voice`), `key`, `contentType`, `size`, and for a voice
-  clip `transcription` (`status`, `text`, `error`), transcribed on the
+  clip `transcription` (`status`, `text` (tidied), `spoken` (Whisper's, CP-27), `error`), transcribed on the
   `transcription` queue like a recording. Only while `ready` and Create all has
   not started. Absent on older walks.
 - `typedText`: the whole-walk text of walks made before notes existed. Read

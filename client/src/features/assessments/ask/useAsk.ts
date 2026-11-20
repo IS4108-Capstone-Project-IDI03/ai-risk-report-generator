@@ -423,6 +423,8 @@ export function useAsk(reference: string, enabled: boolean) {
   )
 
   return {
+    // The assessment asked about; the question box can be dictated into it (CP-27).
+    reference,
     items,
     scope,
     state,

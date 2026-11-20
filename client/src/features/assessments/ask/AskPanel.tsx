@@ -20,6 +20,7 @@ import { CitationMark } from '../components/CitationMark'
 import { useSave } from '../components/useSave'
 import { formatTimeOfDay } from '../format'
 import { excerpt, pageLocator, severityLabel } from '../reviewDisplay'
+import { DictateButton } from '../dictation/DictateButton'
 import type { AskCitation, AskConversation, AskStatement, Proposal } from './api'
 import { quotedWords, type AskPassage } from './passage'
 import type { AskItem, AskWorkflow } from './useAsk'
@@ -989,6 +990,16 @@ export function AskPanel({
             />
           </div>
           <div className="ask-composer-actions">
+            {!ask.busy && (
+              <DictateButton
+                reference={ask.reference}
+                field={() => box.current?.querySelector('textarea')}
+                onChange={(text) => {
+                  setQuestion(text)
+                  if (problem) setProblem(null)
+                }}
+              />
+            )}
             <span className="rv-muted ask-hint">
               {rewriting
                 ? 'Enter to rewrite, Shift+Enter for a new line'

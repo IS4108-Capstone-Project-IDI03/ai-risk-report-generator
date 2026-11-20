@@ -218,7 +218,13 @@ export function SiteWalkRecording({
             onAdd={pickPhotos}
             onRemove={(id) => w.remove({ kind: 'photo', id })}
           />
-          <NoteComposer value={note} onChange={type} onAdd={() => void addNote()} />
+          <NoteComposer
+            value={note}
+            onChange={type}
+            onAdd={() => void addNote()}
+            // The walk's own recording already hears what is said while it runs.
+            reference={rec.phase === 'recording' ? undefined : reference}
+          />
         </div>
         <WalkList
           items={w.items}

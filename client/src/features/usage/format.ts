@@ -8,6 +8,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'draft-section': 'Drafting',
   retrieval: 'Retrieval (search)',
   transcribe: 'Voice transcription',
+  // Taking a self-correction's abandoned half out of a transcript (CP-27).
+  'tidy-transcript': 'Transcript tidying',
   'transcribe-handwriting': 'Handwriting transcription',
   'label-document': 'Document labelling',
   // Kept as `interpret-photo` so earlier readings stay on one line (CP-21):

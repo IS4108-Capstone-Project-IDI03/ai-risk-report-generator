@@ -325,6 +325,17 @@
   color: var(--marsh-navy);
   font: 700 16px/1.3 var(--font-sans);
 }
+/* A card title with a control at its right (the Note card's Dictate button, CP-27). */
+.cpp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.cpp-card-head .cpp-card-title {
+  margin: 0;
+}
 /* The note's text box fills the card, as tall as its words (three lines at least). */
 .cpp-card textarea {
   width: 100%;

@@ -8,6 +8,8 @@ export const AI_FEATURES = [
   'draft-section',
   'retrieval',
   'transcribe',
+  // S5's model pass over a transcript, taking a self-correction's abandoned half out (CP-27).
+  'tidy-transcript',
   // A handwritten note page (CP-19), read by S5's handwriting provider.
   'transcribe-handwriting',
   'label-document',

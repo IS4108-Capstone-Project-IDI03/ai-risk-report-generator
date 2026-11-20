@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
+import { config } from '../config'
 import { resetChatLimits } from '../services/chat-limits.service'
 import { signedInAsRole } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
@@ -61,5 +62,21 @@ describe('ask by voice (CB-10)', () => {
     s5Says(Response.json({ detail: 'down' }, { status: 503 }))
     const res = await send(Buffer.from('fake-audio'))
     expect(res.status).toBe(503)
+  })
+})
+
+describe('tidied spoken questions (CP-27)', () => {
+  it("sends the chat's privacy, so S5's tidy model only sees masked text", async () => {
+    const before = config.piiProtection
+    config.piiProtection = 'required'
+    try {
+      const calls = s5Says(Response.json({ transcript: 'What density?', usage: [] }))
+      await send(Buffer.from('fake-audio'))
+      expect(calls[0].body).toMatchObject({
+        privacy: { enabled: true, known_entities: expect.any(Array) },
+      })
+    } finally {
+      config.piiProtection = before
+    }
   })
 })
