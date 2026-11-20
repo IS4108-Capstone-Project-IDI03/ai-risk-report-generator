@@ -42,7 +42,7 @@ QUEUE = "ingestion"  # must match server/src/services/ingestion-queue.service.ts
 log = logging.getLogger("ingestion-worker")
 
 # Failure reasons the admin sees in Recent uploads. Plain words, cause then next
-# step (docs/design-system-v2.md "Content fundamentals"); the technical error goes to the log.
+# step (docs/areas/design-system-v2.md "Content fundamentals"); the technical error goes to the log.
 UNREADABLE = "No text could be read from this PDF. Upload a copy with selectable text."
 SYSTEM_ERROR = "Processing stopped on a system error, not a fault in the file. Upload it again."
 TIMED_OUT = (

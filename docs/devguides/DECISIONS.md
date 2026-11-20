@@ -61,7 +61,7 @@ implements the requested Cohere/Chroma setup and replaces the planned Atlas
 Vector Search role. MongoDB retains application records; S3 retains original
 files. Use direct SDK calls inside existing services, without an additional
 retrieval service or framework. Raw-file processing and report generation remain
-separate unfinished work. See `docs/guides/COHERE_CHROMA.md`.
+separate unfinished work. See `docs/devguides/COHERE_CHROMA.md`.
 
 ## 2026-09-23 — Server tests run against an in-memory mongod
 

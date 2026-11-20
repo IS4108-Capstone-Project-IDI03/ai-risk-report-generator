@@ -47,7 +47,7 @@
 Ingestion and RAG connect to one Chroma database. `CHROMA_MODE=local` uses
 the local HTTP server; `CHROMA_MODE=cloud` uses Chroma Cloud with
 `CHROMA_API_KEY`, `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_CLOUD_HOST`.
-See [team setup](../guides/COHERE_CHROMA.md#shared-chroma-cloud-for-the-team). Docker persists its data in
+See [team setup](../devguides/COHERE_CHROMA.md#shared-chroma-cloud-for-the-team). Docker persists its data in
 `chroma-data:/data`; `docker compose down` keeps it, `down -v` deletes it.
 The Chroma server and Python HTTP clients are pinned to 1.5.5.
 

@@ -5,7 +5,7 @@
 >
 > **Read this when:** you set up a new machine or something will not start.
 >
-> **Deeper:** `docs/guides/COHERE_CHROMA.md` for the search keys and the vector database.
+> **Deeper:** `docs/devguides/COHERE_CHROMA.md` for the search keys and the vector database.
 
 **Contents**
 

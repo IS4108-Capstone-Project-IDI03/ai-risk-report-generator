@@ -1,4 +1,4 @@
-/* Usage and costs screen (EV-04). Tokens only; see docs/design-system-v2.md. */
+/* Usage and costs screen (EV-04). Tokens only; see docs/areas/design-system-v2.md. */
 .uc {
   display: flex;
   flex-direction: column;

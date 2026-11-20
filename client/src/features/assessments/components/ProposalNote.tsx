@@ -20,7 +20,7 @@ export function ProposalNote({
         </Badge>{' '}
         Figures marked in violet were proposed by {proposal.provenance.model} from the observations
         and drafted sections. Check each one: nothing is computed until you confirm.
-        {/* The eval found proposals run below Marsh's figures (docs/DECISIONS.md, 20 Oct). */}{' '}
+        {/* The eval found proposals run below Marsh's figures (docs/devguides/DECISIONS.md, 20 Oct). */}{' '}
         Proposals tend to score low: compare each with your own judgement.
       </p>
       {reasons.length > 0 && (

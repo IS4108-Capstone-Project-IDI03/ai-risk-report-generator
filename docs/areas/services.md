@@ -511,7 +511,7 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   first. LaTeX KaTeX rejects, and a formula holding the quoted words, show as written.
   A formula ingestion didn't recognise is stored as plain text and stays so.
 
-See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
+See the Redis/BullMQ decision in [DECISIONS](../devguides/DECISIONS.md).
 
 ## Automatic labelling (IN-05)
 
@@ -555,7 +555,7 @@ through Edit details (KB-01).
 
 The model choice and `LABEL_MIN_CONFIDENCE` come from the evaluation in
 `microservices/ingestion-service/eval/labelling/` (run by hand: it calls paid
-APIs). See [DECISIONS](../DECISIONS.md).
+APIs). See [DECISIONS](../devguides/DECISIONS.md).
 
 ## Matching: duplicates and newer editions (IN-07)
 
@@ -603,7 +603,7 @@ never gets this far: the gateway rejects it at upload.
 Both numbers are env settings (`.env.example`), set by
 `microservices/ingestion-service/eval/matching/results/2026-10-08.md`: at 0.90
 every copy shares at least 83% of its passages and no non-copy more than 33%,
-so 0.58 sits in the middle of a 50-point gap. See [DECISIONS](../DECISIONS.md).
+so 0.58 sits in the middle of a 50-point gap. See [DECISIONS](../devguides/DECISIONS.md).
 
 Ingestion service endpoints for IN-07, all behind the gateway (the gateway never
 reads Chroma):
@@ -1309,7 +1309,7 @@ tuned on the tuning packs only. rag 502 for any other AI failure.
 
 **Evaluation** (`eval/client_intake/`): synthetic client packs built from the
 sample reports, scored against their answer keys in code, with a tuning set and a
-held-out set. See the CP-23 entry in [DECISIONS](../DECISIONS.md) for the results.
+held-out set. See the CP-23 entry in [DECISIONS](../devguides/DECISIONS.md) for the results.
 It is paid, so run it by hand from `microservices/rag-service`; the scoring is
 unit-tested in `tests/test_client_intake_eval.py`.
 
@@ -1975,7 +1975,7 @@ A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`
   - **Period:** `7d` and `30d` count back from now; `month` starts at 00:00 on the 1st in Singapore (UTC+8, no daylight saving); `all` has no limit.
   - **`engineer`:** only the calls attributed to that engineer, for when their bar is chosen.
   - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
-- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../guides/RUNNING.md) §5.
+- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../devguides/RUNNING.md) §5.
 
 
 ## Who is told what (F-10, RV-11)

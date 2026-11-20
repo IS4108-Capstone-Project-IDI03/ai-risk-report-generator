@@ -71,7 +71,7 @@ There is no router library. The URL path is the router, done by hand:
 
 ## Design system
 
-`src/design-system/` holds the shared controls (Button, Input, Select, Dialog, Table, Tabs, SideNav, Toaster and more) and CSS tokens. Rule: import from `design-system` (`index.ts`), reuse an existing component before making a new one, and colour only with the CSS variables. A control that knows its domain stays in its feature folder. Look and feel rules are in `docs/design-system-v2.md`.
+`src/design-system/` holds the shared controls (Button, Input, Select, Dialog, Table, Tabs, SideNav, Toaster and more) and CSS tokens. Rule: import from `design-system` (`index.ts`), reuse an existing component before making a new one, and colour only with the CSS variables. A control that knows its domain stays in its feature folder. Look and feel rules are in `docs/areas/design-system-v2.md`.
 
 ## Configuration
 
@@ -111,4 +111,4 @@ Tests: Vitest plus Testing Library, files named `*.test.ts(x)` next to the code.
 ## Deeper docs
 
 - [UI conventions](../docs/areas/ui.md)
-- [Design system v2](../docs/design-system-v2.md)
+- [Design system v2](../docs/areas/design-system-v2.md)

@@ -1,7 +1,7 @@
 # User stories backlog
 
 <!-- at-a-glance -->
-> **In 30 seconds:** the product backlog, grouped into epics. A story is ticked when it is merged to `main`. The team's Google Sheet is the source of truth; this file is a checkable snapshot.
+> **In 30 seconds:** the product backlog, grouped into epics. A story is ticked when it is accepted in a sprint review. Source for sprints 1 to 5: the *Finalised and Completed User Stories* sheet. Delivered stories missing from the epics are listed at the end.
 >
 > **Read this when:** you look for a story, its acceptance criteria, or what is still open.
 
@@ -9,19 +9,19 @@
 
 | Epic | Done | Open |
 |---|---|---|
-| [E1 — Foundations & DevOps](#e1--foundations--devops) | 4 | 4 |
-| [E2 — Ingestion & Processing](#e2--ingestion--processing) | 1 | 13 |
-| [E3 — Knowledge Base & Online RAG Pipeline](#e3--knowledge-base--online-rag-pipeline) | 0 | 2 |
+| [E1 — Foundations & DevOps](#e1--foundations--devops) | 8 | 0 |
+| [E2 — Ingestion & Processing](#e2--ingestion--processing) | 12 | 2 |
+| [E3 — Knowledge Base & Online RAG Pipeline](#e3--knowledge-base--online-rag-pipeline) | 2 | 0 |
 | [E4 — Retrieval & Context Management](#e4--retrieval--context-management) | 0 | 3 |
-| [E5 — Multimodal Capture](#e5--multimodal-capture) | 5 | 27 |
-| [E6 — Report Generation & Guardrails](#e6--report-generation--guardrails) | 0 | 9 |
-| [E7 — Engineer Review & Editing](#e7--engineer-review--editing) | 1 | 14 |
-| [E8 — Evaluation Harness](#e8--evaluation-harness) | 0 | 4 |
-| [E9 — Knowledge Base Chatbot](#e9--knowledge-base-chatbot) | 0 | 6 |
-| [E10 — Export & Handover](#e10--export--handover) | 0 | 1 |
+| [E5 — Multimodal Capture](#e5--multimodal-capture) | 21 | 11 |
+| [E6 — Report Generation & Guardrails](#e6--report-generation--guardrails) | 6 | 3 |
+| [E7 — Engineer Review & Editing](#e7--engineer-review--editing) | 11 | 4 |
+| [E8 — Evaluation Harness](#e8--evaluation-harness) | 3 | 1 |
+| [E9 — Knowledge Base Chatbot](#e9--knowledge-base-chatbot) | 5 | 1 |
+| [E10 — Export & Handover](#e10--export--handover) | 1 | 0 |
 <!-- /at-a-glance -->
 
-Full product backlog, carried over from planning. Tick a story's checkbox when it's merged to `main`, not just coded — matches how `docs/DECISIONS.md` only records what actually landed. Acceptance criteria are kept in full underneath each story so a story can be closed against them without hunting for the original source.
+Full product backlog, carried over from planning. A story counts as done when it is accepted, not just coded — matches how `docs/devguides/DECISIONS.md` only records what actually landed. Acceptance criteria are kept in full underneath each story so a story can be closed against them without hunting for the original source.
 
 ## E1 — Foundations & DevOps
 
@@ -65,7 +65,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given invalid profile edit input, when I save it, then the form identifies the invalid field.
   </details>
 
-- [ ] **F-04** — Log in to the application (knowledge admin or risk engineer, Must, 2 pts, deps: none, Sprint 1)
+- [x] **F-04** — Log in to the application (knowledge admin or risk engineer, Must, 2 pts, deps: none, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: log in with registered credentials, so the workspace assigned to the account is reachable.
@@ -90,7 +90,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a user lacks permission, when a restricted API operation is requested, then the API returns HTTP 403.
   </details>
 
-- [ ] **F-06** — Reset a forgotten password (knowledge admin or risk engineer, Must, 3 pts, deps: F-04, Sprint 1)
+- [x] **F-06** — Reset a forgotten password (knowledge admin or risk engineer, Must, 3 pts, deps: F-04, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: reset a password using an emailed link, so access to an existing account can be recovered.
@@ -103,7 +103,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a reset is requested for an address that is not registered, when the request is submitted, then the response is identical to a successful request.
   </details>
 
-- [ ] **F-07** — Log out from session manually or after inactivity (knowledge admin or risk engineer, Must, 2 pts, deps: F-04, Sprint 1)
+- [x] **F-07** — Log out from session manually or after inactivity (knowledge admin or risk engineer, Must, 2 pts, deps: F-04, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: a session ends on logout, and automatically after inactivity, so an account isn't left open on a shared machine.
@@ -114,7 +114,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given an authenticated session, when the user selects the logout option, then the session is terminated and the user is redirected to the login screen.
   </details>
 
-- [ ] **F-08** — Create new employee accounts (knowledge admin, deps: F-03, F-05)
+- [x] **F-08** — Create new employee accounts (knowledge admin, deps: F-03, F-05)
   <details><summary>Goal / AC</summary>
 
   Goal: add a team member's account (name, work email, role and optional profile details) from the User accounts screen, and email the new employee an invitation to set their own password, so account records stay clean and unique and assessments and other records can reliably refer to them.
@@ -145,7 +145,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given I have uploaded documents, when I return to the upload screen, then I see the ingestion status of each document still in progress or finished recently.
   </details>
 
-- [ ] **IN-02** — Detect duplicate and overlapping documents on upload (knowledge admin, Could, 3 pts, deps: IN-01, Sprint 4)
+- [x] **IN-02** — Detect duplicate and overlapping documents on upload (knowledge admin, Could, 3 pts, deps: IN-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: be warned when a document substantially repeats something already stored, so the same passage doesn't crowd out other relevant sources.
@@ -155,7 +155,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given an uploaded document shares its title and issuing authority with a stored document but carries a different edition, when it is processed, then it is flagged as a candidate later edition of that document.
   </details>
 
-- [ ] **IN-03** — Extract structured tables across document pages (risk engineer, Must, 3 pts, deps: IN-01, Sprint 1)
+- [x] **IN-03** — Extract structured tables across document pages (risk engineer, Must, 3 pts, deps: IN-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: preserve the structure of extracted document tables, so table values keep their meaning.
@@ -166,7 +166,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a labelled sample of tables, when extraction runs against it, then the proportion of cells with correct header associations meets the agreed threshold.
   </details>
 
-- [ ] **IN-03** — Resolve flagged overlapping documents and superseded editions (knowledge admin, Could, 3 pts, deps: IN-02, Sprint 4)
+- [x] **IN-03** — Resolve flagged overlapping documents and superseded editions (knowledge admin, Could, 3 pts, deps: IN-02, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: choose how a flagged overlapping document is handled, so control over published sources and current editions stays with the admin.
@@ -180,7 +180,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given an overlapping document has no resolution, when I view the knowledge base, then it is labelled Awaiting resolution instead of Published.
   </details>
 
-- [ ] **IN-04** — Parse report heading structure with source locations (risk engineer, Must, 5 pts, deps: IN-01, Sprint 1)
+- [x] **IN-04** — Parse report heading structure with source locations (risk engineer, Must, 5 pts, deps: IN-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: keep section structure and page locations when parsing reports, so a finding can point to a precise, verifiable source location.
@@ -193,7 +193,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a benchmark run completes, when the result is stored, then it can be compared against previous runs.
   </details>
 
-- [ ] **IN-04** — Extract text from scanned document pages (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 3)
+- [x] **IN-04** — Extract text from scanned document pages (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: ingest scanned or photographed pages, so image-based archive material can be used by the knowledge base.
@@ -203,7 +203,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given OCR output for a page falls below the agreed confidence threshold, when processing finishes, then the page is marked "OCR review needed" and that status shows on the document's ingestion status view.
   </details>
 
-- [ ] **IN-05** — Assign document classifications automatically (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 4)
+- [x] **IN-05** — Assign document classifications automatically (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: assign document properties automatically on ingestion, so documents don't need labelling by hand.
@@ -213,7 +213,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given classification evaluation completes, when I inspect its results, then the evaluated document set is identified.
   </details>
 
-- [ ] **IN-06** — Confirm or correct auto-assigned document labels (knowledge admin, Should, 2 pts, deps: IN-05, Sprint 4)
+- [x] **IN-06** — Confirm or correct auto-assigned document labels (knowledge admin, Should, 2 pts, deps: IN-05, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: confirm or amend system-assigned labels before a document is treated as classified, so a wrong automatic classification never silently becomes the label.
@@ -226,7 +226,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a document's labels have been confirmed, when a matching filtered search runs, then the document is returned.
   </details>
 
-- [ ] **IN-07** — Inspect ingestion stages with elapsed time (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 3)
+- [x] **IN-07** — Inspect ingestion stages with elapsed time (knowledge admin, Should, 3 pts, deps: IN-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: see each document's current ingestion stage, so active processing can be distinguished from completed content.
@@ -247,12 +247,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a failed document has retained processing state, when I select Retry, then processing resumes from the failed stage without resubmitting the document.
   </details>
 
-- [ ] **IN-13** — Interpret photos and images in documents with their context (risk engineer, deps: IN-01, IN-03)
+- [x] **IN-13** — Interpret photos and images in documents with their context (risk engineer, deps: IN-01, IN-03)
   <details><summary>Goal / AC</summary>
 
   Goal: interpret and extract the photos and images embedded in documents with their contextual meaning, so visual evidence or references retain their meaning.
 
-  Ingestion reads each picture Docling locates with the table/formula OCR provider (`OCR_PROVIDER`), using rules taken from S5's photo reader (CP-05). Under GLM pictures are left unread. The description is searchable but labelled as generated. See `docs/DECISIONS.md` (2026-10-17, pictures).
+  Ingestion reads each picture Docling locates with the table/formula OCR provider (`OCR_PROVIDER`), using rules taken from S5's photo reader (CP-05). Under GLM pictures are left unread. The description is searchable but labelled as generated. See `docs/devguides/DECISIONS.md` (2026-10-17, pictures).
 
   1. Given a document contains a photo or image within a known bounding box, when extraction runs, then the image is identified and its visual content is described in a structured textual representation that preserves its relevant meaning.
   2. Given an image appears alongside a caption, label, or explanatory text, when extraction completes, then the image description retains its association with that text and the relevant surrounding document content.
@@ -275,7 +275,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a passage is plain text, when it is ingested, then it records no region.
   </details>
 
-- [ ] **IN-17** — Browse the knowledge base and its passages (risk engineer, Should, deps: KB-01, IN-07)
+- [x] **IN-17** — Browse the knowledge base and its passages (risk engineer, Should, deps: KB-01, IN-07)
   <details><summary>Goal / AC</summary>
 
   Goal: see which documents the knowledge base holds and the passages search draws from, so I can judge what an answer or a draft rests on.
@@ -298,12 +298,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   14. Given I am a knowledge admin, when I use the Knowledge base, then everything KB-01 and IN-07 give me is unchanged, and I can open passages too.
   </details>
 
-- [ ] **IN-18** — Enter a standard clause by clause when no PDF is available (knowledge admin, Should, deps: IN-07, IN-17, KB-02)
+- [x] **IN-18** — Enter a standard clause by clause when no PDF is available (knowledge admin, Should, deps: IN-07, IN-17, KB-02)
   <details><summary>Goal / AC</summary>
 
   Goal: enter a standard that can only be read online (such as a new NFPA edition) clause by clause, with screenshots of its tables, formulas and figures, so search and reports can use it before its PDF exists, and replace it with the PDF when that arrives.
 
-  Only standards (FM, NFPA, local) can be entered this way, and only by a knowledge admin (`knowledge:manage`). A manual document's clauses can be amended later; an uploaded PDF's passages stay read-only (IN-17). Check the publisher's terms before transcribing a standard: a free online view may forbid copying. See `docs/areas/services.md` (Entering a standard by hand) and `docs/DECISIONS.md` (2026-11-20).
+  Only standards (FM, NFPA, local) can be entered this way, and only by a knowledge admin (`knowledge:manage`). A manual document's clauses can be amended later; an uploaded PDF's passages stay read-only (IN-17). Check the publisher's terms before transcribing a standard: a free online view may forbid copying. See `docs/areas/services.md` (Entering a standard by hand) and `docs/devguides/DECISIONS.md` (2026-11-20).
 
   1. Given I am a knowledge admin on Add documents, when I choose "No PDF? Enter it manually" and give a standard's details, then a draft is created with no file and the clause editor opens; a past report can't be entered this way.
   2. Given a draft or published manual entry of the same standard and edition exists, when I start another, then it is refused, naming the existing entry, with Continue editing to open it.
@@ -324,7 +324,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E3 — Knowledge Base & Online RAG Pipeline
 
-- [ ] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)
+- [x] **KB-01** — Correct or withdraw knowledge base documents (knowledge admin, Must, 8 pts, deps: IN-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 
   Goal: correct or withdraw documents in the knowledge base, so searches and reports only use correctly labelled, current documents.
@@ -346,12 +346,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   15. Given a document is withdrawn, when I view it, then I can't edit its details.
   </details>
 
-- [ ] **KB-02** — See the original table, formula or picture behind a cited passage (risk engineer, Should, 5 pts, deps: CB-02, RV-01, IN-13)
+- [x] **KB-02** — See the original table, formula or picture behind a cited passage (risk engineer, Should, 5 pts, deps: CB-02, RV-01, IN-13)
   <details><summary>Goal / AC</summary>
 
   Goal: see the cited region of the original document beside the passage text, so a number read from a table or formula, or a description of a picture, can be checked against the source.
 
-  Covers the chat's Passage tab and the review workspace's source panel. A table or formula shows its region only once ingestion records it (IN-__); until then it shows as text. A described picture's own boxes stand in for its region. See `docs/DECISIONS.md` (2026-11-12, cited regions).
+  Covers the chat's Passage tab and the review workspace's source panel. A table or formula shows its region only once ingestion records it (IN-__); until then it shows as text. A described picture's own boxes stand in for its region. See `docs/devguides/DECISIONS.md` (2026-11-12, cited regions).
 
   1. Given a cited passage records a table, formula or picture region, when its source opens in the chat or the review workspace, then that region of the original page is shown above the passage text.
   2. Given a cited picture passage has a generated description but no recorded region, when its source opens, then the picture's own location is shown as its region.
@@ -445,7 +445,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   8. Given microphone permission is denied, when recording is requested, then a permission message is displayed.
   </details>
 
-- [ ] **CP-04** — Capture a site photograph (risk engineer, Must, 1 pt, deps: CP-01, Sprint 2)
+- [x] **CP-04** — Capture a site photograph (risk engineer, Must, 1 pt, deps: CP-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: attach a photograph to an assessment, so visual evidence for a finding is retained.
@@ -463,7 +463,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Goal: receive a proposed observation from a site photograph, so a draft description of the visible hazard can be reviewed.
 
-  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. It reads them only when an engineer asks (Read photos), never on save. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/DECISIONS.md` (2026-10-08, both photo entries).
+  S5 reads all of an observation's photos together with Gemini, as one interpretation per observation, and proposes a description, a COPE category and a hazard type. It reads them only when an engineer asks (Read photos), never on save. The proposal is never drafting evidence: the engineer takes it into the note or category through Edit (Use as note, Change category). See `docs/devguides/DECISIONS.md` (2026-10-08, both photo entries).
 
   1. Given an observation has supported photographs, when the engineer asks for them to be read, then one vision job covering all of its photographs is queued. (Reworded 8 Oct 2026: it was queued automatically on save.)
   2. Given an active vision job, when the photo observation is opened, then its status is Interpreting.
@@ -474,7 +474,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given an observation's photographs are saved, when the save completes, then none is sent for interpretation until the engineer asks. (Added 8 Oct 2026.)
   </details>
 
-- **CP-06** — Tag an observation: merged into CP-08 on 2026-10-07 (its AC1-AC3 are CP-08 AC6, AC3 and AC7). See `docs/DECISIONS.md`.
+- **CP-06** — Tag an observation: merged into CP-08 on 2026-10-07 (its AC1-AC3 are CP-08 AC6, AC3 and AC7). See `docs/devguides/DECISIONS.md`.
 
 - [ ] **CP-07** — Extract structured fields from a voice transcript (risk engineer, Must, 3 pts, deps: CP-03, Sprint 2)
   <details><summary>Goal / AC</summary>
@@ -487,7 +487,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a proposed field value, when the engineer saves a correction before use, then the corrected value is used by the observation.
   </details>
 
-- [ ] **CP-08** — Manage captured observations (risk engineer, Must, 8 pts, deps: CP-02, CP-03, CP-15, GN-01, Sprint 2; CP-06 merged in)
+- [x] **CP-08** — Manage captured observations (risk engineer, Must, 8 pts, deps: CP-02, CP-03, CP-15, GN-01, Sprint 2; CP-06 merged in)
   <details><summary>Goal / AC</summary>
 
   Goal: view, filter, tag, correct and remove the observations captured for an assessment, so report drafting works from evidence that is accurate, consistently labelled and traceable to what each draft used.
@@ -513,7 +513,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   17. Given I am not the assigned engineer, or the assessment is archived, when I try to change an observation, then the change is refused.
   18. Given a save fails, when the error is shown, then my changes are kept so I can try again.
 
-  Added 8 Oct 2026 (adding and removing recordings and photos; see `docs/DECISIONS.md`):
+  Added 8 Oct 2026 (adding and removing recordings and photos; see `docs/devguides/DECISIONS.md`):
 
   19. Given an observation is saved, when I add recordings or photos to it, then each is stored as raw evidence with it, and each recording is transcribed.
   20. Given I remove a recording or photo, when I view the observation, then it is listed as removed with who removed it and when, and drafting and the photo collection no longer use it.
@@ -531,7 +531,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   2. Given a photo observation, when its evidence view is opened, then the original photograph is displayed beside its description.
   </details>
 
-- [ ] **CP-10** — Annotate/amend the description of a site photograph (risk engineer, Should, 2 pts, deps: CP-04, Sprint 2)
+- [x] **CP-10** — Annotate/amend the description of a site photograph (risk engineer, Should, 2 pts, deps: CP-04, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: mark the hazard on a site photograph, so the AI reading of it describes the detail observed.
@@ -542,7 +542,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a saved annotation, when the raw photo is opened, then the original image remains unchanged.
   </details>
 
-- [ ] **CP-12** — See every voice recording of an assessment (risk engineer, Could, 3 pts, deps: CP-03, CP-08, CP-22, Sprint 5)
+- [x] **CP-12** — See every voice recording of an assessment (risk engineer, Could, 3 pts, deps: CP-03, CP-08, CP-22, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: see and play every voice recording of an assessment in one place, as All Photos and All Handwritten Pages show theirs, so I can find a voice recording without knowing which observation holds it, and catch one that failed to transcribe.
@@ -574,7 +574,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting or removing a voice recording (on its observation's page, CP-08); a site walk proposal's voice recordings (its walk list already holds them); a length column (voice recordings store no length; see DECISIONS); text that follows along with playback (needs timestamps). All Photos and All Handwritten Pages were given the same line and text toggle alongside it, counted in CP-13 (CP-04 AC3, CP-19 AC17).
   </details>
 
-- [ ] **CP-13** — Search and filter the evidence of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5)
+- [x] **CP-13** — Search and filter the evidence of an assessment (risk engineer, Could, 5 pts, deps: CP-12, CP-19, CP-21, CP-22, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: read, search and filter an assessment's voice recordings, handwritten pages and photos, so I can find where I recorded, wrote or photographed something, and what still needs a look, without opening each observation.
@@ -624,7 +624,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   23. Given another engineer's assessment that I can open, when I search or filter its views or its Observations tab, then they work as on my own.
   </details>
 
-- [ ] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
+- [x] **CP-30** — Generate a pre-survey checklist (risk engineer, Could, 8 pts, deps: KB-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: have a checklist generated for my site's facility type, built from Marsh's report template and the knowledge base's standards, so I know what to inspect before I arrive, including the risks specific to that kind of facility.
@@ -659,12 +659,12 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   9. Given the site's facility type or country has changed since the checklist was generated, when I open it, then I am told it is out of date and to regenerate it.
   </details>
 
-- [ ] **CP-31** — Verify checklist items on site (risk engineer, Could, 5 pts, deps: CP-30, CP-08, CP-16, Sprint 4)
+- [x] **CP-31** — Verify checklist items on site (risk engineer, Could, 5 pts, deps: CP-30, CP-08, CP-16, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: confirm or correct each checklist item as I walk the site, with my answer saved as an observation, so the checklist guides what I observe, and my findings reach the report without my capturing each one from scratch.
 
-  Built on `feat/xuren-cp-31-verify-checklist`. The checklist is shown and answered the same way on the Checklist tab and from capture; on the tab, the answer box asks where. Until CP-34 pre-fills a value, Confirm opens a short note filled in from the item, with the severity to choose, and Differs records what was seen in the same box (decided 31 Oct 2026; see `docs/DECISIONS.md`).
+  Built on `feat/xuren-cp-31-verify-checklist`. The checklist is shown and answered the same way on the Checklist tab and from capture; on the tab, the answer box asks where. Until CP-34 pre-fills a value, Confirm opens a short note filled in from the item, with the severity to choose, and Differs records what was seen in the same box (decided 31 Oct 2026; see `docs/devguides/DECISIONS.md`).
 
   Using the checklist on site
 
@@ -687,7 +687,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   8. Given I am not the assigned engineer, or the assessment is archived, when I check an item, then it is refused.
   </details>
 
-- [ ] **CP-32** — Customise the checklist (risk engineer, Could, 5 pts, deps: CP-30, CP-31, Sprint 5)
+- [x] **CP-32** — Customise the checklist (risk engineer, Could, 5 pts, deps: CP-30, CP-31, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: add, edit and remove the items of a generated checklist, change their references, and take a copy on site, so my site visit checklist reflects the planned inspection.
@@ -819,7 +819,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   9. Given a likely typo in a level, building or location name, when a location is saved, then the app suggests the correct name and the engineer can use it or keep theirs (e.g. Blcok A → Block A), to prevent references to the same location being saved differently.
   </details>
 
-- [ ] **CP-17** — Manage clients and sites in the Client-Site-Assessment hierarchy (risk engineer, Should, 5→8 pts, deps: CP-01, CP-16, RV-10, Sprint 4)
+- [x] **CP-17** — Manage clients and sites in the Client-Site-Assessment hierarchy (risk engineer, Should, 5→8 pts, deps: CP-01, CP-16, RV-10, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: link, add, edit, group, view and check the clients, sites and visits of my assessments in the Client-Site-Assessment hierarchy, so each repeat visit to a facility starts from the buildings, levels and locations already recorded there.
@@ -851,7 +851,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given a likely typo of a recorded client or one of the client's sites, when it is added, then the app suggests the recorded name and the engineer can use it or keep theirs (e.g. Northgate Logistic → Northgate Logistics), to prevent the same client or site being saved differently.
   </details>
 
-- [ ] **CP-18** — Manage a client and its sites (risk engineer, Must, 8 pts, deps: CP-17, RV-10, CP-08, Sprint 4; correcting split out to CP-28 on 2026-11-06)
+- [x] **CP-18** — Manage a client and its sites (risk engineer, Must, 8 pts, deps: CP-17, RV-10, CP-08, Sprint 4; correcting split out to CP-28 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
   Goal: view, filter, remove and restore a client I survey and its sites, from the client's page, so my work for a client is in one place and what I no longer survey is out of the way. "Mine" means assigned to me now; a client or site is removed or restored only when every assessment it has, archived or not, is mine and none is finalised.
@@ -883,7 +883,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting a client's or site's details, or a visit's own (CP-28); the knowledge admin's view of every engineer's visits, and merging (CP-44); permanently deleting (rejected, see DECISIONS).
   </details>
 
-- [ ] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
+- [x] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
   Goal: correct a client's name, a site's details and a visit's own details, so they are right in one place and drafting, checklists and reports use them. "Mine" means assigned to me now; a client or site is corrected only when every assessment it has, archived or not, is mine and none is finalised.
@@ -909,7 +909,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: renaming a client or changing a site another engineer's assessment uses, and merging (CP-44); moving a site to another client (rejected, see DECISIONS); marking OFIs out of date when a site's scope changes.
   </details>
 
-- [ ] **CP-29** — Insights tab on the client page (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
+- [x] **CP-29** — Insights tab on the client page (risk engineer, 8 pts, deps: CP-18, CP-23, CP-08, GN-05, GN-03, RV-11, PV-02, EV-03, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: an Insights tab on each client's page that analyses its sites, so I can see where the risk is, which sites need attention and whether they are getting better, without opening every assessment.
@@ -948,7 +948,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 15 Nov 2026 (DECISIONS 2026-11-15). The figures and every sentence but the summary are counted and worded by the gateway (`insights-v1`); only the summary asks a model (`cp29-v1`). Not in this story: findings recurring across sites from checklist answers, the weakest Section 4 categories across sites, and loss expectancy before and after the OFIs (a follow-up); an evaluation set for the summary; a knowledge admin's cross-engineer management of clients (CP-44).
   </details>
 
-- [ ] **CP-60** — Survey and deadline calendar: my whole workload on one screen (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
+- [x] **CP-60** — Survey and deadline calendar: my whole workload on one screen (risk engineer, 5 pts, deps: RV-10, CP-17, CP-23, RV-11, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: see every site survey and every report deadline on one calendar, by month or week, so I can spot clashes at a glance, plan surveys around each other, move dates on the spot and catch a late report before the client chases it, instead of piecing my week together from the Assessments list.
@@ -992,7 +992,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
   </details>
 
-- [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
+- [x] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: photograph the pages of my handwritten site notes and have each transcribed, so notes written on paper become usable evidence for drafting without retyping them.
@@ -1032,7 +1032,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story (CP-20): changing a saved page — transcribing it again, correcting its text, adding pages to a saved observation, removing and restoring them.
   </details>
 
-- [ ] **CP-20** — Manage scanned pages (risk engineer, Must, 5 pts, deps: CP-19, CP-08, Sprint 5)
+- [x] **CP-20** — Manage scanned pages (risk engineer, Must, 5 pts, deps: CP-19, CP-08, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: fix and change the handwritten pages of a saved observation, as CP-08 does for its recordings and photos, so drafting works from pages that are read correctly and up to date.
@@ -1069,7 +1069,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   13. Given a sample observation without a capture session, when I add, remove or restore a page, or write a page's text, then it changes in this browser only, and says so.
   </details>
 
-- [ ] **CP-21** — Suggest COPE categories from all of an observation's evidence (risk engineer, Should, 5 pts, deps: CP-05, CP-08, CP-19, Sprint 4)
+- [x] **CP-21** — Suggest COPE categories from all of an observation's evidence (risk engineer, Should, 5 pts, deps: CP-05, CP-08, CP-19, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: have the COPE categories of any observation suggested from everything captured in it (its note, voice transcripts, handwritten pages and photos), each with the evidence behind it, so fewer observations are left uncategorised and out of drafting, and a finding that concerns several categories counts toward each.
@@ -1241,7 +1241,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E6 — Report Generation & Guardrails
 
-- [ ] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 3)
+- [x] **GN-01** — Generate cited technical report section (sections 7-12) (risk engineer, Must, 8 pts, deps: RT-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: generate a selected technical section from captured site evidence, so a useful first draft in Marsh's report format can be reviewed.
@@ -1275,7 +1275,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a sentence has unsupported status, when it appears in the review editor, then it is visibly marked.
   </details>
 
-- [ ] **GN-03** — Produce Sections 4 and 5: risk quality ratings and loss estimates (risk engineer, Must, 8 pts, deps: GN-01, GN-07, GN-11, RV-02, Sprint 4)
+- [x] **GN-03** — Produce Sections 4 and 5: risk quality ratings and loss estimates (risk engineer, Must, 8 pts, deps: GN-01, GN-07, GN-11, RV-02, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: calculate Section 4's ratings and Section 5's loss estimates from the scores and values the engineer enters, with configured rules, and draft only their wording, so no rating or financial figure is invented and each has a traceable basis. Absorbs GN-06 (Section 4) and GN-09 (Section 5), 14 Oct.
@@ -1306,7 +1306,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Merged into RV-02 (11 Oct 2026) as its AC10-AC12: regenerating, with the engineer's instruction, is done from the review workspace.
   </details>
 
-- [ ] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 4)
+- [x] **GN-05** — Generate Section 3 Opportunities for Improvement (risk engineer, Must, 5 pts, deps: GN-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: draft each Opportunity for Improvement as a complete record in Marsh's format, informed by comparable past assessments.
@@ -1335,7 +1335,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Merged into GN-03 (14 Oct 2026) as its AC2-AC4, with Section 5's loss estimates (GN-09).
   </details>
 
-- [ ] **GN-11** — Generate Section 6 Management Programs (risk engineer, Should, 3 pts, deps: GN-01, RV-02, Sprint 4)
+- [x] **GN-11** — Generate Section 6 Management Programs (risk engineer, Should, 3 pts, deps: GN-01, RV-02, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: draft Section 6's management programs table from the observations, each program rated on Marsh's maturity scale, so the engineer reviews a filled-in table in Marsh's format.
@@ -1350,7 +1350,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Rows and ranks are Marsh's (Global PRE Report Template v2.0, pp. 18–19); row 10 is "Emergency Response Planning" as in the template. The model proposes each rank, the lower one when the evidence fits two. Ranks feeding Section 4's Management Programs score is GN-03.
   </details>
 
-- [ ] **GN-07** — Draft Sections 1 and 2, and choose Appendix A site photos (risk engineer, Should, deps: GN-01, GN-05, CP-04, Sprint 5)
+- [x] **GN-07** — Draft Sections 1 and 2, and choose Appendix A site photos (risk engineer, Should, deps: GN-01, GN-05, CP-04, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: open the report with Purpose and Scope and an accurate Executive Summary without writing them from scratch, and control which photos Appendix A shows. Combines the backlog candidates GN-10 and EX-04 (10 Oct).
@@ -1372,7 +1372,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   "Complete" means Sections 3-12 each have a saved draft (3: an accepted OFI), so the Executive Summary can't be drafted until Sections 4-6 can. Appendix B (site map) was dropped: Marsh's template has none.
   </details>
 
-- [ ] **GN-13** — Draft the full report in one go (risk engineer, Could, 3 pts, deps: CP-42, GN-01, GN-03, GN-05, GN-07, Sprint 5)
+- [x] **GN-13** — Draft the full report in one go (risk engineer, Could, 3 pts, deps: CP-42, GN-01, GN-03, GN-05, GN-07, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: generate a complete draft report from all my observations and the client's documents in one action, so I review a whole first draft instead of starting each part of the report separately.
@@ -1386,7 +1386,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E7 — Engineer Review & Editing
 
-- [ ] **RV-01** — Review report sections alongside their evidence (risk engineer, Must, 8 pts, deps: GN-01, IN-04 (heading parsing), Sprint 2)
+- [x] **RV-01** — Review report sections alongside their evidence (risk engineer, Must, 8 pts, deps: GN-01, IN-04 (heading parsing), Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: review sections in a workspace showing drafts with their supporting evidence, so each section can be reviewed in context.
@@ -1405,7 +1405,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   12. Given a cited source is withdrawn, when I inspect its metadata, then it is labelled Withdrawn.
   </details>
 
-- [ ] **RV-02** — Review individual generated findings (risk engineer, Must, 3 pts, deps: RV-01, Sprint 4)
+- [x] **RV-02** — Review individual generated findings (risk engineer, Must, 3 pts, deps: RV-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: accept, edit or reject each generated finding, so professional judgement controls the final report.
@@ -1426,7 +1426,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Goal also: regenerate an individual report section, with a prompt saying what to change, so a weak section can be improved without losing other review work. AC10-AC12 are GN-04's, merged here on 11 Oct 2026.
   </details>
 
-- [ ] **RV-03** — Comment on the report in the editor, as in Google Docs (risk engineer, Could, deps: RV-08, F-05, EX-01, Sprint 5)
+- [x] **RV-03** — Comment on the report in the editor, as in Google Docs (risk engineer, Could, deps: RV-08, F-05, EX-01, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: comment on any part of the report in the document editor, reply to colleagues' comments and resolve them, so that questions about the report are settled beside the text they concern instead of over email. (Replaces "Discuss a specific draft passage", 5 Nov 2026; its three ACs are AC1 and AC5.)
@@ -1474,7 +1474,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given the same inputs use the same rule version, when the calculation is repeated, then the result is unchanged.
   </details>
 
-- [ ] **RV-06** — Version history for the report / by sections (risk engineer, Should, 5 pts, deps: RV-01, Sprint 5)
+- [x] **RV-06** — Version history for the report / by sections (risk engineer, Should, 5 pts, deps: RV-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: inspect earlier section versions with text comparison and restore a previous saved draft, so text overwritten during review can be recovered.
@@ -1503,7 +1503,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a report was partly reviewed, when I reopen section navigation, then each section displays its saved review state.
   </details>
 
-- [ ] **RV-08** — Edit the full report in a document editor (risk engineer, Must, 8 pts, deps: RV-01, Sprint 3)
+- [x] **RV-08** — Edit the full report in a document editor (risk engineer, Must, 8 pts, deps: RV-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: switch the report into a full-document edit view to write and revise any section, drafted or not, so missing or imperfect AI content does not prevent the report being completed.
@@ -1537,7 +1537,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   3. Given a section order has been saved, when I export the report, then the export uses that order.
   </details>
 
-- [ ] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-28, GN-03, Sprint 4)
+- [x] **RV-12** — Edit the report in Marsh's page layout, with cover, contents page and page numbers (risk engineer, 5 pts, deps: RV-08, CP-17, CP-28, GN-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: switch the full edit view into a page layout that matches Marsh's existing reports, with the cover, contents page and page numbers in place, so that I can see and correct how the report reads on the page before I export it.
@@ -1567,7 +1567,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a report has been assigned to me, when I open my work list, then that report appears.
   </details>
 
-- [ ] **AS-01** — Ask a question about this assessment (risk engineer, AI and Machine Learning, 8 pts, deps: GN-01, RV-01, CP-30, EV-03, Sprint 5)
+- [x] **AS-01** — Ask a question about this assessment (risk engineer, AI and Machine Learning, 8 pts, deps: GN-01, RV-01, CP-30, EV-03, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: as a risk engineer reviewing a draft, ask questions about the assessment and get answers that cite its evidence, so that I don't have to search the evidence by hand.
@@ -1586,7 +1586,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 9 Nov 2026 (DECISIONS 2026-11-09). The standards selected on the assessment are its latest checklist's (CP-30), or every standard that applies to the site before any checklist. Questions and answers are saved per user and assessment (`assessment_questions`, in conversations in `assistant_conversations` since AS-03), each with its run's trace; each question is answered on its own, with no earlier turns. Confidence is worked out from the guardrail's checks. The question limits are the chat's (CB-01), shared with it.
   </details>
 
-- [ ] **AS-02** — Ask about a selected passage (risk engineer, Software, 3 pts, deps: AS-01, RV-03, Sprint 5)
+- [x] **AS-02** — Ask about a selected passage (risk engineer, Software, 3 pts, deps: AS-01, RV-03, Sprint 5)
   <details><summary>Goal / AC</summary>
 
   Goal: as a risk engineer, select text in the draft and ask about it, so that the answer concerns that passage and the sources behind it.
@@ -1600,7 +1600,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 12 Nov 2026 (DECISIONS 2026-11-12). "The editor" is both the review workspace's draft editor (Sections 4 to 12: a button by the selection opens the Ask tab) and the document editor (beside Comment, with an Ask panel in the comments list's place); the shortcut is Ctrl+Alt+K (Cmd+Option+K). A passage's citations are those of every block it is in; the gateway reads the findings and the cited sources from the saved draft. A disagreement is its own line, "Sources disagree:", citing both sources, and makes the answer Medium at most. A passage is at most 4,000 characters.
   </details>
 
-- [ ] **AS-03** — Keep conversation history (risk engineer, Data Engineering, deps: AS-01)
+- [x] **AS-03** — Keep conversation history (risk engineer, Data Engineering, deps: AS-01)
   <details><summary>Goal / AC</summary>
 
   Goal: as a risk engineer, have my questions and answers kept with the assessment, so that I can pick up where I left off and the team can evaluate answer quality.
@@ -1614,7 +1614,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 13 Nov 2026 (DECISIONS 2026-11-13). One document per conversation holds its questions as `turns` (at most 100). The questions saved before, in `assessment_questions`, are moved by `migrate:ask-conversations`, one conversation per user and assessment. Older conversations are opened from a picker above the tab, which holds New conversation and Delete. Each question still stands alone: no earlier turns are sent to the model. "Private" includes knowledge admins: another user's conversation answers 404. On an archived assessment, asking a question is refused too, unlike AS-01, which let one ask.
   </details>
 
-- [ ] **AS-04** — Draft or rewrite text into the report (risk engineer, AI and Machine Learning, 5 pts, deps: AS-01, AS-02)
+- [x] **AS-04** — Draft or rewrite text into the report (risk engineer, AI and Machine Learning, 5 pts, deps: AS-01, AS-02)
   <details><summary>Goal / AC</summary>
 
   Goal: as a risk engineer, have the assistant draft new text or rewrite a selected passage that I can insert into a section, so that I write faster while every sentence stays cited and reviewable.
@@ -1631,7 +1631,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E8 — Evaluation Harness
 
-- [ ] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 4)
+- [x] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: deterministic checks of each generated report's evidence links and required structure, so missing evidence or content is detected consistently.
@@ -1655,7 +1655,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given reviews span a recorded system change, when comparable before/after periods are selected, then their outcome rates are shown together.
   </details>
 
-- [ ] **EV-03** — Record AI-call usage and performance (knowledge admin, Must, 3 pts, deps: none, Sprint 2)
+- [x] **EV-03** — Record AI-call usage and performance (knowledge admin, Must, 3 pts, deps: none, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: measure each AI call consistently across features, so usage can be explained and model performance compared.
@@ -1669,7 +1669,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   7. Given provider usage data is unavailable, when its telemetry is saved, then the missing usage is explicitly marked as unavailable.
   </details>
 
-- [ ] **EV-04** — Report and export operating costs (knowledge admin, Must, 3 pts, deps: EV-03, Sprint 2)
+- [x] **EV-04** — Report and export operating costs (knowledge admin, Must, 3 pts, deps: EV-03, Sprint 2)
   <details><summary>Goal / AC</summary>
 
   Goal: an exportable breakdown of system operating costs, so the ongoing budget can be assessed before wider adoption.
@@ -1685,7 +1685,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E9 — Knowledge Base Chatbot
 
-- [ ] **CB-01** — Ask a knowledge question with a cited answer (risk engineer, Should, 5 pts, deps: RT-01, GN-02, Sprint 5)
+- [x] **CB-01** — Ask a knowledge question with a cited answer (risk engineer, Should, 5 pts, deps: RT-01, GN-02, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: ask a free-text question about a standard or regulation, so an evidence-backed answer can be found quickly.
@@ -1698,7 +1698,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given a chat response has been generated, when the conversation is saved, then the generated content is excluded from knowledge-base ingestion.
   </details>
 
-- [ ] **CB-02** — Inspect the passage behind a chat citation (risk engineer, Should, 3 pts, deps: CB-01, Sprint 5)
+- [x] **CB-02** — Inspect the passage behind a chat citation (risk engineer, Should, 3 pts, deps: CB-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: open the original passage behind a chatbot citation, so the answer can be verified directly against its source.
@@ -1710,7 +1710,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   5. Given a cited source is marked as outdated, when its preview opens, then an outdated-source warning is displayed.
   </details>
 
-- [ ] **CB-03** — Ask follow-up questions in a conversation (risk engineer, Should, 8 pts, deps: CB-01, Sprint 5)
+- [x] **CB-03** — Ask follow-up questions in a conversation (risk engineer, Should, 8 pts, deps: CB-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: ask follow-up questions using current conversation context, so a topic can be explored without repeating information.
@@ -1721,7 +1721,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   4. Given a follow-up cannot be resolved unambiguously from the conversation, when it is processed, then a clarification request is displayed.
   </details>
 
-- [ ] **CB-04** — Collect feedback on chatbot answers (risk engineer, Could, 2 pts, deps: CB-05, Sprint 5)
+- [x] **CB-04** — Collect feedback on chatbot answers (risk engineer, Could, 2 pts, deps: CB-05, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: rate a chatbot answer with an optional explanation, so the team can identify responses needing improvement.
@@ -1734,7 +1734,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   6. Given unhelpful ratings exist, when the evaluation team filters feedback to unhelpful answers, then the matching feedback is listed.
   </details>
 
-- [ ] **CB-05** — Audit the evidence behind chatbot responses (risk engineer, Could, 3 pts, deps: CB-01, Sprint 5)
+- [x] **CB-05** — Audit the evidence behind chatbot responses (risk engineer, Could, 3 pts, deps: CB-01, Sprint 3)
   <details><summary>Goal / AC</summary>
 
   Goal: a traceable record of each chatbot query and generated response, so the team can investigate problematic answers.
@@ -1765,7 +1765,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
 ## E10 — Export & Handover
 
-- [ ] **EX-01** — Export the report as PDF and Word files (risk engineer, Must, deps: RV-12, RV-04, F-05, GN-01, IN-04, KB-01, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02, Sprint 5)
+- [x] **EX-01** — Export the report as PDF and Word files (risk engineer, Must, deps: RV-12, RV-04, F-05, GN-01, IN-04, KB-01, GN-03, GN-07, GN-11, GN-12, CP-04, PV-02, Sprint 4)
   <details><summary>Goal / AC</summary>
 
   Goal: export the finished report as a PDF or an editable Word document laid out like Marsh's existing reports, so that I can issue the PDF to the client and use the Word file for review rounds in Marsh's usual process. (Replaces "Export finished report to file", 4 Nov 2026.)
@@ -1784,3 +1784,54 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Built 4 Nov 2026 (DECISIONS 2026-11-04, "The export is the page layout, printed"). AC1: RV-04 is not built, so a check stands in for it: only a complete report is exported (DECISIONS 2026-11-05), with the Executive Summary drafted and current, an OFI accepted, Sections 4-12 written, Sections 4 and 5's figures entered, and every finding decided, none unsupported, out of date or citing a withdrawn source; RV-04 replaces `exportBlockers`. AC3: the PDF is printed from the page layout's own pages; Page layout now shows citation markers as the PDF prints them and Section 6's programs as Marsh's table, so the two match. With citations, References follow the report on pages of their own; without them, lines may rewrap where markers were. AC4: bookmarks name each section by its title. AC5: Word's contents reads "Section 7 Construction", as Word builds an entry from the heading, and Word refreshes it on opening (it may ask to update fields first). AC8: the agreed print resolution is 300 dpi of the printed size, never above the original's own. AC9: the gateway refuses a file whose text still holds a privacy placeholder, naming where. AC10: comment threads (RV-03) are kept apart from the text and the export's editor has none of them, so none reach the file; the Export tab reminds of any still open.
   </details>
+
+## Delivered in sprints 1 to 5 but not written up above
+
+These stories were built and accepted (source: *Sprint 1-5 Finalised and Completed User Stories*). Their acceptance criteria are in the team's Google Sheet, not here.
+
+| Story | Title | Sprint | Points | Owner |
+|---|---|---|---|---|
+| IN-09 | Inspect ingestion stages with progress update | 2 | 3 | Qian Fu |
+| IN-10 | Notify ingestion status and retry if needed | 2 | 3 | Qian Fu |
+| CB-07 | Ask an admin to fill a knowledge gap | 3 | 3 | Jesper |
+| F-09 | Start the cloud development stack | 3 | 3 | Qian Fu |
+| GN-12 | Generate the report's charts, Risk Assessment Matrix and Rating Legend | 3 | 2 | Miya |
+| IN-11 | Cancel ingestion job | 3 | 2 | Qian Fu |
+| IN-12 | Delete a document uploaded by mistake | 3 | 2 | Jesper |
+| IN-14 | See how far each document is from being usable | 3 | 3 | Qian Fu |
+| IN-15 | Parse table and formula using a LLM | 3 | 3 | Qian Fu |
+| PV-02 | Keep client details out of AI drafting requests | 3 | 5 | Qian Fu |
+| PV-03 | Protect client details in knowledge-base chat | 3 | 5 | Qian Fu |
+| CB-08 | Ask about a photo | 4 | 8 | Chris |
+| CB-09 | Ask about a document I attach | 4 | 8 | Chris |
+| CB-10 | Ask by voice and hear the answer | 4 | 5 | Chris |
+| CP-22 | Capture a whole site walk in one recording | 4 | 13 | Jesper |
+| CP-23 | Create clients, sites and assessments from client documents | 4 | 8 | Jesper |
+| CP-26 | Geolocation of a site, its blocks and the engineer on site | 4 | 8 | Miya |
+| IN-16 | Ingest past report of various file format | 4 | 2 | Qian Fu |
+| LV-01 | Produce product launch and walkthrough video | 4 | 13 | Miya and Xuren |
+| MB-01 | Sign in and assessments | 4 | 5 | Miya |
+| MB-03 | Capture an observation | 4 | 5 | Miya |
+| MB-04 | Find assessments on Home | 4 | 1 | Miya |
+| MB-06 | Ask the knowledge base | 4 | 2 | Miya |
+| MB-09 | Tablet layout and iPad split view | 4 | 2 | Miya |
+| MB-10 | Offline capture | 4 | 8 | Miya |
+| PV-04 | Protect client details when AI reads an observation's photos and notes | 4 | 5 | Qian Fu |
+| PV-05 | Protect client details in past reports during ingestion | 4 | 5 | Qian Fu |
+| AS-06 | See each assessment's next step and gaps in one place | 5 | 13 | Jesper |
+| AS-07 | See my most urgent assessments first | 5 | 3 | Jesper |
+| CP-35 | Sort shorthand notes into requests, facts and recommendations | 5 | 13 | Chris |
+| F-10 | See important tasks in an inbox | 5 | 3 | Jesper |
+| IN-19 | Select document type when document is unidentified | 5 | 2 | Qian Fu |
+| MB-02 | Choose where I am and pin locations with GPS on my phone | 5 | 3 | Miya |
+| MB-05 | Verify the pre-survey checklist on my phone | 5 | 3 | Miya |
+| MB-12 | Manage my observations on my phone | 5 | 3 | Miya |
+| MB-14 | Keep and manage my chats on my phone | 5 | 2 | Miya |
+| MB-15 | Set chatbot preferences on my phone | 5 | 3 | Miya |
+| MB-16 | Record a site walk on my phone | 5 | 5 | Miya |
+| MB-17 | Scan, read and correct handwritten pages on my phone | 5 | 5 | Miya |
+| PV-06 | Redact past report and blur faces in picture crops | 5 | 3 | Qian Fu |
+| PV-08 | Protect the site-walk photo description | 5 | 2 | Qian Fu |
+| RT-04 | Rank sources by authority | 5 | 13 | Chris |
+| RV-11 | Assign assessments to engineers | 5 | 3 | Jesper |
+| S-01 | Settings menu | 5 | 8 | Chris |

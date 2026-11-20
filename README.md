@@ -35,15 +35,15 @@ Four hard rules shape the code (the full list is in [CLAUDE.md](CLAUDE.md)):
 | You want to... | Read |
 |---|---|
 | Find any document | [docs/README.md](docs/README.md): the map of all docs |
-| Run it | [Running the stack](docs/guides/RUNNING.md) and the section below |
+| Run it | [Running the stack](docs/devguides/RUNNING.md) and the section below |
 | Understand one service | Its README (table above) |
 | Understand the database or the vector index | [docs/areas/database.md](docs/areas/database.md) |
 | Understand how services work inside | [docs/areas/services.md](docs/areas/services.md) |
 | Understand how client text is protected | [docs/areas/privacy.md](docs/areas/privacy.md) |
 | Deploy to AWS | [docs/areas/cloud.md](docs/areas/cloud.md) |
-| Build a screen | [UI conventions](docs/areas/ui.md) and the [design system](docs/design-system-v2.md) |
-| See why something was decided | [docs/DECISIONS.md](docs/DECISIONS.md) |
-| Set up Cohere and Chroma | [docs/guides/COHERE_CHROMA.md](docs/guides/COHERE_CHROMA.md) |
+| Build a screen | [UI conventions](docs/areas/ui.md) and the [design system](docs/areas/design-system-v2.md) |
+| See why something was decided | [docs/devguides/DECISIONS.md](docs/devguides/DECISIONS.md) |
+| Set up Cohere and Chroma | [docs/devguides/COHERE_CHROMA.md](docs/devguides/COHERE_CHROMA.md) |
 
 This README must reflect the current architecture. If a PR changes what is true here, update this file in the same PR.
 
@@ -68,7 +68,7 @@ admin), with the dev password `password123`.
 
 ### Docker
 
-Start the services, MongoDB, and Chroma (the full stack needs 5 to 7 GB of RAM; on a small laptop use the light stack in [docs/guides/RUNNING.md](docs/guides/RUNNING.md)):
+Start the services, MongoDB, and Chroma (the full stack needs 5 to 7 GB of RAM; on a small laptop use the light stack in [docs/devguides/RUNNING.md](docs/devguides/RUNNING.md)):
 
 ```sh
 cp .env.example .env   # fill in the real values
@@ -83,7 +83,7 @@ service's own directory (`server/.env`,
 dev command: `npm run dev` for client/server, or
 `uvicorn app.main:app --reload --port <port>` for the Python services.
 
-See [Running the stack](docs/guides/RUNNING.md) for the full setup instructions.
+See [Running the stack](docs/devguides/RUNNING.md) for the full setup instructions.
 
 ### Service URLs and health checks
 

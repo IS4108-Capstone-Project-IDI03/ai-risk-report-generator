@@ -127,4 +127,4 @@ docker compose --profile test run --rm --build ingestion-test   # suite in Docke
 - docs/areas/services.md: "Knowledge document ingestion (IN-01)", "Automatic labelling (IN-05)", "Matching: duplicates and newer editions (IN-07)", "Correcting a knowledge document (KB-01)", "Browsing a knowledge document's passages (IN-17)", "Entering a standard by hand (IN-18)", "Client intake" (`POST /extract-text`)
 - docs/areas/privacy.md: "Ingestion of past reports (PV-05)", "Scanned pages, pictures and the safety net (PV-06)", "Known gaps"
 - docs/areas/database.md: "Knowledge documents (IN-01, KB-01, IN-07)", "Ingestion jobs (`ingestion_jobs`)", "AI-call usage (EV-03)"
-- docs/guides/COHERE_CHROMA.md: Cohere and Chroma setup, limits
+- docs/devguides/COHERE_CHROMA.md: Cohere and Chroma setup, limits

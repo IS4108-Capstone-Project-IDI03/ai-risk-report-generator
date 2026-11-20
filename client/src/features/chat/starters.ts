@@ -4,7 +4,7 @@ import type { ConversationStarterProps } from '@openuidev/react-ui'
 import { createElement } from 'react'
 import { Icon, IconRegistry } from '../../design-system'
 
-// The design system's icons, not OpenUI's lightbulb (docs/design-system-v2.md: one icon family).
+// The design system's icons, not OpenUI's lightbulb (docs/areas/design-system-v2.md: one icon family).
 const standard = createElement(Icon, { name: IconRegistry.evidence.standard, size: 16 })
 const report = createElement(Icon, { name: IconRegistry.evidence.report, size: 16 })
 
