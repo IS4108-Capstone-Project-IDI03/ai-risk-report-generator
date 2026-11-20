@@ -255,12 +255,37 @@ describe('Settings Chat and voice', () => {
 })
 
 describe('Settings: tasks nothing reads yet', () => {
-  it('says the choice is saved but not used yet', async () => {
-    mock({ ...data(true), models: [row('ocr', { label: 'OCR', inUse: false }), row('drafting')] })
+  it('puts them in their own greyed-out section at the bottom, labelled Not used yet', async () => {
+    mock({
+      ...data(true),
+      models: [
+        row('ocr', { label: 'OCR', inUse: false }),
+        row('Drafting'),
+        row('qa', { label: 'QA', inUse: false }),
+      ],
+    })
     render(<Settings />)
     open('Models')
-    expect(await screen.findByText(/Not used yet/)).toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: 'Not used yet' })
     expect(screen.getAllByText(/Not used yet/)).toHaveLength(1)
+    const before = (el: HTMLElement) =>
+      Boolean(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)
+    // The working task is above the heading; the unused ones are below it, disabled.
+    expect(before(screen.getByRole('combobox', { name: 'Drafting' }))).toBe(true)
+    for (const name of ['OCR', 'QA']) {
+      const box = screen.getByRole('combobox', { name })
+      expect(before(box)).toBe(false)
+      expect(box).toBeDisabled()
+    }
+    expect(screen.getByRole('combobox', { name: 'Drafting' })).toBeEnabled()
+  })
+
+  it('shows no Not used yet section when every task is in use', async () => {
+    mock({ ...data(true), models: [row('Drafting')] })
+    render(<Settings />)
+    open('Models')
+    await screen.findByRole('combobox', { name: 'Drafting' })
+    expect(screen.queryByRole('heading', { name: 'Not used yet' })).toBeNull()
   })
 })
 

@@ -317,6 +317,8 @@ describe('hostile and sloppy input (S-01 break-it findings)', () => {
       ocr: false,
       label_classifier: false,
       site_walk_classifier: false,
+      // Nothing reads the QA model until EV-05 is built.
+      qa: false,
     })
   })
 })

@@ -310,3 +310,22 @@
 .st-narrow {
   max-width: 320px;
 }
+
+/* "Not used yet" (S-01): tasks nothing reads. Separate section at the bottom, greyed out. */
+.st-unused {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.st-subtitle {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: var(--weight-semibold);
+  color: var(--graphite-600);
+}
+.st-row-unused {
+  opacity: 0.55;
+}
