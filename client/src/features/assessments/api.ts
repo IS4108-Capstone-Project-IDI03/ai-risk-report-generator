@@ -1126,8 +1126,6 @@ export type SourcePassage = {
   pageStart: number | null
   pageEnd: number | null
   documentId: string | null
-  // Found by the country-only fallback search, not the site's facility type (GN-16).
-  broader?: boolean
   document: {
     title: string
     issuingBody: string

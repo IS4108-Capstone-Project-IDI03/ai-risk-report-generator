@@ -348,11 +348,6 @@
   border-bottom: 1px solid var(--border-default);
 }
 
-/* A short numeric box, not the full panel width. */
-.st-narrow {
-  max-width: 320px;
-}
-
 /* "Not used yet" (S-01): tasks nothing reads. Separate section at the bottom, greyed out. */
 .st-unused {
   display: flex;

@@ -200,7 +200,7 @@ def test_retrieval_filters_and_prompt_evidence(monkeypatch):
         {
             "jurisdiction": "Singapore",
             "facility_type": "Office",
-            "source_type": ["fm_standard", "nfpa_standard", "local_standard"],
+            "source_type": ["fm_standard", "nfpa_standard"],
         },
         8,
     )
