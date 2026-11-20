@@ -32,6 +32,8 @@ export interface IReportOfi {
   observations: string[]
   standards: string[]
   precedent: string | null
+  // True when it rests on an observation whose note had a recommendation part (CP-35 hand-off).
+  fromRecommendation?: boolean
   sources: Record<string, unknown>
   provenance: {
     provider: string
@@ -90,6 +92,7 @@ const reportOfiSchema = new Schema<IReportOfi>(
     observations: { type: [String], default: [] },
     standards: { type: [String], default: [] },
     precedent: { type: String, default: null },
+    fromRecommendation: { type: Boolean },
     sources: { type: Schema.Types.Mixed, default: {} },
     provenance: {
       provider: required,

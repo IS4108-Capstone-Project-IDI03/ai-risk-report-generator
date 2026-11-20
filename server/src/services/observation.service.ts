@@ -1364,6 +1364,32 @@ export async function listObservations(
   return observations.map((o) => toDto(o, assessment.locations ?? []))
 }
 
+export type ToAskItem = {
+  observationId: string
+  text: string
+  location: string | null
+  severity: string
+}
+
+/**
+ * Returns the info requests (CP-35 parts of kind info_request) of an assessment's split notes,
+ * oldest observation first, each with where it was seen and how serious: what to ask the client.
+ * Read only. Throws AssessmentNotFoundError.
+ */
+export async function toAskFor(reference: string): Promise<ToAskItem[]> {
+  const observations = (await listObservations(reference)).reverse()
+  return observations.flatMap((o) =>
+    o.parts
+      .filter((p) => p.kind === 'info_request')
+      .map((p) => ({
+        observationId: o.id,
+        text: p.text,
+        location: o.location ? locationText(o.location) : null,
+        severity: o.severity,
+      })),
+  )
+}
+
 // The observations not deleted of several assessments at once, by assessment
 // id, newest first in each: what a client's insights count across its sites
 // (CP-29). One query, where listObservations would take one per assessment.

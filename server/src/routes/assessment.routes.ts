@@ -46,6 +46,7 @@ import {
   NoActiveSessionError,
   saveObservation,
   UnknownLocationError,
+  toAskFor,
 } from '../services/observation.service'
 import {
   appendixSchema,
@@ -579,6 +580,19 @@ router.get('/:reference/sections', requirePermission('assessments:view'), async 
     }
     if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+
+// The info requests from the assessment's split notes: what to ask the client (CP-35).
+router.get('/:reference/to-ask', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json({ items: await toAskFor(req.params.reference) })
+  } catch (error: unknown) {
+    if (error instanceof AssessmentNotFoundError) {
+      res.status(404).json({ error: error.message })
       return
     }
     throw error

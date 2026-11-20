@@ -416,6 +416,23 @@ export async function draftingEvidence(reference: string): Promise<Evidence[]> {
   return inputs.filter(isUsable).map(toEvidence)
 }
 
+/**
+ * Returns each usable observation's recommendation parts (CP-35), by observation id, for OFI
+ * drafting to base its fixes on. Observations with none are left out. Kept apart from
+ * `toEvidence` so a draft's evidence does not change shape (see toEvidence).
+ */
+export async function draftingRecommendations(
+  reference: string,
+): Promise<Record<string, string[]>> {
+  const inputs = categorised((await listObservations(reference)).reverse()).filter(isUsable)
+  return Object.fromEntries(
+    inputs.flatMap((o) => {
+      const texts = o.parts.filter((p) => p.kind === 'recommendation').map((p) => p.text)
+      return texts.length ? [[o.id, texts]] : []
+    }),
+  )
+}
+
 export type DraftableAssessment = Awaited<ReturnType<typeof assessmentToDraft>>
 
 // One of sections 7-12 as the template defines it.
