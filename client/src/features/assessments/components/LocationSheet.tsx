@@ -2,9 +2,18 @@
 // location dialog. The picker only picks: the Observations sidebar adds, edits
 // and removes locations. Called by screens/SiteObservation.tsx; LocationForm is
 // re-exported for screens/Observations.tsx.
-import { useId, type AriaAttributes } from 'react'
-import { Callout, Dialog, Icon, Input, Popover } from '../../../design-system'
+import { useEffect, useId, useRef } from 'react'
+import {
+  Callout,
+  Dialog,
+  Icon,
+  Input,
+  PickerField,
+  Popover,
+  type PickerListSlot,
+} from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import { CaptureHelp } from './CaptureHelp'
 import { LocationForm } from './LocationForm'
 import { LocationPath } from './LocationPath'
 import { FindMyBlock } from './FindMyBlock'
@@ -63,35 +72,6 @@ export function RemoveLocationDialog({ v }: { v: AssessmentWorkflow }) {
   )
 }
 
-// The Location field of the capture form: where observations are being saved,
-// and the way to change it. The dropdown passes it its open state (aria-expanded and the like).
-function LocationBar({
-  v,
-  onClick,
-  ...popup
-}: { v: AssessmentWorkflow; onClick: () => void } & AriaAttributes) {
-  return (
-    <button
-      type="button"
-      className="cap-select"
-      onClick={onClick}
-      {...popup}
-      data-empty={v.locationLabel ? undefined : ''}
-      aria-label={
-        v.locationLabel ? 'Location: ' + v.locationLabel + '. Change' : 'Choose a location'
-      }
-    >
-      <Icon name="map-pin" size={20} color="var(--marsh-navy)" />
-      {v.locationPath ? <LocationPath {...v.locationPath} /> : <span>{'Choose a location'}</span>}
-      <Icon
-        name={v.locSheetOpen ? 'chevron-up' : 'chevron-down'}
-        size={18}
-        color="var(--text-secondary)"
-      />
-    </button>
-  )
-}
-
 // What the picker says under "Where are you?": a new assessment starts with
 // the form to add its first location.
 const pickerDescription = (v: AssessmentWorkflow) =>
@@ -101,17 +81,31 @@ const pickerDescription = (v: AssessmentWorkflow) =>
       ? 'Add the first location you’re inspecting. Observations are saved to it.'
       : 'Observations are saved to the location you choose.'
 
-// The location bar, and where the engineer picks, searches for, adds or
-// changes the location they are capturing in. On a phone it opens a bottom
-// sheet. Wider, it drops down from the bar with no backdrop, so the workspace
-// header and tabs stay clear and usable (workflow.css sizes it to the bar). It
-// opens by itself until a location is chosen, and either can be closed
-// without one.
+// The Location field of New Observation (CP-24), and where the engineer picks, searches for, adds
+// or changes the location they are capturing in. On a phone the list opens as a bottom sheet.
+// Wider, it drops down from the field with no backdrop, so the workspace header and tabs stay
+// clear and usable (workflow.css sizes it to the field). It opens by itself until a location is
+// chosen, and either can be closed without one. Save with none chosen turns the field red with
+// one line under it; pressing Save again shakes it once (v2 Forms).
 export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
-  if (v.phone)
-    return (
+  const box = useRef<HTMLDivElement>(null)
+  // a. Each refused Save goes to the field; a later one, while the line is still there, shakes it.
+  useEffect(() => {
+    const el = box.current
+    if (!el || !v.locationRefused) return
+    el.querySelector<HTMLElement>('.cpf-button')?.focus({ preventScroll: true })
+    el.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    if (v.locationRefused > 1) {
+      // The class is taken off and the layout read, so the animation starts again.
+      el.classList.remove('ds-shake')
+      void el.offsetWidth
+      el.classList.add('ds-shake')
+    }
+  }, [v.locationRefused])
+  const list = ({ className, trigger }: PickerListSlot) =>
+    v.phone ? (
       <>
-        <LocationBar v={v} onClick={v.openLocations} />
+        {trigger(v.locSheetOpen, v.openLocations)}
         <Dialog
           className="ds-dialog-sheet"
           open={v.locSheetOpen}
@@ -123,29 +117,50 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
           <LocationChoices v={v} />
         </Dialog>
       </>
+    ) : (
+      <Popover
+        open={v.locSheetOpen}
+        // Kept open while Remove this location? asks, which sits outside it.
+        onOpenChange={(open) => !open && !v.locRemoveLabel && v.closeLocations()}
+        trigger={trigger(v.locSheetOpen, v.toggleLocations)}
+        ariaLabel="Where are you?"
+        align="left"
+        className={className}
+        surfaceClassName="capture-location-menu"
+      >
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+              {'Where are you?'}
+            </div>
+            <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+              {pickerDescription(v)}
+            </div>
+          </div>
+          <LocationChoices v={v} />
+        </div>
+      </Popover>
     )
   return (
-    <Popover
-      open={v.locSheetOpen}
-      // Kept open while Remove this location? asks, which sits outside it.
-      onOpenChange={(open) => !open && !v.locRemoveLabel && v.closeLocations()}
-      trigger={<LocationBar v={v} onClick={v.toggleLocations} />}
-      ariaLabel="Where are you?"
-      align="left"
-      className="capture-location"
-      surfaceClassName="capture-location-menu"
-      style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex' }}
-    >
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div>
-          <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-            {'Where are you?'}
-          </div>
-          <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{pickerDescription(v)}</div>
-        </div>
-        <LocationChoices v={v} />
-      </div>
-    </Popover>
+    <div ref={box} className="cap-loc-field">
+      <PickerField
+        label="Location"
+        required
+        placeholder="Choose a location"
+        valueLabel={v.locationLabel ?? undefined}
+        value={
+          v.locationPath ? (
+            <>
+              <Icon name="map-pin" size={18} color="var(--marsh-navy)" />
+              <LocationPath {...v.locationPath} />
+            </>
+          ) : undefined
+        }
+        error={v.locationRefused ? 'Choose a location' : undefined}
+        help={<CaptureHelp proposal={v.proposalCapture} />}
+        list={list}
+      />
+    </div>
   )
 }
 
