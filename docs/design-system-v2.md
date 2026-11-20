@@ -1,5 +1,27 @@
 # Risk Report Generator design system, v2.15
 
+<!-- at-a-glance -->
+> **In 30 seconds:** The one look for the whole app: white cards on a pale page, Marsh navy for actions, colour only where it means something. Sections 0 to 10 are the rules; section 11 keeps the older inventory and per-screen notes.
+>
+> **Read this when:** you build or change any screen. Use the token names here; do not add new colours.
+
+**Contents**
+
+- [Skills used to build this design system](#skills-used-to-build-this-design-system)
+- [0. Why this exists: one app, one look](#0-why-this-exists-one-app-one-look)
+- [1. Principles](#1-principles)
+- [2. Rules every screen follows](#2-rules-every-screen-follows)
+- [3. Colour](#3-colour)
+- [4. Type](#4-type)
+- [5. Shape and size](#5-shape-and-size)
+- [6. Components (all drawn in the artifact)](#6-components-all-drawn-in-the-artifact)
+- [7. Toasts](#7-toasts)
+- [8. Motion](#8-motion)
+- [9. How this system grows](#9-how-this-system-grows)
+- [10. When this file says nothing](#10-when-this-file-says-nothing)
+- [11. Appendix: carried over from the old design-system.md](#11-appendix-carried-over-from-the-old-design-systemmd)
+<!-- /at-a-glance -->
+
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
 - **See it:** the design system artifact, https://claude.ai/artifact/TfMsJ7P3xDDbR3jLZwgH79 (colours, type, components with live previews, motion, toasts). Ask Jesper for access if the link doesn't open.

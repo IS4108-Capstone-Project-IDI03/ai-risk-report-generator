@@ -1,5 +1,11 @@
 # UI conventions
 
+<!-- at-a-glance -->
+> **In 30 seconds:** rules for building any screen: reuse the design-system components and tokens, and follow `docs/design-system-v2.md`.
+>
+> **Read this when:** you start a new screen.
+<!-- /at-a-glance -->
+
 Read [the Marsh design system](../design-system-v2.md) before changing any screen. It is the visual and component reference for every future screen.
 
 - Put reusable, domain-independent controls in `client/src/design-system/components` and export them from `design-system/index.ts`. Use typed props and ordinary React imports.

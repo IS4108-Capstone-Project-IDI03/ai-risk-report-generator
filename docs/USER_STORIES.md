@@ -1,5 +1,26 @@
 # User stories backlog
 
+<!-- at-a-glance -->
+> **In 30 seconds:** the product backlog, grouped into epics. A story is ticked when it is merged to `main`. The team's Google Sheet is the source of truth; this file is a checkable snapshot.
+>
+> **Read this when:** you look for a story, its acceptance criteria, or what is still open.
+
+**Epics**
+
+| Epic | Done | Open |
+|---|---|---|
+| [E1 — Foundations & DevOps](#e1--foundations--devops) | 4 | 4 |
+| [E2 — Ingestion & Processing](#e2--ingestion--processing) | 1 | 13 |
+| [E3 — Knowledge Base & Online RAG Pipeline](#e3--knowledge-base--online-rag-pipeline) | 0 | 2 |
+| [E4 — Retrieval & Context Management](#e4--retrieval--context-management) | 0 | 3 |
+| [E5 — Multimodal Capture](#e5--multimodal-capture) | 5 | 27 |
+| [E6 — Report Generation & Guardrails](#e6--report-generation--guardrails) | 0 | 9 |
+| [E7 — Engineer Review & Editing](#e7--engineer-review--editing) | 1 | 14 |
+| [E8 — Evaluation Harness](#e8--evaluation-harness) | 0 | 4 |
+| [E9 — Knowledge Base Chatbot](#e9--knowledge-base-chatbot) | 0 | 6 |
+| [E10 — Export & Handover](#e10--export--handover) | 0 | 1 |
+<!-- /at-a-glance -->
+
 Full product backlog, carried over from planning. Tick a story's checkbox when it's merged to `main`, not just coded — matches how `docs/DECISIONS.md` only records what actually landed. Acceptance criteria are kept in full underneath each story so a story can be closed against them without hunting for the original source.
 
 ## E1 — Foundations & DevOps

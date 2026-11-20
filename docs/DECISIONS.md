@@ -1,5 +1,26 @@
 # Architecture decisions
 
+<!-- at-a-glance -->
+> **In 30 seconds:** the dated log of why the team built things the way it did. Each entry has a date, a title, what was decided and why. Newer entries sit at the bottom. When one replaces another, the old entry says "Superseded" in place; entries are not rewritten.
+>
+> **Read this when:** you wonder why something works the way it does, before you change it.
+>
+> **Find an entry:** search this page for a story ID (for example `RT-04`) or a word. 97 entries (2026-09: 13, 2026-10: 51, 2026-11: 33).
+
+**The 10 newest entries**
+
+- [2026-11-20 — A standard with no PDF is entered clause by clause, indexed as each clause is saved, and replaced by its PDF later](#2026-11-20--a-standard-with-no-pdf-is-entered-clause-by-clause-indexed-as-each-clause-is-saved-and-replaced-by-its-pdf-later)
+- [2026-11-18 — A heading repeated on many pages is left out of heading trails](#2026-11-18--a-heading-repeated-on-many-pages-is-left-out-of-heading-trails)
+- [2026-11-18 — Each table item in a chunk is read as its own table, and records its own region](#2026-11-18--each-table-item-in-a-chunk-is-read-as-its-own-table-and-records-its-own-region)
+- [2026-11-18 — Type3 text is redrawn at its height and a line at a time](#2026-11-18--type3-text-is-redrawn-at-its-height-and-a-line-at-a-time)
+- [2026-11-18 — A document whose type can't be read waits for the admin to choose one before ingestion](#2026-11-18--a-document-whose-type-cant-be-read-waits-for-the-admin-to-choose-one-before-ingestion)
+- [2026-11-17 — A knowledge document's passages are paged and outlined by the ingestion service, from clause numbers](#2026-11-17--a-knowledge-documents-passages-are-paged-and-outlined-by-the-ingestion-service-from-clause-numbers)
+- [2026-11-18 — A photo's mark is a rectangle kept as data, and the model gets a close-up of it](#2026-11-18--a-photos-mark-is-a-rectangle-kept-as-data-and-the-model-gets-a-close-up-of-it)
+- [2026-11-16 — Text drafted from the Ask tab goes into a section as a version, marked AI draft by its proposal, until the engineer accepts it](#2026-11-16--text-drafted-from-the-ask-tab-goes-into-a-section-as-a-version-marked-ai-draft-by-its-proposal-until-the-engineer-accepts-it)
+- [2026-11-13 — Ask conversations are one document each, holding their questions; the old questions are moved into them](#2026-11-13--ask-conversations-are-one-document-each-holding-their-questions-the-old-questions-are-moved-into-them)
+- [2026-11-15 — The Calendar is a screen over the work list, and its own grid](#2026-11-15--the-calendar-is-a-screen-over-the-work-list-and-its-own-grid)
+<!-- /at-a-glance -->
+
 ## 2026-09-07 — Five-service microservices, not a monolith
 Chose: five independently deployable services (S1–S5) across four tiers.
 Rejected: modular monolith (single deployable). Reason: prof's marking rubric
@@ -40,7 +61,7 @@ implements the requested Cohere/Chroma setup and replaces the planned Atlas
 Vector Search role. MongoDB retains application records; S3 retains original
 files. Use direct SDK calls inside existing services, without an additional
 retrieval service or framework. Raw-file processing and report generation remain
-separate unfinished work. See `docs/COHERE_CHROMA.md`.
+separate unfinished work. See `docs/guides/COHERE_CHROMA.md`.
 
 ## 2026-09-23 — Server tests run against an in-memory mongod
 

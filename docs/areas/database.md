@@ -1,5 +1,45 @@
 # Storage and retrieval
 
+<!-- at-a-glance -->
+> **In 30 seconds:** Every record the gateway keeps in MongoDB, with its fields, who writes it and the rules it must follow (metadata fields, append-only logs). Chroma holds the searchable passages; S3 holds the original files.
+>
+> **Read this when:** you add or change a record, wonder where a piece of data lives, or need the exact fields of one.
+>
+> **Deeper:** the guide `.local-docs/repo-guide/08-data-stores.md` (beginner version, local only) and `server/src/models/` (the code).
+
+**Contents**
+
+- **Field work**
+  - [Assessments and capture sessions](#assessments-and-capture-sessions)
+  - [Client insights (CP-29)](#client-insights-cp-29)
+  - [Client intakes and client documents (CP-23)](#client-intakes-and-client-documents-cp-23)
+  - [Observations](#observations)
+  - [Site walks (CP-22)](#site-walks-cp-22)
+  - [Pre-survey checklists (CP-30)](#pre-survey-checklists-cp-30)
+- **The report**
+  - [Report sections (GN-01)](#report-sections-gn-01)
+  - [Drafting runs (GN-13)](#drafting-runs-gn-13)
+  - [Review audit log (RV-02)](#review-audit-log-rv-02)
+  - [Report section versions (RV-08, RV-06)](#report-section-versions-rv-08-rv-06)
+  - [Report comment threads (RV-03)](#report-comment-threads-rv-03)
+  - [Ask conversations (AS-01, AS-03)](#ask-conversations-as-01-as-03)
+  - [Proposed text (AS-04)](#proposed-text-as-04)
+  - [Opportunities for Improvement (GN-05)](#opportunities-for-improvement-gn-05)
+- **Knowledge base**
+  - [Knowledge documents (IN-01, KB-01, IN-07)](#knowledge-documents-in-01-kb-01-in-07)
+  - [Knowledge gap requests (CB-07)](#knowledge-gap-requests-cb-07)
+- **People and settings**
+  - [User accounts](#user-accounts)
+  - [Role permissions (F-05)](#role-permissions-f-05)
+  - [Notifications](#notifications)
+  - [My preferences (CB-05)](#my-preferences-cb-05)
+  - [Source priority (RT-04)](#source-priority-rt-04)
+  - [User settings (CP-35)](#user-settings-cp-35)
+- **AI use and chat**
+  - [AI-call usage (EV-03)](#ai-call-usage-ev-03)
+  - [Saved chats (CB-03)](#saved-chats-cb-03)
+<!-- /at-a-glance -->
+
 - MongoDB stores application records: sites, assessments, capture sessions, observations, report section drafts, the review audit log and user accounts.
 - AWS S3 stores original uploaded files.
 - Chroma stores anonymised chunk text, vectors, and citation/filter metadata. Chroma replaces the planned Atlas Vector Search role.
@@ -7,7 +47,7 @@
 Ingestion and RAG connect to one Chroma database. `CHROMA_MODE=local` uses
 the local HTTP server; `CHROMA_MODE=cloud` uses Chroma Cloud with
 `CHROMA_API_KEY`, `CHROMA_TENANT`, `CHROMA_DATABASE`, and `CHROMA_CLOUD_HOST`.
-See [team setup](../COHERE_CHROMA.md#shared-chroma-cloud-for-the-team). Docker persists its data in
+See [team setup](../guides/COHERE_CHROMA.md#shared-chroma-cloud-for-the-team). Docker persists its data in
 `chroma-data:/data`; `docker compose down` keeps it, `down -v` deletes it.
 The Chroma server and Python HTTP clients are pinned to 1.5.5.
 

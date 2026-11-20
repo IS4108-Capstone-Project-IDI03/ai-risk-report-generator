@@ -1,5 +1,20 @@
 # Run Cohere + Chroma
 
+<!-- at-a-glance -->
+> **In 30 seconds:** How to set up Cohere (embeddings and reranking, a hosted API) and Chroma (the vector database, in the cloud or local) for search.
+>
+> **Read this when:** search returns nothing, you need your own Chroma, or you hit an API limit.
+
+**Contents**
+
+- [Configure](#configure)
+- [Shared Chroma Cloud for the team](#shared-chroma-cloud-for-the-team)
+- [Local Chroma with Docker](#local-chroma-with-docker)
+- [Local processes without Docker](#local-processes-without-docker)
+- [API and limits](#api-and-limits)
+- [Offline checks](#offline-checks)
+<!-- /at-a-glance -->
+
 Cohere is a hosted API. Chroma can run locally or in Chroma Cloud. No Ollama process is needed.
 
 ## Configure
@@ -127,7 +142,7 @@ the same ports.
 Inspect request schemas at `http://localhost:8001/docs` and
 `http://localhost:8002/docs`. The smoke script provides a complete `/index`
 request example. `/retrieve` accepts `{"query":"What flood protection is present?"}`.
-See [storage conventions](areas/database.md) for metadata and upsert semantics.
+See [storage conventions](../areas/database.md) for metadata and upsert semantics.
 
 This setup implements indexing pre-anonymised text and reranked retrieval.
 `/ingest` is still a filename-only placeholder. `/generate` calls the new retriever,

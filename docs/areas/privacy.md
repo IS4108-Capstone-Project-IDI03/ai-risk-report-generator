@@ -1,5 +1,20 @@
 # PII protection before external AI calls (epic E11)
 
+<!-- at-a-glance -->
+> **In 30 seconds:** Client names, phone numbers and IDs are replaced by placeholders before any text goes to an outside AI, and put back afterwards. If hiding fails, nothing is sent.
+>
+> **Read this when:** you add a flow that sends text to an AI, or need to know which flows are protected and which are not yet.
+
+**Contents**
+
+- [Protected flows](#protected-flows)
+- [How a protected request works](#how-a-protected-request-works)
+- [What is detected](#what-is-detected)
+- [Known gaps](#known-gaps)
+- [Testing](#testing)
+- [Eval results](#eval-results)
+<!-- /at-a-glance -->
+
 Client details are swapped for typed placeholders (`[CLIENT_1]`, `[PERSON_2]`) before text goes to Anthropic, OpenAI, Gemini or Cohere. The real values are restored afterwards. The local `privacy-service` does the masking (PV-01); each caller masks its own requests.
 
 ## Protected flows

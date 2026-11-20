@@ -6,7 +6,7 @@
 // assessments, chat calls to its sample engineers. There are no ingestion rows
 // (the seed makes no knowledge documents), so the Ingestion tab shows only real
 // uploads. Discarding the samples later means deleting these rows too: see
-// docs/RUNNING.md.
+// docs/guides/RUNNING.md.
 import 'dotenv/config'
 import mongoose, { Types } from 'mongoose'
 import { AiCallModel, type IAiCall } from '../models/ai-call.model'
