@@ -22,6 +22,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 HANDWRITING_PROVIDER = os.getenv("HANDWRITING_PROVIDER", "").strip() or VISION_PROVIDER
 HANDWRITING_MODEL = os.getenv("HANDWRITING_MODEL", "").strip() or VISION_MODEL
 
+# The model pass that takes a self-correction's abandoned half out of a transcript (CP-27),
+# swappable like the others and starting as photo interpretation's provider and model.
+TIDY_PROVIDER = os.getenv("TIDY_PROVIDER", "").strip() or VISION_PROVIDER
+TIDY_MODEL = os.getenv("TIDY_MODEL", "").strip() or VISION_MODEL
+
 # privacy-service masks client details and blurs faces before photo reading (PV-04). The gateway
 # decides whether protection is on; S5 never reads PII_PROTECTION itself.
 PRIVACY_SERVICE_URL = os.getenv("PRIVACY_SERVICE_URL", "http://localhost:8004")

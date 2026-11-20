@@ -59,8 +59,15 @@ CLIP_PROMPT = "This is a question for Marsh risk engineering about fire protecti
 RECORDING_PROMPT = "This is a Marsh risk engineer's site survey note on fire protection. " + _TERMS
 
 
-def _whisper(name: str, audio: bytes, prompt: str | None = None, only_speech: bool = False) -> dict:
-    """Send audio to Whisper; return {transcript, segments, usage}. `name` carries the format."""
+def _whisper(
+    name: str,
+    audio: bytes,
+    prompt: str | None = None,
+    only_speech: bool = False,
+    privacy: dict | None = None,
+) -> dict:
+    """Send audio to Whisper; return {transcript, spoken, segments, usage}. `name` carries the
+    format; `privacy` is passed to the tidy model's pass (CP-27)."""
     # Time only the OpenAI call, so duration_ms excludes any storage read.
     started = time.perf_counter()
     try:
@@ -97,15 +104,16 @@ def _whisper(name: str, audio: bytes, prompt: str | None = None, only_speech: bo
     spoken = _spoken(result) if only_speech else result.text.strip()
     # CP-27: `transcript` is tidied (fillers and stumbles deleted, nothing reworded); `spoken` is
     # Whisper's own text, which the gateway keeps as evidence.
+    transcript, tidy_usage = tidy.repair(tidy.rules(spoken), privacy)
     return {
-        "transcript": tidy.rules(spoken),
+        "transcript": transcript,
         "spoken": spoken,
         "segments": _segments(result),
-        "usage": [usage],
+        "usage": [usage, *tidy_usage],
     }
 
 
-def transcribe(s3_key: str) -> dict:
+def transcribe(s3_key: str, privacy: dict | None = None) -> dict:
     try:
         stored = boto3.client("s3", region_name=AWS_REGION).get_object(Bucket=S3_BUCKET, Key=s3_key)
         audio = stored["Body"].read()
@@ -115,10 +123,10 @@ def transcribe(s3_key: str) -> dict:
         reason = f"The recording could not be read from storage: {error}"
         raise TranscriptionError(reason) from error
     # Whisper picks the decoder from the file name's extension, which the key carries.
-    return _whisper(os.path.basename(s3_key), audio, RECORDING_PROMPT)
+    return _whisper(os.path.basename(s3_key), audio, RECORDING_PROMPT, privacy=privacy)
 
 
-def transcribe_clip(audio: bytes, filename: str) -> dict:
-    """Transcribe a short clip sent directly (a spoken chat question), with the vocabulary hint."""
+def transcribe_clip(audio: bytes, filename: str, privacy: dict | None = None) -> dict:
+    """Transcribe a short clip sent directly (a spoken chat question or dictated text)."""
     # only_speech: a silent or noisy clip must come back empty, not as an invented sentence.
-    return _whisper(filename, audio, CLIP_PROMPT, only_speech=True)
+    return _whisper(filename, audio, CLIP_PROMPT, only_speech=True, privacy=privacy)

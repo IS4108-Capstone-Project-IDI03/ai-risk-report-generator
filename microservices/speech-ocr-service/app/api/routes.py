@@ -88,11 +88,22 @@ def health() -> dict:
     return {"status": "ok", "service": "speech-ocr"}
 
 
+# A recording to transcribe. `privacy` is whether the tidy model's pass (CP-27) may read the
+# text, and how to mask it first; left out, the transcript is tidied by rules alone.
+class TranscribeRequest(BaseModel):
+    s3_key: str
+    privacy: Privacy | None = None
+
+
+def _privacy(privacy: Privacy | None) -> dict | None:
+    return privacy.model_dump() if privacy else None
+
+
 @router.post("/transcribe")
-def transcribe_audio(request: S3KeyRequest) -> dict:
+def transcribe_audio(request: TranscribeRequest) -> dict:
     # The gateway stores the result and shows `detail` to the engineer on failure.
     try:
-        return transcribe(request.s3_key)
+        return transcribe(request.s3_key, _privacy(request.privacy))
     except TranscriptionError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -102,6 +113,7 @@ class ClipRequest(BaseModel):
     audio_base64: str
     # Its extension tells Whisper the format (webm, m4a...).
     filename: str = "question.webm"
+    privacy: Privacy | None = None
 
 
 @router.post("/transcribe-clip")
@@ -112,7 +124,7 @@ def transcribe_audio_clip(request: ClipRequest) -> dict:
     except ValueError as error:
         raise HTTPException(status_code=422, detail="The audio is not valid base64.") from error
     try:
-        return transcribe_clip(audio, request.filename)
+        return transcribe_clip(audio, request.filename, _privacy(request.privacy))
     except TranscriptionError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
