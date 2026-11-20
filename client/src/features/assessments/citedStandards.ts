@@ -12,7 +12,7 @@ const EVIDENCE = new Set(['7', '8', '9', '10', '11', '12'])
 export function countCitingStandard(sections: ReviewSection[]): { cited: number; total: number } {
   const drafted = sections.filter((s) => EVIDENCE.has(s.id) && s.draft)
   const cited = drafted.filter((s) =>
-    s.draft!.subsections.some((sub) =>
+    s.draft!.subsections?.some((sub) =>
       sub.statements
         .filter(inDraft)
         .some((st) => st.citations.some((id) => s.sources[id]?.kind === 'standard')),
