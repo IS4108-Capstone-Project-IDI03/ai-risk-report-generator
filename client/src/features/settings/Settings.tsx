@@ -27,18 +27,9 @@ const needs =
   (s, onSaved) =>
     s ? show(s, onSaved) : <p className="st-note">Loading…</p>
 
-const WORKING: Section[] = [
+// What each person sets for themselves comes first, with no heading.
+const MINE: Section[] = [
   { id: 'password', label: 'Password', render: () => <PasswordSection /> },
-  {
-    id: 'models',
-    label: 'Models',
-    render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
-  },
-  {
-    id: 'source-priority',
-    label: 'Source priority',
-    render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
-  },
   {
     id: 'chat',
     label: 'Chat and voice',
@@ -48,6 +39,19 @@ const WORKING: Section[] = [
     id: 'note-taking',
     label: 'Note-taking',
     render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
+  },
+]
+// What only a knowledge admin can change, for everyone. An engineer sees these read-only.
+const ADMIN: Section[] = [
+  {
+    id: 'models',
+    label: 'Models',
+    render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
+  },
+  {
+    id: 'source-priority',
+    label: 'Source priority',
+    render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
@@ -60,7 +64,13 @@ const SOON: Section[] = [
   owner,
   render: () => <ComingSoonSection name={name} owner={owner} />,
 }))
-const SECTIONS = [...WORKING, ...SOON]
+// The menu's groups, top to bottom, each with an optional heading.
+const GROUPS: { heading?: string; items: Section[] }[] = [
+  { items: MINE },
+  { heading: 'Set by admin', items: ADMIN },
+  { heading: 'Coming soon', items: SOON },
+]
+const SECTIONS = GROUPS.flatMap((g) => g.items)
 
 export function Settings() {
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -77,10 +87,10 @@ export function Settings() {
   return (
     <div className="st">
       <nav className="st-menu" aria-label="Settings sections">
-        {[WORKING, SOON].map((group, i) => (
+        {GROUPS.map((group, i) => (
           <div key={i} className="st-menu-group">
-            {i === 1 && <div className="st-menu-heading">Coming soon</div>}
-            {group.map((s) => (
+            {group.heading && <div className="st-menu-heading">{group.heading}</div>}
+            {group.items.map((s) => (
               <button
                 key={s.id}
                 type="button"

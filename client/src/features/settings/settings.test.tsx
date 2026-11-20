@@ -98,6 +98,23 @@ describe('Settings', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 
+  it('keeps what only an admin can change in its own Set by admin group of the menu', async () => {
+    mock(data(false))
+    render(<Settings />)
+    const menu = screen.getByRole('navigation', { name: 'Settings sections' })
+    const group = (heading: string) => within(menu).getByText(heading).parentElement!
+    const names = (el: HTMLElement) =>
+      within(el)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    expect(names(group('Set by admin'))).toEqual(['Models', 'Source priority'])
+    expect(names(group('Coming soon'))).toEqual(['QA eval', 'Checklist'])
+    // What a person sets for themselves has no heading and comes first.
+    const personal = menu.firstElementChild as HTMLElement
+    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking'])
+    expect(within(personal).queryByText('Set by admin')).toBeNull()
+  })
+
   it('highlights the open menu item', async () => {
     mock(data(false))
     render(<Settings />)
