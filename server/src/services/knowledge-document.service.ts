@@ -1054,9 +1054,10 @@ export async function correctKnowledgeDocument(
   // this, MongoDB would show the correction while search still used the old
   // labels (or a stale match).
   const rematch = Boolean(old.match) || identityDiffers(old, next)
-  // Only the tier changed: it is not stored in Chroma, so there is nothing to relabel. Without this
-  // a tier change would fail whenever the ingestion service is down.
-  const tierOnly = tierChanged && !differs(old, next)
+  // Only the tier is new, or nothing changed: the tier is not stored in Chroma, so there is nothing
+  // to relabel. Without this, choosing the suggested tier (which is no change) or saving a tier
+  // would fail whenever the ingestion service is down.
+  const tierOnly = !differs(old, next)
   try {
     if (tierOnly) {
       // nothing to send

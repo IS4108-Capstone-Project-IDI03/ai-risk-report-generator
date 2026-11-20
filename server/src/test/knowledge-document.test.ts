@@ -2290,6 +2290,29 @@ describe('document authority tier (RT-04)', () => {
     expect(inspect).not.toHaveBeenCalled()
   })
 
+  it('confirms the suggested tier without calling the ingestion service, marking it admin (RT-04)', async () => {
+    const id = await stored(REPORT)
+    inspect.mockResolvedValue(Response.json({ passagesUpdated: 1 }))
+    await api.put(`/api/knowledge-documents/${id}`).send(DETAILS).expect(200)
+    const before = (await api.get(`/api/knowledge-documents/${id}`)).body.tier
+    expect(before).toEqual({ value: 'marsh_precedent', source: 'auto' })
+    inspect.mockReset()
+    inspect.mockRejectedValue(new Error('ingestion is down'))
+    // Choosing the tier it already has is a confirmation, not "nothing changed".
+    const res = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(res.status).toBe(200)
+    expect(res.body.tier).toEqual({ value: 'marsh_precedent', source: 'admin' })
+    expect(inspect).not.toHaveBeenCalled()
+    // Saving it again, unchanged, still works while ingestion is down.
+    const again = await api
+      .put(`/api/knowledge-documents/${id}`)
+      .send({ ...DETAILS, tier: 'marsh_precedent' })
+    expect(again.status).toBe(200)
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
   it('answers 400 for an unknown tier and 403 to an engineer', async () => {
     const id = await stored(REPORT)
     const put = (who: typeof api, tier: string) =>
