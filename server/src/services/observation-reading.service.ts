@@ -518,7 +518,9 @@ export async function runReading(
       return
     }
   }
-  const o = (await ObservationModel.findById(id).lean<StoredObservation>())!
+  const o = await ObservationModel.findById(id).lean<StoredObservation>()
+  // Gone since step a (a discarded draft): without this the job would throw on a missing record.
+  if (!o) return
 
   // c. Wait while anything is transcribing: its finish queues a new run.
   const transcribing = [...kept(o.recordings), ...kept(o.pages ?? [])].some(
