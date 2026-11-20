@@ -5,20 +5,78 @@ Per-service internals: ingestion pipeline stages, RAG orchestrator flow, speech/
 1. The client saves an observation with its recordings to the gateway, which
    stores each recording in S3 and saves it as `transcribing` (see
    [database](database.md#observations)).
-2. The gateway posts `{ "s3_key": ... }` to S5's `POST /transcribe` (via
-   `SPEECH_OCR_SERVICE_URL`) without making the client wait.
+2. The gateway posts `{ "s3_key": ..., "privacy": ... }` to S5's `POST /transcribe` (via
+   `SPEECH_OCR_SERVICE_URL`) without making the client wait. `privacy` is the
+   assessment's (`privacyFor`), for the tidy step below.
 3. S5 reads the audio from S3 with boto3 and sends it to the OpenAI Whisper API
    (`WHISPER_MODEL`, default `whisper-1`; needs `OPENAI_API_KEY`). The file name
-   keeps the key's extension, which Whisper uses to pick the decoder. S5 returns
-   `{ "transcript": ... }`, or 502 with `detail` explaining the failure. It
-   writes nothing to MongoDB.
-4. The gateway stores the transcript or the failure reason on that recording.
-   The client re-reads the list every 3 seconds while a recording is
-   transcribing.
+   keeps the key's extension, which Whisper uses to pick the decoder. S5 tidies
+   the text (see "Tidying a transcript" below) and returns
+   `{ "transcript": <tidy>, "spoken": <Whisper's own>, "segments", "usage" }`, or
+   502 with `detail` explaining the failure. It writes nothing to MongoDB.
+4. The gateway stores the tidy text as `transcript` and Whisper's as `spoken`, or
+   the failure reason, on that recording. The client re-reads the list every 3
+   seconds while a recording is transcribing.
 
-Transcription runs inside the gateway process (no queue or worker). If the
+Transcription runs on the gateway's `transcriptionQueue`
+(`background-queues.service.ts`), which retries a busy or unreachable S5. If the
 gateway restarts mid-attempt, startup marks that attempt failed with a reason,
 so the engineer can retry it instead of waiting forever.
+
+### Tidying a transcript (S5, CP-27)
+
+Every transcript S5 returns, from `/transcribe` and `/transcribe-clip`, is tidied
+in `_whisper()` (`app/processors/stt.py`), so recordings, walk recordings,
+spoken chat questions and dictation all go through it. Tidying only ever
+**deletes** words; it never adds, changes or moves one. Transcripts are English
+(`language="en"` is pinned).
+
+1. **Prompt.** Whisper copies its prompt's style, so both prompts
+   (`RECORDING_PROMPT`, `CLIP_PROMPT`) are fluent sentences with no "um" or "uh",
+   holding the fire-protection terms it otherwise mishears. They are S5's own
+   fixed text: no client words.
+2. **Rules** (`app/processors/tidy.py` `rules`, no model): the fixed `FILLERS`
+   list (um, uh, er, erm, hmm…), a word or phrase of up to 3 words said twice in
+   a row ("the the"), and stutters ("s- sprinkler", "s-s-sprinkler"). Kept as
+   spoken: repeated numbers ("room ten ten"), grammatical doubles ("that that",
+   "had had", "is is"), hyphenated words ("re-reading") and words that can carry
+   meaning ("no", "well", "like", "you know", "I mean"). A word joins a list
+   only with a test beside it (`tests/test_tidy.py`). Segment texts get the rules
+   only; their timings are unchanged.
+3. **Model** (`tidy.repair`), for what rules can't judge: the abandoned half of a
+   self-correction ("level 3, sorry, level 4" becomes "level 4"), false starts
+   and leftover fillers (Singlish particles such as "lah" are left to it, as
+   "meh" can make a question). Provider `TIDY_PROVIDER` / `TIDY_MODEL`, falling
+   back to `VISION_PROVIDER` / `VISION_MODEL`; only Gemini is implemented. Its
+   answer is used only as a choice of which spoken words to drop: the words kept
+   are the speaker's own, punctuation included. The answer is **not used**, and
+   the rules' text stands, when it:
+   - adds, changes or moves a word;
+   - deletes more than a quarter of the words (4 in a short clip);
+   - drops a number without also dropping a correction word ("sorry", "I mean",
+     "no", "actually", "wait", "rather", "correction", "scratch").
+
+   It runs only when the gateway sends `privacy`. The text is masked through
+   privacy-service first (see [privacy](privacy.md)); if masking fails, the model
+   is not called. A model error never fails the transcription either. Its call is
+   reported as `tidy-transcript` usage (billed `gemini-vision`).
+
+### Dictation (gateway, CP-27)
+
+`POST /api/assessments/:reference/dictation`, raw `audio/*` body up to 2 MB, answers
+`{ text }`: the clip goes to S5's `/transcribe-clip` with the assessment's privacy
+and is stored nowhere (`dictation.routes.ts` → `dictation.service.ts`). It needs a
+session (401) and an assessment the caller can open (403, 404); 415 for a file
+that is not audio, 413 too large, 400 empty, 422 when no speech was heard, 503
+when S5 fails. It changes nothing in the assessment, so MarshBot does not
+re-check it (`NOT_CHANGES` in `assistant-recheck.middleware.ts`).
+
+The client's `DictateButton` (`client/src/features/assessments/dictation/`) puts
+the text in at the field's cursor, in place of a selection. It records with
+`useRecorder`, shared with the chat's mic (CB-10). It is on: an observation's
+note (and a walk proposal's), a walk's note box (not while the walk records), the
+transcript correction, comments (inside a `DictationScope`), the Ask question box
+and a checklist answer's "What you saw".
 
 Running S5 outside Docker: `.env` points `SPEECH_OCR_SERVICE_URL` at
 `http://localhost:8003` (Compose overrides it with the Docker hostname). If a
@@ -29,9 +87,9 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 ### Site walk additions (S5, CP-22)
 
 - `POST /transcribe` returns Whisper's `segments` (`start`, `end`, `text`, seconds into the
-  recording) beside `transcript`. It takes only `s3_key`: no vocabulary
-  hint is sent, because client text must not reach an external AI unmasked and
-  speech-to-text is not masked.
+  recording) beside `transcript`. Its vocabulary prompt is S5's own fixed text
+  (CP-27): no client words are sent to Whisper, because client text must not
+  reach an external AI unmasked and speech-to-text is not masked.
 - `POST /describe-photo` `{ s3_key, privacy? }` returns `{ description, usage, privacy }`: one or two
   plain sentences of what one site-walk photo shows, from `VISION_PROVIDER` /
   `VISION_MODEL`. Only the photo is sent, no client text. The proposal step

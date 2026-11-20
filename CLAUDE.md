@@ -23,6 +23,7 @@
 - LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service,
   the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), the
   handwriting-transcription provider by `HANDWRITING_PROVIDER` in S5 (CP-19),
+  the transcript-tidying provider by `TIDY_PROVIDER` in S5 (CP-27),
   and the table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,

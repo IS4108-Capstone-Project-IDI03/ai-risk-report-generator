@@ -862,6 +862,29 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting a client's or site's details, or a visit's own (CP-28); the knowledge admin's view of every engineer's visits, and merging (CP-44); permanently deleting (rejected, see DECISIONS).
   </details>
 
+- [ ] **CP-27** — Clean up spoken transcripts, and dictate into an assessment's text fields (risk engineer, Should, 5 pts, deps: CP-03, CP-08, CP-22, CB-10, PV-04)
+  <details><summary>Goal / AC</summary>
+
+  Goal: a transcript reads as what the engineer meant, without "um", stumbles or the words they took back, and never says anything they didn't; and they can speak into the text fields where typing on site is slow.
+
+  Tidy transcripts
+
+  1. Given a recording, a walk recording, a walk's voice clip, a spoken chat question or dictation, when it is transcribed, then fillers (um, uh, er, hmm…), a word or short phrase said twice in a row, and stutters ("s- sprinkler") are taken out.
+  2. Given a tidied transcript, when it is compared with what was said, then every word in it was said, in the same order: tidying only deletes.
+  3. Given a repeated number ("room ten ten"), a grammatical double ("that that", "had had"), a hyphenated word, or a word that can carry meaning ("no", "well", "like", "you know", "I mean"), when it is tidied, then it is kept.
+  4. Given a self-correction ("level 3, sorry, level 4"), when protection allows a model to read it, then the abandoned half is taken out; an answer that adds, changes or moves a word, deletes more than a quarter of the words (4 in a short clip), or drops a number the speaker didn't take back is not used, and the rules' tidy text stands.
+  5. Given a tidied recording, when it is saved, then Whisper's own text is kept beside it as evidence, and drafting, Ask, the observation reading and the transcript shown use the tidy text.
+  6. Given protection is on, when the model tidies a transcript, then it sees the client's details only as placeholders; if they can't be masked, the model isn't called and nothing is lost.
+
+  Dictation
+
+  7. Given an observation's note, a walk's note box (while the walk isn't recording), a transcript correction, a comment, the Ask question box or a checklist answer, when I press Dictate, speak and stop, then the tidy words go in at the cursor, in place of any selection, for me to check before saving.
+  8. Given the microphone is blocked, no speech was heard, or the speech service fails, when I dictate, then I'm told what went wrong and how to fix it, and the field is unchanged.
+  9. Given an assessment I can't open, when I dictate into it, then it is refused; a dictated clip is stored nowhere.
+
+  Not in this story: languages other than English (Whisper is pinned to English); showing Whisper's own text in the app; Singlish particles ("lah", "meh") in the fixed list, as "meh" can make a question.
+  </details>
+
 - [ ] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
