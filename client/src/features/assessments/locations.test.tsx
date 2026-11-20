@@ -1073,8 +1073,8 @@ describe('The Observations tab by location (CP-16)', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Add observation at Block A › Level 1 › Lobby' }),
     )
-    // Save goes back to the tab by itself (CP-24).
     await saveNote('Fire door wedged open.')
+    back()
 
     // The list opens on the location saved in, focused on the new row.
     const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
@@ -1098,8 +1098,8 @@ describe('The Observations tab by location (CP-16)', () => {
     await openObservations()
     fireEvent.click(within(nav()).getByRole('button', { name: 'Fold Block A' }))
     await captureAt('Block A', /^Block A › Level 1 › Lobby/)
-    // Save goes back to the tab by itself (CP-24).
     await saveNote('Fire door wedged open.')
+    back()
 
     const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
     // The building is open again, so the location can be seen.

@@ -344,7 +344,7 @@ describe('Capturing site photographs (CP-04)', () => {
     expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].photos.map((f) => f.name)).toEqual(['image.jpg', 'image.jpg'])
     expect(saves[0].details).not.toHaveProperty('note')
-    // Back on the Observations tab: the waiting photos are gone from the form.
+    // The waiting photos are gone from the form.
     expect(screen.queryByRole('list', { name: 'Photos' })).not.toBeInTheDocument()
   })
 
@@ -448,12 +448,20 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     expect(saves[0].photos.map((f) => f.name)).toEqual(['IMG_0460.jpg'])
     // Not marked, so it goes as it always has (CP-10).
     expect(saves[0].regions).toEqual([])
-    // Back on the Observations tab, where the new row is listed; the draft is not thrown away.
+    // The form starts again empty, tags and all.
+    expect(screen.getByRole('radio', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Voice' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Protection' })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).not.toBeChecked()
+
+    // It is listed on the Observations tab, which the back button goes to; the draft is not
+    // thrown away.
+    leave()
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /Valve V-12 chained open/ }),
     ).toBeInTheDocument()
@@ -662,6 +670,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     save()
     await screen.findByText(/Observation saved/)
+    leave()
 
     expect(await screen.findByRole('button', { name: /Transcription failed/ })).toBeInTheDocument()
   })
@@ -749,27 +758,21 @@ describe('Leaving capture', () => {
     fireEvent.click(
       screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
     )
-    // Each save goes back to the tab; the next one starts from it, in the same location.
     for (const note of ['Exit sign E4 unlit.', 'Hose reel H2 blocked.']) {
       write(note)
       grade('Low')
       save()
-      await screen.findByRole('button', { name: new RegExp(note.slice(0, 12)) })
-      if (note.startsWith('Exit')) {
-        addManually()
-        await screen.findByRole('textbox', { name: 'Note' })
-      }
     }
+
+    leave()
 
     // Newest first, so it lands on the newest one saved.
     const newest = await screen.findByRole('button', { name: /Hose reel H2 blocked/ })
     await vi.waitFor(() => expect(newest).toHaveFocus())
     // The row's hidden text starts "New. " for what was just saved; the samples were there before.
-    // Opening capture again starts a new visit, so only the last save is marked.
-    expect(screen.getByRole('button', { name: /Hose reel H2 blocked/ })).toHaveAccessibleName(
-      /^New\./,
-    )
-    expect(screen.getAllByRole('button', { name: /^New\./ })).toHaveLength(1)
+    for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
+      expect(screen.getByRole('button', { name: note })).toHaveAccessibleName(/^New\./)
+    expect(screen.getAllByRole('button', { name: /^New\./ })).toHaveLength(2)
   })
 
   it('leaves for any workspace tab, which stays on show with Observations chosen', async () => {
@@ -1038,11 +1041,8 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
       write('Hose reel H3 blocked by pallets.')
       grade('High')
       save()
-      // A save goes back to the tab; the next one starts afresh from it.
-      await vi.waitFor(() => expect(saves).toHaveLength(shared.indexOf(label) + 1))
-      await screen.findByRole('button', { name: 'Add observation' })
-      addManually()
-      await screen.findByRole('textbox', { name: 'Note' })
+      // A save clears the box and the tags, so the next one starts afresh.
+      await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
       expect(box(label)).not.toBeChecked()
     }
     expect(saves.map((s) => s.details.copeDimensions)).toEqual(shared.map((c) => [c]))
@@ -1059,6 +1059,7 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.copeDimensions).toEqual(['Construction', 'Protection', 'Exposure'])
+    leave()
     expect(
       await screen.findByRole('button', { name: /Shared wall with the neighbouring paint store/ }),
     ).toHaveTextContent(/Construction\s*Protection\s*Exposure/)

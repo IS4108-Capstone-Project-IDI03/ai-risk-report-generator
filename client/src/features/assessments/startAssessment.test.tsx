@@ -140,7 +140,6 @@ describe('Capture session (CP-01)', () => {
   it('keeps sample data usable when the gateway cannot be reached, then retries', async () => {
     const fetchMock = mockGateway(
       () => Promise.reject(new TypeError('Failed to fetch')),
-      () => Promise.reject(new TypeError('Failed to fetch')),
       () => respond(201),
     )
     await openApp()
@@ -169,16 +168,12 @@ describe('Capture session (CP-01)', () => {
     expect(await screen.findByText('Observation saved in this demo only.')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
 
-    // Saving went back to the Observations tab; capture opened again tries the session once
-    // more (refused again here) and still offers the retry.
-    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
     // Once the session starts, the warning goes.
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(screen.queryByText('Showing sample data')).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it.each([
@@ -406,7 +401,8 @@ describe('Create assessment (CP-01)', () => {
     expect(fetchMock.mock.calls[3][0]).toBe('/api/assessments/RPT-2026-0001/observations')
     expect(screen.getByRole('tab', { name: 'Observations 1' })).toBeInTheDocument()
 
-    // Saving goes back to the Observations tab, where it is listed (CP-24).
+    // Back on the Observations tab, it is listed.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Sprinkler control valve chained open')).toBeInTheDocument()
     expect(screen.queryByText('No observations yet')).not.toBeInTheDocument()

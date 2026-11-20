@@ -1474,11 +1474,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
       // Keep anything added or changed while the observation was saving. The
       // tags start again empty, so the next observation's are chosen for it.
-      // The Observations tab is to open here, with this one marked New.
+      // The engineer stays on the form; the Observations tab is to mark this one New.
       updateState((previous) => ({
         ...previous,
-        // Back on the Observations tab, where the new row shows it is being read (CP-24).
-        ...toTab('observations'),
         obsReturn: {
           locationId: location.id,
           ids: [...(previous.obsReturn?.ids ?? []), observation.id],
@@ -1497,7 +1495,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fSev: previous.fSev === severity ? '' : previous.fSev,
         fChecklistItem: previous.fChecklistItem === item ? null : previous.fChecklistItem,
       }))
-      // A toast with View, which opens the new observation.
+      // A toast with View, so the engineer stays on the form for the next one.
       toast(
         'Observation saved' + (item ? ', and the checklist item answered as Differs' : ''),
         'success',
@@ -4461,7 +4459,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }
         const reference = s.captureTarget.reference
         setState({
-          ...toTab('observations'),
           ...(isDemoCapture
             ? { fRecent: [entry].concat(s.fRecent) }
             : { captureObs: { ...s.captureObs, [reference]: [entry].concat(localRecent) } }),

@@ -338,11 +338,7 @@ it('records a Differs in full capture, for a recording or handwritten notes (AC3
     copeDimensions: ['Occupancy', 'Protection'],
     checklistItem: { itemId: 'h1', result: 'differs' },
   })
-  // The link goes with that one observation: capture, opened again from the Observations tab
-  // (where saving returns to), is back to normal.
-  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
-  fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
-  await screen.findByRole('button', { name: 'Open checklist' })
+  // The link goes with that one observation; capture is back to normal.
   expect(screen.queryByRole('region', { name: 'Recording a difference' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Open checklist' })).toBeInTheDocument()
 })

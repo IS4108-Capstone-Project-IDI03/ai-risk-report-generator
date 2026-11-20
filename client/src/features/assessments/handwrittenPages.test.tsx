@@ -317,9 +317,6 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     // Pages are not site photos (AC5).
     expect(saves[0].photos).toEqual([])
     expect(saves[0].details).not.toHaveProperty('note')
-    // Saving returns to the Observations tab; a new observation starts with no pages.
-    addManually()
-    scanMode()
     expect(screen.queryByRole('list', { name: 'Pages' })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Scan' })).toBeInTheDocument()
   })
@@ -359,8 +356,8 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     grade('High')
 
     save()
-    // Saving goes back to the Observations tab by itself (CP-24).
     await screen.findByText(/Observation saved/)
+    leave()
 
     expect(await screen.findByRole('button', { name: /Transcription failed/ })).toBeInTheDocument()
   })

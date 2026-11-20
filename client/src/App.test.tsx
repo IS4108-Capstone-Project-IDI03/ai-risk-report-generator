@@ -166,7 +166,8 @@ describe('Marsh prototype integration', () => {
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    // Saving returns to the assessment's Observations tab (CP-24).
+    // The back button above the form goes to the assessment's Observations tab.
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
     expect(screen.getByText('Demo sprinkler observation')).toBeInTheDocument()
   })
