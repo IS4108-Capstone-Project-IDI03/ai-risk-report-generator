@@ -136,6 +136,20 @@ describe('Settings', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
+  it('closes when the open box is pressed again, even though Safari blurs it before the click', async () => {
+    mock(data(true))
+    render(<Settings />)
+    open('Models')
+    const box = await screen.findByRole('combobox', { name: 'Drafting' })
+    fireEvent.click(box)
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    // What Safari does on a press: pointerdown, then the button loses focus, then the click.
+    fireEvent.pointerDown(box)
+    fireEvent.blur(box, { relatedTarget: null })
+    fireEvent.click(box)
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('lets an admin choose a same-provider QA option and sends the PUT', async () => {
     const qa = row('QA check', {
       options: [

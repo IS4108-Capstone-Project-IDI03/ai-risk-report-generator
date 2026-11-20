@@ -33,6 +33,9 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  // True during a press inside the box. Safari blurs a pressed button before its click lands; without
+  // this the blur would close the list and the click would open it again, so it could never close.
+  const pressing = useRef(false)
   const id = useId()
   const current = options.find((o) => o.id === selected)
 
@@ -90,7 +93,12 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
     <div
       className="st-select"
       ref={root}
+      onPointerDown={() => {
+        pressing.current = true
+        setTimeout(() => (pressing.current = false))
+      }}
       onBlur={(e) => {
+        if (pressing.current) return
         if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false)
       }}
     >
