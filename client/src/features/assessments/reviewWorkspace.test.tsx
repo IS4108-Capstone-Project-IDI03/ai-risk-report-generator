@@ -1070,7 +1070,8 @@ it('regenerates one section in the background and makes an accepted replacement 
   // The gateway pushes that the job is done: Review reads again and shows the replacement.
   generation = generationOf(11)
   current = workspace([WAITING, FIRE, EXPOSURES], LATER)
-  act(() => FakeEventSource.open[0].emit('drafting'))
+  // The Observations list opens its own stream too (CP-24): every open stream hears it.
+  act(() => FakeEventSource.open.forEach((source) => source.emit('drafting')))
 
   // Only that section gets a replacement, and its saved draft still shows.
   expect(await within(editor()).findByText('A replacement draft is ready')).toBeInTheDocument()
@@ -1196,7 +1197,8 @@ it('holds a section’s decisions while a drafting run redrafts it, then reads i
   // The run moves on: Review reads the section again, and it can be decided on.
   const before = reads
   generation = generationOf(11)
-  act(() => FakeEventSource.open[0].emit('drafting'))
+  // The Observations list opens its own stream too (CP-24): every open stream hears it.
+  act(() => FakeEventSource.open.forEach((source) => source.emit('drafting')))
   await waitFor(() =>
     expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled(),
   )

@@ -1,8 +1,11 @@
-// An observation's note, edited in place on its page (CP-08 AC8, CP-22): the
-// text box itself, saved exactly as typed when the engineer leaves it. A
-// refused save keeps what was typed. Rendered by screens/ObservationPage.tsx.
+// An observation's note, edited in place on its page (CP-08 AC8, CP-22, CP-24): the Note card with
+// the design system's text box, saved exactly as typed when the engineer leaves it. A refused save
+// keeps what was typed. On a wide page the card grows to the Details card's bottom edge
+// (observation-page.css). Rendered by screens/ObservationPage.tsx and the site walk proposal page.
 import { useId, useRef, useState } from 'react'
+import { Textarea } from '../../../design-system'
 import type { ObservationChange } from '../useAssessmentWorkflow'
+import '../observation-page.css'
 
 export function ObservationNote({
   note,
@@ -26,15 +29,13 @@ export function ObservationNote({
   // to the saved note must still be sent, or the pending one would win.
   const lastSent = useRef<string | null>(null)
   return (
-    <section className="ob-card ob-section">
-      <label htmlFor={id} className="ob-section-head">
-        <span>{'Note'}</span>
-      </label>
+    <section className="cpp-card" aria-label="Note">
+      <h3 className="cpp-card-title">{'Note'}</h3>
       {canChange ? (
-        <textarea
+        <Textarea
           id={id}
-          className="ob-note"
-          rows={4}
+          aria-label="Note"
+          rows={3}
           maxLength={5000}
           placeholder="What did you see? Write as you would for the record."
           value={text}
@@ -58,7 +59,7 @@ export function ObservationNote({
           }}
         />
       ) : (
-        <p id={id} className="ob-transcript">
+        <p id={id} className="cpp-note-text">
           {text || 'No note.'}
         </p>
       )}

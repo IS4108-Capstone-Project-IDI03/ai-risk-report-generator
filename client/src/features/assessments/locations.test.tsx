@@ -124,7 +124,8 @@ async function openCapture() {
   // Observations tab's Add manually.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
   await screen.findByRole('img', { name: 'live' })
 }
 const sheet = () => screen.getByRole('dialog', { name: 'Where are you?' })
@@ -476,11 +477,10 @@ describe('Choosing where observations are captured', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(locationBar()).toHaveAccessibleName('Choose a location')
-    // Saving asks for one, and opens the picker again.
+    expect(locationBar()).toHaveAccessibleName(/^Location: Choose a location/)
+    // Saving asks for one: the field turns red with one line under it (CP-24 AC4).
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(screen.getByText('Choose a location first.')).toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'Where are you?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a location')
     // The back link above the form leaves, as from any capture.
     fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
@@ -537,13 +537,14 @@ describe('Saved evidence location paths (CP-22)', () => {
       ]
       await openNavigator()
       fireEvent.click(await screen.findByRole('button', { name: /Pump test certificate missing/ }))
-      const heading = await screen.findByRole('heading', { name: parts.join(', ') })
-      // The page title shows the place's own name large, after its building and level (round 1).
-      expect(
-        [...heading.querySelectorAll('.location-path-part, .op-path-name')].map(
-          (part) => part.textContent,
-        ),
-      ).toEqual(parts)
+      // The page header shows the place's own name as its title, with the building and level
+      // above it as the eyebrow (CP-24); every part keeps its own "·".
+      const heading = await screen.findByRole('heading', {
+        name: parts[parts.length - 1] as string,
+      })
+      const eyebrow = heading.previousElementSibling
+      if (parts.length > 1) expect(eyebrow).toHaveTextContent(parts.slice(0, -1).join(' › '))
+      else expect(eyebrow).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
       for (const [button, label] of [
         ['All photos', 'Site photographs'],
@@ -728,9 +729,12 @@ describe('Removing a location', () => {
     // Capture opened at the removed location has no location chosen now, so
     // the picker asks for one.
     await vi.waitFor(() => expect(removed).toEqual(['l1']))
-    fireEvent.click(await screen.findByRole('button', { name: 'Add manually' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
     expect(await screen.findByRole('dialog', { name: 'Where are you?' })).toBeInTheDocument()
-    await vi.waitFor(() => expect(locationBar()).toHaveAccessibleName('Choose a location'))
+    await vi.waitFor(() =>
+      expect(locationBar()).toHaveAccessibleName(/^Location: Choose a location/),
+    )
     expect(within(sheet()).getByText('Roof')).toBeInTheDocument()
   })
 })
@@ -933,8 +937,8 @@ describe('The Observations tab by location (CP-16)', () => {
     const row = await openTab()
     fireEvent.click(row)
     const heading = await screen.findByRole('heading', { name: 'Location not recorded' })
-    expect(heading.querySelector('.op-path-name')).toHaveTextContent('Location not recorded')
-    expect(heading.querySelectorAll('.location-path-part')).toHaveLength(0)
+    // No building or level above it.
+    expect(heading.previousElementSibling).toBeNull()
   })
 
   it('lists observations by building, level and location, empty locations too', async () => {
@@ -1037,7 +1041,8 @@ describe('The Observations tab by location (CP-16)', () => {
     await openObservations()
 
     fireEvent.click(within(nav()).getByRole('button', { name: 'Lobby' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
 
     expect(
       await screen.findByRole('button', { name: /^Location: Block A › Level 1 › Lobby/ }),
@@ -1047,7 +1052,8 @@ describe('The Observations tab by location (CP-16)', () => {
 
   // Capture from Add manually with no location picked, choosing where in the picker.
   async function captureAt(building: string, location: RegExp) {
-    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
     await screen.findByRole('dialog', { name: 'Where are you?' })
     fireEvent.click(group(building))
     press(location)
@@ -1067,8 +1073,8 @@ describe('The Observations tab by location (CP-16)', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Add observation at Block A › Level 1 › Lobby' }),
     )
+    // Save goes back to the tab by itself (CP-24).
     await saveNote('Fire door wedged open.')
-    back()
 
     // The list opens on the location saved in, focused on the new row.
     const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
@@ -1092,8 +1098,8 @@ describe('The Observations tab by location (CP-16)', () => {
     await openObservations()
     fireEvent.click(within(nav()).getByRole('button', { name: 'Fold Block A' }))
     await captureAt('Block A', /^Block A › Level 1 › Lobby/)
+    // Save goes back to the tab by itself (CP-24).
     await saveNote('Fire door wedged open.')
-    back()
 
     const saved = await screen.findByRole('button', { name: /Fire door wedged open/ })
     // The building is open again, so the location can be seen.
@@ -1105,7 +1111,8 @@ describe('The Observations tab by location (CP-16)', () => {
 
   it('stays at the top when capture was opened from Add manually and saved nothing', async () => {
     await openObservations()
-    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
     await screen.findByRole('dialog', { name: 'Where are you?' })
     back()
 

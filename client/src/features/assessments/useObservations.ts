@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { listObservations, type SavedObservation } from './api'
+import { useAssessmentEvents } from './useAssessmentEvents'
 
-// The assessment's observations saved on the server. Transcription and photo
-// interpretation finish after a save returns, so the list is re-read every few
-// seconds while any recording or handwritten page (CP-19 AC7) is transcribing
-// or any photos are interpreting. Deleted ones (CP-08) are read too while
-// includeDeleted asks for them, for the Observations tab's Deleted button.
-// An unreachable gateway leaves the list as it was.
+// The assessment's observations saved on the server. Transcription finishes after a save
+// returns, so the list is re-read every few seconds while any recording or handwritten page
+// (CP-19 AC7) is transcribing. Everything else that finishes in the background (the photo
+// description, the suggestion for an empty category or severity, a transcription finishing)
+// is pushed: the gateway sends an `observations` event and the list reloads (CP-24, ADR 0002),
+// so nothing here polls for it. Deleted ones (CP-08) are read too while includeDeleted asks
+// for them, for the Observations tab's Deleted button. An unreachable gateway leaves the
+// list as it was.
 export function useObservations(reference: string, open: boolean, includeDeleted = false) {
   // synced: the gateway has listed this assessment's observations, so it holds
   // the assessment.
@@ -26,13 +29,10 @@ export function useObservations(reference: string, open: boolean, includeDeleted
         (list) => {
           setLoaded({ reference, list, synced: true })
           if (
-            list.some(
-              (o) =>
-                [...o.recordings, ...(o.pages ?? [])].some(
-                  (m) => m.transcription.status === 'transcribing',
-                ) ||
-                o.interpretation?.status === 'interpreting' ||
-                o.interpretation?.photos?.status === 'interpreting',
+            list.some((o) =>
+              [...o.recordings, ...(o.pages ?? [])].some(
+                (m) => m.transcription.status === 'transcribing',
+              ),
             )
           )
             timer = setTimeout(load, 3000)
@@ -45,6 +45,18 @@ export function useObservations(reference: string, open: boolean, includeDeleted
       clearTimeout(timer)
     }
   }, [reference, open, version, includeDeleted])
+
+  // Reloads when the gateway says a background job changed one of this assessment's
+  // observations, and when the stream connects, first time included: a reading that finished
+  // between the list request and the stream opening sent no push, and without this it would
+  // never show.
+  // No stream while the tab is not open: an empty reference opens none.
+  useAssessmentEvents(
+    open ? reference : '',
+    'observations',
+    () => setVersion((count) => count + 1),
+    { firstConnect: true },
+  )
 
   const current = loaded.reference === reference ? loaded : null
   const list = current?.list ?? []

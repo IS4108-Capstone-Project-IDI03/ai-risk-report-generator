@@ -231,13 +231,20 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('butto
 // Capture starts from the Observations tab's Add manually button.
 function addManually() {
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  click('Add manually')
+  click('Add observation')
+  click(/^Add observation manually/)
 }
-const scanMode = () => click(/^Scan/)
+const scanMode = () => fireEvent.click(screen.getByRole('radio', { name: /^Scan/ }))
 const grade = (severity: string) => fireEvent.click(screen.getByRole('radio', { name: severity }))
 const save = () => click('Save observation')
 const leave = () => click('Back to Observations')
-const pageList = () => screen.getByRole('region', { name: 'Pages' })
+// A page's row on the observation page; its text stays folded until the chevron opens it (CP-24).
+const pageRow = (name: string) => screen.getByRole('listitem', { name })
+const unfold = (row: HTMLElement) => {
+  fireEvent.click(within(row).getByRole('button', { name: 'Show text' }))
+  return row
+}
+const pageList = () => screen.getByRole('list', { name: 'Pages' })
 // A page photo as the device hands it over, taken or chosen.
 const photo = (name = 'IMG_0710.jpg', type = 'image/jpeg') => new File(['jpeg'], name, { type })
 const choosePages = (...files: File[]) =>
@@ -301,19 +308,20 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     expect(within(pageList()).getByText('image.jpg')).toBeInTheDocument()
     click('Remove notes-3.png')
     expect(within(pageList()).queryByText('notes-3.png')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan, 2 pages' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Scan, 2' })).toBeInTheDocument()
     grade('Moderate')
     save()
 
-    expect(
-      await screen.findByText('Observation saved. Transcribing 2 pages now.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].pages.map((f) => f.name)).toEqual(['image.jpg', 'notes-2.jpg'])
     // Pages are not site photos (AC5).
     expect(saves[0].photos).toEqual([])
     expect(saves[0].details).not.toHaveProperty('note')
-    expect(screen.queryByRole('region', { name: 'Pages' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan' })).toBeInTheDocument()
+    // Saving returns to the Observations tab; a new observation starts with no pages.
+    addManually()
+    scanMode()
+    expect(screen.queryByRole('list', { name: 'Pages' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Scan' })).toBeInTheDocument()
   })
 
   it('refuses a file that is not a JPG or PNG, saying why (AC2)', async () => {
@@ -351,8 +359,8 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     grade('High')
 
     save()
+    // Saving goes back to the Observations tab by itself (CP-24).
     await screen.findByText(/Observation saved/)
-    leave()
 
     expect(await screen.findByRole('button', { name: /Transcription failed/ })).toBeInTheDocument()
   })
@@ -384,7 +392,7 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
 
     // The toast's View button opens the saved observation.
     click('View')
-    const entry = screen.getByRole('region', { name: 'IMG_0710.jpg' })
+    const entry = unfold(pageRow('IMG_0710.jpg'))
     expect(
       within(entry).getByText(
         'No capture session, so this page stays in this browser and is not transcribed.',
@@ -416,8 +424,9 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     const row = await screen.findByRole('button', { name: /B1 spk CV found shut/ })
     fireEvent.click(row)
 
-    const entry = screen.getByRole('region', { name: 'Page 1' })
-    expect(within(entry).getByText('1 word unsure. Check it against the page.')).toBeInTheDocument()
+    const entry = pageRow('Page 1')
+    expect(within(entry).getByText('1 word unsure')).toBeInTheDocument()
+    unfold(entry)
     const unsure = entry.querySelector('mark')!
     expect(unsure).toHaveTextContent('sw (unsure)')
     expect(entry).toHaveTextContent('B1 spk CV found shut, no tamper sw (unsure)')
@@ -438,12 +447,13 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
 
     // Its status comes from the page's transcription.
     const reading = await screen.findByRole('button', { name: /Still reading\./ })
-    expect(reading).toHaveTextContent('Transcribing')
+    expect(within(reading).getByRole('img', { name: 'Transcribing' })).toBeInTheDocument()
     fireEvent.click(reading)
-    expect(screen.getByText('Transcribing the page…')).toBeInTheDocument()
+    expect(within(pageRow('Page 1')).getByText('Transcribing')).toBeInTheDocument()
     click('Back to Observations')
 
     fireEvent.click(screen.getByRole('button', { name: /Blank page captured\./ }))
+    unfold(pageRow('Page 1'))
     expect(screen.getByText('No handwriting was found on this page.')).toBeInTheDocument()
   })
 
@@ -464,12 +474,12 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     expect(
       screen.getByText('The handwriting service could not transcribe the page.'),
     ).toBeInTheDocument()
-    click('Retry')
+    click('Try transcribing Page 1 again')
 
     await vi.waitFor(() =>
       expect(retries).toEqual(['/api/observations/o1/pages/pg9/transcription/retry']),
     )
-    expect(await screen.findByText('Transcribing the page…')).toBeInTheDocument()
+    expect(await within(pageRow('Page 1')).findByText('Transcribing')).toBeInTheDocument()
   })
 
   it('filters by the Scan type (AC4)', async () => {
@@ -500,15 +510,17 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     await openObservations()
     fireEvent.click(await screen.findByRole('button', { name: /Pump room readings\./ }))
 
-    click('Transcribe again')
+    click('Transcribe Page 1 again')
 
     await vi.waitFor(() =>
       expect(againRequests).toEqual(['/api/observations/o1/pages/pg1/retranscribe']),
     )
     // The old text goes while the page is read again.
-    expect(await screen.findByText('Transcribing the page…')).toBeInTheDocument()
+    expect(await within(pageRow('Page 1')).findByText('Transcribing')).toBeInTheDocument()
     expect(screen.queryByText('FHR 7 bor')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Transcribe again' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Transcribe Page 1 again' }),
+    ).not.toBeInTheDocument()
   })
 
   it('offers Retry, not Transcribe again, for a page that failed (CP-20)', async () => {
@@ -521,8 +533,12 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     await openObservations()
     fireEvent.click(await screen.findByRole('button', { name: /Failed page\./ }))
 
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Transcribe again' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Try transcribing Page 1 again' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Transcribe Page 1 again' }),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -535,7 +551,7 @@ describe('Managing saved pages (CP-20)', () => {
     await openObservations()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(note ?? 'FHR') }))
   }
-  const pageEntry = () => screen.getByRole('region', { name: 'Page 1' })
+  const pageEntry = () => pageRow('Page 1')
 
   it('corrects a page’s text, shown as the engineer’s with what was transcribed kept beneath', async () => {
     await openWith([transcribed('FHR 7 bor')])
@@ -555,8 +571,10 @@ describe('Managing saved pages (CP-20)', () => {
     expect(pageChanges).toEqual([
       { method: 'PUT', path: 'pages/pg1/transcript', body: { text: 'FHR 7 bar' } },
     ])
-    const entry = pageEntry()
-    expect(within(entry).getByText('FHR 7 bar')).toBeInTheDocument()
+    const entry = unfold(pageEntry())
+    expect(
+      within(entry).getByText('FHR 7 bar', { selector: 'p.sw-transcript' }),
+    ).toBeInTheDocument()
     expect(within(entry).getByText(/^Corrected by Alex Rowe · /)).toBeInTheDocument()
     // What the model wrote, folded away beneath.
     const original = within(entry).getByText('As transcribed').closest('details')!
@@ -599,7 +617,7 @@ describe('Managing saved pages (CP-20)', () => {
       transcribed('FHR 7 bor', { correction: { text: 'FHR 7 bar', at: AT, by: BY } }),
     ])
 
-    click('Transcribe again')
+    click('Transcribe Page 1 again')
     const dialog = await screen.findByRole('dialog', { name: 'Transcribe this page again?' })
     expect(dialog).toHaveTextContent('Your corrected text is replaced by the new transcription')
     expect(againRequests).toEqual([])
@@ -608,7 +626,7 @@ describe('Managing saved pages (CP-20)', () => {
     await vi.waitFor(() =>
       expect(againRequests).toEqual(['/api/observations/o1/pages/pg1/retranscribe']),
     )
-    expect(await screen.findByText('Transcribing the page…')).toBeInTheDocument()
+    expect(await within(pageRow('Page 1')).findByText('Transcribing')).toBeInTheDocument()
     expect(screen.queryByText(/^Corrected by/)).not.toBeInTheDocument()
   })
 
@@ -626,7 +644,7 @@ describe('Managing saved pages (CP-20)', () => {
       ),
     ).toBeInTheDocument()
     expect(pageChanges).toEqual([{ method: 'DELETE', path: 'pages/pg1', body: undefined }])
-    expect(screen.queryByRole('region', { name: 'Page 1' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('listitem', { name: 'Page 1' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Removed media (1)'))
     click('Restore Page 1')
@@ -664,8 +682,8 @@ describe('Managing saved pages (CP-20)', () => {
     expect(pageChanges).toEqual([
       { method: 'POST', path: 'media', body: { pages: ['IMG_0810.jpg'] } },
     ])
-    const added = screen.getByRole('region', { name: 'IMG_0810.jpg' })
-    expect(within(added).getByText('Transcribing the page…')).toBeInTheDocument()
+    const added = pageRow('IMG_0810.jpg')
+    expect(within(added).getByText('Transcribing')).toBeInTheDocument()
     expect(within(added).getByText(/^Added by Alex Rowe · /)).toBeInTheDocument()
   })
 
@@ -698,9 +716,7 @@ describe('Managing saved pages (CP-20)', () => {
     })
     fireEvent.click(within(write).getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Page text saved in this demo only.')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'IMG_0710.jpg' })).toHaveTextContent(
-      'Hydrant H2 blocked',
-    )
+    expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
     const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
@@ -720,9 +736,7 @@ describe('Managing saved pages (CP-20)', () => {
     fireEvent.click(screen.getByText('Removed media (1)'))
     click('Restore IMG_0710.jpg')
     expect(await screen.findByText('Page restored in this demo only.')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'IMG_0710.jpg' })).toHaveTextContent(
-      'Hydrant H2 blocked',
-    )
+    expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
     // Only the attempt to start a capture session; nothing went anywhere.
     expect(sent).toEqual([CAPTURE_URL])
   }, 15000)
@@ -778,11 +792,13 @@ describe('The Scans view (CP-19)', () => {
         name: /Pump room readings\./,
       }),
     )
-    const first = screen.getByRole('region', { name: 'Page 1' })
+    const first = unfold(pageRow('Page 1'))
     expect(first).toHaveTextContent('FHR 7 (unsure) bar')
-    expect(within(first).getByRole('button', { name: 'Transcribe again' })).toBeInTheDocument()
     expect(
-      within(screen.getByRole('region', { name: 'Page 2' })).getByRole('button', { name: 'Retry' }),
+      within(first).getByRole('button', { name: 'Transcribe Page 1 again' }),
+    ).toBeInTheDocument()
+    expect(
+      within(pageRow('Page 2')).getByRole('button', { name: 'Try transcribing Page 2 again' }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Handwritten pages' })).not.toBeInTheDocument()
     // Back returns to the view it was opened from, not the list.

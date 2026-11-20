@@ -3,9 +3,9 @@ import type {
   Assessment,
   InterpretationStatus,
   MediaKind,
-  ProposedCategory,
-  ReadItemKind,
+  SavedObservation,
   SavedPhoto,
+  SavedSuggestion,
   Stamp,
   TranscriptionStatus,
 } from './api'
@@ -46,6 +46,7 @@ export type Observation = {
   // Where it was captured (CP-16): the location's name, building and level.
   locationName: string
   building?: string | null
+  // '' while it has none (CP-24).
   sev: string
   std: string
   // Its photographs (CP-04): url opens the original, or is null for a sample
@@ -90,16 +91,15 @@ export type Observation = {
   // What it holds: any of 'Note', 'Voice', 'Photo' and 'Scan' (CP-08, CP-19);
   // worked out for sample ones.
   types?: string[]
-  // Transcribing, Interpreting, Transcription failed, Interpretation failed or
-  // Complete (CP-08, CP-05).
+  // Transcribing, Reading, Transcription failed, Reading failed, To check or
+  // Complete (CP-08, CP-24); worked out by observationRowState.ts.
   status?: string
-  // What the model proposes from it (CP-05, CP-21). A sample one is the
-  // demo's stand-in when no capture session is live, not a real reading.
+  // The AI's suggestion for an empty category or severity (CP-24); a sample row has none.
+  suggestion?: SavedSuggestion | null
+  // Category or severity empty or not sure, or the suggestion failed (CP-24).
+  toCheck?: boolean
+  // The photos' description (CP-05, CP-24); null until the photos are first described.
   interpretation?: {
-    // Where the categories stand.
-    status: InterpretationStatus
-    // The photos' description and hazard type, read apart from the
-    // categories; null until the photos are first described (CP-21).
     photos: {
       status: InterpretationStatus
       description: string | null
@@ -111,24 +111,6 @@ export type Observation = {
       // Photos says which of them each describes.
       photoIds?: string[]
     } | null
-    categories: ProposedCategory[]
-    error: string | null
-    model: string | null
-    sample?: boolean
-    // What it holds changed since it was read (CP-08, CP-21).
-    outOfDate?: boolean
-    // What it read, when known: each item by the label its evidence cites,
-    // with where to open it, whether it was left out or since removed, and
-    // whether no proposed category cites it.
-    readFrom?: {
-      label: string
-      kind: ReadItemKind
-      id: string | null
-      url: string | null
-      leftOut: boolean
-      removed: boolean
-      notCited: boolean
-    }[]
   } | null
   // The latest change to it, and its deletion (CP-08).
   edited?: Stamp | null
@@ -248,7 +230,15 @@ export type WorkflowState = {
   fTransBusy: boolean
   // Why the microphone could not start, shown on the voice panel.
   fVoiceError: { title: string; message: string } | null
-  // Recordings and files waiting for Save observation, all saved with the one observation.
+  // The hidden draft observation that holds the recordings added on New Observation, as the
+  // gateway last sent it (CP-24); null until the first recording. Save turns it into the observation.
+  fDraft: SavedObservation | null
+  // Recordings being sent to the draft right now, and how long each recorded one ran, by name.
+  fSending: number
+  fLengths: Record<string, number>
+  // Times Save was pressed with no location: the first marks Location, a later one shakes it.
+  fLocRefused: number
+  // Recordings held in this browser: only for a site walk proposal, which has no draft.
   fClips: VoiceClip[]
   fPhotos: PhotoFile[]
   // Why a chosen file was not added as a photo (CP-04 AC4).
@@ -295,7 +285,6 @@ export type WorkflowState = {
   checklistOpen: boolean
   fChecklistItem: { id: string; text: string } | null
   // warn: a prompt to do something first, shown in the warning tone.
-  fToast: { text: string; warn?: boolean } | null
   fRecent: Observation[]
   gsecs: GenerationSection[]
   running: boolean

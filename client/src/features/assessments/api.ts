@@ -144,29 +144,10 @@ export type SavedPage = {
   // Who added it after the observation was saved (CP-20).
   added?: Stamp | null
 }
-// What the model proposes from an observation (CP-05, CP-21), for the
-// engineer to review. Nothing reads it until an engineer asks; the reading
-// then runs after that request returns, so it starts as 'interpreting'.
+// Where the photo description stands (CP-05, CP-21, CP-24): it is written without
+// being asked, on Save and whenever the photos or their markings change.
 export type InterpretationStatus = 'interpreting' | 'interpreted' | 'failed'
-// One thing a reading read, by the label its evidence cites (CP-21).
-export type ReadItemKind = 'note' | 'recording' | 'page' | 'photo'
-export type ProposedCategory = {
-  category: string
-  // One sentence naming the items it rests on; null on a reading from before
-  // CP-21, which gave none.
-  reason: string | null
-  evidence: {
-    item: string
-    // Words quoted from that item; null for a photo.
-    quote: string | null
-    // Whether the gateway found the quote in that item; null for a photo.
-    verified: boolean | null
-  }[]
-}
-// The parts of a proposal that can be read again one at a time (CP-21).
-export type ReadingPart = 'categories' | 'description'
-// The photos' part of a proposal: their description and hazard type, with
-// where they stand, read again apart from the categories (CP-21).
+// What the AI says the photos show, with where it stands.
 export type SavedPhotoReading = {
   status: InterpretationStatus
   description: string | null
@@ -179,24 +160,23 @@ export type SavedPhotoReading = {
   // Finished, but of photos other than those it has now.
   outOfDate: boolean
 }
+// The photo description is all that is left of an observation's "interpretation" (CP-24):
+// its categories are now a suggestion (SavedSuggestion).
 export type SavedInterpretation = {
-  // Where the categories stand.
-  status: InterpretationStatus
   // Null until its photos are first described.
   photos: SavedPhotoReading | null
-  // The proposed categories, which may differ from the observation's own.
-  categories: ProposedCategory[]
-  // Why it failed, to show the engineer.
+}
+// A category or severity the AI fills in on an observation the engineer left empty (CP-24).
+// `reading` is queued or running (also while it waits for transcripts or the photo
+// description), `failed` carries a short reason. A field entry is present while that
+// field's value is still an unconfirmed suggestion; null when it is the engineer's or empty.
+export type SuggestionStatus = 'reading' | 'done' | 'failed'
+export type SuggestedField = { notSure: boolean }
+export type SavedSuggestion = {
+  status: SuggestionStatus
   error: string | null
-  attempts: number
-  // The model that wrote it.
-  model: string | null
-  // The photos it reads, removed ones included (CP-08).
-  photoIds: string[]
-  // Everything it reads; a recording or page with no transcript is left out.
-  items: { label: string; kind: ReadItemKind; id: string | null; leftOut: boolean }[]
-  // Finished, but of something other than what it holds now (CP-08, CP-21).
-  outOfDate: boolean
+  category: SuggestedField | null
+  severity: SuggestedField | null
 }
 // A place on site the engineer records observations in (CP-16): in a
 // building, with an optional level, or elsewhere on site, with no building or
@@ -226,7 +206,8 @@ export type SavedObservation = {
   // Its categories in C-O-P-E order; null when not categorised yet.
   copeDimensions: string[] | null
   standard: string | null
-  severity: string
+  // Null while the engineer has not chosen one and none is suggested (CP-24).
+  severity: string | null
   // null only if the location is no longer listed.
   location: SiteLocation | null
   // Exactly as the engineer wrote it.
@@ -242,9 +223,14 @@ export type SavedObservation = {
   removedRecordings: (SavedRecording & { removed: Stamp })[]
   removedPhotos: (SavedPhoto & { removed: Stamp })[]
   removedPages?: (SavedPage & { removed: Stamp })[]
-  // null until an engineer asks for its photos to be read (CP-05), and while
-  // no photo is left.
+  // The photo description (CP-05); null while no photo has been described.
   interpretation: SavedInterpretation | null
+  // The AI's suggestion for an empty category or severity (CP-24); null when nothing is
+  // suggested and nothing is running. The gateway always sends it; older stand-ins have none.
+  suggestion?: SavedSuggestion | null
+  // The one shared rule, also used by drafting: category or severity empty or not sure,
+  // or the suggestion failed. Left out of drafting until settled. Older stand-ins have none.
+  toCheck?: boolean
   // The checklist item it answers (CP-31), with the item's text then. Older
   // stand-ins for a saved observation have none.
   checklistItem?: { itemId: string; result: 'confirmed' | 'differs'; text: string } | null
@@ -430,9 +416,10 @@ const observationsPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/observations`
 
 // Saves one observation, with its note, recordings, photos and handwritten
-// pages, to the assessment's active capture session. Null copeDimensions leave
-// it uncategorised. The server stores each file and starts each recording's
-// and page's initial transcription.
+// pages, to the assessment's active capture session. Null copeDimensions or a
+// missing severity leave it empty: the AI suggests them after Save (CP-24). The
+// server stores each file and starts each recording's and page's initial
+// transcription.
 // A photo to save, with any area marked on it first (CP-10).
 type NewPhotoPart = { name: string; image: Blob; region?: PhotoRegion | null }
 // Photos as `photo` parts and, when any is marked, a `photoRegion` part per
@@ -442,16 +429,19 @@ function appendPhotos(form: FormData, photos: NewPhotoPart[]) {
   if (!photos.some((p) => p.region)) return
   for (const p of photos) form.append('photoRegion', p.region ? JSON.stringify(p.region) : '')
 }
+/** Returns the saved observation; `draftId` turns the draft that holds its recordings into it (CP-24). */
 export async function saveObservation(
   reference: string,
   details: {
     note?: string
-    copeDimensions: string[] | null
-    severity: string
+    copeDimensions?: string[] | null
+    severity?: string | null
     locationId: string
     standard?: string
     // The checklist item it answers (CP-31).
     checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
+    // The draft observation that holds the recordings added before Save (CP-24).
+    draftId?: string
   },
   recordings: { name: string; audio: Blob }[],
   photos: NewPhotoPart[] = [],
@@ -476,7 +466,34 @@ export async function listObservations(
   return (await request<SavedObservation[]>('GET', path, undefined, signal)).data
 }
 
+/** Returns the hidden draft that now holds `files`, making one when `draftId` is not given (CP-24). */
+export async function createDraftRecordings(
+  reference: string,
+  files: { name: string; audio: Blob }[],
+  draftId?: string,
+): Promise<SavedObservation> {
+  const form = new FormData()
+  if (draftId) form.append('draftId', draftId)
+  for (const f of files) form.append('recording', f.audio, f.name)
+  const { data } = await request<{ draft: SavedObservation }>(
+    'POST',
+    `${observationsPath(reference)}/draft`,
+    form,
+  )
+  return data.draft
+}
+
 const observationPath = (id: string) => `/api/observations/${encodeURIComponent(id)}`
+
+/** Returns one observation, a draft included; the draft's transcripts are read back with it (CP-24). */
+export async function getObservation(id: string, signal?: AbortSignal): Promise<SavedObservation> {
+  return (await request<SavedObservation>('GET', observationPath(id), undefined, signal)).data
+}
+
+/** Discards a draft and its stored recordings for good; resolves with nothing (CP-24). */
+export async function discardDraft(id: string): Promise<void> {
+  await request<void>('DELETE', `${observationPath(id)}/draft`)
+}
 
 // Changes a saved observation's tags (CP-06) or note (CP-08). A field left out
 // stays as it is; null copeDimensions uncategorise it, and a null standard
@@ -485,13 +502,29 @@ export async function updateObservation(
   id: string,
   changes: {
     copeDimensions?: string[] | null
-    severity?: string
+    // null empties it (CP-24).
+    severity?: string | null
     locationId?: string
     standard?: string | null
     note?: string | null
+    // Keeps these not-sure values as they are: they become the engineer's (CP-24).
+    confirm?: ('category' | 'severity')[]
   },
 ): Promise<SavedObservation> {
   return (await request<SavedObservation>('PATCH', observationPath(id), changes)).data
+}
+
+/** Returns the observation with the named not-sure fields confirmed as they are (CP-24). */
+export async function confirmSuggestion(
+  id: string,
+  fields: ('category' | 'severity')[],
+): Promise<SavedObservation> {
+  return updateObservation(id, { confirm: fields })
+}
+
+/** Returns the observation with its failed suggestion queued once more (CP-24). */
+export async function retrySuggestion(id: string): Promise<SavedObservation> {
+  return (await request<SavedObservation>('POST', `${observationPath(id)}/suggestion/retry`)).data
 }
 
 // Corrects a finished transcript, keeping what Whisper wrote (CP-08).
@@ -555,6 +588,7 @@ export async function addObservationMedia(
 export type MediaKind = 'recordings' | 'photos' | 'pages'
 const mediaPath = (id: string, kind: MediaKind, itemId: string) =>
   `${observationPath(id)}/${kind}/${encodeURIComponent(itemId)}`
+/** Returns the observation without the item; on a draft observation a recording is deleted for good (CP-24). */
 export async function removeMedia(
   id: string,
   kind: MediaKind,
@@ -609,17 +643,6 @@ export async function retranscribePage(
       `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/retranscribe`,
     )
   ).data
-}
-
-// Asks for an observation to be read (CP-05, CP-21): both parts the first
-// time, or one part again (`part`), whenever the engineer asks. Saving never
-// reads it.
-export async function readObservation(observationId: string, part?: ReadingPart) {
-  await request<void>(
-    'POST',
-    `${observationPath(observationId)}/interpretation`,
-    part ? { part } : undefined,
-  )
 }
 
 const locationsPath = (reference: string) =>

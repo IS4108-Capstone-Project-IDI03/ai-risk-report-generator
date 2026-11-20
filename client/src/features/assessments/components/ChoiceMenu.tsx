@@ -1,6 +1,6 @@
 // Our own dropdown, never a native select (CP-22): a trigger that opens a
-// short menu of choices, one or several. Used by ObservationFilters.tsx and
-// ObservationTags.tsx and the site walk screens (site-walk/components/ChoicePill.tsx);
+// short menu of choices, one or several. Used by ObservationFilters.tsx, ChoicePickerField.tsx
+// and the site walk screens (site-walk/components/ChoicePill.tsx);
 // the floating surface is the design system's Popover.
 import {
   Fragment,
@@ -51,7 +51,7 @@ export function ChoiceMenu({
   align = 'left',
   className,
   noSheet,
-  sheetCancel,
+  sheetCancel = true,
   sheetClassName,
 }: {
   label: string
@@ -65,7 +65,7 @@ export function ChoiceMenu({
   className?: string
   // Keeps the menu floating on a phone: a sheet would open behind a dialog's top layer.
   noSheet?: boolean
-  // The phone sheet ends in a Cancel button (the engineer picker, board 09).
+  // The phone sheet ends in a Cancel button with no close tick (v2 section 6); on unless turned off.
   sheetCancel?: boolean
   // A class on the phone sheet, for the engineer picker's own look (board 09).
   sheetClassName?: string
@@ -79,20 +79,21 @@ export function ChoiceMenu({
   useLayoutEffect(() => {
     const ul = list.current
     if (!open || !ul) return
-    // The engineer picker's phone sheet sizes itself, up to 85% of the screen: capping to the room
-    // under the trigger would hide its last rows.
-    if (sheetCancel && ul.closest('.ds-sheet')) return
+    // A phone sheet sizes itself, up to 85% of the screen, and scrolls as a whole: capping to the
+    // room under the trigger would hide its last rows (measured while the sheet still slides in).
+    if (ul.closest('.ds-sheet')) return
     ul.style.maxHeight = ''
     const room = window.innerHeight - ul.getBoundingClientRect().top - 12
     if (room < ul.offsetHeight) ul.style.maxHeight = `${Math.max(room, 132)}px`
-    // A left-aligned menu under a chip in the right column ran off the screen;
-    // flip it to the chip's right edge when it would be clipped.
+    // A left-aligned menu under a chip in the right column ran off the screen, or (CP-24) past
+    // the edge of the card it opens in; flip it to the chip's right edge when it would be clipped.
     const surface = ul.closest<HTMLElement>('.ob-menu-surface')
-    if (surface && surface.getBoundingClientRect().right > window.innerWidth - 8) {
+    const edge = surface?.closest('.ob-card')?.getBoundingClientRect().right ?? window.innerWidth
+    if (surface && surface.getBoundingClientRect().right > Math.min(edge, window.innerWidth) - 8) {
       surface.style.left = 'auto'
       surface.style.right = '0'
     }
-  }, [open, sheetCancel])
+  }, [open])
   return (
     <Popover
       open={open}

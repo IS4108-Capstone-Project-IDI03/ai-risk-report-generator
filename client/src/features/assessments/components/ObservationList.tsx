@@ -67,7 +67,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
         <EmptyState
           icon="camera"
           title={view.location ? 'Nothing recorded here yet' : 'No observations yet'}
-          description="Record a site walk, or add observations one at a time."
+          description="Add one manually, or record a site walk to add several at once."
         />
       </div>
     )

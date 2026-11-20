@@ -1,9 +1,12 @@
-// One observation in the Observations tab's list (CP-22): its category icon,
-// its text, category, severity symbol and status icon. Pressing it opens the
+// One observation in the Observations tab's list (CP-22, CP-24): its category icon,
+// its text, category, severity symbol and status mark. Pressing it opens the
 // observation's own page. A deleted one offers Restore in the row itself.
+// A row with something to check is tinted amber with its reason under the text, a failed
+// suggestion red, a row being read blue (v2 "Flagged row"); an empty category or severity is a dash.
 // While a search is on (CP-13), its words are marked in the text, and where
 // else they were found is said under it: "Matched in Recording 2".
 // Rendered by components/ObservationList.tsx.
+import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import type { ObservationRowView } from '../useObservationsView'
 import { HitText } from './HitText'
@@ -19,6 +22,15 @@ export function ObservationRow({
   words?: readonly string[]
   onOpen: () => void
 }) {
+  // A reason that appears after the row was on screen fades in; one already there on load
+  // does not animate (v2 motion "A row becoming flagged"). Without this the whole list
+  // would animate every time the tab opened.
+  const [lastReason, setLastReason] = useState(o.reason)
+  const [becoming, setBecoming] = useState(false)
+  if (o.reason !== lastReason) {
+    setLastReason(o.reason)
+    setBecoming(!lastReason && !!o.reason)
+  }
   const row = (
     <button
       type="button"
@@ -41,6 +53,11 @@ export function ObservationRow({
           {o.isNew && <span className="ob-sr">{'New. '}</span>}
           <HitText text={o.text} words={words} />
         </span>
+        {o.reason && (
+          <span className="ob-row-reason" data-in={becoming || undefined}>
+            {o.reason}
+          </span>
+        )}
         {o.matchedIn && (
           <span className="ob-row-match">
             <Icon name="search" size={12} />
@@ -50,13 +67,23 @@ export function ObservationRow({
       </span>
       {/* One category per line, so several never run past the column. */}
       <span className="ob-row-cat">
-        {o.cats.length ? o.cats.map((c) => <span key={c}>{c}</span>) : o.catLabel}
+        {o.cats.length ? (
+          o.cats.map((c) => <span key={c}>{c}</span>)
+        ) : (
+          <span className="ob-none">{'–'}</span>
+        )}
       </span>
       <SeverityMark sev={o.sev} />
       {!o.canRestore && <StatusMark status={o.status} />}
     </button>
   )
-  if (!o.canRestore) return row
+  // The wrapper carries the tint and the hairline, so hovering the row still shades over it.
+  if (!o.canRestore)
+    return (
+      <div className="ob-row-wrap" data-tint={o.tint ?? undefined}>
+        {row}
+      </div>
+    )
   // Restore beside the row, outside its button, and plain to see.
   return (
     <div className="ob-deleted">
