@@ -19,8 +19,9 @@ export function ObservationTitleRow({
   return (
     <div className="cpo-title-row">
       <h2 className="ob-title">{'All Observations'}</h2>
+      {/* Light ink blue, not the filter pills' grey: grey was lost against the grey page (CP-24). */}
       <Button
-        variant="pill"
+        variant="pill-ink"
         iconLeft="list"
         aria-label={
           ready
