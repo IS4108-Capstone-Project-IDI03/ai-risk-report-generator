@@ -62,14 +62,25 @@ function nextRef(prefix: string, used: { ref: string }[]) {
   return `${prefix}-${n}`
 }
 
-// Changes one observation. Jev's `check` flags stay as they were: the screen no
-// longer shows them, they are kept in the data for evaluation.
-export function updateObservation(
-  p: Proposal,
-  ref: string,
-  patch: Partial<Pick<ProposedObservation, 'note' | 'copeDimension' | 'severity' | 'locationRef'>>,
-): Proposal {
-  return { ...p, observations: p.observations.map((o) => (o.ref === ref ? { ...o, ...patch } : o)) }
+// What an edit may carry: new values, and `confirm` for a not-sure value kept as it is.
+export type ObservationPatch = Partial<
+  Pick<ProposedObservation, 'note' | 'copeDimension' | 'severity' | 'locationRef'>
+> & { confirm?: ('category' | 'severity')[] }
+
+// Changes one observation. A category or severity the engineer chose or confirmed is theirs, so
+// its not-sure flag (`check`) is cleared; the flags the AI set on the others stay.
+export function updateObservation(p: Proposal, ref: string, patch: ObservationPatch): Proposal {
+  const { confirm = [], ...fields } = patch
+  const change = (o: ProposedObservation): ProposedObservation => ({
+    ...o,
+    ...fields,
+    check: {
+      ...o.check,
+      category: o.check.category && !('copeDimension' in fields) && !confirm.includes('category'),
+      severity: o.check.severity && !('severity' in fields) && !confirm.includes('severity'),
+    },
+  })
+  return { ...p, observations: p.observations.map((o) => (o.ref === ref ? change(o) : o)) }
 }
 
 // Deletes one observation: it moves to the proposal's deleted list (newest
@@ -241,6 +252,14 @@ export const lacksNote = (o: ProposedObservation) => !o.note.trim() && !o.mediaI
 export const lacksValue = (o: ProposedObservation) =>
   lacksNote(o) || !o.locationRef || !o.copeDimension || !o.severity
 
+/** Returns whether the AI was not sure of the category or severity; never blocks Create all. */
+export const isNotSure = (o: ProposedObservation) => o.check.category || o.check.severity
+
+/** Returns the amber reason under a not-sure row: "Check category and severity". */
+export const notSureReason = (o: ProposedObservation) =>
+  'Check ' +
+  [o.check.category && 'category', o.check.severity && 'severity'].filter(Boolean).join(' and ')
+
 /** Returns what an observation still needs, as words for its row: ["location", "severity"]. */
 export const missingFields = (o: ProposedObservation) =>
   (
@@ -262,6 +281,14 @@ export const firstIncomplete = (p: Proposal) =>
 
 // How many observations still have an empty field; Create all waits for zero.
 export const incompleteCount = (p: Proposal) => p.observations.filter(lacksValue).length
+
+/** Returns the walk's count in words: "3 need a location" when that is all that is missing, else "2 to fix". */
+export function incompleteWords(p: Proposal) {
+  const left = p.observations.filter(lacksValue)
+  const n = left.length
+  const onlyPlace = left.every((o) => missingFields(o).join() === 'location')
+  return onlyPlace ? `${n} ${n === 1 ? 'needs' : 'need'} a location` : `${n} to fix`
+}
 
 // What Create all would refuse, in words, or null when it can go ahead.
 export function createProblem(p: Proposal) {
@@ -285,10 +312,11 @@ export function createProblem(p: Proposal) {
 // Type and Status (assessments/observationFilters.ts), '' when not set.
 export type ProposalFilters = { cat: string; sev: string; type: string; status: string }
 export const NO_PROPOSAL_FILTERS: ProposalFilters = { cat: '', sev: '', type: '', status: '' }
-// A proposed observation's status is whether Create all can take it.
-export const PROPOSAL_STATUSES = ['Needs details', 'Ready']
+// A proposed observation's status is whether Create all can take it; To check is the amber
+// not-sure row (as on the Observations tab), which Create all still takes.
+export const PROPOSAL_STATUSES = ['Needs details', 'To check', 'Ready']
 export const proposalStatus = (o: ProposedObservation) =>
-  lacksValue(o) ? 'Needs details' : 'Ready'
+  lacksValue(o) ? 'Needs details' : isNotSure(o) ? 'To check' : 'Ready'
 
 type Media = NonNullable<SiteWalk['media']>
 /** Returns what it holds, in the tab's Type names: ["Note", "Voice", "Photo", "Scan"]. */

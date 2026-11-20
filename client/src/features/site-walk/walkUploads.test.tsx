@@ -247,7 +247,10 @@ describe('removing', () => {
     gw.walk.recordings = [rec(1)]
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Remove recording' }))
-    expect(await screen.findByRole('button', { name: 'Finish walk' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Finish walk' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
   })
 
   it('numbers a new recording after a removed one, never reusing its seq', async () => {

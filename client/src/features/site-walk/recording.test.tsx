@@ -186,13 +186,14 @@ describe('site walk recording', () => {
   it('keeps Finish walk off until something is recorded or written', async () => {
     render(<SiteWalkRecording reference={REF} onClose={() => {}} />)
     const finish = await screen.findByRole('button', { name: 'Finish walk' })
-    expect(finish).toBeDisabled()
-    // Says why it is off, so a greyed-out button isn't a puzzle.
-    expect(finish).toHaveAccessibleDescription('Record or write something to finish.')
+    // Greyed out but focusable (v2), and a reason box says why, so it isn't a puzzle.
+    expect(finish).toHaveAttribute('aria-disabled', 'true')
+    expect(finish).toHaveAccessibleDescription(/Record or write something first/)
     fireEvent.click(screen.getByRole('button', { name: 'Start recording' }))
     await screen.findByRole('button', { name: 'Save recording' })
-    expect(finish).toBeEnabled()
-    expect(screen.queryByText('Record or write something to finish.')).not.toBeInTheDocument()
+    const ready = screen.getByRole('button', { name: 'Finish walk' })
+    expect(ready).not.toHaveAttribute('aria-disabled')
+    expect(ready).toBeEnabled()
   })
 
   it('shows the blocked microphone only after an attempt', async () => {
