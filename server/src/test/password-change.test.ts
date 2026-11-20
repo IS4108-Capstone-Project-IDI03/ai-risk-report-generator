@@ -56,7 +56,9 @@ describe('POST /api/auth/change-password (S-01 AC2)', () => {
     'refuses a new password without a letter and a number: %s',
     async (newPassword) => {
       const user = await seedUser()
-      const res = await signedInAs(app, user).post(URL).send({ currentPassword: CURRENT, newPassword })
+      const res = await signedInAs(app, user)
+        .post(URL)
+        .send({ currentPassword: CURRENT, newPassword })
       expect(res.status).toBe(400)
       expect(res.body.fields.newPassword).toBe('Use at least one letter and one number.')
     },
@@ -65,15 +67,21 @@ describe('POST /api/auth/change-password (S-01 AC2)', () => {
   // The rule is a letter and a number: no 12-character minimum, no symbol needed (S-01 follow-up).
   it.each(['abc123', 'password123', 'Spring2026'])('accepts %s', async (newPassword) => {
     const user = await seedUser()
-    const res = await signedInAs(app, user).post(URL).send({ currentPassword: CURRENT, newPassword })
+    const res = await signedInAs(app, user)
+      .post(URL)
+      .send({ currentPassword: CURRENT, newPassword })
     expect(res.status).toBe(200)
-    const login = await request(app).post('/api/auth/login').send({ email: user.email, password: newPassword })
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: user.email, password: newPassword })
     expect(login.status).toBe(200)
   })
 
   it('a wrong current password is reported even when the new password is fine', async () => {
     const user = await seedUser()
-    const res = await signedInAs(app, user).post(URL).send({ currentPassword: 'nope', newPassword: 'abc123' })
+    const res = await signedInAs(app, user)
+      .post(URL)
+      .send({ currentPassword: 'nope', newPassword: 'abc123' })
     expect(res.status).toBe(400)
     expect(res.body.fields.currentPassword).toBeTruthy()
     expect(res.body.fields.newPassword).toBeUndefined()
