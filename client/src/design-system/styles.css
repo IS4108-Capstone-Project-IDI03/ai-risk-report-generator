@@ -7,6 +7,7 @@
 @import url('tokens/base.css');
 @import url('kit.css');
 @import url('cp23.css');
+@import url('cp24.css');
 
 .ds-choice {
   position: relative;

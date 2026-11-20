@@ -246,6 +246,8 @@
   outline-offset: -2px;
 }
 .ds-sheet-cancel {
+  /* flex: none keeps it 48 px on a short screen, where the rows above scroll instead. */
+  flex: none;
   height: 48px;
   margin-top: 8px;
   border: 0;

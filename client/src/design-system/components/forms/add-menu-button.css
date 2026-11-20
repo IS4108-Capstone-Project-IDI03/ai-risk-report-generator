@@ -1,4 +1,4 @@
-/* The New assessment menu (CP-23, board 03). Used by NewAssessmentButton.tsx.
+/* The add menu (CP-23 board 03, CP-24): New assessment and Add observation. Used by AddMenuButton.tsx.
    The surface (radius, shadow, motion) is the design system's Popover. */
 .nab-menu {
   /* Wide enough for "Add their emails and letters. The form fills itself in." on one line. */
@@ -30,6 +30,11 @@
   background: var(--graphite-50);
   outline: 0;
 }
+/* A visible keyboard focus; inside the row, so the sheet's own edge never clips it. */
+.nab-list li button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
 .nab-tile {
   flex: 0 0 auto;
   display: grid;
@@ -45,6 +50,11 @@
 .nab-tile--docs {
   background: var(--teal-50);
   color: var(--teal-600);
+}
+/* The site walk's colour (v2 section 3), for Record a site walk. */
+.nab-tile--walk {
+  background: var(--violet-50);
+  color: var(--violet-600);
 }
 .nab-text {
   display: flex;
