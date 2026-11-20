@@ -1,194 +1,50 @@
-# A2603 — AI Risk Report Generator
+# A2603: AI Risk Report Generator
 
-Capstone Project (A2603) for Marsh Singapore: An AI-powered system that generates
-insurance risk reports. Users upload documents (and audio/scanned files), the system
-extracts and indexes their content, and generates grounded, citation-checked risk
-reports via retrieval-augmented generation.
+Capstone project (A2603) for Marsh Singapore. Engineers record what they see on a site visit (notes, voice, photos). An AI drafts a risk report from those observations and a library of standards, and **every sentence it writes must cite the passage it came from**. The engineer reviews and accepts each finding. Nothing is automatic.
 
-## Architecture
+![The whole system](docs/img/system.png)
 
-The system is five independently deployable services across four tiers, communicating
-over HTTP, using MongoDB, AWS S3, and Chroma in the data tier:
+## The six services (start here, then go deeper)
 
-| Service | Role | Language | Port |
-| --- | --- | --- | --- |
-| `client` (S1) | React client | TypeScript (Vite) | 3000 |
-| `server` (S2) | API gateway | Node/Express (TypeScript) | 4000 |
-| `ingestion-service` (S3) | Parse, PII-guard, chunk, embed documents | Python/FastAPI | 8001 |
-| `rag-service` (S4) | Retrieve, assemble context, generate, guardrail-check | Python/FastAPI | 8002 |
-| `speech-ocr-service` (S5) | Stateless STT, handwriting transcription and photo reading, returns results only | Python/FastAPI | 8003 |
-| `mongo` | Local dev database (Atlas is used for staging/prod) | — | 27017 |
-| `chroma` | Persistent vector database shared by ingestion and RAG | — | 8000 |
+Each service has its own README. Read the one you need; you do not need all six.
 
-## Current implementation
+| Service | Job in one line | Tech | Port | README |
+|---|---|---|---|---|
+| `client` | The screens engineers and admins use | React, Vite, TypeScript | 3000 | [client/README.md](client/README.md) |
+| `server` | The gateway: login, permissions, data, background jobs | Node, Express, TypeScript | 4000 | [server/README.md](server/README.md) |
+| `ingestion-service` | Reads standards (PDFs) into searchable passages | Python, FastAPI | 8001 | [README](microservices/ingestion-service/README.md) |
+| `rag-service` | Searches, drafts report text, checks every statement | Python, FastAPI | 8002 | [README](microservices/rag-service/README.md) |
+| `speech-ocr-service` | Turns voice, handwriting and photos into text. Stores nothing | Python, FastAPI | 8003 | [README](microservices/speech-ocr-service/README.md) |
+| `privacy-service` | Hides client names before any text goes to an outside AI | Python, FastAPI | 8004 | [README](microservices/privacy-service/README.md) |
 
-### Backend
+Data stores: **MongoDB** (users, reports, settings), **Chroma** (searchable passages), **S3** (original files), **Redis** (background job queue).
 
-Ingestion now exposes `/index` for already anonymised text chunks, using Cohere
-Embed and Chroma. RAG `/retrieve` embeds queries, searches Chroma, and reranks
-with Cohere. MongoDB connectivity and the site schema are also implemented. The
-gateway creates assessments at `POST /api/assessments` and starts or resumes an
-assessment's capture session at `POST /api/assessments/:reference/capture-session`.
-It lists assessments with their status at `GET /api/assessments`, and records
-observations (any of a note, recordings, JPG or PNG photos, and JPG or PNG
-photos of handwritten note pages, each file kept in S3 as raw evidence)
-against the capture session in progress. S5 transcribes each recording with
-Whisper and each handwritten page with Gemini, word for word, marking the
-words it was unsure of (CP-19); and, when an engineer asks, reads an
-observation with Gemini (its note, transcripts and photos), proposing the COPE
-categories it concerns, each with its reason and quoted evidence, and from any
-photos a description and hazard type, for the engineer to review (CP-05,
-CP-21); saving never sends anything, and the proposal is never drafting
-evidence.
-An observation's tags (category, severity, location, standard) and note change at
-`PATCH /api/observations/:id`; a finished transcript can be corrected, keeping
-what Whisper wrote; recordings and photos can be added to a saved observation,
-and removed and restored, a soft removal that keeps the file in S3; and an
-observation can be deleted and restored, a soft delete that drafting leaves
-out. Only the assessment's assigned engineer can make these changes (CP-08). The free-text `/api/rag/generate`
-route remains a placeholder.
+## How a report gets made
 
-### Frontend demo
+![From observation to report](docs/img/journey.png)
 
-The UI follows the Marsh design system and includes sign-in, the assessment
-dashboard, observations, generation, review, and export. Demo changes
-are kept in memory only; refreshing or signing out resets them. The sample
-assessment shown without the gateway cannot be exported, and says so.
+Four hard rules shape the code (the full list is in [CLAUDE.md](CLAUDE.md)):
 
-Sign-in is real (F-04): the form checks the credentials with the gateway, which
-sets an httpOnly session cookie, so the gateway must be running. Each screen has
-its own URL, and the role on the account decides which ones open (F-05): a risk
-engineer runs assessments and capture; a knowledge admin manages the knowledge
-base and user accounts (adding them and assigning roles, F-08) and can read assessments. A screen the
-role may not open says so instead of loading, and the gateway answers 403 to the
-API calls behind it. The matrix is in
-`server/src/services/permissions.service.ts`.
+1. Text with client details goes to an outside AI **only after privacy-service hides them**. If hiding fails, nothing is sent.
+2. Review decisions and report versions are **append-only**: never edited, never deleted.
+3. Route handlers in `server/src/routes/` **never touch the database directly**; they call services.
+4. An AI answer reaches the screen **only after code has checked each sentence**.
 
-Creating an assessment, the dashboard list and capturing on site are the
-exceptions. The dashboard lists assessments from the gateway, with the sample
-rows as a fallback when it cannot be reached, and shows only the assessments
-the engineer is assigned to. New assessment saves the assessment through the
-gateway; opening it from the dashboard opens its workspace, and Add observation
-from there starts its capture session. Only `RPT-2026-0411` has sample workspace
-content; seed it with `npm --prefix server run seed`. Without the gateway, a new assessment is kept in
-the demo only and capture shows sample data, and both say so. Capture starts by
-choosing or adding the location on site. With a capture
-session live, an observation's note, recordings and photos are saved through the
-gateway together: the note exactly as typed, each recording stored in S3
-and transcribed by S5 with OpenAI Whisper (set `OPENAI_API_KEY`), and the
-photos stored in S3. Read photos on the Observations tab has S5 read them
-together with Gemini (set a paid-tier `GEMINI_API_KEY`); saving never reads
-them. The proposal shows on the observation for the engineer to use as its
-note or category through Edit (CP-05). Scan mode photographs pages of
-handwritten notes: each is transcribed by S5 once saved, like a recording, and
-the Observations tab shows its text with the uncertain words underlined, beside
-the original page; the Scans box beside Photos opens every page of the
-assessment (CP-19). Its assigned engineer manages a saved observation's pages
-as its recordings (CP-20): Edit text corrects a finished page, keeping what
-the model wrote beside it and drafting from the correction; Transcribe again
-reads a misread page once more, asking first when its text was corrected, as
-the correction goes; Add media adds pages, each transcribed; and Remove sets
-one aside, restored from Removed media. An
-observation may be left uncategorised. On the
-Observations tab (CP-08), each row shows the observation's type, category,
-location, severity, status and capture time, and the list filters by any of
-them. An expanded observation offers Edit (its tags and note, saved together), Add media
-(recordings, photos and handwritten pages, recorded, uploaded, taken or chosen), Remove on each
-recording, photo and page while something else stays (restored from Removed media),
-Correct transcript (for a finished one, keeping what Whisper wrote) and Delete;
-Show deleted lists deleted ones to restore. A photo reading of photos since
-added or removed shows as out of date, with Read again. These go through the gateway for a saved observation,
-to its assigned engineer only, and stay in the demo for a sample one. A saved assessment drafts sections 7-12 on Report generation (GN-01), and
-its Review tab is the review workspace (RV-01): each section's completion and
-review state, its draft, and beside it each cited passage with its page,
-document title, edition, effective date and any withdrawal, the original
-observations and every claim. There the assigned engineer accepts, edits or
-rejects each finding, bulk accepts a section's pending findings, and
-regenerates a section with an instruction as a replacement to accept or
-discard (RV-02); every decision is kept in an append-only audit log, shown as
-each section's review history, and the rail totals the decisions. Edit
-document opens the whole report as one document (RV-08, TipTap): any section,
-drafted or not, can be written and revised there with formatting, undo and
-redo, and find and replace, while headings, tables and other parts filled in
-elsewhere stay fixed. It saves itself when typing pauses: each save adds a
-version of the section through `PUT …/sections/:sectionId/document`, and a
-change to a drafted finding is also recorded in the audit log, so Return to
-review shows it, its section Edited by you. Version history (RV-06), on each
-part of the report and in the assessment's ⋯ menu, lists a section's AI drafts
-and saved versions oldest first, with who made each and when
-(`GET …/sections/:sectionId/versions`), compares any of them with the current
-text or the version before, marking added, deleted and changed words, and lets
-the assigned engineer restore one as the section's draft
-(`POST …/sections/:sectionId/versions/restore`): a new version, so nothing is
-overwritten, and no other section changes.
+## Where to read next
 
-Clients in the side menu (`/clients`, CP-18) lists the engineer's own
-clients, found by name or site. A client's page (`/clients/<id>`), opened from
-there, from View client on the work list's Group by client or from the
-client's name on an assessment's Overview, lists the engineer's sites at that
-client and their own visits there as the work list shows them, filtered by
-site, status, Archived and Removed sites. Its Add site opens New assessment
-with the client chosen and a new site to name. From it the engineer corrects a
-site's name, address, jurisdiction and facility type for every assessment at
-it (also from Edit site on an assessment's Overview), renames the client from
-the page's ⋯ menu (CP-28), and removes and restores a site, or the whole
-client, once its visits are archived. Each is allowed only when every assessment the
-client or site has, archived or not, is theirs and none is finalised;
-otherwise the page says another engineer's assessment uses it. A corrected
-jurisdiction or facility type asks first and marks section drafts out of
-date, and old names stay masked from AI providers. Edit details is a dialog
-over the Overview with the visit's own details: assessment type, site visit
-date and report due.
+| You want to... | Read |
+|---|---|
+| Run it | [Running the stack](docs/RUNNING.md) and the section below |
+| Understand one service | Its README (table above) |
+| Understand the database or the vector index | [docs/areas/database.md](docs/areas/database.md) |
+| Understand how services work inside | [docs/areas/services.md](docs/areas/services.md) |
+| Understand how client text is protected | [docs/areas/privacy.md](docs/areas/privacy.md) |
+| Deploy to AWS | [docs/areas/cloud.md](docs/areas/cloud.md) |
+| Build a screen | [UI conventions](docs/areas/ui.md) and the [design system](docs/design-system-v2.md) |
+| See why something was decided | [docs/DECISIONS.md](docs/DECISIONS.md) |
+| Set up Cohere and Chroma | [docs/COHERE_CHROMA.md](docs/COHERE_CHROMA.md) |
 
-The client's page also has an Insights tab (CP-29): what the engineer's sites
-at that client add up to. Headline figures, what stands out, the sites needing
-attention with the reasons for each, where the findings are by COPE category,
-and how each site changed between its first and latest visit. The gateway
-counts and words all of it from the engineer's own assessments
-(`GET /api/clients/:id/insights`), using each site's latest assessment with
-observations; no model is asked. Write summary asks S4 for a few cited
-statements about the client (set `ANTHROPIC_API_KEY`), with client details
-masked first; every statement is checked before it is shown, and the summary is
-never part of a report. `npm --prefix server run seed:cp29` adds a demo client
-to try it on.
-
-Before the visit, the assessment's Checklist tab generates a pre-survey
-checklist (CP-30): one item per subsection of Marsh's template (Sections
-6-12), and items from the knowledge-base standards that apply to the site's
-facility type and country, each citing the passage and words it rests on. The
-hazards checked for each facility type, and the standards they are checked
-against, are in `rag-service/app/generation/checklist.json`. The assigned
-engineer chooses the standards to use and generates; each generation is kept,
-and the latest is shown. Only the facility type and country reach S4.
-
-The Export tab (EX-01) exports the finished report as a PDF, to issue, or an
-editable Word document, for review rounds. Only the assigned engineer can
-(`reports:export`), and only once the report is complete: every section written
-(the Executive Summary current, an OFI accepted, Sections 4 and 5's figures
-entered) and every finding reviewed. What is left is listed on the tab
-(`GET /api/assessments/:reference/export`), until RV-04 builds the full check. The browser lays the
-report out off screen with the document editor's Page layout (RV-12), without
-AI styling, review states or notes, and sends the pages to
-`POST /api/assessments/:reference/export`; the gateway prints them with
-headless Chromium (Playwright; Chrome locally, or `CHROMIUM_PATH`), so the PDF
-matches the page layout page for page, with its bookmarks and contents links,
-or reads the same pages into a Word file with heading styles, a table of
-contents, page-number fields and editable tables (`docx`). Citations become
-numbered references listed after the report, or are left out; Appendix A's
-photos go in at 300 dpi of their printed size, or not at all. A masking
-placeholder left in the text stops the export (PV-02). The file downloads as
-`<reference> <date>.pdf` or `.docx`; nothing is stored.
-
-In Section 5's Review editor, each loss level has its own property damage items,
-values and damage percentages. Site-wide insured values remain in
-the Values table. Existing estimates keep their figures; saving converts their
-level rows to independent items. Losses are calculated by the gateway on save,
-and the level values are supplied to scenario drafting.
-
-In Review → Section 3, the assigned engineer can edit the current and
-after-completion PD LE and BI LE amounts in US dollars for accepted OFIs with
-loss expectancy rows. Totals are calculated from the entered amounts; unknown
-values stay empty. Suggestions take no amounts, as redrafting replaces them.
+This README must reflect the current architecture. If a PR changes what is true here, update this file in the same PR.
 
 ## Running the stack locally
 
@@ -211,7 +67,7 @@ admin), with the dev password `password123`.
 
 ### Docker
 
-Start all five services, MongoDB, and Chroma:
+Start the services, MongoDB, and Chroma (the full stack needs 5 to 7 GB of RAM; on a small laptop use the light stack in [docs/RUNNING.md](docs/RUNNING.md)):
 
 ```sh
 cp .env.example .env   # fill in the real values
@@ -238,14 +94,6 @@ either way without editing. See `CLAUDE.md` "Known pitfalls" for why.
 
 The Python services expose `http://localhost:<port>/health`. The gateway exposes
 `http://localhost:4000/api/health`, and the client opens at `http://localhost:3000`.
-
-## Documentation
-
-- [Running the stack](docs/RUNNING.md) — Docker and manual setup.
-- [Cohere + Chroma setup](docs/COHERE_CHROMA.md) — configuration and retrieval smoke checks.
-- [Design system](docs/design-system.md) — visual foundations and shared component inventory.
-- [UI conventions](docs/areas/ui.md) — guidance for future screens.
-- [Architecture decisions](docs/DECISIONS.md) — service boundaries and implementation choices.
 
 ## Branch and commit convention
 
