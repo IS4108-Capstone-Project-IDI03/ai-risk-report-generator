@@ -787,6 +787,8 @@ export type Ofi = {
   sources: SectionDraft['sources']
   // The past report's title, from the knowledge base, or null if it has no record.
   precedentReport: string | null
+  // True when it rests on an observation whose note had a recommendation part (CP-35).
+  fromRecommendation?: boolean
   // Marsh's fixed fields, the same for a suggestion as once accepted.
   status: string
   issueDate: string | null
@@ -803,6 +805,23 @@ export type Ofi = {
 // An accepted OFI as it reads in the report, numbered in report order.
 export type AcceptedOfi = Ofi & { number: string }
 export type OfiList = { suggestions: Ofi[]; accepted: AcceptedOfi[] }
+
+// One thing to ask the client: an info request part of a split note (CP-35).
+export type ToAskItem = {
+  observationId: string
+  text: string
+  location: string | null
+  severity: string
+}
+
+/** Returns the info requests of an assessment's split notes (CP-35), oldest observation first. */
+export async function getToAsk(
+  reference: string,
+  signal?: AbortSignal,
+): Promise<{ items: ToAskItem[] }> {
+  const path = `/api/assessments/${encodeURIComponent(reference)}/to-ask`
+  return (await request<{ items: ToAskItem[] }>('GET', path, undefined, signal)).data
+}
 
 const ofisPath = (reference: string) => `/api/assessments/${encodeURIComponent(reference)}/ofis`
 

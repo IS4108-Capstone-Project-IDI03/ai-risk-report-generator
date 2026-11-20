@@ -28,6 +28,7 @@ import {
 } from '../components/ObservationDialogs'
 import { ObservationFilters } from '../components/ObservationFilters'
 import { ObservationList } from '../components/ObservationList'
+import { ToAskPanel } from '../components/ToAskPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useFitPane } from '../useFitPane'
@@ -307,6 +308,9 @@ export function Observations({
                     <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
                     {view.title}
                   </p>
+                )}
+                {!v.obsShowDeleted && (
+                  <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
                 )}
                 <ObservationList v={v} view={view} />
               </div>

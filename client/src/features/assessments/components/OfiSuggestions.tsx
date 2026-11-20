@@ -136,7 +136,15 @@ export function OfiBlock({
   // or the save row sits flush against the box's border. 12px matches .rv-maturity's
   // gap above Save scores (review.css).
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div data-ofi style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* CP-35: this OFI's fix was based on a recommendation the engineer wrote in a split note */}
+      {ofi.fromRecommendation && (
+        <div>
+          <Badge tone="info" icon="lightbulb">
+            From your recommendation
+          </Badge>
+        </div>
+      )}
       <AIDraftBlock
         heading={ofi.category}
         status="draft"
