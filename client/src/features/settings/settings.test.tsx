@@ -314,6 +314,24 @@ describe('Settings Source priority (RT-04)', () => {
     expect(screen.getByRole('button', { name: 'Move International standard down' })).toBeDisabled()
   })
 
+  it('shows an icon for each source type', async () => {
+    await openIt(data(true))
+    const icons = screen
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('.st-tier-icon')?.getAttribute('data-icon'))
+    expect(icons).toEqual(['landmark', 'factory', 'briefcase', 'globe'])
+  })
+
+  it('highlights the row that moved, announces its new place, and clears the highlight', async () => {
+    await openIt(data(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Move Marsh precedent up' }))
+    const moved = screen.getAllByRole('listitem').filter((li) => li.classList.contains('is-moved'))
+    expect(moved).toHaveLength(1)
+    expect(moved[0]).toHaveTextContent('Marsh precedent')
+    expect(screen.getByRole('status')).toHaveTextContent('Marsh precedent moved to position 2 of 4')
+    await waitFor(() => expect(document.querySelector('.is-moved')).toBeNull(), { timeout: 3000 })
+  })
+
   it('says a national code ranks only when the question names its country', async () => {
     await openIt(data(true))
     expect(screen.getByText(/ranks only when the question names its country/)).toBeInTheDocument()

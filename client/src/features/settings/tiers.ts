@@ -19,6 +19,14 @@ export const TIER_LABELS: Record<TierId, string> = {
   international_standard: 'International standard',
 }
 
+/** One icon per source type (lucide names), so a tier can be told apart at a glance. */
+export const TIER_ICONS: Record<TierId, string> = {
+  national_code: 'landmark',
+  manufacturer_rating: 'factory',
+  marsh_precedent: 'briefcase',
+  international_standard: 'globe',
+}
+
 /** Returns an order as plain words, e.g. "National code, Marsh precedent". */
 export const describeOrder = (order: TierId[]) => order.map((t) => TIER_LABELS[t]).join(', ')
 

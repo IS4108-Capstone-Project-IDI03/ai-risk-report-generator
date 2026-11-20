@@ -261,6 +261,48 @@
   border: 1px solid var(--border-default);
   border-radius: 10px;
   background: var(--surface-card);
+  /* The slide to a new place (TierList.tsx sets the start position; this eases it). */
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* The row that was just moved: a blue glow that fades, so the eye finds it. */
+.st-tier.is-moved {
+  position: relative;
+  z-index: 1;
+  animation: st-tier-glow 1100ms ease-out;
+}
+@keyframes st-tier-glow {
+  0% {
+    border-color: var(--action-primary);
+    background: var(--surface-selected);
+    box-shadow: 0 0 0 3px var(--surface-selected);
+  }
+  100% {
+    border-color: var(--border-default);
+    background: var(--surface-card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.st-tier-icon {
+  display: inline-flex;
+}
+/* Read out for screen readers only. */
+.st-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-tier {
+    transition: none;
+  }
+  .st-tier.is-moved {
+    animation: none;
+    border-color: var(--action-primary);
+    background: var(--surface-selected);
+  }
 }
 .st-tier[draggable='true'] {
   cursor: grab;
