@@ -1,6 +1,6 @@
 # UI conventions
 
-Read [the Marsh design system](../design-system.md) before changing any screen. It is the visual and component reference for every future screen.
+Read [the Marsh design system](../design-system-v2.md) before changing any screen. It is the visual and component reference for every future screen.
 
 - Put reusable, domain-independent controls in `client/src/design-system/components` and export them from `design-system/index.ts`. Use typed props and ordinary React imports.
 - Put screens, workflow-specific panels, state and sample data in their feature folder. Keep tests and feature styles alongside the feature. Keep `App.tsx` focused on the entry flow.
@@ -17,4 +17,4 @@ Read [the Marsh design system](../design-system.md) before changing any screen. 
 - Demo state is memory-only. Never persist passwords or imply that simulation authenticated a user, uploaded evidence, generated a real report or issued it.
 
 Run `npm --prefix client run build`, `npm --prefix client run lint`, and `npm --prefix client test` after functional changes. Visually review affected screens at desktop, tablet and phone widths. Browser availability is required for visual review; jsdom cannot verify layout or native focus trapping.
-- The Observations tab is a location navigator beside a compact one-line list; each observation opens on its own page, edited in place. Capture is Record site walk (client/src/features/site-walk/) or Add manually. See docs/design-system.md.
+- The Observations tab is a location navigator beside a compact one-line list; each observation opens on its own page, edited in place. Capture is Record site walk (client/src/features/site-walk/) or Add manually. See docs/design-system-v2.md.

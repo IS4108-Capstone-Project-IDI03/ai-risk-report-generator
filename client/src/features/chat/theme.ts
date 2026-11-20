@@ -1,5 +1,5 @@
 // Maps the design system's colour tokens onto OpenUI's theme names, so the chat
-// screen keeps Marsh's colours (docs/design-system.md). Values are our CSS
+// screen keeps Marsh's colours (docs/design-system-v2.md). Values are our CSS
 // variables, so a token change reaches the chat screen too.
 // Apple-style trial (Jesper, 15 Oct): rounder corners replace the design system's
 // 8px cap here; see chat.css.

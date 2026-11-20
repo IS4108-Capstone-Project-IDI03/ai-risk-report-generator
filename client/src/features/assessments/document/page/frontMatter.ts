@@ -96,7 +96,7 @@ export function contentsPages(entries: ContentsEntry[], contentHeight: number) {
 export const contentsNumber = (number: string) =>
   /^\d+$/.test(number) ? `${number}.` : number ? `Appendix ${number}:` : ''
 
-// Marsh's logo for the cover (AC2): none was supplied (docs/design-system.md),
+// Marsh's logo for the cover (AC2): none was supplied (docs/design-system-v2.md),
 // so the cover shows the text wordmark. Set this to the logo's URL (e.g. a
 // file added under client/public) once Marsh supplies it.
 export const MARSH_LOGO: string | null = null

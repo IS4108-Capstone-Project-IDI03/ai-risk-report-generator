@@ -984,7 +984,7 @@ mark.rv-ai-unsupported {
 }
 
 /* The report's charts (GN-12): Marsh's graphical summaries under Sections 3 and 4.
-   Two across from 760px, one column below. Chart rules: docs/design-system.md "Charts". */
+   Two across from 760px, one column below. Chart rules: docs/design-system-v2.md "Charts". */
 .rv-charts {
   display: flex;
   flex-direction: column;

@@ -135,7 +135,7 @@
      the dataviz validator (OKLab ΔE ×100): every pair that can share a bar
      clears the normal-vision floor (≥15) and CVD ≥ 6. The light steps sit
      below 3:1, so every chart ships its data as a table too. See
-     docs/design-system.md, "Charts". */
+     docs/design-system-v2.md, "Charts". */
   --chart-blue: #2a78d6;
   --chart-aqua-light: #3cc497;
   /* Re-stepped from #0d8a6a for handwriting transcription (CP-19), which shares

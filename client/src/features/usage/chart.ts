@@ -1,7 +1,7 @@
 // Stacked-bar data for the usage and cost charts (EV-04): which bars, in what
 // order, and each part's colour. Used by components/StackedCostChart.tsx.
 // Colours are tokens from design-system/tokens/colors.css ("Chart series"),
-// validated as a set; see docs/design-system.md, "Charts".
+// validated as a set; see docs/design-system-v2.md, "Charts".
 import { FEATURE_LABELS, SERVICE_LABELS } from './format'
 
 // One group of the report's overview or ingestion view: an assessment, an

@@ -1,7 +1,7 @@
 // The three chart forms in Marsh's report (GN-12): a donut, a bar chart (vertical or
 // horizontal) and a grouped bar. Used by OfiCharts.tsx and RiskQualityCharts.tsx.
 // Each is a <figure> named by Marsh's title, with a visually hidden table of its values,
-// so nothing is chart-only (docs/design-system.md, "Charts"). Recharts, as EV-04's
+// so nothing is chart-only (docs/design-system-v2.md, "Charts"). Recharts, as EV-04's
 // StackedCostChart.tsx; colours are the --chart-* tokens only.
 import {
   Bar,
