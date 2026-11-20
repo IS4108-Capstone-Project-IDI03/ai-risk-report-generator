@@ -42,12 +42,18 @@ export interface IRecording {
   size: number
   transcription: {
     status: TranscriptionStatus
+    // What was said, tidied by S5 (CP-27): fillers, stumbles and taken-back
+    // words deleted, nothing reworded. Everything that reads a transcript reads
+    // this. Before CP-27 it was Whisper's text as it came.
     transcript?: string
+    // Whisper's text as it came, kept as evidence of what was said (CP-27).
+    // Absent for a recording transcribed before CP-27, whose `transcript` is it.
+    spoken?: string
     // Why the latest attempt failed, shown to the engineer.
     error?: string
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
-    // The engineer's correction of `transcript` (CP-08). `transcript` stays as
-    // Whisper wrote it, as evidence of what was said; drafting uses this.
+    // The engineer's correction of `transcript` (CP-08). `transcript` and
+    // `spoken` stay as S5 wrote them; drafting uses this.
     correction?: IStamp & { text: string }
   }
   // Who added it to the observation after it was saved, and when (CP-08);
@@ -336,6 +342,7 @@ const recordingSchema = new Schema<IRecording>({
   transcription: {
     status: { type: String, enum: TRANSCRIPTION_STATUSES, required: true },
     transcript: String,
+    spoken: String,
     error: String,
     attempts: [
       { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },

@@ -371,7 +371,11 @@ describe('uploads', () => {
     expect(again.body.recordings).toHaveLength(1)
     expect(s3.size).toBe(1)
     expect(speech).toHaveBeenCalledTimes(1)
-    expect(speech.mock.calls[0][0]).toEqual({ s3_key: expect.any(String) })
+    // No hint (a prompt) goes with it; privacy is how S5 masks the text for its tidy model (CP-27).
+    expect(speech.mock.calls[0][0]).toEqual({
+      s3_key: expect.any(String),
+      privacy: expect.any(Object),
+    })
     const stored = await SiteWalkModel.findById(walk.id).lean()
     expect(stored?.recordings[0].transcription).toMatchObject({
       status: 'transcribed',
@@ -2415,5 +2419,30 @@ describe('retrying and removing (Sprint 4 fixes)', () => {
     const after = (await SiteWalkModel.findById(walk.id).lean())!
     expect(after.status).toBe('transcribing')
     expect(await NotificationModel.countDocuments({ purpose: 'site_walk_failed' })).toBe(0)
+  })
+})
+
+describe('tidied transcripts (CP-27)', () => {
+  it("stores a recording's tidy text and keeps what Whisper heard as spoken", async () => {
+    speech.mockImplementation(() =>
+      json(200, {
+        transcript: 'We are at Block A.',
+        spoken: 'Um, we are at at Block A.',
+        segments: [{ start: 0, end: 5, text: 'We are at Block A.' }],
+        usage: [],
+      }),
+    )
+    await seed()
+    const walk = await startWalk()
+
+    await upload(walk.id, 1)
+    await drainInlineJobs()
+
+    const stored = await SiteWalkModel.findById(walk.id).lean()
+    expect(stored?.recordings[0].transcription).toMatchObject({
+      status: 'transcribed',
+      text: 'We are at Block A.',
+      spoken: 'Um, we are at at Block A.',
+    })
   })
 })

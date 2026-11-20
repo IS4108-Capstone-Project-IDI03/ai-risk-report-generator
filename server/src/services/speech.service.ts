@@ -1,7 +1,7 @@
 import { config } from '../config'
 import { modelHeaders } from './model-resolver.service'
 import { recordAiCalls } from './ai-usage.service'
-import type { ReadingPrivacy } from './privacy.service'
+import { privacyFor, type Privacy, type ReadingPrivacy } from './privacy.service'
 
 // A speech-service failure. `retryable` is true when trying again can work: the
 // service could not be reached, timed out, or was busy or rate-limited (408,
@@ -82,18 +82,28 @@ async function callS5<T extends object>(
   return body as T
 }
 
+// A transcription: the tidy text everything reads (CP-27), and Whisper's own
+// text kept beside it as evidence.
+export type Transcription = { transcript: string; spoken: string; segments: Segment[] }
+
 // Asks S5 to transcribe audio already stored in S3. S5 reads the file itself
-// and returns the text with Whisper's timed segments; it stores nothing, so the
-// caller saves the result. `reportId`
-// (the assessment reference) tags the usage record (EV-03).
+// and returns the tidy text, Whisper's own text as `spoken`, and the timed
+// segments; it stores nothing, so the caller saves the result. `reportId`
+// (the assessment reference) tags the usage record (EV-03) and names the
+// client details S5 masks before its tidy model reads the text (CP-27).
 // Throws a SpeechServiceError whose message is the reason to show the engineer.
 export async function transcribeWithSegments(
   s3Key: string,
   options: { reportId?: string } = {},
-): Promise<{ transcript: string; segments: Segment[] }> {
-  const body = await callS5<{ transcript: string; segments?: unknown; usage?: unknown }>(
+): Promise<Transcription> {
+  const body = await callS5<{
+    transcript: string
+    spoken?: unknown
+    segments?: unknown
+    usage?: unknown
+  }>(
     '/transcribe',
-    { s3_key: s3Key },
+    { s3_key: s3Key, privacy: await privacyFor(options.reportId ?? '') },
     'The speech service could not be reached.',
     (b) => typeof b.transcript === 'string',
   )
@@ -108,15 +118,22 @@ export async function transcribeWithSegments(
           typeof g.text === 'string',
       )
     : []
-  return { transcript: body.transcript, segments }
+  // An S5 from before CP-27 sends no `spoken`; its transcript is what was said.
+  const spoken = typeof body.spoken === 'string' ? body.spoken : body.transcript
+  return { transcript: body.transcript, spoken, segments }
 }
 
 // Asks S5 to transcribe a short clip sent as bytes: no S3 round trip, so a spoken chat question
-// (CB-10) comes back sooner and is stored nowhere. `extension` tells Whisper the format.
-export async function transcribeClip(audio: Buffer, extension: string): Promise<string> {
+// (CB-10) comes back sooner and is stored nowhere. `extension` tells Whisper the format;
+// `privacy` is how S5 masks the text before its tidy model reads it (CP-27).
+export async function transcribeClip(
+  audio: Buffer,
+  extension: string,
+  privacy: Privacy,
+): Promise<string> {
   const body = await callS5<{ transcript: string; usage?: unknown }>(
     '/transcribe-clip',
-    { audio_base64: audio.toString('base64'), filename: `question.${extension}` },
+    { audio_base64: audio.toString('base64'), filename: `question.${extension}`, privacy },
     'The speech service could not be reached.',
     (b) => typeof b.transcript === 'string',
   )
@@ -124,9 +141,13 @@ export async function transcribeClip(audio: Buffer, extension: string): Promise<
   return body.transcript
 }
 
-// The text alone, for a voice note.
-export async function transcribe(s3Key: string, reportId?: string): Promise<string> {
-  return (await transcribeWithSegments(s3Key, { reportId })).transcript
+// A voice note's tidy text and what was said, without segments.
+export async function transcribe(
+  s3Key: string,
+  reportId?: string,
+): Promise<{ transcript: string; spoken: string }> {
+  const { transcript, spoken } = await transcribeWithSegments(s3Key, { reportId })
+  return { transcript, spoken }
 }
 
 // Asks S5 for one or two plain sentences on what a site photo shows (CP-22).

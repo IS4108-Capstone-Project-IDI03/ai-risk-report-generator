@@ -1501,8 +1501,10 @@ export async function runTranscription(
   const attempt = `recordings.$.transcription.attempts.${recording.transcription.attempts.length - 1}`
   let outcome: Record<string, unknown>
   try {
+    const { transcript, spoken } = await transcribe(recording.key, reportId)
     outcome = {
-      'recordings.$.transcription.transcript': await transcribe(recording.key, reportId),
+      'recordings.$.transcription.transcript': transcript,
+      'recordings.$.transcription.spoken': spoken,
       'recordings.$.transcription.status': 'transcribed',
     }
   } catch (error) {

@@ -17,6 +17,7 @@ import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
 import commentRoutes from './routes/comment.routes'
 import askRoutes from './routes/ask.routes'
+import dictationRoutes from './routes/dictation.routes'
 import proposalRoutes from './routes/proposal.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
@@ -96,6 +97,8 @@ app.use(
   generationRoutes,
 )
 app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
+// Dictating into an assessment's text fields (CP-27).
+app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)

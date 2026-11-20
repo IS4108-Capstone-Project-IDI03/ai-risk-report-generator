@@ -33,7 +33,10 @@ export interface IWalkRecording {
   durationSec: number
   transcription: {
     status: RecordingTranscription
+    // Tidied by S5 (CP-27); what the walk's readers use.
     text?: string
+    // Whisper's text as it came, kept as evidence (CP-27); absent before CP-27.
+    spoken?: string
     segments: IWalkSegment[]
     error?: string
   }
@@ -69,7 +72,13 @@ export interface IWalkMedia {
   contentType: string
   size: number
   // Voice clips only.
-  transcription?: { status: RecordingTranscription; text?: string; error?: string }
+  // `text` is tidied and `spoken` is Whisper's own, as for a recording (CP-27).
+  transcription?: {
+    status: RecordingTranscription
+    text?: string
+    spoken?: string
+    error?: string
+  }
 }
 
 export type ProposedLocation = {
@@ -158,6 +167,7 @@ const siteWalkSchema = new Schema<ISiteWalk>(
         transcription: {
           status: { type: String, enum: RECORDING_TRANSCRIPTIONS, required: true },
           text: String,
+          spoken: String,
           segments: [{ _id: false, start: Number, end: Number, text: String }],
           error: String,
         },
@@ -191,6 +201,7 @@ const siteWalkSchema = new Schema<ISiteWalk>(
             _id: false,
             status: { type: String, enum: RECORDING_TRANSCRIPTIONS },
             text: String,
+            spoken: String,
             error: String,
           },
           default: undefined,
