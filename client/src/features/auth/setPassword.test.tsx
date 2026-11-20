@@ -86,9 +86,9 @@ describe('Set password from an invitation (F-08)', () => {
     openInvitation()
     await screen.findByText(/Welcome, Priya Nair\./)
 
-    choose('short')
+    choose('nonumbers')
     expect(screen.getByLabelText(/^New password/)).toHaveAccessibleDescription(
-      'Use at least 12 characters, including a number and a symbol.',
+      'Use at least one letter and one number.',
     )
     expect(screen.getByLabelText(/^New password/)).toHaveAttribute('aria-invalid', 'true')
 
@@ -98,6 +98,19 @@ describe('Set password from an invitation (F-08)', () => {
     )
     expect(screen.getByLabelText(/^New password/)).toHaveAttribute('aria-invalid', 'false')
     expect(calls).toHaveLength(1)
+  })
+
+  it('sends a short password that has a letter and a number (no 12-character minimum)', async () => {
+    const calls = mockGateway({})
+    openInvitation()
+    await screen.findByText(/Welcome, Priya Nair\./)
+
+    choose('abc123')
+    await screen.findByText('Password set. Sign in with your work email and new password.')
+    expect(calls[1]).toEqual({
+      url: '/api/auth/invitation/accept',
+      body: { token: 'abc123', password: 'abc123' },
+    })
   })
 
   it('shows the password problem the gateway reports', async () => {

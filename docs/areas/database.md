@@ -544,8 +544,8 @@ The invitation is redeemed without a session: `POST /api/auth/invitation`
 `{ token }` returns the account's `{ name, email }`, and
 `POST /api/auth/invitation/accept` `{ token, password }` sets the first
 password, clears the token and returns `{ email }`. Both answer 400 for an
-invalid, used or expired link; a password shorter than 12 characters, without
-a number and a symbol, or over 72 bytes is 400 with `fields.password`. It is
+invalid, used or expired link; a password without a letter and a number, or over
+72 bytes, is 400 with `fields.password` (no length minimum, no symbol needed). It is
 separate from the reset: `POST /api/auth/request-reset` sends nothing to an
 account with no password (the response is the same as for any address), and
 neither code works in the other's route.

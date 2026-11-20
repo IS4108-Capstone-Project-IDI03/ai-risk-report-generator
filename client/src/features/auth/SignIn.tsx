@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
+import { meetsRule, PASSWORD_RULE } from './passwordRule'
 import { SetPassword } from './SetPassword'
 import './sign-in.css'
 
@@ -62,11 +63,8 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
       setError('Enter a valid work email address.')
       return
     }
-    if (
-      requestAccess &&
-      (password.length < 12 || !/\d/.test(password) || !/[^\w\s]/.test(password))
-    ) {
-      setError('Use at least 12 characters, including a number and a symbol.')
+    if (requestAccess && !meetsRule(password)) {
+      setError(PASSWORD_RULE)
       return
     }
     if (requestAccess && !checked) {
@@ -307,14 +305,12 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
           <Input
             label="Password"
             type="password"
-            placeholder={requestAccess ? 'At least 12 characters' : 'Enter your password'}
+            placeholder={requestAccess ? 'Letters and numbers' : 'Enter your password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete={requestAccess ? 'new-password' : 'current-password'}
-            hint={
-              requestAccess ? '12 characters minimum, including a number and a symbol.' : undefined
-            }
+            hint={requestAccess ? PASSWORD_RULE : undefined}
           />
           <div className="sign-in-options">
             <Checkbox

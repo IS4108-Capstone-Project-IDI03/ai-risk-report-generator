@@ -197,6 +197,13 @@ describe('Settings', () => {
     await waitFor(() => expect(screen.getByRole('switch')).toBeChecked())
   })
 
+  it('tells the person the password rule: a letter and a number', async () => {
+    mock(data(false))
+    render(<Settings />)
+    open('Password')
+    expect(screen.getByText('Use at least one letter and one number.')).toBeInTheDocument()
+  })
+
   it('shows password field errors and the lockout message', async () => {
     let n = 0
     mock(data(false), (url) => {
