@@ -486,7 +486,6 @@ export function ReviewWorkspace({
     <ReviewSectionRail
       sections={sections}
       summary={workspace.summary}
-      standardCiteTarget={workspace.standardCiteTarget}
       regenerating={new Set(jobs.workingIds.filter((id) => !OPENING.has(id)))}
       redrafting={new Set(jobs.workingIds.filter(jobs.redraftedByRun))}
       hideOpening={openingHidden}

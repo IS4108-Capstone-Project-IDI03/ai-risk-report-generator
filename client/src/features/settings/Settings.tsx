@@ -6,12 +6,10 @@ import { GatewayError } from '../assessments/api'
 import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
-import { DraftingSection } from './screens/DraftingSection'
 import { ModelsSection } from './screens/ModelsSection'
 import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
-import { QaSection } from './screens/QaSection'
 import './settings.css'
 
 type Save = (settings: SettingsData) => void
@@ -42,16 +40,6 @@ const WORKING: Section[] = [
     render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
   },
   {
-    id: 'drafting',
-    label: 'Drafting',
-    render: needs((s, f) => <DraftingSection settings={s} onSaved={f} />),
-  },
-  {
-    id: 'qa',
-    label: 'QA eval',
-    render: needs((s, f) => <QaSection settings={s} onSaved={f} />),
-  },
-  {
     id: 'chat',
     label: 'Chat and voice',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
@@ -63,7 +51,10 @@ const WORKING: Section[] = [
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
-const SOON: Section[] = [['Checklist', 'Xuren']].map(([name, owner]) => ({
+const SOON: Section[] = [
+  ['QA eval', 'Chris'],
+  ['Checklist', 'Xuren'],
+].map(([name, owner]) => ({
   id: name,
   label: name,
   owner,

@@ -2111,12 +2111,11 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 
 ## Standards cite target (GN-16)
 
-`app_settings.standardCiteTarget`: an integer 0-100, the share of a section's
-standards the engineer should cite. Absent on documents from before GN-16, which
-read as 50. Saved only by `PATCH /api/settings/global` (`settings:manage`), alone
-or with `qaStrictness`; a real change appends a `settings_log` row
-(`setting: 'standardCiteTarget'`, `before` and `after` numbers). `GET /api/settings`
-and the review workspace both return `standardCiteTarget`.
+There is no setting for it. The Review banner "n of m sections cite a standard"
+compares against a fixed 50% (`STANDARD_CITE_TARGET` in
+`client/src/features/assessments/citedStandards.ts`). The admin-set
+`app_settings.standardCiteTarget` was removed in the S-01 follow-up;
+`PATCH /api/settings/global` now accepts only `qaStrictness`.
 
 ## Source priority (RT-04)
 

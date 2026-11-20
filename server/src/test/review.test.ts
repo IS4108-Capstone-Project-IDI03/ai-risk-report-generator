@@ -413,13 +413,10 @@ describe('the review workspace (RV-01)', () => {
     })
   })
 
-  it('carries the standards cite target (GN-16): 50 by default, then the saved value', async () => {
+  it('carries no cite target: the Review banner uses a fixed 50% (S-01 follow-up)', async () => {
     await assessment()
-    const get = async () => (await api.get(`/api/assessments/${REFERENCE}/review`)).body
-    expect((await get()).standardCiteTarget).toBe(50)
-    const admin = signedInAsRole(app, 'knowledge_admin')
-    await admin.patch('/api/settings/global').send({ standardCiteTarget: 75 })
-    expect((await get()).standardCiteTarget).toBe(75)
+    const body = (await api.get(`/api/assessments/${REFERENCE}/review`)).body
+    expect(body.standardCiteTarget).toBeUndefined()
   })
 
   it('keeps `broader` on a source found by the fallback search (GN-16)', async () => {

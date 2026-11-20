@@ -1510,13 +1510,12 @@ describe('Source region in review (KB-02)', () => {
   })
 })
 
-it('warns below the standards target and still lets the engineer accept (GN-16)', async () => {
-  await openReview(() =>
-    json(200, { ...workspace([CONSTRUCTION, FIRE, EXPOSURES]), standardCiteTarget: 80 }),
-  )
+it('shows the standards banner against a fixed 50% target and still lets the engineer accept (GN-16)', async () => {
+  await openReview(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
   expect(
-    await screen.findByText('1 of 2 sections cite a standard (target 80%)'),
+    await screen.findByText('1 of 2 sections cite a standard (target 50%)'),
   ).toBeInTheDocument()
-  expect(screen.getByText('Below target. Drafts still go ahead.')).toBeInTheDocument()
+  // 1 of 2 is exactly the target: no warning.
+  expect(screen.queryByText('Below target. Drafts still go ahead.')).toBeNull()
   expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled()
 })

@@ -38,7 +38,6 @@ const data = (
   noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models,
   qaStrictness: 'standard',
-  standardCiteTarget: 50,
   sourcePriority: { order: [...TIER_IDS], history: [] },
 })
 const reply = (status: number, body: unknown) =>
@@ -72,7 +71,6 @@ describe('Settings', () => {
       for (const name of [
         'Password',
         'Models',
-        'Drafting',
         'QA eval',
         'Chat and voice',
         'Checklist',
@@ -80,8 +78,8 @@ describe('Settings', () => {
         'Note-taking',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
-      // Removed on request: the three defaults.
-      for (const name of ['Defaults', 'QA check', 'QA criteria'])
+      // Removed on request: the three defaults, and the Drafting section (S-01 follow-up).
+      for (const name of ['Defaults', 'QA check', 'QA criteria', 'Drafting'])
         expect(screen.queryByRole('button', { name })).toBeNull()
       cleanup()
     }
@@ -92,6 +90,9 @@ describe('Settings', () => {
     render(<Settings />)
     open('Checklist')
     expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
+    open('QA eval')
+    expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).toBeNull()
     // Note-taking works now (CP-35): not a Coming soon tile.
     expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
@@ -186,8 +187,6 @@ describe('Settings', () => {
     open('Models')
     expect(await screen.findByRole('combobox', { name: 'Drafting' })).toBeDisabled()
     expect(screen.getByText('Set by an admin')).toBeInTheDocument()
-    open('QA eval')
-    expect(screen.getByRole('radio', { name: 'Strict' })).toBeDisabled()
   })
 
   it('shows the memory switch from the chat API', async () => {
@@ -223,17 +222,15 @@ describe('Settings', () => {
 })
 
 describe('Settings QA eval', () => {
-  it('shows what each strictness means, and QA criteria as coming soon from Chris', async () => {
+  it('is under Coming soon, with its owner and no controls', async () => {
     mock(data(true))
     render(<Settings />)
+    const menu = screen.getByRole('navigation', { name: 'Settings sections' })
+    const soon = within(menu).getByText('Coming soon').parentElement!
+    expect(within(soon).getByRole('button', { name: 'QA eval' })).toBeInTheDocument()
     open('QA eval')
-    const row = (await screen.findByText('Standard (current)')).closest('tr')!
-    expect(
-      within(row)
-        .getAllByRole('cell')
-        .map((c) => c.textContent),
-    ).toEqual(['Standard (current)', 'Warn', 'Fail', 'Fail'])
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+    expect(screen.queryByText('Standard (current)')).toBeNull()
   })
 })
 
@@ -443,68 +440,5 @@ describe('Settings Source priority (RT-04)', () => {
   it('says there are no changes yet', async () => {
     await openIt(data(true))
     expect(screen.getByText('No changes yet.')).toBeInTheDocument()
-  })
-})
-
-describe('Settings Drafting (GN-16)', () => {
-  const patches = (f: ReturnType<typeof mock>) =>
-    f.mock.calls.filter(([, init]) => init?.method === 'PATCH')
-
-  it('lets an admin save the target, sending only that field', async () => {
-    const f = mock(data(true), (_url, init) =>
-      init?.method === 'PATCH' ? reply(200, { ...data(true), standardCiteTarget: 60 }) : null,
-    )
-    render(<Settings />)
-    open('Drafting')
-    const input = await screen.findByLabelText(/Sections citing a standard/)
-    expect(input).toHaveValue('50')
-    expect(
-      screen.getByText(
-        'A percentage, 0 to 100. Review warns when fewer drafted sections cite a standard than this. It never blocks.',
-      ),
-    ).toBeInTheDocument()
-    fireEvent.change(input, { target: { value: '60' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await screen.findByText('Saved')
-    expect(patches(f)).toHaveLength(1)
-    expect(patches(f)[0][0]).toBe('/api/settings/global')
-    expect(JSON.parse(patches(f)[0][1]!.body as string)).toEqual({ standardCiteTarget: 60 })
-  })
-
-  it('saves when Enter is pressed in the box (found by the swarm)', async () => {
-    const f = mock(data(true), (_url, init) =>
-      init?.method === 'PATCH' ? reply(200, { ...data(true), standardCiteTarget: 60 }) : null,
-    )
-    render(<Settings />)
-    open('Drafting')
-    const input = await screen.findByLabelText(/Sections citing a standard/)
-    fireEvent.change(input, { target: { value: '60' } })
-    fireEvent.submit(input.closest('form')!)
-    await screen.findByText('Saved')
-    expect(patches(f)).toHaveLength(1)
-  })
-
-  it.each(['101', '-1', '1.5', ''])(
-    'blocks %j with a plain message and sends nothing',
-    async (v) => {
-      const f = mock(data(true))
-      render(<Settings />)
-      open('Drafting')
-      fireEvent.change(await screen.findByLabelText(/Sections citing a standard/), {
-        target: { value: v },
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-      expect(await screen.findByText('Enter a whole number from 0 to 100.')).toBeInTheDocument()
-      expect(patches(f)).toHaveLength(0)
-    },
-  )
-
-  it('shows an engineer the value read-only', async () => {
-    mock(data(false))
-    render(<Settings />)
-    open('Drafting')
-    expect(await screen.findByLabelText(/Sections citing a standard/)).toBeDisabled()
-    expect(screen.getByText('Set by an admin')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 })

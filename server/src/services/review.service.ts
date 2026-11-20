@@ -36,7 +36,6 @@ import {
   type SectionDraftDto,
 } from './section.service'
 import { captureTimes } from './observation.service'
-import { getStandardCiteTarget } from './settings.service'
 import type { TemplateSection } from './rag.service'
 import {
   assessmentIdOf,
@@ -246,8 +245,6 @@ export type ReviewWorkspaceDto = {
   summary: FindingCounts
   // When the gateway read it, so the browser can keep the newest of several.
   asOf: Date
-  // GN-16: the percent of standards the engineer should cite, from Settings.
-  standardCiteTarget: number
 }
 
 // The chunk metadata S4 saves with each cited passage (see rag-service orchestrator).
@@ -653,7 +650,6 @@ export async function getReviewWorkspace(
     },
     summary: sections.reduce((sum, s) => addCounts(sum, s.findings), NO_FINDINGS),
     asOf,
-    standardCiteTarget: await getStandardCiteTarget(),
   }
 }
 

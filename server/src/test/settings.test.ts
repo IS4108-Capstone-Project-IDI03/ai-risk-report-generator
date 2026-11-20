@@ -198,60 +198,17 @@ describe('QA strictness (S-01 AC12, AC14)', () => {
   })
 })
 
-describe('standards cite target (GN-16)', () => {
-  const patch = (body: object) => admin.patch('/api/settings/global').send(body)
-  const logged = () => SettingsLogModel.find({ setting: 'standardCiteTarget' }).lean()
-
-  it('starts at 50 and leaves the other settings alone', async () => {
-    const body = (await engineer.get('/api/settings')).body
-    expect(body.standardCiteTarget).toBe(50)
-    expect(body.qaStrictness).toBe('standard')
+// The citation target setting was removed (S-01 follow-up): the Review banner uses a fixed 50%.
+describe('no standards cite target setting', () => {
+  it('is not returned by GET /api/settings', async () => {
+    expect((await admin.get('/api/settings')).body.standardCiteTarget).toBeUndefined()
   })
 
-  it('lets the admin save 60, returns it and logs the real before', async () => {
-    expect((await patch({ standardCiteTarget: 60 })).status).toBe(200)
-    expect((await engineer.get('/api/settings')).body.standardCiteTarget).toBe(60)
-    expect((await engineer.get('/api/settings')).body.qaStrictness).toBe('standard')
-    await patch({ standardCiteTarget: 0 })
-    const rows = await logged()
-    expect(rows.map((r) => [r.before, r.after])).toEqual([
-      [50, 60],
-      [60, 0],
-    ])
-    expect(rows[0].by.name).toBe('Sana')
-  })
-
-  it('saves it together with the QA strictness', async () => {
-    await patch({ qaStrictness: 'strict', standardCiteTarget: 100 })
-    const body = (await admin.get('/api/settings')).body
-    expect([body.qaStrictness, body.standardCiteTarget]).toEqual(['strict', 100])
-  })
-
-  it.each([-1, 101, 55.5, '60', null, true, [60], Number.NaN])('refuses %j', async (value) => {
-    const res = await patch({ standardCiteTarget: value })
+  it('is not accepted by PATCH /api/settings/global', async () => {
+    const res = await admin.patch('/api/settings/global').send({ standardCiteTarget: 60 })
     expect(res.status).toBe(400)
-    expect(res.body.error ?? res.body.message).toBe(
-      'The target must be a whole number from 0 to 100.',
-    )
-    expect((await admin.get('/api/settings')).body.standardCiteTarget).toBe(50)
-  })
-
-  it('saves nothing when the QA strictness beside it is invalid', async () => {
-    expect((await patch({ standardCiteTarget: 70, qaStrictness: 'nope' })).status).toBe(400)
-    expect((await admin.get('/api/settings')).body.standardCiteTarget).toBe(50)
+    expect(res.body.error ?? res.body.message).toBe('"standardCiteTarget" is not a setting.')
     expect(await SettingsLogModel.countDocuments()).toBe(0)
-  })
-
-  it('answers 403 to an engineer', async () => {
-    const res = await engineer.patch('/api/settings/global').send({ standardCiteTarget: 70 })
-    expect(res.status).toBe(403)
-  })
-
-  it('writes no log row when the target does not change', async () => {
-    await patch({ standardCiteTarget: 50 })
-    await patch({ standardCiteTarget: 60 })
-    await patch({ standardCiteTarget: 60 })
-    expect(await logged()).toHaveLength(1)
   })
 })
 

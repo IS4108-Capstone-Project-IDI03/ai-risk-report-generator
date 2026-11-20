@@ -1202,8 +1202,6 @@ export type ReviewWorkspace = {
   parts?: Record<ReportPartId, SectionVersion | null>
   // Every saved draft's findings by state: the review summary (RV-02).
   summary: FindingCounts
-  // The share of drafted sections that should cite a standard, in % (GN-16).
-  standardCiteTarget?: number
   // When the gateway read it, to keep the newest of overlapping responses.
   asOf: string
 }
