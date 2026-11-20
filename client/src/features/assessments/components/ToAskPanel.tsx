@@ -14,7 +14,7 @@ export function ToAskPanel({ reference, refreshKey }: { reference: string; refre
   useEffect(() => {
     const controller = new AbortController()
     getToAsk(reference, controller.signal).then(
-      (r) => setItems(r.items),
+      (r) => setItems(Array.isArray(r?.items) ? r.items : []), // not a list: nothing to show
       () => !controller.signal.aborted && setItems([]),
     )
     return () => controller.abort()

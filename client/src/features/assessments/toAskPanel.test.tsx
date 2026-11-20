@@ -53,3 +53,16 @@ it('reads the list again when the observations change', async () => {
   rerender(<ToAskPanel reference="RPT-1" refreshKey="b" />)
   expect(await screen.findByText('Ask for the valve schedule.')).toBeInTheDocument()
 })
+
+it('shows nothing when the gateway answers with something that is not a list', async () => {
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve(
+      new Response(JSON.stringify({ observations: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  )
+  const { container } = render(<ToAskPanel reference="RPT-1" refreshKey="a" />)
+  await waitFor(() => expect(container).toBeEmptyDOMElement())
+})
