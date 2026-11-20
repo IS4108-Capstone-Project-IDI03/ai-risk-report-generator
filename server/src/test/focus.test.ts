@@ -1,5 +1,5 @@
 // The Focus list (AS-07), as the work list's rows carry it (priority and
-// rank): overdue first, then Fix now, then least time to spare, and only the
+// rank): overdue first, then least time to spare (Fix now included), and only the
 // caller's own open assessments, counted in the team's time zone.
 import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
@@ -89,7 +89,7 @@ const focusOf = (rows: Row[]) =>
   rows.filter((r) => r.priority).sort((a, b) => a.priority!.rank - b.priority!.rank)
 
 describe('Focus on the work list', () => {
-  it("ranks the caller's own open assessments: overdue, then Fix now, then least time to spare", async () => {
+  it("ranks the caller's own open assessments: overdue, then least time to spare, Fix now included", async () => {
     const alex = await engineer(1)
     const other = await engineer(2)
     const client = await ClientModel.create({ name: 'Harbourline', key: 'harbourline' })
@@ -97,7 +97,7 @@ describe('Focus on the work list', () => {
     const relaxed = await visit(alex._id, c, { stage: 'capture', reportDueDate: day(30) })
     const tight = await visit(alex._id, c, { stage: 'capture', reportDueDate: day(4) }) // 4 − 3 days of work = 1 spare
     const tighter = await visit(alex._id, c, { stage: 'review', reportDueDate: day(1) }) // 1 − 2 = none
-    const broken = await visit(alex._id, c, { stage: 'capture', reportDueDate: day(20) })
+    const broken = await visit(alex._id, c, { stage: 'capture', reportDueDate: day(20) }) // Fix now, 17 spare: after the tight deadlines
     await fixNowBrief(broken)
     const late = await visit(alex._id, c, { stage: 'capture', reportDueDate: day(-2) })
     const later = await visit(alex._id, c, { reportDueDate: day(-5) }) // no stage yet: counts as setup
@@ -108,7 +108,7 @@ describe('Focus on the work list', () => {
     const { body } = await signedInAs(app, alex).get('/api/assessments').expect(200)
     const focus = focusOf(body as Row[])
 
-    expect(focus.map((r) => r.reference)).toEqual([later, late, broken, tighter, tight])
+    expect(focus.map((r) => r.reference)).toEqual([later, late, tighter, tight, broken])
     expect(focus.map((r) => r.priority!.rank)).toEqual([1, 2, 3, 4, 5])
     expect(focus[0]).toMatchObject({
       reference: later,
@@ -117,9 +117,9 @@ describe('Focus on the work list', () => {
       priority: { reason: 'overdue', text: 'Report 5 days overdue, nothing drafted yet.', rank: 1 },
     })
     expect(focus.map((r) => r.priority!.text).slice(2)).toEqual([
-      "Loading Bay 2 · 1:48 · Couldn't transcribe",
       'No time to spare before the report is due.',
       '1 day to spare before the report is due.',
+      "Loading Bay 2 · 1:48 · Couldn't transcribe",
     ])
     expect(focus.map((r) => r.reference)).not.toContain(relaxed)
   })
