@@ -1369,6 +1369,9 @@ document has:
   `effort`. The value lists are `rag-service/app/generation/ofi.json`, taken
   from Marsh's template; `type` is provisional until Marsh sends its RQR
   sub-categories.
+- `fromRecommendation` (boolean, optional; CP-35): true when the OFI rests on an observation
+  whose split note had a recommendation part. Set when the OFI is drafted; shown as "From your
+  recommendation". Absent on OFIs from before CP-35.
 - `priority` (`Priority 1` to `Priority 4`): the Risk Assessment Matrix's
   value for `likelihood` × `consequence`, set by S4's code, never by the model.
 - `observations` (the observation `_id`s it rests on), `standards` (cited

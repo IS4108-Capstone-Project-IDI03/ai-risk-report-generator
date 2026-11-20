@@ -2040,3 +2040,13 @@ unmasks and checks in code: a number or unit in a part's shorthand that its text
 Marsh list (`retrieval/site_abbreviations.json`) nor the glossary holds it. Empty parts are
 dropped; a line the model skipped comes back as one fact part. `scripts/make-shorthand-notes.py`
 is a dev script that asks Gemini once for invented test notes (needs `GEMINI_API_KEY`).
+
+**Hand-off of the other two kinds (CP-35).** Info requests: `GET /api/assessments/:reference/to-ask`
+(`toAskFor` in `observation.service.ts`, `assessments:view`) lists the `info_request` parts of the
+assessment's observations, oldest first; the Observations tab shows them as "To ask the client".
+Recommendations: OFI drafting (`ofi.service.ts`) sends each observation's `recommendation` parts as
+`observations[].recommendations` (`draftingRecommendations` in `section.service.ts`), never in
+`toEvidence`. rag-service masks them with the note (`_mask_evidence`), prints them as
+"Engineer's recommendation:" in the OFI prompt (`gn05-v7`), and the guide says to base the fix on
+them without adding actions. An OFI that rests on such an observation is saved with
+`fromRecommendation: true`. Facts stay the only part read as evidence.
