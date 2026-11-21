@@ -165,6 +165,9 @@ export function SiteWalkRecording({
 
   // The server refuses a walk with no recording and no note (site-walk.service.ts).
   const hasRecordings = w.items.some((i) => i.kind === 'recording')
+  // Where the note boxes dictate into (CP-27): nowhere while the walk records, as its own
+  // recording already hears what is said.
+  const dictateInto = rec.phase === 'recording' ? undefined : reference
   const canFinish =
     !busy && !rec.opening && (w.items.length > 0 || rec.phase !== 'idle' || note.trim().length > 0)
   return (
@@ -222,8 +225,7 @@ export function SiteWalkRecording({
             value={note}
             onChange={type}
             onAdd={() => void addNote()}
-            // The walk's own recording already hears what is said while it runs.
-            reference={rec.phase === 'recording' ? undefined : reference}
+            reference={dictateInto}
           />
         </div>
         <WalkList
@@ -231,6 +233,7 @@ export function SiteWalkRecording({
           onSaveNote={w.editNote}
           onRetry={(seq) => void w.retry(seq)}
           onRemove={(item) => w.remove({ kind: item.kind, seq: item.seq })}
+          reference={dictateInto}
         />
       </div>
 

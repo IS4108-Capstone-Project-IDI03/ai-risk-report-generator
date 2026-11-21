@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { NoteComposer } from '../../site-walk/components/NoteComposer'
+import { WalkList } from '../../site-walk/components/WalkList'
 import { AskPanel } from '../ask/AskPanel'
 import { useAsk } from '../ask/useAsk'
 import { CommentComposer } from '../comments/CommentComposer'
@@ -55,6 +56,29 @@ describe('dictating into a field (CP-27)', () => {
     await dictate()
 
     await waitFor(() => expect(box).toHaveValue(`Block A. ${DICTATED}`))
+  })
+
+  it("a site walk's note, when edited", async () => {
+    const onSaveNote = vi.fn(async () => true)
+    render(
+      <WalkList
+        items={[{ kind: 'note', seq: 1, text: 'Block A.' }]}
+        onSaveNote={onSaveNote}
+        onRetry={() => {}}
+        onRemove={() => {}}
+        reference={REFERENCE}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note' }))
+    const box = screen.getByRole('textbox', { name: 'Edit note' }) as HTMLTextAreaElement
+    box.focus()
+    box.setSelectionRange(8, 8)
+
+    await dictate()
+
+    await waitFor(() => expect(box).toHaveValue(`Block A. ${DICTATED}`))
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }))
+    await waitFor(() => expect(onSaveNote).toHaveBeenCalledWith(1, `Block A. ${DICTATED}`))
   })
 
   it("a recording's transcript correction: the words go in and are saved with it", async () => {
