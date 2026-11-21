@@ -4,10 +4,11 @@
 // the window's bottom edge scrolls inside itself. Stacked on a phone, with Cancel and Save in the
 // bar at the bottom of the screen. Split into the Capture* components. Called by AssessmentApp.
 import { useEffect, useState } from 'react'
-import { Button, Dialog, Icon, Textarea } from '../../../design-system'
+import { Button, Dialog, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { CaptureActions } from '../components/CaptureActions'
 import { CaptureModeSwitcher } from '../components/CaptureModeSwitcher'
+import { CaptureNoteBox } from '../components/CaptureNoteBox'
 import { CapturePhotoPanel } from '../components/CapturePhotoPanel'
 import { CaptureScanPanel } from '../components/CaptureScanPanel'
 import { CaptureSessionNotice } from '../components/CaptureSessionNotice'
@@ -95,13 +96,10 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             <div className="cap-media">
               {!!v.isNoteMode && (
                 <>
-                  <Textarea
-                    aria-label="Note"
-                    maxLength={5000}
-                    rows={v.phone ? 6 : 8}
-                    placeholder="What did you see? Write as you would for the record."
+                  <CaptureNoteBox
                     value={v.fNote}
                     onChange={v.setFNote}
+                    phone={!!v.phone}
                   />
                   {/* Sorting the note into facts, requests and recommendations (CP-35).
                       A site walk proposal saves locally, so it has no split. */}
