@@ -994,6 +994,45 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
   </details>
 
+- [ ] **CP-61** — Building stack view: where the risk sits and what is not covered yet (risk engineer, 5 pts, deps: CP-16, CP-08, CP-22, CP-24, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see each building drawn as a stack of its levels, with every location coloured by its worst finding, so I can tell at a glance where the risk sits and which locations I have not covered, instead of reading it out of a long list.
+
+  Seeing the site
+
+  1. Given an assessment with locations, when I choose Buildings on the Observations tab, then each building is drawn as a stack of its levels with the lowest at the bottom, in the same order as the location list, and the locations elsewhere on site sit in one row under them.
+  2. Given buildings with different levels, when I view the stacks, then their ground floors line up, with basements below that line and locations that belong to a whole building in a strip at its top.
+  3. Given a location with observations, when I view its cell, then it shows the location's name, how many observations it holds and its worst severity, as a colour, a symbol and a word, so nothing is read from colour alone.
+  4. Given a location with no observations, when I view its cell, then it is an empty dashed cell that reads "Nothing recorded", and before I choose a location the panel beside the stacks lists every such location.
+  5. Given a key above the stacks, when I view it, then it names each colour and says how many locations have it.
+
+  Acting on a location
+
+  6. Given a cell, when I choose it, then its observations are listed beside the stacks, and each opens that observation's own page, from which Back returns to the stacks with the cell still chosen.
+  7. Given a chosen location, when I press Add observation here (or Add observation in the toolbar), then capture opens at that location, and afterwards I am back on the stacks at that location.
+  8. Given a location with nothing recorded in the panel's list, when I press its +, then capture opens at that location.
+
+  Filters and counts
+
+  9. Given the tab's search or its Category, Severity, Type or Status filter is set, when I view the stacks, then each cell counts only the observations that match, every location stays drawn, and one whose observations are all filtered out reads "0 of 3".
+  10. Given a deleted observation, when I view the stacks, then it is not counted.
+  11. Given observations with no location recorded, when I view the stacks, then a line under them says how many there are and opens them in the list.
+  12. Given the stacks, when I read the line under them, then it says how many locations there are, how many have nothing recorded, and how many observations.
+
+  Phone, table and keyboard
+
+  13. Given a phone, when I choose Buildings, then the stacks sit one under another, and a chosen location's observations slide up as a sheet.
+  14. Given the stacks, when I press Show as table, then the same values are listed as a table of location, observations and worst severity.
+  15. Given a keyboard or a screen reader, when I move through the stacks, then every cell can be reached and says where it is, how many observations it holds and the worst of them.
+
+  Who sees and changes what
+
+  16. Given an assessment I can only read (another engineer's as a knowledge admin, or an archived one), when I view the stacks, then I see the same cells and observations but no way to add an observation or a location.
+
+  Built 21 Nov 2026 on `feat/xuren-cp-61-building-stack` (DECISIONS 2026-11-21), from a clickable mock. A second view of the Observations tab, client only: no new collection, endpoint or model call. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Beyond the idea as first written: the panel's list of locations with nothing recorded (AC4, AC8), and stronger severity fills than the app's 50 tints, since Critical's and High's are the same pink. `npm --prefix server run seed:cp61` adds a demo site with several levels to try it on. Not in this story: a floor plan, pins, dragging an observation to another location, and the stack in the report.
+  </details>
+
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 
