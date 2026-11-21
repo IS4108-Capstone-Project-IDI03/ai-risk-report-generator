@@ -255,6 +255,7 @@ export const initialState: WorkflowState = {
   obsOpen: null,
   of: NO_FILTERS,
   obsShowDeleted: false,
+  obsView: 'list',
   obsSort: 'newest',
   obsFolded: {},
   obsLocForm: false,

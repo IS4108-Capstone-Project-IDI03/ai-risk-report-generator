@@ -1,0 +1,578 @@
+/* The Observations tab's Buildings view (CP-61, components/BuildingStack.tsx):
+   each building a stack of its levels on one ground line, every location a
+   cell in its worst severity's colour. Sits in the tab's own .ob scope, so
+   the --ob-* variables and the fitted panes (observations.css) apply. */
+
+/* ---- Layout: the stacks card, with the chosen location beside it from 1100px ---- */
+@media (min-width: 900px) {
+  .ob-layout.bs-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (min-width: 1100px) {
+  .ob-layout.bs-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+/* ---- The key: each colour, its name and how many locations wear it ---- */
+.bs-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px 20px 0;
+  color: var(--text-secondary);
+  font: 400 12px/1.3 var(--ob-font);
+}
+.bs-key-title {
+  font-weight: 600;
+}
+.bs-key ul {
+  display: contents;
+}
+.bs-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+.bs-key b {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bs-swatch {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+/* ---- The site: one grid, a column per building, so every ground floor
+   shares a row and the basements hang below it ---- */
+.bs-scroll {
+  overflow-x: auto;
+  padding: 8px 16px 4px;
+}
+.bs-site {
+  display: grid;
+  column-gap: 24px;
+  /* Room for a chosen cell's ring at the edges. */
+  padding: 0 4px;
+}
+/* The building's box is not drawn: its name and floors sit in the site's grid. */
+.bs-building {
+  display: contents;
+}
+.bs-head {
+  grid-column: var(--bs-col);
+  align-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 4px 8px;
+}
+.bs-head h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--marsh-navy);
+  font: 700 15px/1.3 var(--ob-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bs-head > span:last-child {
+  flex: none;
+  color: var(--text-muted);
+  font: 400 12px/1.3 var(--ob-font);
+  font-variant-numeric: tabular-nums;
+}
+.bs-floor {
+  grid-column: var(--bs-col);
+  display: flex;
+  min-width: 0;
+  min-height: 68px;
+  box-sizing: border-box;
+  border: solid var(--border-strong);
+  border-width: 0 1px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+.bs-floor[data-top] {
+  border-top-color: var(--border-strong);
+  border-radius: 12px 12px 0 0;
+}
+.bs-floor[data-bottom] {
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0 0 6px 6px;
+}
+.bs-floor[data-top][data-bottom] {
+  border-radius: 12px 12px 6px 6px;
+}
+/* The ground line, under the lowest level above ground. */
+.bs-floor[data-kind='ground'] {
+  border-bottom: 2px solid var(--graphite-500);
+}
+.bs-floor[data-kind='below'] {
+  background: var(--graphite-50);
+}
+.bs-floor[data-kind='whole'] {
+  background: var(--surface-sunken);
+}
+/* Wide enough for "Basement" on one line. */
+.bs-level {
+  flex: 0 0 72px;
+  align-self: center;
+  box-sizing: border-box;
+  padding-left: 10px;
+  color: var(--text-secondary);
+  font: 600 12px/1.25 var(--ob-font);
+  overflow-wrap: break-word;
+}
+.bs-cells {
+  flex: 1 1 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+}
+
+/* ---- A location's cell ---- */
+.bs-cell {
+  flex: 1 1 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-family: var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow 120ms var(--ob-ease),
+    filter 120ms var(--ob-ease),
+    transform 120ms var(--ob-ease);
+}
+/* Two lines before it is cut, so "Sprinkler valve room" reads whole in a narrow cell. */
+.bs-cell-name {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.bs-cell-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bs-cell-line > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Worst first, each a step lighter than the one before, so the order reads
+   without telling red from green; the symbol and the word say it again. The
+   50 tints are not used: Critical's and High's are the same pink. */
+.bs-cell[data-tone='critical'],
+.bs-swatch[data-tone='critical'] {
+  border-color: var(--red-600);
+  background: var(--red-600);
+  color: var(--text-inverse);
+}
+.bs-cell[data-tone='critical'] .bs-cell-name {
+  color: var(--text-inverse);
+}
+.bs-cell[data-tone='high'],
+.bs-swatch[data-tone='high'] {
+  border-color: var(--oxblood-200);
+  background: var(--oxblood-100);
+  color: var(--oxblood-700);
+}
+.bs-cell[data-tone='moderate'],
+.bs-swatch[data-tone='moderate'] {
+  border-color: color-mix(in srgb, var(--amber-500) 50%, var(--amber-100));
+  background: var(--amber-100);
+  color: var(--amber-700);
+}
+.bs-cell[data-tone='low'],
+.bs-swatch[data-tone='low'] {
+  border-color: color-mix(in srgb, var(--green-600) 30%, var(--green-50));
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.bs-cell[data-tone='unset'],
+.bs-swatch[data-tone='unset'] {
+  border-color: var(--ink-200);
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+/* Nothing recorded: an outline waiting to be filled. */
+.bs-cell[data-tone='empty'],
+.bs-swatch[data-tone='empty'] {
+  border-style: dashed;
+  border-color: var(--graphite-400);
+  background: var(--surface-card);
+  color: var(--text-muted);
+}
+.bs-cell[data-tone='nomatch'],
+.bs-swatch[data-tone='nomatch'] {
+  border-color: var(--border-default);
+  background: var(--graphite-50);
+  color: var(--text-muted);
+}
+.bs-cell[data-tone='empty'] .bs-cell-name,
+.bs-cell[data-tone='nomatch'] .bs-cell-name {
+  color: var(--text-secondary);
+}
+/* Chosen: the shaded grid's ring (CP-29), navy with white inside. */
+.bs-cell[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px var(--surface-card),
+    0 0 0 4px var(--marsh-navy);
+}
+.bs-cell:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.bs-cell:active {
+  transform: scale(0.98);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bs-cell:hover {
+    filter: brightness(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bs-cell {
+    transition: none;
+  }
+  .bs-cell:active {
+    transform: none;
+  }
+}
+
+/* ---- Elsewhere on site: the ground the buildings stand on ---- */
+.bs-else {
+  padding: 4px 20px 0;
+}
+.bs-else .bs-head {
+  padding-top: 8px;
+}
+.bs-ground {
+  border: 1px solid var(--border-strong);
+  border-radius: 6px 6px 12px 12px;
+  background: var(--surface-sunken);
+}
+
+/* ---- Under the stacks: observations with no location, Add location, the table ---- */
+.bs-under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 24px;
+}
+.bs-under-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.bs-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: 600 13px/1.3 var(--ob-font);
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.bs-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.bs-table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--ob-line);
+}
+.bs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 14px/1.35 var(--ob-font);
+}
+.bs-table th,
+.bs-table td {
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bs-table thead th {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* The name column is left-aligned, head and rows (v2 Tables). */
+.bs-table th:first-child {
+  padding-left: 24px;
+  text-align: left;
+}
+.bs-table tbody th {
+  font-weight: 600;
+}
+.bs-table tbody th > span {
+  display: block;
+}
+.bs-table-where {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.bs-card > .ds-table-footer {
+  padding-left: 24px;
+  border-top: 1px solid var(--ob-line);
+}
+
+/* ---- The chosen location, beside the stacks or in a sheet ---- */
+.bs-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 12px 0 20px;
+}
+.bs-panel-head > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bs-panel-head h3 {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--ob-font);
+  overflow-wrap: anywhere;
+}
+.bs-panel-where {
+  margin: 0 0 2px;
+  color: var(--text-muted);
+  font: 600 12px/1.3 var(--ob-font);
+  overflow-wrap: anywhere;
+}
+.bs-panel-count {
+  margin: 4px 20px 0;
+  color: var(--text-muted);
+  font: 400 13px/1.45 var(--ob-font);
+}
+.bs-panel-head .bs-panel-count {
+  margin: 4px 0 0;
+}
+.bs-panel-add {
+  padding: 12px 20px 0;
+}
+.bs-obs-list,
+.bs-gap-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.bs-obs-list > li,
+.bs-gap-list > li {
+  border-top: 1px solid var(--ob-line);
+}
+.bs-obs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px 10px 20px;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: 400 14px/1.4 var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+}
+.bs-obs .ob-cat {
+  flex: none;
+}
+.bs-obs-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+/* The symbol alone; its word is still read out. */
+.bs-obs .ob-sev-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.bs-obs:focus-visible,
+.bs-gap-pick:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+.bs-gap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+}
+.bs-gap-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 56px;
+  padding: 8px 8px 8px 20px;
+  border: 0;
+  background: none;
+  font-family: var(--ob-font);
+  text-align: left;
+  cursor: pointer;
+}
+.bs-gap-pick > span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.bs-gap-pick > span:first-child {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.bs-gap-pick > span:last-child {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bs-obs:hover,
+  .bs-gap-pick:hover {
+    background: var(--ob-hover);
+  }
+}
+/* In the sheet the dialog has its own padding, so the rows run edge to edge of it. */
+.bs-sheet .bs-panel-count {
+  margin: 0;
+}
+.bs-sheet .bs-panel-add {
+  padding: 12px 0 0;
+}
+.bs-sheet .bs-obs {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+/* ---- The title row's List / Buildings switch: a darker track, as the page is grey ---- */
+.cpo-view {
+  display: inline-flex;
+  margin-right: auto;
+}
+.cpo-view .ds-segmented {
+  background: var(--graphite-200);
+}
+
+/* ---- A phone: the stacks sit one under another, two locations across ---- */
+@media (max-width: 767px) {
+  .bs-key,
+  .bs-under {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+  .bs-scroll {
+    overflow: visible;
+    padding: 4px 14px 0;
+  }
+  .bs-site {
+    display: block;
+    padding: 0;
+  }
+  .bs-building {
+    display: block;
+  }
+  .bs-floor {
+    flex-direction: column;
+  }
+  .bs-level {
+    flex: none;
+    align-self: stretch;
+    padding: 8px 10px 0;
+  }
+  .bs-cells {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bs-cell {
+    min-height: 56px;
+  }
+  .bs-else {
+    padding: 4px 14px 0;
+  }
+  .bs-under-end {
+    width: 100%;
+    margin-left: 0;
+  }
+  .bs-under-end > * {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+  .bs-link {
+    min-height: 44px;
+  }
+  .bs-table th:first-child {
+    padding-left: 14px;
+  }
+  .bs-table th,
+  .bs-table td {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+  .bs-card > .ds-table-footer {
+    padding-left: 14px;
+  }
+  /* The switch takes its own row under the title, full width, 44px tall. */
+  .cpo-title-row {
+    flex-wrap: wrap;
+  }
+  .cpo-view {
+    order: 1;
+    width: 100%;
+    margin-right: 0;
+  }
+  .cpo-view .ds-segmented {
+    display: flex;
+    width: 100%;
+  }
+  .cpo-view .ds-segmented button {
+    flex: 1;
+    justify-content: center;
+    height: 44px;
+  }
+  .cpo-view .ds-seg-thumb {
+    top: 3px;
+    bottom: 3px;
+  }
+}
