@@ -100,6 +100,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     value={v.fNote}
                     onChange={v.setFNote}
                     phone={!!v.phone}
+                    reference={v.liveVoice ? v.captureRef : null}
                   />
                   {/* Sorting the note into facts, requests and recommendations (CP-35).
                       A site walk proposal saves locally, so it has no split. */}

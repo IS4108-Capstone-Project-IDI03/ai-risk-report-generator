@@ -10,6 +10,7 @@ import { AskPanel } from '../ask/AskPanel'
 import { useAsk } from '../ask/useAsk'
 import { CommentComposer } from '../comments/CommentComposer'
 import type { ChecklistItem } from '../api'
+import { CaptureNoteBox } from '../components/CaptureNoteBox'
 import { AnswerDialog } from '../components/ChecklistAnswer'
 import { PageTextDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { ObservationNote } from '../components/ObservationNote'
@@ -41,6 +42,27 @@ describe('dictating into a field (CP-27)', () => {
     await waitFor(() => expect(note).toHaveValue(DICTATED))
     fireEvent.blur(note)
     await waitFor(() => expect(save).toHaveBeenCalledWith({ note: DICTATED }))
+  })
+
+  it("a new observation's note, before it is saved", async () => {
+    function Capture() {
+      const [note, setNote] = useState('')
+      return <CaptureNoteBox value={note} onChange={setNote} phone={false} reference={REFERENCE} />
+    }
+    render(<Capture />)
+
+    await dictate()
+
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(DICTATED),
+    )
+  })
+
+  it("a new observation's note outside a live assessment (the demo's) has nothing to dictate into", () => {
+    render(<CaptureNoteBox value="" onChange={() => {}} phone={false} reference={null} />)
+
+    expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dictate' })).toBeNull()
   })
 
   it("a site walk's note, between recordings", async () => {
