@@ -398,6 +398,14 @@ model or its checks failed. It is never part of a report or its export. See
 with five sites, repeat visits, observations, accepted OFIs and scores
 (`seed:cp29:remove` removes only it). Run `npm run seed` first.
 
+`npm --prefix server run seed:cp61` adds a demo client, Meridian Fulfilment, with
+one site and one assessment (`DEMO61-01`) for the building stack (CP-61): two
+buildings of several levels, a basement, a whole-building location and
+locations elsewhere on site, observations of every severity, and five
+locations with nothing recorded (`seed:cp61:remove` removes only it). It is its
+own client so the CP-29 demo's Insights figures stay as they are. Run
+`npm run seed` first.
+
 ## Client intakes and client documents (CP-23)
 
 An engineer can start a new assessment from the documents a client sent (PDF,

@@ -2742,3 +2742,16 @@ Rejected:
 - Masking typed text and screenshots: standards hold no client details. If admins start pasting client material, mask and blur as PV-06 does.
 
 Stories: IN-18, IN-07, IN-17, KB-02.
+
+## 2026-11-21 — The Observations tab can be read as building stacks, drawn in the browser from what the tab already holds
+
+- (CP-61) A List / Buildings switch on the Observations tab. Buildings draws each building as its levels, lowest at the bottom, with a cell per location in its worst observation's colour, then the locations elsewhere on site.
+- It is client only: the tab already holds the site's locations and the assessment's observations, so there is no new collection, endpoint or model call. The shapes are in `buildingStack.ts`, on CP-16's grouping (`groupLocations`), so the order is the location list's.
+- The stack keeps every location drawn while a filter is on, where the list drops those with no match. A building must keep its shape, and "nothing recorded" must not be confused with "nothing matching". So the workflow gives the stack its own list (`obsStack`): every location, the observations the filters show there, and how many it holds in all. A location whose observations are all filtered out reads "0 of 3".
+- Its chosen location is kept apart from the navigator's pick for the same reason: the navigator lets go of a place the filters empty. The two follow each other when the view is switched.
+- The view (`obsView`) is in the workflow's state, not the tab's, because capture unmounts the tab and Add observation here must return to the stacks.
+- Ground floors share a row across buildings: all the buildings are one CSS grid, and each floor is placed by its row from the ground. A level the app does not recognise goes above the rest, as it sorts last in the location list.
+- Cells are filled worst first, each a step lighter (solid red, then the 100 tints, then green 50). The app's severity 50 tints were not used: Critical's and High's are the same pink. Each cell also carries the severity's symbol and word.
+- Before a location is chosen, the side panel lists the locations with nothing recorded, each with a + that opens capture there. This was added to the idea as written, since "which locations have I not covered" is half the story's goal.
+
+Reason: on a large site the list shows what was found but not where it concentrates or what was missed. The location hierarchy from CP-16 already describes the site's shape, so the picture costs no new data.

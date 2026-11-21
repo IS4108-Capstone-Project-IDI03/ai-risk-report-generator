@@ -2991,7 +2991,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const listed = (id: string) => places.locations.some((l) => l.id === id)
     // Its listed location; else one listed with the same name, level and
     // building (a sample observation's, say); else the details it was saved with.
-    const placeKey = (o: ObsItem) =>
+    const placeKey = (o: Pick<ObsItem, 'locationId' | 'locationName' | 'floor' | 'building'>) =>
       (o.locationId && listed(o.locationId) ? o.locationId : null) ??
       places.locations.find(
         (l) =>
@@ -3048,6 +3048,31 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           .filter((level) => level.locations.length),
       }))
       .filter((g) => g.levels.length)
+    // The building stack (CP-61) draws every location whatever the filters, so
+    // a building keeps its shape: those listed, then any an observation that
+    // is not deleted was saved at, shown by the filters or not.
+    const stackPlaces: SiteLocation[] = [...places.locations]
+    for (const { o } of obsRows)
+      if (o.locationName && !stackPlaces.some((l) => l.id === placeKey(o)))
+        stackPlaces.push({
+          id: placeKey(o),
+          building: o.building ?? null,
+          floor: o.floor ?? null,
+          name: o.locationName,
+        })
+    // Capture opens at a listed location, with no need to choose where, and
+    // returns there.
+    const addObservationAt = (id: string) =>
+      listed(id) && canEdit && canCapture
+        ? () =>
+            setState({
+              screen: 'field',
+              fLocationId: id,
+              locOpen: false,
+              locDismissed: false,
+              obsReturn: { locationId: id, ids: [], local: 0 },
+            })
+        : undefined
     // Opens the Add or Edit location dialog on the Observations tab (CP-16),
     // the same form as the capture picker's.
     const openLocationForm = (l?: SiteLocation) =>
@@ -3575,19 +3600,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 countLabel: l.items.length
                   ? plural(l.items.length, 'observation')
                   : 'No observations',
-                // Capture opens there, with no need to choose where, and
-                // returns there.
-                addObservation:
-                  isListed && canEdit && canCapture
-                    ? () =>
-                        setState({
-                          screen: 'field',
-                          fLocationId: l.id,
-                          locOpen: false,
-                          locDismissed: false,
-                          obsReturn: { locationId: l.id, ids: [], local: 0 },
-                        })
-                    : undefined,
+                addObservation: addObservationAt(l.id),
                 landing: s.obsReturn?.locationId === l.id,
                 edit: isListed && canChangeObs ? () => openLocationForm(l) : undefined,
                 remove:
@@ -3599,6 +3612,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })),
         }
       }),
+      /* the building stack (CP-61): the list, or every location as a cell of its
+         building's level, with the observations the filters show there and
+         how many it holds in all */
+      obsView: s.obsView,
+      setObsView: (view: 'list' | 'stack') => setState({ obsView: view }),
+      obsStack: stackPlaces.map((l) => ({
+        ...l,
+        label: locationLabel(l),
+        items: obsList.filter((o) => placeKey(o) === l.id),
+        total: obsRows.filter(({ o }) => placeKey(o) === l.id).length,
+        addObservation: addObservationAt(l.id),
+        landing: s.obsReturn?.locationId === l.id,
+      })),
+      // Observations the filters show that have no location, so no cell.
+      obsUnplacedCount: obsList.filter((o) => !o.locationName).length,
       // Adds a location without capturing, e.g. before the visit (CP-16).
       obsAddLocation: canEdit && canCapture ? () => openLocationForm() : undefined,
       obsLocFormOpen: s.obsLocForm,

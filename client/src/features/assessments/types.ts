@@ -323,6 +323,9 @@ export type WorkflowState = {
   of: ObservationFilters
   // The Observations tab lists the deleted observations instead (CP-08).
   obsShowDeleted: boolean
+  // The Observations tab as its list, or as the building stack (CP-61). Kept
+  // here, not in the tab, so it is still the stack after a visit to capture.
+  obsView: 'list' | 'stack'
   // The Observations tab by building, level and location, or newest first;
   // the buildings folded away this visit; and its Add or Edit location
   // dialog (CP-16).

@@ -1,6 +1,7 @@
 // The Observations tab (CP-22, CP-24): the location navigator beside a compact list
 // whose toolbar ends in the one Add observation button (add manually or record a site walk),
-// the Site walk proposals button on the title row, and each observation's own page. Rendered by AssessmentApp.tsx;
+// the Site walk proposals button on the title row, and each observation's own page. The title
+// row's switch swaps the navigator and list for the building stack (CP-61). Rendered by AssessmentApp.tsx;
 // the data and saves are in useAssessmentWorkflow.tsx, the site walk screens in
 // features/site-walk.
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -27,6 +28,7 @@ import {
   TranscriptDialog,
 } from '../components/ObservationDialogs'
 import { AddObservationMenu } from '../components/AddObservationMenu'
+import { BuildingStack } from '../components/BuildingStack'
 import { ObservationFilters } from '../components/ObservationFilters'
 import { ObservationFooter } from '../components/ObservationFooter'
 import { ObservationTitleRow } from '../components/ObservationTitleRow'
@@ -122,6 +124,20 @@ export function Observations({
     [],
   )
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
+  // The location chosen in the building stack (CP-61). Back from capture, the one it was opened
+  // at. Kept apart from the navigator's pick, which lets go of a place the filters empty, while
+  // the stack keeps every location drawn; the two follow each other on a switch of view.
+  const [cell, setCell] = useState<string | null>(
+    () => v.obsStack.find((l) => l.landing)?.id ?? null,
+  )
+  const chooseCell = (id: string | null) => {
+    setCell(id)
+    view.pick(id ? { kind: 'location', id } : { kind: 'all' })
+  }
+  const showAs = (next: 'list' | 'stack') => {
+    if (next === 'stack' && view.place.kind === 'location') setCell(view.place.id)
+    v.setObsView(next)
+  }
   // The title, navigator and table stay put; only the table scrolls (round 3).
   const pane = useFitPane<HTMLDivElement>()
   const open = v.obsList.find((o) => o.open)
@@ -214,8 +230,28 @@ export function Observations({
     )
   const shownWalks = openWalks(walks)
   const readyWalks = shownWalks.filter((w) => w.status === 'ready').length
+  // The building stack (CP-61) in place of the navigator and the list.
+  const stackOn = v.obsView === 'stack' && !v.obsShowDeleted
   // Add manually opens capture at the location picked, when there is one.
-  const addManually = view.location?.addObservation ?? v.goField
+  const addManually =
+    (stackOn
+      ? v.obsStack.find((l) => l.id === cell)?.addObservation
+      : view.location?.addObservation) ?? v.goField
+  // One toolbar row: search, the four filters, then Add observation. The deleted list has its count there instead.
+  const toolbar = (
+    <ObservationFilters v={v}>
+      {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
+      {!v.obsShowDeleted && canCapture && (
+        <span className="ob-bar-add">
+          <AddObservationMenu
+            fullWidth={phone}
+            onManual={addManually}
+            onWalk={() => setWalk({ kind: 'record' })}
+          />
+        </span>
+      )}
+    </ObservationFilters>
+  )
   return (
     <>
       <div ref={page} className="ob">
@@ -245,49 +281,54 @@ export function Observations({
                 ready={readyWalks}
                 total={shownWalks.length}
                 onOpen={() => setWalk({ kind: 'list' })}
+                view={v.obsView}
+                onView={showAs}
               />
             )}
-            <div ref={pane} className="ob-layout" data-fit="">
-              {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
-              <div
-                className="ob-card"
-                style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}
-              >
-                {/* One toolbar row: search, the four filters, then Add observation. The deleted list has its count there instead. */}
-                <ObservationFilters v={v}>
-                  {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
-                  {!v.obsShowDeleted && canCapture && (
-                    <span className="ob-bar-add">
-                      <AddObservationMenu
-                        fullWidth={phone}
-                        onManual={addManually}
-                        onWalk={() => setWalk({ kind: 'record' })}
-                      />
-                    </span>
+            {/* f. Buildings (CP-61): the stacks in place of the navigator and the list. */}
+            {stackOn ? (
+              <BuildingStack
+                v={v}
+                pane={pane}
+                toolbar={toolbar}
+                chosen={cell}
+                onChoose={chooseCell}
+                onUnplaced={() => {
+                  v.setObsView('list')
+                  view.pick({ kind: 'group', group: 'unrecorded' })
+                }}
+              />
+            ) : (
+              <div ref={pane} className="ob-layout" data-fit="">
+                {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
+                <div
+                  className="ob-card"
+                  style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}
+                >
+                  {toolbar}
+                  {/* The place picked in the navigator, above the table. */}
+                  {!v.obsShowDeleted && view.place.kind !== 'all' && (
+                    <p className="ob-where">
+                      <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
+                      {view.title}
+                    </p>
                   )}
-                </ObservationFilters>
-                {/* The place picked in the navigator, above the table. */}
-                {!v.obsShowDeleted && view.place.kind !== 'all' && (
-                  <p className="ob-where">
-                    <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
-                    {view.title}
-                  </p>
-                )}
-                {!v.obsShowDeleted && (
-                  <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
-                )}
-                <ObservationList v={v} view={view} />
-                {!v.obsShowDeleted && v.obsTotal > 0 && !v.obsNoMatch && (
-                  <ObservationFooter
-                    total={v.obsTotal}
-                    shown={v.obsShownCount}
-                    toCheck={v.obsToCheckCount}
-                    filtered={v.obsFiltering}
-                    onToCheck={() => v.setObsFilter('status', 'To check')}
-                  />
-                )}
+                  {!v.obsShowDeleted && (
+                    <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
+                  )}
+                  <ObservationList v={v} view={view} />
+                  {!v.obsShowDeleted && v.obsTotal > 0 && !v.obsNoMatch && (
+                    <ObservationFooter
+                      total={v.obsTotal}
+                      shown={v.obsShownCount}
+                      toCheck={v.obsToCheckCount}
+                      filtered={v.obsFiltering}
+                      onToCheck={() => v.setObsFilter('status', 'To check')}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>
