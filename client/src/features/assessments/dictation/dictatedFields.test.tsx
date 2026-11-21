@@ -10,7 +10,7 @@ import { useAsk } from '../ask/useAsk'
 import { CommentComposer } from '../comments/CommentComposer'
 import type { ChecklistItem } from '../api'
 import { AnswerDialog } from '../components/ChecklistAnswer'
-import { TranscriptDialog } from '../components/ObservationDialogs'
+import { PageTextDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { ObservationNote } from '../components/ObservationNote'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { DictationScope } from './scope'
@@ -74,6 +74,39 @@ describe('dictating into a field (CP-27)', () => {
     await waitFor(() => expect(box).toHaveValue(DICTATED))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(saveTranscript).toHaveBeenCalledWith(DICTATED))
+  })
+
+  it("a handwritten page's text correction: the words go in and are saved with it", async () => {
+    const savePageText = vi.fn(async () => true)
+    const v = { liveReference: REFERENCE, closeObsDialog: () => {}, savePageText }
+    const dialog = { page: { name: 'Page 1', url: 'page-1.jpg', transcript: '', status: null } }
+    render(
+      <PageTextDialog
+        v={v as unknown as AssessmentWorkflow}
+        dialog={dialog as unknown as NonNullable<AssessmentWorkflow['obsDialog']>}
+      />,
+    )
+
+    await dictate()
+
+    const box = screen.getByRole('textbox', { name: 'Page text' })
+    await waitFor(() => expect(box).toHaveValue(DICTATED))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(savePageText).toHaveBeenCalledWith(DICTATED))
+  })
+
+  it("a page not saved to an assessment (the demo's) has nothing to dictate into", () => {
+    const v = { liveReference: null, closeObsDialog: () => {}, savePageText: async () => true }
+    const dialog = { page: { name: 'Page 1', url: 'page-1.jpg', transcript: '', status: null } }
+    render(
+      <PageTextDialog
+        v={v as unknown as AssessmentWorkflow}
+        dialog={dialog as unknown as NonNullable<AssessmentWorkflow['obsDialog']>}
+      />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Page text' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dictate' })).toBeNull()
   })
 
   it('a comment on the report, inside the assessment', async () => {
