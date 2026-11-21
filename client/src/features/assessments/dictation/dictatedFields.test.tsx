@@ -53,9 +53,7 @@ describe('dictating into a field (CP-27)', () => {
 
     await dictate()
 
-    await waitFor(() =>
-      expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(DICTATED),
-    )
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(DICTATED))
   })
 
   it("a new observation's note outside a live assessment (the demo's) has nothing to dictate into", () => {
