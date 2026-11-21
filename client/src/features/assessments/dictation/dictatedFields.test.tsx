@@ -5,12 +5,14 @@ import '@testing-library/jest-dom/vitest'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { NoteComposer } from '../../site-walk/components/NoteComposer'
+import { WalkList } from '../../site-walk/components/WalkList'
 import { AskPanel } from '../ask/AskPanel'
 import { useAsk } from '../ask/useAsk'
 import { CommentComposer } from '../comments/CommentComposer'
 import type { ChecklistItem } from '../api'
+import { CaptureNoteBox } from '../components/CaptureNoteBox'
 import { AnswerDialog } from '../components/ChecklistAnswer'
-import { TranscriptDialog } from '../components/ObservationDialogs'
+import { PageTextDialog, TranscriptDialog } from '../components/ObservationDialogs'
 import { ObservationNote } from '../components/ObservationNote'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { DictationScope } from './scope'
@@ -42,6 +44,25 @@ describe('dictating into a field (CP-27)', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith({ note: DICTATED }))
   })
 
+  it("a new observation's note, before it is saved", async () => {
+    function Capture() {
+      const [note, setNote] = useState('')
+      return <CaptureNoteBox value={note} onChange={setNote} phone={false} reference={REFERENCE} />
+    }
+    render(<Capture />)
+
+    await dictate()
+
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(DICTATED))
+  })
+
+  it("a new observation's note outside a live assessment (the demo's) has nothing to dictate into", () => {
+    render(<CaptureNoteBox value="" onChange={() => {}} phone={false} reference={null} />)
+
+    expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dictate' })).toBeNull()
+  })
+
   it("a site walk's note, between recordings", async () => {
     function Walk() {
       const [note, setNote] = useState('Block A.')
@@ -55,6 +76,29 @@ describe('dictating into a field (CP-27)', () => {
     await dictate()
 
     await waitFor(() => expect(box).toHaveValue(`Block A. ${DICTATED}`))
+  })
+
+  it("a site walk's note, when edited", async () => {
+    const onSaveNote = vi.fn(async () => true)
+    render(
+      <WalkList
+        items={[{ kind: 'note', seq: 1, text: 'Block A.' }]}
+        onSaveNote={onSaveNote}
+        onRetry={() => {}}
+        onRemove={() => {}}
+        reference={REFERENCE}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note' }))
+    const box = screen.getByRole('textbox', { name: 'Edit note' }) as HTMLTextAreaElement
+    box.focus()
+    box.setSelectionRange(8, 8)
+
+    await dictate()
+
+    await waitFor(() => expect(box).toHaveValue(`Block A. ${DICTATED}`))
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }))
+    await waitFor(() => expect(onSaveNote).toHaveBeenCalledWith(1, `Block A. ${DICTATED}`))
   })
 
   it("a recording's transcript correction: the words go in and are saved with it", async () => {
@@ -74,6 +118,39 @@ describe('dictating into a field (CP-27)', () => {
     await waitFor(() => expect(box).toHaveValue(DICTATED))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(saveTranscript).toHaveBeenCalledWith(DICTATED))
+  })
+
+  it("a handwritten page's text correction: the words go in and are saved with it", async () => {
+    const savePageText = vi.fn(async () => true)
+    const v = { liveReference: REFERENCE, closeObsDialog: () => {}, savePageText }
+    const dialog = { page: { name: 'Page 1', url: 'page-1.jpg', transcript: '', status: null } }
+    render(
+      <PageTextDialog
+        v={v as unknown as AssessmentWorkflow}
+        dialog={dialog as unknown as NonNullable<AssessmentWorkflow['obsDialog']>}
+      />,
+    )
+
+    await dictate()
+
+    const box = screen.getByRole('textbox', { name: 'Page text' })
+    await waitFor(() => expect(box).toHaveValue(DICTATED))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(savePageText).toHaveBeenCalledWith(DICTATED))
+  })
+
+  it("a page not saved to an assessment (the demo's) has nothing to dictate into", () => {
+    const v = { liveReference: null, closeObsDialog: () => {}, savePageText: async () => true }
+    const dialog = { page: { name: 'Page 1', url: 'page-1.jpg', transcript: '', status: null } }
+    render(
+      <PageTextDialog
+        v={v as unknown as AssessmentWorkflow}
+        dialog={dialog as unknown as NonNullable<AssessmentWorkflow['obsDialog']>}
+      />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Page text' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dictate' })).toBeNull()
   })
 
   it('a comment on the report, inside the assessment', async () => {

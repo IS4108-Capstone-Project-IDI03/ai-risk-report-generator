@@ -1,8 +1,10 @@
 // One typed note in the walk list (CP-22 round 1): the text, cut short until
 // opened, with edit and a red remove bin (Undo is in useWalkRemovals). A note typed before notes existed is read only.
+// With the assessment's `reference` the note being edited can be dictated into (CP-27).
 // Used by components/WalkList.tsx.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Icon } from '../../../design-system'
+import { DictateButton } from '../../assessments/dictation/DictateButton'
 
 const LONG = 140
 
@@ -12,6 +14,7 @@ export function NoteRow({
   legacy,
   onSave,
   onRemove,
+  reference,
 }: {
   text: string
   legacy?: boolean
@@ -19,21 +22,28 @@ export function NoteRow({
   onSave: (text: string) => Promise<boolean>
   // Hides the note with an Undo toast, then removes it.
   onRemove: () => void
+  // Left out while the walk itself records: it already hears what is said.
+  reference?: string
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
   const long = text.length > LONG
+  const box = useRef<HTMLTextAreaElement>(null)
 
   if (draft !== null)
     return (
       <li className="sw-item sw-item--editing">
         <textarea
+          ref={box}
           aria-label="Edit note"
           value={draft}
           rows={3}
           onChange={(e) => setDraft(e.target.value)}
         />
         <div className="sw-item-actions">
+          {reference && (
+            <DictateButton reference={reference} field={() => box.current} onChange={setDraft} />
+          )}
           <button type="button" className="sw-button" onClick={() => setDraft(null)}>
             Cancel
           </button>

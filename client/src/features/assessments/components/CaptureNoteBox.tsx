@@ -1,0 +1,43 @@
+// The Note tab's text box on New Observation (CP-02): what was seen, written for the record.
+// With a live assessment's `reference` it can be dictated into (CP-27), as the saved
+// observation's Note card can. Called by screens/SiteObservation.tsx.
+import { useRef } from 'react'
+import { Textarea } from '../../../design-system'
+import { DictateButton } from '../dictation/DictateButton'
+
+export function CaptureNoteBox({
+  value,
+  onChange,
+  phone,
+  reference,
+}: {
+  value: string
+  onChange: (text: string) => void
+  phone: boolean
+  // Null outside a live assessment (the demo's): there is nothing to dictate into.
+  reference: string | null
+}) {
+  // Holds the text box, for dictation to find: the shared Textarea takes no ref.
+  const box = useRef<HTMLDivElement>(null)
+  return (
+    <>
+      <div ref={box}>
+        <Textarea
+          aria-label="Note"
+          maxLength={5000}
+          rows={phone ? 6 : 8}
+          placeholder="What did you see? Write as you would for the record."
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+      {reference && (
+        <DictateButton
+          reference={reference}
+          field={() => box.current?.querySelector('textarea')}
+          onChange={onChange}
+        />
+      )}
+    </>
+  )
+}

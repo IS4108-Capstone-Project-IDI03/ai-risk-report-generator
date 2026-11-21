@@ -103,6 +103,24 @@ describe('typed notes in the walk', () => {
     expect(JSON.parse(String(puts(/notes\/1$/)[1].body))).toEqual({ text: '' })
   })
 
+  it('offers Dictate on a note being edited between recordings, not while the walk records (CP-27)', async () => {
+    gw.walk.notes = [{ seq: 1, text: 'Old text.' }]
+    open()
+    const editing = async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit note' }))
+      return within(screen.getByRole('textbox', { name: 'Edit note' }).closest('li')!)
+    }
+
+    let row = await editing()
+    expect(row.getByRole('button', { name: 'Dictate' })).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Start recording' }))
+    await screen.findByRole('button', { name: 'Save recording' })
+    row = await editing()
+    expect(row.queryByRole('button', { name: 'Dictate' })).toBeNull()
+  })
+
   it('shows a walk typed before notes existed as one read-only note, and still finishes', async () => {
     gw.walk.typedText = 'Block A, Level 1.'
     open()
