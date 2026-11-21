@@ -74,9 +74,13 @@ re-check it (`NOT_CHANGES` in `assistant-recheck.middleware.ts`).
 The client's `DictateButton` (`client/src/features/assessments/dictation/`) puts
 the text in at the field's cursor, in place of a selection. It records with
 `useRecorder`, shared with the chat's mic (CB-10). It is on: an observation's
-note (and a walk proposal's), a walk's note box (not while the walk records), the
-transcript correction, comments (inside a `DictationScope`), the Ask question box
-and a checklist answer's "What you saw".
+note (and a walk proposal's), New Observation's Note tab (in a live assessment,
+not the demo), a walk's note box and a walk note being edited (neither while the
+walk records), the transcript and handwritten page text corrections, comments
+(inside a `DictationScope`), the Ask question box and a checklist answer's "What
+you saw". The rule: Dictate is for notes and questions inside an assessment, not
+for the report's own wording (Edit finding, the Review edit, the Regenerate
+instruction), and never outside an assessment, as masking needs its reference.
 
 Running S5 outside Docker: `.env` points `SPEECH_OCR_SERVICE_URL` at
 `http://localhost:8003` (Compose overrides it with the Docker hostname). If a

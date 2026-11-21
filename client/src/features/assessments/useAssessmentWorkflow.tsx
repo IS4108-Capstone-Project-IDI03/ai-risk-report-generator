@@ -4039,12 +4039,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setFParts: (fParts: Part[] | null) => setState({ fParts }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
-      setFNote: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          fNote: e.target.value,
-        }),
+      setFNote: (fNote: string) => setState({ fNote }),
       waveBars,
       fClock: mm + ':' + ss,
       liveVoice,

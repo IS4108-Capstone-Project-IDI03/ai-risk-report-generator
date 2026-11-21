@@ -87,6 +87,8 @@ export function PageTextDialog({ v, dialog }: Props) {
   const page = dialog.page!
   const [text, setText] = useState(page.transcript ?? '')
   const { busy, problem, run } = useSave()
+  // Holds the text box, for dictation to find (CP-27): reading the page aloud fixes it.
+  const box = useRef<HTMLDivElement>(null)
   return (
     <Dialog
       className="ds-dialog-sheet"
@@ -135,13 +137,22 @@ export function PageTextDialog({ v, dialog }: Props) {
             borderRadius: '5px',
           }}
         />
-        <Textarea
-          label="Page text"
-          rows={8}
-          maxLength={20000}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
+        <div ref={box}>
+          <Textarea
+            label="Page text"
+            rows={8}
+            maxLength={20000}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+        </div>
+        {v.liveReference && (
+          <DictateButton
+            reference={v.liveReference}
+            field={() => box.current?.querySelector('textarea')}
+            onChange={setText}
+          />
+        )}
         {page.status !== null && (
           <p className="cap-dialog-text">
             {'What was transcribed is kept beside your text. The report uses your text.'}

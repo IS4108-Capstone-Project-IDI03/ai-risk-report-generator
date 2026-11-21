@@ -878,7 +878,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Dictation
 
-  7. Given an observation's note, a walk's note box (while the walk isn't recording), a transcript correction, a comment, the Ask question box or a checklist answer, when I press Dictate, speak and stop, then the tidy words go in at the cursor, in place of any selection, for me to check before saving.
+  7. Given an observation's note (a new one's too), a walk's note box or a walk note I'm editing (while the walk isn't recording), a transcript or handwritten page text correction, a comment, the Ask question box or a checklist answer, when I press Dictate, speak and stop, then the tidy words go in at the cursor, in place of any selection, for me to check before saving.
   8. Given the microphone is blocked, no speech was heard, or the speech service fails, when I dictate, then I'm told what went wrong and how to fix it, and the field is unchanged.
   9. Given an assessment I can't open, when I dictate into it, then it is refused; a dictated clip is stored nowhere.
 
