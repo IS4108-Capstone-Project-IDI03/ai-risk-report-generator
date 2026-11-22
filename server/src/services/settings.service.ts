@@ -32,7 +32,7 @@ import { DEFAULT_TIER_ORDER, TIER_IDS, type TierId } from './source-tiers'
 export class SettingsInputError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 404 = 400,
+    readonly status: 400 | 404 | 409 | 503 = 400,
   ) {
     super(message)
     this.name = 'SettingsInputError'
@@ -63,7 +63,7 @@ export class QaSameProviderError extends Error {
   }
 }
 
-const metadata = (source_type: 'settings' | 'settings_change') => ({
+export const metadata = (source_type: 'settings' | 'settings_change') => ({
   source_type,
   jurisdiction: null,
   facility_type: null,
@@ -223,7 +223,7 @@ async function sourcePriorityHistory() {
   }))
 }
 
-async function log(by: SessionUser, setting: string, before: unknown, after: unknown) {
+export async function log(by: SessionUser, setting: string, before: unknown, after: unknown) {
   await SettingsLogModel.create({
     by: { id: by.id, name: by.name },
     at: new Date(),

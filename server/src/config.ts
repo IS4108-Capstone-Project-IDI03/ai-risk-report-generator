@@ -43,6 +43,9 @@ export const config = {
   // Gotenberg, which turns non-PDF uploads into PDFs. Defaults to its local
   // port so an existing .env keeps booting; Compose overrides it.
   converterServiceUrl: process.env.CONVERTER_SERVICE_URL || 'http://localhost:3100',
+  // privacy-service, for its allow-list defaults (PV-09); the Python services call it to mask.
+  // Defaults to its local port so an existing .env keeps booting; Compose overrides it.
+  privacyServiceUrl: process.env.PRIVACY_SERVICE_URL || 'http://127.0.0.1:8004',
   awsRegion: requireEnv('AWS_REGION'),
   s3Bucket: requireEnv('S3_BUCKET'),
   redisUrl: requireEnv('REDIS_URL'),
