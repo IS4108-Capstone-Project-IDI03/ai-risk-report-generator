@@ -226,7 +226,10 @@ function WordList({
         dense
         emptyMessage={
           filter || addedBy
-            ? 'Nothing matches.' : list === 'never' ? 'No words yet.' : 'No names yet.'
+            ? 'Nothing matches.'
+            : list === 'never'
+              ? 'No words yet.'
+              : 'No names yet.'
         }
         columns={[
           { key: 'word', header: list === 'never' ? 'Word' : 'Name' },
