@@ -3,7 +3,9 @@
 // person does to a row); draws the top bar, the To do / Done tabs, InboxList and the already-handled dialog.
 import type * as React from 'react'
 import { SegmentedControl, TopBar, useIsPhone } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { useNotificationCounts } from '../../notifications/useNotificationCounts'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { AlreadyHandledDialog } from '../components/AlreadyHandledDialog'
 import { InboxList } from '../components/InboxList'
 import { useInbox } from '../useInbox'
@@ -24,25 +26,30 @@ export function Inbox({
   const act = useInboxActions(inbox)
   const phone = useIsPhone()
   const { counts } = useNotificationCounts()
+  // F-12: the Inbox is ready once its list has loaded.
+  useWalkthroughScreen('inbox', inbox.loaded)
   return (
     <div className="inbox-page">
       <TopBar
         eyebrow={phone ? undefined : eyebrow}
         title="Inbox"
+        titleItems={<Tip id="inbox.title" />}
         helper={phone ? undefined : 'Work that needs you. Open an item, and it moves to Done.'}
         bell={bell}
       />
       <div className="inbox-content">
         <div className="inbox-tabs">
-          <SegmentedControl
-            ariaLabel="Inbox"
-            value={inbox.tab}
-            onChange={inbox.setTab}
-            options={[
-              { value: 'todo', label: 'To do', count: counts.inboxTodo },
-              { value: 'done', label: 'Done' },
-            ]}
-          />
+          <span className="inbox-tabs-switch" data-walk="inbox.tabs">
+            <SegmentedControl
+              ariaLabel="Inbox"
+              value={inbox.tab}
+              onChange={inbox.setTab}
+              options={[
+                { value: 'todo', label: 'To do', count: counts.inboxTodo },
+                { value: 'done', label: 'Done' },
+              ]}
+            />
+          </span>
         </div>
         {/* Spoken only. Stays mounted, as a live region must exist before its words change;
             without it a new row or the empty state would appear with no cue for a screen reader. */}

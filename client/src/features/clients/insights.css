@@ -234,7 +234,14 @@
   gap: 4px 12px;
 }
 .ci-card-head .ci-h {
+  flex: 0 1 auto;
+}
+/* The heading and its help tip (F-13) fill the row, so the tip sits beside the heading and nothing else moves. */
+.ci-h-tip {
+  display: flex;
   flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
 }
 .ci-card-head .ci-link {
   align-self: center;

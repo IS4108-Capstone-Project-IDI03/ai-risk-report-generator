@@ -22,6 +22,7 @@ import type { useClientDocuments } from '../useClientDocuments'
 import { toastUploadResults } from '../uploadToast'
 import { useDocumentTags } from '../useDocumentTags'
 import { ACCEPT } from '../../new-assessment/reading'
+import { Tip } from '../../help/Tip'
 
 export function DocumentsTab({
   clientId,
@@ -158,7 +159,12 @@ export function DocumentsTab({
               <thead>
                 <tr>
                   <th scope="col">{'Document'}</th>
-                  <th scope="col">{'Tag'}</th>
+                  <th scope="col">
+                    <span className="cl-th">
+                      {'Tag'}
+                      <Tip id="client.documents-tag" />
+                    </span>
+                  </th>
                   <th scope="col">{'Added'}</th>
                   <th scope="col">{'Size'}</th>
                   <th scope="col">

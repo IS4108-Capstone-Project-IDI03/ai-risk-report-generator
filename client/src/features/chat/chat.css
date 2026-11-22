@@ -930,6 +930,11 @@
   color: var(--status-low-fg);
   font-size: var(--text-caption-size);
 }
+.chat-check-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .chat-check strong {
   font-weight: 600;
 }

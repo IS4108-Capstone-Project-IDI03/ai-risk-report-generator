@@ -15,7 +15,7 @@ export function DayList({ days, ctx }: { days: AgendaDay[]; ctx: EntryContext })
       />
     )
   return (
-    <div className="cal-list">
+    <div className="cal-list" data-walk="calendar.grid">
       {days.map(({ day, entries }) => (
         <section key={day} aria-label={spokenDay(day)}>
           <h2 className="cal-list-day" data-today={day === ctx.today ? '' : undefined}>

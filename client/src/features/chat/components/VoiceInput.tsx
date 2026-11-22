@@ -94,6 +94,7 @@ export function VoiceInput() {
         <IconButton
           icon="mic"
           label="Ask by voice"
+          data-walk="chat.attach-voice"
           disabled={state === 'working' || state === 'starting'}
           onClick={() => void start()}
         />

@@ -71,7 +71,7 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
     <section className="kb-step-panel kb-cmp" data-pane={pane} aria-labelledby="kb-cmp-title">
       <div className="kb-cmp-head">
         <h3 id="kb-cmp-title">Passages</h3>
-        <div className="kb-cmp-tools">
+        <div className="kb-cmp-tools" data-walk="knowledge-review.differences">
           <Switch
             label="Differences only"
             checked={differencesOnly}
@@ -80,7 +80,8 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
         </div>
       </div>
       <div className="kb-cmp-body">
-        <div className="kb-cmp-tabs">
+        {/* The Stored | New choice: these tabs on a narrow screen, the table's headings on a wide one (F-12). */}
+        <div className="kb-cmp-tabs" data-walk="knowledge-review.sides">
           <Tabs
             items={[
               { value: 'stored', label: 'Stored' },
@@ -96,7 +97,7 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
           <caption className="kb-sr">
             Passages of the stored and the new document, side by side
           </caption>
-          <thead>
+          <thead data-walk="knowledge-review.sides">
             <tr>
               <th scope="col" data-col="stored">
                 Stored

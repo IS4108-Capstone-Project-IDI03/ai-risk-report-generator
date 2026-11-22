@@ -20,6 +20,7 @@ import {
   type FormSite,
 } from '../form'
 import type { NewAssessmentForm } from '../useNewAssessment'
+import { Tip } from '../../help/Tip'
 import { Block, useExit } from './Block'
 import { AssessmentBlock } from './AssessmentBlock'
 import { SelectField, TextField } from './Field'
@@ -50,6 +51,7 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
         </span>
         <h2 dir="auto">{title}</h2>
         {existing && isNew && <NewBadge />}
+        {isNew && <Tip id="new-assessment.site-standards" />}
         <span className="na-card-actions">
           {form.sites.length > 1 && (
             <IconButton
@@ -62,7 +64,7 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
       </div>
       {isNew && (
         <div className="na-site-fields">
-          <div className="na-site-row">
+          <div className="na-site-row" data-walk={i === 0 ? 'new-assessment.site-row' : undefined}>
             <div>
               <TextField
                 label="Site name"
@@ -94,16 +96,18 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
               onChange={(e) => f.setSite(i, { facilityType: e.target.value })}
             />
           </div>
-          <TextField
-            label="Address"
-            required
-            iconLeft="map-pin"
-            placeholder="Street and postcode"
-            value={site.address}
-            notSure={notSure('address')}
-            error={f.errors[path + 'address']}
-            onChange={(e) => f.setSite(i, { address: e.target.value })}
-          />
+          <div data-walk={i === 0 ? 'new-assessment.site-address' : undefined}>
+            <TextField
+              label="Address"
+              required
+              iconLeft="map-pin"
+              placeholder="Street and postcode"
+              value={site.address}
+              notSure={notSure('address')}
+              error={f.errors[path + 'address']}
+              onChange={(e) => f.setSite(i, { address: e.target.value })}
+            />
+          </div>
           {/* Optional, so an engineer without them isn't held up (CP-26). */}
           <TextField
             label="Coordinates"
@@ -149,7 +153,12 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
           />
         </Block>
       ))}
-      <AddRow onClick={() => f.addAssessment(i)}>{'Add assessment'}</AddRow>
+      <AddRow
+        data-walk={i === 0 ? 'new-assessment.add-assessment' : undefined}
+        onClick={() => f.addAssessment(i)}
+      >
+        {'Add assessment'}
+      </AddRow>
       {asking && (
         <RemoveSiteDialog
           name={siteLabel(form, i, f.sitesOf)}

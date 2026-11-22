@@ -180,3 +180,15 @@
 .accounts-toolbar .accounts-intro {
   flex: 1 1 320px;
 }
+
+/* The Role heading and its help tip (F-13) sit on one line, so nothing moves. */
+.accounts-th-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* The heading row is upper-case; the tip's words must not inherit that. */
+.accounts th .ds-help-menu {
+  letter-spacing: normal;
+  text-transform: none;
+}
