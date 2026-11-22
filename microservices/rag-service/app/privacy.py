@@ -83,6 +83,9 @@ class Session:
         self.known_entities = list((privacy or {}).get("known_entities") or [])
         # Extra kinds privacy-service should find on its own, e.g. company names (CP-23).
         self.detect = (privacy or {}).get("detect") or []
+        # The admin's Never masked list from Settings (PV-09). None until the gateway has seeded
+        # it: privacy-service then uses its own file.
+        self.never_masked = (privacy or {}).get("never_masked")
         self.mapping: dict[str, str] = {}
         self.literals: dict[str, str] = {}
 
@@ -100,9 +103,13 @@ class Session:
     def know(self, entities: list[dict]) -> None:
         """Adds client details to look for from now on, e.g. those a past report's mapping names
         (PV-05). This request's own known entities cover only its client, so another client's
-        name put back into a past report would otherwise reach the model."""
+        name put back into a past report would otherwise reach the model. A name on the admin's
+        Never masked list is left out (PV-09): ingestion masked it before the admin allowed it."""
+        allowed = {" ".join(w.casefold().split()) for w in self.never_masked or []}
         for entity in entities:
-            if entity not in self.known_entities:
+            names = [n for n in entity["names"] if " ".join(n.casefold().split()) not in allowed]
+            entity = {**entity, "names": names}
+            if names and entity not in self.known_entities:
                 self.known_entities.append(entity)
 
     def mask(self, texts: list[str]) -> list[str]:
@@ -124,6 +131,11 @@ class Session:
                         "mapping": self.mapping,
                         # Sent only when asked for, so other flows' requests are unchanged.
                         **({"detect": self.detect} if self.detect else {}),
+                        **(
+                            {"never_masked": self.never_masked}
+                            if self.never_masked is not None
+                            else {}
+                        ),
                     },
                     timeout=self.timeout,
                 )
