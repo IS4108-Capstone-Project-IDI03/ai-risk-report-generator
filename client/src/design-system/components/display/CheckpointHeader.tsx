@@ -22,9 +22,13 @@ export type CheckpointHeaderProps = {
   swapKey: string
   // The bar under the header.
   children?: React.ReactNode
+  // A help tip beside the title (F-13), e.g. <Tip id="generation.start" />.
+  help?: React.ReactNode
+  // The walkthrough tag of the whole card (F-12), as data-walk.
+  walk?: string
 }
 
-type Top = Omit<CheckpointHeaderProps, 'swapKey' | 'children'>
+type Top = Omit<CheckpointHeaderProps, 'swapKey' | 'children' | 'walk'>
 
 // The tile, title, line and action: drawn for the header now, and for the one fading out.
 function HeaderTop({ top, state }: { top: Top; state?: 'in' | 'out' }) {
@@ -41,7 +45,14 @@ function HeaderTop({ top, state }: { top: Top; state?: 'in' | 'out' }) {
         {top.busy ? <span className="ds-checkpoint-busy" /> : null}
       </span>
       <div>
-        <h2>{top.title}</h2>
+        {top.help ? (
+          <div className="ds-checkpoint-title">
+            <h2>{top.title}</h2>
+            {top.help}
+          </div>
+        ) : (
+          <h2>{top.title}</h2>
+        )}
         <p>{top.line}</p>
       </div>
       {top.action ? <div className="ds-checkpoint-action">{top.action}</div> : null}
@@ -51,11 +62,11 @@ function HeaderTop({ top, state }: { top: Top; state?: 'in' | 'out' }) {
 
 /** Returns the header card. Only its title and line are announced (politely) when they
     change: the bar's "N of 11 drafted" moving on would otherwise be read out every time. */
-export function CheckpointHeader({ swapKey, children, ...top }: CheckpointHeaderProps) {
+export function CheckpointHeader({ swapKey, children, walk, ...top }: CheckpointHeaderProps) {
   // The header as it was when the previous checkpoint began, while it fades out (120 ms).
   const { was, turn } = useSwap({ key: swapKey, top }, 120, (a, b) => a.key === b.key)
   return (
-    <section className="ds-checkpoint">
+    <section className="ds-checkpoint" data-walk={walk}>
       {/* A live region (a part of the page screen readers read out when it changes) that is
           always there, holding only the title and line, so the swap's remount is not missed. */}
       <p className="ds-sr-only" aria-live="polite">

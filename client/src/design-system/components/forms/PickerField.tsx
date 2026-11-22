@@ -42,6 +42,8 @@ export type PickerFieldProps = {
   confirmLabel?: string
   changeLabel?: string
   onConfirm?: () => void
+  // The Confirm button's data-walk tag (F-12): its own box, so a walkthrough points at it alone.
+  confirmWalk?: string
   // The list the field opens, as a function of its slot; without it the field draws closed only.
   list?: (slot: PickerListSlot) => ReactElement
   // Boards only: draws the field as hovered, since a canvas has no pointer.
@@ -76,6 +78,7 @@ export function PickerField({
   confirmLabel = `Confirm ${label.toLowerCase()}`,
   changeLabel = `Change ${label.toLowerCase()}`,
   onConfirm,
+  confirmWalk,
   list,
   hovered,
 }: PickerFieldProps) {
@@ -168,14 +171,16 @@ export function PickerField({
         </span>
         {actions && (
           <span className="cpf-decide" data-out={markOut ? '' : undefined}>
-            <IconAction
-              icon="check"
-              label={confirmLabel}
-              tooltip={confirmLabel}
-              size="sm"
-              shaded
-              onClick={onConfirm}
-            />
+            <span className="cpf-confirm" data-walk={confirmWalk}>
+              <IconAction
+                icon="check"
+                label={confirmLabel}
+                tooltip={confirmLabel}
+                size="sm"
+                shaded
+                onClick={onConfirm}
+              />
+            </span>
             <IconAction
               icon="arrow-left-right"
               label={changeLabel}

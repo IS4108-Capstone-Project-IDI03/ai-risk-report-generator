@@ -1,0 +1,181 @@
+/* Collapsible checklist (F-12). Sizes from board 12: rows 50 px with a hairline above; the chevron
+   28 px then 8 px then the checkbox; an item row is indented 36 px (44 on a phone) so its box lines
+   up under the group's. The mark and action columns are always reserved, so nothing shifts. */
+.ds-cg,
+.ds-cg-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-cg-grow,
+.ds-cg-row {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.ds-cg-chev {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--graphite-600);
+  cursor: pointer;
+}
+/* The quarter turn: 180 ms. */
+.ds-cg-chev > * {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+.ds-cg-group[data-open] .ds-cg-chev > * {
+  transform: rotate(90deg);
+}
+.ds-cg-gname {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  align-self: stretch;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 0 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.ds-cg-gname:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.ds-cg-count {
+  margin-left: auto;
+  color: var(--graphite-600);
+  font: 500 14px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.ds-cg-row {
+  gap: 4px;
+  padding-left: 36px;
+}
+.ds-cg-row > label {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  min-height: 44px;
+}
+.ds-cg-name {
+  overflow-wrap: anywhere;
+}
+/* The row action shows on hover or focus, and always where there is no hover. Its column stays. */
+.ds-cg-action {
+  display: flex;
+  flex: none;
+  min-width: 32px;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.ds-cg-row:has(:focus-visible) .ds-cg-action {
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-cg-row:hover .ds-cg-action {
+    opacity: 1;
+  }
+  /* The group's row answers the pointer by shading its chevron (v2: hover by background). */
+  .ds-cg-grow:hover .ds-cg-chev {
+    border-radius: 50%;
+    background: var(--hover-bg);
+  }
+}
+@media (hover: none) {
+  .ds-cg-action {
+    opacity: 1;
+  }
+}
+.ds-cg-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+}
+
+/* A group opening: rows grow in height and fade in over 220 ms; closing takes 150 ms. This is the
+   one height animation (an accordion has no transform equivalent). Overflow is clipped while it
+   moves and open afterwards, so a row's tooltip is never cut off. */
+.ds-cg-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 150ms var(--ease-out),
+    opacity 150ms var(--ease-out),
+    visibility 0s 150ms;
+}
+.ds-cg-items {
+  min-height: 0;
+  overflow: hidden;
+  transition: overflow 0s allow-discrete;
+}
+.ds-cg-group[data-open] > .ds-cg-collapse {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 220ms var(--ease-out),
+    opacity 220ms var(--ease-out),
+    visibility 0s;
+}
+.ds-cg-group[data-open] .ds-cg-items {
+  overflow: visible;
+  transition: overflow 0s 220ms allow-discrete;
+}
+/* Reduced motion: a plain fade, no change of height. */
+@keyframes ds-cg-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-cg-collapse,
+  .ds-cg-group[data-open] > .ds-cg-collapse {
+    transition: none;
+  }
+  .ds-cg-group:not([data-open]) > .ds-cg-collapse {
+    display: none;
+  }
+  .ds-cg-group[data-open] > .ds-cg-collapse {
+    animation: ds-cg-fade var(--duration-fast) var(--ease-out);
+  }
+  .ds-cg-chev > * {
+    transition: none;
+  }
+}
+@media (max-width: 767px) {
+  .ds-cg-row {
+    padding-left: 44px;
+  }
+  .ds-cg-chev {
+    width: 44px;
+    height: 44px;
+    margin-right: 0;
+  }
+  .ds-cg-action {
+    min-width: 44px;
+  }
+  .ds-cg-action .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
