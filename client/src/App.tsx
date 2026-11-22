@@ -7,6 +7,7 @@ import { SESSION_ENDED_EVENT } from './features/assessments/api'
 import { useAssessmentWorkflow } from './features/assessments/useAssessmentWorkflow'
 import { clearThreadCache } from './features/marshbot/useThread'
 import { NotificationCountsProvider } from './features/notifications/NotificationCountsContext'
+import { WalkthroughHost } from './features/walkthrough/WalkthroughHost'
 
 function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const workflow = useAssessmentWorkflow(onSignOut, session)
@@ -15,6 +16,9 @@ function Workspace({ session, onSignOut }: { session: Session; onSignOut: () => 
   // change never restarts them (NotificationCountsContext.tsx).
   return (
     <NotificationCountsProvider initial={session.notifications}>
+      {/* MarshBot's walkthroughs (F-12): one layer over every screen. First, so it has loaded the
+          walkthrough record before any screen says it is ready. */}
+      <WalkthroughHost session={session} workflow={workflow} />
       <AssessmentApp v={workflow} session={session} />
     </NotificationCountsProvider>
   )

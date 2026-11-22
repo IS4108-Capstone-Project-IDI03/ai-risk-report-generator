@@ -1,0 +1,357 @@
+/* F-12 walkthroughs (NEW patterns; from canvas-src/new-components/walkthrough.css, which carries the
+   approved sizes). Tokens only. .wt-layer = the top layer, .wt-shade = the dimming and highlight,
+   .wt = MarshBot's bubble (a bottom sheet under 768 px). Motion = the spec's motion table. */
+
+/* ---- The layer: a manual popover over the whole window; only its parts take presses ---- */
+.wt-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000; /* jsdom and browsers without popovers: above the app's own layers */
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--graphite-900);
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+
+/* ---- The dimming: --scrim with the cut-out; fades in with the v2 dialog motion (220 ms) ---- */
+.wt-shade {
+  position: absolute;
+  inset: 0;
+  animation: wt-fade-in 220ms var(--ease-out);
+}
+.wt-shade[data-leaving] {
+  animation: wt-fade-out 150ms var(--ease-out) forwards;
+}
+.wt-dim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.wt-dim path {
+  fill: var(--scrim);
+  /* Only the dimmed area takes presses; the cut-out lets them through to the control. */
+  pointer-events: visiblePainted;
+}
+/* Covers the cut-out while the next screen settles: in 120 ms, out 180 ms (motion row 5). */
+.wt-dim .wt-plug {
+  opacity: 0;
+  /* Hidden, it must not catch the presses the cut-out lets through. */
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-out);
+}
+.wt-dim .wt-plug[data-on] {
+  opacity: 1;
+  pointer-events: visiblePainted;
+  transition-duration: var(--duration-fast);
+}
+/* A tell step: nothing on the page can be pressed by accident, the cut-out included. */
+.wt-block {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* ---- "Your turn": a ring breathing round the cut-out, its own element (motion row 7) ---- */
+.wt-ring {
+  position: absolute;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--graphite-0);
+  opacity: 0.9;
+  animation: wt-breathe 1.6s ease-in-out infinite alternate;
+}
+.wt-ring[data-done] {
+  box-shadow: 0 0 0 2px var(--green-600);
+  animation: none;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+@keyframes wt-breathe {
+  to {
+    opacity: 0.5;
+    transform: scale(var(--sx), var(--sy));
+  }
+}
+
+/* ---- WalkthroughBubble: MarshBot's face and a speech bubble, floating over the page ---- */
+.wt {
+  /* Same two values as .mbt in thread.css: one text size. */
+  --mbt-size: 14px;
+  --mbt-leading: 20px;
+  --wt-width: 360px;
+  /* Buttons in the bubble: 40 px, 44 on a phone (v2 section 5). */
+  --wt-control: 40px;
+  position: absolute;
+  display: grid;
+  grid-template-columns: 40px var(--wt-width);
+  column-gap: 12px;
+  align-items: start;
+  font-family: var(--font-sans);
+  pointer-events: auto;
+  outline: none;
+  /* The conversation's own rise: 6 px over 260 ms (motion rows 4 and 9). */
+  animation: wt-rise var(--duration-slow) var(--ease-out);
+}
+/* Cards: the v2 dialog motion, fading and scaling from 0.97 (motion row 10). */
+.wt[data-place='card'] {
+  animation: wt-card-in 220ms var(--ease-out);
+}
+/* Leaving: out in 100 ms between steps, 150 ms at the end (the host keeps it that long). */
+.wt[data-leaving] {
+  pointer-events: none;
+  animation: wt-fade-out 150ms var(--ease-out) forwards;
+}
+.wt .mbt-bubble {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  padding: 14px 16px 16px;
+  border: 0;
+  box-shadow: var(--shadow-popover);
+}
+.wt .mbt-bubble[data-tail]::before {
+  /* The tail keeps its own hairline; the bubble's ring is a shadow, not a border. */
+  top: 12px;
+}
+.wt-who {
+  display: none;
+}
+.wt-text {
+  position: relative;
+}
+/* Skip's room: a float, so only the first line or two give way to the close button. */
+.wt[data-closable] .wt-text::before {
+  content: '';
+  float: right;
+  width: 30px;
+  height: 26px;
+}
+.wt-text p {
+  margin: 0;
+}
+.wt-text p + p,
+.wt-text ul + p {
+  margin-top: 8px;
+}
+.wt-text ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+.wt-text b {
+  font-weight: 600;
+}
+/* A bullet's dot comes with its own first letter: fades in and slides 4 px from the left. */
+.wt-text li {
+  position: relative;
+}
+.wt-text li::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: -14px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--graphite-600);
+  animation: wt-dot var(--duration-fast) var(--ease-out) var(--d, 0ms) both;
+}
+/* Letter by letter: each letter fades in over 80 ms at its own delay (motion row 2). */
+.wt-ch {
+  animation: wt-fade-in var(--duration-instant) var(--ease-out) both;
+}
+.wt-typed[data-instant] .wt-ch,
+.wt-typed[data-instant] li::before {
+  animation: none;
+}
+/* The typing dots sit where the first line will be; the words keep the bubble at its full size. */
+.wt-typed .mb-typing {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+/* Skip: the Dialog's round grey close, in the corner. */
+.wt-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+}
+.wt-close .ds-icon-button {
+  background: color-mix(in srgb, var(--marsh-navy) 5%, transparent);
+  border-radius: 50% !important;
+}
+.wt-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+/* Answer buttons: equal widths, 8 px apart; one keeps its own width, at the right. They fade in
+   and rise 4 px once the last letter is in (motion row 3). */
+.wt-answers {
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+}
+.wt-answers[data-in] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+.wt-answers .ds-press {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--wt-control) !important;
+  /* The thread's reply buttons (ReplyButton.tsx): 15 px at weight 600, which Button sets inline. */
+  font-weight: 600 !important;
+}
+.wt-answers[data-single] {
+  justify-content: flex-end;
+}
+.wt-answers[data-single] .ds-press {
+  flex: 0 0 auto;
+  padding-inline: 20px;
+}
+
+/* Phone: the bubble is a sheet docked to the bottom edge (v2 section 2: popovers become sheets). */
+@media (max-width: 767px) {
+  .wt {
+    --wt-control: 44px;
+    position: fixed;
+    inset: auto 0 0 0;
+    box-sizing: border-box;
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 8px;
+    row-gap: 10px;
+    /* Sideways insets too: a notch in landscape must not sit over the words. */
+    padding: 14px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    /* A long message on a short screen scrolls inside the sheet, so Back and Next stay reachable. */
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 20px 20px 0 0;
+    background: var(--surface-card);
+    box-shadow: var(--shadow-overlay);
+    animation-name: wt-sheet-in;
+  }
+  .wt[data-place='card'] {
+    animation-name: wt-sheet-in;
+  }
+  .wt .mbt-face {
+    width: 32px;
+    height: 32px;
+  }
+  .wt .mbt-face .mb-face-svg {
+    width: 26px;
+    height: 26px;
+  }
+  .wt-who {
+    display: block;
+    align-self: center;
+    margin: 0;
+  }
+  .wt .mbt-bubble {
+    position: static;
+    grid-column: 1 / -1;
+    max-width: none;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .wt .mbt-bubble[data-tail]::before,
+  .wt[data-closable] .wt-text::before {
+    display: none;
+  }
+  .wt-close {
+    top: 8px;
+    right: 8px;
+  }
+  /* The highlight sits at the bottom edge: the same sheet, docked to the top, mirrored. */
+  .wt[data-dock='top'] {
+    inset: 0 0 auto 0;
+    padding: calc(14px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px
+      max(16px, env(safe-area-inset-left));
+    border-radius: 0 0 20px 20px;
+    animation-name: wt-sheet-down;
+  }
+  .wt[data-dock='top'] .wt-close {
+    top: calc(8px + env(safe-area-inset-top));
+  }
+  .wt-close .ds-icon-button,
+  .wt-foot .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+@keyframes wt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes wt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes wt-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes wt-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes wt-sheet-down {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+@keyframes wt-dot {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+/* Reduced motion: every motion is a plain fade, and the words show at once (TypedText). */
+@media (prefers-reduced-motion: reduce) {
+  .wt,
+  .wt[data-place='card'],
+  .wt[data-dock='top'] {
+    animation-name: wt-fade-in;
+  }
+  .wt-ring {
+    animation: none;
+  }
+  .wt-answers {
+    transform: none;
+  }
+}
