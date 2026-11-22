@@ -1,0 +1,75 @@
+/* Settings > Walkthroughs (F-12). Sizes from boards 11 to 13 and 16. The checklist's own look is the
+   design system's (forms/checklist-groups.css); this holds the switch row and the practice row. */
+.wts {
+  display: flex;
+  flex-direction: column;
+}
+/* The switch row: the label at the left, the one quiet round action at the right end. */
+.wts-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+/* The practice assessment: after a hairline and 16 px of space, straight in the pane. */
+.wts-practice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.wts-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+.wts-pname {
+  display: flex;
+  /* On a phone the three buttons wrap onto their own line instead of squeezing the words. */
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.wts-ptitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
+}
+/* Direct children only: the help tip's popover holds spans of its own. */
+.wts-pname > span:not(.wts-ptitle) {
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+.wts-pactions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+@media (max-width: 767px) {
+  /* The pane gives its padding back on a phone, so the rows have room for names and two buttons. */
+  .st-panel:has(.wts) {
+    padding: 16px;
+  }
+  .wts-pactions .ds-icon-button,
+  .wts-offer .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .st-titlebar .ds-press,
+  .wts-practice .ds-press {
+    min-height: 44px;
+  }
+}

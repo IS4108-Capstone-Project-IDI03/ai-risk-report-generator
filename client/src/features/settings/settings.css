@@ -72,6 +72,20 @@
   margin: 0 0 16px;
   font-size: 18px;
 }
+/* The pane's own title line: the title (and its help tip) at the left, the section's one main
+   button at the right end (Settings.tsx gives it a slot). Other sections leave that end empty. */
+.st-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.st-titlebar .st-title {
+  margin: 0;
+}
+.st-titlebar-end {
+  margin-left: auto;
+}
 .st-stack,
 .st-form {
   display: flex;
@@ -228,6 +242,12 @@
   .st-menu-group {
     flex-direction: row;
     overflow-x: auto;
+  }
+  /* Only the menu scrolls sideways. A group that shrank to fit scrolled by itself, so the
+     strip was three small scrolling boxes and an item could sit half hidden inside one. */
+  .st-menu-group {
+    flex: none;
+    overflow-x: visible;
   }
   .st-menu-group + .st-menu-group {
     padding: 0 0 0 12px;

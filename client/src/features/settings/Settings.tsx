@@ -1,8 +1,10 @@
 // The Settings screen (S-01): a menu of sections, each in its own file under screens/.
 // Shown by features/assessments/AssessmentApp.tsx for every signed-in user. Calls api.ts.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../design-system'
 import { GatewayError } from '../assessments/api'
+import { Tip } from '../help/Tip'
+import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
 import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
@@ -10,6 +12,7 @@ import { ModelsSection } from './screens/ModelsSection'
 import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
+import { WalkthroughsSection } from './screens/WalkthroughsSection'
 import './settings.css'
 
 type Save = (settings: SettingsData) => void
@@ -18,7 +21,16 @@ type Section = {
   label: string
   // Set for sections someone else is still building; shown as a "Soon" tag in the menu.
   owner?: string
-  render: (settings: SettingsData | null, onSaved: Save) => React.ReactNode
+  // The menu item's walkthrough tag (F-12); written out in full so a search for it finds this line.
+  walk?: string
+  // A help tip beside the title (F-13).
+  tip?: React.ReactNode
+  // `titleEnd` is the right end of the title line: a section may draw its main button there (F-12).
+  render: (
+    settings: SettingsData | null,
+    onSaved: Save,
+    titleEnd: HTMLElement | null,
+  ) => React.ReactNode
 }
 
 // Sections that need the loaded settings wait for them; the rest render at once.
@@ -29,16 +41,29 @@ const needs =
 
 // What each person sets for themselves comes first, with no heading.
 const MINE: Section[] = [
-  { id: 'password', label: 'Password', render: () => <PasswordSection /> },
+  {
+    id: 'password',
+    label: 'Password',
+    walk: 'settings.menu.password',
+    render: () => <PasswordSection />,
+  },
   {
     id: 'chat',
     label: 'Chat and voice',
+    walk: 'settings.menu.chat',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
   },
   {
     id: 'note-taking',
     label: 'Note-taking',
+    walk: 'settings.menu.note-taking',
     render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
+  },
+  {
+    id: 'walkthroughs',
+    label: 'Walkthroughs',
+    walk: 'settings.menu.walkthroughs',
+    render: (_s, _f, titleEnd) => <WalkthroughsSection titleEnd={titleEnd} />,
   },
 ]
 // What only a knowledge admin can change, for everyone. An engineer sees these read-only.
@@ -46,11 +71,14 @@ const ADMIN: Section[] = [
   {
     id: 'models',
     label: 'Models',
+    walk: 'settings.menu.models',
+    tip: <Tip id="settings.models" />,
     render: needs((s, f) => <ModelsSection settings={s} onSaved={f} />),
   },
   {
     id: 'source-priority',
     label: 'Source priority',
+    walk: 'settings.menu.source-priority',
     render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
   },
 ]
@@ -76,6 +104,10 @@ export function Settings() {
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [problem, setProblem] = useState('')
   const [open, setOpen] = useState(SECTIONS[0].id)
+  // The right end of the title line, for the section that draws its main button there.
+  const [titleEnd, setTitleEnd] = useState<HTMLElement | null>(null)
+  const menu = useRef<HTMLElement>(null)
+  useWalkthroughScreen('settings', settings !== null)
 
   useEffect(() => {
     getSettings().then(setSettings, (error: unknown) =>
@@ -83,10 +115,18 @@ export function Settings() {
     )
   }, [])
 
+  // On a phone the menu is a row that scrolls sideways: bring the open item into view, or a
+  // section opened from elsewhere would sit off the edge with nothing showing which one it is.
+  useEffect(() => {
+    menu.current
+      ?.querySelector('[aria-current]')
+      ?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+  }, [open])
+
   const section = SECTIONS.find((s) => s.id === open) ?? SECTIONS[0]
   return (
     <div className="st">
-      <nav className="st-menu" aria-label="Settings sections">
+      <nav ref={menu} className="st-menu" aria-label="Settings sections">
         {GROUPS.map((group, i) => (
           <div key={i} className="st-menu-group">
             {group.heading && <div className="st-menu-heading">{group.heading}</div>}
@@ -95,6 +135,7 @@ export function Settings() {
                 key={s.id}
                 type="button"
                 className="st-menu-item"
+                data-walk={s.walk}
                 aria-current={s.id === open || undefined}
                 onClick={() => setOpen(s.id)}
               >
@@ -105,13 +146,17 @@ export function Settings() {
         ))}
       </nav>
       <section className="st-panel" aria-label={section.label}>
-        <h2 className="st-title">{section.label}</h2>
+        <div className="st-titlebar">
+          <h2 className="st-title">{section.label}</h2>
+          {section.tip}
+          <div className="st-titlebar-end" ref={setTitleEnd} />
+        </div>
         {problem ? (
           <p className="st-err" role="alert">
             <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}
           </p>
         ) : (
-          section.render(settings, setSettings)
+          section.render(settings, setSettings, titleEnd)
         )}
       </section>
     </div>

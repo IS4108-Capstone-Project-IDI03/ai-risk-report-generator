@@ -111,7 +111,7 @@ describe('Settings', () => {
     expect(names(group('Coming soon'))).toEqual(['QA eval', 'Checklist'])
     // What a person sets for themselves has no heading and comes first.
     const personal = menu.firstElementChild as HTMLElement
-    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking'])
+    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking', 'Walkthroughs'])
     expect(within(personal).queryByText('Set by admin')).toBeNull()
   })
 
