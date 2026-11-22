@@ -18,7 +18,7 @@ export function NoteComposer({
 }) {
   const box = useRef<HTMLTextAreaElement>(null)
   return (
-    <section className="sw-composer">
+    <section className="sw-composer" data-walk="site-walk.notes">
       <h2>
         <Icon name="sticky-note" size={15} />
         Notes

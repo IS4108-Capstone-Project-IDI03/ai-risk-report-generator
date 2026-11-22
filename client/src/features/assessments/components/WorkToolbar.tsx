@@ -34,11 +34,14 @@ function Filter({
   choices,
   value,
   onChoose,
+  walk,
 }: {
   name: string
   choices: Choice[]
   value: string
   onChoose: (value: string) => void
+  // The walkthrough's tag for this pill (F-12).
+  walk: string
 }) {
   const chosen = choices.find((c) => c.value === value)
   return (
@@ -52,6 +55,7 @@ function Filter({
           label={chosen ? chosen.label : name}
           aria-label={chosen ? name + ': ' + chosen.label : name}
           data-set={chosen ? '' : undefined}
+          data-walk={walk}
           onClick={toggle}
         />
       )}
@@ -69,6 +73,7 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
       <SearchField
         className="at-search"
         label="Search assessments"
+        walk="assessments.search"
         placeholder={tablet ? 'Search' : 'Search site, client or report ID'}
         value={v.q}
         onChange={v.setQ}
@@ -78,6 +83,7 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
         <div className="at-filters">
           <Filter
             name="Stage"
+            walk="assessments.filter-stage"
             // Each stage wears the icon and colour of its pill, so the two read as one thing.
             choices={v.stageOptions.map((value) => {
               const { icon, fg, ink } = statusLook(value)
@@ -88,12 +94,14 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
           />
           <Filter
             name="Report due"
+            walk="assessments.filter-due"
             choices={DUE_CHOICES}
             value={v.dateFilter ?? ''}
             onChoose={(value) => v.setDateFilter((value || null) as DateFilter | null)}
           />
           <Filter
             name="Type"
+            walk="assessments.filter-type"
             choices={v.visitTypeOptions.map((value) => {
               const name = typeName(value)
               return {

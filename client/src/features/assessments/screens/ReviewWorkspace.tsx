@@ -56,6 +56,9 @@ import {
 import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useActivity } from '../../marshbot/useActivity'
+import { Tip } from '../../help/Tip'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
@@ -145,6 +148,7 @@ export function ReviewWorkspace({
   historyRequest = 0,
   openSection,
   canAsk = false,
+  archived = false,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -170,6 +174,8 @@ export function ReviewWorkspace({
   // May ask questions about the assessment in the inspector's Ask tab (AS-01):
   // anyone who can open it with `reports:ask`.
   canAsk?: boolean
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis, reload: reloadOfis } = useOfis(reference)
@@ -213,6 +219,18 @@ export function ReviewWorkspace({
   // and which findings they saw. An admin who only reads is not counted.
   // `sections` can be missing while a workspace is still loading; without `?.` Review would crash.
   const shownId = selected ?? workspace?.sections?.find((s) => s.draft)?.id ?? null
+  // F-12: one walkthrough screen per kind of section, so each is offered the first time its
+  // section opens: Section 3 (OFIs), Sections 4 and 5 (figures), the drafted sections.
+  // Held back with nothing drafted (the empty state) or on an archived assessment.
+  useWalkthroughScreen(
+    shownId === '3'
+      ? 'review-ofi'
+      : shownId === '4' || shownId === '5'
+        ? 'review-scores'
+        : 'review',
+    !!workspace?.sections && (!!jobs.generation || !!jobs.loadError),
+    archived || !workspace?.sections?.some((s) => s.draft),
+  )
   useActivity(reference, 'review', canReview)
   useActivity(reference, 'section:' + shownId, canReview && !!shownId && !documentAt, true)
   // The Ask tab (AS-01), kept here so an answer keeps streaming from section to section.
@@ -629,6 +647,7 @@ export function ReviewWorkspace({
         position={positionOf(id)}
         onHistory={openHistory}
         action={action}
+        help={id === '2' ? <Tip id="review.executive-summary" /> : undefined}
         {...nav}
       >
         {restoredNotice(id)}
@@ -734,6 +753,7 @@ export function ReviewWorkspace({
                 variant="ghost"
                 size="sm"
                 iconLeft={IconRegistry.object.history}
+                data-walk="review.version-history"
                 onClick={openHistory}
               >
                 Version history
@@ -746,7 +766,7 @@ export function ReviewWorkspace({
             <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
             {restoredNotice('3')}
             {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
-            <RiskMatrix />
+            <RiskMatrix help={<Tip id="review.ofi-matrix" />} />
             {!drafted ? (
               <EmptyState
                 icon="file-text"
@@ -819,11 +839,13 @@ export function ReviewWorkspace({
   // Saves a decision made outside a dialog, showing why if it is refused. A 409 (the decision
   // no longer applies, e.g. a drafting run began redrafting the section) is a toast, with
   // Reload, since the workspace on screen is out of step with the gateway.
-  const decide = async (key: string, save: () => Promise<Workspace>) => {
+  // `done` names the walkthrough signal to fire once the decision is saved (F-12).
+  const decide = async (key: string, save: () => Promise<Workspace>, done?: string) => {
     setBusy(key)
     setProblem(null)
     try {
       keep(await save())
+      if (done) signal(done)
     } catch (error: unknown) {
       if (error instanceof GatewayError && error.status === 409)
         toast.error(error.message, { action: { label: 'Reload', onClick: reload } })
@@ -871,8 +893,10 @@ export function ReviewWorkspace({
       ? {
           busy: busyNow,
           onAccept: (claim) =>
-            decide(claim.key, () =>
-              decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
+            decide(
+              claim.key,
+              () => decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
+              'finding-accepted',
             ),
           onEdit: (claim) => setDialog({ kind: 'edit', claim }),
           onReject: (claim) => setDialog({ kind: 'reject', claim }),

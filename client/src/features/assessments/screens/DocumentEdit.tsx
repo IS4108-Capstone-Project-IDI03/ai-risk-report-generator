@@ -33,6 +33,8 @@ import { documentExtensions } from '../document/schema'
 import { buildReportDocument, type ReportDocument } from '../document/sections'
 import { useDocumentSave, type SaveStatus } from '../document/useDocumentSave'
 import { formatDayTime } from '../format'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { setLeaveGuard } from '../leaveGuard'
 import { registerPendingSave } from '../pendingSaves'
 import { useSections } from '../useSections'
@@ -202,6 +204,10 @@ function DocumentBody({
       setAskHint(null)
     },
   })
+
+  // The walkthrough engine (F-12) hears the document has rendered; it is held back while the
+  // document has unsaved work, so an offer never lands on someone mid-edit.
+  useWalkthroughScreen('document', !!editor, !readOnly && status !== 'saved' && 'unsaved')
 
   // Saving starts from the document as it opened; read only, nothing saves.
   useEffect(() => {
@@ -546,31 +552,40 @@ function DocumentBody({
               : 'Headings and parts filled in elsewhere stay as they are. Violet text is still as the draft wrote it; once you change it, it is yours. Changes save when you pause.'}
           </p>
         </nav>
-        <section aria-label="Document editor" className="dm-main" ref={main}>
+        <section
+          aria-label="Document editor"
+          className="dm-main"
+          ref={main}
+          data-walk="document.page"
+        >
           <div className="dm-head" ref={header}>
             <div className="dm-bar">
               <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={returnToReview}>
                 Return to review
               </Button>
-              <p className="dm-save-status" role="status">
-                {readOnly ? (
-                  'Read only · You can comment and reply'
-                ) : (
-                  <>
-                    {STATUS_TEXT[status]}
-                    {savedAt && status !== 'saving' && (
-                      <span className="dm-save-time">
-                        {' '}
-                        · Last saved {formatDayTime(new Date(savedAt))}
-                      </span>
-                    )}
-                  </>
-                )}
-              </p>
+              <div className="dm-save-row">
+                <p className="dm-save-status" role="status">
+                  {readOnly ? (
+                    'Read only · You can comment and reply'
+                  ) : (
+                    <>
+                      {STATUS_TEXT[status]}
+                      {savedAt && status !== 'saving' && (
+                        <span className="dm-save-time">
+                          {' '}
+                          · Last saved {formatDayTime(new Date(savedAt))}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </p>
+                <Tip id="document.save-status" />
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
                 iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                data-walk="document.page-layout"
                 onClick={switchView}
               >
                 {pageMode ? 'Continuous view' : 'Page layout'}

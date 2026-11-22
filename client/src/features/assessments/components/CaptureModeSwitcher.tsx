@@ -17,12 +17,17 @@ export function CaptureModeSwitcher({ v }: { v: AssessmentWorkflow }) {
         : 'note'
   const pick = { note: v.modeNote, voice: v.modeVoice, photo: v.modePhoto, scan: v.modeScan }
   return (
-    <div className="cap-modes">
+    <div className="cap-modes" data-walk="new-observation.modes">
       <SegmentedControl<Mode>
         ariaLabel="Capture as"
         options={[
           { value: 'note', label: 'Note' },
-          { value: 'voice', label: 'Voice', count: v.voiceCount },
+          {
+            value: 'voice',
+            label: 'Voice',
+            count: v.voiceCount,
+            walk: 'new-observation.mode-voice',
+          },
           { value: 'photo', label: 'Photo', count: v.photoCount },
           { value: 'scan', label: 'Scan', count: v.pageCount },
         ]}

@@ -47,12 +47,15 @@ export function WalkRow({
   onOpen,
   onRetry,
   onDelete,
+  first = false,
 }: {
   walk: SiteWalk
   // Each left out where this person can't do it (RV-11 AC2).
   onOpen?: () => void
   onRetry?: () => void
   onDelete?: () => void
+  // The list's first row: the "Review a site walk" walkthrough opens it (F-12).
+  first?: boolean
 }) {
   const status = walk.status
   const name = walkName(walk)
@@ -68,6 +71,7 @@ export function WalkRow({
           <button
             type="button"
             className="wr-open"
+            data-walk={first ? 'site-walk.first-open' : undefined}
             aria-label={`${ACTION[status as keyof typeof ACTION] ?? 'Open'} ${name}, ${walkWhen(walk)}. ${state.words}`}
             onClick={onOpen}
           >

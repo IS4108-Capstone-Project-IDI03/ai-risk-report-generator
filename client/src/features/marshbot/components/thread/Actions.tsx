@@ -38,7 +38,13 @@ export function Actions({
         return r.picksDate ? (
           <DateReply key={r.id} reply={r} surveyEnd={surveyEnd} onSend={(day) => onReply(r, day)} />
         ) : (
-          <ReplyButton key={r.id} reply={r} onClick={() => onReply(r)} />
+          <ReplyButton
+            key={r.id}
+            reply={r}
+            // F-12: the Overview walkthrough has the engineer press this one.
+            walk={r.id === 'skip' ? 'overview.reply.skip' : undefined}
+            onClick={() => onReply(r)}
+          />
         )
       })}
       {hint && (

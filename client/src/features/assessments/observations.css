@@ -646,6 +646,12 @@
   justify-self: center;
   text-align: center;
 }
+/* The Status heading with its help tip beside it (F-13). */
+.ob-colhead-last {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .ob-group-head {
   margin: 0;
   padding: 14px 14px 6px;

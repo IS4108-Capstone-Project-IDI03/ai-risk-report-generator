@@ -149,6 +149,12 @@
   justify-content: space-between;
   gap: 8px 12px;
 }
+.rv-heading-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .rv-editor h2 {
   margin: 0;
   font-size: var(--text-h2-size);
@@ -248,6 +254,16 @@
 }
 .rv-panel-head .rv-label {
   flex: 1;
+}
+/* A heading with its help (?) beside it; the title keeps its own width. */
+.rv-panel-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rv-panel-title .rv-label {
+  flex: 0 1 auto;
 }
 .rv-panel-list {
   display: flex;
@@ -590,6 +606,26 @@ mark.rv-ai-unsupported {
 }
 .rv-finding-gap {
   flex: 1;
+}
+.rv-statement-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.rv-statement-row > .rv-statement {
+  flex: 1;
+  min-width: 0;
+}
+/* The decision buttons in one box (F-12 points at them together); it wraps like the bar did. */
+.rv-finding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+/* While MarshBot points at them, only Accept can be pressed (Edit and Reject stay in view). */
+.rv-finding-actions[data-walk-on] > button:not([data-walk]) {
+  pointer-events: none;
 }
 /* Text the engineer wrote in the document editor (RV-08): theirs, so neutral. */
 .rv-written-section {
@@ -1070,6 +1106,11 @@ mark.rv-ai-unsupported {
 .rv-ram h3 {
   margin: 0;
 }
+.rv-ram-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .rv-ram-table {
   width: 100%;
   border-collapse: collapse;
@@ -1424,4 +1465,11 @@ mark.rv-ai-unsupported {
   font-weight: var(--weight-medium);
   vertical-align: text-top;
   line-height: 1;
+}
+
+/* Restore this version with its help (?) beside it (F-13). */
+.rv-version-restore {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

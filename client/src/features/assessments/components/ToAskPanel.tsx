@@ -3,6 +3,7 @@
 // Calls api.ts getToAsk. Shows nothing while there is nothing to ask or the list cannot be read.
 import { useEffect, useState } from 'react'
 import { Badge, Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { getToAsk, type ToAskItem } from '../api'
 import './to-ask.css'
 
@@ -25,6 +26,7 @@ export function ToAskPanel({ reference, refreshKey }: { reference: string; refre
       <h3 className="ta-title">
         <Icon name="message-circle-question" size={16} color="var(--action-primary)" />
         To ask the client <Badge tone="info">{items.length}</Badge>
+        <Tip id="observations.to-ask" />
       </h3>
       <ul className="ta-list">
         {items.map((i, n) => (

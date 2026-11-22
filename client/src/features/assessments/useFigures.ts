@@ -2,6 +2,7 @@
 // engineer's inputs, keeping the gateway's computed result. Used by
 // components/RiskQualityFigures.tsx and LossEstimateFigures.tsx. Calls api.ts.
 import { useEffect, useState } from 'react'
+import { signal } from '../walkthrough/signals'
 import { GatewayError } from './api'
 
 // `onSaved` lets the review workspace reload, so "out of date" and what Generation
@@ -35,6 +36,8 @@ export function useFigures<T, Input>(
     try {
       setFigures(await put(reference, input))
       onSaved?.()
+      // F-12: the scores walkthrough's "Confirm figures" step moves on once the save has landed.
+      signal('figures-confirmed')
     } catch (e: unknown) {
       // A refused save names the rule it broke (e.g. months over the indemnity period).
       setError(

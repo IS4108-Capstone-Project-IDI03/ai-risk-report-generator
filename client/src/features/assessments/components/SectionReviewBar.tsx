@@ -1,4 +1,5 @@
 import { Button, Callout, IconRegistry } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import type { ReviewSection } from '../api'
 import { formatDayTime } from '../format'
 import { findingCountsLabel, plural } from '../reviewDisplay'
@@ -45,8 +46,9 @@ export function SectionReviewBar({
             <span className="rv-label">Findings</span>{' '}
             <span>{findings.total ? findingCountsLabel(findings) : 'None in this draft'}</span>
           </p>
+          {canReview && <Tip id="review.findings" />}
           {canReview && (
-            <div className="rv-review-actions">
+            <div className="rv-review-actions" data-walk="review.actions">
               <Button
                 variant="secondary"
                 size="sm"
@@ -73,6 +75,7 @@ export function SectionReviewBar({
               </Button>
             </div>
           )}
+          {canReview && <Tip id="review.regenerate" align="right" />}
         </div>
       )}
       {regenerateProblem && (

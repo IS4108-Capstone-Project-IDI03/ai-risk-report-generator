@@ -42,6 +42,7 @@ export function RecordPanel({
         (running ? (phase === 'paused' ? ' sw-record--paused' : ' sw-record--live') : '')
       }
       aria-label="Recording"
+      data-walk="site-walk.record-panel"
     >
       <div className="sw-record-state" aria-live="polite">
         {running ? (
@@ -80,7 +81,12 @@ export function RecordPanel({
       )}
 
       <div className="sw-controls">
-        <button type="button" className="sw-control" onClick={onCamera}>
+        <button
+          type="button"
+          className="sw-control"
+          data-walk="site-walk.camera"
+          onClick={onCamera}
+        >
           <span className="sw-control-icon">
             <Icon name="camera" size={22} />
           </span>
@@ -90,6 +96,7 @@ export function RecordPanel({
           <button
             type="button"
             className="sw-control sw-control--main sw-control--rec"
+            data-walk="site-walk.start"
             onClick={onStart}
           >
             <span className="sw-control-icon">
@@ -101,6 +108,7 @@ export function RecordPanel({
           <button
             type="button"
             className="sw-control sw-control--main"
+            data-walk="site-walk.start"
             onClick={phase === 'recording' ? onPause : onResume}
           >
             <span className="sw-control-icon">
@@ -111,7 +119,7 @@ export function RecordPanel({
         )}
         {/* The third slot: Upload recording while idle, Save recording while recording. */}
         {running ? (
-          <button type="button" className="sw-control" onClick={onSave}>
+          <button type="button" className="sw-control" data-walk="site-walk.save" onClick={onSave}>
             <span className="sw-control-icon">
               <Icon name="check" size={22} />
             </span>

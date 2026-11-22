@@ -1,11 +1,12 @@
-// The help (?) sheet on the Recording screen (CP-22 AC2): how to record a walk
-// that the AI step reads well.
-import { Dialog } from '../../../design-system'
+// The help (?) on the Recording screen (CP-22 AC2; a dialog until F-13 moved it onto the shared
+// help tip): how to record a walk that the AI step reads well. Called by screens/Recording.tsx.
+// Calls Tip (features/help).
+import { Tip } from '../../help/Tip'
 
-// Explains how to record a site walk for the proposal step.
-export function HelpSheet({ onClose }: { onClose: () => void }) {
+/** Returns the recorder's help (?), with its six lines. */
+export function RecordingHelp() {
   return (
-    <Dialog className="sw-sheet" title="Recording a site walk" width={440} onClose={onClose}>
+    <Tip id="site-walk.recorder" align="right">
       <ul>
         <li>Tap Save recording at each pause and start the next one at the next location.</li>
         <li>
@@ -21,6 +22,6 @@ export function HelpSheet({ onClose }: { onClose: () => void }) {
           Keep this screen open. If the phone locks, recording stops, and what you said is kept.
         </li>
       </ul>
-    </Dialog>
+    </Tip>
   )
 }

@@ -14,18 +14,34 @@ export function ClientGroup({
   onOpen,
   onArchive,
   assign,
+  first,
+  walkRow,
+  walkOther,
 }: {
-  client: WorkGroup
-  site: WorkGroup['sites'][number]
+  // Only what the header reads, so the pinned practice group can be built without a client page.
+  client: Pick<WorkGroup, 'title' | 'viewClient'>
+  site: Pick<WorkGroup['sites'][number], 'name' | 'address' | 'newVisit' | 'rows'>
   onOpen: (e: React.MouseEvent<HTMLElement>) => void
   // Returns a row's archive action, or nothing when it may not be archived.
   onArchive: (r: WorkRowData) => (() => void) | undefined
   // Given only to an admin (RV-11).
   assign?: AssignControls
+  // The list's first group, which the Assessments walkthrough highlights (F-12).
+  first?: boolean
+  // The reference of the row whose action button the walkthrough points at (F-12).
+  walkRow?: string
+  // The reference of the first row assigned to someone else, for an admin's walkthrough (F-12).
+  walkOther?: string
 }) {
   return (
-    <section aria-label={client.title + ', ' + site.name} className="at-group">
-      <div className="at-group-head ds-on-grey">
+    <section
+      aria-label={client.title + ', ' + site.name}
+      className="at-group"
+      data-walk={first ? 'assessments.first' : undefined}
+    >
+      {/* The column headings are hidden on a narrow list, so the first group's header stands in
+          for them in the walkthrough (the first visible element with a tag is the one used). */}
+      <div className="at-group-head ds-on-grey" data-walk={first ? 'assessments.head' : undefined}>
         <ClientAvatar name={client.title} small />
         {/* Client › site, then the address; the address drops under them on a phone. */}
         <div className="at-group-text">
@@ -68,6 +84,8 @@ export function ClientGroup({
           onOpen={onOpen}
           onArchive={onArchive(r)}
           assign={assign}
+          walkAction={r.id === walkRow}
+          walkOther={r.id === walkOther}
         />
       ))}
     </section>

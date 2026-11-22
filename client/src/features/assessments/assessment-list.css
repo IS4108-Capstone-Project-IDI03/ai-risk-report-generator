@@ -266,7 +266,9 @@
   opacity: 0;
 }
 .at-row:hover .at-actions,
-.at-row:focus-within .at-actions {
+.at-row:focus-within .at-actions,
+/* F-12: the walkthrough highlights a button here, so its row shows its buttons without a hover. */
+.at-actions:has([data-walk-on]) {
   opacity: 1;
 }
 @media (hover: none) {
@@ -855,4 +857,18 @@
   .at-topnew button[aria-haspopup] > span:last-child {
     display: none !important; /* the chevron */
   }
+}
+
+/* F-12: the Stage heading holds its help tip beside the word; the Focus button's wrapper keeps
+   the walkthrough's tag and takes no room when Focus is hidden (nothing urgent). */
+.at-stage-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.at-focus-walk {
+  display: inline-flex;
+}
+.at-focus-walk:empty {
+  display: none;
 }

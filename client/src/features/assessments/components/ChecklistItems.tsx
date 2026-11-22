@@ -44,6 +44,7 @@ import {
 import { formatDayYearTime } from '../format'
 import { AnswerDialog, type Answer, type AnswerPlace } from './ChecklistAnswer'
 import { ChecklistItemEditor, type ItemPlace } from './ChecklistItemEditor'
+import { Tip } from '../../help/Tip'
 import { MoreMenu } from './MoreMenu'
 
 // One checklist, shown in two places (CP-31): the assessment's Checklist tab
@@ -192,6 +193,7 @@ function AnswerControls({
   onBegin,
   onMark,
   onView,
+  first = false,
 }: {
   item: ChecklistItem
   canAnswer: boolean
@@ -199,6 +201,8 @@ function AnswerControls({
   onBegin: (kind: 'confirm' | 'differs') => void
   onMark: (mark: 'not_seen' | 'not_applicable' | null) => void
   onView: (observationId: string) => void
+  // The first item still to answer: the walkthrough points at its buttons, and its help tip sits beside them (F-12, F-13).
+  first?: boolean
 }) {
   const answers = {
     display: 'flex',
@@ -232,8 +236,10 @@ function AnswerControls({
     )
   }
   if (!canAnswer) return null
-  return (
-    <div style={answers}>
+  // The same three controls on every item; the first item's sit in a box of their own, so the
+  // highlight and the help tip leave each other out. It lays them out as the row does.
+  const buttons = (
+    <>
       <Button iconLeft="check" disabled={busy} onClick={() => onBegin('confirm')}>
         Confirm
       </Button>
@@ -250,6 +256,18 @@ function AnswerControls({
           },
         ]}
       />
+    </>
+  )
+  if (!first) return <div style={answers}>{buttons}</div>
+  return (
+    <div style={answers}>
+      <span
+        data-walk="checklist.answers"
+        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-3)' }}
+      >
+        {buttons}
+      </span>
+      <Tip id="checklist.answers" />
     </div>
   )
 }
@@ -724,6 +742,7 @@ export function ChecklistItems({
   }
   const answer = (item: ChecklistItem) => (
     <AnswerControls
+      first={item.id === firstOpenId}
       item={item}
       canAnswer={!!answering}
       busy={busy === item.id}
@@ -836,6 +855,12 @@ export function ChecklistItems({
   const shownInSection = (i: ChecklistItem) =>
     i.origin === 'standard' || i.origin === 'manual' || (all && i.origin === 'template')
   const sectionItems = checklist.items.filter((i) => i.area !== 'hazards' && shownInSection(i))
+  // F-12: the first item still to answer on the tab showing, in the order it is listed.
+  const listed =
+    part === 'risks'
+      ? checklist.hazards.flatMap((h) => riskItems.filter((i) => i.hazard === h.id))
+      : sectionItems
+  const firstOpenId = listed.find((i) => !i.check)?.id
   // A tab's answered items, and any to check after a regenerate lost answers.
   const count = (items: ChecklistItem[]) => {
     const fresh = items.filter((i) => highlight?.has(i.id)).length

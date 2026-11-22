@@ -54,7 +54,7 @@ export function ProposalNavigator({
   )
   if (!phone)
     return (
-      <nav className="ob-card ob-nav" aria-label="Locations">
+      <nav className="ob-card ob-nav" aria-label="Locations" data-walk="site-walk.locations">
         <ProposalTree proposal={proposal} selected={selected} onPick={onPick} actions={actions} />
         {foot}
       </nav>
@@ -64,6 +64,7 @@ export function ProposalNavigator({
       <button
         type="button"
         className="ob-nav-button"
+        data-walk="site-walk.locations"
         aria-label={'Location: ' + title + '. Change'}
         onClick={() => setOpen(true)}
       >

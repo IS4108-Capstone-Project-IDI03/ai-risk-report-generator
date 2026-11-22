@@ -6,6 +6,7 @@
 // Calls ChoicePickerField, RecordCard, FailedLine.
 import { useEffect, useRef, type ReactNode } from 'react'
 import { FailedLine, Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { CATEGORY_OPTIONS, SEVERITY_OPTIONS } from '../../site-walk/options'
 import { toggleCategory, UNCATEGORISED_HINT } from '../categories'
 import type { ObservationChange } from '../useAssessmentWorkflow'
@@ -121,6 +122,8 @@ export function ObservationDetails({
         notSure={cat.notSure}
         failed={cat.failed}
         disabled={!can}
+        help={<Tip id="observation.suggested" />}
+        confirmWalk={cat.notSure ? 'observation.confirm' : undefined}
         onConfirm={() => void confirm('category')}
         multiple
         choices={CATEGORY_OPTIONS}
@@ -137,6 +140,8 @@ export function ObservationDetails({
         notSure={sev.notSure}
         failed={sev.failed}
         disabled={!can}
+        // F-12: the walkthrough presses the first Confirm there is, the category's before the severity's.
+        confirmWalk={sev.notSure && !cat.notSure ? 'observation.confirm' : undefined}
         onConfirm={() => void confirm('severity')}
         choices={SEVERITY_OPTIONS}
         selected={[o.sev]}

@@ -8,7 +8,12 @@ import { LocationPath } from '../../assessments/components/LocationPath'
 import { ColumnHeads } from '../../assessments/components/ObservationList'
 import type { Proposal, SiteWalk } from '../api'
 import { pathOf } from '../options'
-import { matchesProposalFilters, sectionsAt, type ProposalFilters } from '../proposal'
+import {
+  matchesProposalFilters,
+  missingFields,
+  sectionsAt,
+  type ProposalFilters,
+} from '../proposal'
 import { ProposalRow } from './ProposalRow'
 
 // Lists proposed observations grouped by their selected location.
@@ -51,18 +56,29 @@ export function ProposalList({
     )
   // One location picked: its rows need no heading.
   const headed = sections.length > 1 || selected === 'all'
+  // F-12: the first row after the list's first that has a red mark, so the walkthrough can light it too.
+  const flagged = sections
+    .flatMap((s) => s.items)
+    .slice(1)
+    .find((o) => missingFields(o).length)?.ref
   return (
     <>
-      <ColumnHeads />
-      {sections.map((s) => (
+      <ColumnHeads walk="site-walk.proposal-head" />
+      {sections.map((s, at) => (
         <section key={s.ref} aria-label={s.location ? s.location.name : 'No location yet'}>
           {headed && (
-            <h3 className="ob-group-head">
+            <h3 className="ob-group-head" data-walk={at === 0 ? 'site-walk.location' : undefined}>
               {s.location ? <LocationPath {...pathOf(s.location)} /> : 'No location yet'}
             </h3>
           )}
-          {s.items.map((o) => (
-            <ProposalRow key={o.ref} o={o} onOpen={() => onOpen(o.ref)} />
+          {s.items.map((o, row) => (
+            <ProposalRow
+              key={o.ref}
+              o={o}
+              onOpen={() => onOpen(o.ref)}
+              first={at === 0 && row === 0}
+              flagged={o.ref === flagged}
+            />
           ))}
         </section>
       ))}

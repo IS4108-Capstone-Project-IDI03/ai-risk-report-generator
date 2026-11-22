@@ -17,6 +17,7 @@ import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
 import { useNarrowArea } from '../useNarrowArea'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useThread, type ThreadState } from '../useThread'
 import '../marshbot.css'
 import '../components/thread/thread.css'
@@ -42,6 +43,8 @@ type Props = {
   reference: string
   openLink: (link: ItemLink) => void
   openDetails: () => void
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
 }
 
 /** Returns the MarshBot Overview for a saved assessment. */
@@ -50,8 +53,16 @@ export function MarshBotOverview(props: Props) {
   return <Loader key={props.reference} {...props} />
 }
 
-function Loader({ reference, openLink, openDetails }: Props) {
+function Loader({ reference, openLink, openDetails, archived }: Props) {
   const state = useThread(reference)
+  // F-12: ready once the thread has loaded. An admin on someone else's assessment gets its own
+  // walkthrough, with the engineer's name for its words.
+  useWalkthroughScreen(
+    state.thread?.viewer === 'admin' ? 'admin-view' : 'overview',
+    !!state.thread,
+    archived,
+    { engineer: state.thread?.engineerName ?? 'the assigned engineer' },
+  )
   if (state.failed)
     return (
       <div className="mb-failed" role="alert">

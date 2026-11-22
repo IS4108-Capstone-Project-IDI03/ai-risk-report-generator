@@ -4,6 +4,7 @@
 // Used by screens/Dashboard and ClientGroup. Calls the design system's kit.
 import {
   AssessmentTypeTile,
+  Chip,
   Icon,
   IconButton,
   ReportDue,
@@ -27,6 +28,9 @@ export function WorkRow({
   onOpen,
   onArchive,
   assign,
+  first,
+  walkAction,
+  walkOther,
 }: {
   r: WorkRowData
   grouped: boolean
@@ -35,14 +39,31 @@ export function WorkRow({
   onArchive?: () => void
   // Given only to an admin (RV-11).
   assign?: AssignControls
+  // The first row of the flat list, which the Assessments walkthrough highlights (F-12).
+  first?: boolean
+  // The row whose Archive (or an admin's Reassign) button the walkthrough points at (F-12).
+  walkAction?: boolean
+  // The first row assigned to someone else, which an admin's "Open another engineer's
+  // assessment" walkthrough opens on a replay (F-12).
+  walkOther?: boolean
 }) {
   const type = typeName(r.type)
+  // The practice assessment (F-12) stays open and its owner's: no Archive, no Reassign.
+  const practice = !!r.record?.practice
+  // The walkthrough's tag for the button it points at (assessment-list.css keeps it visible).
+  const actionTag = walkAction ? 'assessments.row-action' : undefined
   // Finished work shows its due date alone, never "late".
   const finished = r.status === STATUS_LABEL.finalised || r.status === STATUS_LABEL.archived
   const changed = assign?.changed === r.id
   return (
     // The whole row opens it for a mouse; the reference button is the keyboard's way in.
-    <div className="at-row" data-id={r.id} data-changed={changed ? '' : undefined} onClick={onOpen}>
+    <div
+      className="at-row"
+      data-id={r.id}
+      data-changed={changed ? '' : undefined}
+      data-walk={first ? 'assessments.first' : undefined}
+      onClick={onOpen}
+    >
       <span className="at-assessment">
         <AssessmentTypeTile type={type} />
         <span className="at-text">
@@ -51,6 +72,7 @@ export function WorkRow({
               type="button"
               className="at-ref"
               data-id={r.id}
+              data-walk={walkOther ? 'assessments.other' : undefined}
               // The site leads, so a screen reader hears which site the row is for; then why it
               // is urgent, which the mark inside shows on hover (one tab stop, as on Clients).
               aria-label={[
@@ -68,6 +90,7 @@ export function WorkRow({
               {r.id}
               {!!r.priority && <PriorityMark priorities={[r.priority]} inside />}
             </button>
+            {practice && <Chip kind="code">{'Practice'}</Chip>}
           </span>
           {!grouped && (
             <span className="at-sub" title={r.client + ' › ' + r.site}>
@@ -89,7 +112,8 @@ export function WorkRow({
         </span>
       )}
       <span className="at-foot">
-        <span className="at-status">
+        {/* Stands in for the hidden column headings in a flat list (see ClientGroup). */}
+        <span className="at-status" data-walk={first ? 'assessments.head' : undefined}>
           <StatusPill status={rowStage(r)} />
         </span>
         <span className="at-due">
@@ -97,14 +121,15 @@ export function WorkRow({
         </span>
       </span>
       <span className="at-actions">
-        {!!assign && (
+        {!!assign && !practice && (
           <ReassignAction
             reference={r.id}
             archived={r.status === STATUS_LABEL.archived}
             onClick={() => assign.onReassign(r)}
+            walk={actionTag}
           />
         )}
-        {!!onArchive && (
+        {!!onArchive && !practice && (
           <Tooltip label="Archive" placement="top">
             <IconButton
               icon="archive"
@@ -112,6 +137,7 @@ export function WorkRow({
               label={'Archive ' + r.id}
               title={undefined}
               style={{ borderRadius: 999 }}
+              data-walk={assign ? undefined : actionTag}
               onClick={(e) => {
                 e.stopPropagation()
                 onArchive()
@@ -131,10 +157,13 @@ function ReassignAction({
   reference,
   archived,
   onClick,
+  walk,
 }: {
   reference: string
   archived: boolean
   onClick: () => void
+  // The walkthrough's tag, when it points at this button (F-12).
+  walk?: string
 }) {
   if (archived)
     return (
@@ -145,6 +174,7 @@ function ReassignAction({
           size="sm"
           label={'Reassign ' + reference}
           title={undefined}
+          data-walk={walk}
           style={{ borderRadius: 999, color: 'var(--graphite-400)' }}
           disabledReason={{
             title: "Can't reassign yet",
@@ -160,6 +190,7 @@ function ReassignAction({
         size="sm"
         label={'Reassign ' + reference}
         title={undefined}
+        data-walk={walk}
         style={{ borderRadius: 999, color: 'var(--ink-600)' }}
         onClick={(e) => {
           e.stopPropagation()

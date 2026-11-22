@@ -321,6 +321,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               onHistory={() => guardLeave(v.showVersionHistory)}
                               onDetails={openDetails}
                               onArchive={v.canArchive ? v.openArchive : undefined}
+                              archiveBlocked={v.archiveBlocked}
                             />
                           </>
                         )}
@@ -471,6 +472,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           onViewObservation={v.showObservation}
                           area={goTo?.params?.area}
                           item={goTo?.params?.item}
+                          archived={v.archivedOpen}
                         />
                       ) : (
                         <div style={{ padding: '24px' }}>
@@ -501,6 +503,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             setGoTo({ tab: 'review', params: { section } })
                           }}
                           onObservations={v.goObservations}
+                          archived={v.archivedOpen}
                         />
                       ) : (
                         <Generation v={v} />
@@ -521,6 +524,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           historyRequest={v.reviewHistory}
                           openSection={goTo?.params?.section}
                           canAsk={v.canAsk}
+                          archived={v.archivedOpen}
                         />
                       ) : (
                         <Review v={v} />
@@ -564,7 +568,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             open={v.archiveOpen}
             className="ds-dialog--v2"
             title="Archive this assessment?"
-            description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Status to Archived."
+            description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Stage to Archived."
             footer={
               <>
                 <Button pill variant="secondary" onClick={v.closeArchive} disabled={v.archiveBusy}>

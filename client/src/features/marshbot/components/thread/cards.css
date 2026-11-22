@@ -52,21 +52,6 @@
   font-weight: 700;
   color: var(--graphite-900);
 }
-.mbt-help {
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--graphite-600);
-  border-radius: 50%;
-  cursor: help;
-  transition: color var(--duration-fast) var(--ease-out);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mbt-help:hover {
-    color: var(--graphite-900);
-  }
-}
 /* --- Rows: tile, name and status, one ending in the same slot --- */
 .mbt-row {
   display: grid;

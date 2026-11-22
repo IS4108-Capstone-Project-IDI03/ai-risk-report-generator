@@ -19,7 +19,9 @@ import { caption, card, country, heading, muted } from '../checklistChecks'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
 import { formatDay } from '../format'
 import { plural } from '../reviewDisplay'
+import { Tip } from '../../help/Tip'
 import { useActivity } from '../../marshbot/useActivity'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useChecklist } from '../useChecklist'
 
 // "NFPA 13 · 2025" from what the knowledge base knows of a standard.
@@ -141,6 +143,7 @@ export function Checklist({
   onViewObservation,
   area,
   item,
+  archived,
 }: {
   reference: string
   canGenerate: boolean
@@ -150,8 +153,12 @@ export function Checklist({
   area?: string
   // A checklist item's id to scroll to and flash, from a MarshBot link (AS-06).
   item?: string
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
 }) {
   const { view, setView, sections, loadError, reload } = useChecklist(reference)
+  // F-12: ready once the checklist has loaded; nothing is offered over an error or an archive.
+  useWalkthroughScreen('checklist', !!view, archived || !!loadError)
   // AS-06: the assigned engineer's time here and which items they saw (an admin's is not counted).
   useActivity(reference, 'checklist', canGenerate, true)
   // The engineer's own ticks, for the checklist shown when they were made; a new
@@ -264,6 +271,7 @@ export function Checklist({
               label="Download checklist PDF"
               tooltip="Download PDF"
               variant="outline"
+              data-walk="checklist.download"
               disabled={downloading}
               onClick={() => void downloadPdf()}
             />
@@ -274,11 +282,13 @@ export function Checklist({
               iconLeft="sparkles"
               loading={running}
               disabled={running}
+              data-walk="checklist.generate"
               onClick={() => (answered.length || customised ? setAsking(true) : void generate())}
             >
               {view.checklist ? 'Regenerate checklist' : 'Generate checklist'}
             </Button>
           )}
+          {canGenerate && view.checklist && <Tip id="checklist.regenerate" align="right" />}
         </div>
       </div>
       {running && <p style={muted}>Generating the checklist. This takes about half a minute.</p>}
@@ -309,7 +319,12 @@ export function Checklist({
       )}
 
       {/* Folded once there is a checklist: the standards matter again only to regenerate. */}
-      <details open={!view.checklist} aria-label="Standards to use" style={card}>
+      <details
+        open={!view.checklist}
+        aria-label="Standards to use"
+        style={card}
+        data-walk="checklist.standards"
+      >
         <summary
           style={{
             cursor: 'pointer',
@@ -319,6 +334,10 @@ export function Checklist({
           }}
         >
           Standards to use ({chosen.length} of {view.standards.length} selected)
+          {/* F-13: a button inside a summary does not fold the card. */}
+          <span style={{ display: 'inline-flex', verticalAlign: 'middle', marginLeft: 6 }}>
+            <Tip id="checklist.standards" />
+          </span>
         </summary>
         <div style={{ padding: '0 var(--space-6) var(--space-6)' }}>
           {view.standards.length === 0 ? (

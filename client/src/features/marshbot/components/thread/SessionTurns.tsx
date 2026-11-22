@@ -87,7 +87,10 @@ export function SessionTurns({
         // A pushed turn whose first message is not out yet: no divider or milestone either.
         const waits = reveal?.hidden(turn.id) ?? false
         return (
-          <TurnContext.Provider key={turn.id} value={{ turn, past }}>
+          <TurnContext.Provider
+            key={turn.id}
+            value={{ turn, past, newest: !past && turn === newest }}
+          >
             {gap && !waits && <p className="mbt-divider">{clock(turn.at)}</p>}
             {!waits &&
               marks
