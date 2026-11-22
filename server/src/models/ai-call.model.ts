@@ -38,6 +38,9 @@ export const AI_FEATURES = [
   'knowledge-search',
   // Sorting a shorthand note's uncoded lines into facts, info requests and recommendations (CP-35).
   'split-note',
+  // Any call made on a practice assessment or while a walkthrough's try-it runs (F-12): stored
+  // with no reportId, so assessment totals stay clean. Set by ai-usage.service.ts recordAiCalls.
+  'walkthrough',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

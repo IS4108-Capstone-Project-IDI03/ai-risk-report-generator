@@ -19,6 +19,7 @@ import {
 import { requireAuth, SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../middleware/auth.middleware'
 import { permissionsFor } from '../services/permissions.service'
 import { countsForUser } from '../services/notification.service'
+import { walkthroughRecordFor } from '../services/walkthrough-record.service'
 
 const router = Router()
 
@@ -37,6 +38,7 @@ router.post('/login', async (req, res) => {
       user,
       permissions: permissionsFor(user.role),
       notifications: await countsForUser(user),
+      walkthroughs: await walkthroughRecordFor(user),
     })
   } catch (error: unknown) {
     if (error instanceof InvalidCredentialsError) {
@@ -180,6 +182,7 @@ router.get('/me', requireAuth, async (_req, res) => {
     user: { id, role, name },
     permissions: permissionsFor(role),
     notifications: await countsForUser(user),
+    walkthroughs: await walkthroughRecordFor(user),
   })
 })
 

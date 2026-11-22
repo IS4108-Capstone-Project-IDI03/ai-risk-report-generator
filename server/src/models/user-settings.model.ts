@@ -11,6 +11,10 @@ export interface IUserSettings {
   user: string
   noteCodes?: NoteCodes
   glossary?: GlossaryEntry[]
+  // F-12: the walkthrough record (what this account has played, skipped or declined, and
+  // whether offers are on). Read and written by walkthrough-record.service.ts; the practice
+  // service keeps `practiceRemoved` here too.
+  walkthroughs?: Record<string, unknown>
   metadata: SettingsMetadata
 }
 
@@ -19,6 +23,7 @@ const userSettingsSchema = new Schema<IUserSettings>(
     user: { type: String, required: true, unique: true },
     noteCodes: { type: Schema.Types.Mixed },
     glossary: { type: [{ term: String, meaning: String, _id: false }], default: undefined },
+    walkthroughs: { type: Schema.Types.Mixed },
     metadata: metadataSchema,
   },
   { collection: 'user_settings', minimize: false },

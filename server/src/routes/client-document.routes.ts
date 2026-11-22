@@ -13,8 +13,12 @@ import {
 } from '../services/client-document.service'
 import { sendFile } from './byte-range'
 import { refuseClientChange } from './client.routes'
+import { practiceRecordGate } from '../middleware/practice.middleware'
 
 const router = Router()
+
+// F-12: a practice record is its owner's alone; 404 to anyone else on every route below.
+router.param('id', practiceRecordGate('client-document'))
 
 // 404 for an unknown document, 502 when S3 refused its delete; 403 for one
 // whose client the user has no assessment at (refuseClientChange), as the client page.
