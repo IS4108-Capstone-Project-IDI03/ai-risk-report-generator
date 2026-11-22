@@ -9,6 +9,7 @@ import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
 import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
+import { PrivacyWordsSection } from './screens/PrivacyWordsSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
 import './settings.css'
 
@@ -18,6 +19,8 @@ type Section = {
   label: string
   // Set for sections someone else is still building; shown as a "Soon" tag in the menu.
   owner?: string
+  // Shown to a knowledge admin only, not read-only to an engineer (PV-09: client data).
+  adminOnly?: boolean
   render: (settings: SettingsData | null, onSaved: Save) => React.ReactNode
 }
 
@@ -52,6 +55,12 @@ const ADMIN: Section[] = [
     id: 'source-priority',
     label: 'Source priority',
     render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
+  },
+  {
+    id: 'privacy-words',
+    label: 'Privacy words',
+    adminOnly: true,
+    render: () => <PrivacyWordsSection />,
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
@@ -90,17 +99,19 @@ export function Settings() {
         {GROUPS.map((group, i) => (
           <div key={i} className="st-menu-group">
             {group.heading && <div className="st-menu-heading">{group.heading}</div>}
-            {group.items.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className="st-menu-item"
-                aria-current={s.id === open || undefined}
-                onClick={() => setOpen(s.id)}
-              >
-                {s.label}
-              </button>
-            ))}
+            {group.items
+              .filter((s) => !s.adminOnly || settings?.canEditGlobal)
+              .map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="st-menu-item"
+                  aria-current={s.id === open || undefined}
+                  onClick={() => setOpen(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
           </div>
         ))}
       </nav>
