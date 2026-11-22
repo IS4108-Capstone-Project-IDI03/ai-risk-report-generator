@@ -52,7 +52,7 @@ In rag-service (`app/privacy.py`, `orchestrator.py`), drafting does the followin
 
 ### Chat (PV-03)
 
-Chat has no assessment, so the gateway sends every client (and any client name typed on an assessment before CP-17), every site and its address, removed sites included, with their former names (CP-28), and every active user (`chatPrivacy`). It reads them at most once a minute, so a client added, or a name corrected, in the last minute is not yet masked by its new name. It always sets `privacy` itself, replacing any the browser sent.
+Chat has no assessment, so the gateway sends every client (and any client name typed on an assessment before CP-17), every site and its address, removed sites included, with their former names (CP-28), and every active user (`chatPrivacy`); practice clients and sites (F-12) are left out. It reads them at most once a minute, so a client added, or a name corrected, in the last minute is not yet masked by its new name. It always sets `privacy` itself, replacing any the browser sent.
 
 In rag-service (`app/chat/answer.py`):
 1. **One `/mask` call** covers the conversation (earlier answers hold real names), the engineer's context and the document names (a past report's title can name its client). The planner and the answer model see the same placeholder for a name.

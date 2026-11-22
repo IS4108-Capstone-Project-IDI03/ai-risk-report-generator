@@ -118,6 +118,22 @@
   is left out of every list, count, drafting input and report by
   `listObservations`: read observations through it, never around it. See
   docs/areas/database.md and docs/areas/services.md, "Reading an observation".
+- A practice assessment (F-12: `practice` set on the assessment, `practice: true`
+  on its made-up client and site) is a real assessment that only its owner
+  sees. Every query that lists or counts assessments, clients or sites ACROSS
+  records spreads `NOT_PRACTICE` (`services/practice/filter.ts`), and a new one
+  joins the table in `practice-filter.test.ts`. Never delete one: Reset and
+  Remove set `practice: 'hidden'`. It makes no notification, and its AI calls
+  are saved under the usage feature `walkthrough` with no `reportId`
+  (`recordAiCalls`). See docs/areas/database.md, "Practice assessment".
+- Walkthrough and help-tip words (F-12, F-13) are fixed text in the client
+  (`features/**/*walkthroughs.ts`, `features/help/tips.ts`): no model writes or
+  changes them. A step points at a `data-walk` tag: keep the tags when you
+  restyle a screen. A screen with a walkthrough makes one
+  `useWalkthroughScreen` call and raises `signal(...)` when a hands-on step's
+  action has finished: never add polling for it. Hands-on steps run only on the
+  practice assessment. See docs/areas/services.md, "Walkthroughs and the
+  practice assessment".
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

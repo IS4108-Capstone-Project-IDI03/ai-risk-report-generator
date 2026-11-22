@@ -2369,3 +2369,75 @@ Recommendations: OFI drafting (`ofi.service.ts`) sends each observation's `recom
 "Engineer's recommendation:" in the OFI prompt (`gn05-v7`), and the guide says to base the fix on
 them without adding actions. An OFI that rests on such an observation is saved with
 `fromRecommendation: true`. Facts stay the only part read as evidence.
+
+## Walkthroughs and the practice assessment (gateway, client, F-12)
+
+MarshBot's walkthroughs are fixed text in the client. The gateway only keeps each account's
+record, makes the practice assessment, and answers one question before a try-it.
+
+- **Routes** (`routes/walkthrough.routes.ts`, a session and no permission, the caller's own
+  account only): `POST /api/walkthroughs/practice` (Reset and "Set it up again": hides the old one,
+  makes a fresh one, 201 `{reference}`), `DELETE /api/walkthroughs/practice` (Remove: hides it, 204),
+  `GET /api/walkthroughs/check?for=<walkthrough id>` (`{ok}`; 404 when that walkthrough has no
+  try-it). The record itself rides on `PATCH /api/settings/me` and the signed-in user (see
+  docs/areas/database.md, "The walkthrough record").
+- **First sign-in** (`ensurePractice`, called while building the signed-in user): makes the
+  practice assessment once, unless the user removed it. It never throws: a failure is logged and
+  sign-in carries on with `practice: null`. It is made as `practice: 'making'` (open to no one,
+  listed nowhere) and made live only once filled; two tabs at once make one (the unique index
+  on live ones decides, and the loser removes its own unseen copy), and a call that finds one
+  still being made answers `null` (one over a minute old counts as abandoned). Remove saves its
+  "removed" mark before it hides, and first sign-in reads the mark first and again after
+  making, so a Remove at the same moment is never undone.
+  The record service loads the practice service lazily, because `settings.service` imports the
+  record service and the practice service reaches `settings.service` again through drafting.
+- **The quick check** (`walkthrough-check.service.ts`): a try-it is a walkthrough step that calls
+  live AI on the user's own input (6 walkthroughs: `new-docs`, `new-observation`, `split-note`,
+  `site-walk`, `ask`, `chat`). Before one is offered or started the client asks the check, which
+  calls each needed service's `/health` and one tiny provider request: rag-service
+  `GET /health/providers?need=llm|chat|search|privacy` (a one-word request through the same
+  provider layer and `X-Model` as real work) and speech-ocr-service `GET /health/providers`
+  (the speech-to-text model's metadata, no audio). No client text is sent. The free health calls
+  run first, and the provider calls only when they all pass. Health calls time out at 5 s and
+  provider calls at 15 s; any failure is `ok: false`. A pass is remembered for 5 minutes in
+  memory and a fail for 30 s, per set of checks and drafting model, and requests that arrive
+  while a check runs share it. The tiny language-model call is recorded under `walkthrough`.
+- **Try-its use the real features** on the practice assessment, so masking, fail-closed behaviour
+  and every hard rule hold unchanged. The chat question and the sample email have no assessment:
+  the client sends `x-walkthrough: <id>` on those requests and `walkthroughUsage`
+  (`middleware/practice.middleware.ts`) marks the request so its calls are recorded the same way.
+  It honours the header only for those two ids on their own routes (`chat`: `POST /api/chat`;
+  `new-docs`: `POST /api/client-intakes` and `/:id/read`), so a real assessment's request keeps
+  its usage.
+- **MarshBot on the practice assessment** re-checks on change and pushes to its open Overview as
+  for any assessment. It is left out of the daily re-check and of Focus.
+- **Client** (`client/src/features/walkthrough/`): one engine mounted once at the app shell
+  (`WalkthroughHost`). Each screen with a walkthrough makes one `useWalkthroughScreen(key, ready,
+  hold)` call; features raise `signal('<name>')` when something a hands-on step waits on has
+  finished; nothing polls. A definition is data in a `*walkthroughs.ts` file beside its feature
+  (found by `registry.ts`), and each step points at a `data-walk` tag. The highlight is the
+  engine's own layer (`components/Highlight.tsx`), placed inside the open modal dialog when there
+  is one, because a layer in `body` sits under a native dialog. A walkthrough whose place has
+  `{practice}` always plays on the practice assessment.
+  - **What a step can ask for** (`types.ts`): a tag ending in `?` is lit only where it is on the
+    screen (table headings a phone layout leaves out); `apart` gives each tag its own cut-out
+    (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
+    show whole. Before a step shows, its target is scrolled into view through every scroll
+    container round it and clear of any pinned bar over its edge.
+  - **Back** is greyed where the step before cannot show again: it was hands-on or waited on AI,
+    or this step opened something.
+  - **A used-up practice assessment** (the one amber observation already confirmed, the sample
+    walk already created): when a hands-on walkthrough cannot find its target there, the engine
+    resets the practice assessment and plays the walkthrough again, once. Reset, Remove and
+    "Set it up again" raise `practice-changed`, and the assessments list reads itself again.
+  - **Unsaved work**: a screen passes `hold: 'unsaved'` while it has any. A walkthrough that
+    would have to leave that screen does not start; MarshBot says it will wait.
+  - **A slow try-it** (`fail.slow`): a waiting step that has waited longer than its limit ends
+    with its own line (the site walk: 90 s) and the AI's work carries on.
+  - **The site walk try-it** learns its walk is ready from the assessment's event stream (the
+    MarshBot re-check that follows reading pushes), then reads the walk once. The recorder's own
+    5 s re-read still stops at Finish walk, as before.
+- **Help tips** (F-13): `HelpTip` in the design system is the one (?) button and popover;
+  `features/help/Tip.tsx` adds the tip's fixed text (`features/help/tips.ts`), its roles and the
+  "Show me" link, which replays a walkthrough through the engine.
+
