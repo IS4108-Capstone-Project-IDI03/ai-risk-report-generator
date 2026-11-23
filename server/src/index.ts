@@ -19,6 +19,7 @@ import commentRoutes from './routes/comment.routes'
 import askRoutes from './routes/ask.routes'
 import dictationRoutes from './routes/dictation.routes'
 import proposalRoutes from './routes/proposal.routes'
+import weatherRoutes from './routes/weather.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import assistantRoutes from './routes/assistant.routes'
@@ -101,6 +102,9 @@ app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
 // Dictating into an assessment's text fields (CP-27).
 app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
+// The site's weather (CP-62). An open panel refreshes it every 10 minutes, so reading it doesn't
+// refresh the session (F-07), as for MarshBot's brief.
+app.use('/api/assessments/:reference/weather', requireAuthNoRefresh, weatherRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)

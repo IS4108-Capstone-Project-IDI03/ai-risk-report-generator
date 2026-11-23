@@ -33,6 +33,21 @@ export function piiCheckAnswersFrom(value: string | undefined): boolean {
   throw new Error(`PII_CHECK_ANSWERS must be on or off, not "${value}"`)
 }
 
+// A number from the environment, or the fallback when unset. Anything that is not a number in
+// range throws, so a typo can't leave a weather warning silently off (CP-62).
+export function numberFrom(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  range: { min: number; max: number },
+): number {
+  if (value === undefined || value.trim() === '') return fallback
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < range.min || n > range.max)
+    throw new Error(`${name} must be a number from ${range.min} to ${range.max}, not "${value}"`)
+  return n
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   mongodbUri: requireEnv('MONGODB_URI'),
@@ -63,6 +78,28 @@ export const config = {
   // must be restricted to this app's domain in the Google console. Optional:
   // without it the map says so, and coordinates and directions still work.
   googleMapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || undefined,
+  // Site weather before a visit (CP-62). The key is Google's Geocoding and Weather APIs', used by
+  // the gateway alone and never sent to a browser: restrict it to those two APIs and the
+  // server's IP. Optional: without it the weather panel says weather is unavailable. The
+  // thresholds decide the panel's warnings and are the server's, so every screen agrees.
+  weather: {
+    key: process.env.GOOGLE_MAPS_SERVER_KEY || undefined,
+    // Rain at or above this rate (mm/h), now or in an hour forecast, counts as rain, whatever
+    // the condition is called.
+    rainingMmPerHour: numberFrom(
+      'WEATHER_RAINING_MM_PER_HOUR',
+      process.env.WEATHER_RAINING_MM_PER_HOUR,
+      0.5,
+      { min: 0, max: 100 },
+    ),
+    // A chance of rain at or above this (%) in the next 2 hours shows "Rain expected".
+    rainExpectedPercent: numberFrom(
+      'WEATHER_RAIN_EXPECTED_PERCENT',
+      process.env.WEATHER_RAIN_EXPECTED_PERCENT,
+      50,
+      { min: 0, max: 100 },
+    ),
+  },
   piiProtection: piiProtectionFrom(process.env.PII_PROTECTION),
   piiCheckAnswers: piiCheckAnswersFrom(process.env.PII_CHECK_ANSWERS),
   // The Chromium the report export prints with (EX-01). Unset, the gateway

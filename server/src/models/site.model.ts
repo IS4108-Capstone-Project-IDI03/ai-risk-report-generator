@@ -11,6 +11,14 @@ export interface IBlockPin extends ICoordinates {
   name: string
 }
 
+export interface IGeocode {
+  address: string
+  found: boolean
+  lat?: number
+  lng?: number
+  at: Date
+}
+
 export interface ISite {
   code: string
   name: string
@@ -24,6 +32,11 @@ export interface ISite {
   // than a visit because buildings don't move. `key` is the lowercased name, so
   // "Block A" on a later visit finds the same pin. Levels and rooms have none.
   blockPins?: IBlockPin[]
+  // Where its address was found on the map (CP-62), for its weather. Kept with the address it was
+  // looked up from, so a corrected address is looked up again; `found: false` when the geocoder
+  // knew no such place, so it isn't asked again for the same words. Absent until first looked
+  // up. An engineer's own `coordinates` win over it.
+  geocode?: IGeocode
   // The client it belongs to (CP-17). Every site created since has one; one
   // created before gets it from `npm run migrate:clients`.
   client?: Types.ObjectId
@@ -90,6 +103,19 @@ const siteSchema = new Schema<ISite>(
           ...coordinateFields,
         },
       ],
+      default: undefined,
+    },
+    geocode: {
+      type: new Schema(
+        {
+          address: { type: String, required: true },
+          found: { type: Boolean, required: true },
+          lat: Number,
+          lng: Number,
+          at: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
       default: undefined,
     },
     client: { type: Schema.Types.ObjectId, ref: 'Client', index: true },

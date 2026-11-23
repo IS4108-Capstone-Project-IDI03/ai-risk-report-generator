@@ -119,6 +119,13 @@
   `listObservations`: read observations through it, never around it. See
   docs/areas/database.md and docs/areas/services.md, "Reading an observation".
 
+- The site's weather (CP-62) is read from Google only by the gateway
+  (`site-weather.service.ts`, `weather-provider.ts`) with `GOOGLE_MAPS_SERVER_KEY`, which never
+  reaches a browser (unlike `GOOGLE_MAPS_BROWSER_KEY`), at most once per site every 10 minutes. It
+  is advisory: never block capture or Save on it, and never show a reading the gateway couldn't
+  refresh as current. A geocoded address is kept on the site as `geocode`, never in
+  `coordinates`, which only an engineer sets. See docs/areas/services.md, "Site weather".
+
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.
      Add entries here as they happen, not speculatively. -->
