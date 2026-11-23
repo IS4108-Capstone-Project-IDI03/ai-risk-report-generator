@@ -1,12 +1,13 @@
 // Background work (F-11) through GET /api/background-work: which of the user's
 // long-running jobs are listed, with what state and progress, and where each
 // row links to.
-import type { Types } from 'mongoose'
+import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
+import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { signedInAs } from './auth-test-helpers'
-import { REF, assessment, people } from './generation-fixtures'
+import { REF, assessment, observation, people } from './generation-fixtures'
 import { useMemoryMongo } from './memory-mongo'
 
 useMemoryMongo()
@@ -114,6 +115,112 @@ describe('site walks', () => {
     const { id: assessmentId } = await assessment(engineer._id)
     for (const status of ['recording', 'ready', 'created'])
       await walk(assessmentId, engineer._id, { status })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+})
+
+describe('observations', () => {
+  it('a voice note being transcribed shows as one AI call, timed from its attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      { $set: { 'recordings.0.transcription.attempts.0.startedAt': since } },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'voice-note',
+        state: 'running',
+        title: 'Voice note',
+        context: { label: 'Jurong Cold Store', reference: REF },
+        progress: { type: 'working', stage: 'Transcribing' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  it('a voice note whose transcription failed shows the reason and how to try again', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          'recordings.0.transcription.status': 'failed',
+          'recordings.0.transcription.error': 'The recording has no speech in it.',
+        },
+      },
+    )
+    const recordingId = saved.recordings[0]._id
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'voice-note',
+        state: 'failed',
+        error: expect.any(String),
+        retry: {
+          method: 'POST',
+          url: `/api/observations/${saved._id}/recordings/${recordingId}/transcription/retry`,
+        },
+      }),
+    ])
+  })
+
+  it('a handwritten page being transcribed shows as one AI call, timed from its attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          pages: [
+            {
+              _id: new Types.ObjectId(),
+              name: 'Page 1',
+              key: 'pages/p1.jpg',
+              contentType: 'image/jpeg',
+              size: 3,
+              transcription: { status: 'transcribing', attempts: [{ startedAt: since }] },
+            },
+          ],
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'handwriting',
+        state: 'running',
+        title: 'Page 1',
+        progress: { type: 'working', stage: 'Reading handwriting' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since listObservationsOf leaves drafts out (CP-24).
+  it("a draft observation's voice note is not listed", async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    await ObservationModel.collection.updateOne({ _id: saved._id }, { $set: { draft: true } })
 
     const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
 
