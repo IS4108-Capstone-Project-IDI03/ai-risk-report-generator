@@ -2779,3 +2779,29 @@ Rejected:
 Known limits: a change reaches reports already indexed only when they are re-run. An admin can still allow a real surname that isn't a recorded user (the log names who). The Masked in reports kind comes from the tag, so a value tagged two ways shows the first.
 
 Stories: PV-09, PV-05, PV-01, PV-02, PV-03, S-01.
+
+## 2026-11-23 — A site's weather is read by the gateway alone, at the engineer's pin or the geocoded address, and only advises
+
+- (CP-62) The Overview, New Observation and each Assessments row with a survey day today show the site's weather now (rain or no rain, rainfall in mm/h, temperature) and the rain forecast for the next 2 hours, with one warning: a thunderstorm (solid red, an alert), rain now ("Raining at site – do not proceed with outdoor or below-ground inspection."), or rain expected (amber). Every warning names Google Weather and says it is advisory. Nothing is blocked: engineers record at their desk too.
+- **Provider: Google.** The Weather API (current conditions and the hourly forecast) and the Geocoding API, with one server key, `GOOGLE_MAPS_SERVER_KEY`, kept apart from the browser key, which browsers can read. The team's Maps project already has billing, and the Weather API covers every country but Japan and Korea. Only `weather-provider.ts` calls it; `site-weather.service.ts` decides what counts.
+- **Where: the engineer's pin first, else the address.** A site's `coordinates` (CP-26) are an engineer's own point, so they win. Otherwise the address is geocoded on the first weather read and kept on the site as `geocode`, with the address it came from, so a correction (CP-18) is looked up again. It is never written into `coordinates`, which the map and directions treat as the engineer's. A result that is only a country or state counts as not found, and the panel asks for the address rather than guessing. A geocoder that can't be reached gives "Weather unavailable", not "add the address".
+- **A pin without an address still gets weather.** AC1 says a site with no address shows "Add the site address to see weather"; a pinned site isn't a guess, so it reads at the pin. Easy to change in `locate`.
+- **Geocoding is lazy**, on the first weather read rather than at create or correct, so sites made before CP-62 need no migration and the create and correct paths are unchanged.
+- **What counts is set in `.env`**, so every screen agrees: rain now is a rain, hail or thunder condition, or rain at or above `WEATHER_RAINING_MM_PER_HOUR` (0.5); rain expected is an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT` (50) or that rate; thunder is a condition with thunder, or, ahead, a thunder chance at that percent. A typo in either value stops the gateway at start, so a warning can't be silently off.
+- **Readings are kept in memory per site for 10 minutes** (AC5): assessments at one site share them, reads at the same moment share one call, and a failure isn't retried for 30 seconds. Not Redis: one gateway runs, and a restart costs one call per site. The last good reading's time is kept for "Weather unavailable" (AC6); the page also remembers its own, for after a gateway restart.
+- **Refresh asks the gateway at once, which still answers from its 10-minute copy.** AC5 caps calls at one per site every 10 minutes, so a Refresh inside them returns the same reading with its time; after them it reads afresh. The panel reads by itself 10 minutes after each answer, skips a turn while the tab is hidden and reads as soon as it is shown again.
+- **The route doesn't refresh the session** (`requireAuthNoRefresh`), as MarshBot's brief doesn't: an open panel reading every 10 minutes must not keep an idle session alive (F-07).
+- **A dashboard row shows a line, not the panel**: one row of words under the reference, red for rain or a storm now and amber for rain expected, refreshing itself. The warning's full text and Refresh are on the Overview, a tap away. "Today" is the browser's calendar day, as the list's other date filters are.
+
+Reason: engineers were setting off for roofs, yards and basements without checking the weather at the site. The site's address and the map pin from CP-26 already say where to look, and Google's Maps project already exists.
+
+Rejected:
+- Calling the weather API from the browser with the browser key: the key would be readable and every viewer would spend calls (AC5).
+- Open-Meteo: free but non-commercial without a paid key, and its geocoder finds places, not street addresses. NEA's data.gov.sg feeds cover Singapore only, and sites are in Malaysia and the UK too. OpenWeatherMap's geocoder also finds cities, not addresses.
+- Writing the geocoded point into `coordinates`: it would appear as an engineer's pin on the map and in directions, and a later correction couldn't tell the two apart.
+- Blocking capture or Save while it rains (AC4).
+- Letting Refresh skip the cache: one press per engineer per minute would break AC5's limit.
+
+Known limits: Google has no minute-by-minute forecast, so "Now" is the current hour's forecast and the rainfall is the last hour's. The 2 hours are whole forecast hours, so up to three are shown. Readings are forgotten on a restart. An address in a building complex is placed at the complex, which is fine for weather (a few kilometres) but not for directions.
+
+Stories: CP-62, CP-26, CP-18, F-07.

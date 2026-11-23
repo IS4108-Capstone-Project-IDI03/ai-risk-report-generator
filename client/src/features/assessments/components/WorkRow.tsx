@@ -1,6 +1,7 @@
 // One assessment on the Assessments list (CP-23, boards 03 and 04): type tile,
-// reference (with its priority mark, AS-07), Type, Survey date, Stage, Report due, and on
-// hover Archive and an open chevron. A table row wide, a stacked card on a phone (assessment-list.css).
+// reference (with its priority mark, AS-07, and the site's weather on a visit day, CP-62), Type,
+// Survey date, Stage, Report due, and on hover Archive and an open chevron. A table row wide, a
+// stacked card on a phone (assessment-list.css).
 // Used by screens/Dashboard and ClientGroup. Calls the design system's kit.
 import {
   AssessmentTypeTile,
@@ -14,6 +15,8 @@ import { PriorityMark } from '../../marshbot/PriorityMark'
 import { rowStage, STATUS_LABEL } from '../format'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { typeName } from '../workList'
+import { RowWeather } from '../weather/RowWeather'
+import { visitToday } from '../weather/weatherWords'
 
 export type WorkRowData = AssessmentWorkflow['filteredRows'][number]
 
@@ -40,6 +43,10 @@ export function WorkRow({
   // Finished work shows its due date alone, never "late".
   const finished = r.status === STATUS_LABEL.finalised || r.status === STATUS_LABEL.archived
   const changed = assign?.changed === r.id
+  // A saved assessment still in progress whose site visit is today shows the site's weather
+  // (CP-62), so the engineer sees rain before setting off.
+  const weather =
+    !!r.persisted && !finished && visitToday(r.siteVisitDate, r.record?.siteVisitEndDate)
   return (
     // The whole row opens it for a mouse; the reference button is the keyboard's way in.
     <div className="at-row" data-id={r.id} data-changed={changed ? '' : undefined} onClick={onOpen}>
@@ -74,6 +81,7 @@ export function WorkRow({
               {r.client + ' › ' + r.site}
             </span>
           )}
+          {weather && <RowWeather reference={r.id} />}
         </span>
       </span>
       <span className="at-meta">

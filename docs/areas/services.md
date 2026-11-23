@@ -1527,6 +1527,57 @@ so it adds no endpoint, collection or model call.
 - **New assessment on a day** opens the New Assessment form (CP-23) with that day as the first
   assessment's survey start; nothing is created until the form is.
 
+## Site weather (gateway, CP-62)
+
+Whether it is raining or stormy at an assessment's site now, and whether rain is expected in the
+next 2 hours, so an engineer doesn't set off for an outdoor or below-ground inspection in it. It is
+advisory: nothing is blocked. Shown on the Overview (a bar above MarshBot's conversation), on New
+Observation (a card above the form) and on each Assessments row whose survey days include today.
+
+- **Route:** `GET /api/assessments/:reference/weather` (`routes/weather.routes.ts`,
+  `assessments:view`), mounted with `requireAuthNoRefresh`: the panel reads it every 10 minutes and
+  must not keep an idle session alive (F-07). 404 for an unknown assessment; `Cache-Control: no-store`.
+  It answers 200 with one of:
+  - `{ status: 'ok', reading, source }`: `reading` holds `observedAt`, `fetchedAt`, `timeZone` (the
+    site's IANA zone), `condition` (the provider's words), `raining`, `thunder`,
+    `rainfallMmPerHour`, `temperatureC`, `forecast` (`hours` that overlap the next 2 hours, each with
+    `chancePercent`, `rainfallMm`, `rain`, `thunder`; and `rainExpected`, `thunderExpected`) and
+    `located` (`pin` or `address`); `source` is `{ name: 'Google Weather', url }`.
+  - `{ status: 'no-address', address }`: no address and no pin (`address: null`), or an address the
+    geocoder can't place (the address). The panel says "Add the site address to see weather".
+  - `{ status: 'unavailable', lastReadingAt, timeZone, source }`: the geocoder or the weather API
+    couldn't be reached, timed out (8 s) or refused. Never a reading.
+  - `{ status: 'unconfigured' }`: no `GOOGLE_MAPS_SERVER_KEY`.
+- **Where** (`site-weather.service.ts` `locate`): the site's own `coordinates` (the engineer's pin,
+  CP-26) when set; otherwise its `address`, geocoded once (`weather-provider.ts` `geocodeAddress`,
+  Google's Geocoding API with the jurisdiction as `region`) and kept on the site as `geocode`. A
+  result that is only a country or a state counts as not found. The look-up happens on the first
+  weather read, so sites made before CP-62 need nothing run, and a corrected address (CP-18) is
+  looked up again because `geocode.address` no longer matches.
+- **Reading** (`readWeather`): Google's Weather API, `currentConditions:lookup` and
+  `forecast/hours:lookup?hours=3`, in metric. Its current `precipitation.qpf` is the last hour's
+  rain, shown as mm/h.
+- **What counts** (`judge`, thresholds in `.env`, so every screen agrees):
+  - Raining: a rain, hail or thunder condition (`RAIN_TYPES`; `CHANCE_OF_SHOWERS` is not rain), or
+    rain at or above `WEATHER_RAINING_MM_PER_HOUR` (default 0.5; 0 means any).
+  - Thunder: a condition whose type contains `THUNDER`.
+  - Rain expected: an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT`
+    (default 50), or rain at or above the mm/h threshold. Thunder expected: a thunder condition, or a
+    thunder chance at or above the same percent.
+- **Kept** in memory per site for 10 minutes (`WEATHER_CACHE_MS`), so assessments at one site share
+  a reading and the provider is called at most once per site in that time; reads at the same moment
+  share one call. After a failure the provider isn't asked again for 30 seconds
+  (`WEATHER_RETRY_MS`). The last good reading's time is kept for `unavailable`. A restart forgets
+  them all, at the cost of one call per site.
+- **Browser** (`client/src/features/assessments/weather/`): `useSiteWeather.ts` reads on open, 10
+  minutes after each answer and on Refresh; a hidden tab skips its turn and reads when shown, and the
+  clock ticks each minute so a reading over 30 minutes old is labelled Stale. A failed read shows
+  "Weather unavailable" with the last good reading's time, never the old reading. Refresh asks the
+  gateway at once, which still answers from its 10-minute copy. `weatherWords.ts` words it and picks
+  the one warning, strongest first: a thunderstorm (`role="alert"`), rain now, then rain expected
+  (`role="status"`), each naming the source and that it is advisory. Times are in the site's zone.
+  `SiteWeatherPanel.tsx` is the panel (bar or card), `RowWeather.tsx` an Assessments row's line.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for

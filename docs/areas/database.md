@@ -303,6 +303,15 @@ with the locations. They reach no report or AI call either. Sending them needs t
 assigned engineer; `coordinates: null` on `PATCH` clears them, and leaving it out
 keeps them.
 
+A site may also have `geocode: { address, found, lat, lng, at }` (CP-62): where its address was
+found on the map, for its weather. The gateway writes it the first time the site's weather is read,
+and only while the site still has that `address`; `found: false` (no `lat`, `lng`) when the
+geocoder knew no such place, or only its country or state, so the same words aren't looked up
+again. A corrected address no longer matches `geocode.address`, so it is looked up afresh. It is
+kept apart from `coordinates`, which only an engineer sets and which win over it. Neither reaches a
+report or an AI call. `GET /api/assessments/:reference/weather` (`assessments:view`) answers the
+site's weather; see docs/areas/services.md, "Site weather".
+
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a
 colleague can't see the removed one); a restore then needs a new name.

@@ -1033,6 +1033,22 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 21 Nov 2026 on `feat/xuren-cp-61-building-stack` (DECISIONS 2026-11-21), from a clickable mock. A second view of the Observations tab, client only: no new collection, endpoint or model call. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Beyond the idea as first written: the panel's list of locations with nothing recorded (AC4, AC8), and stronger severity fills than the app's 50 tints, since Critical's and High's are the same pink. `npm --prefix server run seed:cp61` adds a demo site with several levels to try it on. Not in this story: a floor plan, pins, dragging an observation to another location, and the stack in the report.
   </details>
 
+- [ ] **CP-62** — Site weather check before a site visit (risk engineer, 3 pts, deps: CP-26, CP-18, CP-23, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see the current weather and short-term rain forecast at the assessment site, so that I know not to head down to the site while it is raining or stormy, and can plan the visit for a safer time.
+
+  1. Site coordinates: when an assessment's site has an address, the gateway geocodes it and stores latitude and longitude on the site. If there is no address, or geocoding fails, the weather panel says "Add the site address to see weather" instead of guessing.
+  2. Weather display: the assessment overview, the Site observation screen and dashboard rows with a site visit today show the site's current conditions: rain or no rain, rainfall (mm/h), temperature, and the rain forecast for the next 2 hours.
+  3. Rain warning: if it is raining at the site, a warning banner says "Raining at site – do not proceed with outdoor or below-ground inspection." If thunderstorms or lightning are reported, a stronger warning appears. If rain is forecast in the next 2 hours, an amber "Rain expected" notice appears. The rain thresholds can be changed in config.
+  4. Advisory only: the banner names the data source and says it is advisory. It doesn't block capture, because engineers may also record observations at their desk.
+  5. Gateway-only access: the weather API is called only by the gateway (`GET /api/assessments/:reference/weather`). The API key lives in the server's `.env` and never reaches the browser. Results are cached for 10 minutes per site.
+  6. Freshness: every reading shows a "last updated" time in the site's local time. A reading older than 30 minutes is labelled stale. If the provider can't be reached, the panel says "Weather unavailable", shows when the last successful reading was taken, and never presents an old reading as current.
+  7. Refresh: the panel refreshes on its own every 10 minutes while open, and has a manual refresh button that's at least 44px tall, in line with the design system's glove-sized targets.
+
+  Built 23 Nov 2026 on `feature/josiah-cp-62` (DECISIONS 2026-11-23), without a board. Google's Weather and Geocoding APIs through a new server key, `GOOGLE_MAPS_SERVER_KEY`; the thresholds are `WEATHER_RAINING_MM_PER_HOUR` and `WEATHER_RAIN_EXPECTED_PERCENT`. Beyond the story as written: an engineer's pin on the site map (CP-26) is used before the address, so a pinned site with no address still gets weather (AC1 asks for the address only when there is neither). Refresh asks the gateway at once, but within 10 minutes the gateway answers from its copy (AC5). Added as a new story (not in the vetted sheet); 3 points is the builder's estimate. Not in this story: weather in the report, alerts or notifications when rain starts, wind and heat warnings, and a forecast beyond 2 hours.
+  </details>
+
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
   <details><summary>Goal / AC</summary>
 

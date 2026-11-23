@@ -120,6 +120,13 @@ this key, so in the Google Cloud console restrict it to the Maps JavaScript API,
 the Geocoding API (CP-26's address while tracking) and this app's HTTP referrer. Set a budget alert too. Without a key the map says
 it's unavailable; coordinates and directions still work.
 
+For the site weather panel (CP-62), set `GOOGLE_MAPS_SERVER_KEY`: a second key, used by the
+gateway alone and never sent to a browser. In the same Google Cloud project, enable the Weather API
+and the Geocoding API, restrict this key to those two APIs and to the Elastic IP the gateway calls
+out from, and set a budget alert. The panel's rain thresholds are `WEATHER_RAINING_MM_PER_HOUR` and
+`WEATHER_RAIN_EXPECTED_PERCENT` (see `.env.example`); a change needs a restart of `server`. Without
+the key the panel says weather is unavailable and nothing else changes.
+
 On the box, check: Atlas `MONGODB_URI`, `CHROMA_MODE=cloud` plus credentials,
 AWS keys empty, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `OCR_PROVIDER=anthropic`.
 
