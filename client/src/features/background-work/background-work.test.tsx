@@ -1,8 +1,8 @@
 // Background work (F-11): the header's activity icon and its popover, against
 // a stubbed GET /api/background-work.
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityButton } from './components/ActivityButton'
 import type { BackgroundWorkRow } from './api'
 
@@ -73,5 +73,118 @@ describe('the activity icon', () => {
     const button = await screen.findByRole('button', { name: 'Background work, 1 running' })
     // Red counts are the Inbox's and the bell's (design system).
     expect(button.querySelector('.notif-badge')).toBeNull()
+  })
+})
+
+// Opens the popover over these rows; returns it.
+async function openWith(rows: BackgroundWorkRow[]) {
+  serve(rows)
+  render(<ActivityButton />)
+  fireEvent.click(await screen.findByRole('button', { name: /^Background work/ }))
+  return screen.findByRole('dialog', { name: 'Background work' })
+}
+
+describe('the popover', () => {
+  it('lists each job with what it belongs to', async () => {
+    const popover = await openWith([walk])
+
+    const row = within(popover).getByRole('listitem')
+    expect(within(row).getByText('Morning walk')).toBeInTheDocument()
+    expect(within(row).getByText('Jurong Cold Store')).toBeInTheDocument()
+  })
+
+  it('shows a document being ingested by its stage, with a bar of the real pages done', async () => {
+    const popover = await openWith([
+      {
+        id: 'ingestion:d1',
+        kind: 'ingestion',
+        state: 'running',
+        title: 'FM 8-9',
+        context: { label: 'Knowledge base' },
+        progress: {
+          type: 'count',
+          current: 12,
+          total: 40,
+          unit: 'pages',
+          stage: 'Chunking',
+          step: 2,
+          steps: 3,
+        },
+        href: '/admin/knowledge-base',
+      },
+    ])
+
+    expect(within(popover).getByText('Stage 2 of 3 · Chunking')).toBeInTheDocument()
+    expect(within(popover).getByText('12 of 40 pages')).toBeInTheDocument()
+    expect(within(popover).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30')
+  })
+
+  it('shows recordings or parts as one segment each, with the real count', async () => {
+    const popover = await openWith([walk])
+
+    expect(within(popover).getByText('recordings')).toBeInTheDocument()
+    const segments = popover.querySelectorAll('.ds-seg')
+    expect([...segments].map((s) => s.getAttribute('data-state'))).toEqual(['done', 'working'])
+    expect(within(popover).queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  describe('timed by the minute', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-24T09:03:20Z'))
+    })
+    afterEach(() => vi.useRealTimers())
+
+    it('shows one AI call as working, with its step and how long it has run', async () => {
+      const popover = await openWith([
+        {
+          ...walk,
+          id: 'reading:o1',
+          kind: 'reading',
+          title: 'Observation',
+          progress: { type: 'working', stage: 'Describing photos' },
+          startedAt: '2026-11-24T09:00:00Z',
+        },
+      ])
+
+      expect(within(popover).getByRole('img', { name: 'Working' })).toBeInTheDocument()
+      expect(within(popover).getByText('Describing photos · 3 min')).toBeInTheDocument()
+      expect(within(popover).queryByRole('progressbar')).not.toBeInTheDocument()
+    })
+
+    it('says a queued job is queued, and for how long', async () => {
+      const popover = await openWith([
+        {
+          ...walk,
+          state: 'queued',
+          progress: { type: 'working', stage: 'Queued' },
+          startedAt: '2026-11-24T09:00:00Z',
+        },
+      ])
+
+      expect(within(popover).getByText('Queued · 3 min')).toBeInTheDocument()
+    })
+  })
+
+  it('puts what waits on you first, under its own heading, saying what to do', async () => {
+    const decision: BackgroundWorkRow = {
+      id: 'document-decision:d2',
+      kind: 'document-decision',
+      state: 'waiting_on_you',
+      title: 'Site guide',
+      context: { label: 'Knowledge base' },
+      progress: { type: 'working', stage: 'Choose its source type' },
+      href: '/admin/knowledge-base',
+    }
+    const popover = await openWith([walk, decision])
+
+    const groups = within(popover).getAllByRole('group')
+    expect(groups.map((g) => g.getAttribute('aria-label'))).toEqual([
+      'Waiting on you',
+      'In progress',
+    ])
+    expect(within(groups[0]).getByText('Site guide')).toBeInTheDocument()
+    expect(within(groups[0]).getByText('Choose its source type')).toBeInTheDocument()
+    expect(within(groups[1]).getByText('Morning walk')).toBeInTheDocument()
   })
 })

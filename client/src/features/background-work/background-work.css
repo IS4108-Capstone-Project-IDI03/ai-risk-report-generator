@@ -36,3 +36,77 @@
     animation: dsPulse 1.6s ease-in-out infinite;
   }
 }
+
+/* The popover's groups: a quiet label over each, so "Waiting on you" reads first. */
+.bgw-group + .bgw-group {
+  border-top: 1px solid var(--border-default);
+}
+.bgw-group__name {
+  margin: 0;
+  padding: var(--space-5) var(--space-6) var(--space-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--weight-semibold);
+}
+
+/* One job, as a bell row is: same padding, divider and type sizes. */
+.bgw-row {
+  padding: 10px var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bgw-row:last-child {
+  border-bottom: 0;
+}
+.bgw-row__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bgw-row__title {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.bgw-row__context {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How far it has got, under the names. Counts use tabular figures so they
+   don't jitter as they climb. */
+.bgw-progress {
+  margin-top: var(--space-4);
+}
+.bgw-progress__count {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.bgw-progress__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+/* The segment bar's own label is sized for a page header; a row's is smaller. */
+.bgw-progress .ds-segbar {
+  gap: var(--space-5);
+}
+.bgw-progress .ds-segbar-label {
+  font-size: 12px;
+  line-height: 16px;
+}
