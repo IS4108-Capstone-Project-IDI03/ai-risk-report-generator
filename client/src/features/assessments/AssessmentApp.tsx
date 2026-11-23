@@ -14,6 +14,7 @@ import {
 } from '../../design-system'
 import type { Session } from '../auth/api'
 import { can } from '../auth/access'
+import { ActivityButton } from '../background-work/components/ActivityButton'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { useNotificationCounts } from '../notifications/useNotificationCounts'
 import { Inbox } from '../inbox/screens/Inbox'
@@ -163,7 +164,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   logoSrc={marshLogo}
                   onMenu={v.toggleNav}
                   alert={{ count: inboxTodo, label: `${inboxTodo} to do in Inbox` }}
-                  bell={<NotificationBell tone="dark" />}
+                  bell={
+                    <>
+                      <ActivityButton tone="dark" />
+                      <NotificationBell tone="dark" />
+                    </>
+                  }
                   back={
                     captureOnPhone
                       ? {
@@ -339,7 +345,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {/* Desktop has no top bar, so the bell lives in the page
                         header. On phones the navy bar carries it instead, so
                         this copy is suppressed to avoid a second one. */}
-                        {!v.showTopBar && !v.routeBlocked && <NotificationBell />}
+                        {!v.showTopBar && !v.routeBlocked && (
+                          <>
+                            <ActivityButton />
+                            <NotificationBell />
+                          </>
+                        )}
                       </div>
                     </div>
                     {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
@@ -394,7 +405,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             : 'Administration'
                         }
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -402,7 +420,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <Dashboard
                         v={v}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -414,7 +439,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         onCreated={v.newAssessment.onCreated}
                         onView={v.newAssessment.onView}
                         onLeave={v.cancelForm}
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -427,7 +459,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {...v.clientList}
                         onStart={v.canEdit ? v.goCreate : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -436,7 +475,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {...v.calendar}
                         onStart={v.canEdit ? v.calendar.onStart : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -444,7 +490,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <ClientPage
                         {...v.clientPage}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 

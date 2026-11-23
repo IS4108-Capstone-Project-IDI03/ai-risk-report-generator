@@ -1,0 +1,38 @@
+/* The header's activity icon (F-11), sized and coloured as the bell is. */
+.activity-button {
+  position: relative;
+}
+.activity-button--light {
+  color: var(--text-primary);
+}
+.activity-button--dark {
+  color: #fff;
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  --surface-selected: rgba(255, 255, 255, 0.16);
+}
+
+/* Work running: a thin arc turns around the icon. One quiet, continuous motion:
+   it says "still going" without asking to be looked at. */
+.activity-button--working::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: currentColor;
+  opacity: 0.55;
+  animation: dsSpin 1.2s linear infinite;
+  pointer-events: none;
+}
+
+/* Something failed: the icon itself turns the error colour (red is for error
+   words and their icon only). */
+.activity-button--failed > [role='presentation'] {
+  background-color: var(--red-600) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-button--working::after {
+    animation: dsPulse 1.6s ease-in-out infinite;
+  }
+}
