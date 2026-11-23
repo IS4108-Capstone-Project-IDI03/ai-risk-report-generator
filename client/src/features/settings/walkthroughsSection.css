@@ -7,7 +7,13 @@
   flex-direction: column;
   gap: 20px;
   max-width: 880px;
-  padding: 24px 0;
+  /* 12 px on top, not 24: the switch row is 44 px tall round a 20 px switch, so its own 12 px of
+     slack makes the space above the switch 24 px, the same as the space under the last card. */
+  padding: 12px 0 24px;
+}
+/* The same slack under the switch: pull the list up so it sits 24 px below it, not 32. */
+.wts > .st-switch-row {
+  margin-bottom: -8px;
 }
 /* The practice assessment: its own card, set apart from the list above it. */
 .wts-practice {
