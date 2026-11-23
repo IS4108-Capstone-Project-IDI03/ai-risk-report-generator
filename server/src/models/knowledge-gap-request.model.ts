@@ -13,6 +13,9 @@ export interface IKnowledgeGapRequest {
   status: GapRequestStatus
   // Set when filled: the knowledge documents the admin says answer it.
   documentIds?: Types.ObjectId[]
+  // Documents an admin uploaded for it while it is open, so the asker can
+  // follow their ingestion (F-11). Filling it is still the admin's choice.
+  incomingDocumentIds?: Types.ObjectId[]
   // Set when dismissed.
   reason?: string
   closedBy?: Types.ObjectId
@@ -28,6 +31,7 @@ const knowledgeGapRequestSchema = new Schema<IKnowledgeGapRequest>(
     askedBy: { type: Schema.Types.ObjectId, required: true },
     status: { type: String, enum: GAP_REQUEST_STATUSES, default: 'open' },
     documentIds: { type: [Schema.Types.ObjectId], default: undefined },
+    incomingDocumentIds: { type: [Schema.Types.ObjectId], default: undefined },
     reason: { type: String, trim: true, maxlength: 500 },
     closedBy: { type: Schema.Types.ObjectId },
     closedAt: { type: Date },

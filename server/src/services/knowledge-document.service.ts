@@ -157,7 +157,11 @@ export type DocumentDetails = z.infer<typeof documentDetailsSchema>
 
 // An upload asks for nothing but the file's name (IN-05 replaces IN-01 AC1).
 // It arrives in the query string because the request body is the PDF itself.
-export const uploadQuerySchema = z.object({ fileName: text('File name', 255) })
+export const uploadQuerySchema = z.object({
+  fileName: text('File name', 255),
+  // The open knowledge request it is uploaded for (F-11), if any.
+  requestId: z.string().optional(),
+})
 
 // Who publishes each source type; the admin never types it. A local standard
 // has no fixed publisher: its issuing body is a detail of each document.
