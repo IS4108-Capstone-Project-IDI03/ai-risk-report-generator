@@ -2848,3 +2848,23 @@ Rejected:
 - Treating every unpaired observation as New when a draft finding already covers it: one issue would be listed twice.
 
 Stories: RV-13, CP-23, RV-02, RV-08, GN-05, PV-02, CP-24.
+
+## 2026-11-24 — Background work is one gateway list, polled by an activity icon beside the bell, showing only measured progress
+
+- (F-11) Engineers and admins see their long-running jobs in one place: site walk transcription and proposals, voice notes and handwritten pages, photo readings and suggestions, drafting, ingestion, documents waiting on an admin, and documents uploaded for their own knowledge request. An activity icon beside the bell appears only while something is queued, running, failed or waiting on them, and opens a popover of rows; each row opens its job.
+- **One gateway list, read from MongoDB.** Every job already records its state in its own collection, and BullMQ removes a job from Redis once it finishes, so Redis can't say what ran. `background-work.service.ts` reads each collection once per poll and gives every job the same row shape.
+- **Progress only where it is measured.** Pages and OCR regions are a bar with the real count; recordings and drafting parts are one segment each; a single AI call (a proposal, a description, a transcription, one section) is a working mark with its minutes. Nothing shows an estimated percentage.
+- **Polled, not pushed.** The ingestion worker writes its progress straight to MongoDB, so the gateway never hears of it; a push would mean every job, the Python worker included, telling the gateway. The icon reads every 5 seconds while work runs and every 30 seconds otherwise, not while the tab is hidden, on a route that does not refresh the session (F-07). The plan's "ride the bell's 10-second tick" was dropped: that tick fires only when a notification count moves, and new work usually starts from the person's own action.
+- **No queue position.** Showing one would mean reading BullMQ's waiting lists for the gateway's queues and the ingestion worker's, which `job-queue.service.ts` doesn't expose; a queued row says how long it has waited instead.
+- **A document can be uploaded for a request.** The asking engineer could not see that an admin had started on it: a request only gained documents when filled, after ingestion. Uploading from the request records the document in the request's `incomingDocumentIds` and leaves it open; the engineer's row shows its ingestion.
+- **A popover, not a page.** A row is a link to where the job lives, which fits a popover; the bell already sets the pattern. No count badge, since red counts are the Inbox's and the bell's.
+- **Drafting has no Try again in the popover.** Drafting a failed part again means a new run, which drafts what the drafting tab's checkpoint offers; the row opens that tab.
+
+Rejected:
+- A server-sent-events channel per user: needs every job type, the ingestion worker included, to publish.
+- One combined bar for all work: pages, recordings and parts can't be added together.
+- A full page listing every engineer's work for admins: a glance is what's needed; Assessments already lists every engineer's assessments.
+
+Known limits: a job whose worker died still shows as running; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
+
+Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.
