@@ -623,4 +623,70 @@ describe('knowledge admins', () => {
 
     expect(res.body.rows).toEqual([])
   })
+
+  it('a document whose source type could not be told is waiting on the admin', async () => {
+    const { admin } = await people()
+    const document = await upload('Site guide', { status: 'awaiting_type' })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'document-decision',
+        state: 'waiting_on_you',
+        title: 'Site guide',
+        progress: { type: 'working', stage: 'Choose its source type' },
+        href: '/admin/knowledge-base',
+      }),
+    ])
+    expect(res.body.rows[0].id).toBe(`document-decision:${document._id}`)
+  })
+
+  it('an ingested document with unconfirmed details is waiting on the admin, however old', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'complete',
+      finishedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000),
+      unconfirmed: ['effective_date'],
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'document-decision',
+        state: 'waiting_on_you',
+        progress: { type: 'working', stage: 'Confirm its details' },
+        href: `/admin/knowledge-base/review/${document._id}`,
+      }),
+    ])
+  })
+
+  // Regression: written after the code it covers (F-11 T12), so it passed from the start.
+  it('an ingested document matching a stored one is waiting on the admin to decide', async () => {
+    const { admin } = await people()
+    const stored = await upload('FM 8-9 (2024)', { status: 'complete', finishedAt: new Date() })
+    await upload('FM 8-9', {
+      status: 'complete',
+      finishedAt: new Date(),
+      match: {
+        kind: 'possible_copy',
+        documentId: stored._id,
+        newMatched: 40,
+        newTotal: 40,
+        storedMatched: 40,
+        storedTotal: 40,
+      },
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        title: 'FM 8-9',
+        state: 'waiting_on_you',
+        progress: { type: 'working', stage: 'Decide on the match' },
+      }),
+    ])
+  })
 })

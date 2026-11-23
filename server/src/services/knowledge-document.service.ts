@@ -962,6 +962,27 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return toDtos(documents)
 }
 
+/**
+ * Returns the documents waiting for an admin's decision, oldest first, however
+ * long they have waited (F-11): those whose source type labelling couldn't
+ * tell (IN-19), and active ingested ones that needsReview (IN-07).
+ */
+export async function listAwaitingDecision(): Promise<KnowledgeDocumentDto[]> {
+  const documents = await KnowledgeDocumentModel.find({
+    $or: [
+      { status: 'awaiting_type' },
+      {
+        status: 'complete',
+        withdrawn: null,
+        $or: [{ 'unconfirmed.0': { $exists: true } }, { match: { $ne: null } }],
+      },
+    ],
+  })
+    .sort({ createdAt: 1 })
+    .lean()
+  return toDtos(documents)
+}
+
 // The standards that apply to a site (CP-30 AC1): FM, NFPA and local standards
 // labelled with its facility type and country, or `all`, that search can return.
 // Like retrieval, this leaves out withdrawn documents and those needing review

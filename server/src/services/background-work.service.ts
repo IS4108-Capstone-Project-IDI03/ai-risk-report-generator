@@ -8,14 +8,25 @@ import { DraftingRunModel, type IDraftingRun } from '../models/drafting-run.mode
 import type { ISite } from '../models/site.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
-import { listKnowledgeDocuments, type KnowledgeDocumentDto } from './knowledge-document.service'
+import {
+  listAwaitingDecision,
+  listKnowledgeDocuments,
+  type KnowledgeDocumentDto,
+} from './knowledge-document.service'
 import { listObservationsOf, type ObservationDto } from './observation.service'
 import { permissionsFor } from './permissions.service'
 import type { StoredWalk } from './site-walk.service'
 
 export type BackgroundWorkRow = {
   id: string
-  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading' | 'drafting' | 'ingestion'
+  kind:
+    | 'walk'
+    | 'voice-note'
+    | 'handwriting'
+    | 'reading'
+    | 'drafting'
+    | 'ingestion'
+    | 'document-decision'
   state: 'queued' | 'running' | 'failed' | 'waiting_on_you'
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
@@ -59,7 +70,8 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
     .lean<OwnAssessment[]>()
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
   const ids = assessments.map((a) => a._id)
-  const [walks, observations, drafting, documents] = await Promise.all([
+  const admin = permissionsFor(user.role).includes('knowledge:manage')
+  const [walks, observations, drafting, documents, decisions] = await Promise.all([
     SiteWalkModel.find({
       assessment: { $in: ids },
       status: { $in: ['transcribing', 'proposing', 'failed'] },
@@ -72,7 +84,8 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
       Pick<IDraftingRun, 'assessment' | 'parts' | 'run'>[]
     >(),
     // Uploads are the knowledge admins' (knowledge:manage), not one person's.
-    permissionsFor(user.role).includes('knowledge:manage') ? listKnowledgeDocuments() : [],
+    admin ? listKnowledgeDocuments() : [],
+    admin ? listAwaitingDecision() : [],
   ])
   return {
     rows: [
@@ -81,6 +94,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
         (observations.get(String(a._id)) ?? []).flatMap((o) => observationRows(o, a)),
       ),
       ...drafting.flatMap((d) => draftingRows(d, byId.get(String(d.assessment))!)),
+      ...decisions.map(decisionRow),
       ...documents.flatMap(ingestionRows),
     ],
   }
@@ -345,4 +359,27 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
       startedAt: p.currentStageStartedAt,
     },
   ]
+}
+
+// A document only an admin can move on (IN-07, IN-19): its source type to
+// choose on the uploads list, or its details or match to settle on its Review page.
+function decisionRow(d: KnowledgeDocumentDto): BackgroundWorkRow {
+  const stage =
+    d.status === 'awaiting_type'
+      ? 'Choose its source type'
+      : d.unconfirmed.length
+        ? 'Confirm its details'
+        : 'Decide on the match'
+  return {
+    id: `document-decision:${d.id}`,
+    kind: 'document-decision',
+    state: 'waiting_on_you',
+    title: d.title,
+    context: { label: 'Knowledge base' },
+    progress: { type: 'working', stage },
+    href:
+      d.status === 'awaiting_type'
+        ? '/admin/knowledge-base'
+        : `/admin/knowledge-base/review/${d.id}`,
+  }
 }
