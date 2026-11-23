@@ -58,4 +58,30 @@ describe('site walks', () => {
       }),
     ])
   })
+
+  it('a walk being proposed shows as one AI call, timed from when proposing began', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    const created = await walk(assessmentId, engineer._id, {
+      status: 'proposing',
+      recordings: [recording(1, 'transcribed')],
+    })
+    // The walk's last change is the move to proposing.
+    const proposingSince = new Date('2026-11-23T09:00:00Z')
+    await SiteWalkModel.collection.updateOne(
+      { _id: created._id },
+      { $set: { updatedAt: proposingSince } },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'running',
+        title: 'Site walk',
+        progress: { type: 'working', stage: 'Proposing observations' },
+        startedAt: proposingSince.toISOString(),
+      }),
+    ])
+  })
 })

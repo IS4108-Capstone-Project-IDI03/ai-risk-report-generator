@@ -16,7 +16,15 @@ export type BackgroundWorkRow = {
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
   context: { label: string; reference?: string }
-  progress: { type: 'count' | 'stages' | 'working'; current?: number; total?: number; unit?: string }
+  progress: {
+    type: 'count' | 'stages' | 'working'
+    current?: number
+    total?: number
+    unit?: string
+    stage?: string
+  }
+  // When the current step began, where it is known (the popover shows the time elapsed).
+  startedAt?: string
   href: string
 }
 
@@ -32,7 +40,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
   const walks = await SiteWalkModel.find({
     assessment: { $in: assessments.map((a) => a._id) },
-    status: 'transcribing',
+    status: { $in: ['transcribing', 'proposing'] },
   })
     .sort({ createdAt: 1 })
     .lean<StoredWalk[]>()
@@ -47,12 +55,26 @@ function walkRow(walk: StoredWalk, assessment: OwnAssessment): BackgroundWorkRow
     state: 'running',
     title: walk.name ?? 'Site walk',
     context: { label: assessment.site?.name ?? reference, reference },
+    ...walkProgress(walk),
+    href: `/assessment?ref=${encodeURIComponent(reference)}&tab=observations&walk=${walk._id}`,
+  }
+}
+
+// Transcribing counts recordings done. Proposing is one model call with no
+// progress of its own; nothing else changes the walk while it runs, so its
+// last change is when proposing began.
+function walkProgress(walk: StoredWalk): Pick<BackgroundWorkRow, 'progress' | 'startedAt'> {
+  if (walk.status === 'proposing')
+    return {
+      progress: { type: 'working', stage: 'Proposing observations' },
+      startedAt: walk.updatedAt.toISOString(),
+    }
+  return {
     progress: {
       type: 'stages',
       current: walk.recordings.filter((r) => r.transcription.status === 'transcribed').length,
       total: walk.recordings.length,
       unit: 'recordings',
     },
-    href: `/assessment?ref=${encodeURIComponent(reference)}&tab=observations&walk=${walk._id}`,
   }
 }
