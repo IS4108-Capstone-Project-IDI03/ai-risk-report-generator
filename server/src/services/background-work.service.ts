@@ -4,6 +4,7 @@
 // reads lean batches: one query per collection, not one per assessment.
 import type { Types } from 'mongoose'
 import { AssessmentModel, type ILocation } from '../models/assessment.model'
+import { DraftingRunModel, type IDraftingRun } from '../models/drafting-run.model'
 import type { ISite } from '../models/site.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
@@ -12,7 +13,7 @@ import type { StoredWalk } from './site-walk.service'
 
 export type BackgroundWorkRow = {
   id: string
-  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading'
+  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading' | 'drafting'
   state: 'queued' | 'running' | 'failed' | 'waiting_on_you'
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
@@ -44,22 +45,23 @@ type OwnAssessment = {
 
 /** Returns the user's background work, oldest first. */
 export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWorkDto> {
-  const assessments = await AssessmentModel.find(
-    { engineer: user.id },
-    'reference site locations',
-  )
+  const assessments = await AssessmentModel.find({ engineer: user.id }, 'reference site locations')
     .populate<{ site: Pick<ISite, 'name'> | null }>('site', 'name')
     .lean<OwnAssessment[]>()
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
-  const [walks, observations] = await Promise.all([
+  const ids = assessments.map((a) => a._id)
+  const [walks, observations, drafting] = await Promise.all([
     SiteWalkModel.find({
-      assessment: { $in: assessments.map((a) => a._id) },
+      assessment: { $in: ids },
       status: { $in: ['transcribing', 'proposing', 'failed'] },
     })
       .sort({ createdAt: 1 })
       .lean<StoredWalk[]>(),
     // Through listObservationsOf, never the model: it leaves draft observations out (CP-24).
     listObservationsOf(assessments),
+    DraftingRunModel.find({ assessment: { $in: ids } }, 'assessment parts run').lean<
+      Pick<IDraftingRun, 'assessment' | 'parts' | 'run'>[]
+    >(),
   ])
   return {
     rows: [
@@ -67,6 +69,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
       ...assessments.flatMap((a) =>
         (observations.get(String(a._id)) ?? []).flatMap((o) => observationRows(o, a)),
       ),
+      ...drafting.flatMap((d) => draftingRows(d, byId.get(String(d.assessment))!)),
     ],
   }
 }
@@ -203,4 +206,57 @@ function readingRow(o: ObservationDto, assessment: OwnAssessment): BackgroundWor
       retry: { method: 'POST', url: `/api/observations/${o.id}/suggestion/retry` },
     }),
   }
+}
+
+// Drafting (GN-13). A run under way is one row: its parts drafted of the
+// parts it drafts. Outside a run, each part still queued, drafting (from
+// Review) or failed is a row of its own, a failed one until it is drafted
+// again. Drafting it again is the drafting tab's choice (a new run drafts what
+// its checkpoint offers), so these rows link there and offer no Try again.
+const PART_STATE = { queued: 'queued', drafting: 'running', failed: 'failed' } as const
+function draftingRows(
+  d: Pick<IDraftingRun, 'parts' | 'run'>,
+  assessment: OwnAssessment,
+): BackgroundWorkRow[] {
+  const { run } = d
+  const base = {
+    kind: 'drafting' as const,
+    context: context(assessment),
+    href: `/assessment?ref=${encodeURIComponent(assessment.reference)}&tab=generate`,
+  }
+  if (run && !run.finishedAt)
+    return [
+      {
+        ...base,
+        id: `drafting:${assessment.reference}`,
+        state: 'running',
+        title: 'Drafting the report',
+        progress: {
+          type: 'stages',
+          current: run.parts.filter((id) => d.parts?.[id]?.status === 'done').length,
+          total: run.parts.length,
+          unit: 'parts',
+        },
+        startedAt: new Date(run.startedAt).toISOString(),
+      },
+    ]
+  return Object.entries(d.parts ?? {}).flatMap(([id, job]): BackgroundWorkRow[] =>
+    job.status === 'done'
+      ? []
+      : [
+          {
+            ...base,
+            id: `drafting:${assessment.reference}:${id}`,
+            state: PART_STATE[job.status],
+            title: `Section ${id}`,
+            progress: { type: 'working', stage: 'Drafting' },
+            ...(job.status === 'drafting' && {
+              startedAt: new Date(job.requestedAt).toISOString(),
+            }),
+            ...(job.status === 'failed' && {
+              error: job.error ?? `Section ${id} could not be drafted.`,
+            }),
+          },
+        ],
+  )
 }

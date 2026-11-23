@@ -4,6 +4,7 @@
 import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
 import app from '../index'
+import { DraftingRunModel } from '../models/drafting-run.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { signedInAs } from './auth-test-helpers'
@@ -239,7 +240,11 @@ describe('reading an observation (CP-24)', () => {
       {
         $set: {
           interpretation: {
-            photoReading: { status: 'interpreting', attempts: [{ startedAt: since }], photoIds: [] },
+            photoReading: {
+              status: 'interpreting',
+              attempts: [{ startedAt: since }],
+              photoIds: [],
+            },
           },
         },
       },
@@ -288,6 +293,123 @@ describe('reading an observation (CP-24)', () => {
         error: 'The category and severity could not be suggested.',
         retry: { method: 'POST', url: `/api/observations/${saved._id}/suggestion/retry` },
       }),
+    ])
+  })
+})
+
+describe('drafting (GN-13)', () => {
+  const job = (status: string, fields: object = {}) => ({
+    status,
+    action: 'draft',
+    instruction: null,
+    attempts: 0,
+    error: null,
+    requestedBy: { id: 'x', role: 'risk_engineer', name: 'Alex Rowe' },
+    requestedAt: new Date('2026-11-23T09:00:00Z'),
+    finishedAt: null,
+    ...fields,
+  })
+
+  function draftingRun(
+    assessmentId: Types.ObjectId,
+    parts: Record<string, object>,
+    run?: { parts: string[]; startedAt: Date; finishedAt: Date | null },
+  ) {
+    return DraftingRunModel.create({
+      assessment: assessmentId,
+      reference: REF,
+      parts,
+      ...(run && { run: { ...run, startedBy: { id: 'x', name: 'Alex Rowe' } } }),
+      metadata: {
+        source_type: 'drafting_run',
+        jurisdiction: 'SG',
+        facility_type: 'Warehouse',
+        COPE_dimension: 'all',
+        effective_date: new Date(),
+      },
+    })
+  }
+
+  it('a drafting run under way shows the parts drafted of the run', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const startedAt = new Date('2026-11-23T09:00:00Z')
+    await draftingRun(
+      id,
+      { '3': job('done'), '6': job('done'), '7': job('drafting'), '8': job('queued') },
+      { parts: ['3', '6', '7', '8'], startedAt, finishedAt: null },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'drafting',
+        state: 'running',
+        title: 'Drafting the report',
+        context: { label: 'Jurong Cold Store', reference: REF },
+        progress: { type: 'stages', current: 2, total: 4, unit: 'parts' },
+        startedAt: startedAt.toISOString(),
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
+  })
+
+  it('a part that failed, once the run is over, shows its reason and where to draft it again', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      {
+        '3': job('done'),
+        '7': job('failed', { error: 'Section 7 could not be drafted.', attempts: 3 }),
+      },
+      {
+        parts: ['3', '7'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'drafting',
+        state: 'failed',
+        title: 'Section 7',
+        error: 'Section 7 could not be drafted.',
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
+    // Drafting it again is the drafting tab's choice: a new run drafts what its checkpoint offers.
+    expect(res.body.rows[0].retry).toBeUndefined()
+  })
+
+  it('a part redrafted from Review shows as one AI call, timed from the request', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const requestedAt = new Date('2026-11-23T10:00:00Z')
+    await draftingRun(
+      id,
+      { '7': job('drafting', { action: 'regenerate', requestedAt }), '9': job('queued') },
+      {
+        parts: ['7', '9'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'running',
+        title: 'Section 7',
+        progress: { type: 'working', stage: 'Drafting' },
+        startedAt: requestedAt.toISOString(),
+      }),
+      expect.objectContaining({ state: 'queued', title: 'Section 9' }),
     ])
   })
 })
