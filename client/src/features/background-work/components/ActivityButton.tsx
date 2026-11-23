@@ -12,7 +12,7 @@ import '../background-work.css'
 
 export function ActivityButton({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   const [open, setOpen] = useState(false)
-  const { rows } = useBackgroundWork()
+  const { rows, reload } = useBackgroundWork()
   if (!rows.length) return null
   const working = rows.some((r) => r.state === 'running' || r.state === 'queued')
   const failed = rows.some((r) => r.state === 'failed')
@@ -31,7 +31,11 @@ export function ActivityButton({ tone = 'light' }: { tone?: 'light' | 'dark' }) 
           label={activityLabel(rows)}
           size="lg"
           selected={open}
-          onClick={() => setOpen(!open)}
+          onClick={() => {
+            // Read on open, so the list is as of now, not of the last poll.
+            if (!open) reload()
+            setOpen(!open)
+          }}
           className={[
             'activity-button',
             `activity-button--${tone}`,

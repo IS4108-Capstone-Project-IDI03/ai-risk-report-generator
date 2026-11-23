@@ -1,6 +1,6 @@
 // Background work (F-11): the header's activity icon and its popover, against
 // a stubbed GET /api/background-work.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityButton } from './components/ActivityButton'
@@ -19,13 +19,16 @@ const json = (body: unknown) =>
     }),
   )
 
-// Answers GET /api/background-work with these rows.
+// Answers GET /api/background-work with these rows; returns how many reads were made.
 function serve(rows: BackgroundWorkRow[]) {
-  vi.stubGlobal('fetch', (input: RequestInfo | URL) =>
-    String(input).startsWith('/api/background-work')
-      ? json({ rows })
-      : Promise.reject(new TypeError('Failed to fetch')),
-  )
+  const reads = { count: 0 }
+  vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+    if (!String(input).startsWith('/api/background-work'))
+      return Promise.reject(new TypeError('Failed to fetch'))
+    reads.count++
+    return json({ rows })
+  })
+  return reads
 }
 
 const walk: BackgroundWorkRow = {
@@ -186,5 +189,46 @@ describe('the popover', () => {
     expect(within(groups[0]).getByText('Site guide')).toBeInTheDocument()
     expect(within(groups[0]).getByText('Choose its source type')).toBeInTheDocument()
     expect(within(groups[1]).getByText('Morning walk')).toBeInTheDocument()
+  })
+})
+
+describe('keeping up to date', () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }))
+  afterEach(() => vi.useRealTimers())
+
+  // Lets the read in flight land.
+  const settle = () => act(() => vi.advanceTimersByTimeAsync(0))
+  const failedWalk: BackgroundWorkRow = { ...walk, state: 'failed', error: 'No speech.' }
+
+  it('reads again every 5 seconds while work runs', async () => {
+    const reads = serve([walk])
+    render(<ActivityButton />)
+    await settle()
+
+    await act(() => vi.advanceTimersByTimeAsync(5_000))
+
+    expect(reads.count).toBe(2)
+  })
+
+  it('reads only every 30 seconds while nothing runs', async () => {
+    const reads = serve([failedWalk])
+    render(<ActivityButton />)
+    await settle()
+
+    await act(() => vi.advanceTimersByTimeAsync(29_000))
+    expect(reads.count).toBe(1)
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(reads.count).toBe(2)
+  })
+
+  it('reads again when the popover opens', async () => {
+    const reads = serve([failedWalk])
+    render(<ActivityButton />)
+    await settle()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Background work/ }))
+    await settle()
+
+    expect(reads.count).toBe(2)
   })
 })
