@@ -166,8 +166,9 @@
 /* The reference with its priority mark beside it (AS-07). */
 .at-refline {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   min-width: 0;
 }
 .at-ref {
@@ -181,7 +182,41 @@
   color: var(--graphite-900);
   font: 600 14px/1.3 var(--font-sans);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
+}
+/* The Practice pill keeps its size beside a long reference. A reference never wraps: when the
+   line is too narrow the pill drops under it (.at-refline wraps). */
+.at-refline .ds-label-chip {
+  flex: none;
+}
+/* A practice assessment (F-12) reads as set aside, on every layout: its tile, status pill and due
+   date lose their colour, its words are the quiet grey (graphite-600 is 4.5:1 or more on both
+   backgrounds), and the row rests on a faint grey, lighter than a normal row's hover (graphite-50)
+   so the two never look alike. It still opens and still has its hover, darker than its rest. */
+.at-row[data-practice] {
+  background: var(--graphite-25);
+}
+.at-row[data-practice] .at-assessment > :first-child,
+.at-row[data-practice] .at-status,
+.at-row[data-practice] .at-due {
+  filter: grayscale(1);
+}
+.at-row[data-practice] .at-ref,
+.at-row[data-practice] .at-type,
+.at-row[data-practice] .at-date {
+  color: var(--graphite-600);
+}
+/* The Practice pill is an outline pill: its grey fill would match the hovered row and vanish. The
+   chip's colours are inline, so the fill needs !important; the inset ring keeps its size. */
+.at-row[data-practice] .at-refline .ds-label-chip {
+  background: var(--surface-card) !important;
+  box-shadow: inset 0 0 0 1px var(--graphite-300);
+}
+@media (hover: hover) and (pointer: fine) {
+  .at-row[data-practice]:hover {
+    background: var(--graphite-100);
+  }
 }
 .at-ref:focus-visible,
 .at-link:focus-visible {
@@ -778,7 +813,7 @@
       'tile main due actions'
       '. sub sub actions'
       '. status status actions';
-    grid-template-rows: 44px auto auto;
+    grid-template-rows: minmax(44px, auto) auto auto;
     row-gap: 4px;
     padding-top: 8px;
     padding-bottom: 14px;
@@ -794,7 +829,7 @@
       '. sub sub actions'
       '. status status actions'
       '. engineer engineer actions';
-    grid-template-rows: 44px auto auto auto;
+    grid-template-rows: minmax(44px, auto) auto auto auto;
   }
   .at-sub {
     grid-area: sub;

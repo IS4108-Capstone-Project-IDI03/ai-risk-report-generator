@@ -61,6 +61,7 @@ export function WorkRow({
       className="at-row"
       data-id={r.id}
       data-changed={changed ? '' : undefined}
+      data-practice={practice ? '' : undefined}
       data-walk={first ? 'assessments.first' : undefined}
       onClick={onOpen}
     >
