@@ -25,7 +25,9 @@ const alex = {
   createdAt: new Date(),
   updatedAt: new Date(),
 }
-const api = signedInAs(app, alex)
+// Signed in each test, after the clock is set: a session lasts 15 minutes, and each test starts a
+// day past the last, so one signed when the file loads would be refused (401).
+let api: ReturnType<typeof signedInAs>
 
 const KEY = 'server-test-key'
 const JURONG = {
@@ -107,6 +109,7 @@ let clock = Date.now()
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime((clock += 24 * HOUR))
+  api = signedInAs(app, alex)
   await UserModel.create(alex)
   forgetSiteWeather()
   config.weather.key = KEY
