@@ -78,21 +78,18 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "You can leave **category** and **severity** empty this time. I'll suggest them for you once you save.",
       },
       {
-        // Lands once the gateway has the observation, not on the press, so a refused Save does not move on.
+        // The person's part ends once the gateway has the observation, not on the press, so a refused
+        // Save leaves this step showing. Then the walkthrough steps aside: a second later it presses
+        // the next step's Back, and waits for the row's reading (ObservationRow.tsx raises `until`).
         target: 'new-observation.save',
-        say: "Now go ahead and press **Save observation**. You'll stay on this form afterwards, so you can add the next one straight away.",
+        say: "Now go ahead and press **Save observation**. I'll take you to the Observations tab, so you can watch me write out what you said and suggest its category and severity.\n\nOn a real visit, you'd stay on this form and carry on with the next one.",
         do: [{ signal: 'observation-saved' }],
+        until: 'observation-reading-finished',
       },
       {
         // Back to the Observations list (the header's Back; a phone's top bar ←, as its form has no
         // tab row), which lands on the saved one's location, newest first: its first row.
         open: ['new-observation.back'],
-        target: 'observations.row-1',
-        mood: 'thinking',
-        say: "I'm writing out what you said, and then I'll work out its category and severity. On a real visit, you can carry on working while I do this.",
-        wait: 'observation-reading-finished',
-      },
-      {
         target: 'observations.row-1',
         mood: 'pleased',
         // Reworded from the approved line ("If you agree with them, open the row and press Confirm"):
@@ -123,7 +120,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // After the press the button shows it is working; the step lands when the three groups show.
         target: 'new-observation.split',
         say: "I've typed in a sample note for you. Go ahead and press **Split note**.",
-        do: [{ press: 'new-observation.split' }, { signal: 'note-split-opened' }],
+        do: [{ press: 'new-observation.split' }],
+        until: 'note-split-opened',
       },
       {
         // The three group headings, one by one: the groups themselves are taller than the window.

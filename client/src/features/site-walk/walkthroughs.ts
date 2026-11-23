@@ -40,13 +40,15 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "A site walk lets you **talk as you walk**. You tell me where you are and what you see, and I'll turn the recording into observations for you to check afterwards.",
       },
       {
+        // The whole record panel is lit, so the bubble sits beside it and never over Save recording,
+        // which comes where Upload was once recording starts (the bubble stays put while they record).
         // The first signal is the microphone opening (a permission prompt can take longer than the settle time).
-        target: 'site-walk.start',
+        target: 'site-walk.record-panel',
         mood: 'idle',
         say: 'Let\'s try a short one. Press **Start recording** and say: "Block A, Level 1, loading bay. Pallets are stored in the fire lane." When you\'re done, press **Save recording**.',
         do: [
-          { signal: 'site-walk-recording-started', at: 'site-walk.start' },
-          { signal: 'site-walk-recording-saved', at: 'site-walk.save' },
+          { signal: 'site-walk-recording-started', at: 'site-walk.record-panel' },
+          { signal: 'site-walk-recording-saved' },
         ],
       },
       {
@@ -65,24 +67,18 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "You can also type a **note** here, for anything that's easier to write than to say.",
       },
       {
-        // The press opens the naming dialog (named "Practice walk" for this walkthrough); its form stays usable.
+        // The press opens the naming dialog (named "Practice walk" for this walkthrough). Both presses
+        // are the person's part: the spotlight goes at the first and the bubble stays until the walk
+        // is finished in the box. Then the walkthrough steps aside until the walk is read (`until`).
         target: 'site-walk.finish',
         say: "That's enough for a first walk. Go ahead and press **Finish walk**. I've already given the walk a name, so just press **Finish walk** again in the box that opens.",
-        do: [
-          { press: 'site-walk.finish' },
-          { signal: 'site-walk-finished', at: 'site-walk.name-form' },
-        ],
-      },
-      {
-        target: 'site-walk.finished',
-        mood: 'thinking',
-        say: "I'm writing out your recording and reading through it now. On a real walk, you can **carry on working** while I do this, and I'll let you know in your Inbox when it's ready.",
-        wait: 'site-walk-proposal-ready',
+        do: [{ press: 'site-walk.finish' }, { signal: 'site-walk-finished' }],
+        until: 'site-walk-proposal-ready',
       },
       {
         card: true,
         mood: 'pleased',
-        say: 'Your walk is ready!\n\nShall we take a look at what I heard?',
+        say: "Your walk is ready! On a real walk, you can carry on working while I read it, and I'll let you know in your **Inbox** when it's done.\n\nShall we take a look at what I heard?",
         answers: [
           { label: 'Review my walk', then: { play: 'proposal' } },
           { label: 'Later', then: 'end' },

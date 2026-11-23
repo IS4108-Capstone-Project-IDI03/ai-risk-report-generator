@@ -18,9 +18,9 @@ export type BubbleView = {
   // Beside the highlight, centred over the dimming, in the bottom-right corner, or beside the
   // target with no dimming.
   place: 'target' | 'card' | 'corner' | 'bare'
-  // The stepper; `turn` greys Next (hands-on or waiting on AI), `done` = the hands-on action landed.
-  // `noBack` greys Back (player.ts, canGoBack).
-  step?: { at: number; total: number; turn?: 'hands' | 'wait'; done?: boolean; noBack?: boolean }
+  // The stepper; `hands` greys Next (a hands-on step: the person's action moves it on). `noBack`
+  // greys Back (player.ts, canGoBack).
+  step?: { at: number; total: number; hands?: boolean; noBack?: boolean }
   answers?: BubbleAnswer[]
   closable: boolean
   // Typing dots before the first letter, in ms.
@@ -37,18 +37,18 @@ export type WalkState = {
   bubble: BubbleView | null
   // The data-walk tags the highlight goes round; null = no cut-out (a card, or between screens).
   targets: string[] | null
-  // A hands-on step whose cut-out is wider than the control to press (a field round its Confirm
-  // tick): the one tag that takes presses. null = the whole cut-out does.
-  press: string | null
   // Each target has its own cut-out (StepDef.apart).
   apart: boolean
   // A target too tall to show whole shows its end (StepDef.show).
   end: boolean
   dim: boolean
-  // The "Your turn" ring round the highlight: breathing, or green once the action lands.
-  ring: 'off' | 'on' | 'done'
+  // The "Your turn" ring breathing round the highlight of a hands-on step.
+  ring: 'off' | 'on'
   // The step points at the sidebar: on a phone the navigation drawer is opened for it.
   nav: boolean
+  // The person's part of a hands-on step is done and nothing shows while the app answers
+  // (player.ts, quiet): the host says so to a screen reader.
+  quiet: boolean
 }
 
 // Until startEngine loads the real record: no Welcome and no offers. Without this, a screen that
@@ -69,12 +69,12 @@ const INITIAL: WalkState = {
   running: null,
   bubble: null,
   targets: null,
-  press: null,
   apart: false,
   end: false,
   dim: false,
   ring: 'off',
   nav: false,
+  quiet: false,
 }
 
 export const useWalkthroughs = create<WalkState>(() => INITIAL)

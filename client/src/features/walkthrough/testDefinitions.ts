@@ -74,12 +74,13 @@ export const TEST_DEFS: WalkthroughDef[] = [
     fail: { slow: { afterMs: 1500, say: 'Taking longer.' } },
     steps: [
       {
-        target: 't.search',
+        target: 't.button',
         say: 'Press the button.',
-        do: [{ press: 't.button' }, { signal: 'thing-saved' }],
+        do: [{ press: 't.button' }],
+        until: 'answered',
       },
-      { target: 't.search', say: 'Working on it.', wait: 'answer-finished' },
       { target: 't.search', say: 'All done.' },
+      { target: 't.search', say: 'Last one.' },
     ],
   },
   {
@@ -217,17 +218,6 @@ export const TEST_DEFS: WalkthroughDef[] = [
     ],
   },
   {
-    // A press inside a wider target (a field round its Confirm tick).
-    id: 'field',
-    name: 'Confirm a field',
-    group: 'Day to day',
-    roles: BOTH,
-    kind: 'hands',
-    screen: 'clients',
-    place: { path: '/' },
-    steps: [{ target: 't.head', say: 'This field.', do: [{ press: 't.head-cell' }] }],
-  },
-  {
     // A step whose `open` press changes the screen (observation.back): t.late appears on the press.
     id: 'reopen',
     name: 'Back to the list',
@@ -242,7 +232,7 @@ export const TEST_DEFS: WalkthroughDef[] = [
     ],
   },
   {
-    // A press whose result is saved later (Confirm category): the step lands on the save's signal.
+    // The person's own save landing is their action (Confirm category): a refused save leaves the step.
     id: 'confirm',
     name: 'Confirm and save',
     group: 'Day to day',
@@ -251,27 +241,41 @@ export const TEST_DEFS: WalkthroughDef[] = [
     screen: 'clients',
     place: { path: '/' },
     steps: [
-      {
-        target: 't.head',
-        say: 'Confirm it.',
-        do: [{ press: 't.head-cell' }, { signal: 'confirm-saved', at: 't.head' }],
-      },
+      { target: 't.head', say: 'Confirm it.', do: [{ signal: 'confirm-saved', at: 't.head' }] },
       { target: 't.head', say: 'Confirmed.' },
     ],
   },
   {
-    // A press, then a step waiting on an answer that may come before it shows.
-    id: 'early',
-    name: 'A fast answer',
+    // A press whose result is on another screen: its `open` is pressed during the quiet time.
+    id: 'elsewhere',
+    name: 'Result on another screen',
     group: 'Day to day',
     roles: BOTH,
     kind: 'hands',
     screen: 'clients',
     place: { path: '/' },
     steps: [
-      { target: 't.button', say: 'Ask it.', do: [{ press: 't.button' }] },
-      { target: 't.search', say: 'Waiting for it.', wait: 'answered' },
-      { target: 't.search', say: 'Answered.' },
+      { target: 't.button', say: 'Save it.', do: [{ press: 't.button' }], until: 'read' },
+      { open: ['t.search'], target: 't.late', say: 'Here it is.' },
+    ],
+  },
+  {
+    // An answer button that sets the app working (Use the sample email).
+    id: 'sample',
+    name: 'Use a sample',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'hands',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [
+      {
+        target: 't.search',
+        say: 'Want a sample?',
+        answers: [{ label: 'Use the sample', then: { emit: 'sample-chosen' } }],
+        until: 'sample-read',
+      },
+      { target: 't.search', say: 'Read.' },
     ],
   },
 ]

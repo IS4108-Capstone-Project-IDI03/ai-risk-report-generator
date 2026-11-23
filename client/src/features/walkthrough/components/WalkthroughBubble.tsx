@@ -33,8 +33,6 @@ type Props = {
   onBack: () => void
   onNext: () => void
   onSkip: () => void
-  // Called with the message's key once its last letter is in (player.ts typed).
-  onTyped?: (key: string) => void
   style?: CSSProperties
   leaving?: boolean
   // Phone: the sheet's edge; 'top' when the highlight sits where the bottom sheet would cover it.
@@ -45,16 +43,13 @@ type Props = {
 
 /** Returns the face and bubble; the host places it (beside the highlight, centred, or the corner). */
 export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function WalkthroughBubble(
-  { view, instant, onBack, onNext, onSkip, onTyped, style, leaving, dock, modal },
+  { view, instant, onBack, onNext, onSkip, style, leaving, dock, modal },
   ref,
 ) {
   // A press or key on the bubble shows the rest of the words at once.
   const [rushed, setRushed] = useState(false)
   const [done, setDone] = useState(false)
-  const finished = useCallback(() => {
-    setDone(true)
-    onTyped?.(view.key)
-  }, [onTyped, view.key])
+  const finished = useCallback(() => setDone(true), [])
   const { step, answers } = view
   // Two answers too wide for one row in the bubble (each never wraps, walkthrough.css): stacked.
   const answersRef = useRef<HTMLDivElement>(null)
@@ -64,12 +59,9 @@ export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function Walk
     if (el && el.scrollWidth > el.clientWidth + 1) setStack(true)
   }, [])
   const last = !!step && step.at >= step.total
-  const reason =
-    step?.turn === 'hands'
-      ? { title: 'Your turn', text: "I'll carry on as soon as you've done this step." }
-      : step?.turn === 'wait'
-        ? { title: 'One moment', text: "I'll carry on when this is ready." }
-        : undefined
+  const reason = step?.hands
+    ? { title: 'Your turn', text: "I'll carry on as soon as you've done this step." }
+    : undefined
   return (
     <div
       ref={ref}
@@ -116,11 +108,7 @@ export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function Walk
               disabled={step.at <= 1 || step.noBack}
               onClick={onBack}
             />
-            <StepBar
-              at={step.at}
-              total={step.total}
-              current={step.turn && !step.done ? 'waiting' : 'filled'}
-            />
+            <StepBar at={step.at} total={step.total} current={step.hands ? 'waiting' : 'filled'} />
             <IconAction
               icon={last ? 'check' : 'chevron-right'}
               label={last ? 'Finish' : 'Next'}

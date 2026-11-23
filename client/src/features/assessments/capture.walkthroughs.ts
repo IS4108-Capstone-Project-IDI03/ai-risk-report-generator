@@ -86,16 +86,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         // The practice observation's Category is amber. The cut-out goes round the whole Category
-        // field (the words are about it); only its Confirm control can be pressed. The step lands
-        // when the Confirm is saved (ObservationDetails.tsx), not on the press: a refused save
-        // leaves the field lit and Confirm pressable again.
+        // field (the words are about it); the field lights its Confirm (cp24.css). The person's part
+        // ends when the Confirm is saved (ObservationDetails.tsx), not on the press: a refused save
+        // leaves this step showing, and Confirm can be pressed again.
         target: 'observation.category-field',
         mood: 'idle',
         say: "This is the observation's page. The **Category** field is in **amber**, because it holds my suggestion and it's waiting for you to check it. If it looks right to you, go ahead and press **Confirm category**.",
-        do: [
-          { press: 'observation.confirm' },
-          { signal: 'observation-category-confirmed', at: 'observation.category-field' },
-        ],
+        do: [{ signal: 'observation-category-confirmed', at: 'observation.category-field' }],
       },
       {
         // The result: Category's amber is gone. Only Category is amber on the practice observation

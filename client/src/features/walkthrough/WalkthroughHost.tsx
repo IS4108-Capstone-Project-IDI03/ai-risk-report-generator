@@ -2,7 +2,7 @@
 // spotlight.ts), MarshBot's bubble beside it (or centred, or in the corner; a bottom sheet on a
 // phone), and the "Your turn" ring. Mounted once in App.tsx's Workspace.
 // Calls engine.ts, player.ts (next, back, skip), spotlight.ts, targets.ts, WalkthroughBubble.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsPhone } from '../../design-system'
 import type { AssessmentWorkflow } from '../assessments/useAssessmentWorkflow'
@@ -10,7 +10,7 @@ import type { Session } from '../auth/api'
 import '../marshbot/marshbot.css'
 import '../marshbot/components/thread/thread.css'
 import { canPlay, isRunning, play, startEngine } from './engine'
-import { back, next, skip, typed } from './player'
+import { back, next, skip } from './player'
 import { findTarget } from './settle'
 import { calm, useWalkthroughs } from './state'
 import { hideSpot, showSpot } from './spotlight'
@@ -58,28 +58,23 @@ export function WalkthroughHost({
     w.__walkthroughs = { play, canPlay, isRunning, state: () => useWalkthroughs.getState() }
     return () => void delete w.__walkthroughs
   }, [])
-  const { bubble, targets, press, apart, end, dim, ring, nav, running } = useWalkthroughs()
+  const { bubble, targets, apart, end, dim, ring, nav, running, quiet: aside } = useWalkthroughs()
   const phone = useIsPhone()
   const quiet = calm()
   const measured = useTargetBox(targets)
   const box = measured?.box ?? null
   // A step that lights its targets one by one: a cut-out each (joined where two would touch).
   const holes = apart && measured && measured.each.length > 1 ? apartBoxes(measured.each) : null
-  // The pressed control too: a hover-only one inside the target (the Category field's Confirm tick)
-  // shows only while it is marked itself (cp24.css, `.cpf-decide:has([data-walk-on])`).
-  useMarkTargets(press ? [...(targets ?? []), press] : targets, box)
-  // A cut-out wider than the control to press (types.ts, `do`): presses reach only that control.
-  const pressTags = useMemo(() => (press ? [press] : null), [press])
-  const pressBox = useTargetBox(pressTags)?.box ?? null
+  useMarkTargets(targets, box)
   const [view, leaving] = useLinger(bubble, dim ? 100 : 150)
   // The layer stays while the dimming fades out: inside a dialog the dimming is drawn in it.
   const [dimShown] = useLinger(dim ? true : null, 150)
-  const [shownRing, ringLeaving] = useLinger(ring === 'off' ? null : ring, 150)
+  const [shownRing, ringLeaving] = useLinger(ring === 'on' ? true : null, 150)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const [spot, setSpot] = useState<CSSProperties>({})
   // A hands-on step has let the spotlight go (player.ts, letGo): the page is the person's, so nothing
   // scrolls it back to the target. Not `!dim` alone: a bare walkthrough is never dimmed.
-  const letGo = !dim && bubble?.step?.turn === 'hands'
+  const letGo = !dim && !!bubble?.step?.hands
 
   // a. The layer follows the open modal dialog (Sheet's rule), re-read when one opens or closes.
   const [host, setHost] = useState(layerHost)
@@ -233,16 +228,15 @@ export function WalkthroughHost({
         // While the page is dimmed and only told about, Tab stays in the bubble: the dimming blocks
         // the pointer, and without this the keyboard could still press what is behind it. A
         // hands-on step and a bare bubble leave the page to the person.
-        const { dim: dimmed, ring: turn, targets: lit, press: only } = useWalkthroughs.getState()
+        const { dim: dimmed, ring: turn, targets: lit } = useWalkthroughs.getState()
         const stops = [...bubbleEl.querySelectorAll<HTMLElement>('button:not([disabled])')]
         const from = document.activeElement
-        // "Your turn": Tab from the bubble's last button goes to the highlighted control (the press
-        // control, when the cut-out is wider), which
-        // the keyboard could not otherwise reach from here (the bubble sits at the end of the page).
+        // "Your turn": Tab from the bubble's last button goes to the highlighted control, which the
+        // keyboard could not otherwise reach from here (the bubble sits at the end of the page).
         if (dimmed && turn !== 'off') {
           const leaving = !e.shiftKey && bubbleEl.contains(from)
           const lastStop = from === stops[stops.length - 1] || from === bubbleEl || !stops.length
-          const target = only ? findTarget(only) : lit?.[0] ? findTarget(lit[0]) : null
+          const target = lit?.[0] ? findTarget(lit[0]) : null
           const first = target?.matches('button, a[href], input, select, textarea, [tabindex]')
             ? target
             : target?.querySelector<HTMLElement>('button, a[href], input, select, textarea')
@@ -263,7 +257,7 @@ export function WalkthroughHost({
 
   // f. driver.js draws the dimming and cut-out (spotlight.ts) into our layer's place. Once the
   // bubble is placed, the cut-out is the part it leaves free (`drawn`). A tell step blocks the whole
-  // page; a hands-on one lets presses through its cut-out (or only its press control).
+  // page; a hands-on one lets presses through its cut-out.
   const [layer, setLayer] = useState<HTMLDivElement | null>(null)
   const handsOn = ring !== 'off'
   // No box (between screens) shuts the cut-out at once, not when the old bubble has faded; a new
@@ -274,26 +268,29 @@ export function WalkthroughHost({
   const key = targets?.join('|') ?? ''
   useEffect(() => {
     if (!dim || !layer) return hideSpot()
-    const open = !handsOn
-      ? []
-      : press
-        ? pressBox
-          ? [pressBox]
-          : []
-        : (spotHoles ?? (spotBox ? [spotBox] : []))
+    const open = !handsOn ? [] : (spotHoles ?? (spotBox ? [spotBox] : []))
     showSpot({ key, box: spotBox, holes: spotHoles, open, host: layer, calm: quiet })
-  }, [dim, layer, key, spotBox, spotHoles, handsOn, press, pressBox, quiet])
+  }, [dim, layer, key, spotBox, spotHoles, handsOn, quiet])
   // Without this, signing out mid-walkthrough would leave driver.js's dimming on the page.
   useEffect(() => hideSpot, [])
 
-  if (!showing) return null
-  return createPortal(
+  // While the walkthrough waits on the app with nothing on screen, a screen reader hears why (the
+  // spec's approved words). The line is there for the whole walkthrough, so its change is announced.
+  const live = running
+    ? createPortal(
+        <p className="wt-live" role="status">
+          {aside ? "I'll carry on when this is ready." : ''}
+        </p>,
+        document.body,
+      )
+    : null
+  if (!showing) return live
+  const shown = createPortal(
     <Layer ref={setLayer}>
-      {/* "Your turn": a ring breathing round the cut-out; green once the action lands (motion row 7). */}
+      {/* "Your turn": a ring breathing round the cut-out (motion row 7). */}
       {shownRing && spotBox && (
         <span
           className="wt-ring"
-          data-done={shownRing === 'done' || undefined}
           data-leaving={ringLeaving || undefined}
           style={
             {
@@ -317,7 +314,6 @@ export function WalkthroughHost({
           onBack={back}
           onNext={() => next()}
           onSkip={skip}
-          onTyped={typed}
           modal={dim && !handsOn}
           dock={phone ? side : undefined}
           style={phone ? (sheetMax ? { maxHeight: sheetMax } : undefined) : spot}
@@ -325,6 +321,12 @@ export function WalkthroughHost({
       )}
     </Layer>,
     host,
+  )
+  return (
+    <>
+      {live}
+      {shown}
+    </>
   )
 }
 

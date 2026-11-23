@@ -9,7 +9,15 @@ import {
   screenShown as shownScreen,
   signalled,
 } from './offers'
-import { current, failedPartWay, freshPractice, playQueue, skip, stopAll } from './player'
+import {
+  current,
+  failedPartWay,
+  freshPractice,
+  playQueue,
+  screenGone,
+  skip,
+  stopAll,
+} from './player'
 import { onAnySignal, onSignal, signal } from './signals'
 import {
   defFor,
@@ -133,4 +141,5 @@ export function screenShown(
 /** Called by useWalkthroughScreen's cleanup: a screen has gone. */
 export function screenLeft(screen: string): void {
   leftScreen(screen)
+  screenGone(screen)
 }

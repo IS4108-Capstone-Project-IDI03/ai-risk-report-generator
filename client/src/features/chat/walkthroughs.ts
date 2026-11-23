@@ -29,20 +29,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "This is where you can ask me about the **standards** and about Marsh's **past reports**. I only answer from what's in the knowledge base, so you can always check where an answer came from.",
       },
       {
-        // At: The first starter question. Hands-on: the person presses it.
+        // At: The first starter question. Hands-on: the person presses it; then the walkthrough steps
+        // aside while the answer is written (`until`), so the next step finds its citation in place.
         target: 'chat.starter-1',
         mood: 'idle',
         say: "Let's try one together. Go ahead and press the first question.",
         do: [{ press: 'chat.starter-1' }],
-      },
-      {
-        // At: Their sent question. The step holds here until the answer is written, so the next step
-        // shows with its citation in place (a step that has to find its target gives up after 4 s, and
-        // the answer takes longer).
-        target: 'chat.question',
-        mood: 'thinking',
-        say: "I'm looking through the knowledge base now. You'll see my answer appear here as I write it.",
-        wait: 'chat-answer-finished',
+        until: 'chat-answer-finished',
       },
       {
         // At: The first citation number, which shows once its statement has been written. Hands-on: the person presses it.

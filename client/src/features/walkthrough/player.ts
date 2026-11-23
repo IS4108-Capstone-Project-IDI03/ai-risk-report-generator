@@ -1,5 +1,6 @@
-// Plays walkthroughs (F-12): one step at a time after the settle rule, hands-on and waiting steps,
-// answers, Skip and Finish, and a queue played in order with a question between two.
+// Plays walkthroughs (F-12): one step at a time after the settle rule, hands-on steps (the person
+// acts, then the walkthrough steps aside while the app answers), answers, Skip and Finish, and a
+// queue played in order with a question between two.
 // Called by engine.ts (play), offers.ts (start) and WalkthroughHost (next, back, skip). Calls state.ts, settle.ts, api.ts.
 import { toast } from '../../design-system'
 import { FIRST_MESSAGE_MS } from '../marshbot/settings'
@@ -26,7 +27,7 @@ import {
   sleep,
   type BubbleView,
 } from './state'
-import type { Action, AnswerThen, StepDef, WalkthroughDef } from './types'
+import type { AnswerThen, StepDef, WalkthroughDef } from './types'
 
 // Fixed words (spec, "Copy rules"). Never reworded.
 export const LOST =
@@ -40,13 +41,15 @@ export const BUSY =
 const CANT_RUN =
   "I'm sorry, that didn't work this time. You can replay this walkthrough from **Settings** whenever you like."
 const LATER_MS = 250 // typing dots before every message after a walkthrough's first
-const LANDED_MS = 260 // the ring stays green this long before the next step
-// After a hands-on action (or a waited-on AI) lands, the next step shows no sooner than this, so the
-// person sees what their action changed before MarshBot speaks again (and the settle rule still holds).
-const BEAT_MS = 900
-// A waiting step stays at least this long after its words have finished typing, however early its
-// AI answered: without it a fast answer took the message away before anyone could read it.
-const READ_MS = 1200
+// Once the person's part of a hands-on step is done, the app's result stays on screen this long, with
+// nothing of the walkthrough over it, before MarshBot speaks again (and the settle rule still holds).
+const QUIET_MS = 1000
+// The longest the walkthrough waits on the app's answer with nothing on screen, unless the
+// walkthrough's own fail.slow says otherwise. Without a limit an answer that never comes (stopped,
+// stalled) left it invisible but running: offers blocked, and Esc anywhere skipped it.
+const QUIET_LIMIT_MS = 90_000
+// A screen's own remount (a route that gains an id) leaves and shows it again within this time.
+const REMOUNT_MS = 300
 // A press that opens another screen waits for the cut-out to fade shut first (spotlight.ts SHUT_MS)
 // plus a frame or two for the host to measure "no target" and start that fade.
 const SHUT_START_MS = 40
@@ -65,16 +68,16 @@ let afterPress = false
 const AFTER_PRESS_MS = 8000
 // The walkthrough the practice assessment was last reset for (see lost()); cleared by a new play.
 let retried: string | null = null
-// When the beat after the last landed action ends (BEAT_MS).
-let beatUntil = 0
-// Signals raised between an action landing and the next step showing: a fast answer can come before
-// the step that waits on it is listening, and without this the walkthrough would wait for ever.
+// Signals raised since the person's part of a step was done: the app's answer can come before
+// anything listens for it, and without this the walkthrough would wait for ever.
 let heard: Set<string> | null = null
 let stopHearing = () => {}
-// When the message showing now finished typing (the bubble tells the host, which calls typed()).
-let typedKey: string | null = null
-let typedAt = 0
-let wakeTyped: (() => void) | null = null
+// The step whose `open` presses were made during the quiet time before it (quiet), so it does not press them again.
+let opened = -1
+// A hands-on walkthrough's step waiting quietly for the app's answer (quiet): a refusal shows it again.
+let waiting: number | null = null
+// The screen showing while the walkthrough waits on the app's answer: the person leaving it skips.
+let watching: string | null = null
 
 const admin = () => get().role === 'knowledge_admin'
 const forRole = (step: StepDef) => !step.only || step.only === get().role
@@ -92,37 +95,33 @@ function stopListening() {
   stops = []
 }
 
-// Forgets the beat and the signals heard early (a step has shown, or the walkthrough ended or
-// started). Without this, a skipped walkthrough's beat would hold up the next one's first step.
+// Forgets the signals heard early (a step has shown, or the walkthrough ended or started). Without
+// this, a skipped walkthrough's answer could move the next one on.
 function forget() {
   stopHearing()
   heard = null
-  beatUntil = 0
-}
-
-// Waits out what is left of the beat after the last landed action.
-const beat = () => sleep(Math.max(0, beatUntil - performance.now()))
-
-/** Notes that message `key` has finished typing (WalkthroughBubble's onDone); returns nothing. */
-export function typed(key: string) {
-  if (get().bubble?.key !== key) return
-  typedKey = key
-  typedAt = performance.now()
-  wakeTyped?.()
-}
-
-// Resolves once the message showing now has finished typing and been on screen READ_MS more.
-async function read(): Promise<void> {
-  if (typedKey !== get().bubble?.key) await new Promise<void>((wake) => (wakeTyped = wake))
-  wakeTyped = null
-  await sleep(Math.max(0, typedAt + READ_MS - performance.now()))
+  waiting = null
+  watching = null
 }
 
 /** Returns the id of the walkthrough playing now, or null. */
 export const current = () => def
 
+/** The screen `key` has gone (useWalkthroughScreen's cleanup). While the walkthrough waits on the
+    app's answer on it, the person has left by one of the app's own links: it ends as a skip. A
+    remount of the same screen (it shows again at once) does not count. Returns nothing. */
+export function screenGone(key: string) {
+  if (!def || watching !== key) return
+  const g = gen
+  setTimeout(() => {
+    if (g === gen && watching === key && screenNow.current?.key !== key) finish('skipped')
+  }, REMOUNT_MS)
+}
+
 /** Shows one message in the bottom-right corner with an OK (or the given answers); no dimming. */
 export function tell(say: string, mood: Mood, onOk?: () => void) {
+  // The step's own listeners go, as in askFor: one landing now would take this message away.
+  stopListening()
   set({
     bubble: {
       key: `tell:${++gen}`,
@@ -134,10 +133,10 @@ export function tell(say: string, mood: Mood, onOk?: () => void) {
       typing: calm() ? 0 : LATER_MS,
     },
     targets: null,
-    press: null,
     dim: false,
     ring: 'off',
     nav: false,
+    quiet: false,
   })
 }
 
@@ -160,12 +159,12 @@ export function askFor(say: string, mood: Mood, tag: string, until: string, then
       typing: calm() ? 0 : LATER_MS,
     },
     targets: [tag],
-    press: null,
     apart: false,
     end: false,
     dim: true,
     ring: 'on',
     nav: false,
+    quiet: false,
   })
   stops.push(onSignal(until, () => g === gen && then()))
 }
@@ -258,20 +257,6 @@ export async function start(id: string, stay = false): Promise<void> {
   if (g === gen) void showStep()
 }
 
-// A press inside a wider target (a field round its Confirm tick): returns the target's tags, which
-// the cut-out then goes round, with only the press control taking presses; else null (as before:
-// the cut-out is the pressed control).
-function widened(step: StepDef, action: Action | undefined): string[] | null {
-  if (!action || !('press' in action)) return null
-  const pressed = findTarget(action.press)
-  const tags = onScreen(asList(step.target))
-  const holds = (tag: string) => {
-    const el = findTarget(tag)
-    return !!el && !!pressed && el !== pressed && el.contains(pressed)
-  }
-  return tags.some(holds) ? tags : null
-}
-
 // The tags a step's highlight goes round: a hands-on step's first action, else its target.
 function tagsOf(step: StepDef): string[] {
   const first = step.do?.[0]
@@ -286,12 +271,14 @@ async function showStep(): Promise<void> {
   const step = steps[index]
   const patience = afterPress ? AFTER_PRESS_MS : SETTLE_MS
   afterPress = false
-  set({ bubble: null, ring: 'off', press: null, nav: !!step.nav })
+  set({ bubble: null, ring: 'off', nav: !!step.nav, quiet: false })
   // a. Presses what must be open first (a tab, a menu), each once it has settled. Not when what the
   // step points at is already showing (the screen went there by itself, or a replay): a press then
   // could close what is open, or look for a Back button that is no longer there and end the walkthrough.
   const wanted = needed(tagsOf(step))
-  const opens = !!step.open?.length && !(wanted.length && wanted.every((t) => findTarget(t)))
+  const done = opened === index // pressed already, while the app answered the step before (quiet)
+  const opens =
+    !done && !!step.open?.length && !(wanted.length && wanted.every((t) => findTarget(t)))
   // A press that changes the screen: the cut-out fades shut first and stays shut until the next
   // target is measured. Without this the new screen showed through the old cut-out for a moment.
   if (opens && get().dim && get().targets) {
@@ -300,7 +287,7 @@ async function showStep(): Promise<void> {
     if (g !== gen) return
   }
   let pressed = false
-  for (const tag of step.open ?? []) {
+  for (const tag of done ? [] : (step.open ?? [])) {
     if (wanted.length && wanted.every((t) => findTarget(t))) break
     const [el] = (await settle([tag], patience)) ?? []
     if (g !== gen) return
@@ -327,14 +314,11 @@ async function showStep(): Promise<void> {
       if (index >= steps.length) return finish('played')
       return showStep()
     }
-    // c. The beat after the person's last action, if any is left of it; between screens, the old
-    // cut-out's time to fade shut (spotlight.ts), or the new one would open over it half-shut.
-    await beat()
+    // c. Between screens, the old cut-out's time to fade shut (spotlight.ts), or the new one would
+    // open over it half-shut.
     if (before && !sameScreen) await sleep(Math.max(0, SHUT_MS - (performance.now() - shutAt)))
     if (g !== gen) return
-    const first = step.do?.[0]
-    const wide = widened(step, first)
-    const lit = wide ?? onScreen(tags)
+    const lit = onScreen(tags)
     // Both axes, before the highlight is measured: a tab scrolled away sideways, a union taller than the window.
     bringIntoView(
       lit.map(findTarget).filter((el) => el !== null),
@@ -343,42 +327,26 @@ async function showStep(): Promise<void> {
     )
     set({
       targets: lit,
-      press: wide && first && 'press' in first ? first.press : null,
       apart: !!step.apart,
       end: step.show === 'end',
       dim: !def!.bare,
     })
     // The cut-out glides (same screen, 320 ms) or fades open (new screen, 180 ms; spotlight.ts) first.
     if (!calm()) await sleep(sameScreen ? 320 : 180)
-  } else {
-    await beat()
-    if (g !== gen) return
-    set({ targets: null, apart: false, end: false, dim: true })
-  }
+  } else set({ targets: null, apart: false, end: false, dim: true })
   if (g !== gen) return
-  // d. The message, then what moves the step on. A signal a waiting step waits on (early or not)
-  // lands only once its words have been read (read()). A toast still showing from the last action
-  // goes: the person saw it in the pause, and MarshBot now says what happened (not on the first
-  // step, whose toast is about the practice assessment just set up).
+  // d. The message, then what moves the step on. A toast still showing from the person's last
+  // action goes: they saw it in the quiet time, and MarshBot now says what happened (not on the
+  // first step, whose toast is about the practice assessment just set up).
   if (index > 0) toast.dismiss()
   set({ bubble: viewOf(step), running: { id: def!.id, at: index + 1, total: steps.length } })
   firstMessage = false
   const early = heard
   forget()
   if (step.do) armActions(step, g, early)
-  if (step.wait && early?.has(step.wait)) void landed(g, true)
-  else if (step.wait) {
-    stops.push(onSignal(step.wait, () => g === gen && void landed(g, true)))
-    // The AI is slower than usual: the try-it's own line, and the walkthrough ends (the work goes on).
-    const slow = def!.fail?.slow
-    if (slow) {
-      const timer = setTimeout(() => g === gen && tooSlow(slow.say), slow.afterMs)
-      stops.push(() => clearTimeout(timer))
-    }
-  }
 }
 
-// A waiting step ran out of time: recorded as played (the person did every step of theirs), so it is
+// The app's answer took too long (fail.slow): recorded as played (the person did every step of theirs), so it is
 // not offered again, and nothing queued after it starts by itself.
 function tooSlow(say: string) {
   const done = def!
@@ -395,7 +363,7 @@ function viewOf(step: StepDef): BubbleView {
   return {
     key: `${d.id}:${index}`,
     say: fill(say),
-    mood: step.mood ?? (step.wait ? 'thinking' : 'idle'),
+    mood: step.mood ?? 'idle',
     place: step.card || !tagsOf(step).length ? 'card' : d.bare ? 'bare' : 'target',
     step:
       question || d.bare
@@ -403,7 +371,7 @@ function viewOf(step: StepDef): BubbleView {
         : {
             at: index + 1,
             total: steps.length,
-            turn: step.do ? 'hands' : step.wait ? 'wait' : undefined,
+            hands: !!step.do,
             noBack: !canGoBack(),
           },
     answers: question
@@ -432,8 +400,10 @@ function listen<K extends keyof DocumentEventMap>(type: K, fn: (e: DocumentEvent
   stops.push(() => document.removeEventListener(type, fn, true))
 }
 
-// A hands-on step: only the highlighted control works; each action moves the highlight to the next.
-// `early`: signals raised before the step showed (its first action may already have happened).
+// A hands-on step: the person does its actions in order. A single press keeps the spotlight until
+// the press; with more to do (choose, type, record) the spotlight goes at the first press or key
+// inside the cut-out and the bubble stays, unmoved, for the instructions. Once the last action has
+// landed, quiet() takes over. `early`: signals raised before the step showed.
 function armActions(step: StepDef, g: number, early: Set<string> | null) {
   const actions = step.do!
   let k = 0
@@ -442,81 +412,97 @@ function armActions(step: StepDef, g: number, early: Set<string> | null) {
     const done = () => {
       stopListening()
       k += 1
-      if (k < actions.length) void moveTo(k)
-      else {
-        afterPress = true
-        void landed(g)
-      }
+      if (k < actions.length) arm()
+      else void quiet(step, g)
     }
-    if ('press' in action) {
+    if ('press' in action)
       // Capture phase, so the press is seen even if the control stops it bubbling; it still goes through.
       listen('click', (e) => {
         if ((e.target as Element | null)?.closest?.(`[data-walk="${CSS.escape(action.press)}"]`))
           done()
       })
-      return
+    else {
+      stops.push(onSignal(action.signal, done))
+      if (k === 0 && early?.has(action.signal)) after(QUIET_MS, done)
     }
-    stops.push(onSignal(action.signal, done))
-    if (k === 0 && early?.has(action.signal)) after(BEAT_MS, done)
-    // More to do than one press (pick from a menu, type, record): at the first press or key inside
-    // the cut-out the spotlight goes (150 ms) and the whole page is usable until the signal lands.
-    // Without this a menu opening outside the cut-out could not be used, and every scroll moved it.
-    const letGo = (e: Event) => {
-      if (e instanceof KeyboardEvent && /^(Tab|Shift|Control|Alt|Meta)$/.test(e.key)) return
-      const { dim, targets, bubble } = get()
-      const inside = (targets ?? []).some((t) => findTarget(t)?.contains(e.target as Node))
-      if (!dim || !inside) return
-      set({ dim: false, ring: 'off', bubble: bubble && { ...bubble, rushed: true } })
+    if (actions.length > 1 || !('press' in action)) {
+      // Without this a menu opening outside the cut-out could not be used, and every scroll moved it.
+      const letGo = (e: Event) => {
+        if (e instanceof KeyboardEvent && /^(Tab|Shift|Control|Alt|Meta)$/.test(e.key)) return
+        const { dim, targets, bubble } = get()
+        const inside = (targets ?? []).some((t) => findTarget(t)?.contains(e.target as Node))
+        if (!dim || !inside) return
+        set({ dim: false, ring: 'off', bubble: bubble && { ...bubble, rushed: true } })
+      }
+      listen('pointerdown', letGo)
+      listen('keydown', letGo)
     }
-    listen('pointerdown', letGo)
-    listen('keydown', letGo)
-  }
-  // Listens at once (a signal can follow a press within the same moment), then moves the highlight
-  // once its target has settled; the spotlight comes back on it if a signal let it go.
-  const moveTo = async (at: number) => {
-    arm()
-    const action = actions[at]
-    const tags = 'press' in action ? [action.press] : asList(action.at ?? step.target)
-    if (!tags.length) return
-    // The second and later actions follow a press that may have opened a screen: 8 s, not 4.
-    const found = await settle(needed(tags), AFTER_PRESS_MS)
-    if (g !== gen || k !== at) return
-    if (!found) return lost()
-    const wide = widened(step, action)
-    set({
-      targets: wide ?? onScreen(tags),
-      press: wide && 'press' in action ? action.press : null,
-      apart: false,
-      end: false,
-      dim: true,
-      ring: 'on',
-    })
   }
   set({ ring: 'on' })
   arm()
 }
 
-// The step's action landed (or its AI finished; `waiting`: once its words are read): the bar fills
-// and MarshBot is pleased, with the ring green on a hands-on step (a waiting step has no ring: it
-// is for "Your turn"). Then the spotlight and the bubble fade out and the beat starts (BEAT_MS,
-// showStep); signals raised from now on are kept for the next step.
-async function landed(g: number, waiting = false) {
-  forget()
+// The person's part of a hands-on step is done. In order:
+// a. MarshBot's bubble and the spotlight leave at once; from here the app's own screen shows alone.
+// b. With an `until`: the next step's `open` presses a second in (so the person watches the app
+//    work on the right screen), then the app's "result is ready" signal (heard early or now).
+// c. That result stays on screen QUIET_MS alone; then the next step, after the settle rule.
+async function quiet(step: StepDef, g: number) {
+  // A message has replaced the step since (tell, askFor): it stays, and so does its OK.
+  if (g !== gen) return
+  set({
+    bubble: null,
+    targets: null,
+    dim: false,
+    ring: 'off',
+    apart: false,
+    end: false,
+    quiet: true,
+  })
+  afterPress = true
   const caught = new Set<string>()
   heard = caught
   stopHearing = onAnySignal((name) => caught.add(name))
-  if (waiting) await read()
+  let readyAt = performance.now()
+  if (step.until) {
+    waiting = index
+    const following = steps[index + 1]
+    if (following?.open?.length) {
+      await sleep(QUIET_MS)
+      if (g !== gen) return
+      // Not when its screen is already showing (the person pressed Back themselves): the search
+      // for a Back button that is gone would end the walkthrough (showStep's own guard).
+      const wanted = needed(tagsOf(following))
+      for (const tag of following.open) {
+        if (wanted.length && wanted.every((t) => findTarget(t))) break
+        const [el] = (await settle([tag], AFTER_PRESS_MS)) ?? []
+        if (g !== gen) return
+        if (!el) return lost()
+        el.click()
+      }
+      opened = index + 1
+    }
+    if (!caught.has(step.until)) {
+      const until = step.until
+      // The person leaving this screen now ends it as a skip (screenGone).
+      watching = screenNow.current?.key ?? null
+      // The app is slower than usual, or its answer never comes: fail.slow's line (the walkthrough
+      // ends, the work goes on), else failedPartWay (a hands-on step shows again; a try-it ends).
+      const slow = def!.fail?.slow
+      after(slow?.afterMs ?? QUIET_LIMIT_MS, () => {
+        if (g !== gen || waiting === null) return
+        if (slow) tooSlow(slow.say)
+        else failedPartWay()
+      })
+      await new Promise<void>((ready) => stops.push(onSignal(until, () => ready())))
+    }
+    if (g !== gen) return
+    watching = null
+    waiting = null
+    readyAt = performance.now()
+  }
+  await sleep(Math.max(0, readyAt + QUIET_MS - performance.now()))
   if (g !== gen) return
-  beatUntil = performance.now() + BEAT_MS
-  const view = get().bubble
-  if (view?.step)
-    set({
-      ...(view.step.turn === 'hands' && { ring: 'done' as const }),
-      bubble: { ...view, mood: 'pleased', step: { ...view.step, done: true } },
-    })
-  await sleep(LANDED_MS)
-  if (g !== gen) return
-  set({ dim: false, ring: 'off', bubble: null })
   next(true)
 }
 
@@ -525,7 +511,7 @@ export function next(force = false) {
   const view = get().bubble
   // Not while the next step is still settling (no bubble yet): a second quick press of the arrow
   // key would otherwise skip the step that is about to show, a hands-on one included.
-  if (!def || (!force && (!view || view.step?.turn))) return
+  if (!def || (!force && (!view || view.step?.hands))) return
   if (index >= steps.length - 1) return finish('played')
   index += 1
   void showStep()
@@ -538,7 +524,7 @@ export function next(force = false) {
 function canGoBack(): boolean {
   if (index === 0) return false
   const before = steps[index - 1]
-  return !steps[index].open?.length && !before.do && !before.wait
+  return !steps[index].open?.length && !before.do
 }
 
 /** Goes back one step, where that is possible (see canGoBack) and a step is showing. */
@@ -560,14 +546,24 @@ function answer(then: AnswerThen) {
   if (then === 'end') return finish('played')
   if (then === 'skip') return finish('skipped')
   if ('emit' in then) {
+    // An answer that sets the app working (Use the sample email): the walkthrough steps aside first.
+    const step = steps[index]
+    if (step.until) void quiet(step, gen)
     signal(then.emit)
-    return next(true)
+    return step.until ? undefined : next(true)
   }
   return finish('played', () => playQueue([then.play]))
 }
 
 /** A try-it's AI failed part-way (signal 'try-it-failed'): it ends unrecorded with its own line. */
 export function failedPartWay() {
+  // A hands-on step whose answer was refused while it waited (the Overview's reply): it shows
+  // again with the same words, so the person can act again.
+  if (def && def.kind !== 'ai' && waiting !== null) {
+    index = waiting
+    opened = -1 // the next step's open presses are made again on the next wait
+    return void showStep()
+  }
   if (def?.kind !== 'ai') return
   const line = def.fail?.partway ?? CANT_RUN
   end()
@@ -610,6 +606,7 @@ export function stopAll() {
 function end() {
   gen += 1
   afterPress = false
+  opened = -1
   stopListening()
   forget()
   def = null
@@ -617,12 +614,12 @@ function end() {
     running: null,
     bubble: null,
     targets: null,
-    press: null,
     apart: false,
     end: false,
     dim: false,
     ring: 'off',
     nav: false,
+    quiet: false,
   })
 }
 

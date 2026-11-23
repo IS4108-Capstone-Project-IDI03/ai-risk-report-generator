@@ -1,11 +1,12 @@
-// The walkthrough engine (F-12, test seam 3): offers, the Welcome, the settle rule, hands-on and
-// waiting steps, Skip and Finish, a queue, try-its, "other way" offers, roles and saving.
+// The walkthrough engine (F-12, test seam 3): offers, the Welcome, the settle rule, hands-on steps
+// and the quiet wait for the app's answer, Skip and Finish, a queue, try-its, "other way" offers,
+// roles and saving.
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from '../../design-system'
 import { canPlay, play, setOffers, tryItRunning, useWalkthroughs } from './engine'
-import { ALL_DONE, BUSY, LOST } from './player'
+import { ALL_DONE, BUSY, LOST, tell } from './player'
 import { onSignal, signal } from './signals'
 import { TEST_DEFS } from './testDefinitions'
 import { Harness, layOut } from './testKit'
@@ -242,23 +243,28 @@ describe('steps', () => {
     expect(patches).toEqual([])
   })
 
-  it('a hands-on step ignores Next and moves on when its actions land; a waiting step on its signal', async () => {
+  it('a hands-on step ignores Next; after its press nothing shows until its result is ready, then 1 s, then the next step', async () => {
     window.history.replaceState(null, '', PRACTICE_PLACE)
     render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
     act(() => play(['observations']))
     await wait(200)
-    expect(useWalkthroughs.getState().targets).toEqual(['t.button'])
-    expect(useWalkthroughs.getState().press).toBeNull() // its target does not hold the button
+    expect(useWalkthroughs.getState()).toMatchObject({ targets: ['t.button'], ring: 'on' })
     press('Next')
     expect(screen.getByText('Press the button.')).toBeTruthy()
     press('Add')
-    act(() => signal('thing-saved'))
-    await wait(1200) // the green ring, then the 900 ms beat
-    expect(screen.getByText('Working on it.')).toBeTruthy()
-    press('Next')
-    expect(screen.getByText('Working on it.')).toBeTruthy()
-    act(() => signal('answer-finished'))
-    await wait(2400) // its words read (1200 ms after typing), the green bar, then the beat
+    // The person's part is done: bubble, dimming, cut-out and ring all go at once.
+    expect(useWalkthroughs.getState()).toMatchObject({
+      bubble: null,
+      targets: null,
+      dim: false,
+      ring: 'off',
+    })
+    await wait(1200) // (its fail.slow line would come at 1.5 s)
+    expect(useWalkthroughs.getState().bubble).toBeNull() // the app is still answering
+    act(() => signal('answered'))
+    await wait(800)
+    expect(useWalkthroughs.getState().bubble).toBeNull() // the result shows alone for 1 s
+    await wait(500)
     expect(screen.getByText('All done.')).toBeTruthy()
   })
 
@@ -397,16 +403,13 @@ describe('the practice assessment', () => {
   })
 })
 
-describe('a waiting step that takes too long', () => {
+describe('an answer that takes too long', () => {
   it('says the try-it’s own line, ends recorded as played, and plays nothing queued after it', async () => {
     window.history.replaceState(null, '', PRACTICE_PLACE)
     render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
     act(() => play(['observations', 'clients']))
     await wait(200)
     press('Add')
-    act(() => signal('thing-saved'))
-    await wait(1200)
-    expect(screen.getByText('Working on it.')).toBeTruthy()
     await wait(1600)
     expect(screen.getByText('Taking longer.')).toBeTruthy()
     expect(useWalkthroughs.getState().running).toBeNull()
@@ -455,16 +458,16 @@ describe('started away from its screen', () => {
     act(() => play(['observations']))
     await wait(200)
     press('Add')
-    act(() => signal('thing-saved'))
+    act(() => signal('answered'))
     // Between steps (no bubble yet): an arrow key press must not skip the step that is coming.
     fireEvent.keyDown(document.body, { key: 'ArrowRight' })
-    await wait(1200)
-    expect(screen.getByText('Working on it.')).toBeTruthy()
+    await wait(1300)
+    expect(screen.getByText('All done.')).toBeTruthy()
     // The step before was hands-on: its action is used up, so Back is greyed and does nothing.
     expect(screen.getByRole('button', { name: 'Back' }).hasAttribute('disabled')).toBe(true)
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
     await wait(300)
-    expect(screen.getByText('Working on it.')).toBeTruthy()
+    expect(screen.getByText('All done.')).toBeTruthy()
   })
 
   it('goes to the path, presses each open tag as it settles, then waits for the screen', async () => {
@@ -524,7 +527,7 @@ describe('a new session', () => {
 })
 
 describe('after a press that loads a screen', () => {
-  it('waits up to 8 s for the next action and the next step', async () => {
+  it("waits up to 8 s for the next step after the person's last press", async () => {
     const appear = (tag: string) => {
       const el = document.createElement('button')
       el.setAttribute('data-walk', tag)
@@ -539,7 +542,6 @@ describe('after a press that loads a screen', () => {
     await wait(5000)
     const late = appear('t.late')
     await wait(300)
-    expect(useWalkthroughs.getState().targets).toEqual(['t.late'])
     fireEvent.click(late)
     await wait(5000)
     const later = appear('t.later')
@@ -600,85 +602,185 @@ describe('a queue', () => {
   })
 })
 
-describe('the beat after an action lands', () => {
-  it('the next step shows no sooner than 900 ms later, with the old bubble and spotlight gone meanwhile', async () => {
+describe('the quiet time after the person’s part', () => {
+  it('a result that came before anything listened is not lost', async () => {
     window.history.replaceState(null, '', PRACTICE_PLACE)
     render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
     act(() => play(['observations']))
     await wait(200)
     press('Add')
-    act(() => signal('thing-saved'))
-    await wait(600)
-    expect(screen.queryByText('Press the button.')).toBeNull()
-    expect(screen.queryByText('Working on it.')).toBeNull()
-    expect(useWalkthroughs.getState().dim).toBe(false)
-    await wait(600)
-    expect(screen.getByText('Working on it.')).toBeTruthy()
-  })
-
-  it('a signal raised before the next step listens is not lost: that step shows, then moves on', async () => {
-    render(<Harness />)
-    act(() => play(['early']))
-    await wait(200)
-    press('Add')
-    act(() => signal('answered')) // the answer comes during the beat
-    await wait(1200)
-    expect(screen.getByText('Waiting for it.')).toBeTruthy()
-    await wait(2600) // read first (1200 ms after its words are in), then the beat
-    expect(screen.getByText('Answered.')).toBeTruthy()
-  })
-
-  it('a waiting step whose answer came early stays until its words are read, and never draws a ring', async () => {
-    const rings = new Set<string>()
-    const stop = useWalkthroughs.subscribe((s) => {
-      if (s.bubble?.say === 'Waiting for it.') rings.add(s.ring)
-    })
-    render(<Harness />)
-    act(() => play(['early']))
-    await wait(200)
-    press('Add')
     act(() => signal('answered'))
-    await wait(1200)
-    expect(screen.getByText('Waiting for it.')).toBeTruthy()
-    await wait(900) // typed at once (reduced motion in jsdom): still within READ_MS
-    expect(screen.getByText('Waiting for it.')).toBeTruthy()
-    await wait(1700)
-    expect(screen.getByText('Answered.')).toBeTruthy()
-    expect([...rings]).toEqual(['off'])
+    await wait(1300)
+    expect(screen.getByText('All done.')).toBeTruthy()
+  })
+
+  it('the next step’s open press is made a second after the action, before the result is ready', async () => {
+    const pressedAt: number[] = []
+    const onClick = (e: Event) => {
+      if (!(e.target as Element).closest('[data-walk="t.search"]')) return
+      pressedAt.push(performance.now())
+      const late = document.createElement('button')
+      late.setAttribute('data-walk', 't.late')
+      document.body.append(late)
+    }
+    document.addEventListener('click', onClick)
+    render(<Harness />)
+    act(() => play(['elsewhere']))
+    await wait(200)
+    const from = performance.now()
+    press('Add')
+    await wait(1400)
+    expect(pressedAt).toHaveLength(1)
+    expect(pressedAt[0] - from).toBeGreaterThanOrEqual(1000)
+    expect(useWalkthroughs.getState().bubble).toBeNull() // still waiting for the result
+    act(() => signal('read'))
+    await wait(1300)
+    expect(screen.getByText('Here it is.')).toBeTruthy()
+    expect(pressedAt).toHaveLength(1) // not pressed again by the step itself
+    document.removeEventListener('click', onClick)
+    document.querySelector('[data-walk="t.late"]')?.remove()
+  })
+
+  it('an answer that sets the app working steps aside until its result', async () => {
+    const heard = vi.fn()
+    const stop = onSignal('sample-chosen', heard)
+    render(<Harness />)
+    act(() => play(['sample']))
+    await wait(200)
+    press('Use the sample')
+    expect(heard).toHaveBeenCalled()
+    expect(useWalkthroughs.getState()).toMatchObject({ bubble: null, dim: false })
+    act(() => signal('sample-read'))
+    await wait(1300)
+    expect(screen.getByText('Read.')).toBeTruthy()
     stop()
   })
 
   it('a step after the first dismisses a toast left on screen; a skip still shows its own', async () => {
-    render(<Harness />)
-    act(() => play(['early']))
+    window.history.replaceState(null, '', PRACTICE_PLACE)
+    render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
+    act(() => play(['observations']))
     await wait(200)
     expect(toast.dismiss).not.toHaveBeenCalled() // the first step keeps the practice one
     press('Add')
+    act(() => signal('answered'))
     await wait(1300)
-    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    expect(screen.getByText('All done.')).toBeTruthy()
     expect(toast.dismiss).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(toast.info).toHaveBeenCalledWith('Walkthrough skipped', expect.anything())
     expect(toast.dismiss).toHaveBeenCalledTimes(1)
   })
 
-  it('forgets the beat and early signals on Skip', async () => {
+  it('a hands-on step whose answer was refused shows again, so the person can act again', async () => {
+    window.history.replaceState(null, '', PRACTICE_PLACE)
+    render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
+    act(() => play(['observations']))
+    await wait(200)
+    press('Add')
+    expect(useWalkthroughs.getState().bubble).toBeNull()
+    act(() => signal('try-it-failed'))
+    await wait(300)
+    expect(screen.getByText('Press the button.')).toBeTruthy()
+  })
+
+  it('an answer that never comes: after 90 s the step shows again, and a screen reader is told meanwhile', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     render(<Harness />)
-    act(() => play(['early']))
+    act(() => play(['sample']))
+    await wait(200)
+    press('Use the sample')
+    expect(useWalkthroughs.getState()).toMatchObject({ bubble: null, quiet: true })
+    expect(screen.getByRole('status').textContent).toBe("I'll carry on when this is ready.")
+    await act(async () => vi.advanceTimersByTime(89_000))
+    expect(useWalkthroughs.getState().bubble).toBeNull()
+    await act(async () => vi.advanceTimersByTime(1_500))
+    await wait(200)
+    expect(screen.getByText('Want a sample?')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('')
+    vi.useRealTimers()
+  })
+
+  it('a skip during the quiet wait clears its time limit', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    render(<Harness />)
+    act(() => play(['sample']))
+    await wait(200)
+    press('Use the sample')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await act(async () => vi.advanceTimersByTime(91_000))
+    await wait(200)
+    // Nothing of the walkthrough comes back (the Clients screen's own first-open offer may show).
+    expect(useWalkthroughs.getState().running).toBeNull()
+    expect(screen.queryByText('Want a sample?')).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('leaving the screen during the quiet wait ends the walkthrough as a skip, with its Replay toast', async () => {
+    render(<Harness />)
+    act(() => play(['sample']))
+    await wait(200)
+    press('Use the sample')
+    press('Leave') // one of the app's own links: no Back event
+    await wait(400)
+    expect(useWalkthroughs.getState().running).toBeNull()
+    expect(patches).toContainEqual({ seen: { sample: 'skipped' } })
+    expect(toast.info).toHaveBeenCalledWith('Walkthrough skipped', expect.anything())
+  })
+
+  it('the next step’s open press is not made when its screen is already showing', async () => {
+    const pressed = vi.fn()
+    const onClick = (e: Event) =>
+      (e.target as Element).closest('[data-walk="t.search"]') && pressed()
+    document.addEventListener('click', onClick)
+    render(<Harness />)
+    act(() => play(['elsewhere']))
+    await wait(200)
+    press('Add')
+    // The person went there themselves within the first second.
+    const late = document.createElement('button')
+    late.setAttribute('data-walk', 't.late')
+    document.body.append(late)
+    await wait(1300)
+    expect(pressed).not.toHaveBeenCalled()
+    act(() => signal('read'))
+    await wait(1300)
+    expect(screen.getByText('Here it is.')).toBeTruthy()
+    document.removeEventListener('click', onClick)
+    late.remove()
+  })
+
+  it('a message shown during a step keeps its OK when the step’s action lands after it', async () => {
+    render(<Harness />)
+    act(() => play(['confirm']))
+    await wait(200)
+    act(() => tell('Your microphone is blocked.', 'concerned'))
+    await wait(400)
+    act(() => signal('confirm-saved')) // the person recorded anyway, with the message still up
+    await wait(1300)
+    expect(screen.getByText('Your microphone is blocked.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'OK' })).toBeTruthy()
+    expect(useWalkthroughs.getState().quiet).toBe(false)
+  })
+
+  it('forgets a result heard early on Skip', async () => {
+    window.history.replaceState(null, '', PRACTICE_PLACE)
+    render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
+    act(() => play(['observations']))
     await wait(200)
     press('Add')
     act(() => signal('answered'))
     fireEvent.keyDown(window, { key: 'Escape' })
-    act(() => play(['early']))
+    act(() => play(['observations']))
     await wait(200)
     press('Add')
-    await wait(3000)
-    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    await wait(1300)
+    expect(useWalkthroughs.getState().bubble).toBeNull() // waits for a new answer
   })
 })
 
 describe('hands-on spotlight', () => {
-  it('a signal step lets the spotlight go at the first press inside it; a later press brings it back', async () => {
+  it('a step with more to do lets the spotlight go at the first press inside it; it never comes back', async () => {
     render(<Harness />)
     act(() => play(['pick']))
     await wait(200)
@@ -693,14 +795,15 @@ describe('hands-on spotlight', () => {
     expect(useWalkthroughs.getState()).toMatchObject({ dim: false, ring: 'off' })
     // The words show whole, and the bubble keeps its place and its "Your turn".
     expect(useWalkthroughs.getState().bubble).toMatchObject({ say: 'Pick one.', rushed: true })
-    expect(useWalkthroughs.getState().bubble?.step?.turn).toBe('hands')
+    expect(useWalkthroughs.getState().bubble?.step?.hands).toBe(true)
     act(() => signal('picked'))
     await wait(100)
-    expect(useWalkthroughs.getState()).toMatchObject({
-      dim: true,
-      ring: 'on',
-      targets: ['t.button'],
-    })
+    expect(useWalkthroughs.getState()).toMatchObject({ dim: false, ring: 'off' })
+    expect(screen.getByText('Pick one.')).toBeTruthy()
+    press('Add')
+    expect(useWalkthroughs.getState().bubble).toBeNull()
+    await wait(1300)
+    expect(screen.getByText('Picked.')).toBeTruthy()
   })
 
   it('a step that opens another screen shuts the cut-out before its press, and keeps it shut until the next target', async () => {
@@ -727,38 +830,18 @@ describe('hands-on spotlight', () => {
     document.querySelector('[data-walk="t.late"]')?.remove()
   })
 
-  it('a press inside a wider target lights the target, and only the pressed control takes presses', async () => {
-    render(<Harness />)
-    act(() => play(['field']))
-    await wait(200)
-    expect(useWalkthroughs.getState()).toMatchObject({ targets: ['t.head'], press: 't.head-cell' })
-  })
-
   // A hover-only control (the Category field's Confirm tick) shows only while it is marked itself.
-  it('marks the pressed control with data-walk-on as well as the wider target', async () => {
-    render(<Harness />)
-    act(() => play(['field']))
-    await wait(200)
-    const marked = [...document.querySelectorAll('[data-walk-on]')].map((el) =>
-      el.getAttribute('data-walk'),
-    )
-    expect(marked).toEqual(['t.head', 't.head-cell'])
-  })
 
-  it('a press followed by a save signal: the target stays lit and pressable until the save lands', async () => {
+  it('a refused save leaves the step showing; it moves on once the save lands', async () => {
     render(<Harness />)
     act(() => play(['confirm']))
     await wait(200)
+    fireEvent.pointerDown(screen.getByText('Name'))
     fireEvent.click(screen.getByText('Name'))
-    await wait(1300)
-    // Still on the press step (a failed save leaves Confirm to press again), the whole field open.
+    await wait(1500) // the save was refused: no signal
     expect(screen.getByText('Confirm it.')).toBeTruthy()
-    expect(useWalkthroughs.getState()).toMatchObject({
-      targets: ['t.head'],
-      press: null,
-      dim: true,
-    })
     act(() => signal('confirm-saved'))
+    expect(useWalkthroughs.getState().bubble).toBeNull()
     await wait(1300)
     expect(screen.getByText('Confirmed.')).toBeTruthy()
   })

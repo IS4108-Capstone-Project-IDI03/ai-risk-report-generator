@@ -128,18 +128,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         // The button is in MarshBot's bubble: its answer fires the signal UploadArea listens for,
-        // and the sample goes down the same path as a chosen file.
+        // and the sample goes down the same path as a chosen file. Then the walkthrough steps aside
+        // until the reading is done and the form opens (screens/NewAssessment.tsx raises `until`).
         target: 'new-assessment.upload',
         mood: 'idle',
-        say: "Let's try it together. I have a **sample email** from a made-up client. Go ahead and press **Use the sample email**, and watch what happens.",
+        say: "Let's try it together. I have a **sample email** from a made-up client. Before any AI sees it, I hide the client's details to keep them private.\n\nGo ahead and press **Use the sample email**, and watch what I find.",
         answers: [{ label: 'Use the sample email', then: { emit: 'sample-email-wanted' } }],
-      },
-      {
-        // Waits for the reading to finish and the form to open (screens/NewAssessment.tsx raises the signal).
-        target: 'new-assessment.found',
-        mood: 'thinking',
-        say: "I'm reading the email now. Before any AI sees it, I hide the client's details to keep them private. You'll see the client, sites and dates appear as I find them.",
-        wait: 'documents-form-opened',
+        until: 'documents-form-opened',
       },
       {
         // Every amber field carries the tag; the highlight goes round the first one on the page.

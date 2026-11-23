@@ -201,8 +201,9 @@
 .cpf-confirm {
   display: flex;
 }
-/* Kept visible while a walkthrough points at Confirm (the engine sets data-walk-on). */
-.cpf-decide:has([data-walk-on]) {
+/* Kept visible while a walkthrough lights the field holding Confirm (the engine sets data-walk-on:
+   "Check your observations" lights the whole Category field). */
+[data-walk-on] .cpf-decide {
   opacity: 1;
   pointer-events: auto;
 }

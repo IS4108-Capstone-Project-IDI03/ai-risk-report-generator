@@ -33,7 +33,7 @@ const tags = new Set(
 )
 const signals = new Set([
   ...steps.flatMap((s) => [
-    s.wait ?? '',
+    s.until ?? '',
     ...(s.do ?? []).flatMap((a) => ('signal' in a ? [a.signal] : [])),
   ]),
   ...defs.map((d) => d.otherWay?.after ?? ''),

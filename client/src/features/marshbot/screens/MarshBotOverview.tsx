@@ -17,6 +17,7 @@ import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
 import { useNarrowArea } from '../useNarrowArea'
+import { useWalkStep } from '../../site-walk/walkSteps'
 import { signal } from '../../walkthrough/signals'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useThread, type ThreadState } from '../useThread'
@@ -122,6 +123,8 @@ function Conversation({
   // The queue that shows pushed turns one message at a time (useReveal.ts). Run here, not in the
   // Thread, so the agenda and the rail can wait for the message too.
   const reveal = useReveal(thread, !!pending)
+  // F-12: "Find your way around an assessment" is playing (it waits quietly on a reply's answer).
+  const walking = useWalkStep('overview') > 0
   // F-12: "Find your way around an assessment" moves on from Skip for now only once MarshBot's
   // newest pushed turn is all out (its replies too). Before that, its message is still the old
   // turn, or an empty one (0 px) the highlight cannot find.
@@ -157,7 +160,9 @@ function Conversation({
     void reply(r.id, date).then((next) => {
       // Cleared on a refusal too, so no bubble is left behind for a reply that wasn't sent.
       setPending(null)
-      if (!next) return
+      // F-12: a refusal while the walkthrough waits on the answer shows its step again, so the
+      // person can press the reply again (player.ts, failedPartWay). Without this it waited unseen.
+      if (!next) return void (walking && signal('try-it-failed'))
       setAnswered((n) => n + 1)
       confirmChange(thread, next, r.id)
     })

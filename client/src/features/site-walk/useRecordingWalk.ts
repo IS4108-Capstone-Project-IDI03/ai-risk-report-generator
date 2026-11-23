@@ -39,7 +39,7 @@ export function useRecordingWalk(opts: {
   })
   const seen = useRef(micProblem)
 
-  // a. The microphone is open and the clock is running: step 2 moves its highlight to Save recording.
+  // a. The microphone is open and the clock is running: step 2's first action is done.
   useEffect(() => {
     if (phase === 'recording') signal('site-walk-recording-started')
   }, [phase])
@@ -49,8 +49,8 @@ export function useRecordingWalk(opts: {
   }, [finished])
   // c. The proposal is ready, or reading failed (the walk shows its own "Couldn't finish" and the
   // try-it ends with MarshBot's line instead of waiting).
-  useSignalAtStep('site-walk-proposal-ready', status === 'ready', 'site-walk', 7)
-  useSignalAtStep('try-it-failed', status === 'failed', 'site-walk', 7)
+  useSignalAtStep('site-walk-proposal-ready', status === 'ready', 'site-walk', 6)
+  useSignalAtStep('try-it-failed', status === 'failed', 'site-walk', 6)
   // d. No microphone while step 2 waits for a recording: MarshBot says so and the sentence is typed
   // into the note box for the person to add.
   useEffect(() => {

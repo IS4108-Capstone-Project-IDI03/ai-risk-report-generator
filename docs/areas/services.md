@@ -2428,24 +2428,36 @@ record, makes the practice assessment, and answers one question before a try-it.
     (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
     show whole. Before a step shows, its target is scrolled into view through every scroll
     container round it and clear of any pinned bar over its edge.
-  - **Hands-on steps** (`do`): a `press` keeps the spotlight until it lands; a press inside a wider
-    `target` (a field round its Confirm tick) lights the target, with only the pressed control
-    taking presses. A `signal` (a menu, typing, a recording) drops the spotlight at the first press
-    or key inside the cut-out, leaving the page usable until the signal lands.
-  - **A beat after an action lands**: the ring turns green (260 ms), the spotlight and bubble fade,
-    and the next step shows only once its screen has settled and 900 ms have passed (`BEAT_MS` in
-    `player.ts`). A signal raised during that time is remembered, so a fast answer to the step
-    that waits on it still counts.
-  - **Back** is greyed where the step before cannot show again: it was hands-on or waited on AI,
-    or this step opened something.
+  - **Hands-on steps, one model** (`do` and `until`): `do` is only what the person does. A single
+    `press` keeps the spotlight until the press; with more to do (a `signal`: a menu, typing, a
+    recording; or several actions) the spotlight goes at the first press or key inside the cut-out
+    and the bubble stays where it is. The person's own save landing (Confirm, Accept, Save) is a
+    `do` signal, so a refused save leaves the step showing. The moment the last action lands, the
+    bubble and the spotlight leave together and nothing of the walkthrough shows while the app
+    answers. `until` names the app's own "result is ready" signal (an AI answer, MarshBot's turn
+    shown): the engine waits for it (remembered if it came early), keeps the result on screen alone
+    for 1 s (`QUIET_MS` in `player.ts`), then shows the next step, the result, after the settle
+    rule. When that next step needs an `open` press (New Observation's result is on the
+    Observations list), the engine makes it a second after the person's action, so they watch the
+    app work on the right screen. An answer that sets the app working ("Use the sample email") can
+    carry an `until` too. That wait is never open-ended: it lasts at most the walkthrough's
+    `fail.slow` time (its own line, then it ends) or else 90 s (`QUIET_LIMIT_MS`), after which a
+    hands-on step shows again and a try-it ends with its "didn't work" line. A refused answer ends
+    it at once the same way: the Overview raises `try-it-failed` for a refused reply while its
+    walkthrough plays (`MarshBotOverview.tsx`). Leaving the screen during the wait (an app link,
+    which fires no Back event) ends the walkthrough as a skip, noticed through
+    `useWalkthroughScreen`'s cleanup. A screen reader hears "I'll carry on when this is ready."
+    meanwhile (a polite status line in `WalkthroughHost`). There are no waiting steps.
+  - **Back** is greyed where the step before cannot show again: it was hands-on, or this step
+    opened something.
   - **A used-up practice assessment** (the one amber observation already confirmed, the sample
     walk already created): when a hands-on walkthrough cannot find its target there, the engine
     resets the practice assessment and plays the walkthrough again, once. Reset, Remove and
     "Set it up again" raise `practice-changed`, and the assessments list reads itself again.
   - **Unsaved work**: a screen passes `hold: 'unsaved'` while it has any. A walkthrough that
     would have to leave that screen does not start; MarshBot says it will wait.
-  - **A slow try-it** (`fail.slow`): a waiting step that has waited longer than its limit ends
-    with its own line (the site walk: 90 s) and the AI's work carries on.
+  - **A slow try-it** (`fail.slow`): when the app's answer (`until`) has not come within its time,
+    the walkthrough ends with its own line (the site walk: 90 s) and the AI's work carries on.
   - **The site walk try-it** learns its walk is ready from the assessment's event stream (the
     MarshBot re-check that follows reading pushes), then reads the walk once. The recorder's own
     5 s re-read still stops at Finish walk, as before.

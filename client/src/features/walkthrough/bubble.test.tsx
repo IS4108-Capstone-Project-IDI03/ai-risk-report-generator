@@ -1,5 +1,5 @@
-// The walkthrough bubble (F-12, test seam 4): Back and Next on first, middle, last, hands-on and
-// waiting steps; a question's equal buttons and no stepper; the message read out whole; letters.
+// The walkthrough bubble (F-12, test seam 4): Back and Next on first, middle, last and hands-on
+// steps; a question's equal buttons and no stepper; the message read out whole; letters.
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { blocksOf } from './components/words'
@@ -54,22 +54,19 @@ describe('the stepper', () => {
     expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
   })
 
-  it('hands-on and waiting steps grey Next and say why', () => {
-    draw(view({ step: { at: 2, total: 6, turn: 'hands' } }))
+  it('a hands-on step greys Next and says why', () => {
+    draw(view({ step: { at: 2, total: 6, hands: true } }))
     expect(blocked('Next')).toBe(true)
     expect(screen.getByText(/I'll carry on as soon as you've done this step\./)).toBeTruthy()
-    cleanup()
-    draw(view({ step: { at: 2, total: 6, turn: 'wait' } }))
-    expect(screen.getByText(/I'll carry on when this is ready\./)).toBeTruthy()
   })
 
-  it('fills the current segment, but leaves a hands-on one empty until it lands', () => {
-    const { container } = draw(view({ step: { at: 2, total: 4, turn: 'hands' } }))
+  it('fills the current segment, but leaves a hands-on one empty', () => {
+    const { container } = draw(view({ step: { at: 2, total: 4, hands: true } }))
     const states = () =>
       [...container.querySelectorAll('.ds-seg')].map((s) => s.getAttribute('data-state'))
     expect(states()).toEqual(['done', 'empty', 'empty', 'empty'])
     cleanup()
-    const again = draw(view({ step: { at: 2, total: 4, turn: 'hands', done: true } }))
+    const again = draw(view({ step: { at: 2, total: 4 } }))
     expect(
       [...again.container.querySelectorAll('.ds-seg')].map((s) => s.getAttribute('data-state')),
     ).toEqual(['done', 'done', 'empty', 'empty'])

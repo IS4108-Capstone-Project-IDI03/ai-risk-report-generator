@@ -4,17 +4,19 @@
 import type { UserRole } from '../accounts/api'
 import type { Mood } from '../marshbot/types'
 
-// What a hands-on step waits for, in order. The highlight follows the current one.
+// What the person does on a hands-on step, in order. Only the first action's control is lit.
 export type Action =
   | { press: string } // a press on the element tagged data-walk="<tag>"
-  | { signal: string; at?: string } // a named signal from the app; `at` is what to highlight meanwhile (default: the step's target)
+  | { signal: string; at?: string } // a named signal the person's own action raises; `at` (first action only) is what to light (default: the step's target)
 
 export type AnswerThen =
   | 'next' // carry on to the next step (Welcome: "Show me around")
   | 'end' // finish here (recorded as played)
   | 'skip' // leave (recorded as skipped)
   | { play: string } // finish this one, then start that walkthrough (opening its place first)
-  | { emit: string } // fire signal(<name>) (the screen does the work, e.g. "Use the sample email"), then the next step
+  // Fire signal(<name>) (the screen does the work, e.g. "Use the sample email"), then the next step
+  // (after the step's `until`, when it has one).
+  | { emit: string }
 
 export type Answer = {
   label: string
@@ -40,21 +42,23 @@ export type StepDef = {
   mood?: Mood
   card?: boolean // centred over a fully dimmed screen (welcome and end cards)
   answers?: Answer[] // a question: answer buttons instead of the stepper
-  // Hands-on ("Your turn"): moves on when the last action lands, then holds 900 ms (player.ts
-  // BEAT_MS) so the person sees what changed before the next step speaks.
-  // - The cut-out is the CURRENT action's element (its `press` tag, or a signal's `at` tag, else the
-  //   step's target), and EVERYTHING inside it is pressable; the rest of the page is blocked. So tag
-  //   the one control itself: an `at` that wraps three buttons lets all three through.
-  // - A `press` whose step `target` is on the screen and holds the pressed control (a field round its
-  //   Confirm tick): the cut-out and ring go round the target, and only the pressed control inside it
-  //   takes presses. The press itself ends the spotlight.
-  // - A `signal` (more to do than one press: pick from a menu, type, record): at the first press or
-  //   key inside the cut-out the spotlight (dimming, cut-out, ring, blocking) fades out in 150 ms and
-  //   the whole page is usable until the signal lands; the bubble stays put. A later action in the
-  //   same step brings the spotlight back on its own control.
-  // - A signal raised after the step before landed but before this step showed counts as landed.
+  // Hands-on ("Your turn"): what the PERSON does, in order. The cut-out is the first action's
+  // element (its `press` tag, else a signal's `at`, else the step's target), and everything inside it
+  // is pressable; the rest of the page is blocked, so tag the one control itself.
+  // - A single `press` keeps the spotlight until the press.
+  // - More to do (a `signal`: choose, type, record; or several actions): at the first press or key
+  //   inside the cut-out the spotlight goes, and the bubble stays where it is with the instructions.
+  //   It never comes back on a later action of the same step.
+  // - A signal that is the person's own save landing (Confirm, Accept, Save) is a `do` action, so a
+  //   refused save leaves the step showing and the person can act again.
+  // - Once the last action lands, the bubble and the spotlight leave at once and nothing of the
+  //   walkthrough shows until the next step (player.ts, quiet).
   do?: Action[]
-  wait?: string // waits on AI: Next is greyed with "One moment"; moves on by itself on this signal
+  // The app's own "result is ready" signal after the person's part (an AI answer, a turn shown): the
+  // walkthrough shows nothing until it comes (remembered if early), then 1 s more, then the next
+  // step. A next step's `open` presses are made a second after the person's action, so they watch
+  // the app work on the right screen.
+  until?: string
   open?: string[] // tags to press, in order, before the step shows (open a tab, a menu, a section)
   nav?: true // the step points at the sidebar: on a phone the navigation drawer opens first
 }
@@ -75,8 +79,9 @@ export type WalkthroughDef = {
   place: Place
   offer?: string // the first-open offer's words; absent = never offered by itself
   bare?: true // one bubble beside its target with no dimming and no stepper (new-choice, proposals-list)
-  // A try-it's own lines when the quick check fails or it fails part-way; `slow` ends a waiting step
-  // that has waited `afterMs` with its own line (the AI's work carries on without the walkthrough).
+  // A try-it's own lines when the quick check fails or it fails part-way; `slow` ends the wait for
+  // a step's `until` after `afterMs` with its own line (the AI's work carries on without the
+  // walkthrough). Without `slow` that wait is limited to 90 s (player.ts, QUIET_LIMIT_MS).
   fail?: {
     offer?: string
     replay?: string

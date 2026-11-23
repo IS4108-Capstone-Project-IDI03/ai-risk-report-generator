@@ -34,8 +34,8 @@ export function ObservationRow({
   // F-12: "Add an observation" waits for the one just saved to be written out and read: amber when
   // the AI was unsure of a value (To check), else Complete.
   const read = o.status === 'To check' || o.status === 'Complete'
-  useSignalAtStep('observation-reading-finished', o.isNew && read, 'new-observation', 8)
-  useSignalAtStep('try-it-failed', o.isNew && o.status.endsWith('failed'), 'new-observation', 8)
+  useSignalAtStep('observation-reading-finished', o.isNew && read, 'new-observation', 7)
+  useSignalAtStep('try-it-failed', o.isNew && o.status.endsWith('failed'), 'new-observation', 7)
   // A reason that appears after the row was on screen fades in; one already there on load
   // does not animate (v2 motion "A row becoming flagged"). Without this the whole list
   // would animate every time the tab opened.

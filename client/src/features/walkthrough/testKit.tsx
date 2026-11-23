@@ -36,7 +36,7 @@ export function TestScreen({
       <table>
         <tbody>
           <tr data-walk="t.head">
-            <th data-walk="t.head-cell">Name</th>
+            <th>Name</th>
           </tr>
           <tr data-walk="t.row-1">
             <td>Bayfront</td>

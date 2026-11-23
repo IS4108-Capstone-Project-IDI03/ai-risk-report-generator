@@ -34,16 +34,14 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The practice assessment's one reply, Skip for now (decision made in Build: "What else?" is
         // not offered on that data). Optional: once it has been pressed, a replay skips this step.
-        // Lands once MarshBot's answer is all shown, not on the press: until then the newest
-        // message is still the old one, or an empty one (a phone has nothing to light then).
+        // After the press the walkthrough steps aside until MarshBot's answer is all shown (`until`):
+        // until then the newest message is still the old one, or an empty one.
         target: 'overview.reply.skip',
         optional: true,
         mood: 'idle',
         say: 'You can answer me with the buttons under my latest message. Go ahead and press **Skip for now**, and watch how I reply.',
-        do: [
-          { press: 'overview.reply.skip' },
-          { signal: 'marshbot-turn-shown', at: 'overview.latest' },
-        ],
+        do: [{ press: 'overview.reply.skip' }],
+        until: 'marshbot-turn-shown',
       },
       {
         // The result of the press: the reply just sent, MarshBot's answer to it ("No problem") and its

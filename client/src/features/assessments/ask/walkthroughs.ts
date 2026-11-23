@@ -36,15 +36,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         target: 'ask.composer',
         mood: 'idle',
         say: 'I\'ve typed in a question to get you started: "Which observations concern fire protection?" Go ahead and press **Ask**.',
+        // Then the walkthrough steps aside until the checked answer has arrived (`until`).
         do: [{ signal: 'ask-question-sent', at: 'ask.composer' }],
-      },
-      {
-        // At: The question asked. The step holds here until the answer has arrived, so the next step
-        // shows with the answer card in place.
-        target: 'ask.question',
-        mood: 'thinking',
-        say: "I'm working on your answer now. I check each line before I show it to you, so this can take a little while.",
-        wait: 'ask-answer-finished',
+        until: 'ask-answer-finished',
       },
       {
         // At: The answer card (the newest answer).
