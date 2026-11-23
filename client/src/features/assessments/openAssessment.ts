@@ -25,3 +25,15 @@ export const assessmentsStale = { event: 'assessments-stale' }
 export function reloadAssessments() {
   window.dispatchEvent(new CustomEvent(assessmentsStale.event))
 }
+
+// Opens a place inside an assessment from outside the workspace (F-11): the
+// activity popover's row for an observation's reading, or for drafting. Read by
+// AssessmentApp.tsx, which opens it through the leave guard.
+export const assessmentPlace = { event: 'open-assessment-place' }
+
+export type AssessmentPlace = { tab: 'observations' | 'generate'; obs?: string }
+
+/** Asks the app to open `reference` on `place`: a tab, and an observation on it. */
+export function openAssessmentAt(reference: string, place: AssessmentPlace) {
+  window.dispatchEvent(new CustomEvent(assessmentPlace.event, { detail: { reference, ...place } }))
+}

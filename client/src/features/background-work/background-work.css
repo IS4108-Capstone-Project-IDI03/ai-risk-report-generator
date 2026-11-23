@@ -54,14 +54,37 @@
 .bgw-row {
   padding: 10px var(--space-6);
   border-bottom: 1px solid var(--border-subtle);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.bgw-row:focus-within {
+  background: var(--surface-hover);
+}
+/* Only where a pointer can hover: on touch a tapped row would keep the fill. */
+@media (hover: hover) and (pointer: fine) {
+  .bgw-row:hover {
+    background: var(--surface-hover);
+  }
 }
 .bgw-row:last-child {
   border-bottom: 0;
 }
-.bgw-row__body {
+/* The whole row opens the job, as a bell row's message does. */
+.bgw-row__open {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.bgw-row__open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 4px;
 }
 .bgw-row__title {
   color: var(--text-primary);
@@ -109,4 +132,26 @@
 .bgw-progress .ds-segbar-label {
   font-size: 12px;
   line-height: 16px;
+}
+
+/* A failed job: its reason in the error colour with its icon (red is for error
+   words and their icon only), and Try again beside it where the user may. */
+.bgw-row__failed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+.bgw-row__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--red-600);
+  font-size: 13px;
+  line-height: 18px;
+}
+.bgw-row__error > [role='presentation'] {
+  margin-top: 2px;
 }

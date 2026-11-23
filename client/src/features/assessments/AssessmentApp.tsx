@@ -18,7 +18,12 @@ import { ActivityButton } from '../background-work/components/ActivityButton'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { useNotificationCounts } from '../notifications/useNotificationCounts'
 import { Inbox } from '../inbox/screens/Inbox'
-import { assessmentOpen, assessmentsStale } from './openAssessment'
+import {
+  assessmentOpen,
+  assessmentPlace,
+  assessmentsStale,
+  type AssessmentPlace,
+} from './openAssessment'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
 import { ScreenMotion } from './ScreenMotion'
@@ -99,11 +104,19 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     const openOverview = (e: Event) =>
       guardLeave(() => v.openOverviewOf((e as CustomEvent<{ reference: string }>).detail.reference))
     window.addEventListener(assessmentOpen.event, openOverview)
+    // An activity row (F-11) opens an observation, or drafting, the same way.
+    const openPlace = (e: Event) => {
+      const { reference, ...place } = (e as CustomEvent<{ reference: string } & AssessmentPlace>)
+        .detail
+      guardLeave(() => v.openPlaceOf(reference, place))
+    }
+    window.addEventListener(assessmentPlace.event, openPlace)
     window.addEventListener(assessmentsStale.event, v.refreshList)
     return () => {
       window.removeEventListener(assessmentsStale.event, v.refreshList)
       window.removeEventListener(siteWalkReview.event, open)
       window.removeEventListener(assessmentOpen.event, openOverview)
+      window.removeEventListener(assessmentPlace.event, openPlace)
     }
   })
   // Each screen opens at the top, not where the last one was scrolled to. A

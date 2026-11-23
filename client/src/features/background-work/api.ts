@@ -2,6 +2,7 @@
 // each one row, as GET /api/background-work serves them
 // (server/src/services/background-work.service.ts). Read by useBackgroundWork.
 import { request } from '../accounts/api'
+import { send } from '../notifications/api'
 
 export type BackgroundWorkRow = {
   id: string
@@ -39,4 +40,9 @@ export type BackgroundWorkRow = {
 
 export function getBackgroundWork(signal?: AbortSignal): Promise<{ rows: BackgroundWorkRow[] }> {
   return request<{ rows: BackgroundWorkRow[] }>('/api/background-work', { signal })
+}
+
+/** Starts a failed job again by the route its row names (F-11); the answer's body is not read. */
+export function retryWork(retry: NonNullable<BackgroundWorkRow['retry']>): Promise<void> {
+  return send(retry.url, { method: retry.method })
 }

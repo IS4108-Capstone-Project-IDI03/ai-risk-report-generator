@@ -1,10 +1,13 @@
 // Background work (F-11): the header's activity icon and its popover, against
 // a stubbed GET /api/background-work.
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityButton } from './components/ActivityButton'
 import type { BackgroundWorkRow } from './api'
+import { assessmentPlace } from '../assessments/openAssessment'
+import { siteWalkReview } from '../site-walk/openReview'
+import { knowledgeTab } from '../knowledge-base/openTab'
 
 afterEach(() => {
   cleanup()
@@ -230,5 +233,134 @@ describe('keeping up to date', () => {
     await settle()
 
     expect(reads.count).toBe(2)
+  })
+})
+
+describe('acting on a row', () => {
+  // Records the detail of each `event` the app is asked to follow.
+  function heard(event: string) {
+    const details: unknown[] = []
+    const listen = (e: Event) => details.push((e as CustomEvent).detail)
+    window.addEventListener(event, listen)
+    afterEach(() => window.removeEventListener(event, listen))
+    return details
+  }
+
+  it("opens a walk's review", async () => {
+    const opened = heard(siteWalkReview.event)
+    const popover = await openWith([walk])
+
+    fireEvent.click(within(popover).getByRole('button', { name: /Morning walk/ }))
+
+    expect(opened).toEqual([{ reference: 'RPT-2026-0913', walkId: 'w1' }])
+  })
+
+  it('opens the observation a reading or transcription belongs to', async () => {
+    const opened = heard(assessmentPlace.event)
+    const popover = await openWith([
+      {
+        ...walk,
+        id: 'reading:o1',
+        kind: 'reading',
+        title: 'Observation',
+        progress: { type: 'working', stage: 'Describing photos' },
+        href: '/assessment?ref=RPT-2026-0913&tab=observations&obs=o1',
+      },
+    ])
+
+    fireEvent.click(within(popover).getByRole('button', { name: /Observation/ }))
+
+    expect(opened).toEqual([{ reference: 'RPT-2026-0913', tab: 'observations', obs: 'o1' }])
+  })
+})
+
+// Written after openWork's knowledge branches (F-11 T18), so these passed from the start.
+describe('acting on a knowledge row', () => {
+  afterEach(() => window.history.pushState(null, '', '/'))
+
+  it("opens a document's Review page for a decision waiting on the admin", async () => {
+    const popover = await openWith([
+      {
+        id: 'document-decision:d1',
+        kind: 'document-decision',
+        state: 'waiting_on_you',
+        title: 'FM 8-9',
+        context: { label: 'Knowledge base' },
+        progress: { type: 'working', stage: 'Confirm its details' },
+        href: '/admin/knowledge-base/review/d1',
+      },
+    ])
+
+    fireEvent.click(within(popover).getByRole('button', { name: /FM 8-9/ }))
+
+    expect(window.location.pathname).toBe('/admin/knowledge-base/review/d1')
+  })
+
+  const ingestion: BackgroundWorkRow = {
+    id: 'ingestion:d1',
+    kind: 'ingestion',
+    state: 'queued',
+    title: 'FM 8-9',
+    context: { label: 'Knowledge base' },
+    progress: { type: 'working', stage: 'Queued' },
+    href: '/admin/knowledge-base',
+  }
+
+  it("opens the uploads for an admin's document being ingested", async () => {
+    const popover = await openWith([ingestion])
+
+    fireEvent.click(within(popover).getByRole('button', { name: /FM 8-9/ }))
+
+    expect(knowledgeTab.current).toBe('add')
+  })
+
+  it("opens the documents for an engineer's request, since adding them is the admins'", async () => {
+    const popover = await openWith([{ ...ingestion, id: 'request:r1:d1', kind: 'request' }])
+
+    fireEvent.click(within(popover).getByRole('button', { name: /FM 8-9/ }))
+
+    expect(knowledgeTab.current).toBe('documents')
+  })
+})
+
+describe('a failed job', () => {
+  const failed: BackgroundWorkRow = {
+    ...walk,
+    state: 'failed',
+    error: 'A recording could not be transcribed.',
+    retry: { method: 'POST', url: '/api/assessments/RPT-2026-0913/site-walks/w1/retry' },
+  }
+
+  it('says why, and tries again by its own route, then reads the list again', async () => {
+    // The walk is failed until Try again is accepted, then working.
+    const posted: string[] = []
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/api/background-work') return json({ rows: posted.length ? [walk] : [failed] })
+      if (init?.method === 'POST') {
+        posted.push(url)
+        return json({})
+      }
+      return Promise.reject(new TypeError('Failed to fetch'))
+    })
+    render(<ActivityButton />)
+    fireEvent.click(await screen.findByRole('button', { name: /^Background work/ }))
+    const popover = await screen.findByRole('dialog', { name: 'Background work' })
+
+    expect(within(popover).getByText('A recording could not be transcribed.')).toBeInTheDocument()
+    fireEvent.click(within(popover).getByRole('button', { name: 'Try again' }))
+
+    // The list read again shows the walk working, no longer failed.
+    await waitFor(() =>
+      expect(within(popover).queryByText('A recording could not be transcribed.')).toBeNull(),
+    )
+    expect(posted).toEqual(['/api/assessments/RPT-2026-0913/site-walks/w1/retry'])
+  })
+
+  it('offers no Try again where the user may not start it again', async () => {
+    const popover = await openWith([{ ...failed, retry: undefined }])
+
+    expect(within(popover).getByText('A recording could not be transcribed.')).toBeInTheDocument()
+    expect(within(popover).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
   })
 })

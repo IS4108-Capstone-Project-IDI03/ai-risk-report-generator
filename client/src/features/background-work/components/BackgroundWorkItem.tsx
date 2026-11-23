@@ -1,18 +1,68 @@
 // One job in the activity popover (F-11): what it is, what it belongs to, and
-// how far it has got, drawn by what can honestly be measured. Called by
-// BackgroundWorkList.
-import { ProgressBar, RowMark, SegmentBar } from '../../../design-system'
-import type { BackgroundWorkRow } from '../api'
+// how far it has got, drawn by what can honestly be measured. Pressing it opens
+// the job's own place. Called by BackgroundWorkList.
+import { useState } from 'react'
+import { Button, Icon, ProgressBar, RowMark, SegmentBar, toast } from '../../../design-system'
+import { retryWork, type BackgroundWorkRow } from '../api'
+import { openWork } from '../openWork'
 import { countWords, stageWords, timedWords } from '../words'
 
-export function BackgroundWorkItem({ row }: { row: BackgroundWorkRow }) {
+export function BackgroundWorkItem({
+  row,
+  onOpen,
+  onRetried,
+}: {
+  row: BackgroundWorkRow
+  // Called before the job's place opens, so the popover can close.
+  onOpen: () => void
+  // Called once a Try again was accepted, so the list reads itself again.
+  onRetried: () => void
+}) {
+  const [retrying, setRetrying] = useState(false)
+  const tryAgain = (retry: NonNullable<BackgroundWorkRow['retry']>) => {
+    setRetrying(true)
+    retryWork(retry)
+      .then(onRetried)
+      .catch(() =>
+        toast.error('Could not try again', {
+          description: 'Open it to see what happened, or try again in a minute.',
+        }),
+      )
+      .finally(() => setRetrying(false))
+  }
   return (
     <li className="bgw-row">
-      <div className="bgw-row__body">
+      <button
+        type="button"
+        className="bgw-row__open"
+        onClick={() => {
+          onOpen()
+          openWork(row)
+        }}
+      >
         <span className="bgw-row__title">{row.title}</span>
         <span className="bgw-row__context">{row.context.label}</span>
         <Progress row={row} />
-      </div>
+      </button>
+      {row.state === 'failed' && (
+        <div className="bgw-row__failed">
+          <p className="bgw-row__error">
+            <Icon name="circle-alert" size={14} />
+            {row.error}
+          </p>
+          {row.retry && (
+            <Button
+              variant="secondary"
+              size="xs"
+              iconLeft="refresh-cw"
+              loading={retrying}
+              onClick={() => tryAgain(row.retry!)}
+            >
+              {'Try again'}
+            </Button>
+          )}
+        </div>
+      )}
     </li>
   )
 }

@@ -8,7 +8,17 @@ import '../../notifications/notifications.css'
 
 const IN_PROGRESS: BackgroundWorkRow['state'][] = ['failed', 'running', 'queued']
 
-export function BackgroundWorkList({ rows }: { rows: BackgroundWorkRow[] }) {
+export function BackgroundWorkList({
+  rows,
+  onOpen,
+  onRetried,
+}: {
+  rows: BackgroundWorkRow[]
+  // Closes the popover as a row opens its job.
+  onOpen: () => void
+  // Reads the list again after a Try again.
+  onRetried: () => void
+}) {
   const groups: [string, BackgroundWorkRow[]][] = [
     ['Waiting on you', rows.filter((r) => r.state === 'waiting_on_you')],
     ['In progress', IN_PROGRESS.flatMap((state) => rows.filter((r) => r.state === state))],
@@ -26,7 +36,12 @@ export function BackgroundWorkList({ rows }: { rows: BackgroundWorkRow[] }) {
                 <h3 className="bgw-group__name">{name}</h3>
                 <ul>
                   {group.map((row) => (
-                    <BackgroundWorkItem key={row.id} row={row} />
+                    <BackgroundWorkItem
+                      key={row.id}
+                      row={row}
+                      onOpen={onOpen}
+                      onRetried={onRetried}
+                    />
                   ))}
                 </ul>
               </section>

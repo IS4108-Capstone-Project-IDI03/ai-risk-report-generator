@@ -47,7 +47,7 @@ export function ActivityButton({ tone = 'light' }: { tone?: 'light' | 'dark' }) 
         />
       }
     >
-      <BackgroundWorkList rows={rows} />
+      <BackgroundWorkList rows={rows} onOpen={() => setOpen(false)} onRetried={reload} />
     </Popover>
   )
 }
