@@ -1,20 +1,42 @@
-/* Collapsible checklist (F-12). Sizes from board 12: rows 50 px with a hairline above; the chevron
-   28 px then 8 px then the checkbox; an item row is indented 36 px (44 on a phone) so its box lines
-   up under the group's. The mark and action columns are always reserved, so nothing shifts. */
+/* Collapsible checklist (F-12), two levels. The list is one bordered frame. A group is a header row
+   (chevron, box, name, "2 of 5 played" at the right). An open group holds its items as nested rows
+   on the sunken surface, indented 36 px past the group's box (16 px on a phone, where every pixel
+   of the name counts) so they read as inside it. The mark and action columns are always reserved,
+   so nothing shifts. */
 .ds-cg,
 .ds-cg-items {
   margin: 0;
   padding: 0;
   list-style: none;
 }
+.ds-cg {
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.ds-cg-group + .ds-cg-group {
+  border-top: 1px solid var(--graphite-100);
+}
 .ds-cg-grow,
 .ds-cg-row {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  min-height: 50px;
-  padding: 5px 0;
-  border-top: 1px solid var(--border-subtle);
+  min-height: 52px;
+  padding: 4px 16px 4px 12px;
+}
+/* The frame's corners: its first and last rows round with it, since the frame cannot clip. */
+.ds-cg-group:first-child > .ds-cg-grow {
+  border-radius: 11px 11px 0 0;
+}
+.ds-cg-group:last-child:not([data-open]) > .ds-cg-grow {
+  border-radius: 0 0 11px 11px;
+}
+.ds-cg-group:first-child:last-child:not([data-open]) > .ds-cg-grow {
+  border-radius: 11px;
+}
+.ds-cg-group:last-child .ds-cg-items {
+  border-radius: 0 0 11px 11px;
 }
 .ds-cg-chev {
   display: grid;
@@ -52,19 +74,44 @@
   cursor: pointer;
 }
 .ds-cg-gname:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
   border-radius: 8px;
 }
+/* The select-all box is 16 px, so its label is the target: 32 px wide, 44 tall. The negative
+   margins take back the extra width, so the box and the name stay where they were (the chevron's
+   8 px margin and the name's padding hold the overflow). */
+.ds-cg-grow > label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 44px;
+  margin-inline: -8px;
+}
+/* Quiet, right-aligned, and level with the rows' marks below. */
 .ds-cg-count {
   margin-left: auto;
   color: var(--graphite-600);
-  font: 500 14px/20px var(--font-sans);
+  font: 400 13px/20px var(--font-sans);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+/* An item row: the sunken surface, a hairline above, and its box 36 px right of the group's box
+   (12 + 28 + 8 = 48 to the group's box, then 36 more). */
 .ds-cg-row {
   gap: 4px;
-  padding-left: 36px;
+  min-height: 48px;
+  padding-left: 84px;
+  border-top: 1px solid var(--graphite-100);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.ds-cg-items {
+  background: var(--graphite-50);
+}
+/* The group's own hairline above its first item is the open header's bottom edge, a shade darker. */
+.ds-cg-row:first-child {
+  border-top-color: var(--graphite-200);
 }
 .ds-cg-row > label {
   flex: 1;
@@ -73,6 +120,8 @@
   min-height: 44px;
 }
 .ds-cg-name {
+  color: var(--graphite-900);
+  font: 400 14px/20px var(--font-sans);
   overflow-wrap: anywhere;
 }
 /* The row action shows on hover or focus, and always where there is no hover. Its column stays. */
@@ -90,10 +139,17 @@
   .ds-cg-row:hover .ds-cg-action {
     opacity: 1;
   }
-  /* The group's row answers the pointer by shading its chevron (v2: hover by background). */
+  /* Hover by background (v2): the row's fill, and the chevron's disc on a group. */
+  .ds-cg-row:hover {
+    background: var(--graphite-100);
+  }
+  .ds-cg-grow:hover {
+    background: var(--hover-bg);
+  }
+  /* The chevron's disc is a step darker than the row, or it would vanish into it. */
   .ds-cg-grow:hover .ds-cg-chev {
     border-radius: 50%;
-    background: var(--hover-bg);
+    background: var(--graphite-200);
   }
 }
 @media (hover: none) {
@@ -163,11 +219,30 @@
   }
 }
 @media (max-width: 767px) {
+  /* One right edge: the group's count and its rows' marks end 12 px from the frame (4 px left
+     the count's last letter touching the frame's border). */
+  .ds-cg-grow {
+    min-height: 56px;
+    padding-left: 8px;
+    padding-right: 12px;
+  }
+  /* The name gets the width: 16 px in from the group's box, no gaps between the columns. */
   .ds-cg-row {
-    padding-left: 44px;
+    gap: 0;
+    padding-left: 60px;
+    padding-right: 12px;
+  }
+  .ds-cg-mark {
+    margin-left: 0;
+  }
+  /* A 44 px target for select-all that grows to the right, so it never covers the chevron. */
+  .ds-cg-grow > label {
+    justify-content: flex-start;
+    min-width: 44px;
+    margin-inline: 0 -28px;
   }
   .ds-cg-chev {
-    width: 44px;
+    width: 36px;
     height: 44px;
     margin-right: 0;
   }

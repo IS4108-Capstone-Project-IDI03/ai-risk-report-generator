@@ -1,21 +1,31 @@
-/* Settings screen (S-01). Colours and sizes from the design system tokens. */
-.st {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 24px;
-  padding: 24px clamp(16px, 2vw, 28px) 40px;
-  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
-}
-/* The menu is its own bordered card; the settings sit in a separate card beside it. */
-.st-menu {
-  align-self: start;
+/* Settings screen (S-01), built to design system v2 (docs/design-system-v2.md).
+   Type: section title 16 / 700 navy, block title 14 / 600, body 14 / 400, helper 13 grey, labels 12 / 600.
+   Shape: cards radius 16, fields 40 px radius 10, buttons 40 px pills. Colour from the tokens only. */
+/* The screen under its top bar (the kit's TopBar, as on Assessments). */
+.st-page {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  min-height: 100%;
+  font-family: var(--font-sans);
+}
+.st {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  padding: 24px 32px 40px;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* ---- The menu: a white card of icon rows; the open one is a filled row ---- */
+.st-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px;
-  border: 1px solid var(--border-default);
-  border-radius: 14px;
-  background: var(--surface-sunken);
+  border: 1px solid var(--graphite-200);
+  border-radius: 16px;
+  background: var(--surface-card);
 }
 .st-menu-group {
   display: flex;
@@ -23,129 +33,219 @@
   gap: 2px;
 }
 .st-menu-group + .st-menu-group {
-  padding-top: 12px;
-  border-top: 1px solid var(--border-default);
+  padding-top: 8px;
+  border-top: 1px solid var(--graphite-100);
 }
+/* The group label: the eyebrow style (11 / 700, caps, +0.08em). */
 .st-menu-heading {
-  padding: 0 12px 4px;
-  font-size: 12px;
+  padding: 8px 12px 4px;
+  font: 700 11px/16px var(--font-sans);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--graphite-600);
 }
 .st-menu-item {
-  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
   padding: 0 12px;
-  border: none;
-  border-left: 3px solid transparent;
+  border: 0;
   border-radius: 10px;
-  background: none;
-  font: inherit;
+  background: transparent;
+  color: var(--graphite-700);
+  font: 500 14px/20px var(--font-sans);
   text-align: left;
-  color: var(--text-body);
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
-.st-menu-item:hover {
-  background: var(--surface-hover);
+.st-menu-item > span[role='presentation'] {
+  color: var(--graphite-600);
 }
-/* The chosen item: filled, with a bar on its edge, so it is clear which section is open. */
+@media (hover: hover) and (pointer: fine) {
+  .st-menu-item:hover {
+    background: var(--hover-bg);
+  }
+  .st-menu-item[aria-current]:hover {
+    background: var(--ink-100);
+  }
+}
+/* The open item: an ink tint with navy text (v2: selection changes the fill, never a side stripe).
+   One font weight for every item, so choosing one never shifts its neighbours. */
 .st-menu-item[aria-current] {
-  border-left-color: var(--action-primary);
-  background: var(--surface-selected);
-  font-weight: 600;
-  color: var(--text-heading, var(--text-body));
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+.st-menu-item[aria-current] > span[role='presentation'] {
+  color: var(--marsh-navy);
 }
 .st-menu-item:focus-visible,
 .st-select-button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* ---- The panel: one white card that fills the space beside the menu ---- */
 .st-panel {
   min-width: 0;
-  max-width: 720px;
-  padding: 24px;
-  border: 1px solid var(--border-default);
-  border-radius: 14px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 16px;
   background: var(--surface-card);
 }
-.st-title {
-  margin: 0 0 16px;
-  font-size: 18px;
-}
-/* The pane's own title line: the title (and its help tip) at the left, the section's one main
-   button at the right end (Settings.tsx gives it a slot). Other sections leave that end empty. */
+/* The title line is 64 px, like a list's toolbar, with a hairline under it. */
 .st-titlebar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 0 0 16px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--graphite-100);
 }
-.st-titlebar .st-title {
+.st-title {
   margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/24px var(--font-sans);
 }
+/* The right end of the title line: the section's one main button (Settings.tsx gives it a slot). */
 .st-titlebar-end {
   margin-left: auto;
 }
-.st-stack,
-.st-form {
+.st-content {
+  padding: 0 24px;
+}
+.st-content > .st-note,
+.st-content > .st-err {
+  margin: 24px 0;
+}
+
+/* ---- A setting: name and helper at the left, controls at the right; stacked when narrow ---- */
+.st-block {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 24px 0;
+}
+.st-block + .st-block {
+  border-top: 1px solid var(--graphite-100);
+}
+.st-block-head {
+  display: flex;
+  flex: 0 1 240px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.st-block-title {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
+}
+.st-help {
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+.st-help > * + * {
+  margin-top: 8px;
+}
+/* The controls take what the head leaves, up to 640 px, or a row of their own when narrow. */
+.st-block-body {
+  display: flex;
+  flex: 1 1 360px;
   flex-direction: column;
   gap: 16px;
+  max-width: 640px;
+  min-width: 0;
 }
-.st-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.st-block[data-wide] .st-block-body {
+  max-width: none;
 }
-.st-row-head,
+.st-block[data-muted] {
+  opacity: 0.6;
+}
 .st-editor {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
 }
-.st-row-label {
-  font-weight: var(--weight-medium);
+.st-editor--actions {
+  align-items: center;
 }
+/* A switch and what sits at the row's end: Chat and voice's memory switch, and Walkthroughs'
+   offers switch with its round action. One row style, so the two panes match. */
+.st-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+.st-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.st-field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.st-field--speed {
+  flex: 0 0 80px;
+}
+/* The Voice list: wide enough for "Browser default (works on every device)" in full; the
+   Play sample button drops to the next line before the name is ever cut short. */
+.st-field--voice {
+  flex: 1 1 320px;
+}
+.st-field--wide {
+  flex: 2 1 240px;
+}
+.st-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- Quiet text, states and messages ---- */
 .st-note,
 .st-fix {
   margin: 0;
   color: var(--graphite-600);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  font: 400 13px/18px var(--font-sans);
 }
 .st-err {
   margin: 0;
-  color: var(--red-600);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: var(--red-600);
+  font: 400 13px/18px var(--font-sans);
 }
 .st-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
 }
 .st-warn {
   margin: 0;
   display: flex;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--amber-100);
   border-radius: 10px;
   background: var(--status-moderate-bg);
   color: var(--status-moderate-fg);
+  font: 400 13px/18px var(--font-sans);
 }
-.st-soon {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding: 24px;
-  border: 1px dashed var(--border-default);
-  border-radius: 14px;
+.st-warn > span[role='presentation'] {
+  margin-top: 1px;
 }
+
+/* ---- Models: the custom dropdown ---- */
 .st-select {
   position: relative;
 }
@@ -153,22 +253,41 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  box-sizing: border-box;
   width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
+  height: 40px;
+  padding: 0 10px 0 12px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-field);
   background: var(--surface-card);
-  font: inherit;
+  color: var(--graphite-900);
+  font: 500 14px/20px var(--font-sans);
   text-align: left;
   cursor: pointer;
+  transition: var(--transition-control);
 }
 .st-select-button > span:first-child {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.st-select-button:disabled {
+/* Hover by background (v2), only where a pointer can hover. */
+@media (hover: hover) {
+  .st-select-button:hover:not([aria-disabled='true']) {
+    background: var(--hover-bg);
+  }
+}
+/* Not changeable: greyed but still focusable (aria-disabled, never native disabled). */
+.st-select-button[aria-disabled='true'] {
   background: var(--surface-sunken);
   cursor: not-allowed;
+}
+/* "(recommended)" sits quieter beside the model's name so the name leads. */
+.st-rec {
+  color: var(--graphite-600);
+  font-weight: 400;
 }
 .st-list {
   position: absolute;
@@ -178,24 +297,29 @@
   margin: 4px 0 0;
   padding: 4px;
   list-style: none;
-  border: 1px solid var(--graphite-200);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--surface-card);
-  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+  /* The token carries the 1 px ring, so no border of its own. */
+  box-shadow: var(--shadow-popover);
   animation: omFade 120ms ease-out;
 }
 .st-option {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
-  min-height: 44px;
+  gap: 2px 12px;
+  min-height: 40px;
   padding: 6px 10px;
   border-radius: 8px;
+  color: var(--graphite-900);
+  font: 500 14px/20px var(--font-sans);
   cursor: pointer;
 }
+.st-option[aria-selected='true'] {
+  font-weight: 600;
+}
 .st-option[data-active] {
-  background: var(--surface-sunken);
+  background: var(--hover-bg);
 }
 .st-option[data-greyed] {
   color: var(--graphite-600);
@@ -208,83 +332,97 @@
   display: flex;
   flex: 1;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.st-option-main > span:first-child {
+  flex: 1;
 }
 .st-option-note {
   flex-basis: 100%;
-  font-size: 13px;
   color: var(--graphite-600);
+  font: 400 12px/16px var(--font-sans);
 }
 .st-keyinfo {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
   color: var(--graphite-600);
+  font: 400 12px/16px var(--font-sans);
+  white-space: nowrap;
 }
 .st-light {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 .st-light--on {
-  background: var(--green-600, #2f7d4f);
+  background: var(--green-600);
 }
 .st-light--off {
   background: var(--graphite-300);
 }
-@media (max-width: 720px) {
-  .st {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
-  .st-menu,
-  .st-menu-group {
-    flex-direction: row;
-    overflow-x: auto;
-  }
-  /* Only the menu scrolls sideways. A group that shrank to fit scrolled by itself, so the
-     strip was three small scrolling boxes and an item could sit half hidden inside one. */
-  .st-menu-group {
-    flex: none;
-    overflow-x: visible;
-  }
-  .st-menu-group + .st-menu-group {
-    padding: 0 0 0 12px;
-    border-top: none;
-    border-left: 1px solid var(--border-default);
-  }
-  .st-menu-heading {
-    display: none;
-  }
-  .st-menu-item {
-    white-space: nowrap;
-  }
+
+/* "Not used yet": a label band across the panel, then greyed rows. */
+.st-unused {
+  display: flex;
+  flex-direction: column;
+}
+.st-unused-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0 -24px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--graphite-100);
+  border-bottom: 1px solid var(--graphite-100);
+  background: var(--graphite-50);
+}
+/* A small group label (v2 type: label 12 / 600, --graphite-700). */
+.st-group-title {
+  margin: 0;
+  color: var(--graphite-700);
+  font: 600 12px/16px var(--font-sans);
 }
 
-/* Source priority (RT-04): the ranked tier list and its history. */
+/* ---- Source priority (RT-04): one card of ranked rows, then the history ---- */
 .st-tiers {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 520px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
 }
 .st-tier {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 56px;
-  padding: 4px 8px 4px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
+  padding: 4px 12px 4px 16px;
   background: var(--surface-card);
   /* The slide to a new place (TierList.tsx sets the start position; this eases it). */
-  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
-/* The row that was just moved: a blue glow that fades, so the eye finds it. */
+.st-tier + .st-tier {
+  border-top: 1px solid var(--graphite-100);
+}
+.st-tier:first-child {
+  border-radius: 11px 11px 0 0;
+}
+.st-tier:last-child {
+  border-radius: 0 0 11px 11px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .st-tier:hover {
+    background: var(--graphite-50);
+  }
+}
+/* The row that was just moved: a blue tint that fades, so the eye finds it. */
 .st-tier.is-moved {
   position: relative;
   z-index: 1;
@@ -292,18 +430,20 @@
 }
 @keyframes st-tier-glow {
   0% {
-    border-color: var(--action-primary);
-    background: var(--surface-selected);
-    box-shadow: 0 0 0 3px var(--surface-selected);
+    background: var(--ink-50);
   }
   100% {
-    border-color: var(--border-default);
     background: var(--surface-card);
-    box-shadow: 0 0 0 0 transparent;
   }
 }
 .st-tier-icon {
-  display: inline-flex;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--ink-50);
 }
 /* Read out for screen readers only. */
 .st-sr-only {
@@ -320,8 +460,7 @@
   }
   .st-tier.is-moved {
     animation: none;
-    border-color: var(--action-primary);
-    background: var(--surface-selected);
+    background: var(--ink-50);
   }
 }
 .st-tier[draggable='true'] {
@@ -331,63 +470,162 @@
   opacity: 0.5;
 }
 .st-tier-rank {
-  width: 24px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
+  width: 20px;
+  color: var(--graphite-600);
+  font: 600 14px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .st-tier-grip {
   display: inline-flex;
 }
+/* HTML5 drag does not work on touch screens, so the grip would only take room from the name. */
+@media (pointer: coarse) {
+  .st-tier-grip {
+    display: none;
+  }
+}
 .st-tier-name {
   flex: 1;
-  font-weight: var(--weight-medium);
+  min-width: 0;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
 }
 .st-history {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--graphite-600);
-}
-
-/* Note-taking (CP-35): the glossary list. */
-.st-gloss {
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+.st-history li {
+  padding: 10px 0;
+  border-top: 1px solid var(--graphite-100);
+  color: var(--graphite-700);
+  font: 400 13px/18px var(--font-sans);
+}
+.st-history li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---- Note-taking (CP-35): the glossary rows ---- */
+.st-gloss {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+}
 .st-gloss-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
-  border-bottom: 1px solid var(--border-default);
+  min-height: 48px;
+  padding: 4px 8px 4px 16px;
+  font: 400 14px/20px var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.st-gloss-row + .st-gloss-row {
+  border-top: 1px solid var(--graphite-100);
+}
+.st-gloss-row strong {
+  font-weight: 600;
 }
 
-/* A short numeric box, not the full panel width. */
-.st-narrow {
-  max-width: 320px;
+/* ---- Phone (375 px up): the menu is a row that scrolls sideways; blocks stack ---- */
+@media (max-width: 767px) {
+  .st {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+  .st-menu,
+  .st-menu-group {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  /* Only the menu scrolls sideways. A group that shrank to fit scrolled by itself, so the
+     strip was three small scrolling boxes and an item could sit half hidden inside one. */
+  .st-menu {
+    gap: 4px;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+    /* A fade at the right edge says the strip scrolls sideways. */
+    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  }
+  .st-menu-group {
+    flex: none;
+    overflow-x: visible;
+  }
+  .st-menu-group + .st-menu-group {
+    padding: 0 0 0 4px;
+    border-top: none;
+    border-left: 1px solid var(--graphite-100);
+  }
+  .st-menu-heading {
+    display: none;
+  }
+  .st-menu-item {
+    min-height: 44px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  /* "(recommended)" stays in the open list; the closed box keeps room for the model's name. */
+  .st-rec--trim {
+    display: none;
+  }
+  .st-titlebar {
+    padding: 8px 16px;
+  }
+  .st-content {
+    padding: 0 16px;
+  }
+  .st-unused-head {
+    margin: 0 -16px;
+    padding: 12px 16px;
+  }
+  .st-block-head {
+    flex-basis: 100%;
+  }
+  .st-block-body {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .st-editor > .st-field,
+  .st-editor > .st-field--speed {
+    flex: 1 1 100%;
+  }
+  .st-editor--actions .ds-press,
+  .st-editor .ds-press {
+    min-height: 44px;
+  }
+  .st-select-button {
+    height: 44px;
+  }
+  .st-option {
+    min-height: 44px;
+  }
+  .st-tier,
+  .st-gloss-row {
+    padding-right: 4px;
+  }
+  .st-tier .ds-icon-button,
+  .st-gloss-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .st-tier {
+    gap: 4px;
+    padding-left: 12px;
+  }
 }
 
-/* "Not used yet" (S-01): tasks nothing reads. Separate section at the bottom, greyed out. */
-.st-unused {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 8px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-subtle);
-}
-.st-subtitle {
-  margin: 0;
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-semibold);
-  color: var(--graphite-600);
-}
-.st-row-unused {
-  opacity: 0.55;
+/* A closed select whose chosen text does not fit ends it with "…" (the Voice list on a phone). */
+.st-field select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -6,6 +6,13 @@ import type { ModelOption, ModelRowData, Settings as SettingsData } from './api'
 import { Settings } from './Settings'
 import { TIER_IDS } from './tiers'
 
+// A good save is a toast; the real one needs the app's Toaster, so the tests watch the calls.
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('../../design-system', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../design-system')>()),
+  toast: toasts,
+}))
+
 const opt = (id: string, o: Partial<ModelOption> = {}): ModelOption => ({
   id,
   provider: id.split(':')[0],
@@ -61,7 +68,10 @@ const open = (name: string) => fireEvent.click(screen.getByRole('button', { name
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.clearAllMocks()
 })
+// A changeable control is not aria-disabled; one that is not, stays focusable (never native disabled).
+const isGreyed = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true'
 
 describe('Settings', () => {
   it('shows every section to an engineer and an admin', async () => {
@@ -92,6 +102,9 @@ describe('Settings', () => {
     expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
     open('QA eval')
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
+    // One quiet line, under the title: no second name and no card of its own.
+    expect(screen.getAllByText('QA eval')).toHaveLength(2) // the menu item and the title
+    expect(document.querySelector('.st-soon')).toBeNull()
     expect(screen.queryByRole('radio')).toBeNull()
     // Note-taking works now (CP-35): not a Coming soon tile.
     expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
@@ -192,6 +205,7 @@ describe('Settings', () => {
     expect(same).not.toHaveAttribute('aria-disabled')
     fireEvent.click(same)
     await screen.findByText('QA would not be independent.')
+    expect(toasts.success).toHaveBeenCalledWith('Model saved')
     const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
     expect(put[0]).toBe('/api/settings/models/QA%20check')
     expect(put[1]?.body).toBe(JSON.stringify({ option: 'c:same' }))
@@ -208,7 +222,7 @@ describe('Settings', () => {
     open('Models')
     expect(await screen.findByText('This model cannot be used.')).toBeInTheDocument()
     const box = screen.getByRole('combobox', { name: 'Voice transcription' })
-    expect(box).toBeDisabled()
+    expect(isGreyed(box)).toBe(true)
     expect(box).toHaveTextContent('a:one (recommended)')
   })
 
@@ -216,8 +230,25 @@ describe('Settings', () => {
     mock(data(false))
     render(<Settings />)
     open('Models')
-    expect(await screen.findByRole('combobox', { name: 'Drafting' })).toBeDisabled()
-    expect(screen.getByText('Set by an admin')).toBeInTheDocument()
+    const box = await screen.findByRole('combobox', { name: 'Drafting' })
+    // Greyed but still reachable by keyboard, and it never opens.
+    expect(isGreyed(box)).toBe(true)
+    expect(box).not.toBeDisabled()
+    fireEvent.click(box)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    // The chip is said once, in the title bar.
+    expect(screen.getAllByText('Set by an admin')).toHaveLength(1)
+    expect(document.querySelector('.st-titlebar-end')).toHaveTextContent('Set by an admin')
+  })
+
+  it('points aria-controls at the list only while it is open', async () => {
+    mock(data(true))
+    render(<Settings />)
+    open('Models')
+    const box = await screen.findByRole('combobox', { name: 'Drafting' })
+    expect(box).not.toHaveAttribute('aria-controls')
+    fireEvent.click(box)
+    expect(box.getAttribute('aria-controls')).toBe(screen.getByRole('listbox').id)
   })
 
   it('shows the memory switch from the chat API', async () => {
@@ -225,6 +256,56 @@ describe('Settings', () => {
     render(<Settings />)
     open('Chat and voice')
     await waitFor(() => expect(screen.getByRole('switch')).toBeChecked())
+  })
+
+  it('treats the memory switch like the walkthroughs one: no toast on a change, an error toast on a failure', async () => {
+    let fail = false
+    mock(data(false), (url, init) =>
+      url === '/api/chat/memory' && init?.method === 'PATCH'
+        ? fail
+          ? reply(500, { error: 'down' })
+          : reply(200, { enabled: false, facts: [], maxFacts: 5, maxChars: 200 })
+        : null,
+    )
+    render(<Settings />)
+    open('Chat and voice')
+    const memory = await screen.findByRole('switch', { name: 'Remember facts about me in chat' })
+    await waitFor(() => expect(memory).toBeChecked())
+    fireEvent.click(memory)
+    await waitFor(() => expect(memory).not.toBeChecked())
+    expect(toasts.success).not.toHaveBeenCalled()
+    fail = true
+    fireEvent.click(memory)
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledOnce())
+  })
+
+  it('shows Set by an admin beside the transcription setting only, not in the title bar', async () => {
+    const whisper = row('transcription', { label: 'Voice transcription', fixed: true })
+    mock(data(false, [whisper]))
+    render(<Settings />)
+    open('Chat and voice')
+    await screen.findByRole('combobox', { name: 'Voice transcription' })
+    expect(screen.getAllByText('Set by an admin')).toHaveLength(1)
+    expect(document.querySelector('.st-titlebar-end')).toBeEmptyDOMElement()
+  })
+
+  it('changes the password with a toast, clears the boxes, and names the boxes for password managers', async () => {
+    const fetchMock = mock(data(false), (url) =>
+      url === '/api/auth/change-password' ? reply(200, { message: 'ok' }) : null,
+    )
+    render(<Settings />)
+    expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
+    const current = screen.getByLabelText('Current password')
+    const next = screen.getByLabelText('New password')
+    expect(current).toHaveAttribute('autocomplete', 'current-password')
+    expect(next).toHaveAttribute('autocomplete', 'new-password')
+    fireEvent.change(current, { target: { value: 'old1' } })
+    fireEvent.change(next, { target: { value: 'newer1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Password changed'))
+    expect(current).toHaveValue('')
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/change-password')).toBe(true)
+    expect(screen.queryByText('Password changed')).toBeNull()
   })
 
   it('tells the person the password rule: a letter and a number', async () => {
@@ -278,7 +359,7 @@ describe('Settings Chat and voice', () => {
     await screen.findByRole('combobox', { name: 'Drafting' })
     expect(screen.queryByRole('combobox', { name: 'Voice transcription' })).toBeNull()
     open('Chat and voice')
-    expect(screen.getByRole('combobox', { name: 'Voice transcription' })).toBeDisabled()
+    expect(isGreyed(screen.getByRole('combobox', { name: 'Voice transcription' }))).toBe(true)
   })
 })
 
@@ -303,9 +384,9 @@ describe('Settings: tasks nothing reads yet', () => {
     for (const name of ['OCR', 'QA']) {
       const box = screen.getByRole('combobox', { name })
       expect(before(box)).toBe(false)
-      expect(box).toBeDisabled()
+      expect(isGreyed(box)).toBe(true)
     }
-    expect(screen.getByRole('combobox', { name: 'Drafting' })).toBeEnabled()
+    expect(isGreyed(screen.getByRole('combobox', { name: 'Drafting' }))).toBe(false)
   })
 
   it('shows no Not used yet section when every task is in use', async () => {
@@ -340,7 +421,11 @@ describe('Settings Source priority (RT-04)', () => {
     await openIt(data(true))
     expect(names()).toEqual(DEFAULT)
     expect(screen.queryByText(/Coming soon. Being built by Chris.*/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+    // Greyed with its reason, not hidden: hover or focus says what to do first.
+    expect(isGreyed(screen.getByRole('button', { name: 'Save order' }))).toBe(true)
+    expect(screen.getByRole('button', { name: 'Save order' })).toHaveAccessibleDescription(
+      'No changes. Move a source, then save.',
+    )
     expect(screen.getByRole('button', { name: 'Move National code up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move International standard down' })).toBeDisabled()
   })
@@ -368,9 +453,10 @@ describe('Settings Source priority (RT-04)', () => {
     expect(screen.getByText(/ranks only when the question names its country/)).toBeInTheDocument()
   })
 
-  it('shows no drag grips to an engineer, and no Saved tick beside an unsaved change', async () => {
+  it('shows no drag grips or move buttons to an engineer, and no toast for an unsaved change', async () => {
     await openIt(data(false))
     expect(screen.queryAllByTestId('tier-handle')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /^Move / })).toBeNull()
     cleanup()
     const after: SettingsData = {
       ...data(true),
@@ -387,9 +473,9 @@ describe('Settings Source priority (RT-04)', () => {
     await openIt(data(true), (_u, init) => (init?.method === 'PUT' ? reply(200, after) : null))
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
-    await screen.findByText('Saved')
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Order saved'))
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
-    expect(screen.queryByText('Saved')).toBeNull()
+    expect(toasts.success).toHaveBeenCalledTimes(1)
   })
 
   it('moves a tier down and up with the buttons', async () => {
@@ -398,7 +484,7 @@ describe('Settings Source priority (RT-04)', () => {
     expect(names().slice(0, 2)).toEqual(['Manufacturer rating', 'National code'])
     fireEvent.click(screen.getByRole('button', { name: 'Move National code up' }))
     expect(names()).toEqual(DEFAULT)
-    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+    expect(isGreyed(screen.getByRole('button', { name: 'Save order' }))).toBe(true)
   })
 
   it('saves the new order with a PUT and shows the saved history', async () => {
@@ -431,12 +517,12 @@ describe('Settings Source priority (RT-04)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
-    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Order saved'))
     const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
     expect(put[0]).toBe('/api/settings/source-priority')
     expect(put[1]?.body).toBe(JSON.stringify({ order: after.sourcePriority.order }))
     expect(screen.getByText(/Ada Admin: National code, Manufacturer rating/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save order' })).toBeDisabled()
+    expect(isGreyed(screen.getByRole('button', { name: 'Save order' }))).toBe(true)
   })
 
   it('reorders by dragging a row onto another', async () => {
@@ -451,7 +537,7 @@ describe('Settings Source priority (RT-04)', () => {
       'National code',
       'International standard',
     ])
-    expect(screen.getByRole('button', { name: 'Save order' })).toBeEnabled()
+    expect(isGreyed(screen.getByRole('button', { name: 'Save order' }))).toBe(false)
   })
 
   it('shows a failed save with its reason', async () => {
@@ -461,6 +547,7 @@ describe('Settings Source priority (RT-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move National code down' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save order' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Order must list every tier once.')
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 
   it('is read-only for an engineer, who still sees the history', async () => {
@@ -481,7 +568,7 @@ describe('Settings Source priority (RT-04)', () => {
     await openIt(withHistory)
     expect(screen.getByText('Set by an admin')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save order' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Move National code down' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Move National code down' })).toBeNull()
     expect(screen.getAllByRole('listitem')[0]).toHaveAttribute('draggable', 'false')
     expect(screen.getByText(/Ada Admin: Marsh precedent, National code/)).toBeInTheDocument()
   })

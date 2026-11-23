@@ -43,6 +43,8 @@ describe('ChecklistGroups', () => {
     render(<Host />)
     expect(group('Alpha')).toHaveAttribute('aria-expanded', 'false')
     expect(group('Alpha')).toHaveAccessibleName(/2 items/)
+    // A group of one is spoken in the singular.
+    expect(group('Beta')).toHaveAccessibleName(/1 item$/)
     expect(screen.queryByRole('checkbox', { name: 'First' })).not.toBeInTheDocument()
   })
 

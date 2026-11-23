@@ -169,6 +169,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           label: v.proposalCapture ? 'Back to site walk' : 'Back to observations',
                           title: 'New Observation',
                           onClick: v.leaveCapture,
+                          // F-12: the same tag as the desktop header's Back (SiteObservation.tsx).
+                          walk: 'new-observation.back',
                         }
                       : undefined
                   }
@@ -186,6 +188,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 !(v.isDashboard && !v.routeBlocked) &&
                 // The Inbox heads itself with the kit TopBar (F-10).
                 !(v.isInbox && !v.routeBlocked) &&
+                // Settings heads itself with the kit TopBar, like the Assessments list.
+                !(v.isSettings && !v.routeBlocked) &&
                 // New Assessment heads itself with the kit TopBar and its Create (CP-23).
                 !(v.isCreate && !v.routeBlocked) && (
                   <div
@@ -451,7 +455,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isSettings && <Settings />}
+                    {v.isSettings && (
+                      // Desktop has no top bar, so the bell sits in the page's own header.
+                      <Settings bell={!v.showTopBar && <NotificationBell />} />
+                    )}
 
                     {v.isChat && (
                       <Suspense fallback={null}>

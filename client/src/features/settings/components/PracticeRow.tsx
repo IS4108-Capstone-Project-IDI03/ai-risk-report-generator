@@ -1,5 +1,5 @@
 // The practice assessment's row in Settings > Walkthroughs (F-12): a tile, its name and line, and
-// Open, Reset and Remove. Reset and Remove ask first. When it is gone the line reads "Removed."
+// Open, Reset and Remove. Reset and Remove ask first. When it is gone the line says it was removed
 // with a button to set it up again. Called by WalkthroughsSection. Calls the engine and ConfirmDialog.
 import { useState } from 'react'
 import { Button, Icon, IconAction } from '../../../design-system'
@@ -38,7 +38,11 @@ export function PracticeRow() {
         <span className="wts-ptitle">
           Practice assessment <Tip id="settings.practice" />
         </span>
-        <span>{practice ? "Only you can see it, and it isn't counted anywhere." : 'Removed.'}</span>
+        <span>
+          {practice
+            ? "Only you can see it, and it isn't counted anywhere."
+            : "You've removed it, but you can set it up again at any time."}
+        </span>
       </div>
       {practice ? (
         <span className="wts-pactions">
@@ -72,7 +76,7 @@ export function PracticeRow() {
       {asking === 'reset' && (
         <ConfirmDialog
           title="Reset the practice assessment?"
-          body="The old one is put away and a fresh one is made, so you can practise from the start. None of your real assessments are touched."
+          body="Your practice assessment is replaced with a fresh one, so you can practise from the start. None of your real assessments are touched."
           confirm="Reset"
           run={setUpPractice}
           done="Practice assessment reset"

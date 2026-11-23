@@ -53,7 +53,9 @@ export function WalkthroughsSection({ titleEnd }: { titleEnd: HTMLElement | null
       }
       onClick={() => play(inOrder)}
     >
-      {inOrder.length ? `Play ${inOrder.length}` : 'Play selected'}
+      {inOrder.length
+        ? `Play ${inOrder.length} ${inOrder.length === 1 ? 'walkthrough' : 'walkthroughs'}`
+        : 'Play selected'}
     </Button>
   )
   // Without the catch, a failed save would be silent while the switch looked changed.
@@ -64,14 +66,14 @@ export function WalkthroughsSection({ titleEnd }: { titleEnd: HTMLElement | null
   return (
     <div className="wts">
       {titleEnd && createPortal(playButton, titleEnd)}
-      <div className="wts-offer">
+      <div className="st-switch-row">
         <Switch
           label="Offer walkthroughs on new screens"
           checked={record.offers}
           onChange={saveOffers}
         />
         <IconAction
-          icon="rotate-ccw"
+          icon="megaphone"
           label="Offer all walkthroughs again"
           tooltip="Offer them all again"
           style={{ color: 'var(--graphite-600)' }}
@@ -81,6 +83,7 @@ export function WalkthroughsSection({ titleEnd }: { titleEnd: HTMLElement | null
       <ChecklistGroups
         label="Walkthroughs"
         noun="walkthroughs"
+        doneWord="played"
         groups={groups}
         selected={ticked}
         onSelectedChange={setTicked}
@@ -98,7 +101,7 @@ export function WalkthroughsSection({ titleEnd }: { titleEnd: HTMLElement | null
       {asking && (
         <ConfirmDialog
           title="Offer every walkthrough again?"
-          body="The Welcome and every first-time offer will come back. Nothing else changes."
+          body="A quick look around will play again, and every walkthrough will be offered again the first time you open its screen. The ticks for played walkthroughs in this list are cleared too."
           confirm="Offer again"
           run={offerAllAgain}
           done="Every walkthrough will be offered again"

@@ -1,6 +1,7 @@
 // Collapsible checklist (F-12, NEW v2 pattern): groups that open to rows with checkboxes. A group's
 // box ticks all of its rows (half-ticked when only some are). Each row can carry a mark at the right
-// edge and one hover action. It knows nothing about what the rows are: the caller owns the ticks.
+// edge and one hover action. An open group's rows sit indented on the sunken surface, as a
+// container. It knows nothing about what the rows are: the caller owns the ticks.
 // Called by feature screens (Settings > Walkthroughs). Calls Checkbox, Icon, RowMark.
 import { useId, useState, type ReactNode } from 'react'
 import { Icon } from '../core/Icon'
@@ -26,6 +27,9 @@ export type ChecklistGroupsProps = {
   renderAction?: (item: ChecklistItem) => ReactNode
   // What the items are called, for the count's spoken form ("5 walkthroughs").
   noun?: string
+  // When set, a group's right end reads "2 of 5 played" (items with a done mark of its total, with
+  // this word) in place of the bare total. Only items whose mark is `done` count.
+  doneWord?: string
   label?: string
 }
 
@@ -36,6 +40,7 @@ export function ChecklistGroups({
   onSelectedChange,
   renderAction,
   noun = 'items',
+  doneWord,
   label,
 }: ChecklistGroupsProps) {
   // Groups start closed; this holds the ids of the open ones.
@@ -55,7 +60,12 @@ export function ChecklistGroups({
         const ids = group.items.map((item) => item.id)
         const count = ids.filter((id) => selected.includes(id)).length
         const isOpen = open.includes(group.id)
+        const done = group.items.filter((item) => item.mark === 'done').length
+        const progress = doneWord ? `${done} of ${ids.length} ${doneWord}` : String(ids.length)
         const panel = `${base}-${group.id}`
+        // "1 walkthrough", not "1 walkthroughs". shortcut: drops a trailing s, so an irregular noun
+        // needs a `noun` that works as both until a singular prop is added.
+        const spoken = ids.length === 1 ? noun.replace(/s$/, '') : noun
         return (
           <li key={group.id} className="ds-cg-group" data-open={isOpen ? '' : undefined}>
             <div className="ds-cg-grow">
@@ -86,9 +96,12 @@ export function ChecklistGroups({
                 {group.name}
                 {/* A plain span cannot carry a label, so the spoken count is its own hidden text. */}
                 <span className="ds-cg-count" aria-hidden="true">
-                  {ids.length}
+                  {progress}
                 </span>
-                <span className="ds-sr-only">{`, ${ids.length} ${noun}`}</span>
+                <span className="ds-sr-only">
+                  {`, ${ids.length} ${spoken}`}
+                  {doneWord ? `, ${done} ${doneWord}` : ''}
+                </span>
               </button>
             </div>
             {/* Closed rows stay in the page so they can animate shut, but nothing can reach them. */}

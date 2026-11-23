@@ -1,9 +1,10 @@
 // The ranked list of source tiers (RT-04): rank 1 is the highest authority.
-// Reorder by drag or by the up/down buttons (keyboard). Used by screens/SourcePrioritySection.tsx.
+// Reorder by drag or by the up/down buttons (keyboard); a read-only list has neither.
+// Used by screens/SourcePrioritySection.tsx.
 // A moved row slides to its new place (FLIP: it starts where it was and eases to where it is),
 // glows briefly, and the new place is announced to screen readers.
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Icon, IconButton } from '../../../design-system'
+import { Icon, IconAction } from '../../../design-system'
 import { move, TIER_ICONS, TIER_LABELS, type TierId } from '../tiers'
 
 export function TierList({
@@ -86,23 +87,30 @@ export function TierList({
               </span>
             )}
             <span className="st-tier-icon" data-icon={TIER_ICONS[tier]} aria-hidden="true">
-              <Icon name={TIER_ICONS[tier]} size={20} color="var(--action-primary)" />
+              <Icon name={TIER_ICONS[tier]} size={16} color="var(--ink-600)" />
             </span>
             <span className="st-tier-name">{TIER_LABELS[tier]}</span>
-            <IconButton
-              icon="chevron-up"
-              size="lg"
-              label={`Move ${TIER_LABELS[tier]} up`}
-              disabled={!canEdit || i === 0}
-              onClick={() => shift(i, i - 1)}
-            />
-            <IconButton
-              icon="chevron-down"
-              size="lg"
-              label={`Move ${TIER_LABELS[tier]} down`}
-              disabled={!canEdit || i === order.length - 1}
-              onClick={() => shift(i, i + 1)}
-            />
+            {/* Only someone who can edit gets the buttons; eight greyed ones would say nothing */}
+            {canEdit && (
+              <>
+                <IconAction
+                  icon="chevron-up"
+                  label={`Move ${TIER_LABELS[tier]} up`}
+                  tooltip="Move up"
+                  style={{ color: 'var(--graphite-600)' }}
+                  disabled={i === 0}
+                  onClick={() => shift(i, i - 1)}
+                />
+                <IconAction
+                  icon="chevron-down"
+                  label={`Move ${TIER_LABELS[tier]} down`}
+                  tooltip="Move down"
+                  style={{ color: 'var(--graphite-600)' }}
+                  disabled={i === order.length - 1}
+                  onClick={() => shift(i, i + 1)}
+                />
+              </>
+            )}
           </li>
         ))}
       </ol>

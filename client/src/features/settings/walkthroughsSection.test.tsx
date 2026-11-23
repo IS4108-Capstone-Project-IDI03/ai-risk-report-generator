@@ -110,9 +110,11 @@ describe('Settings > Walkthroughs', () => {
     expect(engine.play).not.toHaveBeenCalled()
     fireEvent.click(group('Day to day'))
     tick('Find a client')
-    expect(screen.getByRole('button', { name: 'Play 1' })).not.toHaveAttribute('aria-disabled')
+    expect(screen.getByRole('button', { name: 'Play 1 walkthrough' })).not.toHaveAttribute(
+      'aria-disabled',
+    )
     tick('Use your Inbox')
-    expect(screen.getByRole('button', { name: 'Play 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play 2 walkthroughs' })).toBeInTheDocument()
   })
 
   it('plays the ticked ones in the order listed, not the order ticked', async () => {
@@ -121,7 +123,7 @@ describe('Settings > Walkthroughs', () => {
     tick('Find a client')
     tick('Select all in Getting started')
     tick('Use your Inbox')
-    fireEvent.click(screen.getByRole('button', { name: 'Play 3' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Play 3 walkthroughs' }))
     expect(engine.play).toHaveBeenCalledWith(['welcome', 'inbox', 'clients'])
   })
 
@@ -202,7 +204,9 @@ describe('Settings > Walkthroughs', () => {
 
   it('reads Removed with a Set it up again button once the practice is gone', async () => {
     await openIt('risk_engineer', { practice: null })
-    expect(screen.getByText('Removed.')).toBeInTheDocument()
+    expect(
+      screen.getByText("You've removed it, but you can set it up again at any time."),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open practice assessment' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Set it up again' }))
     await waitFor(() => expect(engine.setUpPractice).toHaveBeenCalledOnce())

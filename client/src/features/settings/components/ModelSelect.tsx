@@ -16,8 +16,17 @@ function Light({ on }: { on: boolean }) {
   )
 }
 
-function optionText(o: ModelOption) {
-  return o.label + (o.recommended ? ' (recommended)' : '')
+// The model's name, with "(recommended)" set quieter beside it so the name leads. On a phone the
+// closed box hides the word (`trim`), or a long name would be cut off; the open list keeps it.
+function OptionText({ o, trim }: { o: ModelOption; trim?: boolean }) {
+  return (
+    <>
+      {o.label}
+      {o.recommended && (
+        <span className={trim ? 'st-rec st-rec--trim' : 'st-rec'}> (recommended)</span>
+      )}
+    </>
+  )
 }
 
 type Props = {
@@ -109,16 +118,19 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={`${id}-list`}
+        // Only while the list is in the page; a pointer to a missing list is a broken reference.
+        aria-controls={open ? `${id}-list` : undefined}
         aria-activedescendant={open ? `${id}-${active}` : undefined}
-        disabled={disabled}
+        // Not native `disabled`: that drops it from the Tab order, and the section's
+        // "Set by an admin" chip is its explanation, so it must stay reachable.
+        aria-disabled={disabled || undefined}
         className="st-select-button"
-        onClick={() => (open ? setOpen(false) : show())}
+        onClick={() => !disabled && (open ? setOpen(false) : show())}
         onKeyDown={onKeyDown}
       >
-        <span>{current ? optionText(current) : 'Choose a model'}</span>
+        <span>{current ? <OptionText o={current} trim /> : 'Choose a model'}</span>
         {current && <Light on={current.keySet} />}
-        <Icon name="chevron-down" size={16} color="var(--text-muted)" />
+        <Icon name="chevron-down" size={14} color="var(--text-muted)" />
       </button>
       {open && (
         <ul role="listbox" id={`${id}-list`} aria-label={label} className="st-list">
@@ -136,10 +148,12 @@ export function ModelSelect({ label, options, selected, disabled, onChoose }: Pr
               onClick={() => choose(o)}
             >
               <span className="st-option-main">
-                <span>{optionText(o)}</span>
+                <span>
+                  <OptionText o={o} />
+                </span>
                 <Light on={o.keySet} />
               </span>
-              {o.id === selected && <Icon name="check" size={16} />}
+              {o.id === selected && <Icon name="check" size={16} color="var(--marsh-navy)" />}
               {/* "No API key" is already said by the light, so only the other reason is a note */}
               {o.note && o.keySet && <span className="st-option-note">{o.note}</span>}
             </li>
