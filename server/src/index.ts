@@ -46,6 +46,7 @@ import walkthroughRoutes from './routes/walkthrough.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
+import backgroundWorkRoutes from './routes/background-work.routes'
 import internalNotificationRoutes from './routes/internal-notification.routes'
 import internalAiUsageRoutes from './routes/internal-ai-usage.routes'
 import internalKnowledgeDocumentRoutes from './routes/internal-knowledge-document.routes'
@@ -136,6 +137,8 @@ app.use('/api/walkthroughs', requireAuth, walkthroughRoutes)
 app.use('/api/notifications/count', requireAuthNoRefresh, notificationCountRoutes)
 // Scoped to the caller's own session, not a role capability (no permission).
 app.use('/api/notifications', requireAuth, notificationRoutes)
+// Polled by the activity popover while work runs (F-11), so it doesn't refresh the session either.
+app.use('/api/background-work', requireAuthNoRefresh, backgroundWorkRoutes)
 // Service-to-service: authenticated by a shared secret, not a session, so it
 // mounts on its own path outside the requireAuth chain above.
 app.use('/api/internal/notifications', requireServiceKey, internalNotificationRoutes)
