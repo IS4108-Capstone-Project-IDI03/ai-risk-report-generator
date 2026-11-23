@@ -8,12 +8,14 @@ import { DraftingRunModel, type IDraftingRun } from '../models/drafting-run.mode
 import type { ISite } from '../models/site.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
+import { listKnowledgeDocuments, type KnowledgeDocumentDto } from './knowledge-document.service'
 import { listObservationsOf, type ObservationDto } from './observation.service'
+import { permissionsFor } from './permissions.service'
 import type { StoredWalk } from './site-walk.service'
 
 export type BackgroundWorkRow = {
   id: string
-  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading' | 'drafting'
+  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading' | 'drafting' | 'ingestion'
   state: 'queued' | 'running' | 'failed' | 'waiting_on_you'
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
@@ -24,6 +26,9 @@ export type BackgroundWorkRow = {
     total?: number
     unit?: string
     stage?: string
+    // Which stage of how many, for a job that runs through named stages (ingestion).
+    step?: number
+    steps?: number
   }
   // When the current step began, where it is known (the popover shows the time elapsed).
   startedAt?: string
@@ -54,7 +59,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
     .lean<OwnAssessment[]>()
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
   const ids = assessments.map((a) => a._id)
-  const [walks, observations, drafting] = await Promise.all([
+  const [walks, observations, drafting, documents] = await Promise.all([
     SiteWalkModel.find({
       assessment: { $in: ids },
       status: { $in: ['transcribing', 'proposing', 'failed'] },
@@ -66,6 +71,8 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
     DraftingRunModel.find({ assessment: { $in: ids } }, 'assessment parts run').lean<
       Pick<IDraftingRun, 'assessment' | 'parts' | 'run'>[]
     >(),
+    // Uploads are the knowledge admins' (knowledge:manage), not one person's.
+    permissionsFor(user.role).includes('knowledge:manage') ? listKnowledgeDocuments() : [],
   ])
   return {
     rows: [
@@ -74,6 +81,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
         (observations.get(String(a._id)) ?? []).flatMap((o) => observationRows(o, a)),
       ),
       ...drafting.flatMap((d) => draftingRows(d, byId.get(String(d.assessment))!)),
+      ...documents.flatMap(ingestionRows),
     ],
   }
 }
@@ -263,4 +271,65 @@ function draftingRows(
           },
         ],
   )
+}
+
+// Chunking's OCR pass reads regions out of page order, so it is counted by
+// region, as the uploads list counts it; every other stage counts pages.
+function counted(p: NonNullable<KnowledgeDocumentDto['progress']>) {
+  if (p.currentStage === 'chunking' && p.ocrTotal !== null)
+    return { current: p.ocrCurrent ?? 0, total: p.ocrTotal, unit: 'regions' }
+  return {
+    ...(p.pageCurrent !== null && { current: p.pageCurrent }),
+    ...(p.pageTotal !== null && { total: p.pageTotal }),
+    unit: 'pages',
+  }
+}
+
+const STAGE_NAMES: Record<string, string> = {
+  anonymising: 'Anonymising',
+  parsing: 'Parsing',
+  chunking: 'Chunking',
+  indexing: 'Indexing',
+}
+
+// A document being ingested (E2): its stage, of three, or four when the report
+// is anonymised first (PV-05), and the pages that stage has reached. Before
+// the worker reports (queued, or just taken), it waits, timed from its upload.
+function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
+  if (d.status !== 'queued' && d.status !== 'processing') return []
+  const row = {
+    id: `ingestion:${d.id}`,
+    kind: 'ingestion' as const,
+    title: d.title,
+    context: { label: 'Knowledge base' },
+    href: '/admin/knowledge-base',
+  }
+  const p = d.progress
+  if (!p)
+    return [
+      {
+        ...row,
+        state: 'queued',
+        progress: { type: 'working', stage: 'Queued' },
+        startedAt: new Date(d.uploadedAt).toISOString(),
+      },
+    ]
+  const stages = ['parsing', 'chunking', 'indexing']
+  const anonymised =
+    p.currentStage === 'anonymising' || p.stageLog.some((e) => e.stage === 'anonymising')
+  if (anonymised) stages.unshift('anonymising')
+  return [
+    {
+      ...row,
+      state: 'running',
+      progress: {
+        type: 'count',
+        ...counted(p),
+        stage: STAGE_NAMES[p.currentStage] ?? p.currentStage,
+        step: stages.indexOf(p.currentStage) + 1,
+        steps: stages.length,
+      },
+      startedAt: p.currentStageStartedAt,
+    },
+  ]
 }

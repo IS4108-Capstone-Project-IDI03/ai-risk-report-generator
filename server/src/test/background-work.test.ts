@@ -7,6 +7,8 @@ import request from 'supertest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { DraftingRunModel } from '../models/drafting-run.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { UserModel } from '../models/user.model'
@@ -476,5 +478,108 @@ describe('knowledge admins', () => {
     const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
 
     expect(res.body.rows).toEqual([])
+  })
+
+  const upload = (title: string, fields: object = {}) =>
+    KnowledgeDocumentModel.create({
+      title,
+      issuingBody: 'FM Global',
+      fileName: `${title}.pdf`,
+      file: { key: `k/${title}.pdf`, contentType: 'application/pdf', size: 1, sha256: title },
+      status: 'processing',
+      unconfirmed: [],
+      metadata: {
+        source_type: 'fm_standard',
+        jurisdiction: 'all',
+        facility_type: 'all',
+        effective_date: new Date('2026-01-01'),
+      },
+      ...fields,
+    })
+
+  it('a document being ingested shows its stage and the pages done in it', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9')
+    const stageStarted = new Date('2026-11-23T09:02:00Z')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      pageCurrent: 12,
+      pageTotal: 40,
+      ocrCurrent: null,
+      ocrTotal: null,
+      stageLog: [
+        { stage: 'parsing', startedAt: new Date('2026-11-23T09:00:00Z'), durationMs: 120000 },
+      ],
+      currentStageStartedAt: stageStarted,
+      startedAt: new Date('2026-11-23T09:00:00Z'),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'running',
+        title: 'FM 8-9',
+        context: { label: 'Knowledge base' },
+        progress: {
+          type: 'count',
+          current: 12,
+          total: 40,
+          unit: 'pages',
+          stage: 'Chunking',
+          step: 2,
+          steps: 3,
+        },
+        startedAt: stageStarted.toISOString(),
+        href: '/admin/knowledge-base',
+      }),
+    ])
+  })
+
+  it('a document waiting for the ingestion worker says queued, timed from its upload', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 2-0', { status: 'queued' })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'queued',
+        title: 'FM 2-0',
+        progress: { type: 'working', stage: 'Queued' },
+        startedAt: document.createdAt.toISOString(),
+      }),
+    ])
+  })
+
+  it("chunking's OCR pass counts the table and formula regions read", async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      pageCurrent: 40,
+      pageTotal: 40,
+      ocrCurrent: 3,
+      ocrTotal: 8,
+      stageLog: [],
+      currentStageStartedAt: new Date(),
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toMatchObject({
+      type: 'count',
+      current: 3,
+      total: 8,
+      unit: 'regions',
+      stage: 'Chunking',
+    })
   })
 })

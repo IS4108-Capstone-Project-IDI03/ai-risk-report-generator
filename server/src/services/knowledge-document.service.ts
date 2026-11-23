@@ -182,6 +182,8 @@ type ProgressDto = {
   ocrTotal: number | null
   elapsedMs: number
   currentStageElapsedMs: number
+  // When the current stage began (F-11 times it from here).
+  currentStageStartedAt: string
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
 }
 
@@ -331,6 +333,7 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
     ocrTotal: job.ocrTotal ?? null,
     elapsedMs: now - job.startedAt.getTime(),
     currentStageElapsedMs: now - job.currentStageStartedAt.getTime(),
+    currentStageStartedAt: job.currentStageStartedAt.toISOString(),
     stageLog: job.stageLog.map((entry) => ({
       stage: entry.stage,
       startedAt: entry.startedAt.toISOString(),
