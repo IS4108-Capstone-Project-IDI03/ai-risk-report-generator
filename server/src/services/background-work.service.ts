@@ -295,8 +295,9 @@ const STAGE_NAMES: Record<string, string> = {
 // A document being ingested (E2): its stage, of three, or four when the report
 // is anonymised first (PV-05), and the pages that stage has reached. Before
 // the worker reports (queued, or just taken), it waits, timed from its upload.
+// A failed one can be tried again.
 function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
-  if (d.status !== 'queued' && d.status !== 'processing') return []
+  if (!['queued', 'processing', 'failed'].includes(d.status)) return []
   const row = {
     id: `ingestion:${d.id}`,
     kind: 'ingestion' as const,
@@ -304,6 +305,18 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
     context: { label: 'Knowledge base' },
     href: '/admin/knowledge-base',
   }
+  // Listed for 7 days, as on the uploads list: a failure needs someone to act.
+  if (d.status === 'failed')
+    return [
+      {
+        ...row,
+        state: 'failed',
+        progress: { type: 'working', stage: 'Ingestion' },
+        error: d.error ?? 'This document could not be ingested.',
+        // Every viewer here holds knowledge:manage, which the retry route checks.
+        retry: { method: 'POST', url: `/api/knowledge-documents/${d.id}/retry` },
+      },
+    ]
   const p = d.progress
   if (!p)
     return [

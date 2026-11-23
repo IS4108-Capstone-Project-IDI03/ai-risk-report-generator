@@ -582,4 +582,45 @@ describe('knowledge admins', () => {
       stage: 'Chunking',
     })
   })
+
+  it('a failed ingestion shows its reason and how to try again', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'failed',
+      error: 'The PDF could not be read.',
+      finishedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'failed',
+        error: 'The PDF could not be read.',
+        retry: { method: 'POST', url: `/api/knowledge-documents/${document._id}/retry` },
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since only queued or processing uploads become rows.
+  it('complete and cancelled documents are not listed', async () => {
+    const { admin } = await people()
+    await upload('FM 8-9', { status: 'complete', finishedAt: new Date() })
+    await upload('FM 2-0', { status: 'cancelled', cancelledAt: new Date() })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start. Uploads are the admins' (knowledge:manage).
+  it('an engineer sees no uploads', async () => {
+    const { engineer } = await people()
+    await upload('FM 8-9', { status: 'queued' })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
 })
