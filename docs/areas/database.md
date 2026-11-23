@@ -2290,3 +2290,26 @@ code (`settings.service.ts`), not in the database. Written only by `PATCH /api/s
 for the signed-in user's own document. `metadata` is the same null-filled block as
 `app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
 `COPE_dimension` null, `effective_date`.
+
+## Privacy words (PV-09)
+
+`privacy_words` holds the knowledge admin's two lists, one document per word: `list`
+(`always` or `never`), `word` as typed, `key` (lower case, spaces collapsed, as
+privacy-service compares; unique with `list`), `kind` (`CLIENT`, `SITE`, `ADDRESS` or
+`PERSON` on `always`, null on `never`), `reason`, `source` (`default` when seeded from
+privacy-service's `allow_list.json`, `admin` when added in Settings), `addedBy`
+(`{id, name}`, null for a default) and `at`. It is not a knowledge document, so it has no
+labels of its own: `metadata` is the same null-filled block as `app_settings`
+(`source_type: "settings"`). Always masked names are client data: only `settings:manage`
+reads or writes the collection, through `privacy-words.service.ts`.
+
+`app_settings.privacyWordsSeeded` is set once the defaults were seeded, so a default the
+admin removed is never seeded again. Each add and removal appends a `settings_log` row
+(`setting: 'privacyWords'`, `before` or `after` `{list, word, kind, reason}`, the other
+null). Rows are never edited: removing a word deletes its `privacy_words` document and logs
+it; there is no revert.
+
+`GET /api/settings/privacy-words/masked-in-reports` reads `knowledge_documents.privacyMapping`
+(`$objectToArray`) and returns each value once with its kind (from the tag) and how many
+reports hold it. It is the only route that reads the mapping, and it never returns a tag, a
+document id or a title (DECISIONS 2026-11-22).

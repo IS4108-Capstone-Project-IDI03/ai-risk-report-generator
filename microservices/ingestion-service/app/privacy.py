@@ -67,6 +67,9 @@ class Session:
         self.enabled = bool(privacy and privacy.get("enabled"))
         self.known_entities = list((privacy or {}).get("known_entities") or [])
         self.detect = (privacy or {}).get("detect") or []
+        # The admin's Never masked list from Settings (PV-09). None until the gateway has seeded
+        # it: privacy-service then uses its own file.
+        self.never_masked = (privacy or {}).get("never_masked")
         self.mapping: dict[str, str] = {}
         self.literals: dict[str, str] = {}
 
@@ -138,6 +141,7 @@ class Session:
                 "known_entities": self.known_entities,
                 "mapping": self.mapping,
                 **({"detect": self.detect} if self.detect else {}),
+                **({"never_masked": self.never_masked} if self.never_masked is not None else {}),
             },
         )
         self.mapping = body["mapping"]

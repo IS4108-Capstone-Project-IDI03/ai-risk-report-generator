@@ -35,6 +35,7 @@ import {
   scheduleDraftCleanup,
 } from './services/observation.service'
 import { resumeReadings } from './services/observation-reading.service'
+import { seedPrivacyWords } from './services/privacy-words.service'
 import usageRoutes from './routes/usage.routes'
 import settingsRoutes from './routes/settings.routes'
 import qaRoutes from './routes/qa.routes'
@@ -156,6 +157,10 @@ async function start() {
   )
   scheduleDraftCleanup().catch((error: unknown) =>
     console.error('Scheduling the draft observation cleanup failed:', error),
+  )
+  // PV-09: not awaited, as privacy-service may still be starting; the lists retry when read.
+  seedPrivacyWords().catch((error: unknown) =>
+    console.error('Seeding the privacy word lists failed; retried when they are read:', error),
   )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()

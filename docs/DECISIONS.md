@@ -2755,3 +2755,27 @@ Stories: IN-18, IN-07, IN-17, KB-02.
 - Before a location is chosen, the side panel lists the locations with nothing recorded, each with a + that opens capture there. This was added to the idea as written, since "which locations have I not covered" is half the story's goal.
 
 Reason: on a large site the list shows what was found but not where it concentrates or what was missed. The location hierarchy from CP-16 already describes the site's shape, so the picture costs no new data.
+
+## 2026-11-22 — The words privacy-service never masks, and extra names it always masks, are kept in Settings and sent by the gateway
+
+- (PV-09) Settings > Privacy words, for knowledge admins only, keeps two lists in MongoDB (`privacy_words`): Never masked (words left as written) and Always masked (names masked as a client, site, address or person). Each entry has a reason; each add and removal is logged in `settings_log`.
+- The gateway sends both with every protected request (Rule 1): Always masked names join `known_entities`, and Never masked goes as `privacy.never_masked`. rag-service, S5 and ingestion pass it to `/mask`, where it replaces `allow_list.json`'s words for that call. Without the field privacy-service uses its file, so evals and older callers are unchanged. Read through a one-minute cache, as chat's known names are.
+- Masking wins twice: the gateway refuses a Never masked word that matches a recorded client, site, address or user (current or former name) or an Always masked name, and privacy-service never checks known names against the list.
+- The defaults are seeded once from privacy-service's new `GET /allow-list`, with each heading as the reason. The server image doesn't hold privacy-service's file, so the gateway asks for it, at start and before the lists are read or changed. Until it succeeds, requests leave `never_masked` out (the file applies, as before), and opening or changing the lists answers 503, so an admin can't add a word that would be sent without the defaults. `app_settings.privacyWordsSeeded` keeps a removed default from returning.
+- The floor-code pattern and the Marsh and FM Global teams stay in privacy-service: a pattern is a developer's tool, and a loose one would unmask everything.
+- rag-service's `Session.know()` skips mapping values on Never masked, so a word a past report's mapping tagged before the admin allowed it reads as written in drafting and chat. The stored passage keeps its tag until the report is re-run.
+- **The mapping's values now reach the browser, for knowledge admins only.** "Masked in reports" lists each value in `knowledge_documents.privacyMapping` once, with its kind and how many reports hold it, so an admin can spot a word masked by mistake. It never returns a tag, a document or its title. Before this, no API returned the mapping. The values are client details, but the same admins can already open the original reports.
+- Removing a Never masked word is immediate with Undo (it is masked again: the safe side). Removing an Always masked name asks first. There is no revert: each change is one add or one removal, and the log records who, what and why.
+
+Reason: changing `allow_list.json` took a deploy, and past reports name clients the app never recorded, which ingestion leaves readable (no `detect`). The admin who spots either is not a developer.
+
+Rejected:
+- A per-assessment or per-upload protection switch (PV-07's plan): a past report is shared by every assessment, so switching one off would expose another client.
+- Reading `allow_list.json` and Mongo both: a default the admin removed would come back.
+- Seeding from a copy of the file in the server: two copies drift.
+- Admin-edited patterns: a loose expression unmasks every word in every flow.
+- Showing which report holds a masked word: the count is enough to judge a mistake, and keeps the list from mapping clients to reports.
+
+Known limits: a change reaches reports already indexed only when they are re-run. An admin can still allow a real surname that isn't a recorded user (the log names who). The Masked in reports kind comes from the tag, so a value tagged two ways shows the first.
+
+Stories: PV-09, PV-05, PV-01, PV-02, PV-03, S-01.

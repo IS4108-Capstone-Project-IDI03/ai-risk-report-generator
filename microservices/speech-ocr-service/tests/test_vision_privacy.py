@@ -348,3 +348,16 @@ def test_gives_a_plate_from_the_note_back_real(monkeypatch, fake_privacy):
     )
 
     assert response.json()["description"] == "Lorry PU 104 J blocks the hydrant."
+
+
+def test_sends_the_admins_never_masked_list_with_each_mask_call(fake_privacy):
+    # PV-09: the gateway's list replaces privacy-service's file words, for the note and for
+    # the answer check alike.
+    from app import privacy
+
+    session = privacy.Session({**PRIVACY, "check_answers": True, "never_masked": ["Hosereel"]})
+    session.mask(["Hosereel by John Tan"])
+    session.check_answer(["A Hosereel cabinet."])
+
+    bodies = [body for path, body in fake_privacy.requests if path == "/mask"]
+    assert [body["never_masked"] for body in bodies] == [["Hosereel"], ["Hosereel"]]

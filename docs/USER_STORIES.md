@@ -1825,3 +1825,41 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
 
   Built 4 Nov 2026 (DECISIONS 2026-11-04, "The export is the page layout, printed"). AC1: RV-04 is not built, so a check stands in for it: only a complete report is exported (DECISIONS 2026-11-05), with the Executive Summary drafted and current, an OFI accepted, Sections 4-12 written, Sections 4 and 5's figures entered, and every finding decided, none unsupported, out of date or citing a withdrawn source; RV-04 replaces `exportBlockers`. AC3: the PDF is printed from the page layout's own pages; Page layout now shows citation markers as the PDF prints them and Section 6's programs as Marsh's table, so the two match. With citations, References follow the report on pages of their own; without them, lines may rewrap where markers were. AC4: bookmarks name each section by its title. AC5: Word's contents reads "Section 7 Construction", as Word builds an entry from the heading, and Word refreshes it on opening (it may ask to update fields first). AC8: the agreed print resolution is 300 dpi of the printed size, never above the original's own. AC9: the gateway refuses a file whose text still holds a privacy placeholder, naming where. AC10: comment threads (RV-03) are kept apart from the text and the export's editor has none of them, so none reach the file; the Export tab reminds of any still open.
   </details>
+
+## E11 — PII protection
+
+Stories PV-01 to PV-08 are still in `.claude/plans/pii-protection-epic.md`; `docs/areas/privacy.md` lists what each protects.
+
+- [ ] **PV-09** — Choose which names are always masked and which words are never masked (knowledge admin, Should, 8 pts, deps: PV-05, PV-06, PV-01)
+  <details><summary>Goal / AC</summary>
+
+  As a knowledge admin, I want to choose which names are always masked and which words are never masked, so that client names the app has never recorded don't reach external AI providers, and technical words aren't hidden from the AI by mistake. A wrong "never masked" entry exposes that word in every flow, so masking always wins and every change is logged.
+
+  Always masked
+
+  1. Given protection is on, when I add a name to Always masked, then from then on it is masked wherever client text goes to an external AI, as a client's name is.
+  2. Given a past report is already indexed, when either list changes, then the report keeps the masking it was indexed with; only reports uploaded afterwards use the new lists.
+
+  Never masked
+
+  3. Given a word the privacy check takes for a person or client, when I add it to Never masked with a reason, then from then on it reaches the AI as written in drafting, chat and later uploads.
+  4. Given a word that matches a recorded client, site, address or user, or a name on Always masked, whatever its case, when I add it to Never masked, then it is refused with the reason, and it stays masked.
+  5. Given the defaults shipped with the app (floor codes, Marsh and its businesses, insurers, standards bodies), when the app first starts, then they appear in the lists with their reasons, and a default I remove does not come back after a restart.
+
+  Access and record
+
+  6. Given I am not a knowledge admin, when I open either list or try to change it, then I am refused, and the always-masked names are never shown to me or included in any export.
+  7. Given any addition or removal, when it is saved, then the change log records who made it, when, the word and the reason. Entries are never edited or deleted.
+
+  Privacy and failure
+
+  8. Given the lists were changed, when a draft, a chat question or an upload is masked within the next minute, then it may still use the previous lists. After that it uses the new ones.
+  9. Given protection is off, when I open Settings, then the lists can still be edited, and I am told they take effect only when protection is on.
+
+  Checking past reports
+
+  10. Given past reports were masked at ingestion, when I open Masked in reports, then I see each masked word once with its kind and how many reports hold it, never the reports' names, and can move any of them to Never masked with a reason.
+
+  Built 22 Nov 2026 (DECISIONS 2026-11-22). Settings > Privacy words, shown to knowledge admins only. AC1: an Always masked name is sent as a known entity of the kind the admin chose (Client, Site, Address or Person). AC3: the gateway sends Never masked as `privacy.never_masked`, which replaces privacy-service's `allow_list.json` words for the call; its floor-code pattern and the Marsh and FM Global teams stay in privacy-service. Removing a Never masked word is immediate with Undo; removing an Always masked name asks first. AC5: the gateway seeds the list from privacy-service's `GET /allow-list` once (`app_settings.privacyWordsSeeded`); until then requests leave `never_masked` out, so the file applies. AC7: `settings_log`, `setting: 'privacyWords'`; the log is a record, not something to revert from. AC8: a change is used at once by the gateway that saved it, and by the others within a minute. AC10: one rag-service change makes an allowed word read as written in drafting and chat even where a past report's mapping still tags it.
+
+  </details>
