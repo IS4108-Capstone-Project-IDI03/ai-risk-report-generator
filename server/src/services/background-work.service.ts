@@ -45,7 +45,11 @@ type OwnAssessment = {
 
 /** Returns the user's background work, oldest first. */
 export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWorkDto> {
-  const assessments = await AssessmentModel.find({ engineer: user.id }, 'reference site locations')
+  const assessments = await AssessmentModel.find(
+    // Archived work is over: nothing on it runs or can be tried again.
+    { engineer: user.id, archivedAt: null },
+    'reference site locations',
+  )
     .populate<{ site: Pick<ISite, 'name'> | null }>('site', 'name')
     .lean<OwnAssessment[]>()
   const byId = new Map(assessments.map((a) => [String(a._id), a]))

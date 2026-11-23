@@ -3,10 +3,13 @@
 // row links to.
 import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
+import request from 'supertest'
 import app from '../index'
+import { AssessmentModel } from '../models/assessment.model'
 import { DraftingRunModel } from '../models/drafting-run.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
+import { UserModel } from '../models/user.model'
 import { signedInAs } from './auth-test-helpers'
 import { REF, assessment, observation, people } from './generation-fixtures'
 import { useMemoryMongo } from './memory-mongo'
@@ -411,5 +414,67 @@ describe('drafting (GN-13)', () => {
       }),
       expect.objectContaining({ state: 'queued', title: 'Section 9' }),
     ])
+  })
+})
+
+describe('who sees what', () => {
+  const transcribing = { status: 'transcribing', recordings: [recording(1, 'transcribing')] }
+
+  it("an archived assessment's work is not listed", async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, transcribing)
+    await AssessmentModel.updateOne({ _id: id }, { archivedAt: new Date() })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start, since only the user's assigned assessments are read.
+  it("an engineer never sees another engineer's work", async () => {
+    const { engineer } = await people()
+    const other = await UserModel.create({
+      staffId: 'T-3',
+      name: 'Jide Okafor',
+      email: 'jide@example.com',
+      role: 'risk_engineer',
+    })
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, transcribing)
+
+    const res = await signedInAs(app, other).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start, from requireAuthNoRefresh.
+  it('answers 401 when signed out', async () => {
+    await request(app).get('/api/background-work').expect(401)
+  })
+
+  // Regression: passed from the start. Polling must not keep an idle session alive (F-07).
+  it('reading it does not extend the session', async () => {
+    const { engineer } = await people()
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+})
+
+describe('knowledge admins', () => {
+  // Regression: passed from the start, since every role reads only its own assigned assessments.
+  it("an admin sees work on assessments assigned to them, not on an engineer's", async () => {
+    const { engineer, admin } = await people()
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, {
+      status: 'transcribing',
+      recordings: [recording(1, 'transcribing')],
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
   })
 })
