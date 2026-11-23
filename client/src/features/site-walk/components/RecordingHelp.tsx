@@ -8,7 +8,7 @@ export function RecordingHelp() {
   return (
     <Tip id="site-walk.recorder" align="right">
       <ul>
-        <li>Tap Save recording at each pause and start the next one at the next location.</li>
+        <li>Press Save recording at each pause, then start the next one at the next location.</li>
         <li>
           A recording stops by itself at 20 minutes. You hear a tone and see a message a minute
           before.

@@ -46,7 +46,7 @@ describe('the tips that exist today', () => {
   it('Site walk recorder guide, under the same name', () => {
     render(<RecordingHelp />)
     expect(lines('How to record a site walk')).toEqual([
-      'Tap Save recording at each pause and start the next one at the next location.',
+      'Press Save recording at each pause, then start the next one at the next location.',
       'A recording stops by itself at 20 minutes. You hear a tone and see a message a minute before.',
       'Type a note between recordings for anything that is easier to write than to say.',
       'Say the building, level and area as you arrive, e.g. “Block A, Level 1, loading bay”.',

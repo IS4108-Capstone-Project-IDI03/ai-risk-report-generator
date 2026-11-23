@@ -142,9 +142,11 @@ describe('New Assessment from client documents (CP-23)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'How to save an email' }))
     const help = screen.getByRole('dialog', { name: 'How to save an email' })
     expect(help.textContent).toContain(
-      'Outlook: open the email, then File > Save As, as Outlook Message Format (.msg).',
+      'Outlook: open the email, then choose File → Save As and save it as Outlook Message Format (.msg).',
     )
-    expect(help.textContent).toContain('Gmail: open the email, then ⋮ > Download message (.eml).')
+    expect(help.textContent).toContain(
+      'Gmail: open the email, then choose ⋮ → Download message to save it as an .eml file.',
+    )
   })
 
   it('shows each file’s status words while it is read (AC1)', async () => {

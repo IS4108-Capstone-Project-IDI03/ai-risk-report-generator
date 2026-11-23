@@ -24,7 +24,7 @@ export const TIPS = {
     label: 'About the Stage column',
     roles: ['risk_engineer', 'knowledge_admin'],
     walkthrough: 'overview',
-    text: 'This shows how far each report has got. The stage moves forward on its own as you work, through 8 stages: Setup, Prepare, Capture, Ready for generation, Generate, Review, Ready to export and Exported.',
+    text: 'This shows the current progress of each assessment. The stage moves forward on its own as you work, through 8 stages: Setup, Prepare, Capture, Ready for generation, Generate, Review, Ready to export and Exported.',
   },
   // 3. New Assessment: Assessment block: type   (EXISTS today)
   'new-assessment.type': {
@@ -113,7 +113,7 @@ export const TIPS = {
     label: 'About Split note',
     roles: ['risk_engineer'],
     walkthrough: 'split-note',
-    text: 'This sorts your note into facts, info requests and recommendations. If a line starts with one of your codes (F, IR or REC), it goes straight to the right group. You can change your codes in Settings, under Note-taking.',
+    text: 'This sorts your note into facts, info requests and recommendations. If a line starts with one of your codes (F, IR or REC), it goes straight to the right group. You can change your codes in **Settings → Note-taking**.',
   },
   // 18. New Observation: Scan
   'new-observation.scan': {
@@ -145,13 +145,13 @@ export const TIPS = {
     label: 'About starting a draft',
     roles: ['risk_engineer', 'knowledge_admin'],
     walkthrough: 'generation',
-    text: 'Drafting can start once 2 things are true:\n- Each section has at least 1 observation with a category and a severity.\n- No recording is still being transcribed.\nThe last 3 sections also need your OFIs, scores and loss estimates.',
+    text: 'Drafting can start once 2 things are true:\n- Each section has at least 1 observation with a category and a severity.\n- No recording is still being transcribed.\nThe last 3 sections also need your Opportunities for Improvement, scores and loss estimates.',
   },
   // 23. Generation: Step 2: Add your input
   'generation.input': {
     label: 'About adding your input',
     roles: ['risk_engineer'],
-    text: 'You do these 3 tasks in Review. If you press a row, it takes you to the right section.',
+    text: "You do these 3 tasks in Review. If you open a row, you'll go straight to the right section.",
   },
   // 24. Generation: An "Out of date" mark
   'generation.out-of-date': {
@@ -190,7 +190,7 @@ export const TIPS = {
     label: 'About the Risk Assessment Matrix',
     roles: ['risk_engineer', 'knowledge_admin'],
     walkthrough: 'review-ofi',
-    text: "An OFI's priority comes from its likelihood and its consequence on this matrix. AI never chooses it.",
+    text: 'The priority of an Opportunity for Improvement comes from its likelihood and its consequence on this matrix. AI never chooses it.',
   },
   // 30. Review: Section 4: "Provisional weights" badge
   'review.provisional-weights': {
@@ -241,7 +241,7 @@ export const TIPS = {
   'document.comment': {
     label: 'About comments',
     roles: ['risk_engineer', 'knowledge_admin'],
-    text: 'Select some text, and then press Comment. Comments sit beside the text, and they are never exported.',
+    text: 'Select some text, and then press **Comment**. Comments sit beside the text, and they are never exported.',
   },
   // 38. Version history: Restore this version
   'versions.restore': {
@@ -255,7 +255,7 @@ export const TIPS = {
     label: 'What is left to finish',
     roles: ['risk_engineer', 'knowledge_admin'],
     walkthrough: 'export',
-    text: 'A report can be exported once all of this is true:\n- Every section is written.\n- The scores and loss figures are entered.\n- At least 1 OFI is accepted.\n- Every finding is decided.\n- Nothing is unsupported, out of date or citing a withdrawn source.',
+    text: 'A report can be exported once all of this is true:\n- Every section is written.\n- The scores and loss figures are entered.\n- At least 1 Opportunity for Improvement is accepted.\n- Every finding is decided.\n- Nothing is unsupported, out of date or citing a withdrawn source.',
   },
   // 40. Inbox: Title
   'inbox.title': {
@@ -275,7 +275,7 @@ export const TIPS = {
     label: 'About the summary',
     roles: ['risk_engineer', 'knowledge_admin'],
     walkthrough: 'insights',
-    text: "The summary is written by AI, and only when you ask for it. It uses your observations, accepted OFIs and ratings, with the client's details hidden first. Each statement is checked and shows its source, and the summary is never added to a report.",
+    text: "The summary is written by AI, and only when you ask for it. It uses your observations, accepted Opportunities for Improvement and ratings, with the client's details hidden first. Each statement is checked and shows its source, and the summary is never added to a report.",
   },
   // 43. MarshBot chat: A citation marked "!"
   'chat.citation-unverified': {
@@ -294,7 +294,7 @@ export const TIPS = {
   'settings.practice': {
     label: 'About the practice assessment',
     roles: ['risk_engineer', 'knowledge_admin'],
-    text: "This is a made-up assessment that only you can see, and it isn't counted anywhere. You can reset it to start again, or remove it.",
+    text: "It's a made-up assessment for trying things out, so nothing you do in it touches your real work. Press **Reset** to start it again from the beginning, or **Remove** to take it off your list.",
   },
   // 46. Knowledge base: Status filter
   'knowledge.status': {
@@ -307,7 +307,7 @@ export const TIPS = {
   'knowledge.tier': {
     label: 'About tiers',
     roles: ['knowledge_admin'],
-    text: 'When 2 sources disagree, the one in the higher tier wins. You can set the order in Settings, under Source priority.',
+    text: 'When 2 sources disagree, the one in the higher tier wins. You can set the order in **Settings → Source priority**.',
   },
   // 48. Add documents: Upload panel
   'knowledge-add.upload': {
@@ -321,7 +321,7 @@ export const TIPS = {
     label: 'About upload statuses',
     roles: ['knowledge_admin'],
     walkthrough: 'kb-add',
-    text: "An upload moves through these statuses:\n- **Queued**: it's waiting its turn.\n- **Parsing**, **Chunking**, **Indexing**: it's being read.\n- **Complete**: it's ready to use.\n- **Type needed**: choose its source type to start.\n- **Failed**: read the reason, and then press Retry.",
+    text: "An upload moves through these statuses:\n- **Queued**: it's waiting its turn.\n- **Parsing**, **Chunking**, **Indexing**: it's being read.\n- **Complete**: it's ready to use.\n- **Type needed**: choose its source type to start.\n- **Failed**: read the reason, and then press **Retry**.",
   },
   // 50. Review document: Decision panel
   'knowledge-review.decision': {
@@ -353,7 +353,7 @@ export const TIPS = {
   'settings.models': {
     label: 'About models',
     roles: ['knowledge_admin'],
-    text: 'This chooses the AI model for each task, for everyone. A change applies from the next call. A light shows whether the API key is set. It does not test the key.',
+    text: "This chooses the AI model for each task, for everyone. A change applies from the next call. The light shows whether an API key is set, but it doesn't test that the key works.",
   },
 } satisfies Record<string, TipDef>
 

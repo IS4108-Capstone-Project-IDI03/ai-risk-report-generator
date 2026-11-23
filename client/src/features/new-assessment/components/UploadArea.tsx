@@ -93,13 +93,15 @@ export function UploadArea({
                 <ul>
                   <li>
                     <b>{'Outlook: '}</b>
-                    {'open the email, then File > Save As, as Outlook Message Format (.msg).'}
+                    {'open the email, then choose '}
+                    <b>{'File → Save As'}</b>
+                    {' and save it as Outlook Message Format (.msg).'}
                   </li>
                   <li>
                     <b>{'Gmail: '}</b>
-                    {'open the email, then '}
-                    <span className="na-nowrap">{'⋮ > Download message'}</span>
-                    {' (.eml).'}
+                    {'open the email, then choose '}
+                    <b className="na-nowrap">{'⋮ → Download message'}</b>
+                    {' to save it as an .eml file.'}
                   </li>
                 </ul>
               </Tip>
