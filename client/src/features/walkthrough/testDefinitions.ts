@@ -202,4 +202,76 @@ export const TEST_DEFS: WalkthroughDef[] = [
       { target: 't.later', say: 'Late one.' },
     ],
   },
+  {
+    // A signal step (pick, type, record), then a press on another control.
+    id: 'pick',
+    name: 'Pick something',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'hands',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [
+      { target: 't.search', say: 'Pick one.', do: [{ signal: 'picked' }, { press: 't.button' }] },
+      { target: 't.search', say: 'Picked.' },
+    ],
+  },
+  {
+    // A press inside a wider target (a field round its Confirm tick).
+    id: 'field',
+    name: 'Confirm a field',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'hands',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [{ target: 't.head', say: 'This field.', do: [{ press: 't.head-cell' }] }],
+  },
+  {
+    // A step whose `open` press changes the screen (observation.back): t.late appears on the press.
+    id: 'reopen',
+    name: 'Back to the list',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'tell',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [
+      { target: 't.search', say: 'First.' },
+      { open: ['t.button'], target: 't.late', say: 'Second.' },
+    ],
+  },
+  {
+    // A press whose result is saved later (Confirm category): the step lands on the save's signal.
+    id: 'confirm',
+    name: 'Confirm and save',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'hands',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [
+      {
+        target: 't.head',
+        say: 'Confirm it.',
+        do: [{ press: 't.head-cell' }, { signal: 'confirm-saved', at: 't.head' }],
+      },
+      { target: 't.head', say: 'Confirmed.' },
+    ],
+  },
+  {
+    // A press, then a step waiting on an answer that may come before it shows.
+    id: 'early',
+    name: 'A fast answer',
+    group: 'Day to day',
+    roles: BOTH,
+    kind: 'hands',
+    screen: 'clients',
+    place: { path: '/' },
+    steps: [
+      { target: 't.button', say: 'Ask it.', do: [{ press: 't.button' }] },
+      { target: 't.search', say: 'Waiting for it.', wait: 'answered' },
+      { target: 't.search', say: 'Answered.' },
+    ],
+  },
 ]

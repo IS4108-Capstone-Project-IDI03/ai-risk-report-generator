@@ -1,7 +1,8 @@
-// Draws whatever the walkthrough engine says (F-12): the dimming with its cut-out, MarshBot's bubble
-// beside it (or centred, or in the corner; a bottom sheet on a phone), and the "Your turn" ring.
-// Mounted once in App.tsx's Workspace. Calls engine.ts, player.ts (next, back, skip), Highlight, WalkthroughBubble.
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+// Draws whatever the walkthrough engine says (F-12): the dimming with its cut-out (driver.js, through
+// spotlight.ts), MarshBot's bubble beside it (or centred, or in the corner; a bottom sheet on a
+// phone), and the "Your turn" ring. Mounted once in App.tsx's Workspace.
+// Calls engine.ts, player.ts (next, back, skip), spotlight.ts, targets.ts, WalkthroughBubble.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsPhone } from '../../design-system'
 import type { AssessmentWorkflow } from '../assessments/useAssessmentWorkflow'
@@ -9,36 +10,28 @@ import type { Session } from '../auth/api'
 import '../marshbot/marshbot.css'
 import '../marshbot/components/thread/thread.css'
 import { canPlay, isRunning, play, startEngine } from './engine'
-import { back, next, skip } from './player'
+import { back, next, skip, typed } from './player'
 import { findTarget } from './settle'
 import { calm, useWalkthroughs } from './state'
-import { Highlight, type Box } from './components/Highlight'
+import { hideSpot, showSpot } from './spotlight'
 import {
   apartBoxes,
   bringIntoView,
-  clipBox,
+  cutTo,
+  PAD,
   placeBubble,
   roomFor,
   scrollerOn,
   sheetSide,
   uncover,
-  visibleY,
+  type Box,
 } from './placement'
+import { measureBox, same, useLinger, useMarkTargets, useTargetBox } from './targets'
 import { WalkthroughBubble } from './components/WalkthroughBubble'
 import './walkthrough.css'
 
-/** Keeps the last non-null value for `ms` after it goes, so it can fade out; returns it and whether it is leaving. */
-function useLinger<T>(value: T | null, ms: number): [T | null, boolean] {
-  const [kept, setKept] = useState(value)
-  if (value !== null && value !== kept) setKept(value)
-  const leaving = value === null && kept !== null
-  useEffect(() => {
-    if (!leaving) return
-    const timer = setTimeout(() => setKept(null), ms)
-    return () => clearTimeout(timer)
-  }, [leaving, ms])
-  return [value ?? kept, leaving]
-}
+// The least a capped phone sheet keeps: MarshBot's row, two lines and Back and Next.
+const SHEET_MIN = 180
 
 // Where the layer goes: the open modal dialog, if any (else the body). A modal dialog sits in the
 // browser's top layer and makes everything outside it inert, so a layer in the body would sit
@@ -46,81 +39,6 @@ function useLinger<T>(value: T | null, ms: number): [T | null, boolean] {
 function layerHost(): HTMLElement {
   const dialogs = document.querySelectorAll<HTMLDialogElement>('dialog[open]:not([inert])')
   return dialogs[dialogs.length - 1] ?? document.body
-}
-
-type Measured = { box: Box; each: Box[] }
-
-/** Returns the box round every tagged element (viewport px), clipped to the window, and each
-    element's own clipped box (for a step that lights them one by one); null if one is missing. */
-function measure(key: string): Measured | null {
-  const els = key ? key.split('|').map(findTarget) : []
-  if (!els.length || !els.every(Boolean)) return null
-  // Each target is cut to what its own scroller shows, so a union taller than a panel's body does
-  // not light the panel's header or footer as well.
-  const rects = (els as HTMLElement[]).map((el) => {
-    const r = el.getBoundingClientRect()
-    const scroller = scrollerOn(el, 'y')
-    if (!scroller) return r
-    const [vTop, vBottom] = visibleY(scroller, { w: window.innerWidth, h: window.innerHeight })
-    const top = Math.min(Math.max(r.top, vTop), vBottom)
-    return { left: r.left, right: r.right, top, bottom: Math.max(Math.min(r.bottom, vBottom), top) }
-  })
-  const win = { w: window.innerWidth, h: window.innerHeight }
-  const x = Math.min(...rects.map((r) => r.left))
-  const y = Math.min(...rects.map((r) => r.top))
-  const w = Math.max(...rects.map((r) => r.right)) - x
-  const h = Math.max(...rects.map((r) => r.bottom)) - y
-  const each = rects
-    .map((r) => clipBox({ x: r.left, y: r.top, w: r.right - r.left, h: r.bottom - r.top }, win))
-    .filter((b) => b.w > 0 && b.h > 0)
-  return { box: clipBox({ x, y, w, h }, win), each }
-}
-
-/** Returns the box round the tags, as measure() gives it; null if one is missing. */
-const measureBox = (key: string): Box | null => measure(key)?.box ?? null
-
-const same = (a: Box | null, b: Box | null) =>
-  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h)
-
-/** Returns measure() for the tags, kept up to date on scroll and resize. */
-function useTargetBox(tags: string[] | null): Measured | null {
-  const [got, setGot] = useState<Measured | null>(null)
-  const key = tags?.join('|') ?? ''
-  useEffect(() => {
-    const look = () => {
-      const now = measure(key)
-      // Same numbers, same object: without this, every scroll event would re-render the layer.
-      setGot((old) => (JSON.stringify(old) === JSON.stringify(now) ? old : now))
-    }
-    look()
-    let frame = 0
-    const later = () => (cancelAnimationFrame(frame), (frame = requestAnimationFrame(look)))
-    window.addEventListener('scroll', later, true)
-    window.addEventListener('resize', later)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', later, true)
-      window.removeEventListener('resize', later)
-    }
-  }, [key])
-  return got
-}
-
-/** Marks each element the highlight goes round with `data-walk-on` (types.ts), so a screen's CSS can
-    keep hover-only controls showing while MarshBot points at them; removed when the step changes or ends. */
-function useMarkTargets(tags: string[] | null, box: Box | null) {
-  const key = tags?.join('|') ?? ''
-  // Re-run when the box moves too: by then a re-render may have put a new element under the tag.
-  useEffect(() => {
-    const els = key
-      ? key
-          .split('|')
-          .map(findTarget)
-          .filter((el) => el !== null)
-      : []
-    els.forEach((el) => el.setAttribute('data-walk-on', ''))
-    return () => els.forEach((el) => el.removeAttribute('data-walk-on'))
-  }, [key, box])
 }
 
 /** Returns the walkthrough layer; nothing while no walkthrough, offer or message shows. */
@@ -140,18 +58,28 @@ export function WalkthroughHost({
     w.__walkthroughs = { play, canPlay, isRunning, state: () => useWalkthroughs.getState() }
     return () => void delete w.__walkthroughs
   }, [])
-  const { bubble, targets, apart, end, dim, ring, nav, running } = useWalkthroughs()
+  const { bubble, targets, press, apart, end, dim, ring, nav, running } = useWalkthroughs()
   const phone = useIsPhone()
   const quiet = calm()
   const measured = useTargetBox(targets)
   const box = measured?.box ?? null
   // A step that lights its targets one by one: a cut-out each (joined where two would touch).
   const holes = apart && measured && measured.each.length > 1 ? apartBoxes(measured.each) : null
-  useMarkTargets(targets, box)
+  // The pressed control too: a hover-only one inside the target (the Category field's Confirm tick)
+  // shows only while it is marked itself (cp24.css, `.cpf-decide:has([data-walk-on])`).
+  useMarkTargets(press ? [...(targets ?? []), press] : targets, box)
+  // A cut-out wider than the control to press (types.ts, `do`): presses reach only that control.
+  const pressTags = useMemo(() => (press ? [press] : null), [press])
+  const pressBox = useTargetBox(pressTags)?.box ?? null
   const [view, leaving] = useLinger(bubble, dim ? 100 : 150)
-  const [dimShown, ending] = useLinger(dim ? true : null, 150)
+  // The layer stays while the dimming fades out: inside a dialog the dimming is drawn in it.
+  const [dimShown] = useLinger(dim ? true : null, 150)
+  const [shownRing, ringLeaving] = useLinger(ring === 'off' ? null : ring, 150)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const [spot, setSpot] = useState<CSSProperties>({})
+  // A hands-on step has let the spotlight go (player.ts, letGo): the page is the person's, so nothing
+  // scrolls it back to the target. Not `!dim` alone: a bare walkthrough is never dimmed.
+  const letGo = !dim && bubble?.step?.turn === 'hands'
 
   // a. The layer follows the open modal dialog (Sheet's rule), re-read when one opens or closes.
   const [host, setHost] = useState(layerHost)
@@ -186,27 +114,37 @@ export function WalkthroughHost({
   // c. Places the bubble once its size is known. On a phone the page scrolls the highlight above the
   // sheet; a control that cannot scroll up (pinned to the bottom edge) gets the sheet at the top.
   const [side, setSide] = useState<'bottom' | 'top'>('bottom')
+  // The sheet's height when no edge leaves room for all of it beside the highlight; null = its own.
+  const [sheetMax, setSheetMax] = useState<number | null>(null)
   // What the cut-out shows: on a desktop, only the part of the box the bubble leaves free.
-  const [drawn, setDrawn] = useState<Box | null>(null)
+  // Kept with the message it was worked out for: a new message's first draw has the old one's.
+  const [drawn, setDrawn] = useState<{ key: string; box: Box | null } | null>(null)
   useLayoutEffect(() => {
     const el = bubbleRef.current
-    if (!el || !view) return
+    // A leaving bubble keeps its place: re-placed against no box (between screens), it would jump
+    // to the corner as it fades.
+    if (!el || !view || leaving) return
     const win = { w: window.innerWidth, h: window.innerHeight }
     if (!phone) {
       const size = { w: el.offsetWidth, h: el.offsetHeight }
       const part = box && view.place === 'target' ? roomFor(box, size, win) : box
-      setDrawn((old) => (same(old, part) ? old : part))
+      setDrawn((old) =>
+        old?.key === view.key && same(old.box, part) ? old : { key: view.key, box: part },
+      )
       return setSpot(placeBubble(view.place, part, size, win))
     }
-    setDrawn(box)
+    setDrawn({ key: view.key, box })
+    if (letGo) return
     // Measured now, not from `box`: when a step changes, `box` is still the step before's for one
     // render, and scrolling by it would push the new target out of view.
     const els = (targets ?? []).map(findTarget).filter((t) => t !== null)
+    setSheetMax(null)
     if (!els.length) return setSide('bottom')
     const rects = els.map((t) => t.getBoundingClientRect())
     const top = Math.min(...rects.map((r) => r.top))
     const bottom = Math.max(...rects.map((r) => r.bottom))
-    const sheet = el.offsetHeight
+    // Its whole height (as offsetHeight is without a cap of ours), so a cap never feeds back here.
+    const sheet = Math.min(el.scrollHeight, win.h - 32)
     const room = win.h - sheet - 16
     // Only a real scroll container moves (never an overflow: hidden one); none = the sheet goes up.
     const scroller = scrollerOn(els[0], 'y')
@@ -217,7 +155,8 @@ export function WalkthroughHost({
         scroller?.scrollBy?.({ top: bottom + 6 - room })
       // The cut-out stops above the sheet (as a desktop bubble's roomFor does): lit page showing
       // round the sheet's corners would look like part of the sheet.
-      if (box && box.y + box.h + 6 > room) setDrawn({ ...box, h: Math.max(room - 6 - box.y, 0) })
+      if (box && box.y + box.h + 6 > room)
+        setDrawn({ key: view.key, box: { ...box, h: Math.max(room - 6 - box.y, 0) } })
       return setSide('bottom')
     }
     if (bottom + 6 > room) scroller?.scrollBy?.({ top: bottom + 6 - room })
@@ -225,14 +164,25 @@ export function WalkthroughHost({
     // A pinned bar (the document editor's header) may now sit over the target's top: it is
     // scrolled clear again, and what then sits under the sheet moves the sheet to the top instead.
     uncover(els, win, ['top'])
-    setSide(sheetSide(measureBox((targets ?? []).join('|')), sheet, win.h))
-  }, [view, box, phone, targets])
+    const lit = measureBox((targets ?? []).join('|'))
+    if (!lit) return setSide('bottom')
+    // A target that cannot scroll clear of the sheet (a group in the open navigation drawer) and
+    // has room for it on neither edge: the sheet goes to the roomier edge, kept to that room, and
+    // its words scroll inside it. Without this it would cover the target's top.
+    const above = lit.y - PAD - 8
+    const below = win.h - (lit.y + lit.h + PAD) - 16
+    const edge = sheetSide(lit, sheet, win.h)
+    const dock = edge === 'top' && sheet > above && below > above ? 'bottom' : edge
+    const free = dock === 'top' ? above : below
+    if (sheet > free) setSheetMax(Math.max(free, SHEET_MIN))
+    setSide(dock)
+  }, [view, box, phone, targets, letGo, leaving])
 
   // c2. Something else may scroll the target away after the step has shown (MarshBot's conversation
   // follows its newest message while it types, and can push a card under the pinned tab row): once
   // the scrolling has been quiet, the target is put back in view. It moves nothing that is in view.
   useEffect(() => {
-    if (!targets) return
+    if (!targets || letGo) return
     let timer = 0
     const check = () => {
       window.clearTimeout(timer)
@@ -246,7 +196,7 @@ export function WalkthroughHost({
       window.clearTimeout(timer)
       window.removeEventListener('scroll', check, true)
     }
-  }, [targets, end])
+  }, [targets, end, letGo])
 
   // d. Focus goes into the bubble with each step, and back where it was when the walkthrough ends.
   const returnTo = useRef<Element | null>(null)
@@ -283,15 +233,16 @@ export function WalkthroughHost({
         // While the page is dimmed and only told about, Tab stays in the bubble: the dimming blocks
         // the pointer, and without this the keyboard could still press what is behind it. A
         // hands-on step and a bare bubble leave the page to the person.
-        const { dim: dimmed, ring: turn, targets: lit } = useWalkthroughs.getState()
+        const { dim: dimmed, ring: turn, targets: lit, press: only } = useWalkthroughs.getState()
         const stops = [...bubbleEl.querySelectorAll<HTMLElement>('button:not([disabled])')]
         const from = document.activeElement
-        // "Your turn": Tab from the bubble's last button goes to the highlighted control, which
+        // "Your turn": Tab from the bubble's last button goes to the highlighted control (the press
+        // control, when the cut-out is wider), which
         // the keyboard could not otherwise reach from here (the bubble sits at the end of the page).
         if (dimmed && turn !== 'off') {
           const leaving = !e.shiftKey && bubbleEl.contains(from)
           const lastStop = from === stops[stops.length - 1] || from === bubbleEl || !stops.length
-          const target = lit?.[0] ? findTarget(lit[0]) : null
+          const target = only ? findTarget(only) : lit?.[0] ? findTarget(lit[0]) : null
           const first = target?.matches('button, a[href], input, select, textarea, [tabindex]')
             ? target
             : target?.querySelector<HTMLElement>('button, a[href], input, select, textarea')
@@ -310,21 +261,51 @@ export function WalkthroughHost({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [running])
 
-  if (!showing) return null
+  // f. driver.js draws the dimming and cut-out (spotlight.ts) into our layer's place. Once the
+  // bubble is placed, the cut-out is the part it leaves free (`drawn`). A tell step blocks the whole
+  // page; a hands-on one lets presses through its cut-out (or only its press control).
+  const [layer, setLayer] = useState<HTMLDivElement | null>(null)
   const handsOn = ring !== 'off'
+  // No box (between screens) shuts the cut-out at once, not when the old bubble has faded; a new
+  // message's first draw (`drawn` not yet worked out for it) uses the whole box.
+  const spotBox = box && view && drawn?.key === view.key ? (drawn.box ?? box) : box
+  // Each separate cut-out only as far as the drawn part: the bubble never sits over one.
+  const spotHoles = holes && spotBox ? cutTo(holes, spotBox) : holes
+  const key = targets?.join('|') ?? ''
+  useEffect(() => {
+    if (!dim || !layer) return hideSpot()
+    const open = !handsOn
+      ? []
+      : press
+        ? pressBox
+          ? [pressBox]
+          : []
+        : (spotHoles ?? (spotBox ? [spotBox] : []))
+    showSpot({ key, box: spotBox, holes: spotHoles, open, host: layer, calm: quiet })
+  }, [dim, layer, key, spotBox, spotHoles, handsOn, press, pressBox, quiet])
+  // Without this, signing out mid-walkthrough would leave driver.js's dimming on the page.
+  useEffect(() => hideSpot, [])
+
+  if (!showing) return null
   return createPortal(
-    <Layer>
-      {dimShown && (
-        <div className="wt-shade" data-leaving={ending || undefined}>
-          <Highlight
-            box={view ? drawn : box}
-            holes={holes}
-            glideKey={targets?.join('|') ?? ''}
-            ring={ring}
-            passThrough={handsOn}
-            calm={quiet}
-          />
-        </div>
+    <Layer ref={setLayer}>
+      {/* "Your turn": a ring breathing round the cut-out; green once the action lands (motion row 7). */}
+      {shownRing && spotBox && (
+        <span
+          className="wt-ring"
+          data-done={shownRing === 'done' || undefined}
+          data-leaving={ringLeaving || undefined}
+          style={
+            {
+              left: spotBox.x - PAD,
+              top: spotBox.y - PAD,
+              width: spotBox.w + PAD * 2,
+              height: spotBox.h + PAD * 2,
+              '--sx': (spotBox.w + PAD * 2 + 12) / (spotBox.w + PAD * 2),
+              '--sy': (spotBox.h + PAD * 2 + 12) / (spotBox.h + PAD * 2),
+            } as CSSProperties
+          }
+        />
       )}
       {view && (
         <WalkthroughBubble
@@ -336,9 +317,10 @@ export function WalkthroughHost({
           onBack={back}
           onNext={() => next()}
           onSkip={skip}
+          onTyped={typed}
           modal={dim && !handsOn}
           dock={phone ? side : undefined}
-          style={phone ? undefined : spot}
+          style={phone ? (sheetMax ? { maxHeight: sheetMax } : undefined) : spot}
         />
       )}
     </Layer>,
@@ -351,16 +333,29 @@ const POPOVERS = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElem
 
 // The layer itself: a manual popover, so the browser shows it in the top layer, above the page and
 // any open dialog (jsdom has no popovers; there it is a plain fixed layer).
-function Layer({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
+function Layer({
+  children,
+  ref,
+}: {
+  children: React.ReactNode
+  ref: (el: HTMLDivElement | null) => void
+}) {
+  const own = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    const el = ref.current
+    const el = own.current
     // Only a connected element can open: the dialog the layer sat in may have just been removed
     // (the host moves the layer out on its next look), and a throw here would take the app down.
     if (el?.showPopover && el.isConnected && !el.matches(':popover-open')) el.showPopover()
   }, [])
   return (
-    <div ref={ref} className="wt-layer" popover={POPOVERS ? 'manual' : undefined}>
+    <div
+      ref={(el) => {
+        own.current = el
+        ref(el)
+      }}
+      className="wt-layer"
+      popover={POPOVERS ? 'manual' : undefined}
+    >
       {children}
     </div>
   )

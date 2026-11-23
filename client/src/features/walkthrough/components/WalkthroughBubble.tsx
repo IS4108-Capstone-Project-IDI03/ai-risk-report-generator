@@ -2,11 +2,30 @@
 // speech bubble, with Skip (the round grey close), then either the stepper (Back, the step bar,
 // Next) or answer buttons. Under 768 px the CSS makes it a sheet docked to the bottom edge.
 // Called by WalkthroughHost. Calls IconAction, Button, StepBar, MarshBotFace, TypedText.
-import { forwardRef, useCallback, useState, type CSSProperties } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { Button, IconAction, StepBar } from '../../../design-system'
 import { MarshBotFace } from '../../marshbot/components/MarshBotFace'
 import type { BubbleView } from '../state'
 import { TypedText } from './TypedText'
+
+// Answer buttons: 14 / 600 like the words, 32 px high (44 on a phone or touch screen, --wt-answer),
+// 16 px sides. A label never wraps: walkthrough.css gives each button at least its label's width.
+const ANSWER: CSSProperties = {
+  height: 'auto',
+  minHeight: 'var(--wt-answer)',
+  padding: '4px 16px',
+  fontSize: 'var(--mbt-size)',
+  fontWeight: 600,
+  lineHeight: '18px',
+  whiteSpace: 'nowrap',
+}
 
 type Props = {
   view: BubbleView
@@ -14,6 +33,8 @@ type Props = {
   onBack: () => void
   onNext: () => void
   onSkip: () => void
+  // Called with the message's key once its last letter is in (player.ts typed).
+  onTyped?: (key: string) => void
   style?: CSSProperties
   leaving?: boolean
   // Phone: the sheet's edge; 'top' when the highlight sits where the bottom sheet would cover it.
@@ -24,18 +45,28 @@ type Props = {
 
 /** Returns the face and bubble; the host places it (beside the highlight, centred, or the corner). */
 export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function WalkthroughBubble(
-  { view, instant, onBack, onNext, onSkip, style, leaving, dock, modal },
+  { view, instant, onBack, onNext, onSkip, onTyped, style, leaving, dock, modal },
   ref,
 ) {
   // A press or key on the bubble shows the rest of the words at once.
   const [rushed, setRushed] = useState(false)
   const [done, setDone] = useState(false)
-  const finished = useCallback(() => setDone(true), [])
+  const finished = useCallback(() => {
+    setDone(true)
+    onTyped?.(view.key)
+  }, [onTyped, view.key])
   const { step, answers } = view
+  // Two answers too wide for one row in the bubble (each never wraps, walkthrough.css): stacked.
+  const answersRef = useRef<HTMLDivElement>(null)
+  const [stack, setStack] = useState(false)
+  useLayoutEffect(() => {
+    const el = answersRef.current
+    if (el && el.scrollWidth > el.clientWidth + 1) setStack(true)
+  }, [])
   const last = !!step && step.at >= step.total
   const reason =
     step?.turn === 'hands'
-      ? { title: 'Your turn', text: 'Press the highlighted button to carry on.' }
+      ? { title: 'Your turn', text: "I'll carry on as soon as you've done this step." }
       : step?.turn === 'wait'
         ? { title: 'One moment', text: "I'll carry on when this is ready." }
         : undefined
@@ -71,7 +102,7 @@ export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function Walk
           <TypedText
             say={view.say}
             typing={view.typing}
-            instant={instant || rushed}
+            instant={instant || rushed || !!view.rushed}
             onDone={finished}
           />
         </div>
@@ -103,8 +134,10 @@ export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function Walk
         )}
         {answers && (
           <div
+            ref={answersRef}
             className="wt-foot wt-answers"
             data-single={answers.length === 1 || undefined}
+            data-stack={stack || undefined}
             data-in={done || undefined}
             // Not reachable until it has faded in, so nothing is pressed before it is read.
             inert={!done || undefined}
@@ -115,8 +148,10 @@ export const WalkthroughBubble = forwardRef<HTMLDivElement, Props>(function Walk
                 variant={i === 0 && answers.length > 1 ? 'primary' : 'pill'}
                 pill
                 onClick={a.act}
+                // The bubble's own text size, never larger than the words above (walkthrough.css).
+                style={ANSWER}
               >
-                {a.label}
+                <span className="wt-answer-label">{a.label}</span>
               </Button>
             ))}
           </div>

@@ -14,7 +14,7 @@ import { useWalkthroughScreen } from './useWalkthroughScreen'
 vi.mock('./registry', async () => ({ DEFINITIONS: (await import('./testDefinitions')).TEST_DEFS }))
 vi.mock('../../design-system', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../design-system')>()),
-  toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() },
+  toast: { info: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() },
 }))
 
 const plain = (text: string) => text.replaceAll('**', '')
@@ -248,16 +248,17 @@ describe('steps', () => {
     act(() => play(['observations']))
     await wait(200)
     expect(useWalkthroughs.getState().targets).toEqual(['t.button'])
+    expect(useWalkthroughs.getState().press).toBeNull() // its target does not hold the button
     press('Next')
     expect(screen.getByText('Press the button.')).toBeTruthy()
     press('Add')
     act(() => signal('thing-saved'))
-    await wait(500)
+    await wait(1200) // the green ring, then the 900 ms beat
     expect(screen.getByText('Working on it.')).toBeTruthy()
     press('Next')
     expect(screen.getByText('Working on it.')).toBeTruthy()
     act(() => signal('answer-finished'))
-    await wait(500)
+    await wait(2400) // its words read (1200 ms after typing), the green bar, then the beat
     expect(screen.getByText('All done.')).toBeTruthy()
   })
 
@@ -404,7 +405,7 @@ describe('a waiting step that takes too long', () => {
     await wait(200)
     press('Add')
     act(() => signal('thing-saved'))
-    await wait(500)
+    await wait(1200)
     expect(screen.getByText('Working on it.')).toBeTruthy()
     await wait(1600)
     expect(screen.getByText('Taking longer.')).toBeTruthy()
@@ -457,7 +458,7 @@ describe('started away from its screen', () => {
     act(() => signal('thing-saved'))
     // Between steps (no bubble yet): an arrow key press must not skip the step that is coming.
     fireEvent.keyDown(document.body, { key: 'ArrowRight' })
-    await wait(500)
+    await wait(1200)
     expect(screen.getByText('Working on it.')).toBeTruthy()
     // The step before was hands-on: its action is used up, so Back is greyed and does nothing.
     expect(screen.getByRole('button', { name: 'Back' }).hasAttribute('disabled')).toBe(true)
@@ -596,5 +597,198 @@ describe('a queue', () => {
     act(() => play(['chat']))
     await wait(200)
     expect(tryItRunning()).toBe('chat')
+  })
+})
+
+describe('the beat after an action lands', () => {
+  it('the next step shows no sooner than 900 ms later, with the old bubble and spotlight gone meanwhile', async () => {
+    window.history.replaceState(null, '', PRACTICE_PLACE)
+    render(<Harness screen="observations" record={{ practice: 'PRACTICE-0001' }} />)
+    act(() => play(['observations']))
+    await wait(200)
+    press('Add')
+    act(() => signal('thing-saved'))
+    await wait(600)
+    expect(screen.queryByText('Press the button.')).toBeNull()
+    expect(screen.queryByText('Working on it.')).toBeNull()
+    expect(useWalkthroughs.getState().dim).toBe(false)
+    await wait(600)
+    expect(screen.getByText('Working on it.')).toBeTruthy()
+  })
+
+  it('a signal raised before the next step listens is not lost: that step shows, then moves on', async () => {
+    render(<Harness />)
+    act(() => play(['early']))
+    await wait(200)
+    press('Add')
+    act(() => signal('answered')) // the answer comes during the beat
+    await wait(1200)
+    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    await wait(2600) // read first (1200 ms after its words are in), then the beat
+    expect(screen.getByText('Answered.')).toBeTruthy()
+  })
+
+  it('a waiting step whose answer came early stays until its words are read, and never draws a ring', async () => {
+    const rings = new Set<string>()
+    const stop = useWalkthroughs.subscribe((s) => {
+      if (s.bubble?.say === 'Waiting for it.') rings.add(s.ring)
+    })
+    render(<Harness />)
+    act(() => play(['early']))
+    await wait(200)
+    press('Add')
+    act(() => signal('answered'))
+    await wait(1200)
+    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    await wait(900) // typed at once (reduced motion in jsdom): still within READ_MS
+    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    await wait(1700)
+    expect(screen.getByText('Answered.')).toBeTruthy()
+    expect([...rings]).toEqual(['off'])
+    stop()
+  })
+
+  it('a step after the first dismisses a toast left on screen; a skip still shows its own', async () => {
+    render(<Harness />)
+    act(() => play(['early']))
+    await wait(200)
+    expect(toast.dismiss).not.toHaveBeenCalled() // the first step keeps the practice one
+    press('Add')
+    await wait(1300)
+    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+    expect(toast.dismiss).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(toast.info).toHaveBeenCalledWith('Walkthrough skipped', expect.anything())
+    expect(toast.dismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('forgets the beat and early signals on Skip', async () => {
+    render(<Harness />)
+    act(() => play(['early']))
+    await wait(200)
+    press('Add')
+    act(() => signal('answered'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    act(() => play(['early']))
+    await wait(200)
+    press('Add')
+    await wait(3000)
+    expect(screen.getByText('Waiting for it.')).toBeTruthy()
+  })
+})
+
+describe('hands-on spotlight', () => {
+  it('a signal step lets the spotlight go at the first press inside it; a later press brings it back', async () => {
+    render(<Harness />)
+    act(() => play(['pick']))
+    await wait(200)
+    expect(useWalkthroughs.getState()).toMatchObject({
+      dim: true,
+      ring: 'on',
+      targets: ['t.search'],
+    })
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Add' })) // outside the cut-out
+    expect(useWalkthroughs.getState().dim).toBe(true)
+    fireEvent.pointerDown(screen.getByLabelText('Search'))
+    expect(useWalkthroughs.getState()).toMatchObject({ dim: false, ring: 'off' })
+    // The words show whole, and the bubble keeps its place and its "Your turn".
+    expect(useWalkthroughs.getState().bubble).toMatchObject({ say: 'Pick one.', rushed: true })
+    expect(useWalkthroughs.getState().bubble?.step?.turn).toBe('hands')
+    act(() => signal('picked'))
+    await wait(100)
+    expect(useWalkthroughs.getState()).toMatchObject({
+      dim: true,
+      ring: 'on',
+      targets: ['t.button'],
+    })
+  })
+
+  it('a step that opens another screen shuts the cut-out before its press, and keeps it shut until the next target', async () => {
+    const seen: { targets: string[] | null; at: number }[] = []
+    const onClick = (e: Event) => {
+      if (!(e.target as Element).closest('[data-walk="t.button"]')) return
+      seen.push({ targets: useWalkthroughs.getState().targets, at: performance.now() })
+      const late = document.createElement('button')
+      late.setAttribute('data-walk', 't.late')
+      document.body.append(late)
+    }
+    document.addEventListener('click', onClick)
+    render(<Harness />)
+    act(() => play(['reopen']))
+    await wait(200)
+    const from = performance.now()
+    press('Next')
+    await wait(600)
+    expect(seen).toHaveLength(1)
+    expect(seen[0].targets).toBeNull() // shut: no cut-out while the press changes the screen
+    expect(seen[0].at - from).toBeGreaterThanOrEqual(120) // after the 120 ms fade
+    expect(screen.getByText('Second.')).toBeTruthy()
+    document.removeEventListener('click', onClick)
+    document.querySelector('[data-walk="t.late"]')?.remove()
+  })
+
+  it('a press inside a wider target lights the target, and only the pressed control takes presses', async () => {
+    render(<Harness />)
+    act(() => play(['field']))
+    await wait(200)
+    expect(useWalkthroughs.getState()).toMatchObject({ targets: ['t.head'], press: 't.head-cell' })
+  })
+
+  // A hover-only control (the Category field's Confirm tick) shows only while it is marked itself.
+  it('marks the pressed control with data-walk-on as well as the wider target', async () => {
+    render(<Harness />)
+    act(() => play(['field']))
+    await wait(200)
+    const marked = [...document.querySelectorAll('[data-walk-on]')].map((el) =>
+      el.getAttribute('data-walk'),
+    )
+    expect(marked).toEqual(['t.head', 't.head-cell'])
+  })
+
+  it('a press followed by a save signal: the target stays lit and pressable until the save lands', async () => {
+    render(<Harness />)
+    act(() => play(['confirm']))
+    await wait(200)
+    fireEvent.click(screen.getByText('Name'))
+    await wait(1300)
+    // Still on the press step (a failed save leaves Confirm to press again), the whole field open.
+    expect(screen.getByText('Confirm it.')).toBeTruthy()
+    expect(useWalkthroughs.getState()).toMatchObject({
+      targets: ['t.head'],
+      press: null,
+      dim: true,
+    })
+    act(() => signal('confirm-saved'))
+    await wait(1300)
+    expect(screen.getByText('Confirmed.')).toBeTruthy()
+  })
+
+  it('once a signal step has let go, scrolling the page does not pull it back to the target', async () => {
+    // jsdom lays nothing out: a page taller than the window, with the lit target scrolled away.
+    const root = document.documentElement
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: root })
+    Object.defineProperty(root, 'scrollHeight', { configurable: true, value: 3000 })
+    Object.defineProperty(root, 'clientHeight', { configurable: true, value: 700 })
+    const scrollBy = vi.fn()
+    root.scrollBy = scrollBy
+    render(<Harness />)
+    act(() => play(['pick']))
+    await wait(200)
+    vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+      return this.hasAttribute('data-walk') ? new DOMRect(100, 2000, 120, 40) : new DOMRect()
+    })
+    const scrollAway = async () => {
+      scrollBy.mockClear()
+      fireEvent.scroll(window)
+      await wait(500)
+    }
+    await scrollAway()
+    expect(scrollBy).toHaveBeenCalled() // while lit, the target is put back in view
+    fireEvent.pointerDown(screen.getByLabelText('Search'))
+    await scrollAway()
+    expect(scrollBy).not.toHaveBeenCalled()
+    Reflect.deleteProperty(document, 'scrollingElement')
+    Reflect.deleteProperty(root, 'scrollHeight')
+    Reflect.deleteProperty(root, 'clientHeight')
   })
 })

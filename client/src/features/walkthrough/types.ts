@@ -40,10 +40,19 @@ export type StepDef = {
   mood?: Mood
   card?: boolean // centred over a fully dimmed screen (welcome and end cards)
   answers?: Answer[] // a question: answer buttons instead of the stepper
-  // Hands-on ("Your turn"): moves on when the last action lands. What can be pressed: the cut-out is
-  // exactly the CURRENT action's element (its `press` tag, or a signal's `at` tag, else the step's
-  // target), and EVERYTHING inside that element is pressable; the rest of the page is blocked. So tag
-  // the one control itself: an `at` that wraps three buttons lets all three through.
+  // Hands-on ("Your turn"): moves on when the last action lands, then holds 900 ms (player.ts
+  // BEAT_MS) so the person sees what changed before the next step speaks.
+  // - The cut-out is the CURRENT action's element (its `press` tag, or a signal's `at` tag, else the
+  //   step's target), and EVERYTHING inside it is pressable; the rest of the page is blocked. So tag
+  //   the one control itself: an `at` that wraps three buttons lets all three through.
+  // - A `press` whose step `target` is on the screen and holds the pressed control (a field round its
+  //   Confirm tick): the cut-out and ring go round the target, and only the pressed control inside it
+  //   takes presses. The press itself ends the spotlight.
+  // - A `signal` (more to do than one press: pick from a menu, type, record): at the first press or
+  //   key inside the cut-out the spotlight (dimming, cut-out, ring, blocking) fades out in 150 ms and
+  //   the whole page is usable until the signal lands; the bubble stays put. A later action in the
+  //   same step brings the spotlight back on its own control.
+  // - A signal raised after the step before landed but before this step showed counts as landed.
   do?: Action[]
   wait?: string // waits on AI: Next is greyed with "One moment"; moves on by itself on this signal
   open?: string[] // tags to press, in order, before the step shows (open a tab, a menu, a section)

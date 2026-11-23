@@ -25,6 +25,8 @@ export type BubbleView = {
   closable: boolean
   // Typing dots before the first letter, in ms.
   typing: number
+  // Every letter at once: the person has started on a hands-on step before the words were in.
+  rushed?: boolean
 }
 
 export type WalkState = {
@@ -35,6 +37,9 @@ export type WalkState = {
   bubble: BubbleView | null
   // The data-walk tags the highlight goes round; null = no cut-out (a card, or between screens).
   targets: string[] | null
+  // A hands-on step whose cut-out is wider than the control to press (a field round its Confirm
+  // tick): the one tag that takes presses. null = the whole cut-out does.
+  press: string | null
   // Each target has its own cut-out (StepDef.apart).
   apart: boolean
   // A target too tall to show whole shows its end (StepDef.show).
@@ -64,6 +69,7 @@ const INITIAL: WalkState = {
   running: null,
   bubble: null,
   targets: null,
+  press: null,
   apart: false,
   end: false,
   dim: false,

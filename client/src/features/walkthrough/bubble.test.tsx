@@ -57,7 +57,7 @@ describe('the stepper', () => {
   it('hands-on and waiting steps grey Next and say why', () => {
     draw(view({ step: { at: 2, total: 6, turn: 'hands' } }))
     expect(blocked('Next')).toBe(true)
-    expect(screen.getByText(/Press the highlighted button to carry on\./)).toBeTruthy()
+    expect(screen.getByText(/I'll carry on as soon as you've done this step\./)).toBeTruthy()
     cleanup()
     draw(view({ step: { at: 2, total: 6, turn: 'wait' } }))
     expect(screen.getByText(/I'll carry on when this is ready\./)).toBeTruthy()

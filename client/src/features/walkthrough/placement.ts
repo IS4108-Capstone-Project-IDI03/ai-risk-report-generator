@@ -1,10 +1,11 @@
 // Where the highlight and MarshBot's bubble go (F-12): the cut-out clipped to the window, the bubble
 // beside the visible part, which edge the phone sheet docks to, and scrolling a target into view.
 // Called by WalkthroughHost and player.ts. Calls nothing.
-import type { Box } from './components/Highlight'
+/** A box in window px. */
+export type Box = { x: number; y: number; w: number; h: number }
 
 type Size = { w: number; h: number }
-const PAD = 6 // the cut-out's room round its target (Highlight.tsx)
+export const PAD = 6 // the cut-out's room round its target (driver.js stagePadding, spotlight.ts)
 const GAP = 16 // between the cut-out and the bubble
 const EDGE = 16 // the bubble keeps this far from the window's edges
 
@@ -46,6 +47,21 @@ export function roomFor(box: Box, size: Size, win: Size): Box {
   if (!('right' in placeBubble('target', box, size, win))) return box
   const bottom = win.h - EDGE - size.h - GAP - PAD
   return bottom - box.y >= 40 ? { ...box, h: Math.min(box.h, bottom - box.y) } : box
+}
+
+/** Returns each box cut to `area` (the part of a highlight the bubble leaves free, roomFor), less any
+    left empty: a step lighting its targets one by one, round a union too big for the bubble to sit
+    beside, then lights less rather than have the bubble over a cut-out. */
+export function cutTo(boxes: Box[], area: Box): Box[] {
+  return boxes
+    .map((b) => {
+      const x = Math.max(b.x, area.x)
+      const y = Math.max(b.y, area.y)
+      const w = Math.min(b.x + b.w, area.x + area.w) - x
+      const h = Math.min(b.y + b.h, area.y + area.h) - y
+      return { x, y, w, h }
+    })
+    .filter((b) => b.w > 0 && b.h > 0)
 }
 
 /** Returns which edge the phone sheet docks to: the bottom, unless the cut-out would sit under it

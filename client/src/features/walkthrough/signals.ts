@@ -18,6 +18,7 @@ export const SIGNALS = [
   'observation-recording-stopped', // a recording was kept on New Observation (assessments/components/CaptureVoicePanel.tsx)
   'observation-saved', // an observation was saved on New Observation (assessments/newObservationWalk.ts, observationSaved)
   'observation-saved-by-hand', // the same, on a real assessment only: counts toward the site walk offer
+  'observation-category-confirmed', // an observation's Category Confirm was saved (assessments/components/ObservationDetails.tsx)
   'observation-reading-finished', // the observation just saved is amber, its suggestion in (assessments/components/ObservationRow.tsx)
   'note-split-opened', // Split note's parts are showing (assessments/components/SplitNotePanel.tsx)
   'site-walk-recording-started', // the recorder's microphone is open (site-walk/useRecordingWalk.ts)
@@ -25,6 +26,7 @@ export const SIGNALS = [
   'site-walk-note-added', // a typed note was added to the walk (site-walk/screens/Recording.tsx); the no-microphone path waits on it
   'site-walk-finished', // Finish walk went through (site-walk/useRecordingWalk.ts)
   'site-walk-proposal-ready', // the finished walk's proposal is ready (site-walk/useRecordingWalk.ts)
+  'marshbot-turn-shown', // MarshBot's newest pushed turn on the Overview is all shown, its replies too (marshbot/screens/MarshBotOverview.tsx)
   'practice-changed', // the practice assessment was set up again or reset (walkthrough/player.ts, engine.ts); the assessments list re-reads
   'proposal-created', // Create all added the proposal to the assessment (site-walk/screens/Review.tsx)
 ] as const

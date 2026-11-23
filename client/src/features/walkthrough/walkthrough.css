@@ -1,6 +1,7 @@
 /* F-12 walkthroughs (NEW patterns; from canvas-src/new-components/walkthrough.css, which carries the
-   approved sizes). Tokens only. .wt-layer = the top layer, .wt-shade = the dimming and highlight,
-   .wt = MarshBot's bubble (a bottom sheet under 768 px). Motion = the spec's motion table. */
+   approved sizes). Tokens only. .wt-layer = the top layer, .driver-overlay = driver.js's dimming and
+   cut-out (spotlight.ts), .wt = MarshBot's bubble (a bottom sheet under 768 px). Motion = the spec's
+   motion table. */
 
 /* ---- The layer: a manual popover over the whole window; only its parts take presses ---- */
 .wt-layer {
@@ -19,43 +20,39 @@
   pointer-events: none;
 }
 
-/* ---- The dimming: --scrim with the cut-out; fades in with the v2 dialog motion (220 ms) ---- */
-.wt-shade {
-  position: absolute;
-  inset: 0;
-  animation: wt-fade-in 220ms var(--ease-out);
+/* ---- The dimming: driver.js's svg (--scrim with the cut-out). It fades in over 180 ms (220 with a
+   card, the v2 dialog motion) and out over 150 ms (motion rows 5 and 10). Beats driver.css's own
+   `.driver-fade .driver-overlay` by coming later. ---- */
+.driver-active .driver-overlay {
+  animation: wt-fade-in var(--duration-base) var(--ease-out);
+  transition: opacity 150ms var(--ease-out);
 }
-.wt-shade[data-leaving] {
-  animation: wt-fade-out 150ms var(--ease-out) forwards;
+.driver-active .driver-overlay[data-card] {
+  animation-duration: 220ms;
 }
-.wt-dim {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.wt-dim path {
-  fill: var(--scrim);
-  /* Only the dimmed area takes presses; the cut-out lets them through to the control. */
-  pointer-events: visiblePainted;
-}
-/* Covers the cut-out while the next screen settles: in 120 ms, out 180 ms (motion row 5). */
-.wt-dim .wt-plug {
+.driver-overlay[data-leaving] {
   opacity: 0;
-  /* Hidden, it must not catch the presses the cut-out lets through. */
-  pointer-events: none;
-  transition: opacity 180ms var(--ease-out);
 }
-.wt-dim .wt-plug[data-on] {
-  opacity: 1;
-  pointer-events: visiblePainted;
-  transition-duration: var(--duration-fast);
+/* Inside a modal dialog (the phone's navigation drawer) driver.js draws into our layer, with its own
+   z-index 10000 inline: without this the dimming would lie over MarshBot's bubble and grey it. */
+.wt-layer > .driver-overlay {
+  z-index: 0 !important;
 }
-/* A tell step: nothing on the page can be pressed by accident, the cut-out included. */
+/* What blocks presses (spotlight.ts): the whole page on a tell step, the cut-out included; on a
+   hands-on step a clip-path leaves the control's cut-out open. */
 .wt-block {
   position: absolute;
   inset: 0;
   pointer-events: auto;
+}
+/* The plug (spotlight.ts): dimming over the cut-out only, faded in to close it between screens and
+   out to open it on the next (motion row 5). Its clip-path, opacity and transition are set inline. */
+.wt-plug {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ---- "Your turn": a ring breathing round the cut-out, its own element (motion row 7) ---- */
@@ -71,6 +68,9 @@
   animation: none;
   transition: opacity var(--duration-slow) var(--ease-out);
 }
+.wt-ring[data-leaving] {
+  animation: wt-fade-out 150ms var(--ease-out) forwards;
+}
 @keyframes wt-breathe {
   to {
     opacity: 0.5;
@@ -84,8 +84,8 @@
   --mbt-size: 14px;
   --mbt-leading: 20px;
   --wt-width: 360px;
-  /* Buttons in the bubble: 40 px, 44 on a phone (v2 section 5). */
-  --wt-control: 40px;
+  /* Answer buttons: 32 px, 44 on a phone or a touch screen (the tap target, v2 section 5). */
+  --wt-answer: 32px;
   position: absolute;
   display: grid;
   grid-template-columns: 40px var(--wt-width);
@@ -196,14 +196,30 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+/* 14 px above the stepper. Named with .wt for the same reason as the answer buttons below. */
+.wt .wt-foot {
   margin-top: 14px;
 }
-/* Answer buttons: equal widths, 8 px apart; one keeps its own width, at the right. They fade in
-   and rise 4 px once the last letter is in (motion row 3). */
+/* Answer buttons (sized in WalkthroughBubble.tsx): a pair hugs its words, both the wider label's
+   width, left-aligned under the text, 8 px apart, 16 px below the last line (nothing else sits
+   between). A label never wraps: where two equal widths do not fit, each keeps at least its own
+   width, still on one row at one height. One keeps its own width, at the right. They fade in and
+   rise 4 px once the last letter is in (motion row 3). */
 .wt-answers {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
+  width: max-content;
+  max-width: 100%;
   gap: 8px;
   opacity: 0;
   transform: translateY(4px);
+}
+/* 16 px between the last line and the buttons. Named with .wt so it beats thread.css's
+   `.mbt-bubble > * + *` (6 px), which was leaving the buttons crowded against the words. */
+.wt .wt-answers {
+  margin-top: 16px;
 }
 .wt-answers[data-in] {
   opacity: 1;
@@ -212,25 +228,49 @@
     opacity var(--duration-base) var(--ease-out),
     transform var(--duration-base) var(--ease-out);
 }
-.wt-answers .ds-press {
-  flex: 1 1 0;
-  min-width: 0;
-  height: var(--wt-control) !important;
-  /* The thread's reply buttons (ReplyButton.tsx): 15 px at weight 600, which Button sets inline. */
-  font-weight: 600 !important;
-}
 .wt-answers[data-single] {
+  display: flex;
   justify-content: flex-end;
+  width: auto;
 }
-.wt-answers[data-single] .ds-press {
-  flex: 0 0 auto;
-  padding-inline: 20px;
+/* Two that cannot sit on one row in the bubble (WalkthroughBubble measures): one under the other. */
+.wt-answers[data-stack] {
+  grid-auto-flow: row;
+  width: 100%;
+}
+/* A label never wraps, and never makes its button wider than the bubble: past that it ends in "…"
+   (bubble 360 less its own and the button's 16 px sides and 1 px borders; a phone sheet's width
+   less the same). */
+.wt-answer-label {
+  display: block;
+  max-width: calc(var(--wt-width) - 66px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Phone: the bubble is a sheet docked to the bottom edge (v2 section 2: popovers become sheets). */
-@media (max-width: 767px) {
+@media (max-width: 767px), (pointer: coarse) {
   .wt {
-    --wt-control: 44px;
+    --wt-answer: 44px;
+  }
+}
+@media (max-width: 767px) {
+  /* A pair splits the sheet's width equally; where one label is longer than half, it keeps its own
+     width and the other takes the rest; where both cannot sit on one row, they stack full width.
+     (flex-basis 0 shares the room equally; min-width keeps each label whole and makes them wrap.) */
+  .wt-answers:not([data-single]) {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .wt-answers:not([data-single]) > * {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+  .wt-answer-label {
+    max-width: calc(100vw - 66px);
+  }
+  .wt {
     position: fixed;
     inset: auto 0 0 0;
     box-sizing: border-box;

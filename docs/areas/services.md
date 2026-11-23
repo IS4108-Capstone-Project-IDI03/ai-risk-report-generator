@@ -2415,15 +2415,27 @@ record, makes the practice assessment, and answers one question before a try-it.
   (`WalkthroughHost`). Each screen with a walkthrough makes one `useWalkthroughScreen(key, ready,
   hold)` call; features raise `signal('<name>')` when something a hands-on step waits on has
   finished; nothing polls. A definition is data in a `*walkthroughs.ts` file beside its feature
-  (found by `registry.ts`), and each step points at a `data-walk` tag. The highlight is the
-  engine's own layer (`components/Highlight.tsx`), placed inside the open modal dialog when there
-  is one, because a layer in `body` sits under a native dialog. A walkthrough whose place has
-  `{practice}` always plays on the practice assessment.
+  (found by `registry.ts`), and each step points at a `data-walk` tag. The dimming and cut-out are
+  drawn by driver.js (pinned, `spotlight.ts`), round an invisible stand-in placed where the cut-out
+  goes (several tags' union, clipped to the window, kept clear of the bubble and the phone sheet).
+  Only its drawing is used: the bubble, keys, focus and what can be pressed are the engine's own
+  layer, placed inside the open modal dialog when there is one (a layer in `body` sits under a
+  native dialog); there the layer doubles as the dialog's `driver-layer`, so the dimming is drawn
+  under the bubble. An `apart` step's other cut-outs are added to driver.js's path whenever it
+  redraws. A walkthrough whose place has `{practice}` always plays on the practice assessment.
   - **What a step can ask for** (`types.ts`): a tag ending in `?` is lit only where it is on the
     screen (table headings a phone layout leaves out); `apart` gives each tag its own cut-out
     (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
     show whole. Before a step shows, its target is scrolled into view through every scroll
     container round it and clear of any pinned bar over its edge.
+  - **Hands-on steps** (`do`): a `press` keeps the spotlight until it lands; a press inside a wider
+    `target` (a field round its Confirm tick) lights the target, with only the pressed control
+    taking presses. A `signal` (a menu, typing, a recording) drops the spotlight at the first press
+    or key inside the cut-out, leaving the page usable until the signal lands.
+  - **A beat after an action lands**: the ring turns green (260 ms), the spotlight and bubble fade,
+    and the next step shows only once its screen has settled and 900 ms have passed (`BEAT_MS` in
+    `player.ts`). A signal raised during that time is remembered, so a fast answer to the step
+    that waits on it still counts.
   - **Back** is greyed where the step before cannot show again: it was hands-on or waited on AI,
     or this step opened something.
   - **A used-up practice assessment** (the one amber observation already confirmed, the sample

@@ -1,7 +1,15 @@
 // Where the highlight and bubble go (F-12): clipping to the window, the bubble beside the visible
 // part, the phone sheet's side, and bringing a target into view on both axes.
 import { describe, expect, it, vi } from 'vitest'
-import { apartBoxes, bringIntoView, clipBox, placeBubble, roomFor, sheetSide } from './placement'
+import {
+  apartBoxes,
+  bringIntoView,
+  clipBox,
+  cutTo,
+  placeBubble,
+  roomFor,
+  sheetSide,
+} from './placement'
 
 const WIN = { w: 1440, h: 900 }
 const BUBBLE = { w: 412, h: 160 }
@@ -59,6 +67,23 @@ describe('roomFor', () => {
     const spot = placeBubble('target', part, BUBBLE, WIN) as { left: number; top: number }
     expect(spot.top).toBeGreaterThanOrEqual(part.y + part.h + 6 + 16)
     expect(spot.top + BUBBLE.h).toBeLessThanOrEqual(WIN.h - 16)
+  })
+
+  // Client insights step 3: three panels lit one by one, their union too big for the bubble anywhere.
+  it('cuts each separate cut-out to the drawn part, so the bubble sits over none of them', () => {
+    const panels = [
+      { x: 948, y: 10, w: 466, h: 570 },
+      { x: 250, y: 586, w: 659, h: 380 },
+      { x: 913, y: 586, w: 501, h: 380 },
+    ]
+    const union = clipBox({ x: 250, y: 10, w: 1164, h: 956 }, WIN)
+    const part = roomFor(union, BUBBLE, WIN)
+    const spot = placeBubble('target', part, BUBBLE, WIN) as { left: number; top: number }
+    const bubble = { x: spot.left, y: spot.top, w: BUBBLE.w, h: BUBBLE.h }
+    const holes = cutTo(panels, part)
+    expect(holes).toHaveLength(3)
+    for (const h of holes) expect(h.y + h.h + 6).toBeLessThanOrEqual(bubble.y)
+    expect(cutTo([{ x: 0, y: 800, w: 10, h: 10 }], part)).toEqual([])
   })
 })
 
