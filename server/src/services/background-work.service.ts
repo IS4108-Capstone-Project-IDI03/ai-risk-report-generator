@@ -12,7 +12,7 @@ import type { StoredWalk } from './site-walk.service'
 
 export type BackgroundWorkRow = {
   id: string
-  kind: 'walk' | 'voice-note' | 'handwriting'
+  kind: 'walk' | 'voice-note' | 'handwriting' | 'reading'
   state: 'queued' | 'running' | 'failed' | 'waiting_on_you'
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
@@ -167,5 +167,40 @@ function observationRows(o: ObservationDto, assessment: OwnAssessment): Backgrou
         }
       })
   }
-  return [...rows('voice-note', o.recordings), ...rows('handwriting', o.pages)]
+  const reading = readingRow(o, assessment)
+  return [
+    ...rows('voice-note', o.recordings),
+    ...rows('handwriting', o.pages),
+    ...(reading ? [reading] : []),
+  ]
+}
+
+// The reading job (CP-24): describing the photos, then suggesting the category
+// and severity. One row per observation, since one Try again restarts both.
+function readingRow(o: ObservationDto, assessment: OwnAssessment): BackgroundWorkRow | null {
+  const photos = o.interpretation?.photos
+  const failed = photos?.status === 'failed' || o.suggestion?.status === 'failed'
+  const describing = photos?.status === 'interpreting'
+  if (!failed && !describing && o.suggestion?.status !== 'reading') return null
+  return {
+    id: `reading:${o.id}`,
+    kind: 'reading',
+    state: failed ? 'failed' : 'running',
+    title: 'Observation',
+    context: context(assessment),
+    progress: {
+      type: 'working',
+      stage: describing ? 'Describing photos' : 'Suggesting category and severity',
+    },
+    // The suggestion keeps no time of its own.
+    ...(describing && photos.startedAt && { startedAt: photos.startedAt.toISOString() }),
+    href: observationHref(assessment.reference, o),
+    ...(failed && {
+      error:
+        (o.suggestion?.status === 'failed' && o.suggestion.error) ||
+        photos?.error ||
+        'This observation could not be read.',
+      retry: { method: 'POST', url: `/api/observations/${o.id}/suggestion/retry` },
+    }),
+  }
 }

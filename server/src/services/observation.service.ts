@@ -375,6 +375,8 @@ export type ObservationDto = {
       hazardType: string | null
       error: string | null
       attempts: number
+      // When the latest attempt began (F-11: how long a description has run).
+      startedAt: Date | null
       model: string | null
       // The photos it describes, removed ones included.
       photoIds: string[]
@@ -440,6 +442,7 @@ function interpretationDto(o: StoredObservation): ObservationDto['interpretation
       hazardType: photos.hazardType ?? null,
       error: interpretationFailureReason(photos.error),
       attempts: photos.attempts.length,
+      startedAt: photos.attempts.at(-1)?.startedAt ?? null,
       model: photos.provenance?.model ?? null,
       photoIds: photos.photoIds.map(String),
       outOfDate: photosOutOfDate(o),

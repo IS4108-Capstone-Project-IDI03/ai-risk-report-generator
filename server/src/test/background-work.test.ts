@@ -227,3 +227,67 @@ describe('observations', () => {
     expect(res.body.rows).toEqual([])
   })
 })
+
+describe('reading an observation (CP-24)', () => {
+  it('photos being described show as one AI call, timed from the attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          interpretation: {
+            photoReading: { status: 'interpreting', attempts: [{ startedAt: since }], photoIds: [] },
+          },
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'reading',
+        state: 'running',
+        title: 'Observation',
+        progress: { type: 'working', stage: 'Describing photos' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  it('a failed suggestion shows its reason and how to try again', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          suggestion: {
+            status: 'failed',
+            error: 'The category and severity could not be suggested.',
+            attempts: 2,
+            category: null,
+            severity: null,
+            run: 1,
+          },
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'reading',
+        state: 'failed',
+        error: 'The category and severity could not be suggested.',
+        retry: { method: 'POST', url: `/api/observations/${saved._id}/suggestion/retry` },
+      }),
+    ])
+  })
+})
