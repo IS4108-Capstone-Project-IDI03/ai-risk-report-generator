@@ -1,5 +1,7 @@
 // One open knowledge request (CB-07): who asked and when, the question as its heading, the
-// engineer's message as a quote, and the two ways to close it. Used by screens/Requests.tsx.
+// engineer's message as a quote, the two ways to close it, and uploading a document for it
+// (F-11), so the engineer can follow that document's ingestion. Used by screens/Requests.tsx.
+import { useRef } from 'react'
 import { Button } from '../../../design-system'
 import { formatWhen } from '../../notifications/formatWhen'
 import type { KnowledgeGapRequest } from '../api'
@@ -11,6 +13,7 @@ export function RequestRow({
   focused,
   onFill,
   onDismiss,
+  onUpload,
 }: {
   request: KnowledgeGapRequest
   // The list's first request, which the walkthrough points at (F-12).
@@ -18,7 +21,9 @@ export function RequestRow({
   focused: boolean
   onFill: () => void
   onDismiss: () => void
+  onUpload: (file: File) => void
 }) {
+  const picker = useRef<HTMLInputElement>(null)
   return (
     <li
       className="kb-request"
@@ -60,6 +65,27 @@ export function RequestRow({
         >
           Dismiss
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft="upload"
+          onClick={() => picker.current?.click()}
+        >
+          Upload for it
+        </Button>
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          aria-label="Upload for this request"
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.rtf,.odt"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            // Cleared, so choosing the same file again still uploads.
+            e.target.value = ''
+            if (file) onUpload(file)
+          }}
+        />
       </div>
     </li>
   )

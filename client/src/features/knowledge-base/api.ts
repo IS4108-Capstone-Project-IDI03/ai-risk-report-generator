@@ -416,12 +416,15 @@ export function cancelIngestion(id: string): Promise<void> {
 // Sends one file (a PDF, or a Word, PowerPoint, RTF or ODT file the gateway
 // converts to one) with its details and returns the queued document. The body is
 // the raw file and the details go in the URL's query string, so the gateway
-// needs no multipart-form library.
+// needs no multipart-form library. `requestId` names the open knowledge request it is
+// uploaded for (F-11), so the engineer who asked can follow its ingestion.
 export function uploadKnowledgeDocument(
   file: File,
   details: DocumentDetails = EMPTY_DETAILS,
+  requestId?: string,
 ): Promise<KnowledgeDocument> {
   const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
+  if (requestId) query.set('requestId', requestId)
   return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
     method: 'POST',
     // The gateway reads the type from the file's bytes, but reads no body

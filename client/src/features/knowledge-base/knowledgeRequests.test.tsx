@@ -59,10 +59,20 @@ const DOCS = [
 // Serves the requests and documents; `close` answers a fill or dismiss.
 async function openRequests(
   close: (url: string, body: unknown) => Response = () => Response.json({}),
+  uploaded: (url: string) => void = () => {},
 ) {
   let open = [...REQUESTS]
   const closed = vi.fn()
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // An upload (F-11): the queued document, as the gateway answers it.
+    if (url.startsWith('/api/knowledge-documents?') && init?.method === 'POST') {
+      uploaded(url)
+      return Promise.resolve(
+        Response.json(doc('d9', 'FM 8-9', '2026-10-21T00:00:00.000Z', { status: 'queued' }), {
+          status: 201,
+        }),
+      )
+    }
     if (url === '/api/knowledge-gaps') return Promise.resolve(Response.json({ requests: open }))
     if (url.startsWith('/api/knowledge-gaps/')) {
       const body = JSON.parse(String(init!.body))
@@ -146,5 +156,23 @@ describe('Knowledge base Requests tab (CB-07)', () => {
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: 'x' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Dismiss request' }))
     expect(await within(dialog).findByText('This request was already closed.')).toBeVisible()
+  })
+
+  it('uploads a document for a request, so its engineer can follow it, and keeps it open', async () => {
+    const uploads: string[] = []
+    await openRequests(undefined, (url) => uploads.push(url))
+    await screen.findByText('Second question')
+
+    const input = screen.getAllByLabelText('Upload for this request')[0] as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['%PDF-1.7'], 'FM 8-9.pdf', { type: 'application/pdf' })] },
+    })
+
+    await waitFor(() => expect(uploads).toHaveLength(1))
+    const query = new URL(uploads[0], 'http://x').searchParams
+    expect(query.get('requestId')).toBe('r1')
+    expect(query.get('fileName')).toBe('FM 8-9.pdf')
+    expect(await screen.findByText(/FM 8-9.pdf is uploading for this request/)).toBeVisible()
+    expect(screen.getByText('What is the sprinkler density for plastics?')).toBeVisible()
   })
 })
