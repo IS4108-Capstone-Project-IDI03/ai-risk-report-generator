@@ -84,4 +84,39 @@ describe('site walks', () => {
       }),
     ])
   })
+
+  it('a failed walk shows its reason and how to try again', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    const created = await walk(assessmentId, engineer._id, {
+      status: 'failed',
+      error: 'A recording could not be transcribed.',
+      recordings: [recording(1, 'failed')],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'failed',
+        error: 'A recording could not be transcribed.',
+        retry: {
+          method: 'POST',
+          url: `/api/assessments/${REF}/site-walks/${created._id}/retry`,
+        },
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since only working or failed walks are read.
+  it('walks being recorded, ready to review or created are not listed', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    for (const status of ['recording', 'ready', 'created'])
+      await walk(assessmentId, engineer._id, { status })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
 })

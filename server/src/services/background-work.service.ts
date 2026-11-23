@@ -25,7 +25,11 @@ export type BackgroundWorkRow = {
   }
   // When the current step began, where it is known (the popover shows the time elapsed).
   startedAt?: string
+  // A failed job's reason, in plain English.
+  error?: string
   href: string
+  // How to start a failed job again: an existing route the user may call.
+  retry?: { method: 'POST'; url: string }
 }
 
 export type BackgroundWorkDto = { rows: BackgroundWorkRow[] }
@@ -40,7 +44,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
   const walks = await SiteWalkModel.find({
     assessment: { $in: assessments.map((a) => a._id) },
-    status: { $in: ['transcribing', 'proposing'] },
+    status: { $in: ['transcribing', 'proposing', 'failed'] },
   })
     .sort({ createdAt: 1 })
     .lean<StoredWalk[]>()
@@ -52,11 +56,18 @@ function walkRow(walk: StoredWalk, assessment: OwnAssessment): BackgroundWorkRow
   return {
     id: `walk:${walk._id}`,
     kind: 'walk',
-    state: 'running',
+    state: walk.status === 'failed' ? 'failed' : 'running',
     title: walk.name ?? 'Site walk',
     context: { label: assessment.site?.name ?? reference, reference },
     ...walkProgress(walk),
     href: `/assessment?ref=${encodeURIComponent(reference)}&tab=observations&walk=${walk._id}`,
+    ...(walk.status === 'failed' && {
+      error: walk.error ?? 'This site walk could not be finished.',
+      retry: {
+        method: 'POST',
+        url: `/api/assessments/${encodeURIComponent(reference)}/site-walks/${walk._id}/retry`,
+      },
+    }),
   }
 }
 
