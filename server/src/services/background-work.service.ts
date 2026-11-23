@@ -10,9 +10,11 @@ import { SiteWalkModel } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
 import {
   listAwaitingDecision,
+  listDocumentsByIds,
   listKnowledgeDocuments,
   type KnowledgeDocumentDto,
 } from './knowledge-document.service'
+import { openRequestsWithIncoming } from './knowledge-gap.service'
 import { listObservationsOf, type ObservationDto } from './observation.service'
 import { permissionsFor } from './permissions.service'
 import type { StoredWalk } from './site-walk.service'
@@ -27,6 +29,7 @@ export type BackgroundWorkRow = {
     | 'drafting'
     | 'ingestion'
     | 'document-decision'
+    | 'request'
   state: 'queued' | 'running' | 'failed' | 'waiting_on_you'
   title: string
   // What the job belongs to: the assessment's site, or a document's title.
@@ -71,7 +74,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
   const byId = new Map(assessments.map((a) => [String(a._id), a]))
   const ids = assessments.map((a) => a._id)
   const admin = permissionsFor(user.role).includes('knowledge:manage')
-  const [walks, observations, drafting, documents, decisions] = await Promise.all([
+  const [walks, observations, drafting, documents, decisions, requests] = await Promise.all([
     SiteWalkModel.find({
       assessment: { $in: ids },
       status: { $in: ['transcribing', 'proposing', 'failed'] },
@@ -86,6 +89,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
     // Uploads are the knowledge admins' (knowledge:manage), not one person's.
     admin ? listKnowledgeDocuments() : [],
     admin ? listAwaitingDecision() : [],
+    requestRows(user, admin),
   ])
   return {
     rows: [
@@ -96,6 +100,7 @@ export async function backgroundWorkFor(user: SessionUser): Promise<BackgroundWo
       ...drafting.flatMap((d) => draftingRows(d, byId.get(String(d.assessment))!)),
       ...decisions.map(decisionRow),
       ...documents.flatMap(ingestionRows),
+      ...requests,
     ],
   }
 }
@@ -382,4 +387,30 @@ function decisionRow(d: KnowledgeDocumentDto): BackgroundWorkRow {
         ? '/admin/knowledge-base'
         : `/admin/knowledge-base/review/${d.id}`,
   }
+}
+
+// The user's own open knowledge requests (CB-07) with documents an admin
+// uploaded for them (F-11): each such document's ingestion, under the request.
+// Trying a failed one again stays the admins' (knowledge:manage).
+async function requestRows(user: SessionUser, admin: boolean): Promise<BackgroundWorkRow[]> {
+  const requests = await openRequestsWithIncoming(user.id)
+  if (!requests.length) return []
+  const documents = new Map(
+    (await listDocumentsByIds(requests.flatMap((r) => r.incomingDocumentIds))).map((d) => [
+      d.id,
+      d,
+    ]),
+  )
+  return requests.flatMap((r) =>
+    r.incomingDocumentIds.flatMap((id) => {
+      const document = documents.get(id)
+      return (document ? ingestionRows(document) : []).map(({ retry, ...row }) => ({
+        ...row,
+        id: `request:${r.id}:${id}`,
+        kind: 'request' as const,
+        context: { label: `Your request: ${r.question}` },
+        ...(admin && retry && { retry }),
+      }))
+    }),
+  )
 }

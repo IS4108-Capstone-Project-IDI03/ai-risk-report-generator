@@ -966,6 +966,17 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
   return toDtos(documents)
 }
 
+/** Returns these documents, with their ingestion progress while processing (F-11). */
+export async function listDocumentsByIds(ids: string[]): Promise<KnowledgeDocumentDto[]> {
+  const valid = ids.filter(isValidObjectId)
+  if (!valid.length) return []
+  const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
+  const jobs = await getJobProgressBatch(
+    documents.filter((d) => d.status === 'processing').map((d) => String(d._id)),
+  )
+  return toDtos(documents, jobs)
+}
+
 /**
  * Returns the documents waiting for an admin's decision, oldest first, however
  * long they have waited (F-11): those whose source type labelling couldn't

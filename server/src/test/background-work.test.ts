@@ -9,6 +9,7 @@ import { AssessmentModel } from '../models/assessment.model'
 import { DraftingRunModel } from '../models/drafting-run.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
+import { KnowledgeGapRequestModel } from '../models/knowledge-gap-request.model'
 import { ObservationModel } from '../models/observation.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { UserModel } from '../models/user.model'
@@ -41,6 +42,23 @@ function walk(assessmentId: Types.ObjectId, engineerId: Types.ObjectId, fields: 
     ...fields,
   })
 }
+
+const upload = (title: string, fields: object = {}) =>
+  KnowledgeDocumentModel.create({
+    title,
+    issuingBody: 'FM Global',
+    fileName: `${title}.pdf`,
+    file: { key: `k/${title}.pdf`, contentType: 'application/pdf', size: 1, sha256: title },
+    status: 'processing',
+    unconfirmed: [],
+    metadata: {
+      source_type: 'fm_standard',
+      jurisdiction: 'all',
+      facility_type: 'all',
+      effective_date: new Date('2026-01-01'),
+    },
+    ...fields,
+  })
 
 describe('site walks', () => {
   it('an engineer sees their walk recordings being transcribed', async () => {
@@ -480,23 +498,6 @@ describe('knowledge admins', () => {
     expect(res.body.rows).toEqual([])
   })
 
-  const upload = (title: string, fields: object = {}) =>
-    KnowledgeDocumentModel.create({
-      title,
-      issuingBody: 'FM Global',
-      fileName: `${title}.pdf`,
-      file: { key: `k/${title}.pdf`, contentType: 'application/pdf', size: 1, sha256: title },
-      status: 'processing',
-      unconfirmed: [],
-      metadata: {
-        source_type: 'fm_standard',
-        jurisdiction: 'all',
-        facility_type: 'all',
-        effective_date: new Date('2026-01-01'),
-      },
-      ...fields,
-    })
-
   it('a document being ingested shows its stage and the pages done in it', async () => {
     const { admin } = await people()
     const document = await upload('FM 8-9')
@@ -688,5 +689,67 @@ describe('knowledge admins', () => {
         progress: { type: 'working', stage: 'Decide on the match' },
       }),
     ])
+  })
+})
+
+describe('knowledge requests (CB-07)', () => {
+  it("an engineer's open request shows the ingestion of a document uploaded for it", async () => {
+    const { engineer } = await people()
+    const document = await upload('FM 8-9')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'parsing',
+      pageCurrent: 20,
+      pageTotal: 40,
+      ocrCurrent: null,
+      ocrTotal: null,
+      stageLog: [],
+      currentStageStartedAt: new Date('2026-11-23T09:00:00Z'),
+      startedAt: new Date('2026-11-23T09:00:00Z'),
+      updatedAt: new Date(),
+    })
+    const asked = await KnowledgeGapRequestModel.create({
+      question: 'What sprinkler density for cold stores?',
+      askedBy: engineer._id,
+      status: 'open',
+      incomingDocumentIds: [document._id],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        id: `request:${asked._id}:${document._id}`,
+        kind: 'request',
+        state: 'running',
+        title: 'FM 8-9',
+        context: { label: 'Your request: What sprinkler density for cold stores?' },
+        progress: {
+          type: 'count',
+          current: 20,
+          total: 40,
+          unit: 'pages',
+          stage: 'Parsing',
+          step: 1,
+          steps: 3,
+        },
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since only the user's own requests are read.
+  it("another engineer's request is not shown", async () => {
+    const { engineer } = await people()
+    const document = await upload('FM 8-9', { status: 'queued' })
+    await KnowledgeGapRequestModel.create({
+      question: 'What sprinkler density for cold stores?',
+      askedBy: new Types.ObjectId(),
+      status: 'open',
+      incomingDocumentIds: [document._id],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
   })
 })

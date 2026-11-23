@@ -148,6 +148,24 @@ export async function recordIncomingDocument(id: string, documentId: string): Pr
   )
 }
 
+/** Returns the user's own open requests that have documents uploaded for them (F-11). */
+export async function openRequestsWithIncoming(
+  userId: string,
+): Promise<{ id: string; question: string; incomingDocumentIds: string[] }[]> {
+  if (!isValidObjectId(userId)) return []
+  const requests = await KnowledgeGapRequestModel.find(
+    { askedBy: userId, status: 'open', 'incomingDocumentIds.0': { $exists: true } },
+    'question incomingDocumentIds',
+  )
+    .sort({ createdAt: 1 })
+    .lean()
+  return requests.map((r) => ({
+    id: String(r._id),
+    question: r.question,
+    incomingDocumentIds: (r.incomingDocumentIds ?? []).map(String),
+  }))
+}
+
 /** Returns one request, open or closed. Throws GapRequestNotFoundError for an unknown or malformed id. */
 export async function getRequest(id: string): Promise<GapRequestDetailDto> {
   if (!isValidObjectId(id)) throw new GapRequestNotFoundError()
