@@ -84,9 +84,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The column headings and the first client group with its rows (the practice assessment's, when there is one).
         target: ['assessments.head', 'assessments.first'],
-        say: 'This is your list of assessments, grouped by client and site. There are 2 columns worth keeping an eye on:\n- **Stage** shows how far each report has got.\n- **Report due** turns amber, and then red, as the due date gets close.',
+        say: 'This is your list of assessments, grouped by client and site. There are 2 columns worth keeping an eye on:\n- **Stage** shows the current progress of each assessment.\n- **Report due** turns amber, and then red, as the due date gets close.',
         sayAdmin:
-          'This is the list of every assessment across the team, grouped by client and site. The **Engineer** column shows who each one belongs to, and **Stage** shows how far each report has got.',
+          'This is the list of every assessment across the team, grouped by client and site. The **Engineer** column shows who each one belongs to, and **Stage** shows the current progress of each assessment.',
       },
       {
         target: [
@@ -110,13 +110,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // Skipped when no row has one (only the practice assessment, which has neither).
         target: 'assessments.row-action',
         optional: true,
-        say: "When you point to a row, an **archive** button appears. Archiving doesn't delete anything: you can always find the assessment again under Stage, Archived.",
+        say: "When you point to a row, an **Archive** button appears. Archiving doesn't delete anything: you can always find the assessment again under **Stage → Archived**.",
         sayAdmin:
-          "When you point to a row, a **reassign** button appears. You can use it to hand the assessment to another engineer. They'll get it in their Inbox, and the engineer who had it will be told.",
+          "When you point to a row, a **Reassign** button appears. You can use it to hand the assessment to another engineer. They'll get it in their Inbox, and the engineer who had it will be told.",
       },
       {
         target: 'new-assessment.button',
-        say: "And when you're ready to start a new assessment, this is the button to press. You can fill in the form yourself, or give me the client's documents and I'll fill it in for you.",
+        say: "And when you're ready to start a new assessment, press **New assessment**. You can fill in the form yourself, or give me the client's documents and I'll fill it in for you.",
       },
       {
         card: true,

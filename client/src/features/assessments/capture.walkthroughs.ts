@@ -25,12 +25,16 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // The button only an engineer has. The admin's words (below) point at the PDF icon instead.
         target: 'checklist.generate',
         only: 'risk_engineer',
-        say: "Once you've chosen, I'll write the checklist from those standards. It takes about half a minute.",
+        say: "Once you've chosen, press **Generate checklist** and I'll write it from those standards. It takes about half a minute.",
       },
       {
+        // The admin's one step about the PDF icon (the words name it, so it is what is lit).
+        // Optional: the icon only shows once there is a checklist; without this an admin on an
+        // assessment with no checklist would get "I can't find what I wanted to show you".
         target: 'checklist.download',
+        optional: true,
         only: 'knowledge_admin',
-        say: "The assigned engineer generates the checklist. You're welcome to read it and download it as a PDF.",
+        say: "Only the assigned engineer can generate the checklist, but you're welcome to read it, and you can download it as a PDF here.",
       },
       {
         // The first item still to answer: Confirm, Differs and ⋯. Optional: a checklist with every item answered has none.
@@ -40,16 +44,17 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "When you're on site, you can answer each item as you go:\n- **Confirm** if what you saw matches.\n- **Differs** if it doesn't.\n- **Not seen** or **Not applicable**, which you'll find under ⋯.\nConfirm and Differs each save an observation for you.",
       },
       {
-        // The icon only shows once there is a checklist.
+        // The icon only shows once there is a checklist. Engineers only: the admin's step above says it.
         target: 'checklist.download',
         optional: true,
+        only: 'risk_engineer',
         say: "If you'd like to take the checklist with you, you can download it as a PDF here. You can also open it while you're adding an observation.",
       },
     ],
   },
   {
     // Starts when: First time the Observations tab opens (offered); plays on the practice assessment.
-    // Step 3 ends on the observation's page, so step 4 first presses its Back button to return to the list.
+    // Step 5 ends on the observation's page, so step 6 first presses its Back button to return to the list.
     id: 'observations',
     name: 'Check your observations',
     group: 'Capturing on site',
@@ -73,11 +78,31 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: 'Each row is one thing you saw on site. The **Status** mark on the right tells you where it is: still being written out, being read, waiting for you, or done.',
       },
       {
-        // Open the amber row, then press Confirm beside its suggested value on the observation's page.
+        // Open the amber row. The next step is on the observation's page.
         target: 'observations.to-check',
         mood: 'idle',
-        say: "When a row is **amber**, it means I've suggested a category or severity and I'd like you to check it. I only use an observation in the report once both are set. Let's do this one together: open the row, and then press **Confirm**.",
-        do: [{ press: 'observations.to-check' }, { press: 'observation.confirm' }],
+        say: "When a row is **amber**, it means I've suggested a category or severity and I'd like you to check it. I only use an observation in the report once both are set. Let's do this one together: go ahead and open the row.",
+        do: [{ press: 'observations.to-check' }],
+      },
+      {
+        // The practice observation's Category is amber. The cut-out goes round the whole Category
+        // field (the words are about it); only its Confirm control can be pressed. The step lands
+        // when the Confirm is saved (ObservationDetails.tsx), not on the press: a refused save
+        // leaves the field lit and Confirm pressable again.
+        target: 'observation.category-field',
+        mood: 'idle',
+        say: "This is the observation's page. The **Category** field is in **amber**, because it holds my suggestion and it's waiting for you to check it. If it looks right to you, go ahead and press **Confirm category**.",
+        do: [
+          { press: 'observation.confirm' },
+          { signal: 'observation-category-confirmed', at: 'observation.category-field' },
+        ],
+      },
+      {
+        // The result: Category's amber is gone. Only Category is amber on the practice observation
+        // (server/src/services/practice/records.ts), so this one Confirm leaves it Complete.
+        target: 'observation.category-field',
+        mood: 'pleased',
+        say: "Nicely done! The amber mark is gone from **Category** because you've confirmed it, and this observation is now ready to be used in the report.",
       },
       {
         // Back to the list first (the page the last step ended on), then the search and the four filters.
@@ -89,7 +114,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // The Add observation button, whose menu holds the two ways the words name.
         target: 'observations.add',
         only: 'risk_engineer',
-        say: 'When you want to add more, you have 2 ways to do it:\n- **Add observation manually**, one at a time.\n- **Record a site walk**, where you talk as you walk and I turn it into observations for you to check.',
+        say: "When you want to add more, press **Add observation**. You'll find 2 ways to do it:\n- **Add observation manually**, one at a time.\n- **Record a site walk**, where you talk as you walk and I turn it into observations for you to check.",
       },
     ],
   },

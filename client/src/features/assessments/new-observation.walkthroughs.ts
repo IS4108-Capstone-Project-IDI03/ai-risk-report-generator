@@ -7,7 +7,7 @@ import type { WalkthroughDef } from '../walkthrough/types'
 // MarshBot's line when the microphone cannot be used (said by newObservationWalk.ts). Kept here so
 // every word a walkthrough says lives in a definitions file.
 export const NO_MICROPHONE =
-  "It looks like I can't use your microphone. That's alright, you can type it as a **Note** instead."
+  "I'm sorry, it looks like I can't use your microphone. That's alright: I've typed the sentence into a **Note** for you instead."
 
 export const WALKTHROUGHS: WalkthroughDef[] = [
   {
@@ -25,9 +25,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     // No microphone: newObservationWalk.ts says the line, types the sentence into the Note tab, and goes on.
     fail: {
       offer:
-        "I'm sorry, I can't write out recordings right now, so I'll skip the try-it for now. You can still add observations as usual.",
+        "I'm sorry, I can't write out recordings right now, so I'll skip this walkthrough for now. You can still add observations as usual.",
       partway:
-        "I'm sorry, that didn't work this time. You can press retry on the row, or replay this walkthrough later.",
+        "I'm sorry, that didn't work this time. You can press **Retry** on the row, or replay this walkthrough from **Settings** later.",
     },
     // Other way offer: after the 2nd observation saved by hand on a real assessment, once.
     otherWay: {
@@ -45,8 +45,14 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The open picker (the form opens it for this step): the loading bay is pressed in it.
         target: 'new-observation.location-menu',
-        say: "Let's add an observation together. First, tell me **where you are**. Go ahead and pick the loading bay. Your choice stays for the next observation, so you won't need to pick it again.",
+        say: "Let's add an observation together. First, tell me **where you are**. Go ahead and pick the loading bay.",
         do: [{ signal: 'observation-location-chosen' }],
+      },
+      {
+        // The result: the Location field, which now shows the loading bay (the picker has closed).
+        target: 'new-observation.location',
+        mood: 'pleased',
+        say: "Great, you're in the **loading bay**. It will stay chosen for your next observation too, so you won't have to pick it again.",
       },
       {
         target: 'new-observation.modes',
@@ -61,6 +67,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         do: [{ press: 'new-observation.record' }, { signal: 'observation-recording-stopped' }],
       },
       {
+        // The result: the kept recording ("On this device" until Save). newObservationWalk.ts steps
+        // past this one when there is no microphone (the sentence is typed into Note, so no recording).
+        target: 'new-observation.recordings',
+        mood: 'pleased',
+        say: "And there's your recording, added to this observation. You don't need to type anything: I'll write out what you said once you save.",
+      },
+      {
         target: ['new-observation.categories', 'new-observation.severity'],
         say: "You can leave **category** and **severity** empty this time. I'll suggest them for you once you save.",
       },
@@ -71,8 +84,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         do: [{ signal: 'observation-saved' }],
       },
       {
-        // Opens the Observations tab, which lands on the saved one's location, newest first: its first row.
-        open: ['assessment.tab.observations'],
+        // Back to the Observations list (the header's Back; a phone's top bar ←, as its form has no
+        // tab row), which lands on the saved one's location, newest first: its first row.
+        open: ['new-observation.back'],
         target: 'observations.row-1',
         mood: 'thinking',
         say: "I'm writing out what you said, and then I'll work out its category and severity. On a real visit, you can carry on working while I do this.",
@@ -83,7 +97,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         mood: 'pleased',
         // Reworded from the approved line ("If you agree with them, open the row and press Confirm"):
         // Confirm only shows on a value I was not sure of, and a clear sentence comes back Complete.
-        say: "And here it is! This is **what you said**, written out, with a category and severity suggested. If one is marked amber, I wasn't sure about it: open the row and press **Confirm** if you agree.",
+        say: "And here it is! This is **what you said**, written out, with a category and severity suggested. If one is marked amber, I wasn't sure about it: open the row and press **Confirm category** or **Confirm severity** if you agree.",
       },
     ],
   },
@@ -126,7 +140,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // The whole panel: the parts to correct, and Confirm all parts (at its end, so `show: 'end'`).
         target: 'new-observation.split-panel',
         show: 'end',
-        say: "If I've got anything wrong, you can correct it here, and then press **Confirm all parts**. You can also change your codes any time in **Settings**, under Note-taking.",
+        say: "If I've got anything wrong, you can correct it here, and then press **Confirm all parts**. You can also change your codes any time in **Settings → Note-taking**.",
       },
     ],
   },

@@ -3319,7 +3319,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         isMine && canCapture && targetRow?.record?.practice
           ? {
               title: 'Practice assessment',
-              text: "You can't archive the practice assessment. You can remove it in Settings, under Walkthroughs.",
+              text: "You can't archive the practice assessment. You can remove it in Settings → Walkthroughs.",
             }
           : undefined,
       canRestore: isMine && !canCapture,

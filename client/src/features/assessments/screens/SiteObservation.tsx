@@ -74,6 +74,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             }
             back={v.proposalCapture ? 'Site walk proposal' : 'Observations'}
             onBack={v.leaveCapture}
+            // F-12: "Add an observation" presses Back (the phone bar's ← carries the same tag).
+            backWalk="new-observation.back"
           />
         )}
         {v.capture?.status === 'unavailable' && (

@@ -125,8 +125,10 @@ export async function fillPractice(
         suggestion: {
           status: 'done' as const,
           attempts: 1,
+          // Only the category is amber: the "Check your observations" walkthrough has the person
+          // confirm it, and that one press must leave the observation complete (its result step says so).
           category: { notSure: true },
-          severity: { notSure: true },
+          severity: null,
           run: 1,
         },
       }),

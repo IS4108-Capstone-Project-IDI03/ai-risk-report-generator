@@ -35,16 +35,16 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The first locked block (a decoration in document/plugins.ts).
         target: 'document.locked',
-        say: 'The grey blocks are **filled in elsewhere**. Scores, loss tables, OFIs and photos all come from Review, so the document and the Review tab always match.',
+        say: 'The grey blocks are **filled in elsewhere**. Scores, loss tables, Opportunities for Improvement and photos all come from Review, so the document and the Review tab always match.',
       },
       {
         // At: the three tools one by one, Comment, Ask about this and Rewrite this (the admin has no
         // Rewrite this).
         target: ['document.comment', 'document.ask', 'document.rewrite?'],
         apart: true,
-        say: 'When you select some text, you can do 3 things with it:\n- **Comment** on it.\n- **Ask me** about it.\n- Have me **rewrite** it.',
+        say: 'When you select some text, you can do 3 things with it:\n- **Comment** to leave a comment on it.\n- **Ask about this** to ask me about it.\n- **Rewrite this** to have me rewrite it.',
         sayAdmin:
-          'When you select some text, you can **comment** on it or **ask me** about it. The engineer will see your comment right beside the text.',
+          'When you select some text, you can press **Comment** to leave a comment, or **Ask about this** to ask me about it. The engineer will see your comment right beside the text.',
       },
       {
         // At: Page layout switch.
@@ -69,7 +69,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The Versions list (right).
         target: 'versions.list',
-        say: 'Every draft and every save of this section is kept here, along with who made it and when. Pick any version to compare it with the current text.',
+        say: 'Every draft and every save of this section is kept here, along with who made it and when. Open any version to compare it with the current text.',
       },
       {
         // At: Restore this version button only. Optional: only the assigned engineer has it.

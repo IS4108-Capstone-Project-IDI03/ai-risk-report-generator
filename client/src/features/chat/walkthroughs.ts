@@ -18,7 +18,10 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     offer:
       "Hi, I see it's your first time in the MarshBot tab.\n\nWould you like to try asking me a question?",
     // A failed check gives no first-time offer. A failure part-way is covered by the chat's own friendly reply.
-    fail: { offer: "I can't reach my sources right now, so I'll skip the try-it for now." },
+    fail: {
+      offer:
+        "I'm sorry, I can't answer questions right now, so I'll skip this walkthrough for now. You can play it from **Settings** a little later.",
+    },
     steps: [
       {
         // At: The welcome card.
@@ -26,13 +29,20 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "This is where you can ask me about the **standards** and about Marsh's **past reports**. I only answer from what's in the knowledge base, so you can always check where an answer came from.",
       },
       {
-        // At: The first starter question. Hands-on: the person presses it. The step then holds, on their
-        // sent question, until the answer is written, so the next step shows with its citation in place
-        // (a step that has to find its target gives up after 4 s, and the answer takes longer).
+        // At: The first starter question. Hands-on: the person presses it.
         target: 'chat.starter-1',
         mood: 'idle',
         say: "Let's try one together. Go ahead and press the first question.",
-        do: [{ press: 'chat.starter-1' }, { signal: 'chat-answer-finished', at: 'chat.question' }],
+        do: [{ press: 'chat.starter-1' }],
+      },
+      {
+        // At: Their sent question. The step holds here until the answer is written, so the next step
+        // shows with its citation in place (a step that has to find its target gives up after 4 s, and
+        // the answer takes longer).
+        target: 'chat.question',
+        mood: 'thinking',
+        say: "I'm looking through the knowledge base now. You'll see my answer appear here as I write it.",
+        wait: 'chat-answer-finished',
       },
       {
         // At: The first citation number, which shows once its statement has been written. Hands-on: the person presses it.
@@ -45,7 +55,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // At: The source panel beside the chat.
         target: 'chat.source',
         mood: 'pleased',
-        say: "This is the passage I used, with the words I quoted highlighted. The original PDF is on the next tab. And if I can't find a quote on the page, I'll mark it so you know to double-check it.",
+        say: "This is the passage I used, with the words I quoted highlighted. If you press **PDF**, you'll see the original document. And if I can't find a quote on the page, I'll mark its number with **!** so you know to double-check it.",
       },
       {
         // At: The composer's photo, PDF and voice buttons.

@@ -8,7 +8,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
   {
     // Starts when: First time the New assessment menu is opened. One bubble beside the open menu, no dimming.
     id: 'new-choice',
-    name: 'Two ways to start an assessment',
+    name: '2 ways to start an assessment',
     group: 'Setting up an assessment',
     roles: ['risk_engineer', 'knowledge_admin'],
     kind: 'tell',
@@ -101,14 +101,14 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     },
     offer:
       "I see it's your first time starting from client documents.\n\nWould you like to try it with a sample email first?",
-    // Failure lines, in the plan's words (take the quoted sentences exactly): If the check fails on a first-time offer, no offer is shown, and MarshBot says in the corner: "I'm sorry, I can't read documents right now, so I'll skip the demo for now. You can still fill in the form yourself." From Settings: "I'm sorry, I can't read documents right now. Please try this walkthrough again a little later." If the read fails part-way, the screen's own "Not read" message shows and MarshBot adds: "I'm sorry, that didn't work this time. You can replay this walkthrough from Settings whenever you like."
+    // Failure lines, in the plan's words (take the quoted sentences exactly): If the check fails on a first-time offer, no offer is shown, and MarshBot says in the corner: "I'm sorry, I can't read documents right now, so I'll skip this walkthrough for now. You can still fill in the form yourself." From Settings: "I'm sorry, I can't read documents right now. Please try this walkthrough again a little later." If the read fails part-way, the screen's own "Not read" message shows and MarshBot adds: "I'm sorry, that didn't work this time. You can replay this walkthrough from **Settings** whenever you like."
     fail: {
       offer:
-        "I'm sorry, I can't read documents right now, so I'll skip the demo for now. You can still fill in the form yourself.",
+        "I'm sorry, I can't read documents right now, so I'll skip this walkthrough for now. You can still fill in the form yourself.",
       replay:
         "I'm sorry, I can't read documents right now. Please try this walkthrough again a little later.",
       partway:
-        "I'm sorry, that didn't work this time. You can replay this walkthrough from Settings whenever you like.",
+        "I'm sorry, that didn't work this time. You can replay this walkthrough from **Settings** whenever you like.",
     },
     // Other way offer. When: After the user's first real Create on this path, once.
     otherWay: {
@@ -131,21 +131,21 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // and the sample goes down the same path as a chosen file.
         target: 'new-assessment.upload',
         mood: 'idle',
-        say: "Let's try it together. I have a **sample email** from a made-up client. Go ahead and press the button, and watch what happens.",
+        say: "Let's try it together. I have a **sample email** from a made-up client. Go ahead and press **Use the sample email**, and watch what happens.",
         answers: [{ label: 'Use the sample email', then: { emit: 'sample-email-wanted' } }],
       },
       {
         // Waits for the reading to finish and the form to open (screens/NewAssessment.tsx raises the signal).
         target: 'new-assessment.found',
         mood: 'thinking',
-        say: "I'm reading the email now. Before any AI sees it, I hide the client's details to keep them private. You'll see the client, sites and dates appear on the right as I find them.",
+        say: "I'm reading the email now. Before any AI sees it, I hide the client's details to keep them private. You'll see the client, sites and dates appear as I find them.",
         wait: 'documents-form-opened',
       },
       {
         // Every amber field carries the tag; the highlight goes round the first one on the page.
         target: 'new-assessment.amber-field',
         mood: 'pleased',
-        say: "And there we go, the form has been filled in from the email! If you see an **amber field**, it means I wasn't sure about it, so I've left it for you to check.",
+        say: "And there we go, the form has been filled in from the email! If you see an **amber field**, it means I wasn't sure about it, so I've left it empty for you to fill in.",
       },
       {
         // Highlighted, never pressed: nothing is created.

@@ -13,6 +13,7 @@ export function ScreenHeader({
   detail,
   back,
   onBack,
+  backWalk,
   titleAction,
   badge,
   actions,
@@ -23,6 +24,8 @@ export function ScreenHeader({
   // Where Back goes, read out as "Back to …".
   back: string
   onBack: () => void
+  // F-12: Back's data-walk tag, for a walkthrough to press.
+  backWalk?: string
   // A small icon button right after the title, e.g. Rename.
   titleAction?: ReactNode
   // Above the title, centred: what kind of screen this is, e.g. Proposal.
@@ -32,7 +35,7 @@ export function ScreenHeader({
 }) {
   return (
     <header className="sh">
-      <BackButton label={'Back to ' + back} onClick={onBack} />
+      <BackButton label={'Back to ' + back} onClick={onBack} walk={backWalk} />
       <div className="sh-text">
         {!!badge && <div className="sh-badge">{badge}</div>}
         <h2 className="sh-title">

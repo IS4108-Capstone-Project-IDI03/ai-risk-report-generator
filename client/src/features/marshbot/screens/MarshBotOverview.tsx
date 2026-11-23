@@ -3,7 +3,7 @@
 // the left (a stage bar on a phone), the thread on the right, with the action slot under
 // MarshBot's newest turn. Called by assessments/screens/Overview.tsx. Calls useThread.ts and
 // components/thread/.
-import { useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
 import { STAGE_LABEL } from '../../assessments/format'
@@ -17,6 +17,7 @@ import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
 import { useNarrowArea } from '../useNarrowArea'
+import { signal } from '../../walkthrough/signals'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useThread, type ThreadState } from '../useThread'
 import '../marshbot.css'
@@ -121,6 +122,14 @@ function Conversation({
   // The queue that shows pushed turns one message at a time (useReveal.ts). Run here, not in the
   // Thread, so the agenda and the rail can wait for the message too.
   const reveal = useReveal(thread, !!pending)
+  // F-12: "Find your way around an assessment" moves on from Skip for now only once MarshBot's
+  // newest pushed turn is all out (its replies too). Before that, its message is still the old
+  // turn, or an empty one (0 px) the highlight cannot find.
+  const newestFresh = [...reveal.fresh].at(-1)
+  const turnOut = !!newestFresh && !reveal.held
+  useEffect(() => {
+    if (turnOut) signal('marshbot-turn-shown')
+  }, [turnOut, newestFresh])
   // Pushed turns with no message on screen yet: the agenda does not name their topic.
   const waiting = [...reveal.fresh].filter(reveal.hidden)
   // The status pill and MarshBot's face wait for the newest message: they hold what was last

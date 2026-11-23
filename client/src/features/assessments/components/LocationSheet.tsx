@@ -146,7 +146,7 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
       </Popover>
     )
   return (
-    <div ref={box} className="cap-loc-field">
+    <div ref={box} className="cap-loc-field" data-walk="new-observation.location">
       <PickerField
         label="Location"
         required

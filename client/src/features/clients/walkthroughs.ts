@@ -24,7 +24,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The first row's icons (a phone's row has one More button).
         target: 'clients.row-1.actions',
-        say: "When you point to a row, you can start a **new assessment** for that client, rename it or remove it. If one of the icons is greyed out, just point to it and I'll tell you why.",
+        say: 'When you point to a row, you can start a **new assessment** for that client, rename it or remove it. If one of the icons is greyed out, just point to it to see why.',
       },
       {
         // At: The first client's name.
@@ -70,7 +70,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The Insights tab.
         target: 'client.tab.insights',
-        say: "And **Insights** adds up what you've found across all of this client's sites. I'll show you around when you open it.",
+        say: "And the first time you open **Insights**, I'll offer to show you around there too.",
       },
     ],
   },

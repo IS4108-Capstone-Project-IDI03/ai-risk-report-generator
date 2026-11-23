@@ -30,7 +30,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         target: 'shell.bell',
-        say: "The **bell** is a little different. It's for updates that don't need you to do anything, and you can press any of them to go straight to it.",
+        say: "The **bell** is a little different. It's for updates that don't need you to do anything, and you can press any update to go straight to what it's about.",
       },
     ],
   },

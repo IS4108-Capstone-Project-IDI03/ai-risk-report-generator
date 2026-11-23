@@ -39,13 +39,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         target: 'shell.bell',
-        say: "Drafting takes a few minutes, so there's no need to wait here. You can leave this page, and the **bell** will let you know when it's done.",
+        say: "Drafting can take a while, so there's no need to wait here. You can leave this page, and the **bell** will let you know when it's done.",
       },
     ],
   },
   {
     // Offered the first time the Review tab opens with drafted sections. Two steps are hands-on.
-    // Steps 2 to 6 need Section 7 (4 undecided findings), so step 2 opens it. Admins get steps 1 to 4.
+    // Steps 2 to 7 need Section 7 (4 undecided findings), so step 2 opens it. Admins get steps 1 to 4.
     id: 'review',
     name: 'Review the draft',
     group: 'Writing the report',
@@ -85,6 +85,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         do: [{ signal: 'finding-accepted', at: 'review.finding-1.decisions' }],
       },
       {
+        // The result: the whole finding, whose bar now holds the Accepted badge and who decided (Edit and Reject stay).
+        target: 'review.finding-1.card',
+        only: 'risk_engineer',
+        mood: 'pleased',
+        say: 'That finding is now **accepted**, and you can see your decision marked on it. If you change your mind later, you can still edit or reject it.',
+      },
+      {
         target: 'review.actions',
         only: 'risk_engineer',
         say: "There are 2 more buttons that will save you time. **Bulk accept** accepts every finding you haven't decided yet, and **Regenerate** gets you a fresh draft, which you can then keep or discard.",
@@ -112,7 +119,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         target: 'review.ofi.accept',
         mood: 'idle',
-        say: 'You can accept the ones that belong in the report. Go ahead and press **Accept** on the first one.',
+        say: "Let's accept one together. Go ahead and press **Accept** on the first one.",
         do: [{ signal: 'ofi-accepted', at: 'review.ofi.accept' }],
       },
       {
@@ -139,7 +146,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         open: ['review.rail.section-4'],
         // The headings and the first row: the whole table is taller than the screen.
         target: ['review.scores.head', 'review.scores.row-1'],
-        say: 'Before I can draft this section, I need your **risk quality scores**. You can enter each one from 0 to 10 yourself, or ask me to propose them for you.',
+        say: "Before I can draft this section, I need your **risk quality scores**. You can enter each one from 0 to 10 yourself, or press **Propose figures** and I'll suggest them for you.",
       },
       {
         // The headings and the first row, which holds violet figures: not the note above them, whose box is wider and takes in the Rating Legend beside the table.
@@ -151,6 +158,12 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         mood: 'idle',
         say: 'When the figures look right to you, press **Confirm figures**. Nothing is calculated until you do.',
         do: [{ signal: 'figures-confirmed', at: 'review.scores.confirm' }],
+      },
+      {
+        // The result: the Location Risk Quality Rating row, filled in now (before, "Not entered"). The figures lose their violet too.
+        target: 'review.scores.rating',
+        mood: 'pleased',
+        say: "Your figures are confirmed, so they're no longer violet. I've now worked out the **Location Risk Quality Rating** from them, which you can see here.",
       },
       {
         target: 'review.rail.section-5',

@@ -168,7 +168,7 @@ export function RiskQualityFigures({
               <td>{shown(current, (r) => r.score.toFixed(1))}</td>
               <td>{shown(potential, (r) => r.score.toFixed(1))}</td>
             </tr>
-            <tr>
+            <tr data-walk="review.scores.rating">
               <th scope="row">Location Risk Quality Rating</th>
               <td className={bandClass(current)}>{shown(current, (r) => r.rating)}</td>
               <td className={bandClass(potential)}>{shown(potential, (r) => r.rating)}</td>

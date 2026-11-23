@@ -28,7 +28,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The first name in the table.
         target: 'accounts.row-1.name',
-        say: "You can open anyone's profile to edit it, send their invitation again or **deactivate** their account. The one thing you can't change is your own role: another admin has to do that.",
+        say: "You can open anyone's profile to edit it, send their invitation again, or turn off **Account active** to deactivate their account. You can't change your own role or deactivate yourself, though: another admin has to do that.",
       },
     ],
   },

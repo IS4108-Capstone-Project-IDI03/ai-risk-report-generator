@@ -7,7 +7,7 @@ import type { WalkthroughDef } from '../walkthrough/types'
 // MarshBot's line when there is no microphone (said by useRecordingWalk.ts). Kept here so every
 // word a walkthrough says lives in a definitions file.
 export const NO_MICROPHONE_WALK =
-  "It looks like I can't use your microphone. That's alright, you can type the sentence in the note box and press **Add note** instead."
+  "I'm sorry, it looks like I can't use your microphone. That's alright, you can type the sentence in the note box and press **Add note** instead."
 
 export const WALKTHROUGHS: WalkthroughDef[] = [
   {
@@ -27,10 +27,11 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     // `slow`: reading usually takes well under a minute. A practice walk makes no Inbox item, so the
     // line names where the walk will be instead (the button's own label).
     fail: {
-      offer: "I'm sorry, I can't read site walks right now, so I'll skip the try-it for now.",
+      offer:
+        "I'm sorry, I can't read site walks right now, so I'll skip this walkthrough for now. You can still add observations one at a time with **Add observation manually**.",
       slow: {
         afterMs: 90_000,
-        say: "This is taking a little longer than usual. You can carry on, and you'll find it under **Site walk proposals** on the Observations tab when it's ready.",
+        say: "This is taking a little longer than usual. You can carry on, and you'll find it in **Observations → Site walk proposals** when it's ready.",
       },
     },
     steps: [
@@ -49,6 +50,13 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         ],
       },
       {
+        // The result: the saved recording in the walk's list. useRecordingWalk.ts steps past this one
+        // when there is no microphone (a typed note was added instead, so there is no recording).
+        target: 'site-walk.list',
+        mood: 'pleased',
+        say: "Your first recording is saved, and you can see it listed here. On a real walk, you'd press **Save recording** at each stop and then start the next one, so one walk can hold several recordings.",
+      },
+      {
         target: 'site-walk.camera',
         say: "On a real walk, you can take **photos** as you go, and I'll match each one to what you were saying at the time.",
       },
@@ -59,7 +67,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The press opens the naming dialog (named "Practice walk" for this walkthrough); its form stays usable.
         target: 'site-walk.finish',
-        say: "That's enough for a first walk. Go ahead and press **Finish walk**. I've already given it a name for you.",
+        say: "That's enough for a first walk. Go ahead and press **Finish walk**. I've already given the walk a name, so just press **Finish walk** again in the box that opens.",
         do: [
           { press: 'site-walk.finish' },
           { signal: 'site-walk-finished', at: 'site-walk.name-form' },
@@ -106,7 +114,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
           'site-walk.row-1',
           'site-walk.row-red?',
         ],
-        say: 'This is what I heard from your walk: a **location** and an **observation**, each with a category and a severity. If you see a red mark, it means something is still missing.',
+        say: 'This is what I heard from your walk: a **location**, and an **observation** with its category and severity. If you see a red mark, it means something is still missing.',
       },
       {
         target: 'site-walk.row-1',

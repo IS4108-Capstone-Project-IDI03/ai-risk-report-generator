@@ -32,7 +32,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // At: The assessments table's headings and its first assessment.
         target: ['usage.table.head', 'usage.table.row-1'],
-        say: "If you press an assessment, you'll see its costs in more detail, right down to each report section.",
+        say: "If you open an assessment, you'll see its costs in more detail, right down to each report section.",
       },
       {
         // At: The Ingestion tab (admin only).

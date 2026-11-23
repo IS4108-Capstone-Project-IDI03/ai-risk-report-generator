@@ -57,16 +57,20 @@ export function useNewObservationWalk(v: AssessmentWorkflow): void {
     form.current.setFNote(SAMPLE_NOTE)
   }, [split])
 
-  // c. No microphone (or it was refused) while step 3 waits for a recording: MarshBot says so, the
+  // c. No microphone (or it was refused) while step 4 waits for a recording: MarshBot says so, the
   // sentence is typed into the Note tab for the person, and the walkthrough goes on after OK. Only
-  // an error that appeared during the step counts, not one left over from before it.
+  // an error that appeared during the step counts, not one left over from before it. It goes on
+  // two steps (past "That's your recording": there is none), so the later steps keep their numbers.
   useEffect(() => {
-    if (add !== 3) return void (state.current.micError = error)
+    if (add !== 4) return void (state.current.micError = error)
     if (!error || error === state.current.micError) return
     state.current.micError = error
     form.current.modeNote()
     form.current.setFNote(SAMPLE_SENTENCE)
-    tell(NO_MICROPHONE, 'concerned', () => next(true))
+    tell(NO_MICROPHONE, 'concerned', () => {
+      next(true)
+      next(true)
+    })
   }, [add, error])
 }
 

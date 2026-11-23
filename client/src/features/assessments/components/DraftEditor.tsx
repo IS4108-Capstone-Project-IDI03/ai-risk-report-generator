@@ -171,6 +171,7 @@ function Finding({
       aria-label={`Finding ${claim.number}`}
       // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
       data-activity-key={claim.key}
+      data-walk={claim.number === 1 ? 'review.finding-1.card' : undefined}
       className={'rv-finding' + (review.state === 'pending' ? ' is-pending' : '')}
     >
       <StatementRow tip={!claim.supported}>

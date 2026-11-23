@@ -18,7 +18,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     place: { path: '/assessment?ref={practice}&tab=review', open: ['review.ask-tab'] },
     offer: "I see it's your first time opening Ask.\n\nWould you like to try asking me a question?",
     fail: {
-      offer: "I'm sorry, I can't answer questions right now, so I'll skip the try-it for now.",
+      offer:
+        "I'm sorry, I can't answer questions right now, so I'll skip this walkthrough for now. You can play it from **Settings** a little later.",
       replay:
         "I'm sorry, I can't answer questions right now. Please try this walkthrough again a little later.",
       // No partway line: the card shows its own "The answer stopped" with Ask again, and the engine adds its standard line.
@@ -31,15 +32,19 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         // At: Question box, filled in, and the Ask button (the whole question form). AskPanel types the question in
-        // when this step shows. Hands-on: the question is sent; the step then holds, on the question asked,
-        // until the answer has arrived, so the next step shows with the answer card in place.
+        // when this step shows. Hands-on: the question is sent.
         target: 'ask.composer',
         mood: 'idle',
         say: 'I\'ve typed in a question to get you started: "Which observations concern fire protection?" Go ahead and press **Ask**.',
-        do: [
-          { signal: 'ask-question-sent', at: 'ask.composer' },
-          { signal: 'ask-answer-finished', at: 'ask.question' },
-        ],
+        do: [{ signal: 'ask-question-sent', at: 'ask.composer' }],
+      },
+      {
+        // At: The question asked. The step holds here until the answer has arrived, so the next step
+        // shows with the answer card in place.
+        target: 'ask.question',
+        mood: 'thinking',
+        say: "I'm working on your answer now. I check each line before I show it to you, so this can take a little while.",
+        wait: 'ask-answer-finished',
       },
       {
         // At: The answer card (the newest answer).
@@ -51,7 +56,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // At: Draft text button.
         target: 'ask.draft-text',
         only: 'risk_engineer',
-        say: "I can also **draft a paragraph** for the section you have open. It stays marked as an AI draft until you've checked and accepted it.",
+        say: "If you press **Draft text**, I'll draft a paragraph for the section you have open. It stays marked as an AI draft until you've checked and accepted it.",
       },
     ],
   },

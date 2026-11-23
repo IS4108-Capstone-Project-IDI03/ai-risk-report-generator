@@ -49,8 +49,8 @@ export function useRecordingWalk(opts: {
   }, [finished])
   // c. The proposal is ready, or reading failed (the walk shows its own "Couldn't finish" and the
   // try-it ends with MarshBot's line instead of waiting).
-  useSignalAtStep('site-walk-proposal-ready', status === 'ready', 'site-walk', 6)
-  useSignalAtStep('try-it-failed', status === 'failed', 'site-walk', 6)
+  useSignalAtStep('site-walk-proposal-ready', status === 'ready', 'site-walk', 7)
+  useSignalAtStep('try-it-failed', status === 'failed', 'site-walk', 7)
   // d. No microphone while step 2 waits for a recording: MarshBot says so and the sentence is typed
   // into the note box for the person to add.
   useEffect(() => {
@@ -59,8 +59,10 @@ export function useRecordingWalk(opts: {
     seen.current = micProblem
     latest.current(SAMPLE_WALK_NOTE)
     // The line asks for a press on Add note, so the note box is lit and usable until the note is
-    // in; then the walkthrough goes on at Finish walk (past the camera and note steps).
+    // in; then the walkthrough goes on at Finish walk (past the "recording saved" result, which
+    // there is none of, and the camera and note steps).
     askFor(NO_MICROPHONE_WALK, 'concerned', 'site-walk.notes', 'site-walk-note-added', () => {
+      next(true)
       next(true)
       next(true)
       next(true)

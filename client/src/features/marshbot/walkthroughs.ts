@@ -19,12 +19,12 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The first and last tab frame the row, so the highlight is the six tabs and no blank space.
         target: ['assessment.tab.overview', 'assessment.tab.export'],
-        say: "Welcome to the assessment workspace. An assessment moves from left to right through these 6 tabs, from **Overview** all the way to **Export**. I'll walk you through each one the first time you open it.",
+        say: "Welcome! This is where you'll work on an assessment. It moves from left to right through these 6 tabs, from **Overview** all the way to **Export**. The first time you open each one, I'll offer to show you around.",
       },
       {
         // The stage list (a phone's stage bar: its "Stage 5 of 8" line and eight segments).
         target: ['overview.stages', 'overview.stage-label?'],
-        say: "These **8 stages** show how far the report has got. You don't need to move it along yourself: the stage moves forward on its own as you get the work done.",
+        say: "These **8 stages** show the current progress of the assessment. You don't need to move it along yourself: the stage moves forward on its own as you get the work done.",
       },
       {
         // MarshBot's newest turn: its message and cards, not the buttons under them.
@@ -34,11 +34,26 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         // The practice assessment's one reply, Skip for now (decision made in Build: "What else?" is
         // not offered on that data). Optional: once it has been pressed, a replay skips this step.
+        // Lands once MarshBot's answer is all shown, not on the press: until then the newest
+        // message is still the old one, or an empty one (a phone has nothing to light then).
         target: 'overview.reply.skip',
         optional: true,
         mood: 'idle',
-        say: 'You can answer me with the buttons under my latest message. Go ahead and press **Skip for now** to try it.',
-        do: [{ press: 'overview.reply.skip' }],
+        say: 'You can answer me with the buttons under my latest message. Go ahead and press **Skip for now**, and watch how I reply.',
+        do: [
+          { press: 'overview.reply.skip' },
+          { signal: 'marshbot-turn-shown', at: 'overview.latest' },
+        ],
+      },
+      {
+        // The result of the press: the reply just sent, MarshBot's answer to it ("No problem") and its
+        // newest turn (the next topic), lit as one box, so "your answer" in the words is inside it.
+        // Marked optional like the press step, but its target is always there, so a replay after
+        // Skip was already used still shows it.
+        target: ['overview.answer?', 'overview.latest'],
+        optional: true,
+        mood: 'pleased',
+        say: "There you go! Your answer is now in our conversation, and I've moved on to the next thing I'd like you to look at.",
       },
       {
         // The rail's At a Glance and client card (a phone's stage bar stands for both). Optional: a short window hides At a Glance.
@@ -78,7 +93,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       },
       {
         target: 'assessment.tab.generation',
-        say: 'Only {engineer} can add observations, draft, review and export, which is why some buttons are greyed out or say **View only**. If the assessment needs to go to someone else, you can use **Reassign** on the Assessments list.',
+        say: 'Only {engineer} can add observations, draft, review and export, which is why some buttons are greyed out or say **View only**. If the assessment needs to go to someone else, you can press **Reassign** on the Assessments list.',
       },
     ],
   },

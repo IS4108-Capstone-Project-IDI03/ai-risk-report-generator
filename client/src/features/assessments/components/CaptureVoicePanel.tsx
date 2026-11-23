@@ -64,7 +64,11 @@ export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
         </div>
       )}
       {v.captureRows.length > 0 && (
-        <ul className="sw-list cap-clips" aria-label="Recordings">
+        <ul
+          className="sw-list cap-clips"
+          aria-label="Recordings"
+          data-walk="new-observation.recordings"
+        >
           {v.captureRows.map((row) => (
             <RecordingRow
               key={row.key}

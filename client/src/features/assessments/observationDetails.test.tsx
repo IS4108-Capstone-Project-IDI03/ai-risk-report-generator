@@ -4,6 +4,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { onSignal } from '../walkthrough/signals'
 import { ObservationDetails, type DetailsView } from './components/ObservationDetails'
 import { PageEntry, type PageView } from './components/PageEntry'
 
@@ -82,6 +83,23 @@ describe('Details card (CP-24)', () => {
       expect(screen.getByRole('button', { name: 'Confirm category' })).toBeEnabled(),
     )
     expect(onConfirmed).not.toHaveBeenCalled()
+  })
+
+  // F-12: "Check your observations" moves on only once the Confirm is saved, never on the press.
+  it('raises observation-category-confirmed only once a category Confirm is saved', async () => {
+    const heard = vi.fn()
+    const stop = onSignal('observation-category-confirmed', heard)
+    const refused = vi.fn().mockResolvedValue(false)
+    card({ suggestion: done({ category: { notSure: true } }) }, refused)
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm category' }))
+    await vi.waitFor(() => expect(refused).toHaveBeenCalled())
+    await act(async () => {})
+    expect(heard).not.toHaveBeenCalled()
+    cleanup()
+    card({ suggestion: done({ category: { notSure: true } }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm category' }))
+    await vi.waitFor(() => expect(heard).toHaveBeenCalledTimes(1))
+    stop()
   })
 
   it('turns both empty fields red under one Suggestion failed line, and Try again retries', () => {

@@ -152,3 +152,20 @@
   min-height: 44px;
   flex-shrink: 0;
 }
+
+/* F-12 "Use note codes and Split note", the step that names the three groups: while the walkthrough
+   lights their headings (they carry data-walk-on), each group shows only its heading and the first
+   line of its first part, so all three fit on one screen. Only then: the next step, round the whole
+   panel, shows it at full size again. Not on a phone, whose groups are lit only as far as the sheet. */
+@media (min-width: 768px) {
+  .sp-panel:has(.sp-heading[data-walk-on]) .sp-group > :not(.sp-heading, .sp-list, .sp-none),
+  .sp-panel:has(.sp-heading[data-walk-on]) > .sp-foot,
+  .sp-panel:has(.sp-heading[data-walk-on]) .sp-list > :not(:first-child),
+  .sp-panel:has(.sp-heading[data-walk-on]) .sp-part > :not(.sp-text) {
+    /* Beats the design-system Button's inline display (+ Add part). */
+    display: none !important;
+  }
+  .sp-panel:has(.sp-heading[data-walk-on]) .sp-text {
+    height: 44px !important;
+  }
+}
