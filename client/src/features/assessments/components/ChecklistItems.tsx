@@ -205,12 +205,12 @@ function AnswerControls({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 'var(--space-3)',
-    marginTop: 'var(--space-4)',
+    marginTop: 'var(--space-3)',
   } as const
   const check = item.check
   if (check) {
     return (
-      <div style={answers}>
+      <div className="cl-answers" style={answers}>
         <Badge tone={CHECK_TONE[check.result]}>{CHECK_LABEL[check.result]}</Badge>
         <span style={caption}>
           {[check.by, check.observation?.location, formatDayYearTime(new Date(check.at))]
@@ -233,11 +233,11 @@ function AnswerControls({
   }
   if (!canAnswer) return null
   return (
-    <div style={answers}>
-      <Button iconLeft="check" disabled={busy} onClick={() => onBegin('confirm')}>
+    <div className="cl-answers" style={answers}>
+      <Button size="sm" iconLeft="check" disabled={busy} onClick={() => onBegin('confirm')}>
         Confirm
       </Button>
-      <Button iconLeft="equal-not" disabled={busy} onClick={() => onBegin('differs')}>
+      <Button size="sm" iconLeft="equal-not" disabled={busy} onClick={() => onBegin('differs')}>
         Differs
       </Button>
       <MoreMenu
@@ -281,11 +281,6 @@ function ItemRow({
   // Edit and remove, for the engineer customising the checklist (CP-32).
   actions?: ReactNode
 }) {
-  // Only the model's items are AI-written (CP-30 AC8); the template's and the
-  // hazard list's own are the team's, and an edited item is the engineer's.
-  const written =
-    (item.origin === 'standard' || item.origin === 'hazard' || item.origin === 'past_report') &&
-    !item.edited
   // Citations of one page of one standard share a chip; opened, it shows each quote.
   const pages = groupCitations(item.citations, checklist)
   const [open, setOpen] = useState<string | null>(null)
@@ -301,8 +296,6 @@ function ItemRow({
       style={{
         padding: `var(--space-5) var(--space-6) var(--space-5) ${indent ? 'var(--space-9)' : 'var(--space-6)'}`,
         borderTop: '1px solid var(--border-subtle)',
-        // AI violet marks provisional machine-written text (docs/areas/ui.md).
-        boxShadow: written ? 'inset 3px 0 0 var(--ai-border)' : undefined,
         background: fresh ? 'var(--diff-added-bg)' : flash ? 'var(--ink-50)' : undefined,
         transition: 'background-color var(--duration-slow) var(--ease-out)',
         scrollMarginTop: 'var(--space-9)',
@@ -315,7 +308,8 @@ function ItemRow({
             margin: 0,
             fontSize: 'var(--text-body-size)',
             lineHeight: '22px',
-            fontWeight: item.origin === 'template' ? 600 : 400,
+            color: 'var(--text-primary)',
+            fontWeight: item.origin === 'template' ? 500 : 400,
           }}
         >
           {fresh && (
@@ -334,23 +328,6 @@ function ItemRow({
         {actions}
       </div>
       {detail && <p style={{ ...muted, marginTop: 'var(--space-2)' }}>{detail}</p>}
-      {/* Where a CP-37 item comes from: Settings (fixed) or past Marsh reports. */}
-      {(item.fixed || item.sourceReports?.length) && (
-        <p
-          style={{
-            ...caption,
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 'var(--space-3)',
-            marginTop: 'var(--space-2)',
-          }}
-        >
-          {item.fixed && <Badge tone="neutral">Fixed</Badge>}
-          {item.origin === 'past_report' && !!item.sourceReports?.length && (
-            <span>From past report: {item.sourceReports.map((r) => r.title).join(', ')}</span>
-          )}
-        </p>
-      )}
       {general && (
         <p
           style={{
@@ -370,16 +347,27 @@ function ItemRow({
           {general}
         </p>
       )}
+      {/* One meta line: category, where a CP-37 item comes from, then its citations. */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
-          gap: 'var(--space-3)',
+          gap: 'var(--space-2) var(--space-3)',
           marginTop: 'var(--space-3)',
         }}
       >
         <span style={caption}>{categoryLabel(item.COPE_dimension)}</span>
+        {item.fixed && (
+          <Badge tone="neutral" icon="pin">
+            Fixed
+          </Badge>
+        )}
+        {item.origin === 'past_report' && !!item.sourceReports?.length && (
+          <Badge tone="neutral" icon="history">
+            From past report: {item.sourceReports.map((r) => r.title).join(', ')}
+          </Badge>
+        )}
         {pages.map(({ key, standard, page, citations }) => (
           <span key={key} style={{ display: 'contents' }}>
             <button
@@ -390,11 +378,11 @@ function ItemRow({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 'var(--space-2)',
-                height: '24px',
-                padding: '0 8px',
-                border: '1px solid var(--border-default)',
+                height: 'var(--chip-height-sm)',
+                padding: '0 9px',
+                border: 'none',
                 borderRadius: 'var(--radius-sm)',
-                background: open === key ? 'var(--surface-sunken)' : 'var(--surface-card)',
+                background: open === key ? 'var(--graphite-200)' : 'var(--graphite-100)',
                 color: 'var(--text-secondary)',
                 font: 'inherit',
                 fontSize: 'var(--text-caption-size)',
@@ -412,7 +400,7 @@ function ItemRow({
               </Badge>
             ) : (
               citations.some((c) => c.quoteDescribed) && (
-                <Badge tone="info" icon="info">
+                <Badge tone="neutral" icon="info">
                   AI reading of figure
                 </Badge>
               )
@@ -432,7 +420,7 @@ function ItemRow({
               key={c.quote}
               style={{
                 ...muted,
-                marginTop: 'var(--space-4)',
+                marginTop: 'var(--space-3)',
                 paddingLeft: 'var(--space-5)',
                 borderLeft: '2px solid var(--border-default)',
               }}
@@ -510,13 +498,28 @@ function Group({
           alignItems: 'baseline',
           justifyContent: 'space-between',
           gap: 'var(--space-3) var(--space-6)',
-          padding: 'var(--space-5) var(--space-6)',
+          padding: 'var(--space-5) var(--space-6) var(--space-4)',
         }}
       >
         <div>
-          <h4 style={{ ...heading, fontSize: 'var(--text-body-size)' }}>{title}</h4>
+          <h4
+            style={{
+              ...heading,
+              fontSize: 'var(--text-h3-size)',
+              fontWeight: 700,
+              color: 'var(--marsh-navy)',
+            }}
+          >
+            {title}
+          </h4>
           {note}
-          <p style={{ ...caption, marginTop: 'var(--space-1)' }}>
+          <p
+            style={{
+              ...caption,
+              marginTop: 'var(--space-1)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
             {checked} of {items.length} answered
             {need !== null && (
               <span style={{ color: need ? 'var(--status-moderate-fg)' : undefined }}>
@@ -527,7 +530,7 @@ function Group({
           </p>
         </div>
         {written && (
-          <Badge tone="ai" icon="sparkles">
+          <Badge tone="neutral" icon="sparkles">
             AI-generated
           </Badge>
         )}
@@ -884,7 +887,7 @@ export function ChecklistItems({
           {note}
         </Callout>
       ))}
-      <p style={muted}>
+      <p style={{ ...muted, fontVariantNumeric: 'tabular-nums' }}>
         {areaProgress(checklist.items).checked} of {checklist.items.length} answered
       </p>
       {error && (

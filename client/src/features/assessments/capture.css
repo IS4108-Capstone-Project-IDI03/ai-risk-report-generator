@@ -773,3 +773,16 @@
   color: var(--text-secondary);
   font: 400 13px/1.35 var(--font-sans);
 }
+
+/* ---- Checklist type scale (CP-37): area title > item text > one muted meta line ---- */
+.cap-checklist-pane-title {
+  color: var(--marsh-navy);
+  font-size: 16px;
+  font-weight: 700;
+}
+/* Answer buttons: 44 px to tap on a phone. */
+@media (max-width: 767px) {
+  .cl-answers button {
+    min-height: 44px;
+  }
+}
