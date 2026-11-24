@@ -9,7 +9,7 @@ import {
   restoreAssessment as requestRestore,
   GatewayError,
   listAssessments,
-  type Part,
+  type Kind,
   retranscribePage,
   retryPageTranscription,
   retrySuggestion,
@@ -161,6 +161,8 @@ export type ObservationChange = {
   sev?: string
   locationId?: string
   note?: string
+  // The tags; null clears them (CP-36).
+  kinds?: Kind[] | null
   // Keeps these not-sure values as they are (CP-24): they become the engineer's.
   confirm?: ('category' | 'severity')[]
 }
@@ -305,7 +307,7 @@ const BLANK_DRAFT = {
   fSending: 0,
   fLengths: {},
   fLocRefused: 0,
-  fParts: null,
+  fKinds: [],
   fClips: [],
   fPhotos: [],
   fPages: [],
@@ -472,6 +474,7 @@ function toEntry(o: SavedObservation): Observation {
           ? 'var(--text-secondary)'
           : '#4f9aee',
     cats: o.copeDimensions ?? [],
+    kinds: o.kinds,
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
     locationName: o.location?.name ?? '',
@@ -1387,6 +1390,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           note: note ?? '',
           copeDimension: (s.fCats[0] as Cope | undefined) ?? null,
           severity: (s.fSev || null) as Severity | null,
+          ...(s.fKinds.length > 0 && { kinds: s.fKinds }),
           clips: clips.map((c) => c.audio),
           photos: photos.map((p) => p.image),
           pages: pages.map((p) => p.image),
@@ -1431,7 +1435,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             locationId: location.id,
             // The hidden draft becomes this observation; its recordings are not sent again.
             ...(media.draftId && { draftId: media.draftId }),
-            ...(s.fParts && note && { parts: s.fParts }),
+            ...(s.fKinds.length > 0 && { kinds: s.fKinds }),
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
@@ -1488,7 +1492,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
-        fParts: previous.fNote === note ? null : previous.fParts,
+        fKinds: previous.fNote === note ? [] : previous.fKinds,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
@@ -1569,6 +1573,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ...x,
               cats: change.cats ?? x.cats,
               sev: change.sev ?? x.sev,
+              ...(change.kinds !== undefined && { kinds: change.kinds ?? undefined }),
               ...(location && {
                 locationName: location.name,
                 building: location.building,
@@ -1590,6 +1595,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...(change.sev && { severity: sev }),
         ...(location && { locationId: location.id }),
         ...(change.note !== undefined && { note: note.trim() ? note : null }),
+        ...(change.kinds !== undefined && { kinds: change.kinds }),
         ...(change.confirm && { confirm: change.confirm }),
       }
       if (!Object.keys(changes).length) return
@@ -4034,9 +4040,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
-      // The confirmed split of the note, sent with Save observation (CP-35).
-      fParts: s.fParts,
-      setFParts: (fParts: Part[] | null) => setState({ fParts }),
+      // The tags chosen for the observation being captured, sent with Save (CP-36).
+      fKinds: s.fKinds,
+      setFKinds: (fKinds: Kind[]) => setState({ fKinds }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
       setFNote: (fNote: string) => setState({ fNote }),
@@ -4500,7 +4506,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
           obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
-          fParts: null,
+          fKinds: [],
           fPhotos: [],
           fPages: [],
           fTrans: false,

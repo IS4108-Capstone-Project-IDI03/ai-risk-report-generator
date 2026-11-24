@@ -63,7 +63,7 @@ export const initialState: WorkflowState = {
   captureObs: {},
   fMode: 'note',
   fNote: '',
-  fParts: null,
+  fKinds: [],
   fLeaveOpen: false,
   fLeaveTo: 'observations',
   fSaving: false,

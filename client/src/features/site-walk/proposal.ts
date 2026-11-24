@@ -1,7 +1,7 @@
 // Edits to a site walk proposal (CP-22 AC9), as plain functions that each
 // return a new proposal. The Review screen calls them through useProposal;
 // nothing here talks to the gateway.
-import type { SiteLocation } from '../assessments/api'
+import type { Kind, SiteLocation } from '../assessments/api'
 import { hasCategory } from '../assessments/categories'
 import {
   groupLocations,
@@ -65,14 +65,25 @@ function nextRef(prefix: string, used: { ref: string }[]) {
 // What an edit may carry: new values, and `confirm` for a not-sure value kept as it is.
 export type ObservationPatch = Partial<
   Pick<ProposedObservation, 'note' | 'copeDimension' | 'severity' | 'locationRef'>
-> & { confirm?: ('category' | 'severity')[] }
+> & {
+  // null clears the tags (CP-36): the key is then left off the observation.
+  kinds?: Kind[] | null
+  confirm?: ('category' | 'severity')[]
+}
+
+// Sets (or, with null or empty, removes) the tags; undefined leaves them as they are.
+function withKinds(o: ProposedObservation, kinds?: Kind[] | null): ProposedObservation {
+  if (kinds === undefined) return o
+  // undefined is dropped when the proposal is saved as JSON, so a cleared tag list leaves no key.
+  return { ...o, kinds: kinds?.length ? kinds : undefined }
+}
 
 // Changes one observation. A category or severity the engineer chose or confirmed is theirs, so
 // its not-sure flag (`check`) is cleared; the flags the AI set on the others stay.
 export function updateObservation(p: Proposal, ref: string, patch: ObservationPatch): Proposal {
-  const { confirm = [], ...fields } = patch
+  const { confirm = [], kinds, ...fields } = patch
   const change = (o: ProposedObservation): ProposedObservation => ({
-    ...o,
+    ...withKinds(o, kinds),
     ...fields,
     check: {
       ...o.check,
@@ -112,7 +123,7 @@ export function restoreObservation(p: Proposal, ref: string, index = Infinity): 
 
 type NewObservation = Pick<
   ProposedObservation,
-  'note' | 'copeDimension' | 'severity' | 'locationRef'
+  'note' | 'copeDimension' | 'severity' | 'locationRef' | 'kinds'
 >
 
 // Adds an observation the engineer wrote by hand (Add observation); it has no

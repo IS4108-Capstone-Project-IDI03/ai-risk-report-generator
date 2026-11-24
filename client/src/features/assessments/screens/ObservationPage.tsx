@@ -3,7 +3,7 @@
 // Recordings, Photos, Handwritten pages, each only when it has something) and Details on the right.
 // A category or severity the AI suggested shows its state in Details (components/ObservationDetails.tsx).
 // Rendered by screens/Observations.tsx. Calls RecordHeader, RecordStepper and the cards.
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Icon,
@@ -15,6 +15,7 @@ import {
 import { ObservationBadge } from '../components/ObservationBadge'
 import { CategoryMark } from '../components/ObservationMarks'
 import { ObservationDetails } from '../components/ObservationDetails'
+import { ObservationKinds } from '../components/ObservationKinds'
 import { ObservationNote } from '../components/ObservationNote'
 import { PagesCard } from '../components/PagesCard'
 import { PhotosCard } from '../components/PhotosCard'
@@ -50,6 +51,8 @@ export function ObservationPage({
   media?: string
 }) {
   const phone = useIsPhone()
+  // The note as last left (the tag picker suggests from it once).
+  const [blurred, setBlurred] = useState('')
   const { status, save, whenSaved } = useObservationSave((change) =>
     v.saveObsChanges(o.key, change),
   )
@@ -202,6 +205,16 @@ export function ObservationPage({
             canChange={o.canChange}
             save={save}
             reference={v.liveReference ?? undefined}
+            onLeave={setBlurred}
+          />
+          <ObservationKinds
+            key={o.key}
+            kinds={o.kinds}
+            canChange={o.canChange}
+            save={(kinds) => save({ kinds })}
+            reference={v.liveReference ?? undefined}
+            text={o.detail || o.recordings[0]?.text || ''}
+            blurred={blurred}
           />
           {hasRecordings && <RecordingsCard o={o} phone={phone} playSample={v.playSampleAudio} />}
           <PhotosCard

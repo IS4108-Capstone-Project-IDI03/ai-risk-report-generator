@@ -7,7 +7,6 @@ import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
-import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { PrivacyWordsSection } from './screens/PrivacyWordsSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
@@ -37,11 +36,6 @@ const MINE: Section[] = [
     id: 'chat',
     label: 'Chat and voice',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
-  },
-  {
-    id: 'note-taking',
-    label: 'Note-taking',
-    render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
   },
 ]
 // What only a knowledge admin can change, for everyone. An engineer sees these read-only.

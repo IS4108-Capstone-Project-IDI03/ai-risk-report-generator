@@ -25,6 +25,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   'knowledge-search': 'Knowledge base search',
   // Sorting a shorthand note into facts, requests and recommendations (CP-35).
   'split-note': 'Shorthand note split',
+  'suggest-kinds': 'Tag suggestion',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {

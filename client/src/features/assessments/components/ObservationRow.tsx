@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import type { ObservationRowView } from '../useObservationsView'
 import { HitText } from './HitText'
+import { KindBadges } from './KindBadges'
 import { ObservationBadge } from './ObservationBadge'
 import { CategoryMark, SeverityMark, StatusMark } from './ObservationMarks'
 
@@ -53,6 +54,7 @@ export function ObservationRow({
           {o.isNew && <span className="ob-sr">{'New. '}</span>}
           <HitText text={o.text} words={words} />
         </span>
+        <KindBadges kinds={o.kinds} />
         {o.reason && (
           <span className="ob-row-reason" data-in={becoming || undefined}>
             {o.reason}

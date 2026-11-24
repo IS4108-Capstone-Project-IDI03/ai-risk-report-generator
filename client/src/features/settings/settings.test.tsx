@@ -35,7 +35,6 @@ const data = (
   models: ModelRowData[] = [row('Drafting')],
 ): SettingsData => ({
   canEditGlobal,
-  noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models,
   qaStrictness: 'standard',
   sourcePriority: { order: [...TIER_IDS], history: [] },
@@ -75,7 +74,6 @@ describe('Settings', () => {
         'Chat and voice',
         'Checklist',
         'Source priority',
-        'Note-taking',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       // Removed on request: the three defaults, and the Drafting section (S-01 follow-up).
@@ -93,8 +91,6 @@ describe('Settings', () => {
     open('QA eval')
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
     expect(screen.queryByRole('radio')).toBeNull()
-    // Note-taking works now (CP-35): not a Coming soon tile.
-    expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 
@@ -111,7 +107,7 @@ describe('Settings', () => {
     expect(names(group('Coming soon'))).toEqual(['QA eval', 'Checklist'])
     // What a person sets for themselves has no heading and comes first.
     const personal = menu.firstElementChild as HTMLElement
-    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking'])
+    expect(names(personal)).toEqual(['Password', 'Chat and voice'])
     expect(within(personal).queryByText('Set by admin')).toBeNull()
   })
 

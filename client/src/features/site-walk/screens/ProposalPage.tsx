@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BackButton, Icon } from '../../../design-system'
 import { MediaPanel } from '../../assessments/components/MediaPanel'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
+import { ObservationKinds } from '../../assessments/components/ObservationKinds'
 import { ObservationNote } from '../../assessments/components/ObservationNote'
 import { PathTitle } from '../../assessments/components/PathTitle'
 import { PhotoGrid } from '../../assessments/components/PhotoGrid'
@@ -68,6 +69,8 @@ export function ProposalPage({
   reference?: string
 }) {
   const [edited, setEdited] = useState(false)
+  // The note as last left (the tag picker suggests from it once).
+  const [blurred, setBlurred] = useState('')
   // a. Its list's order (No location yet first, then each location; the
   // deleted list newest first): the arrows step through all of them.
   const order = deleted
@@ -200,6 +203,19 @@ export function ProposalPage({
             note={o.note}
             canChange={!deleted && !readOnly}
             save={save}
+            onLeave={setBlurred}
+          />
+          <ObservationKinds
+            key={o.ref}
+            kinds={o.kinds}
+            canChange={!deleted && !readOnly}
+            save={async (kinds) => {
+              edit({ kinds })
+              return true
+            }}
+            reference={reference}
+            text={o.note}
+            blurred={blurred}
           />
           {(clip || voices.length > 0) && (
             <section className="ob-card ob-section" aria-label="Recordings">

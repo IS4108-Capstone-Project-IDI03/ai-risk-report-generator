@@ -34,12 +34,7 @@ export type SourcePriorityChange = {
   before: TierId[]
   after: TierId[]
 }
-// How this person writes shorthand notes (CP-35): the three line codes and their glossary.
-export type NoteCodes = { fact: string; info_request: string; recommendation: string }
-export type GlossaryEntry = { term: string; meaning: string }
-export type NoteTaking = { codes: NoteCodes; glossary: GlossaryEntry[] }
 export type Settings = {
-  noteTaking: NoteTaking
   canEditGlobal: boolean
   models: ModelRowData[]
   qaStrictness: QaStrictness
@@ -61,13 +56,6 @@ export function saveModel(task: string, option: string) {
 /** Admin: saves the source authority order (highest first); returns the new settings. */
 export function saveSourcePriority(order: TierId[]) {
   return send('PUT', '/api/settings/source-priority', { order })
-}
-/** Saves my own note codes (null = back to F, IR, REC) and/or glossary (CP-35); returns the settings. */
-export function saveMine(body: {
-  noteCodes?: Partial<NoteCodes> | null
-  glossary?: GlossaryEntry[]
-}) {
-  return send('PATCH', '/api/settings/me', body)
 }
 /** Changes my password; rejects with GatewayError (400 with fields, or 429 when locked). */
 export async function changePassword(currentPassword: string, newPassword: string) {

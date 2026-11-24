@@ -1,0 +1,88 @@
+/* The tag picker and badges (CP-36). Design-system v2 tokens; every control is 44 px tall. */
+.kp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.kp-legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.kp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kp-chip {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ink-50);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.kp-chip[aria-pressed='true'] {
+  font-weight: 600;
+  background: var(--ink-100);
+  box-shadow: inset 0 0 0 1.5px var(--ink-600);
+}
+.kp-chip[data-kind='info_request'][aria-pressed='true'],
+.kp-badge[data-kind='info_request'] {
+  background: var(--violet-50);
+  color: var(--violet-600);
+  box-shadow: inset 0 0 0 1.5px var(--violet-600);
+}
+.kp-chip[data-kind='recommendation'][aria-pressed='true'],
+.kp-badge[data-kind='recommendation'] {
+  background: var(--teal-50);
+  color: var(--teal-600);
+  box-shadow: inset 0 0 0 1.5px var(--teal-600);
+}
+.kp-chip:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.kp-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-muted);
+}
+.kp-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--ai-bg);
+  color: var(--ai-fg);
+  font-size: 14px;
+}
+.kp-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kp-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ink-50);
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+.kp-badge[data-kind='info_request'],
+.kp-badge[data-kind='recommendation'] {
+  box-shadow: none;
+}

@@ -3,7 +3,7 @@ import type {
   Assessment,
   InterpretationStatus,
   MediaKind,
-  Part,
+  Kind,
   SavedObservation,
   SavedPhoto,
   SavedSuggestion,
@@ -81,6 +81,8 @@ export type Observation = {
   floor?: string | null
   // Set on observations saved on the server.
   id?: string
+  // Its tags (CP-36); absent when untagged.
+  kinds?: Kind[]
   // The checklist item it answers (CP-31), with the item's text then.
   checklist?: { text: string; result: 'confirmed' | 'differs' } | null
   // Created from a site walk proposal (CP-22 round 3), marked "From site walk".
@@ -218,8 +220,8 @@ export type WorkflowState = {
   captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
-  // The parts of the note the engineer confirmed (CP-35); null while it is not split.
-  fParts: Part[] | null
+  // The tags chosen on New Observation (CP-36); empty means untagged, which reads as a Fact.
+  fKinds: Kind[]
   // Capture was left with something unsaved: the Leave without saving?
   // dialog, and the workspace tab leaving goes to.
   fLeaveOpen: boolean
