@@ -49,12 +49,8 @@ export function ChecklistBuild({
   const [includeDefaults, setIncludeDefaults] = useState(true)
   return (
     <div className="cl-build">
-      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Build your checklist</h2>
-      {note && (
-        <p className="cl-note" style={{ margin: 0 }}>
-          {note}
-        </p>
-      )}
+      <h2>Build your checklist</h2>
+      {note && <p className="cl-note">{note}</p>}
       {view.defaults && (
         <section>
           <h3>Defaults</h3>
@@ -98,7 +94,7 @@ export function ChecklistBuild({
           )}
         </section>
       )}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+      <div className="cl-build-actions">
         <Button
           variant="primary"
           iconLeft="sparkles"

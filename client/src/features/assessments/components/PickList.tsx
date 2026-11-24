@@ -1,5 +1,5 @@
 // A quiet dropdown with a search box and checkboxes; what is picked lists below it, one
-// line each with a small x (CP-37). Called by ChecklistBuild. Calls nothing; the parent owns the picks.
+// row each with a tick and a remove button (CP-37). Called by ChecklistBuild. Calls nothing; the parent owns the picks.
 import { useState } from 'react'
 import { Checkbox, Icon, IconButton, Input, Popover } from '../../../design-system'
 import '../checklist.css'
@@ -46,7 +46,7 @@ export function PickList({
             onClick={() => setOpen(!open)}
           >
             {picked.size} of {options.length} chosen
-            <Icon name="chevron-down" size={16} />
+            <Icon name="chevron-down" size={14} />
           </button>
         }
       >
@@ -75,6 +75,7 @@ export function PickList({
           .filter((o) => picked.has(o.id))
           .map((o) => (
             <li key={o.id}>
+              <Icon name="check" size={16} color="var(--green-600)" />
               <span>{o.label}</span>
               <IconButton
                 icon="x"

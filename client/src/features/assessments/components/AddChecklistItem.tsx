@@ -1,7 +1,7 @@
 // "Add item" at the end of the checklist (CP-37): a question and a section, existing or new.
 // Called by ChecklistItems. Posts through addChecklistItem; the gateway puts it at the end.
 import { useState } from 'react'
-import { Button, Input, Select } from '../../../design-system'
+import { Button, Icon, Input, Select } from '../../../design-system'
 import { GatewayError, addChecklistItem, type ChecklistView } from '../api'
 import '../checklist.css'
 
@@ -26,12 +26,8 @@ export function AddChecklistItem({
   const [error, setError] = useState<string | null>(null)
   if (!open)
     return (
-      <button
-        type="button"
-        className="cl-link"
-        style={{ fontSize: 15 }}
-        onClick={() => setOpen(true)}
-      >
+      <button type="button" className="cl-add-btn" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={16} />
         Add item
       </button>
     )
@@ -58,7 +54,7 @@ export function AddChecklistItem({
   }
   return (
     <form
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', maxWidth: 560 }}
+      className="cl-add-form"
       onSubmit={(e) => {
         e.preventDefault()
         void submit()
@@ -82,11 +78,11 @@ export function AddChecklistItem({
         />
       )}
       {error && (
-        <p role="alert" className="cl-note" style={{ margin: 0 }}>
+        <p role="alert" className="cl-note cl-error">
           {error}
         </p>
       )}
-      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+      <div className="cl-actions">
         <Button type="submit" variant="primary" loading={saving} disabled={saving}>
           Add
         </Button>

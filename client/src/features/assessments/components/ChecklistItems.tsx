@@ -7,6 +7,8 @@ import { toast } from '../../../design-system'
 import {
   GatewayError,
   editChecklistItem,
+  linkObservation,
+  unlinkObservation,
   markChecklistItem,
   removeChecklistItem,
   saveObservation,
@@ -20,6 +22,7 @@ import { country } from '../checklistChecks'
 import { AddChecklistItem } from './AddChecklistItem'
 import { AnswerDialog, type Answer, type AnswerPlace } from './ChecklistAnswer'
 import { ChecklistRow, type Mark } from './ChecklistRow'
+import { LinkObservationPicker } from './LinkObservationPicker'
 import '../checklist.css'
 
 // What answering needs from the screen showing the checklist; null for anyone
@@ -36,12 +39,14 @@ const SHOWN = 8
 const FLASH_MS = 2000
 const HAZARDS = 'hazards'
 
-// Fixed first, then past-report questions, then the rest; the list's own order within each.
+// Unmarked first, then marked (ticked, crossed, not seen); inside each, fixed first, then
+// past-report questions, then the rest, in the list's own order. Presentation only: un-marking
+// puts an item back where it was.
 const rank = (i: ChecklistItem) => (i.fixed ? 0 : i.origin === 'past_report' ? 1 : 2)
 const byRank = (items: ChecklistItem[]) =>
   items
     .map((item, at) => ({ item, at }))
-    .sort((a, b) => rank(a.item) - rank(b.item) || a.at - b.at)
+    .sort((a, b) => +!!a.item.check - +!!b.item.check || rank(a.item) - rank(b.item) || a.at - b.at)
     .map((x) => x.item)
 
 // The same view with one item's check replaced, to show a mark before the gateway answers.
@@ -127,7 +132,12 @@ export function ChecklistItems({
     return () => clearTimeout(timer)
   }, [target, openItem])
   const [undo, setUndo] = useState<ChecklistItem | null>(null)
-  const [answeringItem, setAnsweringItem] = useState<ChecklistItem | null>(null)
+  // The item whose observation is being written, and the result it is written with.
+  const [answeringItem, setAnsweringItem] = useState<{
+    item: ChecklistItem
+    result: 'confirmed' | 'differs'
+  } | null>(null)
+  const [linking, setLinking] = useState<NonNullable<typeof answeringItem> | null>(null)
   const failed = (title: string, e: unknown) =>
     toast.error(title, { description: e instanceof GatewayError ? e.message : 'Try again.' })
 
@@ -167,12 +177,34 @@ export function ChecklistItems({
     }
   }
   // Recording a difference: on site an answer is saved where the engineer is, so that comes first.
-  const record = (item: ChecklistItem) => {
+  const record = (item: ChecklistItem, result: 'confirmed' | 'differs' = 'differs') => {
     const place = answering!.place
     if (place.kind === 'site' && !place.location) return place.choose()
-    setAnsweringItem(item)
+    setAnsweringItem({ item, result })
   }
-  const saveDifference = async (item: ChecklistItem, answer: Answer) => {
+  // Links an existing observation to the item, then reloads so the row shows it.
+  const link = async (observationId: string, { item, result }: NonNullable<typeof linking>) => {
+    try {
+      await linkObservation(observationId, item.id, result)
+      setLinking(null)
+      await reload()
+    } catch (e: unknown) {
+      failed("Couldn't link the observation", e)
+    }
+  }
+  const unlink = async (observationId: string) => {
+    try {
+      await unlinkObservation(observationId)
+      await reload()
+    } catch (e: unknown) {
+      failed("Couldn't unlink the observation", e)
+    }
+  }
+  const saveAnswer = async (
+    item: ChecklistItem,
+    result: 'confirmed' | 'differs',
+    answer: Answer,
+  ) => {
     // Every observation belongs to a capture session; starting one is safe to repeat.
     if (answering!.place.kind === 'tab') await startCaptureSession(reference)
     const saved = await saveObservation(
@@ -182,7 +214,7 @@ export function ChecklistItems({
         copeDimensions: item.COPE_dimension.length ? item.COPE_dimension : null,
         severity: answer.severity,
         locationId: answer.locationId,
-        checklistItem: { itemId: item.id, result: 'differs' },
+        checklistItem: { itemId: item.id, result },
       },
       [],
       answer.photos.map((photo) => ({ name: photo.name, image: photo })),
@@ -251,6 +283,25 @@ export function ChecklistItems({
                   onSaveText={(text) => saveText(item, text)}
                   onRemove={() => void remove(item)}
                   onRecord={answering?.place.kind === 'site' ? () => record(item) : undefined}
+                  onLinkExisting={
+                    answering && item.check
+                      ? () =>
+                          setLinking({
+                            item,
+                            result: item.check!.result as 'confirmed' | 'differs',
+                          })
+                      : undefined
+                  }
+                  onCreateObservation={
+                    answering && item.check
+                      ? () => record(item, item.check!.result as 'confirmed' | 'differs')
+                      : undefined
+                  }
+                  onUnlink={
+                    item.check?.observation
+                      ? () => void unlink(item.check!.observation!.id)
+                      : undefined
+                  }
                   onViewObservation={onViewObservation}
                 />
               ))}
@@ -273,17 +324,24 @@ export function ChecklistItems({
           }}
         />
       )}
+      {linking && (
+        <LinkObservationPicker
+          reference={reference}
+          onClose={() => setLinking(null)}
+          onPick={(o) => void link(o.id, linking)}
+        />
+      )}
       {answeringItem && answering && (
         <AnswerDialog
           reference={reference}
-          kind="differs"
-          item={answeringItem}
+          kind={answeringItem.result === 'confirmed' ? 'confirm' : 'differs'}
+          item={answeringItem.item}
           place={answering.place}
           onClose={() => setAnsweringItem(null)}
-          onSave={(given) => saveDifference(answeringItem, given)}
+          onSave={(given) => saveAnswer(answeringItem.item, answeringItem.result, given)}
           onFullCapture={() => {
             setAnsweringItem(null)
-            answering.onFullCapture(answeringItem)
+            answering.onFullCapture(answeringItem.item)
           }}
         />
       )}

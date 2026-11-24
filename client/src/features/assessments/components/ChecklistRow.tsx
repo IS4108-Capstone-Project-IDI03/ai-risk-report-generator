@@ -1,9 +1,10 @@
 // One checklist question as a plain row (CP-37): a state box that cycles on click, the question,
-// a muted suffix, and a ⋯ menu that appears on hover or focus. Called by ChecklistItems.
+// a muted suffix, a link menu on ticked and crossed rows, and a ⋯ menu that appears on hover or focus. Called by ChecklistItems.
 import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import type { CheckResult, ChecklistItem } from '../api'
 import { itemTitle } from '../checklistChecks'
+import { ChecklistEditText } from './ChecklistEditText'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
 import '../checklist.css'
 
@@ -40,7 +41,7 @@ function suffix(item: ChecklistItem) {
   return parts.join(' · ')
 }
 
-/** Returns one question's row; the menu shows only when there is something to do in it. */
+/** Returns one question's row; the menus show only when there is something to do in them. */
 export function ChecklistRow({
   item,
   canChange,
@@ -50,6 +51,9 @@ export function ChecklistRow({
   onRemove,
   onRecord,
   onViewObservation,
+  onLinkExisting,
+  onCreateObservation,
+  onUnlink,
 }: {
   item: ChecklistItem
   canChange: boolean
@@ -60,31 +64,40 @@ export function ChecklistRow({
   // Only in the site walk: record what was seen as a difference.
   onRecord?: () => void
   onViewObservation: (observationId: string) => void
+  // Only for the engineer answering: the link menu on a ticked or crossed row.
+  onLinkExisting?: () => void
+  onCreateObservation?: () => void
+  onUnlink?: () => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [text, setText] = useState(item.text)
-  const [saving, setSaving] = useState(false)
+  // True after an edit closes, so the text fades back in instead of snapping.
+  const [faded, setFaded] = useState(false)
   const title = itemTitle(item)
   const state = STATE[item.check?.result ?? 'none']
   const observation = item.check?.observation
-  const save = async () => {
-    const next = text.trim()
-    if (!next || next === item.text) return setEditing(false)
-    setSaving(true)
-    try {
-      await onSaveText(next)
-      setEditing(false)
-    } catch {
-      // The parent says why; the box stays open to try again.
-    } finally {
-      setSaving(false)
-    }
-  }
+  const answered = item.check?.result === 'confirmed' || item.check?.result === 'differs'
   const menu: MoreMenuItem[] = [
-    { label: 'Edit', icon: 'pencil', onSelect: () => (setText(item.text), setEditing(true)) },
+    { label: 'Edit', icon: 'pencil', onSelect: () => (setFaded(false), setEditing(true)) },
     { label: 'Delete', icon: 'trash-2', onSelect: onRemove },
     ...(onRecord ? [{ label: 'Record what you saw...', icon: 'mic', onSelect: onRecord }] : []),
   ]
+  const linkMenu: MoreMenuItem[] = observation
+    ? [
+        {
+          label: 'View observation',
+          icon: 'eye',
+          onSelect: () => onViewObservation(observation.id),
+        },
+        ...(onUnlink ? [{ label: 'Unlink observation', icon: 'unlink', onSelect: onUnlink }] : []),
+      ]
+    : [
+        ...(onLinkExisting
+          ? [{ label: 'Link existing observation', icon: 'link', onSelect: onLinkExisting }]
+          : []),
+        ...(onCreateObservation
+          ? [{ label: 'Create new observation', icon: 'plus', onSelect: onCreateObservation }]
+          : []),
+      ]
   return (
     <li
       id={'checklist-item-' + item.id}
@@ -113,27 +126,20 @@ export function ChecklistRow({
         </button>
       )}
       {editing ? (
-        <input
-          className="cl-edit"
-          aria-label={`Edit ${title}`}
-          autoFocus
-          value={text}
-          disabled={saving}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void save()
-            if (e.key === 'Escape') setEditing(false)
-          }}
+        <ChecklistEditText
+          initial={item.text}
+          label={`Edit ${title}`}
+          onSave={onSaveText}
+          onDone={() => (setFaded(true), setEditing(false))}
         />
       ) : (
-        <span className="cl-row-text">
+        <span className={'cl-row-text' + (faded ? ' cl-fade' : '')}>
           {title}
           {suffix(item) && <span className="cl-suffix">{suffix(item)}</span>}
           {observation && (
             <button
               type="button"
               className="cl-link"
-              style={{ marginLeft: 8 }}
               onClick={() => onViewObservation(observation.id)}
             >
               View observation
@@ -141,9 +147,20 @@ export function ChecklistRow({
           )}
         </span>
       )}
+      {canChange && !editing && answered && linkMenu.length > 0 && (
+        <span className="cl-link-menu">
+          <MoreMenu
+            items={linkMenu}
+            icon="link"
+            size="sm"
+            label="Link an observation"
+            popoverLabel="Link an observation"
+          />
+        </span>
+      )}
       {canChange && !editing && (
         <span className="cl-more">
-          <MoreMenu items={menu} label={`More actions for ${title}`} />
+          <MoreMenu items={menu} size="sm" label={`More actions for ${title}`} />
         </span>
       )}
     </li>

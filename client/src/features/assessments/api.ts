@@ -539,10 +539,23 @@ export async function updateObservation(
     asked?: boolean
     // Keeps these not-sure values as they are: they become the engineer's (CP-24).
     confirm?: ('category' | 'severity')[]
+    // Links it to a checklist item, or null unlinks it (CP-37).
+    checklistItem?: { itemId: string; result: 'confirmed' | 'differs' } | null
   },
 ): Promise<SavedObservation> {
   return (await request<SavedObservation>('PATCH', observationPath(id), changes)).data
 }
+
+/** Returns the observation after linking it to a checklist item as confirmed or differs (CP-37). */
+export const linkObservation = (
+  observationId: string,
+  itemId: string,
+  result: 'confirmed' | 'differs',
+) => updateObservation(observationId, { checklistItem: { itemId, result } })
+
+/** Returns the observation after cutting its link to any checklist item (CP-37). */
+export const unlinkObservation = (observationId: string) =>
+  updateObservation(observationId, { checklistItem: null })
 
 /** Returns the observation with the named not-sure fields confirmed as they are (CP-24). */
 export async function confirmSuggestion(
