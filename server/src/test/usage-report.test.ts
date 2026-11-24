@@ -110,6 +110,8 @@ describe('GET /api/usage/summary (EV-04)', () => {
       'split-note',
       // Calls made for a walkthrough or on a practice assessment (F-12).
       'walkthrough',
+      // Comparing with the previous report (RV-13).
+      'report-comparison',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })

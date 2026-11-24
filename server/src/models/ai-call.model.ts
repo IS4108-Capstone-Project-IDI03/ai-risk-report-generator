@@ -41,6 +41,8 @@ export const AI_FEATURES = [
   // Any call made on a practice assessment or while a walkthrough's try-it runs (F-12): stored
   // with no reportId, so assessment totals stay clean. Set by ai-usage.service.ts recordAiCalls.
   'walkthrough',
+  // Comparing an assessment with the previous report for the same site (RV-13), in rag-service.
+  'report-comparison',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

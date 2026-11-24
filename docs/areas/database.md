@@ -581,9 +581,9 @@ with the same list.
 
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
-| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
+| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19); `GET /api/assessments/:reference/comparison` (RV-13, its assigned engineer or a knowledge admin) | yes | yes |
 | `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and trying a suggestion again (CP-24); tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
-| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only) | yes | yes |
+| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only); running a comparison with the previous report and deciding its items (`POST /api/assessments/:reference/comparison…`, RV-13; the assigned engineer only, not archived) | yes | yes |
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
@@ -1440,6 +1440,81 @@ workspace }`. Refusals carry `cause`, `next`, `at` and `code`: `stale` (the
 section changed since; AC6), `drafting-set` (a standard it cites is no longer
 selected; AC4), `unsupported` (Accept with a sentence unsupported; AC3),
 `state`, `target`, `moved` or `finalised`.
+
+## Report comparisons (RV-13)
+
+`report_comparisons` (`server/src/models/report-comparison.model.ts`) holds one
+document per run of Compare with previous report: an assessment compared with
+an earlier finalised report of the same site. It is kept apart from the report:
+nothing here writes a section, version, review log entry or finding, and the
+export never reads it (CLAUDE.md). Written by `report-comparison.service.ts`;
+the rules are `report-comparison-rules.ts` (`rv13-rules-v1`). Each document has:
+
+- `assessment`, and `previous`: the report compared with, `{ assessment,
+  reference, siteVisitDate, engineer: { id, name } }` (its lead engineer as they
+  were named then).
+- `status`: `done`, or `failed` with `error` (the reason shown with its time).
+  A failed run holds no items; the tab shows the latest `done` run and a
+  failure newer than it.
+- `previousItems`: the previous report's findings and recommendations as they
+  were compared, in report order: each paragraph and list item of Sections 4 to
+  12 as the report reads it (`currentDocument`), and each accepted OFI. Each has
+  a `key` (`P:<section>:<finding>`, `P:<section>:b<n>` for the engineer's own
+  text, `P:3:<OFI id>`), its `label` for S4 (`P1`…), `kind` (`finding` or
+  `recommendation`), `sectionId`, `section` ("9. Fire Protection"), `heading`
+  (subsection, or an OFI's number and title), `quote` (the report's words,
+  never the model's), `context` (an OFI's Observation column), `severity` (the
+  highest of the observations it cites, as its draft was given them),
+  `priority` (an OFI's), `categories` and `location`.
+- `sources`: the current evidence as it was compared: observations with words
+  (`O:<id>`), draft findings as reviewed (`F:<section>:<draft id>:<finding>`)
+  and accepted OFIs (`R:<id>`), each with `label` (`O1`, `F1`, `R1`), `kind`,
+  `section`, `title`, `text`, `severity` (the engineer's only: one still to
+  check is null), `priority`, `categories`, `location`, `observations` (the
+  observation it is, or those it cites), `finding`, and `textHash` and
+  `tagHash`: its words and its tags (category, severity, location, priority)
+  then. A source whose hashes differ now, or that is gone, makes the comparison
+  out of date.
+- `items`: the outcome for each previous item after the rules: `key`,
+  `outcome` (`fixed`, `improved`, `unchanged`, `worse`, `not_checked`, or null
+  while sources disagree), `suggested` (the model's), `sources`, `disagree`,
+  `possible` (source keys), `reason`, `missing`, `confidence`, `figures` (`name`,
+  `previous` and `current` as written, `source`, and `difference` worked out in
+  code, or a `note` saying why not) and `corrections` (what the rules changed:
+  `no_source`, `severity`, `omitted`, `figure`). New items are not stored: they
+  are worked out on read from the sources no item is compared with.
+- `decisions`: appended, never changed. Each records an item's whole state after
+  it (`item`, `action` (`accept`, `outcome`, `pair`, `unpair`, `dismiss`,
+  `restore`), `outcome`, `sources`, `note`, `dismissed`), `by` `{ id, name }`,
+  `at`, and `carriedFrom` (the comparison it was copied from by Compare again,
+  else null). An item reads its latest decision that chose an outcome or
+  sources; dismissing and restoring only hide and show it.
+- `recheck`: items Compare again flagged for another look, with the reason.
+- `dropped`, `provenance` (`provider`, `model`, `effort`, `prompt_version`,
+  `rules_version`, `generated_at`, `privacy: { enabled, masked_count }`; null
+  for a failed run), `createdBy` `{ id, name }`.
+- `metadata`: `source_type: 'report_comparison'`, `jurisdiction` and
+  `facility_type` from the site, `COPE_dimension: 'all'` (it covers the whole
+  report), `effective_date`.
+
+Index: `{ assessment, previous.reference, createdAt: -1 }`.
+
+`npm --prefix server run seed:comparison` adds a demo to try it on: Kestrel
+Frozen Foods' Tuas Cold Store (`SITE-9101`) with four of Alex's visits,
+`RPT-2026-9101` (finalised, one observation), `RPT-2026-9102` (finalised, with
+drafted Sections 7 to 10 and two accepted OFIs: the previous report),
+`RPT-2026-9103` (eight observations written to give each outcome) and
+`RPT-2026-9104` (no observations). It makes no AI call; pressing Compare does.
+It refuses to add anything when one of those references, the site code or the
+client name is already used by other data. `seed:comparison:remove` removes
+only what is at that site, its comparisons included and any assessment created
+there while trying it. Run `npm run seed` first.
+
+| Route (under `/api/assessments/:reference/comparison`) | Does |
+| --- | --- |
+| `GET /` | The tab: `{ previousReports, previous, canChange, readOnly, observations, comparison, failure, running }`. `?previous=<reference>` picks the report; the latest earlier finalised one otherwise. `comparison` is the latest run against it, with its items as decided (New ones included, in the tab's order), `counts`, `summary`, `sources` and `outOfDate` (`{ summary, changes }` naming what was added, deleted, retagged or edited since, or null). `assessments:view` and its engineer or a knowledge admin: 403 otherwise, 404 a report that is not an earlier finalised one. No S4 call. |
+| `POST /` | `{ previous }`: runs a comparison through S4. 201 with the tab; 400 no report named; 403 not the assigned engineer; 404; 409 archived, no saved observation, nothing to compare or a run under way; 503 `{ error, failedAt }` when S4 failed (kept as a failed run; the last comparison stays). `reports:generate`. |
+| `POST /:comparisonId/items/:item/decision` | `{ action, outcome?, sources?, note? }` (note up to 500 characters): one decision on one item of the latest comparison. 200 with the tab; 400 (`fields.note` for Fixed with no current source and no note, `fields.outcome` for sources that disagree with no outcome chosen or Not checked with a source); 403; 404 unknown comparison or item; 409 archived, or a newer comparison since. `reports:generate`. |
 
 ## Opportunities for Improvement (GN-05)
 

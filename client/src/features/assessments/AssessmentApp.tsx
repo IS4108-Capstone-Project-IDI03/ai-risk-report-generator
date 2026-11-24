@@ -38,6 +38,7 @@ import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ReportExport } from './screens/ReportExport'
 import { ValidationExport } from './screens/ValidationExport'
+import { ComparisonTab } from './comparison/ComparisonTab'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { Recordings } from './screens/Recordings'
@@ -548,6 +549,30 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         />
                       ) : (
                         <Review v={v} />
+                      ))}
+
+                    {v.isComparison &&
+                      (v.liveReference ? (
+                        <ComparisonTab
+                          reference={v.liveReference}
+                          // An observation or a section opens past an unsaved document's leave
+                          // guard, as the tabs do.
+                          onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
+                          onOpenSection={(section) =>
+                            guardLeave(() => {
+                              v.setTab('review')
+                              setGoTo({ tab: 'review', params: { section } })
+                            })
+                          }
+                        />
+                      ) : (
+                        <div style={{ padding: '24px' }}>
+                          <EmptyState
+                            icon="git-compare"
+                            title="Comparison is unavailable with sample data"
+                            description="A comparison needs saved reports from the gateway. Open a saved assessment from the dashboard to compare it with the previous report for its site."
+                          />
+                        </div>
                       ))}
 
                     {v.isExport &&

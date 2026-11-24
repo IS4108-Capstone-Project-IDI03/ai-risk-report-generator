@@ -27,6 +27,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'split-note': 'Shorthand note split',
   // Calls made while a walkthrough's try-it runs (F-12); costed to no assessment.
   walkthrough: 'Walkthrough',
+  // Comparing an assessment with the previous report for the same site (RV-13).
+  'report-comparison': 'Comparison with previous report',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {

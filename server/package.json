@@ -15,6 +15,8 @@
     "seed:cp29:remove": "ts-node --transpile-only src/scripts/seed-cp29-demo.ts --remove",
     "seed:cp61": "ts-node --transpile-only src/scripts/seed-cp61-demo.ts",
     "seed:cp61:remove": "ts-node --transpile-only src/scripts/seed-cp61-demo.ts --remove",
+    "seed:comparison": "ts-node --transpile-only src/scripts/seed-comparison-demo.ts",
+    "seed:comparison:remove": "ts-node --transpile-only src/scripts/seed-comparison-demo.ts --remove",
     "seed:usage": "ts-node --transpile-only src/scripts/seed-ai-usage.ts",
     "seed:gn01": "ts-node --transpile-only src/scripts/seed-gn01.ts",
     "seed:case": "ts-node --transpile-only src/scripts/seed-eval-case.ts",
