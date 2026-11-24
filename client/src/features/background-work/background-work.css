@@ -144,14 +144,15 @@
    words and their icon only), and Try again beside it where the user may. */
 .bgw-row__failed {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   margin-top: var(--space-3);
 }
 .bgw-row__error {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  min-width: 0;
   gap: var(--space-2);
   margin: 0;
   color: var(--red-600);
@@ -159,5 +160,11 @@
   line-height: 18px;
 }
 .bgw-row__error > [role='presentation'] {
-  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.bgw-row__reason {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

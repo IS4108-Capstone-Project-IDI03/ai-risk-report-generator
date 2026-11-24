@@ -378,6 +378,16 @@ describe('a failed job', () => {
     expect(opened).toEqual([{ reference: 'RPT-2026-0913', walkId: 'w1' }])
   })
 
+  it('keeps a long reason to one line, with the whole of it as its tooltip', async () => {
+    const reason =
+      "Client details couldn't be protected because the privacy service didn't respond in time, so nothing was sent to the AI model. Try again in a moment."
+    const popover = await openWith([{ ...failed, error: reason }])
+
+    const shown = within(popover).getByText(reason)
+    expect(shown.closest('.bgw-row__error')).toHaveAttribute('title', reason)
+    expect(shown).toHaveClass('bgw-row__reason')
+  })
+
   it('offers no Try again where the user may not start it again', async () => {
     const popover = await openWith([{ ...failed, retry: undefined }])
 

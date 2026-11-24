@@ -45,9 +45,11 @@ export function BackgroundWorkItem({
       </button>
       {row.state === 'failed' && (
         <div className="bgw-row__failed">
-          <p className="bgw-row__error">
+          {/* One line, so several failures don't flood the popover; the whole
+              reason is its tooltip, and on the job's own page. */}
+          <p className="bgw-row__error" title={row.error}>
             <Icon name="circle-alert" size={14} />
-            {row.error}
+            <span className="bgw-row__reason">{row.error}</span>
           </p>
           {row.retry && (
             <Button
