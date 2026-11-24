@@ -118,36 +118,18 @@ async function observation(
 
 const url = `/api/assessments/${REFERENCE}/ofis`
 
-const PARTS = [
-  {
-    id: 'p1',
-    kind: 'fact',
-    text: 'The valve was shut.',
-    shorthand: 'F: valve shut',
-    inferred: false,
-  },
-  {
-    id: 'p2',
-    kind: 'info_request',
-    text: 'Ask for the valve schedule.',
-    shorthand: 'IR: schedule',
-    inferred: false,
-  },
-  {
-    id: 'p3',
-    kind: 'recommendation',
-    text: 'Lock the valve open and fit a tamper switch.',
-    shorthand: 'REC: lock open',
-    inferred: false,
-  },
-]
+const tag = (id: unknown, kinds: string[]) => ObservationModel.updateOne({ _id: id }, { kinds })
 
-describe('OFI hand-off of recommendations (CP-35)', () => {
-  it('sends an observation its recommendation parts, with only its facts as the note', async () => {
+describe('OFI hand-off of recommendations (CP-36)', () => {
+  it('sends a Fact + Recommendation its recommendation, and a Recommendation-only one with no facts', async () => {
     const { assessment: a, session } = await assessment()
     const ids = { assessment: a._id, session: session._id }
-    const split = await observation(ids, 'F: valve shut\nIR: schedule\nREC: lock open')
-    await ObservationModel.updateOne({ _id: split._id }, { parts: PARTS })
+    const both = await observation(ids, 'Pump is 20 years old, replace it.')
+    await tag(both._id, ['fact', 'recommendation'])
+    const recOnly = await observation(ids, 'Fit a tamper switch.', 'low')
+    await tag(recOnly._id, ['recommendation'])
+    const ask = await observation(ids, 'Ask for the valve schedule.')
+    await tag(ask._id, ['info_request'])
     const plain = await observation(ids, 'Panel is monitored.', 'high')
 
     expect((await api.post(`${url}/draft`)).status).toBe(201)
@@ -157,25 +139,27 @@ describe('OFI hand-off of recommendations (CP-35)', () => {
       note: string
       recommendations?: string[]
     }[]
-    const withRec = sent.find((o) => o.id === String(split._id))!
-    expect(withRec.note).toBe('The valve was shut.')
-    expect(withRec.recommendations).toEqual(['Lock the valve open and fit a tamper switch.'])
-    // Info requests are never sent as evidence or as recommendations.
-    expect(JSON.stringify(withRec)).not.toContain('valve schedule')
-    // An observation with no recommendation reads exactly as before.
-    expect(sent.find((o) => o.id === String(plain._id))).not.toHaveProperty('recommendations')
+    const find = (o: { _id: unknown }) => sent.find((x) => x.id === String(o._id))!
+    expect(find(both).note).toBe('Pump is 20 years old, replace it.')
+    expect(find(both).recommendations).toEqual(['Pump is 20 years old, replace it.'])
+    // Low severity still reaches OFI drafting, with no fact to state.
+    expect(find(recOnly).note).toBe('')
+    expect(find(recOnly).recommendations).toEqual(['Fit a tamper switch.'])
+    // Information requests are never sent; an untagged one reads exactly as before.
+    expect(sent.find((x) => x.id === String(ask._id))).toBeUndefined()
+    expect(find(plain)).not.toHaveProperty('recommendations')
   })
 
-  it('marks an OFI that rests on an observation with a recommendation', async () => {
+  it('marks an OFI that rests on a recommendation, and keeps the mark after a reload', async () => {
     const { assessment: a, session } = await assessment()
     const ids = { assessment: a._id, session: session._id }
-    const split = await observation(ids, 'F: valve shut\nREC: lock open')
-    await ObservationModel.updateOne({ _id: split._id }, { parts: PARTS })
+    const rec = await observation(ids, 'Lock the valve open.')
+    await tag(rec._id, ['recommendation'])
     const plain = await observation(ids, 'Panel is monitored.', 'high')
     drafts.mockImplementation(() =>
       json(
         reply([
-          { ...OFI, title: 'Lock the valve open', observations: [String(split._id)] },
+          { ...OFI, title: 'Lock the valve open', observations: [String(rec._id)] },
           { ...OFI, title: 'Improve panel monitoring', observations: [String(plain._id)] },
         ]),
       ),
@@ -187,7 +171,6 @@ describe('OFI hand-off of recommendations (CP-35)', () => {
       suggestions.find((x: { title: string }) => x.title === title).fromRecommendation
     expect(flag('Lock the valve open')).toBe(true)
     expect(flag('Improve panel monitoring')).toBe(false)
-    // It survives a reload: it is stored, not worked out in the browser.
     const listed = (await api.get(url)).body.suggestions
     expect(
       listed.find((x: { title: string }) => x.title === 'Lock the valve open').fromRecommendation,

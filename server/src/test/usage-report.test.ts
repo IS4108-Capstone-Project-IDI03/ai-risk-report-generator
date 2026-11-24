@@ -107,7 +107,7 @@ describe('GET /api/usage/summary (EV-04)', () => {
       // Searching a knowledge document by meaning (IN-17).
       'knowledge-search',
       // Sorting a shorthand note (CP-35).
-      'split-note',
+      'suggest-kinds',
     ])
     const draft = body.byFeature[0]
     expect(draft).toMatchObject({ calls: 2 })

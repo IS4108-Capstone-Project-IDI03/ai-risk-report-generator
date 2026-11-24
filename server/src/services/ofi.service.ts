@@ -10,7 +10,12 @@ import { recordAiCalls } from './ai-usage.service'
 import { AssessmentNotFoundError } from './capture-session.service'
 import { findKnowledgeDocuments } from './knowledge-document.service'
 import { requestOfiDraft } from './rag.service'
-import { assessmentToDraft, draftingEvidence, draftingRecommendations } from './section.service'
+import {
+  assessmentToDraft,
+  draftingEvidence,
+  draftingRecommendations,
+  recommendationOnlyEvidence,
+} from './section.service'
 import { privacyFor } from './privacy.service'
 
 export class OfiNotFoundError extends Error {
@@ -137,9 +142,12 @@ export async function listOfis(reference: string) {
 // titles so it doesn't propose them again.
 export async function draftOfis(reference: string, user: SessionUser) {
   const assessment = await assessmentToDraft(reference, user)
-  const evidence = await draftingEvidence(reference)
-  // CP-35: each observation's recommendation parts ride with it; the OFI is based on them.
   const recommendations = await draftingRecommendations(reference)
+  // CP-36: facts, plus recommendation-only observations (no fact), so every recommendation is a candidate.
+  const evidence = [
+    ...(await draftingEvidence(reference)),
+    ...(await recommendationOnlyEvidence(reference)),
+  ]
   const accepted = await ReportOfiModel.find({ assessment: assessment._id, state: 'accepted' })
     .select('title')
     .lean()
