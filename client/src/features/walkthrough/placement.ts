@@ -126,6 +126,31 @@ function pinnedOver(hit: Element, target: HTMLElement): HTMLElement | null {
   return null
 }
 
+/** Returns a target's lit part [top, bottom] trimmed to clear a pinned bar over either edge (the Ask
+    panel's question box, pinned over the answer that scrolls under it). Without this the bar was lit
+    as if it were part of the target. */
+export function pinnedCut(
+  el: HTMLElement,
+  r: { left: number; right: number },
+  top: number,
+  bottom: number,
+  win: Size,
+): [number, number] {
+  if (!document.elementsFromPoint || bottom - top < 8) return [top, bottom] // jsdom lays nothing out
+  const x = Math.min(Math.max((r.left + r.right) / 2, 1), win.w - 1)
+  const barAt = (y: number) => {
+    const hit = document
+      .elementsFromPoint(x, y)
+      .find((n) => !n.closest('.wt-layer, .driver-overlay'))
+    return hit && !el.contains(hit) ? pinnedOver(hit, el)?.getBoundingClientRect() : undefined
+  }
+  const below = barAt(bottom - 2)
+  if (below && below.top > top) bottom = below.top
+  const above = barAt(top + 2)
+  if (above && above.bottom < bottom) top = above.bottom
+  return [top, bottom]
+}
+
 // A pinned bar (a form's Cancel and Create, an editor's toolbar) can sit over a target that is inside
 // the window, where no scroll would otherwise happen: the covered edge is scrolled clear of the bar.
 export function uncover(els: HTMLElement[], win: Size, edges: ('bottom' | 'top')[]): void {

@@ -2,7 +2,7 @@
 // scroll, resize and each new step), marking them with data-walk-on, and keeping a value on screen
 // while it fades out. Called by WalkthroughHost. Calls settle.ts (findTarget) and placement.ts.
 import { useEffect, useState } from 'react'
-import { clipBox, scrollerOn, visibleY, type Box } from './placement'
+import { clipBox, pinnedCut, scrollerOn, visibleY, type Box } from './placement'
 import { findTarget } from './settle'
 
 /** Keeps the last non-null value for `ms` after it goes, so it can fade out; returns it and whether it is leaving. */
@@ -27,15 +27,17 @@ export function measure(key: string): Measured | null {
   if (!els.length || !els.every(Boolean)) return null
   // Each target is cut to what its own scroller shows, so a union taller than a panel's body does
   // not light the panel's header or footer as well.
+  // Then clear of a bar pinned over it (pinnedCut).
+  const win = { w: window.innerWidth, h: window.innerHeight }
   const rects = (els as HTMLElement[]).map((el) => {
     const r = el.getBoundingClientRect()
     const scroller = scrollerOn(el, 'y')
-    if (!scroller) return r
-    const [vTop, vBottom] = visibleY(scroller, { w: window.innerWidth, h: window.innerHeight })
-    const top = Math.min(Math.max(r.top, vTop), vBottom)
-    return { left: r.left, right: r.right, top, bottom: Math.max(Math.min(r.bottom, vBottom), top) }
+    const [vTop, vBottom] = scroller ? visibleY(scroller, win) : [r.top, r.bottom]
+    const shownTop = Math.min(Math.max(r.top, vTop), vBottom)
+    const shownBottom = Math.max(Math.min(r.bottom, vBottom), shownTop)
+    const [top, bottom] = pinnedCut(el, r, shownTop, shownBottom, win)
+    return { left: r.left, right: r.right, top, bottom }
   })
-  const win = { w: window.innerWidth, h: window.innerHeight }
   const x = Math.min(...rects.map((r) => r.left))
   const y = Math.min(...rects.map((r) => r.top))
   const w = Math.max(...rects.map((r) => r.right)) - x

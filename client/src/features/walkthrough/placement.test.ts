@@ -7,6 +7,7 @@ import {
   bringIntoView,
   clipBox,
   cutTo,
+  pinnedCut,
   placeBubble,
   roomFor,
   wholeRowsFrom,
@@ -283,5 +284,21 @@ describe('betweenLines', () => {
     expect(betweenLines(sheet, 200)).toBe(158)
     Reflect.deleteProperty(Range.prototype, 'getClientRects')
     sheet.remove()
+  })
+})
+
+describe('pinnedCut', () => {
+  // The Ask answer scrolls under the panel's pinned question box: the lit part stops above it.
+  it('stops a target’s lit part above a pinned bar over its bottom, and leaves an uncovered one alone', () => {
+    const target = document.body.appendChild(document.createElement('div'))
+    const bar = document.body.appendChild(document.createElement('div'))
+    bar.style.position = 'sticky'
+    bar.getBoundingClientRect = () => ({ top: 700, bottom: 900 }) as DOMRect
+    const at = vi.fn((_x: number, y: number) => (y > 700 ? [bar] : [target]))
+    document.elementsFromPoint = at
+    expect(pinnedCut(target, { left: 0, right: 300 }, 180, 895, WIN)).toEqual([180, 700])
+    expect(pinnedCut(target, { left: 0, right: 300 }, 180, 650, WIN)).toEqual([180, 650])
+    target.remove()
+    bar.remove()
   })
 })
