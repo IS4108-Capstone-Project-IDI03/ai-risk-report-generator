@@ -324,6 +324,15 @@ describe('acting on a knowledge row', () => {
 })
 
 describe('a failed job', () => {
+  // Records the detail of each `event` the app is asked to follow.
+  function heardOnce(event: string) {
+    const details: unknown[] = []
+    const listen = (e: Event) => details.push((e as CustomEvent).detail)
+    window.addEventListener(event, listen)
+    afterEach(() => window.removeEventListener(event, listen))
+    return details
+  }
+
   const failed: BackgroundWorkRow = {
     ...walk,
     state: 'failed',
@@ -332,6 +341,8 @@ describe('a failed job', () => {
   }
 
   it('says why, and tries again by its own route, then reads the list again', async () => {
+    // Try again stays in the popover: it must not open the job as the row does.
+    const opened = heardOnce(siteWalkReview.event)
     // The walk is failed until Try again is accepted, then working.
     const posted: string[] = []
     vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
@@ -355,6 +366,16 @@ describe('a failed job', () => {
       expect(within(popover).queryByText('A recording could not be transcribed.')).toBeNull(),
     )
     expect(posted).toEqual(['/api/assessments/RPT-2026-0913/site-walks/w1/retry'])
+    expect(opened).toEqual([])
+  })
+
+  it('opens its job when its reason is clicked, as the rest of the row does', async () => {
+    const opened = heardOnce(siteWalkReview.event)
+    const popover = await openWith([failed])
+
+    fireEvent.click(within(popover).getByText('A recording could not be transcribed.'))
+
+    expect(opened).toEqual([{ reference: 'RPT-2026-0913', walkId: 'w1' }])
   })
 
   it('offers no Try again where the user may not start it again', async () => {

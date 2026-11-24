@@ -59,6 +59,7 @@
 .bgw-row {
   padding: 10px var(--space-6);
   border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .bgw-row:focus-within {

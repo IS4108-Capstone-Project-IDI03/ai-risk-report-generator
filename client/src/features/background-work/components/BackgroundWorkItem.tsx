@@ -30,16 +30,15 @@ export function BackgroundWorkItem({
       )
       .finally(() => setRetrying(false))
   }
+  const open = () => {
+    onOpen()
+    openWork(row)
+  }
   return (
-    <li className="bgw-row">
-      <button
-        type="button"
-        className="bgw-row__open"
-        onClick={() => {
-          onOpen()
-          openWork(row)
-        }}
-      >
+    // The whole row opens the job by pointer, its reason included; its buttons
+    // (open, Try again) handle their own presses, and the keyboard uses the open button.
+    <li className="bgw-row" onClick={(e) => !(e.target as HTMLElement).closest('button') && open()}>
+      <button type="button" className="bgw-row__open" onClick={open}>
         <span className="bgw-row__title">{row.title}</span>
         <span className="bgw-row__context">{row.context.label}</span>
         <Progress row={row} />
