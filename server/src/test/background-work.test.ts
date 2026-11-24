@@ -402,11 +402,34 @@ describe('drafting (GN-13)', () => {
         state: 'running',
         title: 'Drafting the report',
         context: { label: 'Jurong Cold Store', reference: REF },
-        progress: { type: 'stages', current: 2, total: 4, unit: 'parts' },
+        progress: {
+          type: 'stages',
+          current: 2,
+          total: 4,
+          unit: 'parts',
+          segments: ['done', 'done', 'working', 'empty'],
+        },
         startedAt: startedAt.toISOString(),
         href: `/assessment?ref=${REF}&tab=generate`,
       }),
     ])
+  })
+
+  it('a section that fails while the run goes on shows where it fell, before the run is over', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      { '3': job('done'), '6': job('failed', { error: 'No evidence.' }), '7': job('drafting') },
+      { parts: ['3', '6', '7'], startedAt: new Date(), finishedAt: null },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0]).toMatchObject({
+      state: 'running',
+      progress: { segments: ['done', 'failed', 'working'] },
+    })
   })
 
   it('a section that failed, once the run is over, shows its reason and where to draft it again', async () => {

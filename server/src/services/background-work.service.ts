@@ -270,6 +270,21 @@ const SEGMENT: Record<PartJobStatus, Segment> = {
   drafting: 'working',
   queued: 'empty',
 }
+// A run's parts drafted of those it drafts, and a segment for each in run
+// order, so a part that failed shows where it fell, during the run or after.
+function runProgress(
+  order: string[],
+  parts: IDraftingRun['parts'] | undefined,
+): BackgroundWorkRow['progress'] {
+  return {
+    type: 'stages',
+    current: order.filter((id) => parts?.[id]?.status === 'done').length,
+    total: order.length,
+    unit: 'parts',
+    segments: order.map((id) => SEGMENT[parts?.[id]?.status ?? 'queued']),
+  }
+}
+
 function draftingRows(
   d: Pick<IDraftingRun, 'parts' | 'run'>,
   assessment: OwnAssessment,
@@ -287,12 +302,7 @@ function draftingRows(
         id: `drafting:${assessment.reference}`,
         state: 'running',
         title: 'Drafting the report',
-        progress: {
-          type: 'stages',
-          current: run.parts.filter((id) => d.parts?.[id]?.status === 'done').length,
-          total: run.parts.length,
-          unit: 'parts',
-        },
+        progress: runProgress(run.parts, d.parts),
         startedAt: new Date(run.startedAt).toISOString(),
       },
     ]
@@ -325,15 +335,7 @@ function draftingRows(
       title: 'Drafting the report',
       // The run's sections in order, so the failed ones show where they fall.
       // Failures from Review alone, with no run, have no order to show.
-      progress: run
-        ? {
-            type: 'stages',
-            current: run.parts.filter((id) => d.parts?.[id]?.status === 'done').length,
-            total: run.parts.length,
-            unit: 'parts',
-            segments: run.parts.map((id) => SEGMENT[d.parts?.[id]?.status ?? 'queued']),
-          }
-        : { type: 'working', stage: 'Drafting' },
+      progress: run ? runProgress(run.parts, d.parts) : { type: 'working', stage: 'Drafting' },
       error:
         failed.length === 1
           ? (only.error ?? `Section ${onlyId} could not be drafted.`)
