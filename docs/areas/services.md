@@ -1527,6 +1527,57 @@ so it adds no endpoint, collection or model call.
 - **New assessment on a day** opens the New Assessment form (CP-23) with that day as the first
   assessment's survey start; nothing is created until the form is.
 
+## Site weather (gateway, CP-62)
+
+Whether it is raining or stormy at an assessment's site now, and whether rain is expected in the
+next 2 hours, so an engineer doesn't set off for an outdoor or below-ground inspection in it. It is
+advisory: nothing is blocked. Shown on the Overview (a bar above MarshBot's conversation), on New
+Observation (a card above the form) and on each Assessments row whose survey days include today.
+
+- **Route:** `GET /api/assessments/:reference/weather` (`routes/weather.routes.ts`,
+  `assessments:view`), mounted with `requireAuthNoRefresh`: the panel reads it every 10 minutes and
+  must not keep an idle session alive (F-07). 404 for an unknown assessment; `Cache-Control: no-store`.
+  It answers 200 with one of:
+  - `{ status: 'ok', reading, source }`: `reading` holds `observedAt`, `fetchedAt`, `timeZone` (the
+    site's IANA zone), `condition` (the provider's words), `raining`, `thunder`,
+    `rainfallMmPerHour`, `temperatureC`, `forecast` (`hours` that overlap the next 2 hours, each with
+    `chancePercent`, `rainfallMm`, `rain`, `thunder`; and `rainExpected`, `thunderExpected`) and
+    `located` (`pin` or `address`); `source` is `{ name: 'Google Weather', url }`.
+  - `{ status: 'no-address', address }`: no address and no pin (`address: null`), or an address the
+    geocoder can't place (the address). The panel says "Add the site address to see weather".
+  - `{ status: 'unavailable', lastReadingAt, timeZone, source }`: the geocoder or the weather API
+    couldn't be reached, timed out (8 s) or refused. Never a reading.
+  - `{ status: 'unconfigured' }`: no `GOOGLE_MAPS_SERVER_KEY`.
+- **Where** (`site-weather.service.ts` `locate`): the site's own `coordinates` (the engineer's pin,
+  CP-26) when set; otherwise its `address`, geocoded once (`weather-provider.ts` `geocodeAddress`,
+  Google's Geocoding API with the jurisdiction as `region`) and kept on the site as `geocode`. A
+  result that is only a country or a state counts as not found. The look-up happens on the first
+  weather read, so sites made before CP-62 need nothing run, and a corrected address (CP-18) is
+  looked up again because `geocode.address` no longer matches.
+- **Reading** (`readWeather`): Google's Weather API, `currentConditions:lookup` and
+  `forecast/hours:lookup?hours=3`, in metric. Its current `precipitation.qpf` is the last hour's
+  rain, shown as mm/h.
+- **What counts** (`judge`, thresholds in `.env`, so every screen agrees):
+  - Raining: a rain, hail or thunder condition (`RAIN_TYPES`; `CHANCE_OF_SHOWERS` is not rain), or
+    rain at or above `WEATHER_RAINING_MM_PER_HOUR` (default 0.5; 0 means any).
+  - Thunder: a condition whose type contains `THUNDER`.
+  - Rain expected: an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT`
+    (default 50), or rain at or above the mm/h threshold. Thunder expected: a thunder condition, or a
+    thunder chance at or above the same percent.
+- **Kept** in memory per site for 10 minutes (`WEATHER_CACHE_MS`), so assessments at one site share
+  a reading and the provider is called at most once per site in that time; reads at the same moment
+  share one call. After a failure the provider isn't asked again for 30 seconds
+  (`WEATHER_RETRY_MS`). The last good reading's time is kept for `unavailable`. A restart forgets
+  them all, at the cost of one call per site.
+- **Browser** (`client/src/features/assessments/weather/`): `useSiteWeather.ts` reads on open, 10
+  minutes after each answer and on Refresh; a hidden tab skips its turn and reads when shown, and the
+  clock ticks each minute so a reading over 30 minutes old is labelled Stale. A failed read shows
+  "Weather unavailable" with the last good reading's time, never the old reading. Refresh asks the
+  gateway at once, which still answers from its 10-minute copy. `weatherWords.ts` words it and picks
+  the one warning, strongest first: a thunderstorm (`role="alert"`), rain now, then rain expected
+  (`role="status"`), each naming the source and that it is advisory. Times are in the site's zone.
+  `SiteWeatherPanel.tsx` is the panel (bar or card), `RowWeather.tsx` an Assessments row's line.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for
@@ -1956,13 +2007,94 @@ S4 may cite and what happens to the answer.
 - **Export**: `exportBlockers` lists a section with AI text awaiting Accept or
   with an unsupported sentence of it (AC3).
 
+### Writing guidance for a section (AS-08)
+
+Two buttons above the Ask tab's question box ask about the part of the report
+open (in the document editor, the one the cursor is in): **What should this
+section cover?** (`list-checks`) and **What is missing from this section?**
+(`list-x`). They are asked by button, never guessed from what is typed
+(DECISIONS 2026-11-24), into the conversation on screen, and need only
+`reports:ask`, so a knowledge admin can ask too. The question kept is the
+gateway's own wording ("What is missing from 9. Fire Protection?"). On an
+archived assessment the buttons are not shown and the gateway answers 409.
+
+- **What it should cover** (AC1), Sections 4 to 12: `POST …/ask` with
+  `{ guide: { kind: 'cover', sectionId } }`. The gateway names the section
+  from S4's template (`GET /sections`; 404 for one it doesn't list), counts the
+  question against the limits as any other, and sends S4 `guide: { kind,
+  section_id, section_title }` with the standards selected on the assessment
+  (as AS-01 reads them) and no observations or past reports. S4
+  (`orchestrator.cover`, prompt and template in `app/generation/guide.py`,
+  `as08-v1`, `ASK_EFFORT` on `ASK_MODEL`) runs retrieve → assemble → generate
+  → guardrail as an answer does:
+  - **retrieve**: one `/mask` call for the question and the documents'
+    names; the template's definition of the section from `sections.json` as
+    evidence, T1 for the section as a whole (its categories and its parts in
+    order; Sections 4 and 5 also say their figures are the engineer's), T2
+    onwards one per part (its heading, kind and fields); one batched embed
+    searching the selected standards (Chroma `doc_id` filter) once per part, 5
+    candidates each, then one rerank of them all against the section and its
+    headings, keeping up to 8 scoring at least `ASK_MIN_RELEVANCE`. With no
+    standard kept it says so in a Missing line, and the model still answers
+    from the template.
+  - **generate**: one line per statement, the template first, part by part
+    (`[T3]`), then what the standards say (`[C1 "exact words"]`), and at most
+    two Missing lines for parts no standard covers.
+  - **guardrail**: `ask.check_statement`, a template part cited as a whole (a
+    quote, when given, must be in it). The content rules are an answer's, so a
+    line telling the engineer what to write is dropped as a recommendation.
+  - The trace's `story` is `AS-08`, with `guide: { kind, section_id,
+    template_parts, template_parts_cited }` and `retrieved.template`.
+
+  A cited part comes back as `template` (`{ id: 'T:9.3', sectionId, label,
+  subsection, heading, kind, fields, text }`) beside the answer's passages and
+  observations, and is listed under Sources as "Report template". Selecting it
+  goes to that part of the section (its note in the draft editor), not to the
+  Evidence tab.
+- **What is missing** (AC2-AC4), Sections 2 to 12: `POST …/ask` with
+  `{ guide: { kind: 'missing', sectionId } }`. The gateway
+  (`section-guidance.service.ts`, `sectionGaps`) works it out from what is
+  saved, with no AI call, and saves it as the question's answer at once (two
+  events: `question`, then `result`). It counts against no question limit. In
+  order:
+  1. What blocks the export, from `detailedBlockers` (`export.service.ts`), the
+     one function the Export tab's check (`blockersFrom`) and MarshBot read
+     too, filtered to the section and in its order (AC3). Each blocker carries
+     its `fact` beside the Export tab's `reason`: the same condition, stated
+     without a next step ("Section 9 has 2 findings waiting for a decision.").
+     Sections 4 and 5's missing figures name what reads "Not entered" (e.g.
+     "Section 4's risk quality table reads Not entered for 2 of its 7
+     categories: Fire Protection (potential) and Water Supply (current and
+     potential).").
+  2. Parts with no text, once the section has some: no finding still in the
+     draft and nothing written in the document editor.
+  3. Tables reading "Not entered": every `table` part (Sections 7 to 10), which
+     nothing fills yet, so the report prints "Not entered" in each.
+  4. COPE categories with no observation its draft can use ("Section 9 has no
+     observation tagged Protection."), and each observation tagged with the
+     section's categories that the draft leaves out: still to check (CP-24),
+     still being transcribed, or with nothing recorded. At most 20 are listed,
+     then a count.
+
+  Sections 2 and 3 list only 1. Each gap links to its section (Go to section:
+  the part open in the review workspace, scrolled to the finding or the part
+  when the gap names one; in the document editor, scrolled to the section) or
+  an observation (Go to observation: the Observations tab with it open, or the
+  tab itself for a category with none; past the document editor's leave
+  guard). The list sits in a grey card, never AI violet, with "As of 14:02",
+  what blocks the export first, and a note that it was listed with no AI.
+- **Never the report** (AC5): neither writes to sections, versions, the review
+  log, comment threads or the assessment; only the conversation keeps them.
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
 file. Nothing is stored: the file is the gateway's answer.
 
 1. **Check** (`GET /api/assessments/:reference/export`, `reports:export`):
-   `exportBlockers` in `server/src/services/export.service.ts`, until RV-04:
+   `exportBlockers` in `server/src/services/export.service.ts` (built by
+   `detailedBlockers`, which the Ask tab's writing guidance reads too, AS-08),
+   until RV-04:
    only a complete report goes. Section 2 drafted and current; an accepted
    OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
    each draft no new draft waiting, every finding decided, none unsupported,

@@ -629,3 +629,55 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Privacy words (PV-09): the add form, the warning under it, and the tables' quieter cells. */
+.st-pw-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-pw-fields {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 2fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+/* Always masked adds the kind between the name and the reason. */
+.st-pw-fields:has(select) {
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 160px) minmax(200px, 2fr) auto;
+}
+/* The button lines up with the inputs, not with their labels. */
+.st-pw-fields > button {
+  margin-top: calc(var(--text-label-lh) + var(--space-3));
+}
+/* Search, then who added the word; either may be absent. */
+.st-pw-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+  align-items: start;
+  gap: 12px;
+}
+.st-pw-filters > :only-child {
+  grid-column: 1 / -1;
+}
+.st-pw-warn {
+  font-size: var(--text-caption-size, 13px);
+}
+.st-muted {
+  color: var(--graphite-600);
+  white-space: nowrap;
+}
+.st-num {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+  .st-pw-fields,
+  .st-pw-fields:has(select),
+  .st-pw-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .st-pw-fields > button {
+    margin-top: 0;
+    justify-self: start;
+  }
+}

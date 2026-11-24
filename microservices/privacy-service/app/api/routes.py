@@ -5,6 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.allow_list import admins_list, defaults
 from app.faces import NotAnImage, blur_faces
 from app.masker import KnownEntity, mask
 
@@ -25,6 +26,9 @@ class MaskRequest(BaseModel):
     mapping: dict[str, str] = {}
     # Also mask names nobody listed: organisations as CLIENT, facilities as SITE (CP-23).
     detect: list[Literal["CLIENT", "SITE"]] = []
+    # The admin's Never masked list from Settings (PV-09), sent by the gateway. It replaces the
+    # allow-list file's words; without it, the file's words apply (evals, older callers).
+    never_masked: list[str] | None = None
 
 
 # Photos as base64 JPEG or PNG, all of one request's in one call (PV-04).
@@ -37,10 +41,18 @@ def health() -> dict:
     return {"status": "ok", "service": "privacy"}
 
 
+@router.get("/allow-list")
+def allow_list_defaults() -> dict:
+    """The allow-list file's words with their headings, for the gateway to seed Settings' Never
+    masked list once (PV-09). Generic words and public names only: no client details."""
+    return {"words": defaults()}
+
+
 @router.post("/mask")
 def mask_texts(request: MaskRequest) -> dict:
     known = [KnownEntity(e.type, e.names) for e in request.known_entities]
-    texts, mapping, spans = mask(request.texts, known, request.mapping, request.detect)
+    with admins_list(request.never_masked):
+        texts, mapping, spans = mask(request.texts, known, request.mapping, request.detect)
     return {"texts": texts, "mapping": mapping, "spans": spans}
 
 

@@ -94,6 +94,9 @@ function show(first: AssistantThread, openLink = vi.fn()) {
       gets += 1
       return json(threads.length > 1 ? threads.shift() : threads[0])
     }
+    // The site weather bar above the thread (CP-62): not MarshBot's, so not counted here.
+    if (method === 'GET' && u === `/api/assessments/${reference}/weather`)
+      return json({ status: 'unconfigured' })
     posts.push({
       url: u.replace(reference, REF),
       body: init?.body ? JSON.parse(String(init.body)) : null,

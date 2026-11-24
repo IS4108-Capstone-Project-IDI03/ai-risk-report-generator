@@ -12,6 +12,8 @@ export type InputProps = Omit<
   required?: boolean
   disabled?: boolean
   style?: React.CSSProperties
+  // React 19 passes ref as a prop; it reaches the <input> through `rest`.
+  ref?: React.Ref<HTMLInputElement>
 }
 import { useId, useState } from 'react'
 function Input({

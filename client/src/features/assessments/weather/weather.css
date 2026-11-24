@@ -1,0 +1,257 @@
+/* Site weather (CP-62, NEW pattern): the panel (a bar across the Overview's conversation, a
+   card above New Observation's form), its one warning, and a dashboard row's weather line.
+   Red is a storm or rain now (do not proceed), amber is rain expected, the ink blue is dry. */
+
+.wx {
+  font-family: var(--font-sans);
+  color: var(--graphite-900);
+}
+.wx p {
+  margin: 0;
+}
+.wx-in {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The Overview: a bar under the stage bar and above the agenda, the conversation's width. */
+.wx[data-layout='bar'] {
+  flex: none;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--graphite-200);
+}
+.wx[data-layout='bar'] .wx-in {
+  width: 100%;
+  max-width: 960px;
+  box-sizing: border-box;
+  margin-inline: auto;
+  padding: 10px 32px 10px 24px;
+}
+/* New Observation: a card above the two cards of the form. */
+.wx[data-layout='card'] {
+  margin-bottom: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: 16px;
+}
+.wx[data-layout='card'] .wx-in {
+  padding: 12px 12px 12px 16px;
+}
+
+.wx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wx-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--graphite-100);
+  color: var(--graphite-600);
+}
+.wx-tile[data-tone='storm'] {
+  background: var(--red-600);
+  color: var(--text-inverse);
+}
+.wx-tile[data-tone='rain'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.wx-tile[data-tone='expected'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.wx-tile[data-tone='dry'] {
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.wx-tile[data-tone='loading'] {
+  animation: dsPulse 1.4s ease-in-out infinite;
+}
+.wx-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Now: "Raining · Light rain · 2.4 mm/h · 27°C". Each item is kept whole (Parts). */
+.wx-lead {
+  font-size: 14px;
+  line-height: 20px;
+}
+.wx-lead b {
+  font-weight: 600;
+}
+.wx-part {
+  white-space: nowrap;
+}
+
+/* The next 2 hours: a small pill an hour, amber when rain is expected in it. */
+.wx-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--graphite-700);
+}
+.wx-label {
+  color: var(--graphite-600);
+}
+.wx-hours {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.wx-hour {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  font-variant-numeric: tabular-nums;
+}
+.wx-hour b {
+  font-weight: 600;
+}
+.wx-hour[data-rain] {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+/* When, stale, and the source. */
+.wx-meta {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.wx-stale {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--amber-50);
+  color: var(--amber-700);
+  font-weight: 600;
+}
+
+/* Refresh (AC7): 46 px, larger than the 44 px glove-sized target, round, spinning while it reads. */
+.wx-refresh {
+  border-radius: 999px !important;
+}
+.wx-refresh[data-busy] > span {
+  animation: dsSpin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wx-refresh[data-busy] > span {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* The one warning (AC3), strongest first: a storm is solid red, rain now a red tint, rain
+   expected amber. Each names its source and says it is advisory (AC4). */
+.wx-banner {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--graphite-900);
+}
+.wx-banner > span:first-child {
+  margin-top: 0;
+}
+.wx-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wx-banner-title {
+  font-weight: 600;
+  text-wrap: pretty;
+}
+.wx-banner-source {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--graphite-700);
+}
+.wx-banner[data-tone='storm'] {
+  background: var(--red-600);
+  border-color: var(--red-600);
+  color: var(--text-inverse);
+}
+.wx-banner[data-tone='storm'] .wx-banner-source {
+  color: var(--text-inverse);
+}
+.wx-banner[data-tone='rain'] {
+  background: var(--red-50);
+  border-color: color-mix(in srgb, var(--red-600) 22%, var(--red-50));
+}
+.wx-banner[data-tone='rain'] > span:first-child,
+.wx-banner[data-tone='rain'] .wx-banner-title {
+  color: var(--red-600);
+}
+.wx-banner[data-tone='expected'] {
+  background: var(--amber-50);
+  border-color: var(--amber-100);
+}
+.wx-banner[data-tone='expected'] > span:first-child,
+.wx-banner[data-tone='expected'] .wx-banner-title {
+  color: var(--amber-700);
+}
+
+/* A phone: the bar keeps the screen's 16 px edges. */
+@media (max-width: 767px) {
+  .wx[data-layout='bar'] .wx-in {
+    padding: 10px 16px;
+  }
+}
+
+/* A dashboard row with a site visit today (AC2): one line under the reference. */
+.wx-rowline {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.wx-rowline > span:first-child {
+  margin-top: 2px;
+}
+.wx-rowline b {
+  font-weight: 600;
+}
+.wx-rowline[data-tone='storm'],
+.wx-rowline[data-tone='rain'] {
+  color: var(--red-600);
+}
+.wx-rowline[data-tone='expected'] {
+  color: var(--amber-700);
+}
+.wx-rowline-time {
+  color: var(--graphite-600);
+}
+/* A phone's row is a grid of named areas: the line takes the first free band under them,
+   from the reference to the right gutter. */
+@container at (max-width: 600px) {
+  .at-row .wx-rowline {
+    grid-column: 2 / -1;
+    margin-right: 12px;
+  }
+}

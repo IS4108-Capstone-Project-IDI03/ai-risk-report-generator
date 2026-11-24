@@ -10,11 +10,18 @@
 Known names and patterns are never checked against the lists. Each list is grouped under a
 heading that says why its entries are there. The file is read when the service starts (app.main),
 so a typo stops it; edit it and restart the service, as for detectors.json.
+
+Since PV-09 the knowledge admin keeps the Never masked list in Settings, seeded from this file's
+two word lists. The gateway sends it with each /mask call (`never_masked`), and it replaces the
+file's words for that call (`admins_list`). The patterns and the Marsh and FM Global teams stay
+here. A call without the list (evals, older callers) uses the file.
 """
 
 import json
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import cache
 from pathlib import Path
 
@@ -28,6 +35,33 @@ PATTERNS = "never_a_person_patterns"
 def lists() -> dict:
     """Each list's entries in lower case, and the compiled patterns. Without the file nothing is
     allowed: masking more is the safe side."""
+    path, settings = _read()
+    found = {
+        key: frozenset(
+            " ".join(entry.casefold().split())
+            for entries in settings.get(key, {}).values()
+            for entry in entries
+        )
+        for key in LISTS
+    }
+    found[PATTERNS] = [_compiled(path, h, p) for h, p in settings.get(PATTERNS, {}).items()]
+    return found
+
+
+def defaults() -> list[dict]:
+    """The file's words as written, each with its heading as the reason (PV-09): the gateway
+    seeds Settings' Never masked list from them once. Patterns are not offered."""
+    _, settings = _read()
+    return [
+        {"word": word, "reason": heading}
+        for key in LISTS
+        for heading, words in settings.get(key, {}).items()
+        for word in words
+    ]
+
+
+def _read() -> tuple[Path, dict]:
+    """The allow-list file, checked."""
     path = Path(os.getenv("PRIVACY_ALLOW_LIST_FILE") or DEFAULT_FILE)
     settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     # A typo stops the service, rather than leave a word masked or unmasked without a sign.
@@ -41,16 +75,7 @@ def lists() -> dict:
                 _compiled(path, heading, entries)
             elif not (isinstance(entries, list) and all(isinstance(e, str) for e in entries)):
                 raise ValueError(f"{path.name}: {heading} must be a list of words")
-    found = {
-        key: frozenset(
-            " ".join(entry.casefold().split())
-            for entries in settings.get(key, {}).values()
-            for entry in entries
-        )
-        for key in LISTS
-    }
-    found[PATTERNS] = [_compiled(path, h, p) for h, p in settings.get(PATTERNS, {}).items()]
-    return found
+    return path, settings
 
 
 def _compiled(path: Path, heading: str, pattern) -> re.Pattern:
@@ -62,10 +87,41 @@ def _compiled(path: Path, heading: str, pattern) -> re.Pattern:
         raise ValueError(f"{path.name}: {heading} is not a valid pattern ({error})") from None
 
 
+# The Never masked list the gateway sent with this request (PV-09), set by `admins_list` for
+# one /mask call. None means the file's words.
+_admins: ContextVar[dict | None] = ContextVar("admins_never_masked", default=None)
+
+
+@contextmanager
+def admins_list(never_masked: list[str] | None):
+    """Use the admin's Never masked list in place of the file's words, for one call. Each entry
+    is a whole name; a one-word entry is also a word the name model mistakes for a person. The
+    file's patterns and the Marsh and FM Global teams still apply."""
+    if never_masked is None:
+        yield
+        return
+    names = frozenset(" ".join(entry.casefold().split()) for entry in never_masked) - {""}
+    token = _admins.set(
+        {
+            "never_masked": names,
+            "never_a_person": frozenset(n for n in names if " " not in n),
+            PATTERNS: lists()[PATTERNS],
+        }
+    )
+    try:
+        yield
+    finally:
+        _admins.reset(token)
+
+
+def _found() -> dict:
+    return _admins.get() or lists()
+
+
 def is_allowed(text: str) -> bool:
     """Whether every word of a guessed name is one the name model mistakes for a person."""
     words = text.casefold().split()
-    found = lists()
+    found = _found()
     return bool(words) and all(
         word in found["never_a_person"] or any(p.fullmatch(word) for p in found[PATTERNS])
         for word in words
@@ -80,4 +136,4 @@ TEAMS_OF = ("marsh", "fm global")
 def is_never_masked(text: str) -> bool:
     """Whether `text` is a listed name, or a team of Marsh or FM Global."""
     name = " ".join(text.casefold().split())
-    return name in lists()["never_masked"] or any(name.startswith(team + " ") for team in TEAMS_OF)
+    return name in _found()["never_masked"] or any(name.startswith(team + " ") for team in TEAMS_OF)

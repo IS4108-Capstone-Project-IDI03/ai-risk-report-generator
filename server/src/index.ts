@@ -19,6 +19,7 @@ import commentRoutes from './routes/comment.routes'
 import askRoutes from './routes/ask.routes'
 import dictationRoutes from './routes/dictation.routes'
 import proposalRoutes from './routes/proposal.routes'
+import weatherRoutes from './routes/weather.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import assistantRoutes from './routes/assistant.routes'
@@ -36,6 +37,7 @@ import {
   scheduleDraftCleanup,
 } from './services/observation.service'
 import { resumeReadings } from './services/observation-reading.service'
+import { seedPrivacyWords } from './services/privacy-words.service'
 import usageRoutes from './routes/usage.routes'
 import settingsRoutes from './routes/settings.routes'
 import qaRoutes from './routes/qa.routes'
@@ -106,6 +108,9 @@ app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
 // Dictating into an assessment's text fields (CP-27).
 app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
+// The site's weather (CP-62). An open panel refreshes it every 10 minutes, so reading it doesn't
+// refresh the session (F-07), as for MarshBot's brief.
+app.use('/api/assessments/:reference/weather', requireAuthNoRefresh, weatherRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
@@ -164,6 +169,10 @@ async function start() {
   )
   scheduleDraftCleanup().catch((error: unknown) =>
     console.error('Scheduling the draft observation cleanup failed:', error),
+  )
+  // PV-09: not awaited, as privacy-service may still be starting; the lists retry when read.
+  seedPrivacyWords().catch((error: unknown) =>
+    console.error('Seeding the privacy word lists failed; retried when they are read:', error),
   )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()

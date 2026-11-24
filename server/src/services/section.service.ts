@@ -48,11 +48,12 @@ export class MissingFiguresError extends Error {
 }
 
 // The engineer's figures a Section 4 or 5 draft is given (`facts`), or why it
-// cannot be drafted yet (`missing`). Other sections have neither.
+// cannot be drafted yet (`missing`) and, as a fact, which of its tables' figures
+// read "Not entered" (`notEntered`, AS-08). Other sections have none of these.
 export function figureFacts(
   sectionId: string,
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'>,
-): { facts?: string; missing?: string } {
+): { facts?: string; missing?: string; notEntered?: string } {
   if (sectionId === '4') return riskQualityFacts(assessment.riskQuality)
   if (sectionId === '5') return lossEstimateFacts(assessment.lossEstimates)
   return {}

@@ -531,3 +531,117 @@
   flex: 1;
   min-width: 0;
 }
+/* Writing guidance (AS-08): two questions about the part open, asked by button
+   above the question box. */
+.ask-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+.ask-guide-for {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+.ask-guide-for .rv-label {
+  margin: 0;
+}
+.ask-guide-section {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  overflow-wrap: anywhere;
+}
+.ask-guide-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+/* What is missing from a section: listed by the gateway with no AI, so a grey
+   card, never AI violet. What blocks the export comes first, as the Export tab
+   lists it. */
+.ask-gaps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+.ask-gaps-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ask-gaps-top > span:empty {
+  flex: 1;
+}
+.ask-gaps-title {
+  color: var(--text-primary);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.ask-gaps-at,
+.ask-gaps-note,
+.ask-gaps-checking {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+}
+.ask-gaps-none {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+}
+.ask-gap-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ask-gap-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ask-gap-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font-weight: var(--weight-semibold);
+}
+.ask-gap-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ask-gap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-lh);
+  overflow-wrap: anywhere;
+}
+/* Blocks the export: marked by a red rule only. */
+.ask-gap.is-blocking {
+  border-left-color: var(--status-critical-fg);
+}

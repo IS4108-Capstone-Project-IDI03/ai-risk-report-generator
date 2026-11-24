@@ -4,7 +4,7 @@ import { useEditorState } from '@tiptap/react'
 import { IconButton } from '../../../design-system'
 import { rangeOf } from '../comments/anchor'
 import { ObservationView, PassageView } from '../components/SourcePanel'
-import { AskPanel, type AskDrafting } from './AskPanel'
+import { AskPanel, type AskDrafting, type AskGuidanceTarget } from './AskPanel'
 import type { AskPassage } from './passage'
 import type { AskWorkflow } from './useAsk'
 
@@ -15,7 +15,8 @@ import type { AskWorkflow } from './useAsk'
 // passage is still in the text is read from the document as it is now, edits
 // not yet saved included; a source an answer cites opens at the top. With
 // `drafting` (the assigned engineer, AS-04), text is drafted into the section
-// the cursor is in, and inserted once the document is saved.
+// the cursor is in, and inserted once the document is saved. With `guidance`
+// (AS-08), the writing guidance buttons ask about that section too.
 export function DocumentAsk({
   editor,
   ask,
@@ -23,6 +24,7 @@ export function DocumentAsk({
   onShowPassage,
   onClose,
   drafting,
+  guidance,
 }: {
   editor: Editor
   ask: AskWorkflow
@@ -31,6 +33,7 @@ export function DocumentAsk({
   onShowPassage: (passage: AskPassage) => void
   onClose: () => void
   drafting?: AskDrafting
+  guidance?: AskGuidanceTarget
 }) {
   // Read again whenever the text changes, by identity: a deep comparison of
   // the document on every key press would cost more than drawing the panel.
@@ -75,6 +78,7 @@ export function DocumentAsk({
           locate={(anchor) => rangeOf(doc, anchor) !== null}
           onShowPassage={onShowPassage}
           drafting={drafting}
+          guidance={guidance}
         />
       </div>
     </aside>

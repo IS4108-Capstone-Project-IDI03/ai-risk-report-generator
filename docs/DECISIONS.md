@@ -2755,3 +2755,73 @@ Stories: IN-18, IN-07, IN-17, KB-02.
 - Before a location is chosen, the side panel lists the locations with nothing recorded, each with a + that opens capture there. This was added to the idea as written, since "which locations have I not covered" is half the story's goal.
 
 Reason: on a large site the list shows what was found but not where it concentrates or what was missed. The location hierarchy from CP-16 already describes the site's shape, so the picture costs no new data.
+
+## 2026-11-22 — The words privacy-service never masks, and extra names it always masks, are kept in Settings and sent by the gateway
+
+- (PV-09) Settings > Privacy words, for knowledge admins only, keeps two lists in MongoDB (`privacy_words`): Never masked (words left as written) and Always masked (names masked as a client, site, address or person). Each entry has a reason; each add and removal is logged in `settings_log`.
+- The gateway sends both with every protected request (Rule 1): Always masked names join `known_entities`, and Never masked goes as `privacy.never_masked`. rag-service, S5 and ingestion pass it to `/mask`, where it replaces `allow_list.json`'s words for that call. Without the field privacy-service uses its file, so evals and older callers are unchanged. Read through a one-minute cache, as chat's known names are.
+- Masking wins twice: the gateway refuses a Never masked word that matches a recorded client, site, address or user (current or former name) or an Always masked name, and privacy-service never checks known names against the list.
+- The defaults are seeded once from privacy-service's new `GET /allow-list`, with each heading as the reason. The server image doesn't hold privacy-service's file, so the gateway asks for it, at start and before the lists are read or changed. Until it succeeds, requests leave `never_masked` out (the file applies, as before), and opening or changing the lists answers 503, so an admin can't add a word that would be sent without the defaults. `app_settings.privacyWordsSeeded` keeps a removed default from returning.
+- The floor-code pattern and the Marsh and FM Global teams stay in privacy-service: a pattern is a developer's tool, and a loose one would unmask everything.
+- rag-service's `Session.know()` skips mapping values on Never masked, so a word a past report's mapping tagged before the admin allowed it reads as written in drafting and chat. The stored passage keeps its tag until the report is re-run.
+- **The mapping's values now reach the browser, for knowledge admins only.** "Masked in reports" lists each value in `knowledge_documents.privacyMapping` once, with its kind and how many reports hold it, so an admin can spot a word masked by mistake. It never returns a tag, a document or its title. Before this, no API returned the mapping. The values are client details, but the same admins can already open the original reports.
+- Removing a Never masked word is immediate with Undo (it is masked again: the safe side). Removing an Always masked name asks first. There is no revert: each change is one add or one removal, and the log records who, what and why.
+
+Reason: changing `allow_list.json` took a deploy, and past reports name clients the app never recorded, which ingestion leaves readable (no `detect`). The admin who spots either is not a developer.
+
+Rejected:
+- A per-assessment or per-upload protection switch (PV-07's plan): a past report is shared by every assessment, so switching one off would expose another client.
+- Reading `allow_list.json` and Mongo both: a default the admin removed would come back.
+- Seeding from a copy of the file in the server: two copies drift.
+- Admin-edited patterns: a loose expression unmasks every word in every flow.
+- Showing which report holds a masked word: the count is enough to judge a mistake, and keeps the list from mapping clients to reports.
+
+Known limits: a change reaches reports already indexed only when they are re-run. An admin can still allow a real surname that isn't a recorded user (the log names who). The Masked in reports kind comes from the tag, so a value tagged two ways shows the first.
+
+Stories: PV-09, PV-05, PV-01, PV-02, PV-03, S-01.
+
+## 2026-11-23 — A site's weather is read by the gateway alone, at the engineer's pin or the geocoded address, and only advises
+
+- (CP-62) The Overview, New Observation and each Assessments row with a survey day today show the site's weather now (rain or no rain, rainfall in mm/h, temperature) and the rain forecast for the next 2 hours, with one warning: a thunderstorm (solid red, an alert), rain now ("Raining at site – do not proceed with outdoor or below-ground inspection."), or rain expected (amber). Every warning names Google Weather and says it is advisory. Nothing is blocked: engineers record at their desk too.
+- **Provider: Google.** The Weather API (current conditions and the hourly forecast) and the Geocoding API, with one server key, `GOOGLE_MAPS_SERVER_KEY`, kept apart from the browser key, which browsers can read. The team's Maps project already has billing, and the Weather API covers every country but Japan and Korea. Only `weather-provider.ts` calls it; `site-weather.service.ts` decides what counts.
+- **Where: the engineer's pin first, else the address.** A site's `coordinates` (CP-26) are an engineer's own point, so they win. Otherwise the address is geocoded on the first weather read and kept on the site as `geocode`, with the address it came from, so a correction (CP-18) is looked up again. It is never written into `coordinates`, which the map and directions treat as the engineer's. A result that is only a country or state counts as not found, and the panel asks for the address rather than guessing. A geocoder that can't be reached gives "Weather unavailable", not "add the address".
+- **A pin without an address still gets weather.** AC1 says a site with no address shows "Add the site address to see weather"; a pinned site isn't a guess, so it reads at the pin. Easy to change in `locate`.
+- **Geocoding is lazy**, on the first weather read rather than at create or correct, so sites made before CP-62 need no migration and the create and correct paths are unchanged.
+- **What counts is set in `.env`**, so every screen agrees: rain now is a rain, hail or thunder condition, or rain at or above `WEATHER_RAINING_MM_PER_HOUR` (0.5); rain expected is an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT` (50) or that rate; thunder is a condition with thunder, or, ahead, a thunder chance at that percent. A typo in either value stops the gateway at start, so a warning can't be silently off.
+- **Readings are kept in memory per site for 10 minutes** (AC5): assessments at one site share them, reads at the same moment share one call, and a failure isn't retried for 30 seconds. Not Redis: one gateway runs, and a restart costs one call per site. The last good reading's time is kept for "Weather unavailable" (AC6); the page also remembers its own, for after a gateway restart.
+- **Refresh asks the gateway at once, which still answers from its 10-minute copy.** AC5 caps calls at one per site every 10 minutes, so a Refresh inside them returns the same reading with its time; after them it reads afresh. The panel reads by itself 10 minutes after each answer, skips a turn while the tab is hidden and reads as soon as it is shown again.
+- **The route doesn't refresh the session** (`requireAuthNoRefresh`), as MarshBot's brief doesn't: an open panel reading every 10 minutes must not keep an idle session alive (F-07).
+- **A dashboard row shows a line, not the panel**: one row of words under the reference, red for rain or a storm now and amber for rain expected, refreshing itself. The warning's full text and Refresh are on the Overview, a tap away. "Today" is the browser's calendar day, as the list's other date filters are.
+
+Reason: engineers were setting off for roofs, yards and basements without checking the weather at the site. The site's address and the map pin from CP-26 already say where to look, and Google's Maps project already exists.
+
+Rejected:
+- Calling the weather API from the browser with the browser key: the key would be readable and every viewer would spend calls (AC5).
+- Open-Meteo: free but non-commercial without a paid key, and its geocoder finds places, not street addresses. NEA's data.gov.sg feeds cover Singapore only, and sites are in Malaysia and the UK too. OpenWeatherMap's geocoder also finds cities, not addresses.
+- Writing the geocoded point into `coordinates`: it would appear as an engineer's pin on the map and in directions, and a later correction couldn't tell the two apart.
+- Blocking capture or Save while it rains (AC4).
+- Letting Refresh skip the cache: one press per engineer per minute would break AC5's limit.
+
+Known limits: Google has no minute-by-minute forecast, so "Now" is the current hour's forecast and the rainfall is the last hour's. The 2 hours are whole forecast hours, so up to three are shown. Readings are forgotten on a restart. An address in a building complex is placed at the complex, which is fine for weather (a few kilometres) but not for directions.
+
+Stories: CP-62, CP-26, CP-18, F-07.
+
+## 2026-11-24 — Writing guidance is asked by button: what a section covers comes from S4 with the template as evidence, what is missing from the gateway with no AI
+
+Chose:
+- (AS-08) Two buttons above the Ask tab's question box, "What should this section cover?" and "What is missing from this section?", for the part of the report open (in the document editor, the one the cursor is in). Asked into the conversation on screen with `POST …/ask` and `guide: { kind, sectionId }`; the question kept is the gateway's own wording. Buttons, not a guess from what is typed, as AS-04 chose. Asked on 23 Nov.
+- What is missing is worked out by the gateway from what is saved, with no AI call (`section-guidance.service.ts`), and saved as the answer at once. Asked on 23 Nov. A model would add cost and could word a gap as advice or disagree with the Export tab; a list built in code can do neither (AC3, AC4). It counts against no question limit.
+- AC3: the export check is built once, by `detailedBlockers` (`export.service.ts`), which gives each blocker a `kind` and a `fact` beside the Export tab's `reason`; `blockersFrom` (the Export tab, MarshBot) strips them, so the Export tab's answer is unchanged. The guidance lists the section's blockers from the same call, in the same order. Sections 4 and 5's missing figures name what reads "Not entered" (`notEntered` from `riskQualityFacts` and `lossEstimateFacts`).
+- AC2's other gaps, never blocking: parts with no text (once the section has some), every table part (nothing fills Sections 7 to 10's tables yet, so the report prints "Not entered"), COPE categories with no observation the draft can use, and each observation tagged with the section's categories that the draft leaves out (still to check, still transcribing, nothing recorded), at most 20 then a count. S4's `GET /sections` now lists each section's parts so the gateway knows them before a section is drafted.
+- Links: Go to section opens the section in the review workspace, scrolled to the finding (first pending, unsupported or citing a withdrawn source) or the part (its note in the draft editor) when the gap names one; Go to observation opens the observation on the Observations tab, or the tab for a category with none, through the leave guard so unsaved document edits ask first.
+- What a section should cover goes to S4 like a question (`orchestrator.cover`, `guide.py`, `as08-v1`): the template's definition of the section is evidence labelled T1 (the whole section) and T2 onwards (each part), cited like an observation; the selected standards are searched once per part in one batched embed, reranked together. No observation or past report is sent: the question is about the template and the standards. A cited part opens its place in the section, not the Evidence tab.
+- Sections: "what is missing" for Sections 2 to 12 (2 and 3 from the export check alone); "what it should cover" for Sections 4 to 12, which the template defines. Section 1 and Appendix A have neither: they are filled in from the assessment.
+
+Reason: the engineer needs to know what to write or capture before sign-off without leaving the review workspace, and the Export tab's list is the authority on what blocks sign-off. Reading it from the same function keeps the two from drifting.
+
+Rejected:
+- A model wording the gaps: it could turn a fact into advice and its list could differ from the Export tab's.
+- Recognising the questions from typed wording: an engineer typing "what is missing about the pump test?" means a question about evidence, not the section's gaps.
+- Sending observations with "what should this section cover?": the answer would start describing the site; what the observations lack is "what is missing"'s job.
+
+Stories: AS-08, AS-01, AS-03, AS-04, EX-01, GN-03, CP-24.

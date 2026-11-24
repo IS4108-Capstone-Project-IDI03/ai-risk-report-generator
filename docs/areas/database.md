@@ -303,6 +303,15 @@ with the locations. They reach no report or AI call either. Sending them needs t
 assigned engineer; `coordinates: null` on `PATCH` clears them, and leaving it out
 keeps them.
 
+A site may also have `geocode: { address, found, lat, lng, at }` (CP-62): where its address was
+found on the map, for its weather. The gateway writes it the first time the site's weather is read,
+and only while the site still has that `address`; `found: false` (no `lat`, `lng`) when the
+geocoder knew no such place, or only its country or state, so the same words aren't looked up
+again. A corrected address no longer matches `geocode.address`, so it is looked up afresh. It is
+kept apart from `coordinates`, which only an engineer sets and which win over it. Neither reaches a
+report or an AI call. `GET /api/assessments/:reference/weather` (`assessments:view`) answers the
+site's weather; see docs/areas/services.md, "Site weather".
+
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a
 colleague can't see the removed one); a restore then needs a new name.
@@ -578,7 +587,7 @@ with the same list.
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
-| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03): asking about an assessment in the review workspace's Ask tab, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
+| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03, AS-08): asking about an assessment in the review workspace's Ask tab, writing guidance for a section included, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -1321,16 +1330,18 @@ Each turn:
 | `_id` | the question's id (kept from `assessment_questions` by the migration) |
 | `question` | as asked, at most 1,000 characters |
 | `proposal` | a request for text for a section (AS-04): the `_id` of its [proposal](#proposed-text-as-04); `null` for a question |
+| `guidance` | writing guidance for a section (AS-08): `{ kind, sectionId, label }`, `kind` being `cover` ("What should this section cover?") or `missing` ("What is missing from this section?") and `label` the section as the report heads it ("9. Fire Protection"); `null` for a question. The `question` is then the gateway's own wording of it |
+| `gaps` | for `missing` only (AS-08 AC2): `[{ kind, fact, blocksExport, link }]` as the gateway listed them when asked, what blocks the export first. `kind` is the export check's (`pending_findings`, `out_of_date`, `figures`, …) or `no_text`, `table`, `category`, `observation`; `fact` names the section and gives no next step (AC4); `link` is `{ to: 'section', sectionId, subsection?, finding? }` or `{ to: 'observation', observationId }` (`null`: the Observations tab). Absent on other turns |
 | `passage` | the text selected in the draft that the question is about (AS-02), or rewritten (AS-04), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
 | `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
-| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard), `P:<chunk id>` (a past report) or `T:<section>` / `T:<section>.<part>` (the report template's definition of a section or one of its parts, AS-08); `kind` is `observation`, `standard`, `report` or `template`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
 | `missing` | what evidence the answer says is missing (AS-01 AC4) |
 | `sources` | the cited sources as S4 returned them, by `ref` (AS-03 AC3): a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
 | `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
 | `error` | `{ step, cause, at }` when it stopped, else `null` |
 | `provider`, `model`, `promptVersion` | what wrote the answer (AS-03 AC3), from its trace's `provider` (S4's `LLM_PROVIDER`), `model` and `prompt_version`; `null` while answering, or when S4 was never reached |
 | `askedAt`, `answeredAt` | when it was asked, and when its answer ended (`null` while answering) |
-| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02, `as08-v1` for what a section should cover, with a `guide` block: `kind`, `section_id`, `template_parts`, `template_parts_cited`), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
 
 - A question is saved (pushed onto its conversation, or as the first of a
   new one) before S4 is asked, so it is kept even if the answer fails; the
@@ -1340,6 +1351,10 @@ Each turn:
 - The evaluation harness can replay a turn from its `question`, `passage`
   and the trace's `scope`, and score it against its `statements`, `sources`
   and `guardrail` (AS-03 AC3).
+- A `missing` turn (AS-08) is saved complete at once, with no provider, model
+  or prompt version: its trace is `{ story: 'AS-08', guide: 'missing',
+  pipeline: ['check'], section_id, gaps, blocking, kinds, generated_at }`,
+  counts only, never the facts' words. It counts against no question limit.
 - Never part of the report (AS-03 AC4): the export reads nothing here, and
   asking, starting or deleting a conversation adds no version to
   `report_section_versions`, no entry to `review_audit_log`, and nothing to
@@ -1358,7 +1373,7 @@ Each turn:
 | `GET /api/assessments/:reference/ask` | `{ scope, archived, conversations, conversation, questions }`: the user's conversations, latest first (at most 100), each `{ id, title, startedAt, lastAskedAt, questions }` (a count); the latest, and its questions oldest first; whether the assessment is archived; and what a new question searches. |
 | `GET /api/assessments/:reference/ask/conversations/:id` | `{ conversation, questions }` for one of the user's conversations. |
 | `DELETE /api/assessments/:reference/ask/conversations/:id` | Deletes it for good. 204. |
-| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). Server-sent events, the first (`question`) naming the conversation it went into. |
+| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). `{ guide: { kind, sectionId }, conversation? }`, with no question, asks for writing guidance instead (AS-08): `cover` for Sections 4 to 12, `missing` for Sections 2 to 12. Server-sent events, the first (`question`) naming the conversation it went into. |
 
 All need `reports:ask` and an assessment the caller can open (403
 otherwise); 404 for an unknown assessment, or a conversation that is not the
@@ -2352,3 +2367,25 @@ OFIs) is an ordinary one keyed by the assessment, with the required metadata.
   unsupported), proposed figures waiting for Sections 4 and 5, stage Generate (set by the real
   re-check at creation).
 
+## Privacy words (PV-09)
+
+`privacy_words` holds the knowledge admin's two lists, one document per word: `list`
+(`always` or `never`), `word` as typed, `key` (lower case, spaces collapsed, as
+privacy-service compares; unique with `list`), `kind` (`CLIENT`, `SITE`, `ADDRESS` or
+`PERSON` on `always`, null on `never`), `reason`, `source` (`default` when seeded from
+privacy-service's `allow_list.json`, `admin` when added in Settings), `addedBy`
+(`{id, name}`, null for a default) and `at`. It is not a knowledge document, so it has no
+labels of its own: `metadata` is the same null-filled block as `app_settings`
+(`source_type: "settings"`). Always masked names are client data: only `settings:manage`
+reads or writes the collection, through `privacy-words.service.ts`.
+
+`app_settings.privacyWordsSeeded` is set once the defaults were seeded, so a default the
+admin removed is never seeded again. Each add and removal appends a `settings_log` row
+(`setting: 'privacyWords'`, `before` or `after` `{list, word, kind, reason}`, the other
+null). Rows are never edited: removing a word deletes its `privacy_words` document and logs
+it; there is no revert.
+
+`GET /api/settings/privacy-words/masked-in-reports` reads `knowledge_documents.privacyMapping`
+(`$objectToArray`) and returns each value once with its kind (from the tag) and how many
+reports hold it. It is the only route that reads the mapping, and it never returns a tag, a
+document id or a title (DECISIONS 2026-11-22).

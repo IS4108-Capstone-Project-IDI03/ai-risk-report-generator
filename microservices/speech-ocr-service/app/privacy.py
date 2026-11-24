@@ -87,6 +87,9 @@ class Session:
         self.enabled = bool(privacy and privacy.get("enabled"))
         self.known_entities = (privacy or {}).get("known_entities") or []
         self.check_answers = self.enabled and bool((privacy or {}).get("check_answers"))
+        # The admin's Never masked list from Settings (PV-09). None until the gateway has seeded
+        # it: privacy-service then uses its own file.
+        self.never_masked = (privacy or {}).get("never_masked")
         self.mapping: dict[str, str] = {}
         # Faces blurred in each photo, in the order sent.
         self.faces: list[int] = []
@@ -105,6 +108,14 @@ class Session:
 
         return _PLACEHOLDER_SHAPED.sub(swap, text)
 
+    def _body(self, texts: list[str]) -> dict:
+        """A /mask request for `texts`. The mapping so far goes back, and the admin's list only
+        once the gateway sends one."""
+        body = {"texts": texts, "known_entities": self.known_entities, "mapping": self.mapping}
+        if self.never_masked is not None:
+            body["never_masked"] = self.never_masked
+        return body
+
     def mask(self, texts: list[str]) -> list[str]:
         """`texts` with client details as typed placeholders, in one /mask call."""
         if not self.enabled:
@@ -113,7 +124,7 @@ class Session:
         # The mapping so far goes back, so one mapping covers the reading (Rule 2).
         body = _post(
             "/mask",
-            {"texts": texts, "known_entities": self.known_entities, "mapping": self.mapping},
+            self._body(texts),
         )
         self.mapping = body["mapping"]
         return body["texts"]
@@ -127,7 +138,7 @@ class Session:
             return list(texts)
         body = _post(
             "/mask",
-            {"texts": texts, "known_entities": self.known_entities, "mapping": self.mapping},
+            self._body(texts),
             _CHECKING,
         )
         known = {entity["names"][0] for entity in self.known_entities}

@@ -1,12 +1,14 @@
 // The assessment's Overview as a saved conversation with MarshBot (AS-06 canvas C1 to C13, S1 to
 // S9, H1, H2, round 7 R7-C1 to C8): MarshBot, the stages, the facts at a glance and the client on
 // the left (a stage bar on a phone), the thread on the right, with the action slot under
-// MarshBot's newest turn. Called by assessments/screens/Overview.tsx. Calls useThread.ts and
-// components/thread/.
+// MarshBot's newest turn, and the site's weather above it (CP-62). Called by
+// assessments/screens/Overview.tsx. Calls useThread.ts, components/thread/ and
+// assessments/weather/SiteWeatherPanel.tsx.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
 import { STAGE_LABEL } from '../../assessments/format'
+import { SiteWeatherPanel } from '../../assessments/weather/SiteWeatherPanel'
 import { PhoneStageBar } from '../components/PhoneStageBar'
 import { Rail } from '../components/Rail'
 import { Actions } from '../components/thread/Actions'
@@ -77,6 +79,7 @@ function Loader({ reference, openLink, openDetails, archived }: Props) {
   if (!state.thread) return <div className="mb" aria-busy="true" />
   return (
     <Conversation
+      reference={reference}
       thread={state.thread}
       reply={state.reply}
       openLink={openLink}
@@ -103,11 +106,12 @@ function newestCta(thread: AssistantThread) {
 const TYPING: AssistantThread['status'] = { text: 'Typing…', tone: 'blue', icon: 'ellipsis' }
 
 function Conversation({
+  reference,
   thread,
   reply,
   openLink,
   openDetails,
-}: { thread: AssistantThread } & Pick<ThreadState, 'reply'> & Omit<Props, 'reference'>) {
+}: { thread: AssistantThread } & Pick<ThreadState, 'reply'> & Props) {
   const phone = useIsPhone()
   const short = useShortWindow()
   // The rail folds into the stage bar on a phone, in a short window, or when the Overview's own
@@ -209,6 +213,9 @@ function Conversation({
           <Rail thread={railThread} openDetails={openDetails} />
         )}
         <section className="mbt" aria-label="MarshBot">
+          {/* The site's weather before setting off (CP-62), above the conversation so it stays
+              in view while the thread scrolls. */}
+          <SiteWeatherPanel reference={reference} layout="bar" />
           <Agenda
             steps={(thread.agenda ?? []).map((s) =>
               s.turnId && waiting.includes(s.turnId)

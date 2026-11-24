@@ -2,7 +2,8 @@
 // on the left (location, categories, severity, Cancel and Save) and the media on the right (note,
 // voice, photos, pages). The left card keeps its own height; the right is never shorter, and past
 // the window's bottom edge scrolls inside itself. Stacked on a phone, with Cancel and Save in the
-// bar at the bottom of the screen. Split into the Capture* components. Called by AssessmentApp.
+// bar at the bottom of the screen. The site's weather sits above the cards (CP-62). Split into
+// the Capture* components. Called by AssessmentApp.
 import { useEffect, useState } from 'react'
 import { Button, Dialog, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
@@ -19,6 +20,7 @@ import { ChecklistSheet } from '../components/ChecklistSheet'
 import { Tip } from '../../help/Tip'
 import { LocationPicker } from '../components/LocationSheet'
 import { SplitNotePanel } from '../components/SplitNotePanel'
+import { SiteWeatherPanel } from '../weather/SiteWeatherPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useCaptureFit } from '../useCaptureFit'
@@ -78,6 +80,9 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             backWalk="new-observation.back"
           />
         )}
+        {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may
+            be recording at their desk. */}
+        <SiteWeatherPanel reference={v.liveReference} layout="card" />
         {v.capture?.status === 'unavailable' && (
           <div className="cap-top">
             <CaptureSessionNotice

@@ -26,6 +26,10 @@ export function useCaptureFit<T extends HTMLElement>() {
     const watch = new ResizeObserver(fit)
     watch.observe(scroller)
     watch.observe(left)
+    // What sits above the cards can grow after this render, e.g. the site weather panel once it
+    // loads or shows a warning (CP-62).
+    for (let above = el.previousElementSibling; above; above = above.previousElementSibling)
+      watch.observe(above)
     return () => watch.disconnect()
   })
   return grid

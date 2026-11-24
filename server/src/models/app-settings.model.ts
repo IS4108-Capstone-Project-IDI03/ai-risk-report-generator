@@ -15,6 +15,9 @@ export interface IAppSettings {
   qaStrictness: QaStrictness
   // RT-04: tiers, highest authority first. Absent on documents from before RT-04: read as the default.
   sourcePriority?: TierId[]
+  // PV-09: set once Never masked was seeded from privacy-service's allow-list file, so a default
+  // the admin removed is never seeded again.
+  privacyWordsSeeded?: boolean
   metadata: SettingsMetadata
 }
 
@@ -41,6 +44,7 @@ const appSettingsSchema = new Schema<IAppSettings>(
     models: { type: Schema.Types.Mixed, default: {} },
     qaStrictness: { type: String, enum: QA_STRICTNESS, default: 'standard' },
     sourcePriority: { type: [String], enum: TIER_IDS, default: () => [...DEFAULT_TIER_ORDER] },
+    privacyWordsSeeded: { type: Boolean, default: false },
     metadata: metadataSchema,
   },
   { collection: 'app_settings', minimize: false },
