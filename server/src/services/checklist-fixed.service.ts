@@ -24,7 +24,9 @@ const addSchema = z.object({
     .max(500, 'A question is 500 characters or fewer.'),
   area: z
     .string()
-    .refine((a) => AREAS.includes(a), 'Choose a report section.')
+    // An empty string clears the section, as the editor sends it.
+    .refine((a) => a === '' || AREAS.includes(a), 'Choose a report section.')
+    .transform((a) => a || null)
     .nullish(),
 })
 const editSchema = addSchema.pick({ text: true, area: true }).partial()
