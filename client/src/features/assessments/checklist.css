@@ -1,0 +1,192 @@
+/* The checklist's plain look (CP-37): no cards, borders or badges; one left edge. */
+.cl-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.cl-section {
+  margin: 0 0 24px;
+}
+.cl-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.cl-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+.cl-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cl-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: background 120ms;
+}
+.cl-row:hover,
+.cl-row:focus-within {
+  background: var(--surface-hover);
+}
+.cl-row-flash {
+  background: var(--surface-selected);
+}
+.cl-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 5px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+.cl-suffix {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.cl-state {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+.cl-state:focus-visible,
+.cl-link:focus-visible,
+.cl-pick-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.cl-state[data-mark]:not([data-mark='none']) {
+  color: var(--marsh-navy);
+  border-color: var(--marsh-navy);
+}
+.cl-state[disabled] {
+  cursor: default;
+}
+.cl-more {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.cl-row:hover .cl-more,
+.cl-row:focus-within .cl-more,
+.cl-row:has([aria-expanded='true']) .cl-more {
+  opacity: 1;
+}
+@media (hover: none) {
+  .cl-more {
+    opacity: 1;
+  }
+}
+.cl-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-link);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.cl-edit {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Selection view: three plain sections, each a header and one quiet dropdown. */
+.cl-build {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 640px;
+}
+.cl-build h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+.cl-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.cl-pick-pop {
+  padding: 8px;
+  min-width: 280px;
+  max-width: 420px;
+}
+.cl-pick-opts {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cl-pick-opts li label {
+  min-height: 36px;
+  padding: 4px 0;
+}
+.cl-chosen {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.cl-chosen li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 15px;
+}
+.cl-chosen li span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .cl-state {
+    width: 44px;
+    height: 44px;
+  }
+  .cl-row-text {
+    padding-top: 11px;
+  }
+  .cl-pick-btn {
+    min-height: 44px;
+  }
+  .cl-pick-opts li label {
+    min-height: 44px;
+  }
+  .cl-chosen li {
+    min-height: 44px;
+  }
+}

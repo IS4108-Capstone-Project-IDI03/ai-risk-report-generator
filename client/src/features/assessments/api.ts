@@ -967,6 +967,10 @@ export type ChecklistView = {
   scope: { facilityType: string; jurisdiction: string }
   standards: ScopeStandard[]
   checklist: Checklist | null
+  // Past Marsh reports that match the site type and country, to build from (CP-37).
+  pastReports?: { id: string; title: string }[]
+  // The admin's fixed questions for this site type: how many there are (CP-37).
+  defaults?: { count: number }
   // After regenerating (CP-31): how many of the earlier checklist's answers
   // were kept, the text of each item whose answer was not, and the ids of the
   // new items that may replace those: new, in the same section or risk; and
@@ -986,32 +990,33 @@ export async function getChecklist(reference: string, signal?: AbortSignal) {
   return (await request<ChecklistView>('GET', checklistPath(reference), undefined, signal)).data
 }
 
-// Generates a checklist from the standards kept ticked (AC2); the gateway saves
-// it as the latest and keeps the earlier ones.
-export async function generateChecklist(reference: string, standardIds: string[]) {
-  return (await request<ChecklistView>('POST', checklistPath(reference), { standardIds })).data
+// What a checklist is built from: the standards and past reports picked, and whether the
+// admin's fixed questions are included.
+export type ChecklistChoice = {
+  standardIds: string[]
+  pastReportIds: string[]
+  includeDefaults: boolean
 }
 
-// Marks an item Not seen or Not applicable, or clears its mark with null
-// (CP-31 AC4); no observation is saved.
+// Generates a checklist from what was picked (AC2); the gateway saves
+// it as the latest and keeps the earlier ones.
+export async function generateChecklist(reference: string, choice: ChecklistChoice) {
+  return (await request<ChecklistView>('POST', checklistPath(reference), choice)).data
+}
+
+// Marks an item (tick, cross or not seen), or clears its mark with null; no observation is saved.
 export async function markChecklistItem(
   reference: string,
   itemId: string,
-  mark: 'not_seen' | 'not_applicable' | null,
+  mark: 'confirmed' | 'differs' | 'not_seen' | null,
 ) {
   const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}/mark`
   return (await request<ChecklistView>('PUT', path, { mark })).data
 }
 
-// An item the engineer adds (CP-32): under a report section, optionally one
-// of its subsections, or under a priority risk ('hazards' with its id).
-export type NewChecklistItem = {
-  area: string
-  subsection: string | null
-  hazard: string | null
-  text: string
-  COPE_dimension: string[]
-}
+// An item the engineer adds (CP-32): under an existing section's area id, or under a new
+// section the gateway creates from its name.
+export type NewChecklistItem = { text: string; area: string } | { text: string; newSection: string }
 
 // Adds the engineer's own item; returns the checklist and the new item's id.
 export async function addChecklistItem(reference: string, item: NewChecklistItem) {

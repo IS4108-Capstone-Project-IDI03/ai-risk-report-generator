@@ -233,74 +233,68 @@ async function openChecklist(wide = false) {
   return screen.findByRole('dialog', { name: 'Checklist' })
 }
 const row = (name: string) => screen.getByRole('listitem', { name })
-const openTab = (name: 'Priority risks' | 'Report sections') =>
-  fireEvent.click(screen.getByRole('tab', { name: new RegExp('^' + name) }))
 const RACK = 'Check in-rack sprinklers are fitted for racks over 7.6 m.'
+// Presses a row's state box, which cycles none, tick, cross, not seen, none.
+const press = (name: string) =>
+  fireEvent.click(within(row(name)).getByRole('button', { name: /press to change/ }))
+const choose = (name: string, entry: string) => {
+  fireEvent.click(within(row(name)).getByRole('button', { name: /^More actions for/ }))
+  fireEvent.click(screen.getByRole('button', { name: entry }))
+}
 
-it('opens from capture as on the Checklist tab, with progress by area (AC1, AC6, AC7)', async () => {
+it('opens from capture as one plain list with a header and count per section (AC1)', async () => {
   const sheet = await openChecklist()
 
-  // The priority risks and the report sections are two tabs, the risks first.
-  const tabs = await within(sheet).findAllByRole('tab')
-  expect(tabs.map((t) => t.textContent)).toEqual(['Priority risks 0/1', 'Report sections 1/2'])
-  expect(within(sheet).getByRole('region', { name: 'Rack storage' })).toHaveTextContent(
-    '0 of 1 answered',
-  )
-  openTab('Report sections')
-  // No standard was selected, so every section is shown, as on the tab.
-  expect(
-    within(sheet).getByText('No standards were selected, so every report section is shown.'),
-  ).toBeInTheDocument()
-  const construction = within(sheet).getByRole('region', { name: '7. Construction' })
-  await waitFor(() =>
-    expect(construction).toHaveTextContent('1 of 2 answered · Needs 1 more observation to draft'),
-  )
-  // The item answered before is folded away until asked for.
-  expect(within(construction).queryByRole('listitem', { name: 'Roof' })).not.toBeInTheDocument()
-  fireEvent.click(within(construction).getByRole('button', { name: 'Answered (1)' }))
-  expect(within(row('Roof')).getByText('Confirmed')).toBeInTheDocument()
+  expect(await within(sheet).findByRole('heading', { name: 'Priority risks' })).toBeInTheDocument()
+  expect(within(sheet).queryByRole('tab')).not.toBeInTheDocument()
+  expect(within(sheet).getByRole('region', { name: 'Construction' })).toHaveTextContent('1 of 2')
+  // An item answered through an observation is read-only, with a way to its observation.
+  expect(within(row('Roof')).getByRole('img', { name: 'Confirmed' })).toBeInTheDocument()
+  expect(within(row('Roof')).getByRole('button', { name: 'View observation' })).toBeInTheDocument()
+  expect(within(row('Roof')).queryByRole('button', { name: /press to change/ })).toBeNull()
   expect(sheet).toHaveTextContent('Answers are saved at Warehouse › Ground › Bay 3 — north aisle.')
 })
 
-it('saves a Confirm as an observation where capture is, linked to the item (AC2)', async () => {
+it('cycles the state box through tick, cross, not seen and back, with no observation (AC4)', async () => {
   await openChecklist()
-  openTab('Report sections')
+  await screen.findByRole('listitem', { name: 'Construction Narrative' })
 
-  fireEvent.click(within(row('Construction Narrative')).getByRole('button', { name: 'Confirm' }))
-  const confirm = screen.getByRole('dialog', { name: 'Confirm' })
-  expect(within(confirm).getByRole('textbox', { name: 'What you saw' })).toHaveValue(
-    'Confirmed on site: Construction Narrative',
-  )
-  expect(confirm).toHaveTextContent('At Warehouse › Ground › Bay 3 — north aisle')
-  // Severity is always chosen, never assumed.
-  fireEvent.click(within(confirm).getByRole('button', { name: 'Save observation' }))
-  expect(within(confirm).getByRole('alert')).toHaveTextContent('Choose a severity first.')
-  fireEvent.change(within(confirm).getByRole('textbox', { name: 'What you saw' }), {
-    target: { value: 'Walls are precast concrete; roof steel deck.' },
-  })
-  fireEvent.click(within(confirm).getByRole('radio', { name: 'Low' }))
-  fireEvent.click(within(confirm).getByRole('button', { name: 'Save observation' }))
-
-  await waitFor(() =>
-    expect(within(row('Construction Narrative')).getByText('Confirmed')).toBeInTheDocument(),
-  )
-  expect(saves).toEqual([
-    {
-      note: 'Walls are precast concrete; roof steel deck.',
-      copeDimensions: ['Construction'],
-      severity: 'low',
-      locationId: 'l1',
-      checklistItem: { itemId: 't1', result: 'confirmed' },
-    },
-  ])
-  expect(screen.queryByRole('dialog', { name: 'Confirm' })).not.toBeInTheDocument()
+  for (const mark of ['confirmed', 'differs', 'not_seen', null]) {
+    press('Construction Narrative')
+    await waitFor(() => expect(marks.at(-1)?.body).toEqual({ mark }))
+  }
+  expect(marks.map((m) => m.url)).toEqual(Array(4).fill(CHECKLIST_URL + '/items/t1/mark'))
+  expect(saves).toEqual([])
+  expect(
+    await within(row('Construction Narrative')).findByRole('button', {
+      name: /Not checked, press to change/,
+    }),
+  ).toBeInTheDocument()
 })
 
-it('records a Differs in the checklist, with a photo, without leaving it (AC3)', async () => {
+it('puts the mark back and says so when it could not be saved', async () => {
+  await openChecklist()
+  await screen.findByRole('listitem', { name: 'Construction Narrative' })
+  const ok = globalThis.fetch
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+    init?.method === 'PUT' ? json(500, { error: 'Nope' }) : ok(url, init),
+  )
+
+  press('Construction Narrative')
+
+  expect(await screen.findByText("Couldn't save the mark")).toBeInTheDocument()
+  expect(
+    within(row('Construction Narrative')).getByRole('button', {
+      name: /Not checked, press to change/,
+    }),
+  ).toBeInTheDocument()
+})
+
+it('records a difference from the ⋯ menu, with a photo, without leaving the checklist (AC3)', async () => {
   await openChecklist()
   await screen.findByRole('listitem', { name: RACK })
 
-  fireEvent.click(within(row(RACK)).getByRole('button', { name: 'Differs' }))
+  choose(RACK, 'Record what you saw...')
   const box = screen.getByRole('dialog', { name: 'Record a difference' })
   expect(box).toHaveTextContent('Checklist expects' + RACK)
   fireEvent.change(within(box).getByRole('textbox', { name: 'What you saw' }), {
@@ -312,7 +306,9 @@ it('records a Differs in the checklist, with a photo, without leaving it (AC3)',
   fireEvent.click(within(box).getByRole('radio', { name: 'High' }))
   fireEvent.click(within(box).getByRole('button', { name: 'Save observation' }))
 
-  await waitFor(() => expect(within(row(RACK)).getByText('Differs')).toBeInTheDocument())
+  await waitFor(() =>
+    expect(within(row(RACK)).getByRole('img', { name: 'Differs' })).toBeInTheDocument(),
+  )
   expect(screen.getByRole('dialog', { name: 'Checklist' })).toBeInTheDocument()
   expect(saves[0]).toEqual({
     note: 'No in-rack sprinklers on racks at 9 m.',
@@ -324,96 +320,29 @@ it('records a Differs in the checklist, with a photo, without leaving it (AC3)',
   expect(photos[0]).toEqual(['racks.jpg'])
 })
 
-it('records a Differs in full capture, for a recording or handwritten notes (AC3)', async () => {
+it('records a difference in full capture, then goes back to the checklist', async () => {
   await openChecklist()
   await screen.findByRole('listitem', { name: RACK })
-  fireEvent.click(within(row(RACK)).getByRole('button', { name: 'Differs' }))
+  choose(RACK, 'Record what you saw...')
 
   fireEvent.click(screen.getByRole('button', { name: /Use full capture instead/ }))
 
   expect(screen.queryByRole('dialog', { name: 'Checklist' })).not.toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Recording a difference' })).toHaveTextContent(RACK)
-  fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
-    target: { value: 'No in-rack sprinklers on racks at 9 m.' },
-  })
-  fireEvent.click(screen.getByRole('radio', { name: 'High' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-
-  expect(
-    await screen.findByText('Observation saved, and the checklist item answered as Differs'),
-  ).toBeInTheDocument()
-  expect(saves[0]).toMatchObject({
-    copeDimensions: ['Occupancy', 'Protection'],
-    checklistItem: { itemId: 'h1', result: 'differs' },
-  })
-  // The link goes with that one observation; capture is back to normal.
-  expect(screen.queryByRole('region', { name: 'Recording a difference' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Open checklist' })).toBeInTheDocument()
-})
-
-it('goes back to the checklist from full capture, leaving the item unanswered', async () => {
-  await openChecklist()
-  await screen.findByRole('listitem', { name: RACK })
-  fireEvent.click(within(row(RACK)).getByRole('button', { name: 'Differs' }))
-  fireEvent.click(screen.getByRole('button', { name: /Use full capture instead/ }))
-
   fireEvent.click(screen.getByRole('button', { name: 'Back to checklist' }))
-
   const sheet = await screen.findByRole('dialog', { name: 'Checklist' })
   expect(await within(sheet).findByRole('listitem', { name: RACK })).toBeInTheDocument()
-  fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
-  fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'Racks.' } })
-  fireEvent.click(screen.getByRole('radio', { name: 'Low' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-
-  await screen.findByText('Observation saved')
-  expect(saves[0]).not.toHaveProperty('checklistItem')
-})
-
-it('marks an item Not seen from ⋯ without an observation, and clears it (AC4)', async () => {
-  await openChecklist()
-  openTab('Report sections')
-
-  fireEvent.click(
-    within(row('Construction Narrative')).getByRole('button', { name: 'More actions' }),
-  )
-  fireEvent.click(screen.getByRole('button', { name: 'Not seen' }))
-
-  await waitFor(() =>
-    expect(within(row('Construction Narrative')).getByText('Not seen')).toBeInTheDocument(),
-  )
-  expect(marks[0]).toEqual({
-    url: CHECKLIST_URL + '/items/t1/mark',
-    body: { mark: 'not_seen' },
-  })
   expect(saves).toEqual([])
-  fireEvent.click(within(row('Construction Narrative')).getByRole('button', { name: 'Clear' }))
-  await waitFor(() =>
-    expect(
-      within(row('Construction Narrative')).getByRole('button', { name: 'Confirm' }),
-    ).toBeInTheDocument(),
-  )
-  expect(marks[1].body).toEqual({ mark: null })
 })
 
-it('shows the whole checklist beside the recording on a wide screen, no sheet (CP-37 AC2)', async () => {
+it('shows the same list beside the recording on a wide screen, no sheet (CP-37 AC2)', async () => {
   const pane = await openChecklist(true)
 
-  // The pane replaces the Open checklist button and the sheet.
   expect(screen.queryByRole('button', { name: 'Open checklist' })).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog', { name: 'Checklist' })).not.toBeInTheDocument()
-  // The recording's own controls are still on the screen beside it.
   expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
-  expect(await within(pane).findByRole('region', { name: 'Rack storage' })).toBeInTheDocument()
+  expect(await within(pane).findByRole('heading', { name: 'Priority risks' })).toBeInTheDocument()
 
-  // An item is marked there as in the sheet.
-  fireEvent.click(within(pane).getByRole('tab', { name: /^Report sections/ }))
-  fireEvent.click(
-    within(row('Construction Narrative')).getByRole('button', { name: 'More actions' }),
-  )
-  fireEvent.click(screen.getByRole('button', { name: 'Not seen' }))
-  await waitFor(() =>
-    expect(within(row('Construction Narrative')).getByText('Not seen')).toBeInTheDocument(),
-  )
-  expect(marks[0].body).toEqual({ mark: 'not_seen' })
+  press('Construction Narrative')
+  await waitFor(() => expect(marks[0].body).toEqual({ mark: 'confirmed' }))
 })

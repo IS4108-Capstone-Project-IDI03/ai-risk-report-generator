@@ -12,7 +12,7 @@ import { ChecklistItems } from './ChecklistItems'
 /** Returns the checklist as it is answered on site: loading, error, empty or the items. */
 export function ChecklistBody({ v }: { v: AssessmentWorkflow }) {
   const reference = v.captureRef
-  const { view, setView, sections, loadError, reload } = useChecklist(reference)
+  const { view, setView, loadError, reload } = useChecklist(reference)
   const location = v.currentLocation
   if (loadError)
     return (
@@ -30,16 +30,15 @@ export function ChecklistBody({ v }: { v: AssessmentWorkflow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <p style={caption}>
-        Standards are chosen on the Checklist tab.{' '}
+        The checklist is built on the Checklist tab.{' '}
         <Button variant="link" size="sm" onClick={v.goToChecklistTab}>
-          Change standards
+          Rebuild it
         </Button>
       </p>
       <ChecklistItems
         key={view.checklist.id}
         reference={reference}
         view={{ ...view, checklist: view.checklist }}
-        sections={sections}
         setView={setView}
         reload={reload}
         answering={

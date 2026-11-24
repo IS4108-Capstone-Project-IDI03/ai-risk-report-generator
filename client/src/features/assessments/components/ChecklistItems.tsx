@@ -1,634 +1,26 @@
+// The checklist as one flat, plain list (CP-37): a header per report section, its questions as
+// rows, at most 8 shown with "Show more". Shown on the Checklist tab, in the site-walk pane and in
+// the phone sheet. Called by screens/Checklist.tsx and ChecklistSheet.tsx. Calls the mark, edit,
+// remove and add endpoints in api.ts; an observation for a difference goes through AnswerDialog.
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
-import {
-  AddRow,
-  Badge,
-  Button,
-  Callout,
-  Icon,
-  IconButton,
-  Switch,
-  Tabs,
-  Tag,
-  toast,
-  type Reason,
-} from '../../../design-system'
+import { toast } from '../../../design-system'
 import {
   GatewayError,
+  editChecklistItem,
   markChecklistItem,
   removeChecklistItem,
   saveObservation,
   startCaptureSession,
-  type Checklist,
   type ChecklistItem,
   type ChecklistView,
   type ReportSection,
   type SavedObservation,
-  type ScopeStandard,
 } from '../api'
-import { categoryLabel } from '../categories'
-import {
-  areaProgress,
-  caption,
-  card,
-  CHECK_LABEL,
-  CHECK_TONE,
-  country,
-  draftingNeed,
-  heading,
-  itemDetail,
-  itemTitle,
-  muted,
-  needLabel,
-} from '../checklistChecks'
-import { formatDayYearTime } from '../format'
+import { country } from '../checklistChecks'
+import { AddChecklistItem } from './AddChecklistItem'
 import { AnswerDialog, type Answer, type AnswerPlace } from './ChecklistAnswer'
-import { ChecklistItemEditor, type ItemPlace } from './ChecklistItemEditor'
-import { Tip } from '../../help/Tip'
-import { MoreMenu } from './MoreMenu'
-
-// One checklist, shown in two places (CP-31): the assessment's Checklist tab
-// and the sheet opened from capture. Both show it the same way, with the same
-// answers: the facility's priority risks and the report sections on two tabs,
-// each section by subsection, the relevant sections or all of them, and each
-// item with its citations and its answer or the buttons to give one. Only
-// where an answer's observation is saved differs (AnswerPlace). On the tab,
-// the assigned engineer also customises it (CP-32): adds, edits, removes and
-// restores items. Removed items are left out of everything but their own list.
-
-// A subsection's name over its items: small capitals, so it reads as a label.
-const eyebrow = {
-  margin: 0,
-  fontSize: 'var(--text-eyebrow-size)',
-  fontWeight: 600,
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
-  color: 'var(--text-muted)',
-} as const
-const list = { listStyle: 'none', margin: 0, padding: 0 } as const
-const row = {
-  padding: 'var(--space-4) var(--space-6)',
-  borderTop: '1px solid var(--border-subtle)',
-} as const
-
-// "NFPA 13", as engineers name a standard; its title when it has no number.
-function shortName(s: Pick<ScopeStandard, 'title' | 'sourceType' | 'standardNumber'> | undefined) {
-  if (!s) return 'Standard'
-  const issuer = { nfpa_standard: 'NFPA', fm_standard: 'FM' }[s.sourceType ?? '']
-  return issuer && s.standardNumber ? `${issuer} ${s.standardNumber}` : s.title
-}
-
-// Relevant sections or all of them, remembered in this browser so the tab and
-// the sheet open the same way. Storage may be unavailable; it is only a convenience.
-const ALL_SECTIONS_KEY = 'checklist.allSections'
-function readAllSections() {
-  try {
-    return localStorage.getItem(ALL_SECTIONS_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-function writeAllSections(all: boolean) {
-  try {
-    localStorage.setItem(ALL_SECTIONS_KEY, String(all))
-  } catch {
-    // Kept for this visit only.
-  }
-}
-
-// A cited passage (CP-30 AC6), opened from its citation: the whole passage and
-// a link to the original at that page.
-function PassagePanel({ passage, checklist }: { passage: string; checklist: Checklist }) {
-  const source = checklist.sources[passage]
-  // As rag-service's MAX_HEADING_CHARS: a longer "heading" is body text misread as one.
-  const headings = (source?.headings ?? []).filter((h) => h.length <= 200)
-  const standard = checklist.standards.find((s) => s.id === source?.doc_id)
-  const page = source?.page_start
-  return (
-    <div
-      style={{
-        marginTop: 'var(--space-4)',
-        padding: 'var(--space-5) var(--space-6)',
-        background: 'var(--surface-sunken)',
-        borderRadius: 'var(--radius-md)',
-      }}
-    >
-      <p style={caption}>
-        {[standard?.title ?? 'Standard', standard?.edition, page != null ? `p. ${page}` : null]
-          .filter(Boolean)
-          .join(', ')}
-        {headings.length ? ` › ${headings.join(' › ')}` : ''}
-      </p>
-      {source && (
-        <blockquote
-          tabIndex={0}
-          aria-label="Passage text"
-          style={{
-            margin: 'var(--space-4) 0',
-            fontFamily: 'var(--font-serif)',
-            fontSize: '14px',
-            lineHeight: '22px',
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {source.text}
-        </blockquote>
-      )}
-      {source?.doc_id && (
-        <a
-          href={
-            `/api/knowledge-documents/${encodeURIComponent(source.doc_id)}/file` +
-            (page != null ? `#page=${page}` : '')
-          }
-          target="_blank"
-          rel="noreferrer"
-          style={{ fontSize: 'var(--text-caption-size)' }}
-        >
-          Open the original PDF{page != null ? ` at page ${page}` : ''}
-        </a>
-      )}
-    </div>
-  )
-}
-
-// Said of a quote the code could not find in the passage it cites (CP-30 AC6).
-const UNVERIFIED = "The AI's quoted words are not word for word in this passage. Verify before use."
-// Said of a quote found only in a picture's AI description (KB-02): cited, never found.
-const DESCRIBED =
-  "These words are from the AI's reading of the figure, not the document's printed text. Check the figure."
-
-// An item's citations by standard and page, in the order first cited.
-function groupCitations(citations: ChecklistItem['citations'], checklist: Checklist) {
-  const pages = new Map<
-    string,
-    {
-      key: string
-      standard: Checklist['standards'][number] | undefined
-      page: number | null | undefined
-      citations: ChecklistItem['citations']
-    }
-  >()
-  for (const c of citations) {
-    const source = checklist.sources[c.ref]
-    const key = `${source?.doc_id ?? c.ref}:${source?.page_start ?? ''}`
-    const group = pages.get(key) ?? {
-      key,
-      standard: checklist.standards.find((s) => s.id === source?.doc_id),
-      page: source?.page_start,
-      citations: [],
-    }
-    pages.set(key, { ...group, citations: [...group.citations, c] })
-  }
-  return [...pages.values()]
-}
-
-// How the item was answered, by whom, where and when, with a way to see its
-// observation or clear its mark; else the ways to answer it, for the assigned
-// engineer. Confirm and Differs are the buttons; Not seen and Not applicable
-// sit behind ⋯, as they are answered less often.
-function AnswerControls({
-  item,
-  canAnswer,
-  busy,
-  onBegin,
-  onMark,
-  onView,
-  first = false,
-}: {
-  item: ChecklistItem
-  canAnswer: boolean
-  busy: boolean
-  onBegin: (kind: 'confirm' | 'differs') => void
-  onMark: (mark: 'not_seen' | 'not_applicable' | null) => void
-  onView: (observationId: string) => void
-  // The first item still to answer: the walkthrough points at its buttons, and its help tip sits beside them (F-12, F-13).
-  first?: boolean
-}) {
-  const answers = {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 'var(--space-3)',
-    marginTop: 'var(--space-3)',
-  } as const
-  const check = item.check
-  if (check) {
-    return (
-      <div className="cl-answers" style={answers}>
-        <Badge tone={CHECK_TONE[check.result]}>{CHECK_LABEL[check.result]}</Badge>
-        <span style={caption}>
-          {[check.by, check.observation?.location, formatDayYearTime(new Date(check.at))]
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
-        {check.observation ? (
-          <Button variant="link" size="sm" onClick={() => onView(check.observation!.id)}>
-            View observation
-          </Button>
-        ) : (
-          canAnswer && (
-            <Button variant="link" size="sm" disabled={busy} onClick={() => onMark(null)}>
-              Clear
-            </Button>
-          )
-        )}
-      </div>
-    )
-  }
-  if (!canAnswer) return null
-  // The same three controls on every item; the first item's sit in a box of their own, so the
-  // highlight and the help tip leave each other out. It lays them out as the row does.
-  const buttons = (
-    <>
-      <Button size="sm" iconLeft="check" disabled={busy} onClick={() => onBegin('confirm')}>
-        Confirm
-      </Button>
-      <Button size="sm" iconLeft="equal-not" disabled={busy} onClick={() => onBegin('differs')}>
-        Differs
-      </Button>
-      <MoreMenu
-        items={[
-          { label: 'Not seen', icon: 'eye-off', onSelect: () => onMark('not_seen') },
-          {
-            label: 'Not applicable',
-            icon: 'circle-slash',
-            onSelect: () => onMark('not_applicable'),
-          },
-        ]}
-      />
-    </>
-  )
-  if (!first) {
-    return (
-      <div className="cl-answers" style={answers}>
-        {buttons}
-      </div>
-    )
-  }
-  return (
-    <div className="cl-answers" style={answers}>
-      <span
-        data-walk="checklist.answers"
-        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-3)' }}
-      >
-        {buttons}
-      </span>
-      <Tip id="checklist.answers" />
-    </div>
-  )
-}
-
-// One item: its wording (a template subsection by its heading, with what it
-// covers), its categories and citations, and its answer.
-function ItemRow({
-  item,
-  checklist,
-  general,
-  indent = false,
-  fresh = false,
-  flash = false,
-  answer,
-  actions,
-}: {
-  item: ChecklistItem
-  checklist: Checklist
-  // For the team's general check of a risk: why it has no specific one.
-  general?: string
-  // Under its template subsection's row, in the full view.
-  indent?: boolean
-  // New in a regenerate just made, in the place of an answer it did not keep,
-  // so it may replace that answer: tinted and tagged to answer again.
-  fresh?: boolean
-  // The item a MarshBot link just opened: tinted for a moment (AS-06).
-  flash?: boolean
-  answer: ReactNode
-  // Edit and remove, for the engineer customising the checklist (CP-32).
-  actions?: ReactNode
-}) {
-  // Citations of one page of one standard share a chip; opened, it shows each quote.
-  const pages = groupCitations(item.citations, checklist)
-  const [open, setOpen] = useState<string | null>(null)
-  const opened = pages.find((p) => p.key === open)
-  const uncited = item.flags.includes('uncited') && !general
-  const detail = itemDetail(item)
-  return (
-    <li
-      id={checklistItemId(item.id)}
-      aria-label={itemTitle(item)}
-      // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
-      data-activity-key={item.id}
-      style={{
-        padding: `var(--space-5) var(--space-6) var(--space-5) ${indent ? 'var(--space-9)' : 'var(--space-6)'}`,
-        borderTop: '1px solid var(--border-subtle)',
-        background: fresh ? 'var(--diff-added-bg)' : flash ? 'var(--ink-50)' : undefined,
-        transition: 'background-color var(--duration-slow) var(--ease-out)',
-        scrollMarginTop: 'var(--space-9)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-        <p
-          style={{
-            flex: '1 1 auto',
-            margin: 0,
-            fontSize: 'var(--text-body-size)',
-            lineHeight: '22px',
-            color: 'var(--text-primary)',
-            fontWeight: item.origin === 'template' ? 500 : 400,
-          }}
-        >
-          {fresh && (
-            <Badge tone="info" style={{ marginRight: 'var(--space-3)' }}>
-              Answer again?
-            </Badge>
-          )}
-          {itemTitle(item)}
-          {/* The engineer's own changes, kept when the checklist is generated again. */}
-          {(item.origin === 'manual' || item.edited) && (
-            <Badge tone="neutral" style={{ marginLeft: 'var(--space-3)' }}>
-              {item.origin === 'manual' ? 'Added' : 'Edited'}
-            </Badge>
-          )}
-        </p>
-        {actions}
-      </div>
-      {detail && <p style={{ ...muted, marginTop: 'var(--space-2)' }}>{detail}</p>}
-      {general && (
-        <p
-          style={{
-            ...caption,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 'var(--space-3)',
-            marginTop: 'var(--space-3)',
-          }}
-        >
-          <Icon
-            name="triangle-alert"
-            size={13}
-            color="var(--status-moderate-fg)"
-            style={{ marginTop: 2, flex: '0 0 auto' }}
-          />
-          {general}
-        </p>
-      )}
-      {/* One meta line: category, where a CP-37 item comes from, then its citations. */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 'var(--space-2) var(--space-3)',
-          marginTop: 'var(--space-3)',
-        }}
-      >
-        <span style={caption}>{categoryLabel(item.COPE_dimension)}</span>
-        {item.fixed && (
-          <Badge tone="neutral" icon="pin">
-            Fixed
-          </Badge>
-        )}
-        {item.origin === 'past_report' && !!item.sourceReports?.length && (
-          <Badge tone="neutral" icon="history">
-            From past report: {item.sourceReports.map((r) => r.title).join(', ')}
-          </Badge>
-        )}
-        {pages.map(({ key, standard, page, citations }) => (
-          <span key={key} style={{ display: 'contents' }}>
-            <button
-              type="button"
-              aria-expanded={open === key}
-              onClick={() => setOpen(open === key ? null : key)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 'var(--space-2)',
-                height: 'var(--chip-height-sm)',
-                padding: '0 9px',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                background: open === key ? 'var(--graphite-200)' : 'var(--graphite-100)',
-                color: 'var(--text-secondary)',
-                font: 'inherit',
-                fontSize: 'var(--text-caption-size)',
-                cursor: 'pointer',
-              }}
-            >
-              <Icon name="book-marked" size={12} color="var(--text-muted)" />
-              {shortName(standard)}{' '}
-              {page != null && <span style={{ fontFamily: 'var(--font-mono)' }}>p. {page}</span>}
-              <Icon name={open === key ? 'chevron-up' : 'chevron-down'} size={12} />
-            </button>
-            {citations.some((c) => !c.quoteFound && !c.quoteDescribed) ? (
-              <Badge tone="moderate" icon="triangle-alert">
-                Unverified quote
-              </Badge>
-            ) : (
-              citations.some((c) => c.quoteDescribed) && (
-                <Badge tone="neutral" icon="info">
-                  AI reading of figure
-                </Badge>
-              )
-            )}
-          </span>
-        ))}
-        {uncited && (
-          <Badge tone="moderate" icon="triangle-alert">
-            No standard to cite
-          </Badge>
-        )}
-      </div>
-      {opened && (
-        <>
-          {opened.citations.map((c) => (
-            <p
-              key={c.quote}
-              style={{
-                ...muted,
-                marginTop: 'var(--space-3)',
-                paddingLeft: 'var(--space-5)',
-                borderLeft: '2px solid var(--border-default)',
-              }}
-            >
-              “{c.quote}”
-              {!c.quoteFound && (
-                <span
-                  style={{
-                    ...caption,
-                    display: 'block',
-                    marginTop: 'var(--space-2)',
-                    color: c.quoteDescribed ? 'var(--text-muted)' : 'var(--status-moderate-fg)',
-                  }}
-                >
-                  {c.quoteDescribed ? DESCRIBED : UNVERIFIED}
-                </span>
-              )}
-            </p>
-          ))}
-          {[...new Set(opened.citations.map((c) => c.ref))].map((ref) => (
-            <PassagePanel key={ref} passage={ref} checklist={checklist} />
-          ))}
-        </>
-      )}
-      {answer}
-    </li>
-  )
-}
-
-// A titled card of items: how many of them are answered and, for a report
-// section, how many more observations it needs to be drafted (AC6-7). The
-// items answered when it was first shown are folded under Answered, so the
-// ones left come first; an item answered meanwhile stays where it is, so
-// nothing moves under the engineer's thumb.
-// The element id of a report section's card, for MarshBot links that scroll to it (AS-06).
-const checklistAreaId = (areaId: string) => 'checklist-area-' + areaId
-const checklistItemId = (itemId: string) => 'checklist-item-' + itemId
-// How long a linked item stays tinted.
-const FLASH_MS = 2000
-
-function Group({
-  id,
-  title,
-  note,
-  items,
-  need,
-  answered,
-  revealed = false,
-  onAdd,
-  children,
-}: {
-  id?: string
-  title: string
-  note?: ReactNode
-  // Every item the card shows, answered or not.
-  items: ChecklistItem[]
-  need: number | null
-  answered: ReactNode[]
-  // Opens the answered list, when a MarshBot link points at an item in it.
-  revealed?: boolean
-  // Adds the engineer's own item here (CP-32).
-  onAdd?: () => void
-  children: ReactNode
-}) {
-  const [unfolded, setUnfolded] = useState(revealed)
-  const written = items.some((i) => i.origin === 'standard' || i.origin === 'hazard')
-  const { checked } = areaProgress(items)
-  return (
-    // A link scrolls a card to the top with room above it (AS-06).
-    <section id={id} aria-label={title} style={{ ...card, scrollMarginTop: 'var(--space-5)' }}>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 'var(--space-3) var(--space-6)',
-          padding: 'var(--space-5) var(--space-6) var(--space-4)',
-        }}
-      >
-        <div>
-          <h4
-            style={{
-              ...heading,
-              fontSize: 'var(--text-h3-size)',
-              fontWeight: 700,
-              color: 'var(--marsh-navy)',
-            }}
-          >
-            {title}
-          </h4>
-          {note}
-          <p
-            style={{
-              ...caption,
-              marginTop: 'var(--space-1)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {checked} of {items.length} answered
-            {need !== null && (
-              <span style={{ color: need ? 'var(--status-moderate-fg)' : undefined }}>
-                {' · '}
-                {needLabel(need)}
-              </span>
-            )}
-          </p>
-        </div>
-        {written && (
-          <Badge tone="neutral" icon="sparkles">
-            AI-generated
-          </Badge>
-        )}
-      </div>
-      {children}
-      {answered.length > 0 && (
-        <>
-          <button
-            type="button"
-            aria-expanded={unfolded}
-            onClick={() => setUnfolded(!unfolded)}
-            style={{
-              ...row,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-              width: '100%',
-              border: 'none',
-              borderTop: '1px solid var(--border-subtle)',
-              background: 'var(--surface-sunken)',
-              textAlign: 'left',
-              font: 'inherit',
-              fontSize: 'var(--text-small-size)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name={unfolded ? 'chevron-down' : 'chevron-right'} size={14} />
-            Answered ({answered.length})
-          </button>
-          {unfolded && <ul style={list}>{answered}</ul>}
-        </>
-      )}
-      {onAdd && (
-        <div
-          style={{
-            padding: 'var(--space-4) var(--space-6)',
-            borderTop: '1px solid var(--border-subtle)',
-          }}
-        >
-          <AddRow onClick={onAdd}>Add item</AddRow>
-        </div>
-      )}
-    </section>
-  )
-}
-
-// "A", "A or B", "A, B or C".
-function either(names: string[], word = 'or') {
-  return names.length < 2
-    ? names.join('')
-    : `${names.slice(0, -1).join(', ')} ${word} ${names[names.length - 1]}`
-}
-
-type Hazard = Checklist['hazards'][number]
-
-// Under a risk's name, when its own standards were ticked: which they are.
-function riskNote(hazard: Hazard) {
-  return hazard.inScope.length > 0 ? `Checked against ${hazard.standards.join(', ')}.` : null
-}
-
-// Why a risk has only the team's general check, and what would give it a specific one.
-function generalCheck(hazard: Hazard, available: ScopeStandard[]) {
-  if (hazard.inScope.length > 0) return 'The selected standards set nothing specific for this risk.'
-  const known = (name: string) =>
-    available.some((s) => shortName(s).toLowerCase() === name.toLowerCase())
-  const toTick = hazard.standards.filter(known)
-  return (
-    'None of the selected standards covers this risk. ' +
-    (toTick.length > 0
-      ? `Selecting ${either(toTick)} above would give specific checks.`
-      : `Adding ${either(hazard.standards)} to the knowledge base would give specific checks.`)
-  )
-}
+import { ChecklistRow, type Mark } from './ChecklistRow'
+import '../checklist.css'
 
 // What answering needs from the screen showing the checklist; null for anyone
 // but the assigned engineer, who sees the answers only.
@@ -640,117 +32,148 @@ export type ChecklistAnswering = {
   onFullCapture: (item: ChecklistItem) => void
 }
 
+const SHOWN = 8
+const FLASH_MS = 2000
+const HAZARDS = 'hazards'
+
+// Fixed first, then past-report questions, then the rest; the list's own order within each.
+const rank = (i: ChecklistItem) => (i.fixed ? 0 : i.origin === 'past_report' ? 1 : 2)
+const byRank = (items: ChecklistItem[]) =>
+  items
+    .map((item, at) => ({ item, at }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.at - b.at)
+    .map((x) => x.item)
+
+// The same view with one item's check replaced, to show a mark before the gateway answers.
+function withMark(view: ChecklistView, itemId: string, mark: Mark | null): ChecklistView {
+  const checklist = view.checklist!
+  return {
+    ...view,
+    checklist: {
+      ...checklist,
+      items: checklist.items.map((i) =>
+        i.id !== itemId
+          ? i
+          : {
+              ...i,
+              check: mark && {
+                result: mark,
+                at: new Date().toISOString(),
+                by: '',
+                observation: null,
+              },
+            },
+      ),
+    },
+  }
+}
+
+/** Returns the checklist's sections and rows, with the Add item form after them. */
 export function ChecklistItems({
   reference,
   view,
-  sections,
   setView,
   reload,
   answering,
-  highlight,
   regenerateHint,
   onViewObservation,
   customising = false,
   openArea,
   openItem,
+  highlight,
 }: {
   reference: string
-  view: ChecklistView & { checklist: Checklist }
-  sections: ReportSection[] | null
+  view: ChecklistView & { checklist: NonNullable<ChecklistView['checklist']> }
+  // Kept for the callers that still pass it; the plain list does not show drafting needs.
+  sections?: ReportSection[] | null
   setView: (view: ChecklistView) => void
   reload: () => Promise<void>
   answering: ChecklistAnswering | null
-  // The new items that may replace answers a regenerate did not keep (CP-31).
-  highlight?: Set<string>
-  // What to do about an out-of-date checklist, from where it is shown.
   regenerateHint: string
   onViewObservation: (observationId: string) => void
-  // On the tab, for the assigned engineer: add, edit, remove and restore items
-  // (CP-32). Not on site, where the checklist is answered.
+  // On the tab, for the assigned engineer. The engineer answering on site can change items too.
   customising?: boolean
   // A report section's title to open on, from a MarshBot link (AS-06).
   openArea?: string
   // A checklist item's id to scroll to and flash, from a MarshBot link (AS-06).
   openItem?: string
+  // Items that may replace answers a regenerate did not keep: shown with the flash tint.
+  highlight?: Set<string>
 }) {
-  // Removed items (CP-32) are left out of everything but their own list.
-  const checklist = {
-    ...view.checklist,
-    items: view.checklist.items.filter((i) => i.status !== 'removed'),
-  }
-  const removedItems = view.checklist.items.filter((i) => i.status === 'removed')
-  // Answered when first shown; the parent keys this by checklist, so a new one starts again.
-  const [folded] = useState(() => new Set(checklist.items.filter((i) => i.check).map((i) => i.id)))
-  // A MarshBot link opens the report sections on its area, showing it even when no standard
-  // adds to it, then scrolls to it.
-  const linked = checklist.items.find((i) => i.id === openItem)
-  // A linked item opens its own area, or the risks tab when it is a priority risk's.
-  const inRisks = linked?.area === 'hazards' && checklist.hazards.length > 0
-  const target =
-    checklist.areas.find((a) => a.title === openArea)?.id ??
-    (linked && !inRisks ? linked.area : undefined)
-  const [part, setPart] = useState(
-    inRisks ? 'risks' : target || !checklist.hazards.length ? 'sections' : 'risks',
-  )
-  const [allChosen, setAllChosen] = useState(
-    () =>
-      readAllSections() ||
-      (!!target &&
-        !checklist.items.some(
-          (i) => i.area === target && (i.origin === 'standard' || i.origin === 'manual'),
-        )) ||
-      // The template's own items show only in All sections.
-      (!inRisks && linked?.origin === 'template'),
-  )
-  // The linked item is tinted for a moment (reset in the timer, so it fades back).
+  const checklist = view.checklist
+  const canChange = !!answering || customising
+  const live = checklist.items.filter((i) => i.status !== 'removed')
+  const groups = [
+    { id: HAZARDS, title: 'Priority risks' },
+    ...checklist.areas.map((a) => ({ id: a.id, title: a.title })),
+  ]
+    .map((g) => ({ ...g, items: byRank(live.filter((i) => i.area === g.id)) }))
+    .filter((g) => g.items.length)
+  const linked = live.find((i) => i.id === openItem)
+  const target = checklist.areas.find((a) => a.title === openArea)?.id ?? linked?.area
+  // A section holding the linked item opens at once, so the item can be scrolled to.
+  const [open, setOpen] = useState(() => {
+    const g = groups.find((x) => x.id === target)
+    return new Set(g && g.items.length > SHOWN ? [g.id] : [])
+  })
   const [flash, setFlash] = useState<string | null>(linked?.id ?? null)
   useEffect(() => {
-    // The item if it is on screen, else its area; an answered item sits folded in its area.
-    const item = openItem ? document.getElementById(checklistItemId(openItem)) : null
-    const el = item ?? (target ? document.getElementById(checklistAreaId(target)) : null)
-    el?.scrollIntoView?.({ block: item ? 'center' : 'start' })
+    const el = document.getElementById(
+      openItem ? 'checklist-item-' + openItem : target ? 'checklist-area-' + target : '',
+    )
+    el?.scrollIntoView?.({ block: openItem ? 'center' : 'start' })
     if (!openItem) return
     const timer = setTimeout(() => setFlash(null), FLASH_MS)
     return () => clearTimeout(timer)
   }, [target, openItem])
-  // With no standard in scope no section adds anything, so all are shown.
-  const noStandards = checklist.standards.length === 0
-  const all = allChosen || noStandards
-  const setAll = (next: boolean) => {
-    setAllChosen(next)
-    writeAllSections(next)
-  }
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [answeringItem, setAnsweringItem] = useState<{
-    kind: 'confirm' | 'differs'
-    item: ChecklistItem
-  } | null>(null)
+  const [undo, setUndo] = useState<ChecklistItem | null>(null)
+  const [answeringItem, setAnsweringItem] = useState<ChecklistItem | null>(null)
+  const failed = (title: string, e: unknown) =>
+    toast.error(title, { description: e instanceof GatewayError ? e.message : 'Try again.' })
 
-  const begin = (kind: 'confirm' | 'differs', item: ChecklistItem) => {
-    const place = answering!.place
-    // On site, an answer is saved where the engineer is, so that comes first.
-    if (place.kind === 'site' && !place.location) return place.choose()
-    setAnsweringItem({ kind, item })
-  }
-  const mark = async (item: ChecklistItem, value: 'not_seen' | 'not_applicable' | null) => {
-    setBusy(item.id)
-    setError(null)
+  // Optimistic: the box changes at once; if the gateway refuses, it goes back and says so.
+  const mark = async (item: ChecklistItem, next: Mark | null) => {
+    const before = view
+    setView(withMark(view, item.id, next))
     try {
-      setView(await markChecklistItem(reference, item.id, value))
-    } catch (failed: unknown) {
-      setError(
-        failed instanceof GatewayError
-          ? failed.message
-          : 'The answer could not be saved. Try again.',
-      )
-    } finally {
-      setBusy(null)
+      setView(await markChecklistItem(reference, item.id, next))
+    } catch (e: unknown) {
+      setView(before)
+      failed("Couldn't save the mark", e)
     }
   }
-  const save = async (kind: 'confirm' | 'differs', item: ChecklistItem, answer: Answer) => {
-    // Every observation belongs to a capture session; starting one is safe to
-    // repeat, and on site one is already open.
+  const saveText = async (item: ChecklistItem, text: string) => {
+    try {
+      setView(await editChecklistItem(reference, item.id, { text }))
+    } catch (e: unknown) {
+      failed("Couldn't save the change", e)
+      throw e
+    }
+  }
+  const remove = async (item: ChecklistItem) => {
+    try {
+      setView(await removeChecklistItem(reference, item.id))
+      setUndo(item)
+    } catch (e: unknown) {
+      failed("Couldn't remove the item", e)
+    }
+  }
+  const restore = async (item: ChecklistItem) => {
+    try {
+      setView(await removeChecklistItem(reference, item.id, true))
+      setUndo(null)
+    } catch (e: unknown) {
+      failed("Couldn't restore the item", e)
+    }
+  }
+  // Recording a difference: on site an answer is saved where the engineer is, so that comes first.
+  const record = (item: ChecklistItem) => {
+    const place = answering!.place
+    if (place.kind === 'site' && !place.location) return place.choose()
+    setAnsweringItem(item)
+  }
+  const saveDifference = async (item: ChecklistItem, answer: Answer) => {
+    // Every observation belongs to a capture session; starting one is safe to repeat.
     if (answering!.place.kind === 'tab') await startCaptureSession(reference)
     const saved = await saveObservation(
       reference,
@@ -759,7 +182,7 @@ export function ChecklistItems({
         copeDimensions: item.COPE_dimension.length ? item.COPE_dimension : null,
         severity: answer.severity,
         locationId: answer.locationId,
-        checklistItem: { itemId: item.id, result: kind === 'confirm' ? 'confirmed' : 'differs' },
+        checklistItem: { itemId: item.id, result: 'differs' },
       },
       [],
       answer.photos.map((photo) => ({ name: photo.name, image: photo })),
@@ -768,484 +191,102 @@ export function ChecklistItems({
     setAnsweringItem(null)
     await reload().catch(() => undefined)
   }
-  const answer = (item: ChecklistItem) => (
-    <AnswerControls
-      first={item.id === firstOpenId}
-      item={item}
-      canAnswer={!!answering}
-      busy={busy === item.id}
-      onBegin={(kind) => begin(kind, item)}
-      onMark={(value) => void mark(item, value)}
-      onView={onViewObservation}
-    />
-  )
-
-  // Customising (CP-32): the item being added or edited, and removing and
-  // restoring, each confirmed by a toast; a removal can be undone from it.
-  const [editing, setEditing] = useState<{ item: ChecklistItem | null; place: ItemPlace } | null>(
-    null,
-  )
-  const restore = async (item: ChecklistItem) => {
-    try {
-      setView(await removeChecklistItem(reference, item.id, true))
-      toast.success('Item restored')
-    } catch (failed: unknown) {
-      toast.error("Couldn't restore the item", {
-        description: failed instanceof GatewayError ? failed.message : 'Try again.',
-      })
-    }
-  }
-  const remove = async (item: ChecklistItem) => {
-    setBusy(item.id)
-    setError(null)
-    try {
-      setView(await removeChecklistItem(reference, item.id))
-      toast.success('Item removed', {
-        action: { label: 'Undo', onClick: () => void restore(item) },
-      })
-    } catch (failed: unknown) {
-      setError(
-        failed instanceof GatewayError
-          ? failed.message
-          : 'The item could not be removed. Try again.',
-      )
-    } finally {
-      setBusy(null)
-    }
-  }
-  // Why an item can't be removed: the checklist promises a report template
-  // subsection and an item for each priority risk (CP-30 AC3-4), and an
-  // answered item's observation would be hidden.
-  const keptBecause = (item: ChecklistItem): Reason | undefined => {
-    if (item.origin === 'template')
-      return {
-        title: "Can't remove",
-        text: 'The report has this subsection. Mark it Not applicable instead.',
-      }
-    if (item.hazard && !checklist.items.some((i) => i.hazard === item.hazard && i.id !== item.id))
-      return {
-        title: "Can't remove",
-        text: 'Each priority risk keeps one item. Mark it Not applicable instead.',
-      }
-    if (item.check?.observation)
-      return {
-        title: "Can't remove yet",
-        text: 'An observation answers this item. Delete it in Observations first.',
-      }
-    return undefined
-  }
-  const actions = (item: ChecklistItem) =>
-    customising ? (
-      <div style={{ display: 'flex', gap: 'var(--space-1)', margin: '-5px -6px 0 0' }}>
-        <IconButton
-          icon="pencil"
-          size="sm"
-          label={`Edit item ${itemTitle(item)}`}
-          tooltip="Edit item"
-          onClick={() =>
-            setEditing({
-              item,
-              place: { area: item.area, subsection: item.subsection, hazard: item.hazard },
-            })
-          }
-        />
-        <IconButton
-          icon="trash-2"
-          size="sm"
-          label={`Remove item ${itemTitle(item)}`}
-          tooltip="Remove item"
-          disabled={busy === item.id}
-          disabledReason={keptBecause(item)}
-          style={{ color: 'var(--red-600)' }}
-          onClick={() => void remove(item)}
-        />
-      </div>
-    ) : undefined
-  const addTo = (place: ItemPlace) =>
-    customising ? () => setEditing({ item: null, place }) : undefined
-
-  const itemRow = (item: ChecklistItem, extra: { general?: string; indent?: boolean } = {}) => (
-    <ItemRow
-      key={item.id}
-      item={item}
-      checklist={checklist}
-      answer={answer(item)}
-      actions={actions(item)}
-      fresh={!!highlight?.has(item.id)}
-      flash={flash === item.id}
-      {...extra}
-    />
-  )
-
-  // What each tab shows: the risks' items, and the sections' as the switch is
-  // set: the standards' items and the engineer's own, and the template's in all.
-  const riskItems = checklist.items.filter((i) => i.area === 'hazards')
-  const shownInSection = (i: ChecklistItem) =>
-    i.origin === 'standard' ||
-    i.origin === 'manual' ||
-    i.origin === 'past_report' ||
-    !!i.fixed ||
-    (all && i.origin === 'template')
-  const sectionItems = checklist.items.filter((i) => i.area !== 'hazards' && shownInSection(i))
-  // F-12: the first item still to answer on the tab showing, in the order it is listed.
-  const listed =
-    part === 'risks'
-      ? checklist.hazards.flatMap((h) => riskItems.filter((i) => i.hazard === h.id))
-      : sectionItems
-  const firstOpenId = listed.find((i) => !i.check)?.id
-  // A tab's answered items, and any to check after a regenerate lost answers.
-  const count = (items: ChecklistItem[]) => {
-    const fresh = items.filter((i) => highlight?.has(i.id)).length
-    return `${areaProgress(items).checked}/${items.length}` + (fresh ? ` · ${fresh} to check` : '')
-  }
   const outOfDate =
     checklist.facilityType !== view.scope.facilityType ||
     checklist.jurisdiction !== view.scope.jurisdiction
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+    <div data-walk="checklist.answers">
       {outOfDate && (
-        // The site was edited since: its hazards and standards may no longer apply.
-        <Callout tone="warning" title="This checklist is out of date">
-          It was generated for {checklist.facilityType} in {country(checklist.jurisdiction)}; the
-          site is now {view.scope.facilityType} in {country(view.scope.jurisdiction)}.{' '}
+        <p className="cl-note">
+          This checklist was made for {checklist.facilityType} in {country(checklist.jurisdiction)};
+          the site is now {view.scope.facilityType} in {country(view.scope.jurisdiction)}.{' '}
           {regenerateHint}
-        </Callout>
+        </p>
       )}
-      {/* Why the list is short, e.g. no past reports for this site type (CP-37 AC5). */}
       {checklist.notes?.map((note) => (
-        <Callout key={note} tone="info" title="Note">
+        <p key={note} className="cl-note">
           {note}
-        </Callout>
+        </p>
       ))}
-      <p style={{ ...muted, fontVariantNumeric: 'tabular-nums' }}>
-        {areaProgress(checklist.items).checked} of {checklist.items.length} answered
-      </p>
-      {error && (
-        <div role="alert">
-          <Callout tone="danger" title="Not saved">
-            {error}
-          </Callout>
-        </div>
+      {undo && (
+        <p className="cl-note" role="status">
+          Removed.{' '}
+          <button type="button" className="cl-link" onClick={() => void restore(undo)}>
+            Undo
+          </button>
+        </p>
       )}
-      {checklist.hazards.length === 0 && (
-        // A facility type outside the hazard list's nine, e.g. an older site's.
-        <Callout tone="info" title="No facility risks for this facility type">
-          No facility risks are configured for &lsquo;{checklist.facilityType}&rsquo;, so this
-          checklist has the report template&apos;s items and the standards&apos; items only.
-        </Callout>
-      )}
-      <Tabs
-        value={part}
-        onChange={setPart}
-        items={[
-          ...(checklist.hazards.length
-            ? [{ value: 'risks', label: `Priority risks ${count(riskItems)}` }]
-            : []),
-          { value: 'sections', label: `Report sections ${count(sectionItems)}` },
-        ]}
-      />
-
-      {part === 'risks' && (
-        <>
-          <p style={muted}>
-            Risks specific to {checklist.facilityType.toLowerCase()} sites, to check first.
-          </p>
-          {checklist.hazards.map((hazard) => {
-            const items = riskItems.filter((i) => i.hazard === hazard.id)
-            const general = (item: ChecklistItem) =>
-              item.origin === 'hazard_list' ? generalCheck(hazard, view.standards) : undefined
-            return (
-              <Group
-                key={hazard.id}
-                title={hazard.name}
-                items={items}
-                need={null}
-                note={
-                  riskNote(hazard) && (
-                    <p style={{ ...caption, marginTop: 'var(--space-1)' }}>{riskNote(hazard)}</p>
-                  )
-                }
-                revealed={items.some((i) => i.id === openItem && folded.has(i.id))}
-                answered={items
-                  .filter((i) => folded.has(i.id))
-                  .map((i) => itemRow(i, { general: general(i) }))}
-                onAdd={addTo({ area: 'hazards', subsection: null, hazard: hazard.id })}
-              >
-                <ul style={list}>
-                  {items
-                    .filter((i) => !folded.has(i.id))
-                    .map((i) => itemRow(i, { general: general(i) }))}
-                </ul>
-              </Group>
-            )
-          })}
-        </>
-      )}
-
-      {part === 'sections' && (
-        <SectionsPart
-          checklist={checklist}
-          sections={sections}
-          all={all}
-          noStandards={noStandards}
-          setAll={setAll}
-          shown={shownInSection}
-          folded={folded}
-          openItem={openItem}
-          itemRow={itemRow}
-          onAdd={(area) => addTo({ area, subsection: null, hazard: null })}
-        />
-      )}
-
-      {removedItems.length > 0 && (
-        // Removed items (CP-32), to restore: removed, they stay removed when
-        // the checklist is generated again.
-        <details aria-label="Removed items" style={card}>
-          <summary
-            style={{
-              cursor: 'pointer',
-              padding: 'var(--space-5) var(--space-6)',
-              fontSize: 'var(--text-small-size)',
-              color: 'var(--text-secondary)',
-            }}
+      {groups.map((g) => {
+        const expanded = open.has(g.id)
+        const rows = expanded ? g.items : g.items.slice(0, SHOWN)
+        const more = g.items.length - SHOWN
+        const toggle = () => {
+          const next = new Set(open)
+          if (expanded) next.delete(g.id)
+          else next.add(g.id)
+          setOpen(next)
+        }
+        return (
+          <section
+            key={g.id}
+            id={'checklist-area-' + g.id}
+            className="cl-section"
+            aria-label={g.title}
           >
-            Removed items ({removedItems.length})
-          </summary>
-          <ul style={list}>
-            {removedItems.map((item) => (
-              <li
-                key={item.id}
-                aria-label={itemTitle(item)}
-                style={{ ...row, display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}
-              >
-                <div style={{ flex: '1 1 auto' }}>
-                  <p style={{ margin: 0, fontSize: 'var(--text-body-size)' }}>{itemTitle(item)}</p>
-                  {item.removed && (
-                    <p style={{ ...caption, marginTop: 'var(--space-1)' }}>
-                      Removed by {item.removed.by} · {formatDayYearTime(new Date(item.removed.at))}
-                    </p>
-                  )}
-                </div>
-                {customising && (
-                  <IconButton
-                    icon="rotate-ccw"
-                    size="sm"
-                    label={`Restore item ${itemTitle(item)}`}
-                    tooltip="Restore item"
-                    onClick={() => void restore(item)}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {editing && (
-        <ChecklistItemEditor
+            <div className="cl-head">
+              <h3>{g.title}</h3>
+              <span className="cl-count">
+                {g.items.filter((i) => i.check).length} of {g.items.length}
+              </span>
+            </div>
+            <ul className="cl-rows">
+              {rows.map((item) => (
+                <ChecklistRow
+                  key={item.id}
+                  item={item}
+                  canChange={canChange}
+                  flash={flash === item.id || !!highlight?.has(item.id)}
+                  onMark={(next) => void mark(item, next)}
+                  onSaveText={(text) => saveText(item, text)}
+                  onRemove={() => void remove(item)}
+                  onRecord={answering?.place.kind === 'site' ? () => record(item) : undefined}
+                  onViewObservation={onViewObservation}
+                />
+              ))}
+            </ul>
+            {more > 0 && (
+              <button type="button" className="cl-link" onClick={toggle}>
+                {expanded ? 'Show less' : `Show ${more} more`}
+              </button>
+            )}
+          </section>
+        )
+      })}
+      {canChange && (
+        <AddChecklistItem
           reference={reference}
-          checklist={view.checklist}
-          item={editing.item}
-          place={editing.place}
-          onClose={() => setEditing(null)}
-          onSaved={(next, message) => {
+          sections={checklist.areas}
+          onAdded={(next) => {
             setView(next)
-            setEditing(null)
-            toast.success(message)
+            setUndo(null)
           }}
         />
       )}
-
       {answeringItem && answering && (
         <AnswerDialog
           reference={reference}
-          kind={answeringItem.kind}
-          item={answeringItem.item}
+          kind="differs"
+          item={answeringItem}
           place={answering.place}
           onClose={() => setAnsweringItem(null)}
-          onSave={(given) => save(answeringItem.kind, answeringItem.item, given)}
+          onSave={(given) => saveDifference(answeringItem, given)}
           onFullCapture={() => {
             setAnsweringItem(null)
-            answering.onFullCapture(answeringItem.item)
+            answering.onFullCapture(answeringItem)
           }}
         />
       )}
     </div>
-  )
-}
-
-// The report sections, each once. Relevant sections (the default) shows only
-// the sections the ticked standards add requirements to, under their
-// subsection, and names the rest in one line, so none goes missing
-// unexplained. All sections shows every template subsection as an item, with
-// those requirements beneath it.
-function SectionsPart({
-  checklist,
-  sections,
-  all,
-  noStandards,
-  setAll,
-  shown,
-  folded,
-  openItem,
-  itemRow,
-  onAdd,
-}: {
-  checklist: Checklist
-  sections: ReportSection[] | null
-  all: boolean
-  noStandards: boolean
-  setAll: (all: boolean) => void
-  shown: (item: ChecklistItem) => boolean
-  folded: Set<string>
-  // The item a MarshBot link points at: its answered list opens if it is in it.
-  openItem?: string
-  itemRow: (item: ChecklistItem, extra?: { indent?: boolean }) => ReactNode
-  // Adding the engineer's own item to a section (CP-32), when customising.
-  onAdd: (area: string) => (() => void) | undefined
-}) {
-  // The view the switch is on reads as chosen; the other, muted.
-  const side = (chosen: boolean) =>
-    ({
-      fontSize: 'var(--text-small-size)',
-      fontWeight: chosen ? 600 : 400,
-      color: chosen ? 'var(--text-primary)' : 'var(--text-secondary)',
-    }) as const
-  const label = (text: string) => (
-    <p style={{ ...eyebrow, ...row, background: 'var(--surface-sunken)' }}>{text}</p>
-  )
-  // What a section adds to the template: the standards' items and the engineer's own.
-  const addedTo = (areaId: string) =>
-    checklist.items.filter(
-      (i) =>
-        i.area === areaId &&
-        (i.origin === 'standard' ||
-          i.origin === 'manual' ||
-          i.origin === 'past_report' ||
-          (!!i.fixed && i.origin !== 'template')),
-    )
-  const empty = checklist.areas.filter((area) => addedTo(area.id).length === 0)
-  return (
-    <>
-      {noStandards ? (
-        <p style={muted}>No standards were selected, so every report section is shown.</p>
-      ) : (
-        // A switch between two named views: the relevant sections, or all of them.
-        <div
-          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-5)' }}
-        >
-          <button
-            type="button"
-            onClick={() => setAll(false)}
-            style={{
-              border: 'none',
-              background: 'none',
-              padding: 0,
-              font: 'inherit',
-              cursor: 'pointer',
-              ...side(!all),
-            }}
-          >
-            Relevant sections
-          </button>
-          <Switch
-            label={<span style={side(all)}>All sections</span>}
-            checked={all}
-            onChange={setAll}
-          />
-        </div>
-      )}
-      {checklist.areas.map((area) => {
-        const added = addedTo(area.id)
-        if (!all && added.length === 0) return null
-        const items = checklist.items.filter((i) => i.area === area.id && shown(i))
-        const rows = checklist.items.filter((i) => i.area === area.id && i.origin === 'template')
-        const open = (i: ChecklistItem) => !folded.has(i.id)
-        // Requirements under no template subsection come first, as General,
-        // then each subsection's. In all sections a subsection is its own item
-        // while unanswered; otherwise, and in relevant sections, its name is a
-        // label over its requirements.
-        const parts = [
-          {
-            name: 'General',
-            template: null as ChecklistItem | null,
-            items: added.filter((i) => !rows.some((r) => r.subsection === i.subsection)),
-          },
-          ...rows.map((r) => ({
-            name: r.subsection ?? '',
-            template: all ? r : null,
-            items: added.filter((i) => i.subsection === r.subsection),
-          })),
-        ]
-          .map((part) => ({
-            ...part,
-            items: part.items.filter(open),
-            template: part.template && open(part.template) ? part.template : null,
-          }))
-          .filter((part) => part.template || part.items.length > 0)
-        return (
-          <Group
-            key={area.id}
-            id={checklistAreaId(area.id)}
-            title={`${area.id}. ${area.title}`}
-            items={items}
-            need={draftingNeed(area.id, sections)}
-            revealed={items.some((i) => i.id === openItem && !open(i))}
-            answered={items.filter((i) => !open(i)).map((i) => itemRow(i))}
-            onAdd={onAdd(area.id)}
-          >
-            {added.length === 0 && (
-              <p style={{ ...muted, ...row }}>Nothing specific in the selected standards.</p>
-            )}
-            {parts.map((part) => (
-              <div key={part.name}>
-                {!part.template && label(part.name)}
-                <ul style={list}>
-                  {part.template && itemRow(part.template)}
-                  {part.items.map((item) => itemRow(item, { indent: !!part.template }))}
-                </ul>
-              </div>
-            ))}
-          </Group>
-        )
-      })}
-      {!all && empty.length > 0 && (
-        // The sections left out, each its own tag: their titles hold commas of their own.
-        <section aria-label="No specific requirements">
-          <p style={muted}>No specific requirements for:</p>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              marginTop: 'var(--space-3)',
-            }}
-          >
-            {empty.map((area) => (
-              <Tag key={area.id}>
-                {area.id}. {area.title}
-              </Tag>
-            ))}
-            <button
-              type="button"
-              onClick={() => setAll(true)}
-              style={{
-                border: 'none',
-                background: 'none',
-                padding: '0 var(--space-2)',
-                font: 'inherit',
-                fontSize: 'var(--text-small-size)',
-                color: 'var(--text-link)',
-                cursor: 'pointer',
-              }}
-            >
-              Show all sections
-            </button>
-          </div>
-        </section>
-      )}
-    </>
   )
 }
