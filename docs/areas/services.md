@@ -2372,8 +2372,9 @@ does not see an engineer's). Uploads and decisions are the admins'
 The route is mounted with `requireAuthNoRefresh`: the icon polls it every 5 seconds
 while a row is queued or running and every 30 seconds otherwise (new work usually
 starts from the person's own action, which moves no notification count), reads at
-once when the popover opens or the tab is shown again, and not while the tab is
-hidden. No queue position is shown: queued rows say how long they have waited.
+once when the popover opens, when the person starts a job (`started.ts`: the calls
+that start one announce it once accepted) or the tab is shown again, and not while
+the tab is hidden. No queue position is shown: queued rows say how long they have waited.
 
 An admin uploads a document for an open knowledge request from the Requests tab
 (`POST /api/knowledge-documents?requestId=…`): an unknown request answers 404 and a
