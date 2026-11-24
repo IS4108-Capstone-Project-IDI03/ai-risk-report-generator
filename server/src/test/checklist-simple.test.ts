@@ -2,6 +2,8 @@ import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
+import { CaptureSessionModel } from '../models/capture-session.model'
+import { ObservationModel } from '../models/observation.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { SiteModel } from '../models/site.model'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -239,5 +241,66 @@ describe('adding an item under a new section (CP-37)', () => {
     expect((await addItem({ text: 'No place' })).status).toBe(400)
     expect((await addItem({ text: 'x', area: '7', newSection: 'Both' })).status).toBe(400)
     expect((await addItem({ text: 'x', newSection: '   ' })).status).toBe(400)
+  })
+})
+
+describe('linking an existing observation to an item (CP-37)', () => {
+  async function observation(note: string) {
+    const a = await AssessmentModel.findOne({ reference: REFERENCE })
+    const session =
+      (await CaptureSessionModel.findOne({ assessment: a!._id })) ??
+      (await CaptureSessionModel.create({ assessment: a!._id, status: 'active' }))
+    return ObservationModel.create({
+      assessment: a!._id,
+      session: session._id,
+      engineer: engineer.name,
+      note,
+      recordings: [],
+      severity: 'low',
+      location: new Types.ObjectId(),
+      metadata: {
+        source_type: 'observation',
+        jurisdiction: 'SG',
+        facility_type: TYPE,
+        COPE_dimension: null,
+        effective_date: new Date(),
+      },
+    })
+  }
+  const link = (id: unknown, body: object) => api.patch(`/api/observations/${id}`).send(body)
+
+  it('links an observation to an item, shows the item answered by it, and unlinks it', async () => {
+    const { checklist } = (await generate()).body
+    const item = checklist.items[0]
+    const o = await observation('Valve found shut.')
+    const linked = await link(o._id, { checklistItem: { itemId: item.id, result: 'differs' } })
+    expect(linked.status).toBe(200)
+    expect(linked.body.checklistItem).toMatchObject({ itemId: item.id, result: 'differs' })
+    const read = (await api.get(url)).body.checklist.items.find(
+      (i: { id: string }) => i.id === item.id,
+    )
+    expect(read.check).toMatchObject({ result: 'differs', observation: { id: String(o._id) } })
+    // The same observation may change its answer.
+    const again = await link(o._id, { checklistItem: { itemId: item.id, result: 'confirmed' } })
+    expect(again.status).toBe(200)
+    const unlinked = await link(o._id, { checklistItem: null })
+    expect(unlinked.body.checklistItem).toBeNull()
+  })
+
+  it('refuses an item another observation already checks, and an unknown or bad item', async () => {
+    const { checklist } = (await generate()).body
+    const item = checklist.items[0]
+    const first = await observation('One.')
+    const second = await observation('Two.')
+    await link(first._id, { checklistItem: { itemId: item.id, result: 'confirmed' } })
+    expect(
+      (await link(second._id, { checklistItem: { itemId: item.id, result: 'differs' } })).status,
+    ).toBe(409)
+    expect(
+      (await link(second._id, { checklistItem: { itemId: 'nope', result: 'differs' } })).status,
+    ).toBe(400)
+    expect(
+      (await link(second._id, { checklistItem: { itemId: item.id, result: 'maybe' } })).status,
+    ).toBe(400)
   })
 })
