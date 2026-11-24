@@ -44,7 +44,12 @@
 
 /* The popover's groups: a quiet label over each, so "Waiting on you" reads first. */
 .bgw-group + .bgw-group {
+  margin-top: var(--space-4);
   border-top: 1px solid var(--border-default);
+}
+/* A larger gap before the next group starts, so it reads as a new group, not another row. */
+.bgw-group + .bgw-group .bgw-group__name {
+  padding-top: var(--space-7);
 }
 .bgw-group__name {
   margin: 0;
