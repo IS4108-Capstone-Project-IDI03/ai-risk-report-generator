@@ -1274,6 +1274,18 @@ the same offline. Named `<reference> checklist <YYYY-MM-DD>.pdf`
 (`REPORT_TIME_ZONE`). CP-34 adds each item's pre-filled value where the
 reference lines are.
 
+## Checklist from past Marsh reports and fixed items (CP-37)
+
+`draft_checklist_for` (rag-service) also searches `marsh_report` passages with the site's
+`facility_type` AND `jurisdiction` (no widening to other site types), reranks them, and the prompt
+(`cp37-v1`) turns a past report's finding into one question to check on this site, citing the
+passage; quotes are checked in code and the report's site facts are never copied. Such items have
+`origin: "past_report"`. With no matching passage the response has `no_past_reports: true` and the
+gateway saves the note "No past Marsh reports match this site type and country…" on the checklist.
+Fixed questions per site type are added by the gateway (`generateChecklist`, `fixedItemsFor`),
+not by S4, so they appear even when S4 finds nothing; they are carried over on regenerate like
+other items. The checklist request carries no client text, so nothing needs masking.
+
 ## Site walk proposal (S4, CP-22)
 
 `POST /site-walks/propose` (`app/site_walk/propose.py`) turns a finished site
