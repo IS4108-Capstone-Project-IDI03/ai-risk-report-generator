@@ -87,6 +87,8 @@ export interface IChecklistItem {
   removed: IChecklistChange | null
   // Not seen or Not applicable (CP-31 AC4), else null.
   check: IChecklistMark | null
+  // Marked important by the engineer (CP-37): shown first in its section, oldest mark first.
+  important?: IChecklistChange | null
   // The same item in earlier checklists of the assessment, newest first, so an
   // observation that checked one of them still checks this one (CP-31).
   carried: Types.ObjectId[]
@@ -197,6 +199,13 @@ const itemSchema = new Schema<IChecklistItem>({
           name: { type: String, required: true },
         },
       },
+      { _id: false },
+    ),
+    default: null,
+  },
+  important: {
+    type: new Schema<IChecklistChange>(
+      { at: { type: Date, required: true }, by: changeBy },
       { _id: false },
     ),
     default: null,

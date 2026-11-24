@@ -304,3 +304,64 @@ describe('linking an existing observation to an item (CP-37)', () => {
     ).toBe(400)
   })
 })
+
+describe('important items, sources and the word limit (CP-37)', () => {
+  const patch = (itemId: string, body: object) => api.patch(`${url}/items/${itemId}`).send(body)
+  type Row = { id: string; important: { at: string } | null; sourceStandards: { title: string }[] }
+  const row = (res: { body: { checklist: { items: Row[] } } }, id: string) =>
+    res.body.checklist.items.find((i) => i.id === id)!
+
+  it('marks an item important with when, and clears it, without counting as an edit', async () => {
+    const { checklist } = (await generate()).body
+    const id = checklist.items[0].id
+    const marked = await patch(id, { important: true })
+    expect(marked.status).toBe(200)
+    expect(row(marked, id).important?.at).toEqual(expect.any(String))
+    expect((row(marked, id) as unknown as { edited: unknown }).edited).toBeNull()
+    expect(row(await patch(id, { important: false }), id).important).toBeNull()
+  })
+
+  it('names the standards an item cites', async () => {
+    const std = await KnowledgeDocumentModel.create({
+      title: 'NFPA 13 Sprinkler Systems',
+      issuingBody: 'NFPA',
+      standardNumber: '13',
+      edition: '2025',
+      fileName: 's.pdf',
+      file: { key: 'knowledge/s.pdf', contentType: 'application/pdf', size: 1, sha256: 'sha-s' },
+      status: 'complete',
+      metadata: {
+        source_type: 'nfpa_standard',
+        jurisdiction: 'all',
+        facility_type: 'all',
+        effective_date: new Date('2025-01-01'),
+      },
+    })
+    drafts.mockImplementation(() =>
+      json({
+        ...reply(
+          [
+            {
+              ...standardItem,
+              origin: 'standard',
+              citations: [{ ref: 'C:s1:2', quote: 'q', quote_found: true }],
+            },
+          ],
+          false,
+        ),
+        sources: { 'C:s1:2': { text: 'q', doc_id: String(std._id) } },
+      }),
+    )
+    const { checklist } = (await generate({ standardIds: [String(std._id)] })).body
+    expect(
+      checklist.items.find((i: { origin: string }) => i.origin === 'standard').sourceStandards,
+    ).toEqual([{ title: 'NFPA 13 Sprinkler Systems' }])
+  })
+
+  it('refuses an added or edited item of more than 25 words', async () => {
+    const { checklist } = (await generate()).body
+    const long = Array.from({ length: 26 }, () => 'word').join(' ')
+    expect((await api.post(`${url}/items`).send({ text: long, area: '7' })).status).toBe(400)
+    expect((await patch(checklist.items[0].id, { text: long })).status).toBe(400)
+  })
+})

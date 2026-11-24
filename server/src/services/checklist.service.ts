@@ -99,7 +99,13 @@ const REMOVED = 'This item was removed from the checklist. Restore it first.'
 
 // An item's wording, and its COPE categories: one or more, stored in C-O-P-E
 // order without repeats, as an observation's are (CP-32).
-const itemText = z.string().trim().min(1, 'Write what to check.').max(1000)
+// About 20 words, so every item fits on one or two lines (CP-37); 25 leaves room for a long name.
+const itemText = z
+  .string()
+  .trim()
+  .min(1, 'Write what to check.')
+  .max(1000)
+  .refine((t) => t.split(/\s+/).length <= 25, 'Keep it to about 20 words.')
 const itemCategories = z
   .array(z.enum(COPE_DIMENSIONS))
   .min(1, 'Choose at least one category.')
@@ -138,10 +144,19 @@ export const editChecklistItemSchema = z
       )
       .max(10)
       .optional(),
+    // CP-37: mark or unmark the item important.
+    important: z.boolean().optional(),
   })
-  .refine((e) => e.text !== undefined || e.COPE_dimension !== undefined || e.citations, {
-    message: 'Send what to change.',
-  })
+  .refine(
+    (e) =>
+      e.text !== undefined ||
+      e.COPE_dimension !== undefined ||
+      e.citations ||
+      e.important !== undefined,
+    {
+      message: 'Send what to change.',
+    },
+  )
 
 // The query of GET .../checklist/passages: the words to look for.
 export const passageSearchSchema = z.object({ q: z.string().trim().min(1).max(500) })
@@ -230,6 +245,20 @@ function reportsOf(citations: IChecklistCitation[], sources: Record<string, unkn
   return found.filter((r, n) => found.findIndex((x) => x.title === r.title) === n)
 }
 
+// The standards an item cites, once each, by the title kept on the checklist.
+function standardsOf(
+  citations: IChecklistCitation[],
+  sources: Record<string, unknown>,
+  standards: { id: string; title: string }[],
+) {
+  const titles = citations.flatMap(({ ref }) => {
+    const docId = (sources?.[ref] as { doc_id?: string } | undefined)?.doc_id
+    const found = standards.find((s) => s.id === docId)
+    return found ? [found.title] : []
+  })
+  return [...new Set(titles)].map((title) => ({ title }))
+}
+
 function toDto(
   { _id, assessment: _a, createdBy: _c, metadata: _m, items, ...c }: Checklist,
   checks: Map<string, ItemCheckDto>,
@@ -242,6 +271,9 @@ function toDto(
       ...item,
       // CP-37: the admin's fixed questions are marked; a past-report question names its reports.
       fixed: item.origin === 'fixed',
+      // CP-37: the standards it cites, by title, for its "from ..." line.
+      sourceStandards: standardsOf(item.citations, c.sources, c.standards),
+      important: item.important ? { at: item.important.at } : null,
       sourceReports: item.origin === 'past_report' ? reportsOf(item.citations, c.sources) : [],
       // Who edited or removed it, and when (CP-32); checklists from before
       // CP-32 have neither.
@@ -834,6 +866,16 @@ export async function editChecklistItem(
 ) {
   const { assessment, checklist, item } = await itemToChange(reference, itemId, user)
   if (item.status === 'removed') throw new ChecklistChangeError(REMOVED)
+  // Importance is not an edit of the item: it is saved on its own, with no "edited" stamp.
+  if (input.important !== undefined) {
+    await ChecklistModel.updateOne(
+      { _id: checklist._id, 'items._id': item._id },
+      { $set: { 'items.$.important': input.important ? changeBy(user) : null } },
+    )
+    if (input.text === undefined && !input.COPE_dimension && !input.citations) {
+      return getChecklist(reference)
+    }
+  }
   const chosen =
     input.citations && assessment.site
       ? await chosenCitations(checklist, item, assessment.site, input.citations)
