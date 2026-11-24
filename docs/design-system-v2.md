@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.19
+# Risk Report Generator design system, v2.20
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -209,6 +209,10 @@ New radius tokens to add when building: `--radius-card: 16px`, `--radius-popover
 - **Not-sure row and its count** (CP-24, NEW pattern): a row with a not-sure value is tinted amber with its reason on a third line ("Check severity"); a failed one is tinted red ("Suggestion failed"). The table footer counts them ("27 observations · 4 to check") and the Status filter has To check.
 - **Two-card form** (CP-24, NEW pattern): New Observation on a wide screen: the left card holds the fields with Cancel and Save under them and stays put; the right card holds what was captured and scrolls inside itself, so both cards end on one line. One column on a phone, with the sticky bottom Cancel and Save.
 - **Record page columns** (CP-24, NEW pattern): on a record's page the main column's first card grows so the content never ends above the side card.
+- **Walkthrough bubble** (`WalkthroughBubble`, F-12, NEW pattern): MarshBot's real face beside a white speech bubble (360 px, with a tail toward what it talks about). Words appear letter by letter in one size, bold for key words only. Skip is the round grey close in the top-right corner (tooltip "Skip walkthrough"), and text never runs under it. Below the words sit Back, the step bar and Next in one style, or a centred pair of answer pills that hug their words. Under 768 px it is a sheet docked to the bottom edge, and Back and Next are never clipped.
+- **Walkthrough spotlight** (F-12, NEW pattern): driver.js draws the dimming (`--scrim`) with a cut-out 6 px round the target and radius 10. A lit area is always whole: whole rows, never cut mid-line, and never a bar pinned over it. When a step asks the person to act, a "Your turn" ring breathes round the cut-out. A step that needs a choice, typing or a recording drops the dimming on the first press inside it. After the action the bubble and dimming both go quiet, and about 1 s after the app finishes MarshBot lights the result and waits for Next.
+- **Help tip** (`HelpTip`, F-13, NEW pattern): the one (?) button (32 px round, 44 px tap area on a phone) beside a title or control. It opens a white popover up to 320 px wide with a few short paragraphs or a list, and an optional "Show me" link that plays the matching walkthrough. On a phone it opens as a bottom sheet. The words are fixed text in `features/help/tips.ts`.
+- **Walkthrough checklist** (Settings → Walkthroughs, F-12, NEW pattern): groups with a tick-all box, their walkthroughs indented one level below, each with its own tick and a green done mark once played. The one main button sits on the pane's title line and names its count ("Play 1 walkthrough", "Play 5 walkthroughs").
 
 ## 7. Toasts
 
@@ -297,6 +301,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.17 (21 Nov 2026, CP-61): the building stack, its cells and their severity fills, and the chosen-location panel (section 6), built from a clickable mock; to add to the canvas.
   - v2.18 (23 Nov 2026, CP-62): the site weather panel (a bar on the Overview, a card on New Observation), its one warning, and an Assessments row's weather line (section 6), built without a board; to approve on the canvas. Red now also means "do not proceed" in a safety warning.
   - v2.19 (24 Nov 2026, AS-08): writing guidance in the Ask tab: the two guidance buttons, the gap list card and the Report template citation (section 6), built without a board; to approve on the canvas.
+  - v2.20 (24 Nov 2026, F-12 and F-13): the walkthrough bubble, its spotlight and "Your turn" ring, the shared help tip, and the walkthrough checklist in Settings (section 6), built from the F-12 canvas.
 
 ## 10. When this file says nothing
 
