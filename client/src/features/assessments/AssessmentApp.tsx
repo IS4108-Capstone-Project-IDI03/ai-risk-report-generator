@@ -521,6 +521,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           historyRequest={v.reviewHistory}
                           openSection={goTo?.params?.section}
                           canAsk={v.canAsk}
+                          // Writing guidance's Go to observation (AS-08), past an
+                          // unsaved document's leave guard as the tabs are.
+                          onViewObservation={(id) =>
+                            guardLeave(() =>
+                              id ? v.showObservation(id) : v.setTab('observations'),
+                            )
+                          }
                         />
                       ) : (
                         <Review v={v} />

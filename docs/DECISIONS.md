@@ -2805,3 +2805,23 @@ Rejected:
 Known limits: Google has no minute-by-minute forecast, so "Now" is the current hour's forecast and the rainfall is the last hour's. The 2 hours are whole forecast hours, so up to three are shown. Readings are forgotten on a restart. An address in a building complex is placed at the complex, which is fine for weather (a few kilometres) but not for directions.
 
 Stories: CP-62, CP-26, CP-18, F-07.
+
+## 2026-11-24 — Writing guidance is asked by button: what a section covers comes from S4 with the template as evidence, what is missing from the gateway with no AI
+
+Chose:
+- (AS-08) Two buttons above the Ask tab's question box, "What should this section cover?" and "What is missing from this section?", for the part of the report open (in the document editor, the one the cursor is in). Asked into the conversation on screen with `POST …/ask` and `guide: { kind, sectionId }`; the question kept is the gateway's own wording. Buttons, not a guess from what is typed, as AS-04 chose. Asked on 23 Nov.
+- What is missing is worked out by the gateway from what is saved, with no AI call (`section-guidance.service.ts`), and saved as the answer at once. Asked on 23 Nov. A model would add cost and could word a gap as advice or disagree with the Export tab; a list built in code can do neither (AC3, AC4). It counts against no question limit.
+- AC3: the export check is built once, by `detailedBlockers` (`export.service.ts`), which gives each blocker a `kind` and a `fact` beside the Export tab's `reason`; `blockersFrom` (the Export tab, MarshBot) strips them, so the Export tab's answer is unchanged. The guidance lists the section's blockers from the same call, in the same order. Sections 4 and 5's missing figures name what reads "Not entered" (`notEntered` from `riskQualityFacts` and `lossEstimateFacts`).
+- AC2's other gaps, never blocking: parts with no text (once the section has some), every table part (nothing fills Sections 7 to 10's tables yet, so the report prints "Not entered"), COPE categories with no observation the draft can use, and each observation tagged with the section's categories that the draft leaves out (still to check, still transcribing, nothing recorded), at most 20 then a count. S4's `GET /sections` now lists each section's parts so the gateway knows them before a section is drafted.
+- Links: Go to section opens the section in the review workspace, scrolled to the finding (first pending, unsupported or citing a withdrawn source) or the part (its note in the draft editor) when the gap names one; Go to observation opens the observation on the Observations tab, or the tab for a category with none, through the leave guard so unsaved document edits ask first.
+- What a section should cover goes to S4 like a question (`orchestrator.cover`, `guide.py`, `as08-v1`): the template's definition of the section is evidence labelled T1 (the whole section) and T2 onwards (each part), cited like an observation; the selected standards are searched once per part in one batched embed, reranked together. No observation or past report is sent: the question is about the template and the standards. A cited part opens its place in the section, not the Evidence tab.
+- Sections: "what is missing" for Sections 2 to 12 (2 and 3 from the export check alone); "what it should cover" for Sections 4 to 12, which the template defines. Section 1 and Appendix A have neither: they are filled in from the assessment.
+
+Reason: the engineer needs to know what to write or capture before sign-off without leaving the review workspace, and the Export tab's list is the authority on what blocks sign-off. Reading it from the same function keeps the two from drifting.
+
+Rejected:
+- A model wording the gaps: it could turn a fact into advice and its list could differ from the Export tab's.
+- Recognising the questions from typed wording: an engineer typing "what is missing about the pump test?" means a question about evidence, not the section's gaps.
+- Sending observations with "what should this section cover?": the answer would start describing the site; what the observations lack is "what is missing"'s job.
+
+Stories: AS-08, AS-01, AS-03, AS-04, EX-01, GN-03, CP-24.

@@ -233,6 +233,14 @@ export type TemplateSection = {
   title: string
   cope_dimensions: string[]
   min_observations: number
+  // Its parts in the template's order (AS-08): each heading, its kind and a
+  // part of fields' field names. Absent from an S4 older than AS-08.
+  subsections?: TemplateSubsection[]
+}
+export type TemplateSubsection = {
+  heading: string
+  kind: 'narrative' | 'fields' | 'table'
+  fields?: string[]
 }
 
 export async function listTemplateSections(): Promise<TemplateSection[]> {

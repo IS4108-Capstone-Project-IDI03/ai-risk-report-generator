@@ -7,6 +7,7 @@ import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import type { AskDrafting } from '../ask/AskPanel'
 import { DictationScope } from '../dictation/scope'
 import { DocumentAsk } from '../ask/DocumentAsk'
+import type { AskGuidanceTarget } from '../ask/AskPanel'
 import { editorPassage, type AskPassage } from '../ask/passage'
 import { isAskShortcut } from '../ask/shortcut'
 import { READ_ONLY, type AskWorkflow } from '../ask/useAsk'
@@ -108,6 +109,7 @@ function DocumentBody({
   canComment,
   me,
   ask,
+  onViewObservation,
   onReturn,
   onReload,
   wrapStyle,
@@ -125,6 +127,8 @@ function DocumentBody({
   me: Stamp
   // Asking about the selected text (AS-02): the Ask tab's conversation, or null.
   ask: AskWorkflow | null
+  // Where writing guidance's Go to observation goes (AS-08).
+  onViewObservation?: (id: string | null) => void
   onReturn: (sectionId: string) => void
   onReload: () => void
   wrapStyle: React.CSSProperties
@@ -516,6 +520,16 @@ function DocumentBody({
     setCurrent(entry.sectionId)
     goToPage(entry.page - 1)
   }
+  // Writing guidance for the section the cursor is in (AS-08): Go to section
+  // scrolls to it here; Go to observation opens it on the Observations tab,
+  // asking first if there are unsaved changes (the leave guard).
+  const guidance: AskGuidanceTarget = {
+    target: { sectionId: current, label: labelOf(current) },
+    onGo: (link) => {
+      if (link.to === 'section') goTo(link.sectionId)
+      else onViewObservation?.(link.observationId)
+    },
+  }
 
   if (!editor) return null
   return (
@@ -708,6 +722,7 @@ function DocumentBody({
                 overlay={!room}
                 onShowPassage={showAsked}
                 drafting={drafting}
+                guidance={guidance}
                 onClose={() => {
                   setAskOpen(false)
                   setAskMarks(editor.view, { shown: null })
@@ -812,6 +827,7 @@ export function DocumentEdit({
   canComment = false,
   me = NOBODY,
   ask = null,
+  onViewObservation,
   onReturn,
   onReload,
   wrapStyle,
@@ -840,6 +856,8 @@ export function DocumentEdit({
   // The Ask tab's conversation, to ask about selected text here (AS-02);
   // null without `reports:ask`.
   ask?: AskWorkflow | null
+  // Opens an observation on the Observations tab, or the tab for null (AS-08).
+  onViewObservation?: (id: string | null) => void
   onReturn: (sectionId: string) => void
   // Reads the workspace again and reopens the document from it.
   onReload: () => void
@@ -876,6 +894,7 @@ export function DocumentEdit({
       canComment={canComment}
       me={me}
       ask={ask}
+      onViewObservation={onViewObservation}
       onReturn={onReturn}
       onReload={onReload}
       wrapStyle={wrapStyle}

@@ -19,7 +19,7 @@ import type { ExportDetails } from './export-model'
 import { printPdf, readReport, textsOf, withExportPage } from './export-render.service'
 import { listOfis } from './ofi.service'
 import { getReviewWorkspace, type ReviewWorkspaceDto } from './review.service'
-import { figureFacts } from './section.service'
+import { figureFacts, type LoadedSection } from './section.service'
 import { getSummary, type SummaryDto } from './summary.service'
 
 // The export pages are one HTML document with the photos inside it at print
@@ -88,64 +88,134 @@ const OFIS = '3. Opportunities for Improvement'
 //   none citing a withdrawn source, and nothing changed since it was drafted.
 // Each item names its section, in report order. Empty when it may go.
 export async function exportBlockers(reference: string): Promise<ExportBlocker[]> {
+  return blockersFrom(await blockerInputs(reference))
+}
+
+// What the export check reads, loaded once. `loaded` is the sections when the
+// caller has already read them (the writing guidance, AS-08).
+export async function blockerInputs(
+  reference: string,
+  loaded?: LoadedSection[],
+): Promise<BlockerInputs> {
   const [workspace, summary, ofis, assessment] = await Promise.all([
-    getReviewWorkspace(reference),
+    getReviewWorkspace(reference, loaded),
     getSummary(reference),
     listOfis(reference),
     AssessmentModel.findOne({ reference }, 'riskQuality lossEstimates').lean(),
   ])
-  return blockersFrom({ workspace, summary, ofis, assessment })
+  return { workspace, summary, ofis, assessment }
 }
-
-/** Returns the export blockers from data already loaded (MarshBot's re-check reads it once). */
-export function blockersFrom({
-  workspace,
-  summary,
-  ofis,
-  assessment,
-}: {
+export type BlockerInputs = {
   workspace: ReviewWorkspaceDto
   summary: SummaryDto
   ofis: Awaited<ReturnType<typeof listOfis>>
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'> | null
-}): ExportBlocker[] {
-  const out: ExportBlocker[] = []
-  const add = (sectionId: string, title: string, where: ExportBlocker['where'], reason: string) =>
-    out.push({ sectionId, title, where, reason })
+}
+
+/** Returns the export blockers from data already loaded (MarshBot's re-check reads it once). */
+export function blockersFrom(input: BlockerInputs): ExportBlocker[] {
+  return detailedBlockers(input).map(({ sectionId, title, where, reason }) => ({
+    sectionId,
+    title,
+    where,
+    reason,
+  }))
+}
+
+// What kind of thing a blocker is, for the writing guidance (AS-08) to point
+// at the place it is finished.
+export type BlockerKind =
+  | 'not_drafted'
+  | 'out_of_date'
+  | 'no_ofis'
+  | 'figures'
+  | 'not_written'
+  | 'ai_unsupported'
+  | 'ai_pending'
+  | 'replacement'
+  | 'pending_findings'
+  | 'unsupported_findings'
+  | 'withdrawn_sources'
+
+// A blocker with its kind and the same thing stated as a fact, naming its
+// section and giving no next step: how the Ask tab's "What is missing from
+// this section?" states it (AS-08 AC3, AC4). The Export tab shows `reason`.
+export type DetailedBlocker = ExportBlocker & { kind: BlockerKind; fact: string }
+
+/**
+ * Returns every export blocker with its kind and fact (AS-08). The one place
+ * blockers are worked out: `blockersFrom` (the Export tab, MarshBot) and the
+ * writing guidance both read it, so they never disagree (AS-08 AC3).
+ */
+export function detailedBlockers({
+  workspace,
+  summary,
+  ofis,
+  assessment,
+}: BlockerInputs): DetailedBlocker[] {
+  const out: DetailedBlocker[] = []
+  const add = (
+    kind: BlockerKind,
+    sectionId: string,
+    title: string,
+    where: ExportBlocker['where'],
+    reason: string,
+    fact: string,
+  ) => out.push({ sectionId, title, where, reason, kind, fact })
 
   const { draft: summaryDraft, staleSections } = summary.executiveSummary
   if (!summaryDraft)
     add(
+      'not_drafted',
       '2',
       SUMMARY,
       'generation',
       'It is not drafted yet. Draft it on Generation once Sections 3 to 12 are complete.',
+      'Section 2 is not drafted yet.',
     )
-  else if (staleSections.length)
+  else if (staleSections.length) {
+    const changed = listed(staleSections.map((s) => `Section ${s.id}`))
     add(
+      'out_of_date',
       '2',
       SUMMARY,
       'generation',
-      `It is out of date: ${listed(staleSections.map((s) => `Section ${s.id}`))} changed since it was drafted. Draft it again on Generation.`,
+      `It is out of date: ${changed} changed since it was drafted. Draft it again on Generation.`,
+      `Section 2 is out of date: ${changed} changed since it was drafted.`,
     )
+  }
   if (!ofis.accepted.length)
     add(
+      'no_ofis',
       '3',
       OFIS,
       'generation',
       'No Opportunity for Improvement is accepted yet. Draft them on Generation, then accept at least one in the review workspace.',
+      'Section 3 has no accepted Opportunity for Improvement yet.',
     )
 
   for (const section of workspace.sections) {
     const title = `${section.id}. ${section.title}`
-    const missing = assessment ? figureFacts(section.id, assessment).missing : undefined
-    if (missing) add(section.id, title, 'review', `Its figures are not all entered. ${missing}`)
+    const name = `Section ${section.id}`
+    const figures = assessment ? figureFacts(section.id, assessment) : {}
+    const missing = figures.missing
+    if (missing)
+      add(
+        'figures',
+        section.id,
+        title,
+        'review',
+        `Its figures are not all entered. ${missing}`,
+        figures.notEntered ?? `${name}'s figures are not all entered.`,
+      )
     if (section.completion.state === 'not_started') {
       add(
+        'not_written',
         section.id,
         title,
         'generation',
         'It is not written yet. Draft it on Generation, or write it in the document editor.',
+        `${name} is not written yet.`,
       )
       continue
     }
@@ -154,42 +224,66 @@ export function blockersFrom({
     const ai = section.review.aiText
     if (ai.unsupported)
       add(
+        'ai_unsupported',
         section.id,
         title,
         'review',
         `${plural(ai.unsupported, 'AI-drafted sentence')} ${ai.unsupported === 1 ? 'has' : 'have'} no supporting source. Give ${ai.unsupported === 1 ? 'it a citation' : 'each a citation'} in the document editor, or delete ${ai.unsupported === 1 ? 'it' : 'them'}.`,
+        `${name} has ${plural(ai.unsupported, 'AI-drafted sentence')} with no supporting source.`,
       )
     if (ai.pending)
       add(
+        'ai_pending',
         section.id,
         title,
         'review',
         ai.pending === 1
           ? 'AI-drafted text from the Ask tab is waiting for you to accept it.'
           : `${ai.pending} pieces of AI-drafted text from the Ask tab are waiting for you to accept them.`,
+        ai.pending === 1
+          ? `${name} has AI-drafted text from the Ask tab that is not accepted yet.`
+          : `${name} has ${ai.pending} pieces of AI-drafted text from the Ask tab that are not accepted yet.`,
       )
     // Written in the document editor, with no draft to review.
     if (!section.draft) continue
     if (section.replacement)
-      add(section.id, title, 'review', 'A new draft is waiting for you to accept or discard it.')
+      add(
+        'replacement',
+        section.id,
+        title,
+        'review',
+        'A new draft is waiting for you to accept or discard it.',
+        `${name} has a new draft waiting to be accepted or discarded.`,
+      )
     const { pending } = section.findings
     const { unsupportedStatements: unsupported, withdrawnSources: withdrawn } = section.review
     if (pending)
       add(
+        'pending_findings',
         section.id,
         title,
         'review',
         `${plural(pending, 'finding')} ${pending === 1 ? 'is' : 'are'} waiting for your decision.`,
+        `${name} has ${plural(pending, 'finding')} waiting for a decision.`,
       )
     if (unsupported)
       add(
+        'unsupported_findings',
         section.id,
         title,
         'review',
         `${plural(unsupported, 'finding')} ${unsupported === 1 ? 'is' : 'are'} unsupported by evidence.`,
+        `${name} has ${plural(unsupported, 'finding')} unsupported by evidence.`,
       )
     if (withdrawn)
-      add(section.id, title, 'review', `It cites ${plural(withdrawn, 'withdrawn source')}.`)
+      add(
+        'withdrawn_sources',
+        section.id,
+        title,
+        'review',
+        `It cites ${plural(withdrawn, 'withdrawn source')}.`,
+        `${name} cites ${plural(withdrawn, 'withdrawn source')}.`,
+      )
     // Out of date (figures missing are listed above already).
     const changes = section.review.changeCounts
     const changed = [
@@ -199,10 +293,12 @@ export function blockersFrom({
     ].filter((c): c is string => c !== null)
     if (changed.length)
       add(
+        'out_of_date',
         section.id,
         title,
         'review',
         `It is out of date: ${listed(changed)} changed since it was drafted. Review the changes, or draft it again.`,
+        `${name}'s draft is out of date: ${listed(changed)} changed since it was drafted.`,
       )
   }
   return out

@@ -1,5 +1,5 @@
 import { Button, Dialog, Tabs } from '../../../design-system'
-import { AskPanel, type AskDrafting } from '../ask/AskPanel'
+import { AskPanel, type AskDrafting, type AskGuidanceTarget } from '../ask/AskPanel'
 import type { AskPassage } from '../ask/passage'
 import type { AskItem, AskWorkflow } from '../ask/useAsk'
 import type { CommentAnchor } from '../comments/api'
@@ -26,6 +26,8 @@ export type InspectorAsk = {
   // Drafting text into the report from the tab (AS-04): only for whoever may
   // put text into it, the assigned engineer.
   drafting?: AskDrafting
+  // Writing guidance for the part open (AS-08), and going to a gap's place.
+  guidance?: AskGuidanceTarget
 }
 
 // The review workspace's right inspector: the evidence panel and, beside it,
@@ -62,6 +64,7 @@ export function ReviewInspector({
       locate={ask.locate}
       onShowPassage={ask.onShowPassage}
       drafting={ask.drafting}
+      guidance={ask.guidance}
     />
   )
   if (phone)

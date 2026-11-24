@@ -12,7 +12,9 @@ import {
   type AskAnswer,
   type AskConversation,
   type AskEvent,
+  type AskGuidance,
   type AskScope,
+  type GuideKind,
   type Proposal,
   type ProposalAction,
   type ProposeRequest,
@@ -70,6 +72,9 @@ function shown(answer: AskAnswer, key = answer.id): AskItem {
   return {
     ...answer,
     proposal,
+    guidance: answer.guidance ?? null,
+    gaps: answer.gaps ?? [],
+    template: answer.template ?? [],
     key,
     step: null,
     failure: answer.error ? { cause: answer.error.cause, at: answer.error.at, next: NEXT } : null,
@@ -93,6 +98,11 @@ function problemOf(error: unknown, doing: 'opened' | 'deleted'): string {
   return `The conversation could not be ${doing}. Try again.`
 }
 
+/** Returns the question a guidance button asks (AS-08), as the gateway words it. */
+export function guidanceQuestion(kind: GuideKind, label: string): string {
+  return kind === 'cover' ? `What should ${label} cover?` : `What is missing from ${label}?`
+}
+
 // The Ask tab's state for one assessment (AS-01): this user's conversations
 // about it (AS-03), read once when the workspace opens, which opens on the
 // latest; the questions and answers of the one on screen; and the question
@@ -104,6 +114,7 @@ function problemOf(error: unknown, doing: 'opened' | 'deleted'): string {
 // passage chosen with "Ask about this" (AS-02), asked about with the next
 // question; or, chosen with "Rewrite this" (`rewriting`, AS-04), the passage
 // the next request rewrites. `apply` inserts, replaces or undoes proposed text.
+// `guide` asks for writing guidance for a section (AS-08).
 export function useAsk(reference: string, enabled: boolean) {
   const [items, setItems] = useState<AskItem[]>([])
   const [scope, setScope] = useState<AskScope | null>(null)
@@ -240,6 +251,7 @@ export function useAsk(reference: string, enabled: boolean) {
       question: string,
       passage: AskPassage | null = null,
       propose: ProposeRequest | null = null,
+      guidance: AskGuidance | null = null,
     ) => {
       if (running.current || opening.current) return
       const controller = new AbortController()
@@ -266,6 +278,9 @@ export function useAsk(reference: string, enabled: boolean) {
           step: 'retrieve',
           failure: null,
           proposal: null,
+          guidance,
+          gaps: [],
+          template: [],
           requested: propose,
           refusal: null,
         },
@@ -306,6 +321,7 @@ export function useAsk(reference: string, enabled: boolean) {
             statements: [...item.statements, statement],
             passages: [...item.passages, ...(event.passages ?? [])],
             observations: [...item.observations, ...(event.observations ?? [])],
+            template: [...(item.template ?? []), ...(event.template ?? [])],
           }))
         } else if (event.type === 'missing') {
           update((item) => ({ ...item, missing: [...item.missing, event.text] }))
@@ -323,6 +339,7 @@ export function useAsk(reference: string, enabled: boolean) {
           passage,
           current.current,
           propose,
+          guidance,
         )
         if (!finished) fail('the answer ended before it was finished')
       } catch (error: unknown) {
@@ -340,6 +357,15 @@ export function useAsk(reference: string, enabled: boolean) {
   )
 
   const stop = useCallback(() => running.current?.abort(), [])
+
+  // Writing guidance for a section (AS-08): what it should cover, answered from
+  // the template and the selected standards, or what is missing from it, listed
+  // by the gateway. Asked into the conversation on screen, as a question is.
+  const guide = useCallback(
+    (kind: GuideKind, section: { sectionId: string; label: string }) =>
+      ask(guidanceQuestion(kind, section.label), null, null, { kind, ...section }),
+    [ask],
+  )
 
   // Inserts, replaces or undoes an item's proposed text (AS-04): the item
   // shows the proposal as it now stands, which is returned with the review
@@ -431,6 +457,7 @@ export function useAsk(reference: string, enabled: boolean) {
     reason,
     busy,
     ask,
+    guide,
     stop,
     about,
     setAbout,

@@ -96,6 +96,14 @@
   may read them, and on an archived assessment asking and deleting answer
   409. S4 is never sent earlier turns: each question stands alone. See
   docs/areas/database.md, "Ask conversations".
+- Writing guidance (AS-08): "What is missing from this section?" is listed by
+  the gateway (`section-guidance.service.ts`) with no AI call, and its gaps
+  that block the export come only from `detailedBlockers` (`export.service.ts`),
+  the one function the Export tab's check (`blockersFrom`) is built from: add
+  or change a blocker there, with its `fact`, never in the guidance. A gap is
+  a fact naming its section, never a next step. "What should this section
+  cover?" goes through S4's orchestrator (`orchestrator.cover`) like an Ask
+  answer. See docs/areas/services.md, "Writing guidance for a section".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export
