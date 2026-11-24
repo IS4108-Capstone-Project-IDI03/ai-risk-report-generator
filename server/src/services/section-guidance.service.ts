@@ -104,39 +104,39 @@ function noTextGaps(section: ReviewSectionDto, parts: readonly TemplateSubsectio
   if (section.completion.state === 'not_started') return []
   const own = section.document?.current ? section.document.document : null
   const typed = own ? writtenSubsections(own) : new Set<number>()
-  return parts.flatMap((part, i): SectionGap[] => {
-    if (part.kind === 'table') return []
+  const gaps: SectionGap[] = []
+  parts.forEach((part, i) => {
+    if (part.kind === 'table') return
     const drafted = section.draft?.subsections[i]?.statements.some(
       (st) => st.review.state !== 'rejected',
     )
-    if (drafted || typed.has(i)) return []
-    return [
-      {
-        kind: 'no_text',
-        fact: `Section ${section.id} has no text under ${part.heading}.`,
-        blocksExport: false,
-        link: { to: 'section', sectionId: section.id, subsection: i },
-      },
-    ]
+    if (drafted || typed.has(i)) return
+    gaps.push({
+      kind: 'no_text',
+      fact: `Section ${section.id} has no text under ${part.heading}.`,
+      blocksExport: false,
+      link: { to: 'section', sectionId: section.id, subsection: i },
+    })
   })
+  return gaps
 }
 
 // Tables reading "Not entered" (AC2). Nothing fills Sections 7 to 10's tables
 // yet, so the report prints "Not entered" in each (document/LockedBlockView.tsx);
 // Sections 4 and 5's figures are export blockers, listed above.
 function tableGaps(sectionId: string, parts: readonly TemplateSubsection[]): SectionGap[] {
-  return parts.flatMap((part, i): SectionGap[] =>
-    part.kind === 'table'
-      ? [
-          {
-            kind: 'table',
-            fact: `Section ${sectionId}'s ${part.heading}${/\btable$/i.test(part.heading) ? '' : ' table'} reads Not entered.`,
-            blocksExport: false,
-            link: { to: 'section', sectionId, subsection: i },
-          },
-        ]
-      : [],
-  )
+  const gaps: SectionGap[] = []
+  parts.forEach((part, i) => {
+    if (part.kind !== 'table') return
+    const named = /\btable$/i.test(part.heading) ? part.heading : `${part.heading} table`
+    gaps.push({
+      kind: 'table',
+      fact: `Section ${sectionId}'s ${named} reads Not entered.`,
+      blocksExport: false,
+      link: { to: 'section', sectionId, subsection: i },
+    })
+  })
+  return gaps
 }
 
 // Why an observation tagged with one of the section's categories is left out
@@ -154,6 +154,20 @@ function leftOutBecause(o: ObservationDto): string | null {
     : 'has no note, finished transcript or transcribed page'
 }
 
+// An observation tagged with the section's categories that its draft leaves
+// out, and why, with Go to observation.
+function leftOutGap(name: string, o: ObservationDto, tags: string[], why: string): SectionGap {
+  const which = o.location
+    ? `The observation at ${locationText(o.location)}`
+    : 'An observation with no location'
+  return {
+    kind: 'observation',
+    fact: `${which} is tagged ${listed(tags)} but ${why}, so ${name}'s draft leaves it out.`,
+    blocksExport: false,
+    link: { to: 'observation', observationId: o.id },
+  }
+}
+
 // COPE categories with no observation (AC2), and the observations tagged with
 // the section's categories that its draft leaves out, oldest first, each with
 // Go to observation.
@@ -164,38 +178,28 @@ function observationGaps(
   const name = `Section ${template.id}`
   const ofSection = (o: ObservationDto) =>
     (o.copeDimensions ?? []).filter((c) => template.cope_dimensions.includes(c))
-  const categories = template.cope_dimensions.flatMap((category): SectionGap[] => {
+  const categories: SectionGap[] = []
+  for (const category of template.cope_dimensions) {
     const tagged = observations.filter((o) => o.copeDimensions?.some((c) => c === category))
-    if (tagged.some((o) => leftOutBecause(o) === null)) return []
-    return [
-      tagged.length
-        ? {
-            kind: 'category',
-            fact: `${name} has no observation tagged ${category} that its draft can use: ${plural(tagged.length, 'observation')} tagged ${category} ${tagged.length === 1 ? 'is' : 'are'} left out.`,
-            blocksExport: false,
-            link: { to: 'observation', observationId: tagged[0].id },
-          }
-        : {
-            kind: 'category',
-            fact: `${name} has no observation tagged ${category}.`,
-            blocksExport: false,
-            link: { to: 'observation', observationId: null },
-          },
-    ]
-  })
+    if (tagged.some((o) => leftOutBecause(o) === null)) continue
+    const many = tagged.length === 1 ? 'is' : 'are'
+    categories.push({
+      kind: 'category',
+      fact: tagged.length
+        ? `${name} has no observation tagged ${category} that its draft can use: ${plural(tagged.length, 'observation')} tagged ${category} ${many} left out.`
+        : `${name} has no observation tagged ${category}.`,
+      blocksExport: false,
+      link: { to: 'observation', observationId: tagged.length ? tagged[0].id : null },
+    })
+  }
   const leftOut = observations.flatMap((o) => {
     const tags = ofSection(o)
     const why = tags.length ? leftOutBecause(o) : null
     return why ? [{ o, tags, why }] : []
   })
-  const each = leftOut.slice(0, MAX_OBSERVATION_GAPS).map(
-    ({ o, tags, why }): SectionGap => ({
-      kind: 'observation',
-      fact: `${o.location ? `The observation at ${locationText(o.location)}` : 'An observation with no location'} is tagged ${listed(tags)} but ${why}, so ${name}'s draft leaves it out.`,
-      blocksExport: false,
-      link: { to: 'observation', observationId: o.id },
-    }),
-  )
+  const each = leftOut
+    .slice(0, MAX_OBSERVATION_GAPS)
+    .map(({ o, tags, why }) => leftOutGap(name, o, tags, why))
   const more = leftOut.length - each.length
   return [
     ...categories,

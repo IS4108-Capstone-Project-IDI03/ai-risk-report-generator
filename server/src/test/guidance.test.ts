@@ -4,7 +4,7 @@ import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { AssistantConversationModel } from '../models/assistant-conversation.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
-import { ObservationModel, type CopeDimension } from '../models/observation.model'
+import { ObservationModel, type CopeDimension, type Severity } from '../models/observation.model'
 import { ReportCommentThreadModel } from '../models/report-comment.model'
 import { ReportSectionModel, type IReportSection } from '../models/report-section.model'
 import { ReportSectionVersionModel } from '../models/report-section-version.model'
@@ -176,7 +176,7 @@ async function observation(
   assessment: Types.ObjectId,
   session: Types.ObjectId,
   categories: CopeDimension[],
-  severity: string | null,
+  severity: Severity | null,
 ) {
   return ObservationModel.create({
     assessment,

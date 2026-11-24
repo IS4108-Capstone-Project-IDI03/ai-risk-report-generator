@@ -117,6 +117,10 @@ function replacementView(section: ReviewSection): ReviewSection {
   }
 }
 
+// Where writing guidance's Go to section went (AS-08): a part of a section,
+// scrolled to once drawn; `at` makes a second go to the same part scroll again.
+type GuidanceGoal = { sectionId: string; subsection: number; at: number }
+
 // The Review tab for a saved assessment (RV-01): sections 7-12 down the side
 // with their completion and review states, the selected section's draft in
 // the middle, and its sources, original observations and claims beside it.
@@ -232,9 +236,7 @@ export function ReviewWorkspace({
   // AI-drafted text being accepted or deleted (AS-04), by its proposal.
   const [aiBusy, setAiBusy] = useState<string | null>(null)
   // A part of a section writing guidance went to (AS-08), scrolled to once drawn.
-  const [goal, setGoal] = useState<{ sectionId: string; subsection: number; at: number } | null>(
-    null,
-  )
+  const [goal, setGoal] = useState<GuidanceGoal | null>(null)
   // Brings a source opened from an answer into view, also when the panel sits
   // below the draft (tablet) or the sheet just closed (phone).
   useEffect(() => {
