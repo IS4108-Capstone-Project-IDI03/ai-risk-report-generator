@@ -29,6 +29,7 @@ export function ClientCard({
       <button
         type="button"
         className="mb-client"
+        data-walk="overview.client"
         onClick={onOpen}
         aria-label={`${name}, ${reference}. Open assessment details`}
       >

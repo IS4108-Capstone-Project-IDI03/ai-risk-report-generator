@@ -1,7 +1,7 @@
 // Gateway calls for site walks (CP-22). Shapes must match
 // .local-docs/specs/sprint-4/CP-22-contract.md and server/src/routes/site-walk.routes.ts.
 // Called by the Recording and Review screens and the pending-upload store.
-import { request } from '../assessments/api'
+import { request, type Kind } from '../assessments/api'
 
 export type Severity = 'critical' | 'high' | 'moderate' | 'low'
 export type Cope = 'Construction' | 'Occupancy' | 'Protection' | 'Exposure'
@@ -23,6 +23,8 @@ export type ProposedObservation = {
   note: string
   copeDimension: Cope | null
   severity: Severity | null
+  // The engineer's tags (CP-36); absent = untagged, read as a Fact. Sent on Create all.
+  kinds?: Kind[]
   // null: the AI found no clear place, so the engineer must choose one.
   locationRef: string | null
   recordingSeq: number | null

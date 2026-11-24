@@ -67,6 +67,10 @@
   align-items: flex-start;
   gap: 5px;
 }
+.mb-bot-tip {
+  flex: none;
+  margin-left: auto;
+}
 .mb-bot-id b {
   font-size: 16px;
   line-height: 21px;

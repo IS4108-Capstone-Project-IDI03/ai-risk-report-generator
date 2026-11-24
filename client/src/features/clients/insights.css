@@ -234,7 +234,14 @@
   gap: 4px 12px;
 }
 .ci-card-head .ci-h {
+  flex: 0 1 auto;
+}
+/* The heading and its help tip (F-13) fill the row, so the tip sits beside the heading and nothing else moves. */
+.ci-h-tip {
+  display: flex;
   flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
 }
 .ci-card-head .ci-link {
   align-self: center;
@@ -741,5 +748,14 @@
   .ci-span,
   .ci-dot {
     transition: none;
+  }
+}
+
+/* F-12 "Read a client's insights", the step that names the three panels: on a phone, while the
+   walkthrough lights them (they carry data-walk-on), each shows only its heading and its one-line
+   note, so all three fit above MarshBot's sheet. The next step shows them whole again. */
+@media (max-width: 767px) {
+  .ci-card[data-walk-on] > :not(.ci-card-head, .ci-h, .ci-sub) {
+    display: none;
   }
 }

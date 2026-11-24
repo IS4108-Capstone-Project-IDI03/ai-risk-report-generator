@@ -5,6 +5,7 @@
 // amber mark): red is louder, so it wins. A complete one has the green tick. Pressing it opens
 // the observation's page. A deleted one offers Restore in the row itself, as on the tab.
 // Used by ProposalList.tsx.
+import { KindBadges } from '../../assessments/components/KindBadges'
 import { Icon, RowMark } from '../../../design-system'
 import { CategoryMark, SeverityMark } from '../../assessments/components/ObservationMarks'
 import type { ProposedObservation } from '../api'
@@ -17,10 +18,16 @@ export function ProposalRow({
   o,
   onOpen,
   onRestore,
+  first = false,
+  flagged = false,
 }: {
   o: ProposedObservation
   onOpen: () => void
   onRestore?: () => void
+  // The list's first row, which the "Review a site walk" walkthrough points at (F-12).
+  first?: boolean
+  // The first red-marked row after the first: the walkthrough lights it as well.
+  flagged?: boolean
 }) {
   const missing = missingFields(o)
   // a. Which look it wears: red when something is missing, else amber when not sure.
@@ -32,6 +39,7 @@ export function ProposalRow({
       <CategoryMark cats={o.copeDimension ? [o.copeDimension] : []} />
       <span className="ob-row-main">
         <span className="ob-row-text">{o.note.trim()}</span>
+        <KindBadges kinds={o.kinds} />
         {reason && !onRestore && <span className="ob-row-reason">{reason}</span>}
       </span>
       <span className="ob-row-cat">{o.copeDimension ?? <span className="ob-none">—</span>}</span>
@@ -53,7 +61,11 @@ export function ProposalRow({
     // The same wrapper and tints as the Observations tab's rows (assessments/observations.css).
     const tint = missing.length ? 'failed' : unsure ? 'unsure' : undefined
     return (
-      <div className="ob-row-wrap" data-tint={tint}>
+      <div
+        className="ob-row-wrap"
+        data-tint={tint}
+        data-walk={first ? 'site-walk.row-1' : flagged ? 'site-walk.row-red' : undefined}
+      >
         {row}
       </div>
     )

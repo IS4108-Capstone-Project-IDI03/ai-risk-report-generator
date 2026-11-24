@@ -170,7 +170,7 @@ def test_the_ofi_model_is_told_to_copy_placeholders_exactly(monkeypatch):
 
     system, _ = prompts[0]
     assert "Copy bracketed placeholders such as [PERSON_1] or [CLIENT_1] exactly" in system
-    assert response.json()["provenance"]["prompt_version"] == "gn05-v7"
+    assert response.json()["provenance"]["prompt_version"] == "gn05-v8"
 
 
 def test_an_engineers_recommendation_reaches_the_prompt_with_its_own_observation(monkeypatch):

@@ -61,7 +61,7 @@ export function CalendarGrid({
   }
   const tall = view === 'week'
   return (
-    <div className="cal-grid" data-view={view} ref={grid}>
+    <div className="cal-grid" data-view={view} ref={grid} data-walk="calendar.grid">
       <div className="cal-weekdays" aria-hidden="true">
         {WEEKDAYS.map((d) => (
           <span key={d}>{d}</span>

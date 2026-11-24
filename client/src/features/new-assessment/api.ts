@@ -3,6 +3,14 @@
 // Called by useNewAssessment.ts and useIntake.ts. Calls the gateway through
 // assessments/api.ts's request(); shapes must match the gateway's client-intake routes.
 import { request, type Assessment } from '../assessments/api'
+import { tryItRunning } from '../walkthrough/engine'
+
+// During the "Start from the client's documents" walkthrough the intake's calls carry
+// x-walkthrough: <id>, so the gateway records the reading's AI cost as the walkthrough's (F-12).
+const walkthroughHeader = () => {
+  const id = tryItRunning()
+  return id ? { 'x-walkthrough': id } : undefined
+}
 
 export type VisitType = 'First survey' | 'Resurvey' | 'Follow-up visit'
 // The words a filled-in value came from, in one of the intake's documents.
@@ -87,7 +95,13 @@ export async function startIntake(files: File[], pastedText: string, signal?: Ab
   for (const file of files) form.append('file', file)
   if (pastedText.trim()) form.append('pastedText', pastedText)
   return (
-    await request<{ id: string; files: IntakeFile[] }>('POST', '/api/client-intakes', form, signal)
+    await request<{ id: string; files: IntakeFile[] }>(
+      'POST',
+      '/api/client-intakes',
+      form,
+      signal,
+      walkthroughHeader(),
+    )
   ).data
 }
 
@@ -101,6 +115,7 @@ export async function readIntake(id: string, signal?: AbortSignal) {
       intakePath(id) + '/read',
       undefined,
       signal,
+      walkthroughHeader(),
     )
   ).data
 }

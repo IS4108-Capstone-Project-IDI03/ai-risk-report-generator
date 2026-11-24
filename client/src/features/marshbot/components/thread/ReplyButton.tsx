@@ -14,10 +14,13 @@ const ICON_NAME = /^[a-z][a-z0-9-]*$/
 export function ReplyButton({
   reply,
   onClick,
+  walk,
   ...aria
 }: {
   reply: Pick<Reply, 'label' | 'primary' | 'link' | 'icon'>
   onClick: () => void
+  // The walkthrough's tag for this button (F-12).
+  walk?: string
 } & AriaAttributes) {
   // A choice that only opens another tab (no reply is posted) looks unlike one that answers.
   const opens = !reply.primary && !!reply.link
@@ -30,6 +33,7 @@ export function ReplyButton({
       // ds-press is the Button's own class (press feedback, the 44 px tap area), kept because
       // className here replaces it; mbt-reply lets a long label wrap on a phone (thread.css).
       className="ds-press mbt-reply"
+      data-walk={walk}
       onClick={onClick}
       // The calendar's Popover adds aria-expanded and aria-controls through here.
       {...aria}

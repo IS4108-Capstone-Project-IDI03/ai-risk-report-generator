@@ -208,6 +208,12 @@
   padding: 24px 16px;
   text-align: center;
 }
+.sw-finished-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
 .sw-finished h1 {
   margin: 0;
   color: var(--marsh-navy);

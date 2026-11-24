@@ -16,12 +16,15 @@ export function ChooseSourceType({
   document,
   onStarted,
   onError,
+  walk,
 }: {
   document: KnowledgeDocument
   // Called once the gateway has queued it, so the list re-reads.
   onStarted: () => void
   // Called with the gateway's reason when ingestion couldn't start, or null on a new try.
   onError: (reason: string | null) => void
+  // The control's data-walk tag (F-12).
+  walk?: string
 }) {
   const [sourceType, setSourceType] = useState<SourceType | ''>('')
   const [starting, setStarting] = useState(false)
@@ -45,7 +48,7 @@ export function ChooseSourceType({
   }
 
   return (
-    <span className="kb-choose-type">
+    <span className="kb-choose-type" data-walk={walk}>
       <Select
         aria-label={`Source type for ${document.title}`}
         size="sm"

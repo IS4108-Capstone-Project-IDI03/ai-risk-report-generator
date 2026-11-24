@@ -76,6 +76,9 @@ export function SessionTurns({
     )
     if (turn) marks.set(turn.id, [...(marks.get(turn.id) ?? []), stage])
   }
+  // The engineer's latest reply in the open session: the walkthrough lights it with MarshBot's
+  // answer to it (F-12, "Find your way around an assessment"), so the words "your answer" are lit.
+  const lastMine = past ? undefined : session.turns.findLast((t) => t.who === 'engineer')
   return (
     <div className="mbt-session" data-past={past || undefined}>
       <p className="mbt-divider">{sessionTime(session.startedAt)}</p>
@@ -87,7 +90,10 @@ export function SessionTurns({
         // A pushed turn whose first message is not out yet: no divider or milestone either.
         const waits = reveal?.hidden(turn.id) ?? false
         return (
-          <TurnContext.Provider key={turn.id} value={{ turn, past }}>
+          <TurnContext.Provider
+            key={turn.id}
+            value={{ turn, past, newest: !past && turn === newest }}
+          >
             {gap && !waits && <p className="mbt-divider">{clock(turn.at)}</p>}
             {!waits &&
               marks
@@ -96,7 +102,10 @@ export function SessionTurns({
                   <Milestone key={stage} stage={stage} fresh={!!fresh?.has(turn.id)} />
                 ))}
             {turn.who === 'engineer' ? (
-              <EngineerBubble text={turn.says[0]?.text ?? ''} />
+              <EngineerBubble
+                text={turn.says[0]?.text ?? ''}
+                walk={turn === lastMine ? 'overview.answer' : undefined}
+              />
             ) : (
               <BotTurn
                 id={past ? undefined : turnAnchor(turn.id)}

@@ -15,6 +15,7 @@ export function ObservationNote({
   save,
   live = false,
   reference,
+  onLeave,
 }: {
   note: string
   canChange: boolean
@@ -25,6 +26,8 @@ export function ObservationNote({
   live?: boolean
   // The assessment it belongs to; without it there is no Dictate button.
   reference?: string
+  // Called with the typed note when the box loses focus (the tag picker's cue to suggest).
+  onLeave?: (text: string) => void
 }) {
   const id = useId()
   // What is typed; follows the saved note until the engineer edits it.
@@ -60,6 +63,7 @@ export function ObservationNote({
           value={text}
           onChange={(event) => edit(event.target.value)}
           onBlur={async () => {
+            onLeave?.(draft ?? note)
             // Still being saved: keep it on screen until that save is confirmed.
             if (draft !== null && draft === lastSent.current) return
             // Back to the saved note is only "no change" when nothing else is on its way.

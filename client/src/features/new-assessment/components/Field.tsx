@@ -51,6 +51,8 @@ function Wrap({
         'na-field na-field--' + kind + (state.wide ? ' na-wide' : '') + (unsure ? ' is-unsure' : '')
       }
       data-error={state.error ? '' : undefined}
+      // F-12: every amber field carries the tag; a walkthrough takes the first one on the page.
+      data-walk={unsure ? 'new-assessment.amber-field' : undefined}
     >
       {children}
       {unsure && (

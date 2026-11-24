@@ -1,34 +1,84 @@
-/* The To ask the client panel (CP-35), above the observation list. */
+/* The To ask the client checklist (CP-36), above the observation list: compact rows, no boxes. */
 .ta {
-  margin: 0 0 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--border-default);
-  border-left: 3px solid var(--action-primary);
-  border-radius: 10px;
-  background: var(--surface-card);
+  margin: 0 0 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ta-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 4px;
 }
 .ta-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-semibold);
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.ta-progress {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 .ta-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .ta-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.ta-check {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 32px;
+  cursor: pointer;
+}
+.ta-check input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+.ta-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.ta-item[data-asked] .ta-text {
+  color: var(--text-muted);
+  text-decoration: line-through;
 }
 .ta-meta {
+  flex: none;
   color: var(--text-muted);
-  font-size: var(--text-small-size);
+  font-size: 12px;
+}
+.ta-more {
+  margin-top: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .ta-meta {
+    display: none;
+  }
 }

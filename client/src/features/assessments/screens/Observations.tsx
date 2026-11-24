@@ -32,7 +32,10 @@ import { BuildingStack } from '../components/BuildingStack'
 import { ObservationFilters } from '../components/ObservationFilters'
 import { ObservationFooter } from '../components/ObservationFooter'
 import { ObservationTitleRow } from '../components/ObservationTitleRow'
+import { onSignal } from '../../walkthrough/signals'
+import { WalkScreen } from '../components/WalkScreen'
 import { ObservationList } from '../components/ObservationList'
+import { ObservationTagFilter } from '../components/ObservationTagFilter'
 import { ToAskPanel } from '../components/ToAskPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -94,6 +97,21 @@ export function Observations({
     window.history.replaceState(null, '', window.location.pathname + '?' + q.toString())
   }, [walk])
   const waiting = useKeptUploads(v.captureRef, reload)
+  // F-12: the walkthrough engine opens a walk screen by changing the URL (as the browser's Back and
+  // Forward do), so the screen follows it. Without this "Review my walk" would stay on the recorder.
+  useEffect(() => {
+    const follow = () => {
+      setWalk(walkFromUrl())
+      reload()
+    }
+    window.addEventListener('popstate', follow)
+    // The walk the recorder just finished is listed by the time "Review my walk" opens the list.
+    const stopReady = onSignal('site-walk-proposal-ready', reload)
+    return () => {
+      window.removeEventListener('popstate', follow)
+      stopReady()
+    }
+  }, [reload])
   // An Inbox row for a ready or failed site walk opens its review, whether this tab
   // was already showing or is only now mounting.
   useEffect(() => {
@@ -197,6 +215,7 @@ export function Observations({
       <SiteWalks
         walks={walks}
         waiting={waiting}
+        archived={v.archivedOpen}
         onBack={() => setWalk(null)}
         onRecord={canCapture ? () => setWalk({ kind: 'record', from: 'list' }) : undefined}
         onOpen={(w) =>
@@ -254,6 +273,13 @@ export function Observations({
   )
   return (
     <>
+      {/* F-12: the tab is ready once the observations are listed. Nothing is offered while one is
+          open, over an archive, or with nothing to look at yet. */}
+      <WalkScreen
+        screen="observations"
+        ready={v.obsSynced}
+        hold={!!open || v.archivedOpen || v.obsTotal === 0 || v.obsShowDeleted}
+      />
       <div ref={page} className="ob">
         {open ? (
           // c. One observation on its own page, edited in place.
@@ -316,6 +342,7 @@ export function Observations({
                   {!v.obsShowDeleted && (
                     <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
                   )}
+                  {!v.obsShowDeleted && <ObservationTagFilter v={v} />}
                   <ObservationList v={v} view={view} />
                   {!v.obsShowDeleted && v.obsTotal > 0 && !v.obsNoMatch && (
                     <ObservationFooter

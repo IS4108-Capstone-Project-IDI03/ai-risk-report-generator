@@ -357,11 +357,23 @@
 }
 .ask-composer-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-4);
 }
+/* While MarshBot points at the composer (F-12, "Ask about an assessment"), only the box and Ask can
+   be pressed: Dictate, Draft text and the help (?) stay in view but do nothing. */
+.ask-composer[data-walk-on] .ask-composer-actions * {
+  pointer-events: none;
+}
+.ask-composer[data-walk-on] .ask-composer-actions button[type='submit'] {
+  pointer-events: auto;
+}
+/* The hint takes at least 8rem: where the buttons and Draft text's help (?) leave it less, it
+   moves to a line of its own above them instead of wrapping into a tall sliver (F-13). */
 .ask-hint {
+  flex: 1 1 8rem;
   margin-right: auto;
   font-size: var(--text-caption-size);
 }
@@ -507,6 +519,17 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
+}
+
+/* The line saying what a question searches, with its help (?) beside it (F-13). */
+.ask-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.ask-scope p {
+  flex: 1;
+  min-width: 0;
 }
 /* Writing guidance (AS-08): two questions about the part open, asked by button
    above the question box. */

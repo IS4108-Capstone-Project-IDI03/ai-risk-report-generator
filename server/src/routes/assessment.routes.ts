@@ -1,5 +1,5 @@
 import { Router, type Response } from 'express'
-import { splitNote, splitNoteSchema } from '../services/split-note.service'
+import { suggestKinds, suggestKindsSchema } from '../services/suggest-kinds.service'
 import type { z } from 'zod'
 import type { SessionUser } from '../services/auth.service'
 import {
@@ -8,6 +8,7 @@ import {
   listAssessments,
   NotArchivedError,
   NotAssignedError,
+  PracticeAssessmentError,
   restoreAssessment,
   storedSurveyType,
   updateAssessment,
@@ -198,7 +199,7 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
 // Moves an assessment to another engineer (RV-11): 200 with its row as the
 // Assessments list shows it. 400 names `engineerId` for an unknown or inactive
 // account, 404 for an unknown assessment, 409 once it is archived or when another
-// admin reassigned it first.
+// admin reassigned it first, or for a practice assessment (F-12).
 router.post('/:reference/reassign', requirePermission('assessments:assign'), async (req, res) => {
   try {
     res.json(await reassignAssessment(req.params.reference, req.body?.engineerId, res.locals.user!))
@@ -215,7 +216,7 @@ router.post('/:reference/reassign', requirePermission('assessments:assign'), asy
       res.status(409).json({ error: `${error.message} Restore it before reassigning it.` })
       return
     }
-    if (error instanceof AssessmentReassignedError) {
+    if (error instanceof AssessmentReassignedError || error instanceof PracticeAssessmentError) {
       res.status(409).json({ error: error.message })
       return
     }
@@ -290,7 +291,7 @@ router.put('/:reference', requirePermission('assessments:edit'), async (req, res
 
 // Archives (RV-10 AC8) or restores (AC9) an assessment: 204 when done, 403
 // for anyone but its assigned engineer, 409 when it is already in that state,
-// or when its removed site's name has since been taken (CP-18).
+// when its removed site's name has since been taken (CP-18), or for a practice assessment (F-12).
 for (const [action, change] of [
   ['archive', archiveAssessment],
   ['restore', restoreAssessment],
@@ -308,7 +309,11 @@ for (const [action, change] of [
         res.status(403).json({ error: error.message })
         return
       }
-      if (error instanceof AssessmentArchivedError || error instanceof NotArchivedError) {
+      if (
+        error instanceof AssessmentArchivedError ||
+        error instanceof NotArchivedError ||
+        error instanceof PracticeAssessmentError
+      ) {
         res.status(409).json({ error: error.message })
         return
       }
@@ -586,32 +591,38 @@ router.post(
   },
 )
 
-// Sorts a shorthand note into parts for the engineer to confirm (CP-35); saves nothing. Same
-// permission and assigned-engineer rule as saving an observation. 503 when client details
-// could not be protected (nothing was sent), 502 when the splitting service failed.
-router.post('/:reference/split-note', requirePermission('assessments:edit'), async (req, res) => {
-  const parsed = splitNoteSchema.safeParse(req.body)
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0].message })
-    return
-  }
-  try {
-    res.json({ parts: await splitNote(req.params.reference, parsed.data.note, res.locals.user!) })
-  } catch (error: unknown) {
-    if (error instanceof AssessmentNotFoundError) res.status(404).json({ error: error.message })
-    else if (error instanceof NotAssignedError) res.status(403).json({ error: error.message })
-    else if (error instanceof AssessmentArchivedError)
-      res.status(409).json({ error: error.message })
-    else if (error instanceof RagServiceError) {
-      res.status(error.status === 503 ? 503 : 502).json({
-        error:
-          error.status === 503
-            ? "Client details couldn't be protected, so the note was not sent. Try again shortly."
-            : 'The note could not be sorted just now. You can sort it yourself.',
+// Suggests which tags a note fits (CP-36); saves nothing. Same permission and assigned-engineer
+// rule as saving an observation. 503 when client details could not be protected (nothing was
+// sent), 502 when the suggesting service failed.
+router.post(
+  '/:reference/suggest-kinds',
+  requirePermission('assessments:edit'),
+  async (req, res) => {
+    const parsed = suggestKindsSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message })
+      return
+    }
+    try {
+      res.json({
+        kinds: await suggestKinds(req.params.reference, parsed.data.text, res.locals.user!),
       })
-    } else throw error
-  }
-})
+    } catch (error: unknown) {
+      if (error instanceof AssessmentNotFoundError) res.status(404).json({ error: error.message })
+      else if (error instanceof NotAssignedError) res.status(403).json({ error: error.message })
+      else if (error instanceof AssessmentArchivedError)
+        res.status(409).json({ error: error.message })
+      else if (error instanceof RagServiceError) {
+        res.status(error.status === 503 ? 503 : 502).json({
+          error:
+            error.status === 503
+              ? "Client details couldn't be protected, so the note was not sent. Try again shortly."
+              : 'No suggestion just now. You can choose the tags yourself.',
+        })
+      } else throw error
+    }
+  },
+)
 
 // The assessment's observations, newest first. Deleted ones are left out
 // unless `?include=deleted` asks for them too (CP-08 AC14).

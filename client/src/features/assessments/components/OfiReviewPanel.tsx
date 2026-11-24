@@ -13,6 +13,7 @@ import {
   type SavedObservation,
 } from '../api'
 import { OFI_CATEGORIES } from '../reviewDisplay'
+import { signal } from '../../walkthrough/signals'
 import { OfiBlock } from './OfiSuggestions'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -45,6 +46,8 @@ export function OfiReviewPanel({
     setFailure(null)
     try {
       for (const id of ids) setOfis(await acceptOfi(reference, id))
+      // F-12: the walkthrough's hands-on step moves on once every accept has been saved.
+      signal('ofi-accepted')
     } catch (error: unknown) {
       setFailure(error instanceof GatewayError ? error.message : 'A suggestion was not accepted.')
     }
@@ -73,7 +76,7 @@ export function OfiReviewPanel({
       )}
       {suggestions.length > 0 && (
         <section aria-label="Suggested Opportunities for Improvement" className="rv-ofi-group">
-          <div className="rv-ofi-group-head">
+          <div className="rv-ofi-group-head" data-walk="review.ofi.head">
             <p className="rv-muted">
               {plural(suggestions.length, 'suggestion')}, not in the report until accepted. Accept
               each one that should be in Section 3.
@@ -90,10 +93,11 @@ export function OfiReviewPanel({
               </Button>
             )}
           </div>
-          {suggestions.map((o) => (
+          {suggestions.map((o, i) => (
             <OfiBlock
               key={o.id}
               ofi={o}
+              walk={i === 0 ? { card: 'review.ofi.first', accept: 'review.ofi.accept' } : undefined}
               observations={observations}
               busy={busy}
               // No loss values here: redrafting replaces suggestions, so they'd be lost.
@@ -107,10 +111,15 @@ export function OfiReviewPanel({
         {accepted.length === 0 ? (
           <p className="rv-muted">No Opportunities for Improvement are in the report yet.</p>
         ) : (
-          OFI_CATEGORIES.flatMap((c) => accepted.filter((o) => o.category === c)).map((o) => (
+          OFI_CATEGORIES.flatMap((c) => accepted.filter((o) => o.category === c)).map((o, i) => (
             <OfiBlock
               key={o.id}
               ofi={o}
+              walk={
+                i === 0
+                  ? { header: 'review.ofi.accepted.head', tableRow: 'review.ofi.accepted.row' }
+                  : undefined
+              }
               number={o.number}
               observations={observations}
               busy={busy}

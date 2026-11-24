@@ -33,6 +33,7 @@ import {
 } from '../api'
 import { ClauseScreenshots } from '../components/ClauseScreenshots'
 import { isDraft } from '../display'
+import { Tip } from '../../help/Tip'
 import '../review-document.css'
 import '../manual-sections.css'
 
@@ -278,6 +279,7 @@ export function ManualSections({
               >
                 Publish
               </Button>
+              <Tip id="knowledge-manual.publish" align="right" />
             </span>
           )}
         </div>

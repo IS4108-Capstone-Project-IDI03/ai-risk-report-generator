@@ -10,6 +10,7 @@ import type { SiteWalk } from '../../site-walk'
 import { DeleteWalkDialog } from '../../site-walk/components/DeleteWalkDialog'
 import { WalkRow } from '../../site-walk/components/WalkRow'
 import { problemText } from '../../site-walk/useWalk'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { WALK_TABS, WalkTabs, type WalkTab } from '../components/WalkTabs'
 import '../observations.css'
@@ -33,6 +34,7 @@ export function SiteWalks({
   onOpen,
   onRetry,
   onDelete,
+  archived,
 }: {
   walks: SiteWalk[]
   // Files kept on this device until the engineer is online again.
@@ -44,7 +46,14 @@ export function SiteWalks({
   onRetry?: (walkId: string) => void
   // Deletes the walk on the gateway; rejects with why it could not.
   onDelete?: (walkId: string) => Promise<void>
+  // The assessment is archived: no walkthrough is shown on it (F-12).
+  archived?: boolean
 }) {
+  // F-12: the list is ready at once; the walkthrough points at the tabs, which only exist once
+  // there is a walk (or a file waiting), so nothing is shown before that or over an archive.
+  const empty = walks.length === 0 && !waiting
+  const hold = empty || !!archived
+  useWalkthroughScreen('proposals-list', true, hold)
   const [picked, setPicked] = useState<WalkTab | null>(null)
   const [deleting, setDeleting] = useState<{
     walk: SiteWalk
@@ -112,10 +121,11 @@ export function SiteWalks({
             )}
             {shown.length ? (
               <ul className="wr-list">
-                {shown.map((w) => (
+                {shown.map((w, row) => (
                   <WalkRow
                     key={w.id}
                     walk={w}
+                    first={row === 0}
                     // A walk still recording opens the recorder, which is its holder's alone.
                     onOpen={onRecord || w.status !== 'recording' ? () => onOpen(w) : undefined}
                     onRetry={onRetry && (() => onRetry(w.id))}

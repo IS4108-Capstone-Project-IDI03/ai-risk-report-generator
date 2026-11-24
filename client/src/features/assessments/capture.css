@@ -164,54 +164,16 @@
   gap: 6px;
   min-width: 0;
 }
+/* A fieldset's legend with a help (?) beside it. */
+.cap-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .cap-label {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-body);
-}
-.cap-help {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  /* 44px to tap, drawn at 32px so the label row stays compact. */
-  margin: -6px 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--marsh-navy);
-  cursor: pointer;
-  touch-action: manipulation;
-  position: relative;
-}
-.cap-help::after {
-  content: '';
-  position: absolute;
-  inset: -6px;
-}
-.cap-help:focus-visible {
-  outline: 2px solid var(--border-focus);
-}
-@media (hover: hover) and (pointer: fine) {
-  .cap-help:hover {
-    background: var(--cap-fill);
-  }
-}
-.cap-help-menu {
-  width: min(320px, calc(100vw - 32px));
-}
-.cap-help-steps {
-  margin: 0;
-  padding: 14px 16px 14px 34px;
-  display: grid;
-  gap: 8px;
-  color: var(--text-body);
-  font: 400 14px/1.45 var(--font-sans);
-}
-.cap-help-steps li::marker {
-  color: var(--marsh-navy);
-  font-weight: 700;
 }
 
 /* The checklist item a Differs is being recorded for (CP-31, styled round 3):
@@ -714,6 +676,7 @@
 .cap-pickers-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
 }
 .cap-item-name {

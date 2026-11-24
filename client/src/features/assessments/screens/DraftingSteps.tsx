@@ -16,6 +16,8 @@ import {
   useIsPhone,
 } from '../../../design-system'
 import type { SegmentState } from '../../../design-system'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { DraftingPartRow } from '../components/DraftingPartRow'
 import { HeaderButton } from '../components/HeaderButton'
 import { LoadingSteps } from '../components/LoadingSteps'
@@ -61,18 +63,23 @@ export function DraftingSteps({
   onReview,
   onOpenSection,
   onObservations,
+  archived = false,
 }: {
   reference: string
   onReview: () => void
   // Opens one section in Review (a step 2 task).
   onOpenSection: (section: string) => void
   onObservations: () => void
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
 }) {
   const { generation, setGeneration, loadError } = useGeneration(reference)
   const phone = useIsPhone()
   // Phone only: the steps opened by a tap, beside the current one.
   const [opened, setOpened] = useState<number[]>([])
   const [starting, setStarting] = useState(false)
+  // F-12: ready once the drafting state is read; nothing is offered on an archived assessment.
+  useWalkthroughScreen('generation', !!generation, archived)
 
   if (!generation)
     return loadError ? (
@@ -127,6 +134,8 @@ export function DraftingSteps({
   return (
     <div className="gx">
       <CheckpointHeader
+        walk="generation.card"
+        help={<Tip id="generation.start" />}
         swapKey={g.checkpoint.kind + ('step' in g.checkpoint ? g.checkpoint.step : '')}
         tone={words.tone}
         icon={words.icon}
@@ -160,6 +169,7 @@ export function DraftingSteps({
           <Icon name="arrow-right" size={16} />
         </span>
         <StepCard
+          walk="generation.step-1"
           number={1}
           title="Draft from observations"
           state={g.steps.one.state}
@@ -181,6 +191,8 @@ export function DraftingSteps({
         <div className="gx-stack">
           <div className="gx-turn">
             <StepCard
+              walk="generation.step-2"
+              help={<Tip id="generation.input" />}
               number={2}
               title="Add your input"
               state={g.steps.two.state}
@@ -207,6 +219,7 @@ export function DraftingSteps({
             </span>
           </div>
           <StepCard
+            walk="generation.step-3"
             number={3}
             title="Draft from your input"
             state={g.steps.three.state}

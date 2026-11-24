@@ -25,7 +25,7 @@ export function WalkList({
   if (!items.length)
     return <p className="sw-list-empty">Recordings and notes appear here as you make them.</p>
   return (
-    <ul className="sw-list" aria-label="This walk">
+    <ul className="sw-list" aria-label="This walk" data-walk="site-walk.list">
       {items.map((item) =>
         item.kind === 'recording' ? (
           <RecordingRow

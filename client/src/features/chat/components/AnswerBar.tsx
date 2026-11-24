@@ -1,8 +1,9 @@
 // "Try again" and the answer's version switcher, drawn directly under the latest answer (CB-04).
 // Rendered inside AgentInterface (screens/KnowledgeAssistant.tsx), where OpenUI's chat state lives.
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton } from '../../../design-system'
+import { signal } from '../../walkthrough/signals'
 import { useLoadVersions, useVersions } from '../useVersions'
 import { PlayAnswer } from './PlayAnswer'
 import { VersionSwitcher } from './VersionSwitcher'
@@ -36,6 +37,12 @@ export function AnswerBar() {
   const host = useSyncExternalStore(watchAnswers, lastAnswer)
   const { versions, messages, running, resend, switchTo } = useVersions()
   const last = messages.at(-1)
+  // F-12: tells the "Ask MarshBot" walkthrough that the answer has finished being written.
+  const wasRunning = useRef(false)
+  useEffect(() => {
+    if (wasRunning.current && !running) signal('chat-answer-finished')
+    wasRunning.current = running
+  }, [running])
   if (running || last?.role !== 'assistant') return null
   const question = messages.findLast((m) => m.role === 'user')
   const info = versions[last.id]

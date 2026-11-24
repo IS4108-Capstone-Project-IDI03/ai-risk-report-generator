@@ -1,5 +1,8 @@
+import logging
+import time
 from typing import Annotated, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import (
@@ -11,13 +14,14 @@ from pydantic import (
     model_validator,
 )
 
-from app import usage
+from app import config, usage
 from app.assistant.coverage import check_coverage
 from app.assistant.wording import word_messages
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
 from app.client_insights.summary import summarise_client
 from app.client_intake.read import read_client_intake
+from app.generation import llm
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
@@ -33,7 +37,8 @@ from app.privacy import PrivacyUnavailable
 from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
-from app.site_walk.note_split import split_note
+from app.retrieval_config import EMBEDDING_MODEL, chroma_client, cohere_client
+from app.site_walk.kind_suggest import suggest_kinds
 from app.site_walk.observation_rate import rate_observation
 from app.site_walk.propose import propose_site_walk
 
@@ -180,6 +185,77 @@ class DraftSummaryRequest(BaseModel):
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "rag"}
+
+
+class _Ping(BaseModel):
+    ok: bool
+
+
+def _ping_llm() -> None:
+    # The drafting path: LLM_PROVIDER, and the admin's model from the X-Model header.
+    llm.complete("Answer with ok true.", "ok?", _Ping, "low", feature="walkthrough")
+
+
+def _ping_chat() -> None:
+    llm.complete_json(
+        "Answer with ok true.",
+        "ok?",
+        _Ping,
+        provider=config.CHAT_PROVIDER,
+        model=config.CHAT_MODEL,
+        effort=config.CHAT_EFFORT,
+        feature="walkthrough",
+    )
+
+
+def _ping_search() -> None:
+    # Chat's and Ask's search: Chroma must answer and Cohere must embed. One fixed word, no
+    # reranking (that is the costly call), nothing from any user.
+    chroma_client().heartbeat()
+    started = time.perf_counter()
+    response = cohere_client().embed(
+        model=EMBEDDING_MODEL,
+        texts=["ping"],
+        input_type="search_query",
+        embedding_types=["float"],
+        truncate="NONE",
+    )
+    usage.record(
+        "walkthrough",
+        "cohere-embed",
+        EMBEDDING_MODEL,
+        started,
+        input_tokens=usage.billed(response, "input_tokens"),
+    )
+
+
+def _ping_privacy() -> None:
+    httpx.get(f"{config.PRIVACY_SERVICE_URL}/health", timeout=5).raise_for_status()
+
+
+_PINGS = {
+    "llm": _ping_llm,
+    "chat": _ping_chat,
+    "search": _ping_search,
+    "privacy": _ping_privacy,
+}
+
+
+@router.get("/health/providers")
+def health_providers(need: Literal["llm", "chat", "search", "privacy"]) -> dict:
+    """Make one tiny real request for one thing a walkthrough's try-it needs (F-12).
+
+    `llm` is the drafting model, `chat` the chat model, `search` the embedding search and
+    `privacy` privacy-service. Sends a fixed word, never user text. Returns `ok` and the
+    paid call's `usage`, for the gateway to record; a failure is `ok: false`, not an error.
+    """
+    calls = usage.start()
+    try:
+        _PINGS[need]()
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("Provider check %r failed", need)
+        return {"ok": False, "usage": calls}
+    return {"ok": True, "usage": calls}
 
 
 @router.post("/generate")
@@ -851,24 +927,17 @@ def assistant_wording(request: AssistantWordingRequest) -> dict:
         raise HTTPException(502, str(error)) from error
 
 
-class GlossaryTerm(BaseModel):
+class SuggestKindsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    term: Annotated[str, Field(min_length=1)]
-    meaning: str
-
-
-class SplitNoteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    lines: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
-    glossary: list[GlossaryTerm] = []
+    text: Annotated[str, Field(min_length=1, max_length=5000)]
     privacy: Privacy | None = None
 
 
-@router.post("/split-note")
-def split_note_route(request: SplitNoteRequest) -> dict:
-    """Split a shorthand note's lines into typed, expanded parts (CP-35)."""
+@router.post("/suggest-kinds")
+def suggest_kinds_route(request: SuggestKindsRequest) -> dict:
+    """Suggest the kinds an observation's text holds (CP-36)."""
     try:
-        return split_note(request.lines, request.glossary, _privacy(request))
+        return suggest_kinds(request.text, _privacy(request))
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:

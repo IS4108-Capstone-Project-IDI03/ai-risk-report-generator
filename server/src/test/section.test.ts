@@ -8,7 +8,13 @@ import { CaptureSessionModel, type CaptureSessionStatus } from '../models/captur
 import { copeDimensionsOf, ObservationModel, type CopeDimension } from '../models/observation.model'
 import { ReportSectionModel } from '../models/report-section.model'
 import { SiteModel } from '../models/site.model'
-import { observationFacts, toEvidence } from '../services/section.service'
+import {
+  handwritingOf,
+  isUsable,
+  observationFacts,
+  toEvidence,
+  transcriptsOf,
+} from '../services/section.service'
 import type { ObservationDto } from '../services/observation.service'
 import { useMemoryMongo } from './memory-mongo'
 import { signedInAs, signedInAsRole } from './auth-test-helpers'
@@ -809,51 +815,51 @@ describe('PII protection for drafting (PV-02)', () => {
   })
 })
 
-describe('drafting evidence of a split note (CP-35)', () => {
-  const dto = (parts: object[]) =>
+describe('drafting evidence of a tagged observation (CP-36)', () => {
+  const dto = (kinds?: string[], extra = {}) =>
     ({
       id: 'o1',
       copeDimensions: ['Protection'],
-      note: 'raw note',
-      parts,
+      note: 'Pump is 20 years old, replace it.',
+      kinds,
       recordings: [],
       pages: [],
       photos: [],
       severity: 'high',
       location: null,
       standard: null,
+      ...extra,
     }) as unknown as ObservationDto
-  it('uses only the confirmed facts, one per line', () => {
-    const e = toEvidence(
-      dto([
-        { kind: 'fact', text: 'A' },
-        { kind: 'info_request', text: 'B' },
-        { kind: 'recommendation', text: 'C' },
-        { kind: 'fact', text: 'D' },
-      ]),
+  it('an untagged or Fact observation is evidence as typed', () => {
+    expect(toEvidence(dto()).note).toBe('Pump is 20 years old, replace it.')
+    expect(toEvidence(dto(['fact'])).note).toBe('Pump is 20 years old, replace it.')
+    expect(toEvidence(dto(['fact', 'recommendation'])).note).toBe(
+      'Pump is 20 years old, replace it.',
     )
-    expect(e.note).toBe('A\nD')
-    expect(Object.keys(e)).not.toContain('parts')
+    expect(Object.keys(toEvidence(dto(['fact'])))).not.toContain('kinds')
   })
-  it('keeps the note as typed when it has no parts', () => {
-    expect(toEvidence(dto([])).note).toBe('raw note')
+  it('one tagged only Information request or Recommendation is never cited as fact', () => {
+    expect(observationFacts(dto(['info_request']))).toBeNull()
+    expect(observationFacts(dto(['recommendation']))).toBeNull()
+    expect(observationFacts(dto(['info_request', 'recommendation']))).toBeNull()
+    expect(toEvidence(dto(['recommendation'])).note).toBe('')
   })
-  it('observationFacts: a request-only note gives no fact, a fact part only its fact, no parts the note', () => {
-    expect(
-      observationFacts({
-        note: 'IR: ask for roof plan',
-        parts: [{ kind: 'info_request', text: 'roof plan' }],
-      }),
-    ).toBeNull()
-    expect(
-      observationFacts(
-        dto([
-          { kind: 'fact', text: 'A' },
-          { kind: 'recommendation', text: 'C' },
-        ]),
-      ),
-    ).toBe('A')
-    expect(observationFacts({ note: 'raw note', parts: [] })).toBe('raw note')
+  it('its transcripts and handwriting are not facts either', () => {
+    const spoken = dto(['recommendation'], {
+      recordings: [{ transcription: { status: 'transcribed', transcript: 'Replace the pump.' } }],
+      pages: [{ transcription: { status: 'transcribed', transcript: 'Replace it' } }],
+    })
+    expect(transcriptsOf(spoken)).toEqual([])
+    expect(handwritingOf(spoken)).toEqual([])
+    expect(isUsable(spoken)).toBe(false)
+    expect(transcriptsOf(dto(['fact'], { recordings: spoken.recordings }))).toEqual([
+      'Replace the pump.',
+    ])
+  })
+  it('a note starting with IR: is just text', () => {
+    expect(observationFacts({ note: 'IR: ask for roof plan' })).toBe('IR: ask for roof plan')
+  })
+  it('observationFacts of nothing is null', () => {
     expect(observationFacts({})).toBeNull()
   })
 })

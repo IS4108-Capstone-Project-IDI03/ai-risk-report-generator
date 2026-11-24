@@ -13,13 +13,23 @@ export type RecordHeaderProps = {
   eyebrow: string
   title: string
   actions?: ReactNode
+  // The Back button's data-walk tag (F-12).
+  backWalk?: string
 }
 
 /** Returns the header row: Back, tile, eyebrow and title, then the actions. */
-export function RecordHeader({ back, onBack, tile, eyebrow, title, actions }: RecordHeaderProps) {
+export function RecordHeader({
+  back,
+  onBack,
+  tile,
+  eyebrow,
+  title,
+  actions,
+  backWalk,
+}: RecordHeaderProps) {
   return (
     <header className="rh">
-      <BackButton label={'Back to ' + back} onClick={onBack} />
+      <BackButton label={'Back to ' + back} onClick={onBack} walk={backWalk} />
       <div className="rh-id">
         <span className="rh-tile">{tile}</span>
         <div className="rh-text">

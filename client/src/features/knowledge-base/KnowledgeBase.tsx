@@ -179,17 +179,21 @@ export function KnowledgeBase({
           {
             value: 'documents',
             label: 'Documents',
+            walk: 'knowledge.tab.documents',
             count: needReview || undefined,
             alert: needReview
               ? `${needReview} ${needReview === 1 ? 'needs' : 'need'} review`
               : undefined,
           },
-          ...(canManage ? [{ value: 'add', label: 'Add documents' }] : []),
+          ...(canManage
+            ? [{ value: 'add', label: 'Add documents', walk: 'knowledge.tab.add' }]
+            : []),
           ...(canManage
             ? [
                 {
                   value: 'requests',
                   label: 'Requests',
+                  walk: 'knowledge.tab.requests',
                   count: openRequests || undefined,
                   // The same amber pill as Documents' review count: open requests are a to-do list.
                   alert: openRequests ? `${openRequests} open` : undefined,

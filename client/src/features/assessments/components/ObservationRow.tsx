@@ -8,8 +8,10 @@
 // Rendered by components/ObservationList.tsx.
 import { useState } from 'react'
 import { Icon } from '../../../design-system'
+import { useSignalAtStep } from '../../site-walk/walkSteps'
 import type { ObservationRowView } from '../useObservationsView'
 import { HitText } from './HitText'
+import { KindBadges } from './KindBadges'
 import { ObservationBadge } from './ObservationBadge'
 import { CategoryMark, SeverityMark, StatusMark } from './ObservationMarks'
 
@@ -17,11 +19,24 @@ export function ObservationRow({
   o,
   words = [],
   onOpen,
+  first = false,
+  toCheck = false,
+  fromWalk = false,
 }: {
   o: ObservationRowView
   words?: readonly string[]
   onOpen: () => void
+  // The list's first row, and its first amber row: the Observations walkthrough points at them (F-12).
+  first?: boolean
+  toCheck?: boolean
+  // The first row that came from a site walk: the "Review a site walk" walkthrough ends on it (F-12).
+  fromWalk?: boolean
 }) {
+  // F-12: "Add an observation" waits for the one just saved to be written out and read: amber when
+  // the AI was unsure of a value (To check), else Complete.
+  const read = o.status === 'To check' || o.status === 'Complete'
+  useSignalAtStep('observation-reading-finished', o.isNew && read, 'new-observation', 7)
+  useSignalAtStep('try-it-failed', o.isNew && o.status.endsWith('failed'), 'new-observation', 7)
   // A reason that appears after the row was on screen fades in; one already there on load
   // does not animate (v2 motion "A row becoming flagged"). Without this the whole list
   // would animate every time the tab opened.
@@ -37,6 +52,9 @@ export function ObservationRow({
       className="ob-row"
       data-new={o.isNew || undefined}
       data-landing={o.isNew || undefined}
+      data-walk={
+        toCheck ? 'observations.to-check' : first && fromWalk ? 'site-walk.new-row' : undefined
+      }
       onClick={onOpen}
     >
       {/* The site walk mark sits outside the tile's corner; the tile clips its own contents. */}
@@ -53,6 +71,7 @@ export function ObservationRow({
           {o.isNew && <span className="ob-sr">{'New. '}</span>}
           <HitText text={o.text} words={words} />
         </span>
+        <KindBadges kinds={o.kinds} labels={o.labels} />
         {o.reason && (
           <span className="ob-row-reason" data-in={becoming || undefined}>
             {o.reason}
@@ -80,7 +99,11 @@ export function ObservationRow({
   // The wrapper carries the tint and the hairline, so hovering the row still shades over it.
   if (!o.canRestore)
     return (
-      <div className="ob-row-wrap" data-tint={o.tint ?? undefined}>
+      <div
+        className="ob-row-wrap"
+        data-tint={o.tint ?? undefined}
+        data-walk={first ? 'observations.row-1' : fromWalk ? 'site-walk.new-row' : undefined}
+      >
         {row}
       </div>
     )

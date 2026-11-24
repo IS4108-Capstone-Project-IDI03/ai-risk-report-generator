@@ -47,6 +47,10 @@
   min-width: 280px;
   box-sizing: border-box;
 }
+/* Wrappers a walkthrough tags (F-12); they take exactly their child's box. */
+.cal-walk {
+  display: inline-flex;
+}
 .cal-toolbar .cal-pills {
   display: flex;
   flex-wrap: wrap;

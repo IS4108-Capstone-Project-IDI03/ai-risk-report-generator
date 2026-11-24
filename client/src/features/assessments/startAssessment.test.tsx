@@ -38,7 +38,12 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    init?.method === 'GET' ? listReply() : fetchMock(url, init),
+    init?.method === 'GET'
+      ? listReply()
+      : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
+        url === '/api/settings/me'
+        ? Promise.resolve(new Response(null, { status: 204 }))
+        : fetchMock(url, init),
   )
   return fetchMock
 }

@@ -41,7 +41,7 @@ export function UsageCosts({ isAdmin }: { isAdmin: boolean }) {
         items={[
           { value: 'reports', label: 'Report generation', icon: IconRegistry.object.report },
           // The knowledge base's own navigation icon.
-          { value: 'ingestion', label: 'Ingestion', icon: 'library' },
+          { value: 'ingestion', label: 'Ingestion', icon: 'library', walk: 'usage.tab.ingestion' },
         ]}
       />
       {tab === 'reports' ? (

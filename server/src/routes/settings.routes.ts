@@ -50,7 +50,7 @@ router.patch('/global', requirePermission('settings:manage'), async (req, res) =
   }
 })
 
-// Saves the signed-in engineer's own note codes and glossary (CP-35). No permission beyond
+// Saves the signed-in person's own record (the walkthrough record, F-12). No permission beyond
 // signing in: it only ever writes the caller's own document.
 router.patch('/me', async (req, res) => {
   try {

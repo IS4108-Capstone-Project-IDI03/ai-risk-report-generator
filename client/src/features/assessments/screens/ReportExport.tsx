@@ -53,6 +53,8 @@ import {
 import { ExportPages } from '../document/export/ExportPages'
 import { marshDay } from '../document/page/frontMatter'
 import { savePendingEdits } from '../pendingSaves'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import './export.css'
 
 const FORMAT_LABEL: Record<ExportFormat, string> = { pdf: 'PDF', docx: 'Word' }
@@ -144,6 +146,9 @@ export function ReportExport({
     )
     return () => controller.abort()
   }, [reference, checks])
+
+  // The walkthrough engine (F-12) hears the export check has answered (or failed to).
+  useWalkthroughScreen('export', blockers !== null || checkError !== null)
 
   const busy = step.kind !== 'idle' && step.kind !== 'done' && step.kind !== 'failed'
 
@@ -243,43 +248,46 @@ export function ReportExport({
     <div className="ex-wrap">
       <div className="ex-grid">
         <div className="ex-main">
-          {checkError ? (
-            <Callout
-              tone="danger"
-              title="The export check could not be run"
-              actions={
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setCheckError(null)
-                    setChecks((n) => n + 1)
-                  }}
-                >
-                  Try again
-                </Button>
-              }
-            >
-              {checkError}
-            </Callout>
-          ) : !blockers ? (
-            <p className="ex-muted" role="status">
-              Checking the report…
-            </p>
-          ) : left ? (
-            <Callout
-              tone="danger"
-              title={`Export blocked: ${left} item${left === 1 ? '' : 's'} left`}
-            >
-              Only a complete report is exported: Sections 2 to 12 written, Sections 4 and 5's
-              figures entered, at least one OFI accepted, and every finding decided, with none
-              unsupported, out of date or citing a withdrawn source.
-            </Callout>
-          ) : (
-            <Callout tone="success" title="Ready to export">
-              The report is complete: every section is written and every finding reviewed.
-            </Callout>
-          )}
+          {/* The status message, whichever of the four it is: one tag for the walkthrough (F-12). */}
+          <div data-walk="export.status">
+            {checkError ? (
+              <Callout
+                tone="danger"
+                title="The export check could not be run"
+                actions={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setCheckError(null)
+                      setChecks((n) => n + 1)
+                    }}
+                  >
+                    Try again
+                  </Button>
+                }
+              >
+                {checkError}
+              </Callout>
+            ) : !blockers ? (
+              <p className="ex-muted" role="status">
+                Checking the report…
+              </p>
+            ) : left ? (
+              <Callout
+                tone="danger"
+                title={`Export blocked: ${left} item${left === 1 ? '' : 's'} left`}
+              >
+                Only a complete report is exported: Sections 2 to 12 written, Sections 4 and 5's
+                figures entered, at least one OFI accepted, and every finding decided, with none
+                unsupported, out of date or citing a withdrawn source.
+              </Callout>
+            ) : (
+              <Callout tone="success" title="Ready to export">
+                The report is complete: every section is written and every finding reviewed.
+              </Callout>
+            )}
+          </div>
 
           {openThreads > 0 && (
             <Callout
@@ -296,7 +304,15 @@ export function ReportExport({
             </Callout>
           )}
 
-          <Card title="Left to finish" padding="0">
+          <Card
+            title={
+              <span className="ex-card-title">
+                Left to finish <Tip id="export.left-to-finish" />
+              </span>
+            }
+            padding="0"
+            data-walk="export.left"
+          >
             {blockers?.length ? (
               <ul className="ex-items">
                 {blockers.map((b, i) => (
@@ -343,7 +359,7 @@ export function ReportExport({
         <aside className="ex-side">
           <Card title="Export" padding="0">
             <>
-              <div className="ex-body">
+              <div className="ex-body" data-walk="export.options">
                 <fieldset className="ex-fieldset" disabled={busy || !canExport}>
                   <legend className="ex-label">Format</legend>
                   <Radio
@@ -397,6 +413,7 @@ export function ReportExport({
                   disabledReason={notYet ?? undefined}
                   disabled={busy}
                   loading={busy}
+                  data-walk="export.button"
                   onClick={() => void start()}
                 >
                   {`Export as ${label}`}

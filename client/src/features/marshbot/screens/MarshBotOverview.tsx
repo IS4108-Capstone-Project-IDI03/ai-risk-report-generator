@@ -4,7 +4,7 @@
 // MarshBot's newest turn, and the site's weather above it (CP-62). Called by
 // assessments/screens/Overview.tsx. Calls useThread.ts, components/thread/ and
 // assessments/weather/SiteWeatherPanel.tsx.
-import { useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, toast, useIsPhone } from '../../../design-system'
 import { retryPageTranscription, retryTranscription } from '../../assessments/api'
 import { STAGE_LABEL } from '../../assessments/format'
@@ -19,6 +19,9 @@ import { MarshBotContext, type MarshBot } from '../context'
 import { weekDay } from '../format'
 import type { AssistantThread, CardRow, ItemLink, Reply } from '../types'
 import { useNarrowArea } from '../useNarrowArea'
+import { useWalkStep } from '../../site-walk/walkSteps'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useThread, type ThreadState } from '../useThread'
 import '../marshbot.css'
 import '../components/thread/thread.css'
@@ -44,6 +47,8 @@ type Props = {
   reference: string
   openLink: (link: ItemLink) => void
   openDetails: () => void
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
 }
 
 /** Returns the MarshBot Overview for a saved assessment. */
@@ -52,8 +57,16 @@ export function MarshBotOverview(props: Props) {
   return <Loader key={props.reference} {...props} />
 }
 
-function Loader({ reference, openLink, openDetails }: Props) {
+function Loader({ reference, openLink, openDetails, archived }: Props) {
   const state = useThread(reference)
+  // F-12: ready once the thread has loaded. An admin on someone else's assessment gets its own
+  // walkthrough, with the engineer's name for its words.
+  useWalkthroughScreen(
+    state.thread?.viewer === 'admin' ? 'admin-view' : 'overview',
+    !!state.thread,
+    archived,
+    { engineer: state.thread?.engineerName ?? 'the assigned engineer' },
+  )
   if (state.failed)
     return (
       <div className="mb-failed" role="alert">
@@ -114,6 +127,16 @@ function Conversation({
   // The queue that shows pushed turns one message at a time (useReveal.ts). Run here, not in the
   // Thread, so the agenda and the rail can wait for the message too.
   const reveal = useReveal(thread, !!pending)
+  // F-12: "Find your way around an assessment" is playing (it waits quietly on a reply's answer).
+  const walking = useWalkStep('overview') > 0
+  // F-12: "Find your way around an assessment" moves on from Skip for now only once MarshBot's
+  // newest pushed turn is all out (its replies too). Before that, its message is still the old
+  // turn, or an empty one (0 px) the highlight cannot find.
+  const newestFresh = [...reveal.fresh].at(-1)
+  const turnOut = !!newestFresh && !reveal.held
+  useEffect(() => {
+    if (turnOut) signal('marshbot-turn-shown')
+  }, [turnOut, newestFresh])
   // Pushed turns with no message on screen yet: the agenda does not name their topic.
   const waiting = [...reveal.fresh].filter(reveal.hidden)
   // The status pill and MarshBot's face wait for the newest message: they hold what was last
@@ -141,7 +164,9 @@ function Conversation({
     void reply(r.id, date).then((next) => {
       // Cleared on a refusal too, so no bubble is left behind for a reply that wasn't sent.
       setPending(null)
-      if (!next) return
+      // F-12: a refusal while the walkthrough waits on the answer shows its step again, so the
+      // person can press the reply again (walkthrough/play.ts, failedPartWay). Without this it waited unseen.
+      if (!next) return void (walking && signal('try-it-failed'))
       setAnswered((n) => n + 1)
       confirmChange(thread, next, r.id)
     })

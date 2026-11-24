@@ -60,7 +60,7 @@ export function StageRail({ thread }: { thread: AssistantThread }) {
   const changed = useChanged(`${thread.surveyEnd}|${thread.reportDue}`)
   const dated = dateOf(shown, thread)
   return (
-    <ol className="mb-stages" aria-label="Stages">
+    <ol className="mb-stages" aria-label="Stages" data-walk="overview.stages">
       {STAGES.map((stage, i) => {
         const state = i < now ? 'done' : i === now ? 'now' : 'next'
         return (

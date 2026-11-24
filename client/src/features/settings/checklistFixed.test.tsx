@@ -10,7 +10,6 @@ import { TIER_IDS } from './tiers'
 
 const settings = (canEditGlobal: boolean): SettingsData => ({
   canEditGlobal,
-  noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models: [],
   qaStrictness: 'standard',
   sourcePriority: { order: [...TIER_IDS], history: [] },

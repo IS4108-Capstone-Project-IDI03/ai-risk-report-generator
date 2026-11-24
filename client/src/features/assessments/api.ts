@@ -35,6 +35,8 @@ export type Assessment = {
   // sample (offline) row, which then shows its status.
   stage?: Stage
   priority?: Priority | null
+  // The owner's practice assessment (F-12): the gateway sends it first in their list only.
+  practice?: true
   // When its latest capture session started; null before capture starts.
   captureStartedAt: string | null
   createdAt: string
@@ -200,24 +202,16 @@ export type LocationDetails = {
 
 // An observation saved on the server: any of a note (CP-02), recordings
 // (CP-03), photos (CP-04) and handwritten pages (CP-19).
-// One sorted piece of a shorthand note (CP-35): a fact, an info request or a recommendation.
-export type PartKind = 'fact' | 'info_request' | 'recommendation'
-export type PartFlag = { type: 'unknown_term' | 'number_changed'; detail: string }
-export type Part = {
-  id: string
-  kind: PartKind
-  text: string
-  // What the engineer wrote for this part.
-  shorthand: string
-  // True when the sorting was guessed, false when a code (like IR:) said it.
-  inferred: boolean
-  flags: PartFlag[]
-}
+// What an observation is tagged as (CP-36); any non-empty combination. Untagged reads as a Fact.
+export type Kind = 'fact' | 'info_request' | 'recommendation'
 
 export type SavedObservation = {
   id: string
-  // The confirmed parts, when the note was split before saving (CP-35).
-  parts?: Part[]
+  kinds?: Kind[]
+  // Sort-only labels the engineer typed (CP-36); they change nothing in the report.
+  labels?: string[]
+  // Ticked once the info request was put to the client (CP-36).
+  asked?: boolean
   engineer: string
   // Its categories in C-O-P-E order; null when not categorised yet.
   copeDimensions: string[] | null
@@ -301,10 +295,12 @@ export async function request<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  // Extra request headers (F-12: x-walkthrough on a try-it's calls); added to any the body sets.
+  extra?: Record<string, string>,
 ): Promise<{ status: number; data: T }> {
   let response: Response
   try {
-    response = await fetch(path, {
+    const init: RequestInit = {
       method,
       signal,
       // A form (with recordings) is sent as-is, so the browser sets its
@@ -323,7 +319,9 @@ export async function request<T>(
                 body,
               }
             : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-    })
+    }
+    if (extra) init.headers = { ...(init.headers as Record<string, string>), ...extra }
+    response = await fetch(path, init)
   } catch (error: unknown) {
     if (signal?.aborted) throw error
     throw new GatewayError(null)
@@ -458,8 +456,10 @@ export async function saveObservation(
     checklistItem?: { itemId: string; result: 'confirmed' | 'differs' }
     // The draft observation that holds the recordings added before Save (CP-24).
     draftId?: string
-    // The parts the engineer confirmed from the note (CP-35).
-    parts?: Part[]
+    // The tags the engineer chose (CP-36); left out when none.
+    kinds?: Kind[]
+    // Their own sort-only labels (CP-36); left out when none.
+    labels?: string[]
   },
   recordings: { name: string; audio: Blob }[],
   photos: NewPhotoPart[] = [],
@@ -473,10 +473,10 @@ export async function saveObservation(
   return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
 }
 
-/** Asks the gateway to sort a note into parts (CP-35); nothing is saved. */
-export async function splitNote(reference: string, note: string): Promise<Part[]> {
-  const path = `/api/assessments/${encodeURIComponent(reference)}/split-note`
-  return (await request<{ parts: Part[] }>('POST', path, { note })).data.parts
+/** Returns the tags the gateway suggests for a text (CP-36); nothing is saved. */
+export async function suggestKinds(reference: string, text: string): Promise<Kind[]> {
+  const path = `/api/assessments/${encodeURIComponent(reference)}/suggest-kinds`
+  return (await request<{ kinds: Kind[] }>('POST', path, { text })).data.kinds
 }
 
 // Every saved observation of the assessment, newest first. Deleted ones are
@@ -531,6 +531,12 @@ export async function updateObservation(
     locationId?: string
     standard?: string | null
     note?: string | null
+    // The tags (CP-36); null clears them.
+    kinds?: Kind[] | null
+    // The sort-only labels; null clears them.
+    labels?: string[] | null
+    // Ticks or unticks an info request as asked; this is not an edit of the observation.
+    asked?: boolean
     // Keeps these not-sure values as they are: they become the engineer's (CP-24).
     confirm?: ('category' | 'severity')[]
   },
@@ -829,15 +835,16 @@ export type Ofi = {
 export type AcceptedOfi = Ofi & { number: string }
 export type OfiList = { suggestions: Ofi[]; accepted: AcceptedOfi[] }
 
-// One thing to ask the client: an info request part of a split note (CP-35).
+// One thing to ask the client: an observation tagged Info request (CP-36).
 export type ToAskItem = {
   observationId: string
   text: string
   location: string | null
   severity: string
+  asked: boolean
 }
 
-/** Returns the info requests of an assessment's split notes (CP-35), oldest observation first. */
+/** Returns the observations tagged Info request (CP-36), oldest first. */
 export async function getToAsk(
   reference: string,
   signal?: AbortSignal,

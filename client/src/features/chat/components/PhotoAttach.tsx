@@ -69,6 +69,7 @@ export function PhotoAttach() {
       <IconButton
         icon="image-plus"
         label="Attach a photo"
+        data-walk="chat.attach-photo"
         disabled={items.length + busy >= MAX_PHOTOS}
         onClick={() => picker.current?.click()}
       />

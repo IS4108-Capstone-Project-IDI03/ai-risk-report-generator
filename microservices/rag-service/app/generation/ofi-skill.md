@@ -62,6 +62,10 @@ support, and do not drop its main action. It is a proposal, not a finding, so th
 **observation** field still states only facts from the observation. An observation with no
 such line is drafted as before.
 
+Some observations carry only a recommendation and no fact. Still raise an OFI for each one,
+whatever its severity. Its **observation** field then says the OFI rests on the engineer's
+recommendation, without stating the recommendation as a finding, and invents no fact.
+
 ## Evidence
 
 - Every OFI rests on at least one current observation (O labels). Never raise an OFI

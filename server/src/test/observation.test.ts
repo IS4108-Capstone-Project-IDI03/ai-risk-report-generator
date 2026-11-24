@@ -179,54 +179,34 @@ async function settled(id: string) {
   return (await ObservationModel.findById(id).lean())!
 }
 
-describe('confirmed parts of a shorthand note (CP-35)', () => {
-  const parts = [
-    { kind: 'fact', text: 'Hose reel blocked', shorthand: 'F: hose reel blocked' },
-    { kind: 'info_request', text: 'Ask for plan', shorthand: 'IR: ask for plan', inferred: true },
-  ]
-  it('saves the parts with ids, keeps the note word for word and returns them', async () => {
+describe('tagging an observation (CP-36)', () => {
+  it('saves one or more tags, keeps the note word for word and returns them', async () => {
     await assessmentWithSession()
-    const text = 'F: hose reel blocked\nIR: ask for plan'
-    const res = await note({ note: text, parts })
+    const text = 'IR: pump is 20 years old, replace it'
+    const res = await note({ note: text, kinds: ['fact', 'recommendation'] })
     expect(res.status).toBe(201)
     expect(res.body.note).toBe(text)
-    expect(res.body.parts).toHaveLength(2)
-    expect(res.body.parts[0]).toMatchObject({ kind: 'fact', inferred: false })
-    expect(res.body.parts[0].id).toBeTruthy()
-    expect((await ObservationModel.findById(res.body.id).lean())?.parts?.[1].kind).toBe(
-      'info_request',
-    )
+    expect(res.body.kinds).toEqual(['fact', 'recommendation'])
+    expect((await ObservationModel.findById(res.body.id).lean())?.kinds).toEqual([
+      'fact',
+      'recommendation',
+    ])
   })
-  it('gives every part its own id, ignoring any id the client sends', async () => {
+  it('stores no tag when none is sent: untagged means Fact', async () => {
     await assessmentWithSession()
-    const res = await note({
-      parts: [
-        { id: 'same', kind: 'fact', text: 'One', shorthand: '' },
-        { id: 'same', kind: 'fact', text: 'Two', shorthand: '' },
-      ],
-    })
-    expect(res.status).toBe(201)
-    const [a, b] = res.body.parts
-    expect(a.id).not.toBe('same')
-    expect(a.id).not.toBe(b.id)
+    const res = await note()
+    expect(res.body.kinds).toBeNull()
+    expect((await ObservationModel.findById(res.body.id).lean())?.kinds).toBeUndefined()
   })
-  it('saves an added part with an empty shorthand', async () => {
+  it('refuses an unknown tag and an empty list', async () => {
     await assessmentWithSession()
-    const res = await note({
-      parts: [{ kind: 'fact', text: 'Added by hand', shorthand: '', inferred: false }],
-    })
-    expect(res.status).toBe(201)
-    expect(res.body.parts[0]).toMatchObject({ text: 'Added by hand', shorthand: '' })
+    expect((await note({ kinds: ['opinion'] })).status).toBe(400)
+    expect((await note({ kinds: [] })).status).toBe(400)
   })
-  it('refuses a bad kind', async () => {
+  it('drops a repeated tag and puts the tags in a fixed order', async () => {
     await assessmentWithSession()
-    expect((await note({ parts: [{ kind: 'opinion', text: 'x', shorthand: 'x' }] })).status).toBe(
-      400,
-    )
-  })
-  it('returns no parts for an observation saved without any', async () => {
-    await assessmentWithSession()
-    expect((await note()).body.parts).toEqual([])
+    const res = await note({ kinds: ['recommendation', 'fact', 'recommendation'] })
+    expect(res.body.kinds).toEqual(['fact', 'recommendation'])
   })
 })
 
@@ -779,31 +759,64 @@ const listed = async (query = '') =>
     (o: { id: string }) => o.id,
   )
 
-describe('confirmed parts follow the note (CP-35)', () => {
-  const parts = [{ kind: 'fact', text: 'Hose reel blocked', shorthand: '', inferred: false }]
-  const partsOf = async (id: string) => (await ObservationModel.findById(id).lean())?.parts ?? []
+describe('custom labels and the asked mark (CP-36)', () => {
+  it('saves labels trimmed and without repeats, and returns them', async () => {
+    await assessmentWithSession()
+    const res = await note({ labels: [' Roof ', 'roof', 'Electrical'] })
+    expect(res.status).toBe(201)
+    expect(res.body.labels).toEqual(['Roof', 'Electrical'])
+    expect((await note()).body.labels).toEqual([])
+  })
+  it('refuses a blank, an over-long or too many labels', async () => {
+    await assessmentWithSession()
+    expect((await note({ labels: ['  '] })).status).toBe(400)
+    expect((await note({ labels: ['x'.repeat(31)] })).status).toBe(400)
+    expect((await note({ labels: Array.from({ length: 9 }, (_, n) => `l${n}`) })).status).toBe(400)
+  })
+  it('changes and clears labels without touching the note or the tags', async () => {
+    await assessmentWithSession()
+    const { id, note: text } = (await note({ labels: ['Roof'], kinds: ['info_request'] })).body
+    const changed = await edit(id, { labels: ['Electrical'] })
+    expect(changed.body.labels).toEqual(['Electrical'])
+    expect(changed.body.note).toBe(text)
+    expect(changed.body.kinds).toEqual(['info_request'])
+    expect((await edit(id, { labels: null })).body.labels).toEqual([])
+  })
+  it('marks an observation asked and clears the mark', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ kinds: ['info_request'] })).body
+    expect((await note()).body.asked).toBe(false)
+    const asked = await edit(id, { asked: true })
+    expect(asked.status).toBe(200)
+    expect(asked.body.asked).toBe(true)
+    expect((await edit(id, { asked: false })).body.asked).toBe(false)
+  })
+})
 
-  it('clears the parts when the note is edited', async () => {
+describe('changing the tags of an observation (CP-36)', () => {
+  it('changes and clears the tags without touching the note', async () => {
     await assessmentWithSession()
-    const { id } = (await note({ parts })).body
-    expect(await partsOf(id)).toHaveLength(1)
+    const { id, note: text } = (await note({ kinds: ['info_request'] })).body
+    const changed = await edit(id, { kinds: ['fact', 'recommendation'] })
+    expect(changed.status).toBe(200)
+    expect(changed.body.kinds).toEqual(['fact', 'recommendation'])
+    expect(changed.body.note).toBe(text)
+    const cleared = await edit(id, { kinds: null })
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.kinds).toBeNull()
+    expect((await ObservationModel.findById(id).lean())?.kinds).toBeUndefined()
+  })
+  it('keeps the tags when the note is edited', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ kinds: ['recommendation'] })).body
     expect((await edit(id, { note: 'A different note.' })).status).toBe(200)
-    expect(await partsOf(id)).toEqual([])
+    expect((await ObservationModel.findById(id).lean())?.kinds).toEqual(['recommendation'])
   })
-  it('clears the parts when the note is removed', async () => {
-    speech.mockReturnValue(s5(200, { transcript: 'Valve chained open.' }))
+  it('refuses an unknown tag and an empty list', async () => {
     await assessmentWithSession()
-    const { id } = (await save({ note: 'Valve V-12.', parts })).body
-    await settled(id)
-    expect((await edit(id, { note: null })).status).toBe(200)
-    expect(await partsOf(id)).toEqual([])
-  })
-  it('keeps the parts when only tags change or the same note is sent again', async () => {
-    await assessmentWithSession()
-    const { id, note: text } = (await note({ parts })).body
-    await edit(id, { severity: 'low', copeDimensions: ['Exposure'] })
-    await edit(id, { note: text })
-    expect(await partsOf(id)).toHaveLength(1)
+    const { id } = (await note()).body
+    expect((await edit(id, { kinds: ['x'] })).status).toBe(400)
+    expect((await edit(id, { kinds: [] })).status).toBe(400)
   })
 })
 

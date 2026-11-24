@@ -191,7 +191,8 @@ export async function writeInsightSummary(
       })),
       privacy,
     })
-    await recordAiCalls(hyphenated(result.usage), { userId: user.id })
+    // F-12: a summary on the practice client is walkthrough usage, not client-insights.
+    await recordAiCalls(hyphenated(result.usage), { userId: user.id, practice: client.practice })
     const { statements, sources } = numbered(result.statements, evidence)
     if (!statements.length)
       throw new RagServiceError(

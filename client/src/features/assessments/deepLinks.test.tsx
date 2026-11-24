@@ -8,6 +8,8 @@ import { useScrollToEvidence } from './useScrollToEvidence'
 import { siteWalkReview } from '../site-walk/openReview'
 import { SESSIONS } from '../../test/session'
 import { placeAfterBack, useAssessmentWorkflow } from './useAssessmentWorkflow'
+import { created, gateway, json } from '../new-assessment/testKit'
+import { signal } from '../walkthrough/signals'
 
 const scrolled: string[] = []
 beforeEach(() => {
@@ -133,6 +135,22 @@ describe('Back after a link opened another tab', () => {
       ...place,
       ...other,
     })
+  })
+
+  // F-12: a walkthrough opens the practice assessment by URL just after making it, when the list
+  // was read on another screen. Its page title was blank.
+  it('names an assessment opened by URL from a list read on another screen', async () => {
+    window.history.pushState({}, '', '/settings')
+    gateway({
+      'GET /api/assessments': () => json(200, [created('PRACTICE-0001', 'Harbourline Cold Store')]),
+    })
+    const { result } = renderHook(() => useAssessmentWorkflow(vi.fn(), SESSIONS.risk_engineer))
+    act(() => signal('practice-changed'))
+    act(() => {
+      window.history.pushState(null, '', '/assessment?ref=PRACTICE-0001&tab=overview')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    await waitFor(() => expect(result.current.title).toBe('Harbourline Cold Store'))
   })
 
   describe('the observation page’s own Back', () => {

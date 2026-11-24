@@ -34,8 +34,12 @@ import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { sendFile } from './byte-range'
 import { requirePermission } from '../middleware/auth.middleware'
+import { practiceRecordGate } from '../middleware/practice.middleware'
 
 const router = Router()
+
+// F-12: a practice record is its owner's alone; 404 to anyone else on every route below.
+router.param('id', practiceRecordGate('observation'))
 
 // Answers a refused change with its status: 404 unknown, 403 not the
 // assessment's assigned engineer, 409 archived, in the wrong state, or left

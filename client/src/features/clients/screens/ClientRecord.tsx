@@ -18,6 +18,7 @@ import { ClientHeader, type HeaderAction } from '../components/ClientHeader'
 import { RemovedCallout } from '../components/RemovedCallout'
 import { plural } from '../formatClient'
 import { useClientDocuments } from '../useClientDocuments'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { DocumentsTab } from './DocumentsTab'
 import { InsightsTab } from './InsightsTab'
 import { OpenWorkTab } from './OpenWorkTab'
@@ -56,6 +57,9 @@ export function ClientRecord({
   const [busy, setBusy] = useState(false)
   const [details, setDetails] = useState(false)
   const docs = useClientDocuments(page.id)
+  // F-12: the page is loaded once it shows. The Insights tab says for itself when its figures
+  // have loaded (InsightsTab), so from here it only names the screen.
+  useWalkthroughScreen(tab === 'insights' ? 'client-insights' : 'client-page', tab !== 'insights')
 
   const client = { id: page.id, name: page.name }
   // A change saved: the page and the work list read it again, and a toast says so.
@@ -131,12 +135,19 @@ export function ClientRecord({
         bell={bell}
         tabs={
           <Tabs
-            style={{ borderBottom: 'none' }}
+            // fit-content: the row is exactly as wide as its tabs, so the walkthrough's highlight hugs them (F-12).
+            style={{ borderBottom: 'none', width: 'fit-content', maxWidth: '100%' }}
+            walk="client.tabs"
             items={[
               { value: 'open', label: 'Open work', count: facts.open },
-              { value: 'sites', label: 'Sites', count: listed.length },
-              { value: 'documents', label: 'Documents', count: documentCount },
-              { value: 'insights', label: 'Insights' },
+              { value: 'sites', label: 'Sites', count: listed.length, walk: 'client.tab.sites' },
+              {
+                value: 'documents',
+                label: 'Documents',
+                count: documentCount,
+                walk: 'client.tab.documents',
+              },
+              { value: 'insights', label: 'Insights', walk: 'client.tab.insights' },
             ]}
             value={tab}
             onChange={(t) => setTab(t as TabId)}

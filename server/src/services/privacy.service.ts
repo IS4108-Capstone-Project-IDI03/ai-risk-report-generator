@@ -4,6 +4,7 @@ import { ClientModel, type IClient } from '../models/client.model'
 import { SiteModel, type ISite } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { NOT_PRACTICE } from './practice/filter'
 import { privacyWordLists } from './privacy-words.service'
 
 // A detail privacy-service masks wherever it appears (PV-01): one client, site,
@@ -73,13 +74,15 @@ export function chatKnownEntities(): Promise<KnownEntity[]> {
 }
 
 // Every client and site, removed ones included (CP-18): a removed site's name
-// is still a client detail, so it stays masked.
+// is still a client detail, so it stays masked. Practice ones are left out (F-12): they are
+// made up, and every cross-record read spreads NOT_PRACTICE.
+/** Returns every client, site, address and active user a chat message may name, read fresh (no cache). */
 export async function readChatEntities(): Promise<KnownEntity[]> {
   const [clients, typed, sites, users] = await Promise.all([
-    ClientModel.find({}, 'name formerNames').lean(),
+    ClientModel.find(NOT_PRACTICE, 'name formerNames').lean(),
     // Assessments from before CP-17 hold the client's name as typed.
-    AssessmentModel.distinct('client', { client: { $nin: [null, ''] } }),
-    SiteModel.find({}, 'name code address formerNames formerAddresses').lean(),
+    AssessmentModel.distinct('client', { client: { $nin: [null, ''] }, ...NOT_PRACTICE }),
+    SiteModel.find(NOT_PRACTICE, 'name code address formerNames formerAddresses').lean(),
     UserModel.find({ active: true }, 'name').lean(),
   ])
   return [

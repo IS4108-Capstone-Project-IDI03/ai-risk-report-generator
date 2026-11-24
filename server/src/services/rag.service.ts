@@ -327,24 +327,17 @@ export async function requestChecklistDraft(body: unknown): Promise<ChecklistDra
   })
 }
 
-// What S4 sends back for a split shorthand note (CP-35, POST /split-note). S4 masks and
-// unmasks inside; the text comes back with real names.
-export type SplitNoteResult = {
-  parts: {
-    kind: string
-    text: string
-    shorthand: string
-    // Index into the lines sent: which uncoded line this part came from.
-    line?: number
-    flags?: { type: string; detail: string }[]
-  }[]
-  // One item per paid call (EV-03); saved by split-note.service.ts.
+// What S4 sends back for suggested tags (CP-36, POST /suggest-kinds). S4 masks and
+// the answer holds only tags.
+export type SuggestKindsResult = {
+  kinds?: string[]
+  // One item per paid call (EV-03); saved by suggest-kinds.service.ts.
   usage?: unknown
 }
 
-/** Returns S4's split of the uncoded lines; throws RagServiceError (503 when privacy-service was down). */
-export async function requestSplitNote(body: unknown): Promise<SplitNoteResult> {
-  return callRag<SplitNoteResult>('/split-note', {
+/** Returns S4's suggested tags for a note; throws RagServiceError (503 when privacy-service was down). */
+export async function requestSuggestKinds(body: unknown): Promise<SuggestKindsResult> {
+  return callRag<SuggestKindsResult>('/suggest-kinds', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await modelHeaders('drafting')) },
     body: JSON.stringify(body),

@@ -7,17 +7,25 @@ import type { KnowledgeGapRequest } from '../api'
 /** Returns the list item for one open request; `focused` marks the one a notification opened. */
 export function RequestRow({
   request: r,
+  first,
   focused,
   onFill,
   onDismiss,
 }: {
   request: KnowledgeGapRequest
+  // The list's first request, which the walkthrough points at (F-12).
+  first: boolean
   focused: boolean
   onFill: () => void
   onDismiss: () => void
 }) {
   return (
-    <li className="kb-request" id={`request-${r.id}`} data-focused={focused || undefined}>
+    <li
+      className="kb-request"
+      id={`request-${r.id}`}
+      data-focused={focused || undefined}
+      data-walk={first ? 'knowledge-requests.row-1' : undefined}
+    >
       <div className="kb-request-body">
         <p className="kb-request-meta">
           <span>{r.askedBy.name}</span>
@@ -34,10 +42,22 @@ export function RequestRow({
         )}
       </div>
       <div className="kb-request-actions">
-        <Button variant="tonal" size="sm" iconLeft="check" onClick={onFill}>
+        <Button
+          variant="tonal"
+          size="sm"
+          iconLeft="check"
+          data-walk={first ? 'knowledge-requests.row-1.fill' : undefined}
+          onClick={onFill}
+        >
           Mark filled
         </Button>
-        <Button variant="secondary" size="sm" iconLeft="x" onClick={onDismiss}>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft="x"
+          data-walk={first ? 'knowledge-requests.row-1.dismiss' : undefined}
+          onClick={onDismiss}
+        >
           Dismiss
         </Button>
       </div>

@@ -4,7 +4,7 @@
 // the whole conversation column.
 // Used by every card in this folder.
 import type { ReactNode } from 'react'
-import { Icon, Tooltip } from '../../../../design-system'
+import { HelpTip } from '../../../../design-system'
 
 // "25 of 42 answered" with the 25 bold; any other note as it is.
 function Note({ text }: { text: string }) {
@@ -31,24 +31,14 @@ export function CardShell({
     // A named group, not a region: a long history would otherwise be a long list of landmarks.
     <div className="mbt-card" role="group" data-wide={wide || undefined} aria-label={title}>
       <header className="mbt-card-head">
-        {/* The title and its (?): the anchor of the help bubble, so it starts at the title's left edge. */}
+        {/* The title and its (?). */}
         <div className="mbt-card-title">
           <h3>{title}</h3>
+          {/* The same (?) as every help tip (F-13). It opens under the title from its left edge. */}
           {help && (
-            // A full sentence: it wraps at 280 px and opens under the title from its left edge (the
-            // wrapper is static, so .mbt-card-title is its anchor), inside the card at every width.
-            // `tap`: a phone has no hover, and iOS does not focus a tapped button.
-            <Tooltip
-              label={help}
-              placement="bottom-start"
-              maxWidth={280}
-              tap
-              style={{ position: 'static' }}
-            >
-              <button type="button" className="mbt-help" aria-label={help}>
-                <Icon name="circle-help" size={16} />
-              </button>
-            </Tooltip>
+            <HelpTip label={`About ${title}`} align="left">
+              <p>{help}</p>
+            </HelpTip>
           )}
         </div>
         {note && <Note text={note} />}

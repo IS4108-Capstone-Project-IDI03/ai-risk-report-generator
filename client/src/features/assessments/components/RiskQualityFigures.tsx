@@ -7,6 +7,7 @@
 // and each rating takes its band's colour. Used by ReviewWorkspace above Section 4's comments.
 import { lazy, useState } from 'react'
 import { Badge, Button, Callout, Input } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import {
   getRiskQuality,
   proposeRiskQuality,
@@ -132,6 +133,7 @@ export function RiskQualityFigures({
     <div className="rv-maturity">
       {figures.proposal && proposed.size > 0 && (
         <ProposalNote
+          walk="review.scores.note"
           proposal={figures.proposal}
           // Only the categories with a figure still as proposed: an edited one is the
           // engineer's, and the model's reason no longer speaks for it.
@@ -146,7 +148,7 @@ export function RiskQualityFigures({
       )}
       <div className="rv-maturity-scroll">
         <table className="rv-maturity-table rv-figures-table" aria-label="Risk quality scores">
-          <thead>
+          <thead data-walk="review.scores.head">
             <tr>
               <th scope="col">Main Category</th>
               <th scope="col">Current Score</th>
@@ -154,8 +156,8 @@ export function RiskQualityFigures({
             </tr>
           </thead>
           <tbody>
-            {names.map((category) => (
-              <tr key={category}>
+            {names.map((category, i) => (
+              <tr key={category} data-walk={i === 0 ? 'review.scores.row-1' : undefined}>
                 <th scope="row">{category}</th>
                 <td>{cell(category, 'current')}</td>
                 <td>{cell(category, 'potential')}</td>
@@ -166,7 +168,7 @@ export function RiskQualityFigures({
               <td>{shown(current, (r) => r.score.toFixed(1))}</td>
               <td>{shown(potential, (r) => r.score.toFixed(1))}</td>
             </tr>
-            <tr>
+            <tr data-walk="review.scores.rating">
               <th scope="row">Location Risk Quality Rating</th>
               <td className={bandClass(current)}>{shown(current, (r) => r.rating)}</td>
               <td className={bandClass(potential)}>{shown(potential, (r) => r.rating)}</td>
@@ -227,21 +229,26 @@ export function RiskQualityFigures({
       )}
       <div className="rv-figures-actions">
         <Badge tone="moderate">Provisional weights</Badge>
+        <Tip id="review.provisional-weights" align="right" />
         {canEdit && !entered && !figures.proposal && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft="sparkles"
-            loading={proposing}
-            onClick={() => void propose()}
-          >
-            Propose figures
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft="sparkles"
+              loading={proposing}
+              onClick={() => void propose()}
+            >
+              Propose figures
+            </Button>
+            <Tip id="review.propose-figures" align="right" />
+          </>
         )}
         {canEdit && (
           <Button
             variant="primary"
             size="sm"
+            data-walk="review.scores.confirm"
             disabled={saving}
             onClick={() =>
               save({

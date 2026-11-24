@@ -4,6 +4,7 @@
 import type { Types } from 'mongoose'
 import { AssessmentModel } from '../../models/assessment.model'
 import { defineQueue } from '../job-queue.service'
+import { NOT_PRACTICE } from '../practice/filter'
 
 // Changes are gathered in 2-second windows. A window's job is held back until
 // the window closes, so every change in it lands before the check reads
@@ -55,14 +56,19 @@ export function queueAssessmentCheckById(id: Types.ObjectId | string): void {
     .catch((error: unknown) => console.error('Finding the assessment to check failed:', error))
 }
 
+/** Returns the references the daily re-check queues: every open assessment, no practice one (F-12). */
+export async function dueReferences(): Promise<string[]> {
+  const open = await AssessmentModel.find(
+    { archivedAt: { $exists: false }, stage: { $ne: 'exported' }, ...NOT_PRACTICE },
+    'reference',
+  ).lean()
+  return open.map((a) => a.reference)
+}
+
 // Every open assessment, so date-based items (survey passed, report due or late)
 // move on even when nobody changes anything that day.
 async function queueDueAssessments() {
-  const open = await AssessmentModel.find(
-    { archivedAt: { $exists: false }, stage: { $ne: 'exported' } },
-    'reference',
-  ).lean()
-  for (const { reference } of open) queueAssessmentCheck(reference)
+  for (const reference of await dueReferences()) queueAssessmentCheck(reference)
 }
 
 /** Schedules the daily re-check at 00:05 Singapore time (16:05 UTC); returns once Redis holds it. */

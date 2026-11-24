@@ -611,13 +611,14 @@ a `recordings` list (CP-03), a `photos` list (CP-04) and a `pages` list of
 photographed pages of handwritten notes (CP-19), and needs at least one
 of them.
 
-`parts` (CP-35, optional, outside `metadata`): the engineer's confirmed split of a
-shorthand note, each `{id, kind (fact | info_request | recommendation), text, shorthand,
-inferred, flags?}`, at most 50, text 1-1000 characters. The `note` stays exactly as typed.
-Drafting evidence takes the `fact` parts' text, one per line, in place of the note; info
-requests and recommendations are never stated as fact. Splitting (`POST
-/api/assessments/:reference/split-note`) saves nothing: parts are stored only when the
-observation is created with them.
+`kinds` (CP-36, optional, outside `metadata`): the engineer's tags, one to three of `fact`,
+`info_request` and `recommendation`, in that order, no repeats; absent means Fact. They combine
+(a finding with advice is `fact` + `recommendation`) and each works on its own: `fact` is
+drafting evidence (the note, transcripts and handwriting; one without it is never cited as
+fact), `info_request` lists it in "To ask the client", `recommendation` makes it an OFI
+candidate whatever its severity. The `note` stays exactly as typed, and a note that starts with
+`IR:` is just text. Set on create and on `PATCH /api/observations/:id` (`null` clears it).
+`POST /api/assessments/:reference/suggest-kinds` only suggests tags and saves nothing.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
@@ -2217,7 +2218,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk` (also a manual observation's suggested category and severity, CP-24), `client-intake` or `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk` (also a manual observation's suggested category and severity, CP-24), `client-intake`, `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) or `walkthrough` (F-12: any call made on a practice assessment or during a walkthrough's try-it, whatever the task was) |
 | `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |
@@ -2238,6 +2239,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
 - Rates are stored with each call (`costParts`) so the cost report can show how a cost was made up after prices change; a price-table edit never changes a saved row. `migrate:cost-parts` (one-off, safe to re-run) gives older priced rows today's rates only where those reproduce the stored cost exactly; it carries a frozen copy of labelling's prices for older labelling rows.
 - Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
+- A call whose `reportId` is a practice assessment's reference, or whose request is a try-it's marked with the `x-walkthrough` header (F-12; only the `chat` and `new-docs` try-its on their own routes, see docs/areas/services.md), is saved with `feature: 'walkthrough'`, no `reportId` and no `section`, and the user's id (`recordAiCalls`). So practice work never shows under an assessment, and its cost stays visible as one "Walkthrough" group.
 - Read by the EV-04 cost report (`usage-report.service.ts`).
 - Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
 
@@ -2316,14 +2318,68 @@ first. The gateway sends the order to rag-service as `tier_order` on every `/cha
 
 ## User settings (CP-35)
 
-`user_settings` holds one document per user (`user` is unique): `noteCodes` (optional
-`{fact, info_request, recommendation}`, 1-8 letters or digits, unique ignoring case once
-defaults fill the gaps) and `glossary` (optional `{term, meaning}` list, at most 200, term
-1-30 characters unique ignoring case, meaning 1-120). The defaults `F`, `IR` and `REC` live in
-code (`settings.service.ts`), not in the database. Written only by `PATCH /api/settings/me`
-for the signed-in user's own document. `metadata` is the same null-filled block as
-`app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
-`COPE_dimension` null, `effective_date`.
+Removed in CP-36: the note codes and glossary went with the split. The `user_settings`
+collection is no longer written or read; documents left in it are ignored.
+
+### The walkthrough record (F-12)
+
+The same document holds `walkthroughs` (optional, a plain object): what this account has done
+with each walkthrough.
+
+| Field | Meaning |
+|---|---|
+| `welcomeAt` | when the Welcome played or was skipped. Absent = a first-time account: the Welcome starts by itself |
+| `offers` | `false` once the user switches off "Offer walkthroughs on new screens". Absent = on |
+| `seen` | `{ <walkthrough id>: { state: 'played' \| 'skipped' \| 'declined', at } }`. A walkthrough listed here is not offered again |
+| `otherWay` | ids of the one-time "other way" offers already made |
+| `counts` | small tallies those offers need, e.g. `manual-observation` |
+| `practiceRemoved` | `true` after the user removes their practice assessment, so it is not made again at sign-in |
+
+- Read by `walkthroughRecordFor` (`walkthrough-record.service.ts`) and returned as `walkthroughs`
+  beside the signed-in user (`GET /api/auth/me`, `POST /api/auth/login`), with `practice`: the
+  reference of the user's live practice assessment, or null.
+- Written by `PATCH /api/settings/me` with `{ walkthroughs: { welcome?, offers?, seen?, otherWay?,
+  count?, clear? } }`, one dotted path at a time, so the practice service's `practiceRemoved` is
+  never overwritten. `clear` ("Offer them all again") empties `welcomeAt`, `seen`, `otherWay` and
+  `counts` only.
+- Walkthrough ids are the client's (`client/src/features/**/*walkthroughs.ts`); the gateway only
+  checks their shape (`/^[a-z0-9-]{1,40}$/`, at most 100 a call).
+
+## Practice assessment (F-12)
+
+One made-up assessment per user that the walkthroughs' hands-on steps run on. It is a real
+assessment with a real client and site, so every screen and every AI feature works on it
+unchanged. Decision record: a practice assessment is hidden by one shared rule, not by a second
+data path.
+
+| Collection | Mark | Notes |
+|---|---|---|
+| `assessments` | `practice: 'live' \| 'hidden' \| 'making'` | `'live'` is the one its owner (`engineer`) can open; `'hidden'` is one they reset or removed; `'making'` is one still being filled, open to no one. Reference `PRACTICE-0001` from the counter `practice`, never an RPT number. A partial unique index allows one live practice assessment per engineer |
+| `clients` | `practice: true` | "Harbourline Cold Store (practice)", one per practice assessment, `key` `practice:<user>:<reference>`, kept when its owner renames it, so it can never be found by name |
+| `sites` | `practice: true` | its one site; its `code` is the practice reference |
+
+Every other record it owns (observations, checklist, site walk, report sections, review log,
+OFIs) is an ordinary one keyed by the assessment, with the required metadata.
+
+- **Left out of everything.** Any query that lists or counts assessments, clients or sites across
+  records spreads `NOT_PRACTICE` (`services/practice/filter.ts`, `{ practice: { $exists: false } }`).
+  The one exception is the owner's own `GET /api/assessments`, which returns their live one as the
+  first row with `practice: true`. `practice-filter.test.ts` reads every list and count endpoint as
+  the owner, another engineer and an admin, with and without a practice set, and the answers must
+  match. A new cross-record reader must use the filter and join that table.
+- **Owner only.** `practiceGate` (`middleware/practice.middleware.ts`) answers 404 under
+  `/api/assessments/:reference/**` for anyone else, an admin included, and for a hidden one.
+  Archiving or reassigning it answers 409.
+- **Never deleted.** Reset and Remove set `practice: 'hidden'`: the review log and section
+  versions are append-only. Reset then makes a fresh one from the fixed template
+  (`services/practice/template.ts`, prepared text, no AI call).
+- **No notifications.** `createNotification` saves nothing for a practice reference.
+- **Usage.** Its AI calls are saved under the feature `walkthrough` (see AI-call usage).
+- **What the template holds:** 3 locations, 8 observations (1 to check, 1 with a question for the client), a checklist with 1
+  item left open, 1
+  ready site walk, 3 suggested OFIs, Sections 6 to 12 drafted (5 findings undecided, 1 of them
+  unsupported), proposed figures waiting for Sections 4 and 5, stage Generate (set by the real
+  re-check at creation).
 
 ## Privacy words (PV-09)
 

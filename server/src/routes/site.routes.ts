@@ -12,8 +12,12 @@ import {
 import { refuseClientChange } from './client.routes'
 import { fieldErrors } from './field-errors'
 import { requirePermission } from '../middleware/auth.middleware'
+import { practiceRecordGate } from '../middleware/practice.middleware'
 
 const router = Router()
+
+// F-12: a practice record is its owner's alone; 404 to anyone else on every route below.
+router.param('id', practiceRecordGate('site'))
 
 // A site, by its own id rather than its client's (CP-18), so a site saved
 // before clients (CP-17) can still be corrected from its assessment.

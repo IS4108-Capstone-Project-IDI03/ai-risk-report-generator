@@ -23,6 +23,8 @@ export function Flow<T>({
 }) {
   const reveal = useContext(RevealContext)
   const turnId = useContext(TurnContext)?.turn.id
+  // F-12: the walkthrough points at MarshBot's latest message, not the buttons under it.
+  const newest = useContext(TurnContext)?.newest
   const out: ReactNode[] = []
   let tailed = false
   for (let i = 0; i < pieces.length;) {
@@ -55,6 +57,8 @@ export function Flow<T>({
   const count = out.length
   useEffect(() => register?.(turnId!, count), [register, turnId, count])
   return (
-    <div className="mbt-flow">{queue ? out.filter((_, i) => queue.shows(turnId!, i)) : out}</div>
+    <div className="mbt-flow" data-walk={newest ? 'overview.latest' : undefined}>
+      {queue ? out.filter((_, i) => queue.shows(turnId!, i)) : out}
+    </div>
   )
 }

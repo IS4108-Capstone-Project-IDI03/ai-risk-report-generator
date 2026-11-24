@@ -120,10 +120,15 @@ function isFiledUnder(section: TemplateSection) {
   return (o: ObservationDto) => filedUnder(section, o.copeDimensions!)
 }
 
+// Untagged means Fact (CP-36). Only a Fact's words are evidence; a request or a recommendation
+// alone is never stated as fact, in any section.
+const isFact = (o: { kinds?: string[] | null }) => !o.kinds?.length || o.kinds.includes('fact')
+
 // Usable evidence: a note, or a finished transcript, as the engineer corrected
 // it if they did (CP-08 AC10). A failed or empty recording alone gives the
 // draft nothing to cite.
 export function transcriptsOf(o: ObservationDto): string[] {
+  if (!isFact(o)) return []
   return o.recordings.flatMap((r) => {
     const text = r.transcription.correction?.text ?? r.transcription.transcript
     return r.transcription.status === 'transcribed' && text ? [text] : []
@@ -133,23 +138,22 @@ export function transcriptsOf(o: ObservationDto): string[] {
 // it, as the engineer corrected it if they did (CP-20). A page with no
 // handwriting gives the draft nothing. Removed pages are not in `pages`.
 export function handwritingOf(o: ObservationDto): string[] {
+  if (!isFact(o)) return []
   return o.pages.flatMap((p) => {
     const text = p.transcription.correction?.text ?? p.transcription.transcript
     return p.transcription.status === 'transcribed' && text?.trim() ? [text] : []
   })
 }
 /**
- * Returns what the engineer observed as fact: a split note's confirmed fact parts joined by
- * newlines (null when it has none), else the raw note. Info requests and recommendations are
- * never stated as fact, so every reader that shows or sends the note as evidence uses this.
+ * Returns what the engineer observed as fact: the raw note when the observation is tagged Fact
+ * or untagged, else null. Requests and recommendations are never stated as fact, so every reader
+ * that shows or sends the note as evidence uses this.
  */
 export function observationFacts(o: {
   note?: string | null
-  parts?: { kind: string; text: string }[] | null
+  kinds?: string[] | null
 }): string | null {
-  if (!o.parts?.length) return o.note ?? null
-  const facts = o.parts.filter((p) => p.kind === 'fact').map((p) => p.text)
-  return facts.length ? facts.join('\n') : null
+  return isFact(o) ? (o.note ?? null) : null
 }
 export function isUsable(o: ObservationDto): boolean {
   return (
@@ -172,9 +176,8 @@ export function toEvidence(o: ObservationDto): Evidence {
   return {
     id: o.id,
     COPE_dimension: o.copeDimensions!,
-    // A split shorthand note (CP-35): only the confirmed facts are evidence; info requests and
-    // recommendations are never stated as fact. No new key: it would date every earlier draft.
-    note: o.parts.length ? (observationFacts(o) ?? '') : o.note,
+    // Only a Fact's note is evidence (CP-36). No new key: it would date every earlier draft.
+    note: isFact(o) ? o.note : '',
     transcripts: transcriptsOf(o),
     // Only when there is some (CP-19): changesSince compares evidence as JSON,
     // so an observation without pages must read exactly as it did before pages
@@ -425,21 +428,40 @@ export async function draftingEvidence(reference: string): Promise<Evidence[]> {
   return inputs.filter(isUsable).map(toEvidence)
 }
 
+// What a recommendation says, in the engineer's words: its note, else transcripts, ignoring
+// whether it is also a fact. Empty when it is not tagged Recommendation.
+function recommendationOf(o: ObservationDto): string[] {
+  if (!o.kinds?.includes('recommendation')) return []
+  const spoken = [...o.recordings, ...o.pages].map(
+    (m) => m.transcription.correction?.text ?? m.transcription.transcript,
+  )
+  return [o.note, ...spoken].filter((t): t is string => !!t?.trim())
+}
+
 /**
- * Returns each usable observation's recommendation parts (CP-35), by observation id, for OFI
- * drafting to base its fixes on. Observations with none are left out. Kept apart from
- * `toEvidence` so a draft's evidence does not change shape (see toEvidence).
+ * Returns each observation tagged Recommendation (CP-36), by id, with its recommendation text,
+ * for OFI drafting to base its fixes on. Every one is an OFI candidate whatever its severity.
+ * Kept apart from `toEvidence` so a draft's evidence does not change shape (see toEvidence).
  */
 export async function draftingRecommendations(
   reference: string,
 ): Promise<Record<string, string[]>> {
-  const inputs = settled((await listObservations(reference)).reverse()).filter(isUsable)
+  const inputs = settled((await listObservations(reference)).reverse())
   return Object.fromEntries(
     inputs.flatMap((o) => {
-      const texts = o.parts.filter((p) => p.kind === 'recommendation').map((p) => p.text)
+      const texts = recommendationOf(o)
       return texts.length ? [[o.id, texts]] : []
     }),
   )
+}
+
+/**
+ * Returns the evidence entry of each observation tagged Recommendation but not a fact: no note,
+ * no transcripts. OFI drafting needs them to cite, and they state no fact (CP-36).
+ */
+export async function recommendationOnlyEvidence(reference: string): Promise<Evidence[]> {
+  const inputs = settled((await listObservations(reference)).reverse())
+  return inputs.filter((o) => !isFact(o) && recommendationOf(o).length).map(toEvidence)
 }
 
 export type DraftableAssessment = Awaited<ReturnType<typeof assessmentToDraft>>

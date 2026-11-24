@@ -22,6 +22,7 @@
     "@tiptap/pm": "3.30.3",
     "@tiptap/react": "3.30.3",
     "@tiptap/starter-kit": "3.30.3",
+    "driver.js": "1.14.0",
     "katex": "0.16.22",
     "openui-lang-v1": "npm:@openuidev/react-lang@1.1.0",
     "pdfjs-dist": "6.3.289",

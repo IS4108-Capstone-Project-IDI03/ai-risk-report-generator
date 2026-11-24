@@ -130,3 +130,10 @@ def transcribe_clip(audio: bytes, filename: str, privacy: dict | None = None) ->
     """Transcribe a short clip sent directly (a spoken chat question or dictated text)."""
     # only_speech: a silent or noisy clip must come back empty, not as an invented sentence.
     return _whisper(filename, audio, CLIP_PROMPT, only_speech=True, privacy=privacy)
+
+
+def check_whisper() -> None:
+    """Prove the key and Whisper answer, without sending any audio (F-12's quick check).
+
+    Reading the model's metadata is free; raises whatever the SDK raises when it fails."""
+    OpenAI().models.retrieve(WHISPER_MODEL)

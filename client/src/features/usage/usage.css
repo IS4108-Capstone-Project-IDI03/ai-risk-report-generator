@@ -15,6 +15,12 @@
 .uc-toolbar select {
   min-width: 240px;
 }
+/* The tip beside the "Total estimated cost" label (F-13). */
+.uc-metrics .ds-help {
+  display: inline-grid;
+  vertical-align: middle;
+  margin-left: 4px;
+}
 .uc-metrics {
   display: flex;
   flex-wrap: wrap;

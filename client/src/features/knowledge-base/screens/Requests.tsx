@@ -8,6 +8,7 @@ import { DismissRequestDialog } from '../components/DismissRequestDialog'
 import { FillRequestDialog } from '../components/FillRequestDialog'
 import { RequestRow } from '../components/RequestRow'
 import { knowledgeTab } from '../openTab'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 
 /** Returns the Requests tab: the open requests, newest first. */
 export function Requests({
@@ -22,6 +23,8 @@ export function Requests({
   const [unreachable, setUnreachable] = useState(false)
   const [filling, setFilling] = useState<KnowledgeGapRequest | null>(null)
   const [dismissing, setDismissing] = useState<KnowledgeGapRequest | null>(null)
+  // F-12: ready once the list has loaded; held while no request is open, since nothing is shown then.
+  useWalkthroughScreen('knowledge-requests', requests !== null, requests?.length === 0)
   // The request a notification pointed at; read once so a later visit isn't highlighted.
   const [focused] = useState(() => {
     const id = knowledgeTab.request
@@ -82,9 +85,10 @@ export function Requests({
         />
       )}
       <ul className="kb-request-list">
-        {requests?.map((r) => (
+        {requests?.map((r, i) => (
           <RequestRow
             key={r.id}
+            first={i === 0}
             request={r}
             focused={r.id === focused}
             onFill={() => setFilling(r)}

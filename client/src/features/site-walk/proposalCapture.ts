@@ -2,7 +2,7 @@
 // screen. screens/Review.tsx calls openProposalCapture; useAssessmentWorkflow
 // opens capture on it and, on Save, calls addCapturedObservation, which
 // uploads the media to the walk and adds the observation to the proposal.
-import type { SiteLocation } from '../assessments/api'
+import type { Kind, SiteLocation } from '../assessments/api'
 import { getWalk, saveProposal, uploadProposalMedia, type Cope, type Severity } from './api'
 import * as edit from './proposal'
 
@@ -28,6 +28,7 @@ export type CapturedObservation = {
   note: string
   copeDimension: Cope | null
   severity: Severity | null
+  kinds?: Kind[]
   clips: Blob[]
   photos: Blob[]
   pages: Blob[]
@@ -87,6 +88,7 @@ export async function addCapturedObservation(
     note: c.note,
     copeDimension: c.copeDimension,
     severity: c.severity,
+    ...(c.kinds?.length && { kinds: c.kinds }),
     locationRef,
   })
   const added = { ...observation, mediaIds: files.map((f) => idOf(f.file)) }

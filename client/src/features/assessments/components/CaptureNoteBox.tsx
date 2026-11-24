@@ -10,18 +10,21 @@ export function CaptureNoteBox({
   onChange,
   phone,
   reference,
+  onBlur,
 }: {
   value: string
   onChange: (text: string) => void
   phone: boolean
   // Null outside a live assessment (the demo's): there is nothing to dictate into.
   reference: string | null
+  // Called with the note when the engineer leaves the box (the tag picker's cue to suggest).
+  onBlur?: (text: string) => void
 }) {
   // Holds the text box, for dictation to find: the shared Textarea takes no ref.
   const box = useRef<HTMLDivElement>(null)
   return (
     <>
-      <div ref={box}>
+      <div ref={box} data-walk="new-observation.note">
         <Textarea
           aria-label="Note"
           maxLength={5000}
@@ -29,6 +32,7 @@ export function CaptureNoteBox({
           placeholder="What did you see? Write as you would for the record."
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => onBlur?.(event.target.value)}
         />
       </div>
       {reference && (

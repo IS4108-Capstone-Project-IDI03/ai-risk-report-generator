@@ -86,12 +86,6 @@
   background: var(--green-50);
   color: var(--green-600);
 }
-.swr-help {
-  width: 36px;
-  height: 36px;
-  margin: 0;
-  color: var(--text-secondary);
-}
 /* Add location in the proposal's violet (round 6), the colour of its badge and frame. Create all
    is the design system's navy button, as on every screen (v2: navy is for actions). */
 .swr .ob-foot-row[data-primary],
@@ -107,12 +101,8 @@
   }
 }
 @media (pointer: coarse), (max-width: 559px) {
-  .swr-state,
-  .swr-help {
+  .swr-state {
     min-height: 44px;
-  }
-  .swr-help {
-    width: 44px;
   }
 }
 

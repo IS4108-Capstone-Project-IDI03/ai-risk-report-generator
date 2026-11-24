@@ -86,6 +86,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+// F-13 added a help (?) beside some titles: these tests count the real controls only.
+const notHelp = (b: HTMLElement) => !b.classList.contains('ds-help')
+
 describe('the checkpoint header', () => {
   // [board, title, line, the one control (or null), drafted of 11]
   const cases: [string, GenerationDto, string, string, string | null, number][] = [
@@ -177,7 +180,7 @@ describe('the checkpoint header', () => {
     const card = await header()
     expect(within(card).getByRole('heading', { name: title })).toBeInTheDocument()
     expect(within(card).getByText(line)).toBeInTheDocument()
-    const buttons = within(card).queryAllByRole('button')
+    const buttons = within(card).queryAllByRole('button').filter(notHelp)
     expect(buttons.map((b) => b.textContent)).toEqual(control ? [control] : [])
     expect(card).toHaveTextContent(`${drafted} of 11 drafted`)
     // The three steps are always all there.
@@ -202,7 +205,7 @@ describe('the checkpoint header', () => {
       ),
     ).toBeInTheDocument()
     expect(within(card).getByText('View only')).toBeInTheDocument()
-    expect(within(card).queryAllByRole('button')).toHaveLength(0)
+    expect(within(card).queryAllByRole('button').filter(notHelp)).toHaveLength(0)
   })
 })
 
@@ -535,7 +538,7 @@ describe('review fixes', () => {
       within(card).getByRole('heading', { name: "Waiting for the engineer's input" }),
     ).toBeInTheDocument()
     expect(card).not.toHaveTextContent(/your input/i)
-    expect(within(step(2)).queryAllByRole('button')).toHaveLength(0)
+    expect(within(step(2)).queryAllByRole('button').filter(notHelp)).toHaveLength(0)
     expect(step(2).querySelector('[data-active]')).toBeNull()
     cleanup()
 

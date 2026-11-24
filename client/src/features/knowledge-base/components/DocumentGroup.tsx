@@ -25,6 +25,7 @@ export function DocumentGroup({
   onPublish,
   onClauses,
   canManage,
+  walk,
 }: {
   group: Group
   documents: KnowledgeDocument[]
@@ -43,6 +44,8 @@ export function DocumentGroup({
   onClauses: (document: KnowledgeDocument) => void
   // Off for a risk engineer, who browses read-only (IN-17).
   canManage: boolean
+  // The ids of the rows the walkthroughs point at (F-12), see KnowledgeDocuments.tsx.
+  walk?: { first?: string; open?: string; review?: string }
 }) {
   const id = `kb-group-${group.sourceType ?? 'unconfirmed'}`
   return (
@@ -79,6 +82,11 @@ export function DocumentGroup({
             onPublish={() => onPublish(d)}
             onClauses={() => onClauses(d)}
             canManage={canManage}
+            walk={{
+              row: d.id === walk?.first,
+              open: d.id === walk?.open,
+              review: d.id === walk?.review,
+            }}
           />
         ))
       )}

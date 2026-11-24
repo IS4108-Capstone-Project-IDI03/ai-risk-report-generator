@@ -3,9 +3,9 @@
 // walk and name it (round 3). Opened from the Observations tab. Calls useWalk (keeps and sends) and
 // useWalkRecorder (microphone, camera).
 import { useCallback, useEffect, useState } from 'react'
-import { BackButton, Button, Icon, IconAction, toast } from '../../../design-system'
+import { BackButton, Button, Icon, toast } from '../../../design-system'
 import { CameraView } from '../components/CameraView'
-import { HelpSheet } from '../components/HelpSheet'
+import { RecordingHelp } from '../components/RecordingHelp'
 import { NoteComposer } from '../components/NoteComposer'
 import { PhotoStrip } from '../components/PhotoStrip'
 import { RecordPanel } from '../components/RecordPanel'
@@ -17,6 +17,9 @@ import { readDraft, writeDraft } from '../typedDraft'
 import { usePhone } from '../usePhone'
 import { useWalk } from '../useWalk'
 import { useWalkRecorder } from '../useWalkRecorder'
+import { PRACTICE_WALK_NAME, useRecordingWalk } from '../useRecordingWalk'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../site-walk.css'
 import '../walkList.css'
 import '../recording.css'
@@ -34,7 +37,6 @@ export function SiteWalkRecording({
 }) {
   const w = useWalk(reference)
   const [text, setText] = useState<string | null>(null)
-  const [help, setHelp] = useState(false)
   const [camera, setCamera] = useState(false)
   const [busy, setBusy] = useState(false)
   // Finish walk first asks for the walk's name (AC13).
@@ -53,6 +55,17 @@ export function SiteWalkRecording({
     [],
   )
   const rec = useWalkRecorder(w.claimSeq, w.addRecording, onCap)
+  // F-12: ready once the walk exists; the walkthrough's signals and its no-microphone fallback.
+  useWalkthroughScreen('site-walk', !!w.walk)
+  const walking = useRecordingWalk({
+    phase: rec.phase,
+    finished: w.finished,
+    status: w.walk?.status,
+    micProblem,
+    typeSample: type,
+    reference,
+    reread: w.reread,
+  })
 
   // Any start: the first recording, the next one, or after the track ended.
   const start = useCallback(async () => {
@@ -77,7 +90,7 @@ export function SiteWalkRecording({
   // Save recording: stops and keeps it. The toast doesn't wait for the upload, which
   // can take a while on a poor connection; the list shows where it has got to.
   function save() {
-    void rec.stop()
+    void rec.stop().then(() => signal('site-walk-recording-saved'))
     toast.success('Recording saved')
   }
 
@@ -93,7 +106,9 @@ export function SiteWalkRecording({
     if (walkId) writeDraft(walkId, '')
   }
   async function addNote() {
-    if (await w.addNote(note)) clearDraft()
+    if (!(await w.addNote(note))) return
+    clearDraft()
+    signal('site-walk-note-added')
   }
   useEffect(() => {
     if (w.finished && walkId) writeDraft(walkId, '')
@@ -138,16 +153,19 @@ export function SiteWalkRecording({
     return (
       <div className="sw sw-recording">
         <div className="sw-finished" role="status">
-          <span className="sw-finished-mark" aria-hidden="true">
-            <Icon name="check" size={28} />
-          </span>
-          <h1>Walk finished</h1>
-          <p className="sw-note">
-            We’ll let you know when it’s ready. You can keep working in the meantime.
-          </p>
-          <button type="button" className="sw-button sw-button--primary" onClick={onClose}>
-            Done
-          </button>
+          {/* The block the site walk walkthrough lights (F-12): only its content, not the whole page. */}
+          <div className="sw-finished-body" data-walk="site-walk.finished">
+            <span className="sw-finished-mark" aria-hidden="true">
+              <Icon name="check" size={28} />
+            </span>
+            <h1>Walk finished</h1>
+            <p className="sw-note">
+              We’ll let you know when it’s ready. You can keep working in the meantime.
+            </p>
+            <button type="button" className="sw-button sw-button--primary" onClick={onClose}>
+              Done
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -178,14 +196,7 @@ export function SiteWalkRecording({
         </div>
         <h1>Site Walk</h1>
         <div className="sw-bar-end">
-          <IconAction
-            icon="circle-help"
-            label="How to record a site walk"
-            tooltip="How to record a site walk"
-            size="md"
-            placement="bottom-end"
-            onClick={() => setHelp(true)}
-          />
+          <RecordingHelp />
         </div>
       </header>
 
@@ -242,6 +253,7 @@ export function SiteWalkRecording({
         <Button
           variant="create"
           fullWidth
+          data-walk="site-walk.finish"
           style={{ height: 48, fontSize: 16 }}
           loading={busy}
           disabledReason={
@@ -262,13 +274,13 @@ export function SiteWalkRecording({
         <WalkNameDialog
           title="Name this site walk"
           action="Finish walk"
+          initial={walking ? PRACTICE_WALK_NAME : undefined}
           phone={phone}
           busy={busy}
           onSave={(name) => void finish(name)}
           onClose={() => setNaming(false)}
         />
       )}
-      {help && <HelpSheet onClose={() => setHelp(false)} />}
       {camera && (
         <CameraView
           stream={rec.stream}
