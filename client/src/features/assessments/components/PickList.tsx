@@ -36,6 +36,8 @@ export function PickList({
         open={open}
         onOpenChange={setOpen}
         ariaLabel={label}
+        // Opens to the right of its trigger: right-aligned, it ran left under the sidebar.
+        align="left"
         surfaceClassName="cl-pick-pop"
         trigger={
           <button

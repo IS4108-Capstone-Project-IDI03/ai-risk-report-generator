@@ -292,8 +292,9 @@ span.cl-state {
 }
 .cl-pick-pop {
   padding: var(--space-4);
-  min-width: 280px;
-  max-width: 420px;
+  /* Wide enough for a standard's full name; never wider than the screen. */
+  width: min(440px, calc(100vw - 2 * var(--space-4)));
+  box-sizing: border-box;
 }
 .cl-pick-opts {
   max-height: 260px;
