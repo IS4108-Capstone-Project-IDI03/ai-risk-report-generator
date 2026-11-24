@@ -1,7 +1,7 @@
 // The walkthrough's focus and keys (F-12): focus goes into each new bubble and back where it was at
 // the end; Esc skips, Right and Left step, and Tab is kept to the bubble on a step that only tells.
 // During a hands-on step's quiet wait (nothing of the walkthrough on screen) it takes no key at all,
-// and once such a step has let its spotlight go, Esc in one of the page's controls is the page's.
+// and once such a step has let its spotlight go, Esc outside the bubble is the page's.
 // Called by WalkthroughHost. Calls player.ts (next, back, skip), settle.ts, state.ts.
 import { useEffect, useRef, type RefObject } from 'react'
 import { back, next, skip } from './player'
@@ -43,8 +43,10 @@ export function useWalkthroughKeys(running: unknown, bubbleRef: RefObject<HTMLDi
       const mine = !(at instanceof Element) || at === document.body || !!bubbleEl?.contains(at)
       const { dim, bubble } = useWalkthroughs.getState()
       // A hands-on step that has let its spotlight go (hands.ts): the page is the person's, so Esc
-      // in one of its controls closes the list they opened. Without this it skipped the walkthrough.
-      if (e.key === 'Escape' && !mine && !dim && bubble?.step?.hands) return
+      // outside the bubble closes the list they opened. Without this it skipped the walkthrough. Not
+      // by focus: a press on a list's text leaves focus on the page's body.
+      const inBubble = at instanceof Node && !!bubbleEl?.contains(at)
+      if (e.key === 'Escape' && !inBubble && !dim && bubble?.step?.hands) return
       if (e.key === 'Escape') {
         // Without this, Esc would also close a dialog the step points into.
         e.preventDefault()

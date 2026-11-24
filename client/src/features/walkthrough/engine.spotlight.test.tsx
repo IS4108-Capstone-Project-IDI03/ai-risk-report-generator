@@ -42,7 +42,7 @@ describe('hands-on spotlight', () => {
     expect(screen.getByText('Picked.')).toBeTruthy()
   })
 
-  it('once a step has let go, Esc in the page’s control is the page’s; from the bubble it still skips', async () => {
+  it('once a step has let go, Esc outside the bubble is the page’s; from the bubble it still skips', async () => {
     const appGot = vi.fn()
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && appGot()
     document.addEventListener('keydown', onKey)
@@ -58,6 +58,10 @@ describe('hands-on spotlight', () => {
     fireEvent.pointerDown(search)
     fireEvent.keyDown(search, { key: 'Escape' }) // closing the list they opened
     expect(appGot).toHaveBeenCalledTimes(1)
+    expect(useWalkthroughs.getState().running).not.toBeNull()
+    // A press on a list's text leaves focus on the body: Esc there is the page's too.
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(appGot).toHaveBeenCalledTimes(2)
     expect(useWalkthroughs.getState().running).not.toBeNull()
     fireEvent.keyDown(screen.getByText('Pick one.'), { key: 'Escape' })
     expect(useWalkthroughs.getState().running).toBeNull()
