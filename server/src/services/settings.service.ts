@@ -22,6 +22,7 @@ import {
 import type { SessionUser } from './auth.service'
 import { hasPermission } from './permissions.service'
 import { DEFAULT_TIER_ORDER, TIER_IDS, type TierId } from './source-tiers'
+import { checkWalkthroughPatch, saveWalkthroughs } from './walkthrough-record.service'
 
 // A bad request to the settings API; `status` is the HTTP code the route answers with.
 export class SettingsInputError extends Error {
@@ -289,4 +290,16 @@ export async function saveSourcePriority(by: SessionUser, order: unknown) {
   const was = (previous as IAppSettings).sourcePriority
   const before = was?.length ? was : DEFAULT_TIER_ORDER
   if (before.join() !== after.join()) await log(by, 'sourcePriority', before, after)
+}
+
+/** Saves this person's walkthrough record (F-12); returns nothing. Throws SettingsInputError on a bad value, saving nothing. */
+export async function savePersonal(userId: string, input: unknown) {
+  const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
+  const keys = Object.keys(body)
+  const bad = keys.find((k) => k !== 'walkthroughs')
+  if (bad) throw new SettingsInputError(`"${bad}" is not a setting.`)
+  if (!keys.length) throw new SettingsInputError('Nothing to save.')
+  // Checked before anything is written, so a bad walkthrough part saves nothing at all.
+  checkWalkthroughPatch(body.walkthroughs)
+  await saveWalkthroughs(userId, body.walkthroughs)
 }

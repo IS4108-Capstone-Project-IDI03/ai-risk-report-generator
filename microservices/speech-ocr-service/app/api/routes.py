@@ -1,4 +1,5 @@
 import base64
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +9,7 @@ from app.privacy import PrivacyUnavailable
 from app.processors.chat_pdf import PdfRefused, extract_pages
 from app.processors.chat_photo import check_faces
 from app.processors.handwriting import HandwritingError, transcribe_page
-from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
+from app.processors.stt import TranscriptionError, check_whisper, transcribe, transcribe_clip
 from app.processors.vision import (
     InterpretationError,
     describe_chat_photo,
@@ -89,6 +90,18 @@ class InterpretRequest(BaseModel):
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "speech-ocr"}
+
+
+@router.get("/health/providers")
+def health_providers() -> dict:
+    """Ask Whisper for its model's details, no audio and no cost (F-12's quick check before a
+    try-it). A failure is `ok: false`, not an error."""
+    try:
+        check_whisper()
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("Whisper check failed")
+        return {"ok": False}
+    return {"ok": True}
 
 
 # A recording to transcribe. `privacy` is whether the tidy model's pass (CP-27) may read the

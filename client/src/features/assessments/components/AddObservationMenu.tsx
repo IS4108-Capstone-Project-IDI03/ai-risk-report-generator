@@ -37,6 +37,7 @@ export function AddObservationMenu({
       buttonLabel="Add observation"
       options={WAYS}
       fullWidth={fullWidth}
+      walk="observations.add"
       onChoose={(way) => (way === 'manual' ? onManual() : onWalk())}
     >
       {/* On a toolbar too tight for the words it says "Add" (.cpo-more, observations.css). */}

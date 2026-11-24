@@ -51,6 +51,7 @@ export function DocumentsPopover({ f }: { f: NewAssessmentForm }) {
         <button
           type="button"
           className="na-docs-btn"
+          data-walk="new-assessment.documents"
           aria-label={docs.length ? 'Documents · ' + docs.length : undefined}
           onClick={() => setOpen(!open)}
         >

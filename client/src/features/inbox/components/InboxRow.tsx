@@ -20,6 +20,8 @@ export type InboxRowProps = {
   // the time then line up row to row).
   dueColumn: boolean
   phone: boolean
+  // The list's first row, which the Inbox walkthrough highlights (F-12).
+  first?: boolean
   onOpen: (item: Notification) => void
   // Ticks a To do row, unticks a Done one.
   onTick: (item: Notification) => void
@@ -34,6 +36,7 @@ export function InboxRow({
   fresh,
   dueColumn,
   phone,
+  first,
   onOpen,
   onTick,
   onBin,
@@ -52,6 +55,7 @@ export function InboxRow({
       data-phase={phase}
       data-done={on || undefined}
       data-fresh={fresh || undefined}
+      data-walk={first ? 'inbox.row-1' : undefined}
     >
       <div className="inbox-row__inner">
         <div className="inbox-row__line">

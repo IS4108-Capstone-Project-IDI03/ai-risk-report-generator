@@ -126,6 +126,7 @@ export function ProposalHeader({
             {/* Greyed out, not disabled, while something is missing: hovering says why (v2). */}
             <Button
               variant="create"
+              data-walk="site-walk.create"
               loading={creating}
               disabledReason={
                 blocked && !creating

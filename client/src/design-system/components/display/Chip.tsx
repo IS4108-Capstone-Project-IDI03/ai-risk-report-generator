@@ -1,5 +1,6 @@
 // Chips (CP-23, v2 section 6): jurisdiction, facility, division, plain code, and the New badge.
-// Called by every screen that shows a site or client. Calls Icon.
+// Called by every screen that shows a site or client. Calls Icon. Its classes are ds-label-chip*, not
+// ds-chip*: those are the chip input's bubbles (styles.css), which gave this chip uneven padding and a phone height of 36 px.
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
 
@@ -24,12 +25,12 @@ export function Chip({ kind, children }: ChipProps) {
   const k = KINDS[kind]
   return (
     <span
-      className="ds-chip"
+      className="ds-label-chip"
       style={{ color: k.fg, background: k.bg }}
       title={typeof children === 'string' ? children : undefined}
     >
       {k.icon ? <Icon name={k.icon} size={12} /> : null}
-      <span className="ds-chip-text" dir="auto">
+      <span className="ds-label-chip-text" dir="auto">
         {children}
       </span>
     </span>

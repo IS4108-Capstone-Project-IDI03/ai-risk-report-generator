@@ -2,7 +2,7 @@
 // toggles, each with its category's icon. One finding can concern several
 // sections of the report; none chosen leaves it uncategorised. Called by
 // screens/SiteObservation.tsx.
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Icon } from '../../../design-system'
 import { CAT_ICON, COPE_CATEGORIES, UNCATEGORISED_HINT } from '../categories'
 import { CAT_TINT } from './ObservationMarks'
@@ -13,22 +13,32 @@ export function CategoryPicker({
   onToggle,
   legend = 'COPE categories',
   hint = UNCATEGORISED_HINT,
+  walk,
+  help,
 }: {
   cats: string[]
   onToggle: (cat: string) => void
   // The site walk proposal asks for one category and names it "Category", with no hint.
   legend?: string
   hint?: string | null
+  // The fieldset's data-walk tag (F-12).
+  walk?: string
+  // A help (?) beside the legend (F-13).
+  help?: ReactNode
 }) {
   const hintId = useId()
   return (
     <fieldset
       className="cap-field"
       aria-describedby={cats.length || !hint ? undefined : hintId}
+      data-walk={walk}
       style={{ margin: 0, padding: 0, border: 'none' }}
     >
       <legend className="cap-label" style={{ padding: 0, marginBottom: '6px' }}>
-        {legend}
+        <span className="cap-legend">
+          {legend}
+          {help}
+        </span>
       </legend>
       <div className="cap-cats">
         {COPE_CATEGORIES.map((cat) => (

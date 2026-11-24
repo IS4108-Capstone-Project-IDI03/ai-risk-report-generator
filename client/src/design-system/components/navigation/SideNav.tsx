@@ -149,6 +149,8 @@ function SideNav({
                   role={sec.label ? 'group' : undefined}
                   aria-label={sec.label || undefined}
                   className="ds-sidenav-items"
+                  // F-12: a walkthrough points at a whole group (nav.group.work) or one item (nav.inbox).
+                  data-walk={sec.label ? 'nav.group.' + sec.label.toLowerCase() : undefined}
                 >
                   {!isFolded &&
                     sec.items.map((it) => {
@@ -157,6 +159,7 @@ function SideNav({
                           key={it.value}
                           type="button"
                           className="ds-sidenav-item"
+                          data-walk={'nav.' + it.value}
                           data-small={sec.collapsible || undefined}
                           aria-current={it.value === value ? 'page' : undefined}
                           // On the rail only the icon shows, so the label names the button,

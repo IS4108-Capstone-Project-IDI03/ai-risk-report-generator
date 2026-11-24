@@ -5,6 +5,9 @@
 // displays it.
 import { useState } from 'react'
 import { Button, Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
+import type { KnowledgeDocument } from '../api'
 import { ManualEntryDialog } from '../components/ManualEntryDialog'
 import { UploadedDocuments } from '../components/UploadedDocuments'
 import { UploadRow } from '../components/UploadRow'
@@ -28,6 +31,10 @@ export function AddDocuments({
   const [dragging, setDragging] = useState(false)
   const [manual, setManual] = useState(false)
   const uploading = uploads.some((u) => u.state === 'uploading')
+  // F-12: ready once Recent uploads has loaded (its rows are what two steps point at); held while a
+  // file is still uploading.
+  const [recent, setRecent] = useState<KnowledgeDocument[] | null>(null)
+  useWalkthroughScreen('knowledge-add', recent !== null, uploading && 'unsaved')
   // One awaiting a type (IN-19) was accepted too: it is in Recent uploads.
   const accepted = (u: Upload) => u.state === 'queued' || u.state === 'awaiting_type'
   const finished = uploads.some((u) => accepted(u) || u.state === 'rejected')
@@ -38,6 +45,7 @@ export function AddDocuments({
       <section
         className="kb-panel"
         data-dragging={dragging || undefined}
+        data-walk="knowledge-add.panel"
         aria-labelledby="kb-add-title"
         // Dropping files anywhere on the panel uploads them, like choosing them.
         // The panel takes the focus style while files are over it.
@@ -57,7 +65,10 @@ export function AddDocuments({
       >
         <header className="kb-panel-head">
           <div>
-            <h2 id="kb-add-title">Add documents</h2>
+            <div className="kb-title-row">
+              <h2 id="kb-add-title">Add documents</h2>
+              <Tip id="knowledge-add.upload" />
+            </div>
             <p>PDF, Word (DOCX, DOC), PowerPoint (PPTX, PPT), RTF or ODT, up to 100 MB each.</p>
           </div>
           <label className="kb-pick">
@@ -89,7 +100,13 @@ export function AddDocuments({
         {/* For a standard with no file, such as an edition only readable online (IN-18). */}
         <p className="kb-manual-offer">
           No PDF?{' '}
-          <Button variant="ghost" size="sm" iconLeft="pen-line" onClick={() => setManual(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconLeft="pen-line"
+            data-walk="knowledge-add.manual"
+            onClick={() => setManual(true)}
+          >
             Enter a standard manually
           </Button>
         </p>
@@ -114,6 +131,7 @@ export function AddDocuments({
         narrow={narrow}
         refreshKey={acceptedCount}
         onCompleted={onCompleted}
+        onLoaded={setRecent}
         onReview={onReview}
       />
     </>

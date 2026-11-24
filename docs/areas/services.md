@@ -2503,3 +2503,122 @@ note (`recommendationOnlyEvidence`), so every recommendation is an OFI candidate
 severity. rag-service masks the text with the note, prints it as "Engineer's recommendation:"
 (`gn05-v8`), and the guide says to base the fix on it. An OFI that rests on such an observation
 is saved with `fromRecommendation: true`.
+
+## Walkthroughs and the practice assessment (gateway, client, F-12)
+
+MarshBot's walkthroughs are fixed text in the client. The gateway only keeps each account's
+record, makes the practice assessment, and answers one question before a try-it.
+
+- **Routes** (`routes/walkthrough.routes.ts`, a session and no permission, the caller's own
+  account only): `POST /api/walkthroughs/practice` (Reset and "Set it up again": hides the old one,
+  makes a fresh one, 201 `{reference}`), `DELETE /api/walkthroughs/practice` (Remove: hides it, 204),
+  `GET /api/walkthroughs/check?for=<walkthrough id>` (`{ok}`; 404 when that walkthrough has no
+  try-it). The record itself rides on `PATCH /api/settings/me` and the signed-in user (see
+  docs/areas/database.md, "The walkthrough record").
+- **First sign-in** (`ensurePractice`, called while building the signed-in user): makes the
+  practice assessment once, unless the user removed it. It never throws: a failure is logged and
+  sign-in carries on with `practice: null`. It is made as `practice: 'making'` (open to no one,
+  listed nowhere) and made live only once filled; two tabs at once make one (the unique index
+  on live ones decides, and the loser removes its own unseen copy), and a call that finds one
+  still being made answers `null` (one over a minute old counts as abandoned). Remove saves its
+  "removed" mark before it hides, and first sign-in reads the mark first and again after
+  making, so a Remove at the same moment is never undone.
+  The record service loads the practice service lazily, because `settings.service` imports the
+  record service and the practice service reaches `settings.service` again through drafting.
+- **The quick check** (`walkthrough-check.service.ts`): a try-it is a walkthrough step that calls
+  live AI on the user's own input (5 walkthroughs: `new-docs`, `new-observation`,
+  `site-walk`, `ask`, `chat`). Before one is offered or started the client asks the check, which
+  calls each needed service's `/health` and one tiny provider request: rag-service
+  `GET /health/providers?need=llm|chat|search|privacy` (a one-word request through the same
+  provider layer and `X-Model` as real work) and speech-ocr-service `GET /health/providers`
+  (the speech-to-text model's metadata, no audio). No client text is sent. The free health calls
+  run first, and the provider calls only when they all pass. Health calls time out at 5 s and
+  provider calls at 15 s; any failure is `ok: false`. A pass is remembered for 5 minutes in
+  memory and a fail for 30 s, per set of checks and drafting model, and requests that arrive
+  while a check runs share it. The tiny language-model call is recorded under `walkthrough`.
+- **Try-its use the real features** on the practice assessment, so masking, fail-closed behaviour
+  and every hard rule hold unchanged. The chat question and the sample email have no assessment:
+  the client sends `x-walkthrough: <id>` on those requests and `walkthroughUsage`
+  (`middleware/practice.middleware.ts`) marks the request so its calls are recorded the same way.
+  It honours the header only for those two ids on their own routes (`chat`: `POST /api/chat`;
+  `new-docs`: `POST /api/client-intakes` and `/:id/read`), so a real assessment's request keeps
+  its usage.
+- **MarshBot on the practice assessment** re-checks on change and pushes to its open Overview as
+  for any assessment. It is left out of the daily re-check and of Focus.
+- **Client** (`client/src/features/walkthrough/`): one engine mounted once at the app shell
+  (`WalkthroughHost`). Each screen with a walkthrough makes one `useWalkthroughScreen(key, ready,
+  hold)` call; features raise `signal('<name>')` when something a hands-on step waits on has
+  finished; nothing polls. A definition is data in a `*walkthroughs.ts` file beside its feature
+  (found by `registry.ts`), and each step points at a `data-walk` tag. The dimming and cut-out are
+  drawn by driver.js (pinned, `spotlight.ts`), round an invisible stand-in placed where the cut-out
+  goes (several tags' union, clipped to the window, kept clear of the bubble and the phone sheet).
+  Only its drawing is used: the bubble, keys, focus and what can be pressed are the engine's own
+  layer, placed inside the open modal dialog when there is one (a layer in `body` sits under a
+  native dialog); there the layer doubles as the dialog's `driver-layer`, so the dimming is drawn
+  under the bubble. An `apart` step's other cut-outs are added to driver.js's path whenever it
+  redraws. A walkthrough whose place has `{practice}` always plays on the practice assessment.
+  - **What a step can ask for** (`types.ts`): a tag ending in `?` is lit only where it is on the
+    screen (table headings a phone layout leaves out); `apart` gives each tag its own cut-out
+    (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
+    show whole. Before a step shows, its target is scrolled into view through every scroll
+    container round it and clear of any pinned bar over its edge.
+  - **On a phone** MarshBot's words always show whole, and the sheet never covers what they name.
+    The sheet goes below the target when it fits whole, else above it. When it fits neither, a
+    target shown from its end (`show: 'end'`: Confirm all parts, the drawer's Tools list) gets the
+    sheet at the top and is lit from its first whole row under it to its end; any other target is
+    scrolled to the top (clear of the sticky header) and lit from its top down to its last whole
+    row above a sheet at the bottom (the top only if that would show less than its first row). A
+    row (a block no taller than 120 px and at least half the target's width) is never cut: one
+    the edge crosses is left out whole, a dim gap of at least 8 px stays between the cut-out and
+    the sheet, and the cut-out never goes past what the target's scroller shows (a target running
+    past the screen is lit down to its last whole row on it). On any screen size, a bar pinned
+    over a target's edge (the Ask panel's question box over the answer) is never lit with it
+    (`pinnedCut` in `placement.ts`, used by `targets.ts`). Only a target with no whole row on
+    either side keeps the sheet to the larger side, cut between two lines. The one exception to the gap: a target whose own top is at most 8 px under a sheet at the top
+    is lit from that top (the admin's Tools list). Split note's parts and Insights' three panels
+    draw compact while lit there (CSS keyed on `data-walk-on`). The cut-out opens with the sheet,
+    after that scroll (opened before it, it lit what scrolled into the target's old place), and
+    Back and Next stay whole at the sheet's foot.
+  - **Hands-on steps, one model** (`do` and `until`): `do` is only what the person does. A single
+    `press` keeps the spotlight until the press; with more to do (a `signal`: a menu, typing, a
+    recording; or several actions) the spotlight goes at the first press or key inside the cut-out
+    and the bubble stays where it is. The person's own save landing (Confirm, Accept, Save) is a
+    `do` signal, so a refused save leaves the step showing. The moment the last action lands, the
+    bubble and the spotlight leave together and nothing of the walkthrough shows while the app
+    answers. `until` names the app's own "result is ready" signal (an AI answer, MarshBot's turn
+    shown): the engine waits for it (remembered if it came early), keeps the result on screen alone
+    for 1 s (`QUIET_MS` in `run.ts`), then shows the next step, the result, after the settle
+    rule. When that next step needs an `open` press (New Observation's result is on the
+    Observations list), the engine makes it a second after the person's action, so they watch the
+    app work on the right screen. An answer that sets the app working ("Use the sample email") can
+    carry an `until` too. That wait is never open-ended: it lasts at most the walkthrough's
+    `fail.slow` time (its own line, then it ends) or else 90 s (`QUIET_LIMIT_MS` in `hands.ts`), after which a
+    hands-on step shows again when its control is still there, and otherwise ends with the "didn't
+    work" line, as a try-it does. A refused answer ends
+    it at once the same way: the Overview raises `try-it-failed` for a refused reply while its
+    walkthrough plays (`MarshBotOverview.tsx`). Leaving the screen during the wait (an app link,
+    which fires no Back event) ends the walkthrough as a skip, noticed through
+    `useWalkthroughScreen`'s cleanup. During the wait the walkthrough takes no key (`keys.ts`): Esc
+    closing a menu goes to the app and never skips a walkthrough the person cannot see. The same
+    goes for Esc outside the bubble once a hands-on step has let its spotlight go: it closes the
+    list the person opened (a press on a list's text leaves focus on the page's body, so this is
+    not decided by focus), and Esc from the bubble still skips. A person who leaves in
+    the second before the engine's own press ends it as a skip too (`hands.ts`). A screen reader hears "I'll carry on when this is ready."
+    meanwhile (a polite status line in `WalkthroughHost`). There are no waiting steps.
+  - **Back** is greyed where the step before cannot show again: it was hands-on, or this step
+    opened something.
+  - **A used-up practice assessment** (the one amber observation already confirmed, the sample
+    walk already created): when a hands-on walkthrough cannot find its target there, the engine
+    resets the practice assessment and plays the walkthrough again, once. Reset, Remove and
+    "Set it up again" raise `practice-changed`, and the assessments list reads itself again.
+  - **Unsaved work**: a screen passes `hold: 'unsaved'` while it has any. A walkthrough that
+    would have to leave that screen does not start; MarshBot says it will wait.
+  - **A slow try-it** (`fail.slow`): when the app's answer (`until`) has not come within its time,
+    the walkthrough ends with its own line (the site walk: 90 s) and the AI's work carries on.
+  - **The site walk try-it** learns its walk is ready from the assessment's event stream (the
+    MarshBot re-check that follows reading pushes), then reads the walk once. The recorder's own
+    5 s re-read still stops at Finish walk, as before.
+- **Help tips** (F-13): `HelpTip` in the design system is the one (?) button and popover;
+  `features/help/Tip.tsx` adds the tip's fixed text (`features/help/tips.ts`), its roles and the
+  "Show me" link, which replays a walkthrough through the engine.
+

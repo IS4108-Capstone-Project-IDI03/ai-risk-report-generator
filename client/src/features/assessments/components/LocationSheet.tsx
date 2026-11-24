@@ -12,6 +12,7 @@ import {
   Popover,
   type PickerListSlot,
 } from '../../../design-system'
+import { signal } from '../../walkthrough/signals'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureHelp } from './CaptureHelp'
 import { LocationForm } from './LocationForm'
@@ -114,7 +115,7 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
           width={440}
           onClose={v.closeLocations}
         >
-          <LocationChoices v={v} />
+          <LocationChoices v={v} walk="new-observation.location-menu" />
         </Dialog>
       </>
     ) : (
@@ -128,7 +129,10 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
         className={className}
         surfaceClassName="capture-location-menu"
       >
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div
+          data-walk="new-observation.location-menu"
+          style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+        >
           <div>
             <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
               {'Where are you?'}
@@ -142,7 +146,7 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
       </Popover>
     )
   return (
-    <div ref={box} className="cap-loc-field">
+    <div ref={box} className="cap-loc-field" data-walk="new-observation.location">
       <PickerField
         label="Location"
         required
@@ -166,9 +170,9 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
 
 // Search, the assessment's locations by building and level (CP-16), and the
 // form adding one. Picking only: editing and removing are the sidebar's.
-function LocationChoices({ v }: { v: AssessmentWorkflow }) {
+function LocationChoices({ v, walk }: { v: AssessmentWorkflow; walk?: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div data-walk={walk} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {!v.noLocations && (
         <>
           <FindMyBlock pins={v.locPins} onBlock={v.showBlock} onHere={v.trackedTo} />
@@ -329,7 +333,11 @@ function LocationRow({ v, location: l }: { v: AssessmentWorkflow; location: Row 
         className="cap-loc"
         aria-pressed={l.selected}
         aria-label={l.label + (l.detail ? ', ' + l.detail : '')}
-        onClick={() => v.chooseLocation(l.id)}
+        onClick={() => {
+          v.chooseLocation(l.id)
+          // F-12: "Add an observation" step 1 asks for the loading bay, the practice assessment's one.
+          if (/loading bay/i.test(l.name)) signal('observation-location-chosen')
+        }}
       >
         <Icon name="map-pin" size={18} color="var(--marsh-navy)" />
         <span style={{ flex: 1, minWidth: 0 }}>

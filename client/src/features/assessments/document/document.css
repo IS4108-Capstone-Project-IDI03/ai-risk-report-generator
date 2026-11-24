@@ -181,6 +181,7 @@
 }
 /* Still as the draft wrote it: provisional, so violet until a person changes it. */
 .dm-prose p.dm-ai {
+  position: relative;
   border-left-color: var(--ai-border);
   background: var(--ai-bg);
 }
@@ -392,4 +393,36 @@
   .dm-paper {
     padding: 0 12px;
   }
+}
+
+/* The save status with its help (?) beside it (F-13): the text keeps its width, the (?) follows it. */
+.dm-save-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.dm-save-row .dm-save-status {
+  flex: 0 1 auto;
+}
+/* On a phone the status and its (?) keep their own width and wrap to the next line with the buttons,
+   not squeezed into the gap between them (the words ran under the (?) there). */
+@media (max-width: 767px) {
+  .dm-save-row {
+    flex: 1 1 auto;
+  }
+  .dm-save-row .dm-save-status {
+    min-width: min-content;
+  }
+  .dm-save-row .ds-help {
+    flex: none;
+  }
+}
+
+/* The walkthrough's tag on the first violet paragraph: an empty box exactly over it (plugins.ts). */
+.dm-walk-cover {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }

@@ -106,7 +106,7 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
           <col className="cl-col-due" />
           <col className="cl-col-actions-3" />
         </colgroup>
-        <thead>
+        <thead data-walk="clients.head">
           <tr>
             <Head icon="building-2" arrow={sort === 'name' ? 'up' : undefined}>
               {'Client'}
@@ -126,8 +126,8 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
           </tr>
         </thead>
         <tbody>
-          {rows.map((c) => (
-            <tr key={c.id}>
+          {rows.map((c, i) => (
+            <tr key={c.id} data-walk={i === 0 ? 'clients.row-1' : undefined}>
               <td className="cl-cell-main">
                 <button
                   type="button"
@@ -138,7 +138,7 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                   onClick={c.open}
                 >
                   <ClientAvatar name={c.name} small />
-                  <span className="cl-lines">
+                  <span className="cl-lines" data-walk={i === 0 ? 'clients.row-1.name' : undefined}>
                     <span className="cl-line-1">
                       <span className="cl-ellip" dir="auto" title={c.name}>
                         {c.name}
@@ -161,7 +161,11 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
               <td data-label="Open" className="cl-num">
                 {c.facts.open}
               </td>
-              <td data-label="Jurisdictions">
+              {/* A phone's table has no headings (F-12): its "headings" tag sits inside row 1, so the highlight is row 1 alone. */}
+              <td
+                data-label="Jurisdictions"
+                data-walk={phone && i === 0 ? 'clients.head' : undefined}
+              >
                 <span className="cl-chips">
                   {c.jurisdictions.map((j) => (
                     <Chip key={j} kind="jurisdiction">
@@ -190,10 +194,14 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                       label={`More for ${c.name}`}
                       title={undefined}
                       style={{ borderRadius: 999 }}
+                      data-walk={i === 0 ? 'clients.row-1.actions' : undefined}
                       onClick={() => setMore(c)}
                     />
                   ) : (
-                    <span className="cl-row-actions">
+                    <span
+                      className="cl-row-actions"
+                      data-walk={i === 0 ? 'clients.row-1.actions' : undefined}
+                    >
                       <RowAction
                         icon="plus"
                         label={`New assessment for ${c.name}`}

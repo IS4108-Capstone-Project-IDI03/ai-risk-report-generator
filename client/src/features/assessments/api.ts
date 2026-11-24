@@ -35,6 +35,8 @@ export type Assessment = {
   // sample (offline) row, which then shows its status.
   stage?: Stage
   priority?: Priority | null
+  // The owner's practice assessment (F-12): the gateway sends it first in their list only.
+  practice?: true
   // When its latest capture session started; null before capture starts.
   captureStartedAt: string | null
   createdAt: string
@@ -293,10 +295,12 @@ export async function request<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  // Extra request headers (F-12: x-walkthrough on a try-it's calls); added to any the body sets.
+  extra?: Record<string, string>,
 ): Promise<{ status: number; data: T }> {
   let response: Response
   try {
-    response = await fetch(path, {
+    const init: RequestInit = {
       method,
       signal,
       // A form (with recordings) is sent as-is, so the browser sets its
@@ -315,7 +319,9 @@ export async function request<T>(
                 body,
               }
             : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-    })
+    }
+    if (extra) init.headers = { ...(init.headers as Record<string, string>), ...extra }
+    response = await fetch(path, init)
   } catch (error: unknown) {
     if (signal?.aborted) throw error
     throw new GatewayError(null)

@@ -4,8 +4,11 @@
 // (Whisper), observation.service.ts (photo interpretation), ingestion.service.ts
 // (labelling), rag.service.ts (chat) and routes/internal-ai-usage.routes.ts
 // (the ingestion worker's OCR and embedding). Calls ai-pricing.service.ts for the cost.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { Types } from 'mongoose'
 import { AI_FEATURES, AiCallModel, BILLED_SERVICES, type IAiCall } from '../models/ai-call.model'
+import { AssessmentModel } from '../models/assessment.model'
+import { isPracticeReference } from './practice/filter'
 import { estimateCost, tokenPartsAt, type Cost } from './ai-pricing.service'
 import type { InterpretationResult } from './speech.service'
 
@@ -48,6 +51,8 @@ export type CallContext = {
   section?: string
   userId?: string
   documentId?: string
+  // F-12: set when the call is made for a practice client, which has no practice reference.
+  practice?: boolean
 }
 
 // Turns the ingestion service's /label usage list into the common shape.
@@ -144,11 +149,30 @@ export function usageCost(u: WireUsage): Cost {
   return estimateCost(unavailable ? { ...u, usage_status: 'unavailable' } : u)
 }
 
+// F-12: set for the rest of a request made for a walkthrough, with who is signed in.
+// AsyncLocalStorage is Node's per-request store that follows the request's async work.
+// Set by middleware/practice.middleware.ts.
+export const walkthroughRequest = new AsyncLocalStorage<{ userId?: string }>()
+
 // Saves one row per valid item. Never throws: without this, a bookkeeping
 // failure would turn a successful draft or transcription into an error.
 export async function recordAiCalls(items: unknown, context: CallContext = {}): Promise<void> {
   if (!Array.isArray(items)) return
   try {
+    // F-12: a call on a practice assessment (background jobs pass its reference) or during a
+    // walkthrough is costed as `walkthrough` and to no assessment (ADR 0003). It keeps its user,
+    // or takes the practice assessment's owner, so its engineer sees it in their usage.
+    const practice = isPracticeReference(context.reportId)
+    const during = walkthroughRequest.getStore()
+    const walkthrough = practice || !!context.practice || !!during
+    const userId =
+      context.userId ??
+      during?.userId ??
+      (practice
+        ? (
+            await AssessmentModel.findOne({ reference: context.reportId }, 'engineer').lean()
+          )?.engineer?.toString()
+        : undefined)
     const rows = items
       .filter(
         (u): u is WireUsage =>
@@ -161,12 +185,12 @@ export async function recordAiCalls(items: unknown, context: CallContext = {}): 
         const unavailable = isUnavailable(u)
         const cost = usageCost(u)
         return {
-          feature: u.feature,
+          feature: walkthrough ? 'walkthrough' : u.feature,
           billedService: u.billed_service,
           model: u.model,
-          reportId: context.reportId,
-          section: context.section,
-          userId: objectId(context.userId),
+          reportId: walkthrough ? undefined : context.reportId,
+          section: walkthrough ? undefined : context.section,
+          userId: objectId(userId),
           documentId: objectId(u.document_id ?? context.documentId),
           callCount: callCount(u.call_count),
           durationMs: num(u.duration_ms),

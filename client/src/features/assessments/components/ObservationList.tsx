@@ -2,6 +2,7 @@
 // in the navigator, under a small heading per location, or the deleted ones,
 // newest first. Rendered by screens/Observations.tsx.
 import { EmptyState, IconRegistry } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import type { useObservationsView } from '../useObservationsView'
 import { LocationPath } from './LocationPath'
@@ -73,16 +74,30 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
     )
   // One location picked: its rows need no heading.
   const headed = !view.location
+  // F-12: the first row, and the first one waiting on the engineer (amber), carry the walkthrough's tags.
+  const rows = view.sections.flatMap((s) => s.location.items)
+  const first = rows[0]
+  const toCheck = rows.find((o) => o.tint === 'unsure')
+  // And the first one that came from a site walk: "Review a site walk" ends on it.
+  const fromWalk = rows.find((o) => o.fromSiteWalk)
   return (
     <>
-      <ColumnHeads />
+      <ColumnHeads walk statusTip />
       {view.sections.map(({ location: l, path }) => (
         <section key={l.id} aria-label={l.label}>
           {headed && (
             <h3 className="ob-group-head">{path.bare ? l.name : <LocationPath {...path} />}</h3>
           )}
           {l.items.map((o) => (
-            <ObservationRow key={o.key} o={o} words={v.obsSearchWords} onOpen={open(o.key)} />
+            <ObservationRow
+              key={o.key}
+              o={o}
+              words={v.obsSearchWords}
+              onOpen={open(o.key)}
+              first={o === first}
+              toCheck={o === toCheck}
+              fromWalk={o === fromWalk}
+            />
           ))}
         </section>
       ))}
@@ -92,14 +107,35 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
 
 // The deleted list has Restore, not a status, in the last column. Sentence case.
 // Also heads a site walk proposal's table (site-walk/components/ProposalList.tsx).
-export function ColumnHeads({ last = 'Status' }: { last?: string }) {
+// `walk` tags the headings for the Observations walkthrough (F-12); `statusTip` puts the Status
+// help tip (F-13) beside the heading. A tip is a button, so the row is no longer hidden whole: each
+// word is.
+export function ColumnHeads({
+  last = 'Status',
+  walk = false,
+  statusTip = false,
+}: {
+  last?: string
+  // true tags the heads for the Observations walkthrough; a string is the tag to use instead (F-12).
+  walk?: boolean | string
+  statusTip?: boolean
+}) {
+  const hidden = statusTip ? undefined : true
+  const word = statusTip ? ({ 'aria-hidden': true } as const) : {}
   return (
-    <div className="ob-colhead" aria-hidden="true">
+    <div
+      className="ob-colhead"
+      aria-hidden={hidden}
+      data-walk={typeof walk === 'string' ? walk : walk ? 'observations.head' : undefined}
+    >
       <span />
-      <span>{'Observation'}</span>
-      <span>{'Category'}</span>
-      <span>{'Severity'}</span>
-      <span>{last}</span>
+      <span {...word}>{'Observation'}</span>
+      <span {...word}>{'Category'}</span>
+      <span {...word}>{'Severity'}</span>
+      <span className="ob-colhead-last">
+        <span {...word}>{last}</span>
+        {statusTip && <Tip id="observations.status" align="right" />}
+      </span>
     </div>
   )
 }

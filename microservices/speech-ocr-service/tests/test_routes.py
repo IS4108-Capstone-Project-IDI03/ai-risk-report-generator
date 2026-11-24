@@ -261,3 +261,29 @@ def test_whisper_is_prompted_in_fluent_sentences_so_it_leaves_fillers_out(monkey
         assert prompt.endswith("."), path  # sentences, not a bare word list
         assert "NFPA" in prompt, path
         assert not FILLERS & {bare(w) for w in prompt.split()}, path
+
+
+class FakeModels:
+    error = None
+    asked = None
+
+    def retrieve(self, model):
+        FakeModels.asked = model
+        if FakeModels.error:
+            raise FakeModels.error
+
+
+def test_health_providers_asks_whisper_for_its_model_and_sends_no_audio(monkeypatch):
+    FakeModels.error = None
+    monkeypatch.setattr(stt, "OpenAI", lambda: type("C", (), {"models": FakeModels()})())
+    response = client.get("/health/providers")
+    assert response.json() == {"ok": True}
+    assert FakeModels.asked == stt.WHISPER_MODEL
+
+
+def test_health_providers_is_ok_false_when_whisper_refuses(monkeypatch):
+    FakeModels.error = RuntimeError("401 bad key")
+    monkeypatch.setattr(stt, "OpenAI", lambda: type("C", (), {"models": FakeModels()})())
+    response = client.get("/health/providers")
+    assert response.status_code == 200
+    assert response.json() == {"ok": False}

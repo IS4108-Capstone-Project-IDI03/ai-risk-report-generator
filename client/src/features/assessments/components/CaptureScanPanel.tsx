@@ -2,6 +2,7 @@
 // They are transcribed word for word once saved, as a recording is.
 // Called by screens/SiteObservation.tsx, which opens a page full size on `onView`.
 import { Callout } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureFilePicker } from './CaptureFilePicker'
 import { CaptureItem } from './CaptureItem'
@@ -38,6 +39,7 @@ export function CaptureScanPanel({
             disabled={v.fSaving}
             onChange={v.addPages}
           />
+          <Tip id="new-observation.scan" align="right" />
         </div>
         <span className="cap-hint">{v.pageHint}</span>
         {/* Pages go to the AI as photographed (PV-04, CP-19). */}

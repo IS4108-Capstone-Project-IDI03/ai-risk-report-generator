@@ -8,20 +8,27 @@ export type SearchFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>,
   label?: string
   // Controls inside the field's right end, e.g. how to search (IN-17's Words | Meaning).
   end?: React.ReactNode
+  // The field's data-walk tag (F-12), on its outer box so a walkthrough highlights the whole field.
+  walk?: string
 }
 
 /** Returns a 40 px grey search input with a magnifier, and `end` inside its right end. */
-export function SearchField({ label, className, end, ...rest }: SearchFieldProps) {
+export function SearchField({ label, className, end, walk, ...rest }: SearchFieldProps) {
   const field = (
     <>
       <Icon name="search" size={16} />
       <input type="search" aria-label={label ?? rest.placeholder} {...rest} />
     </>
   )
-  if (!end) return <label className={`ds-search ${className ?? ''}`}>{field}</label>
+  if (!end)
+    return (
+      <label className={`ds-search ${className ?? ''}`} data-walk={walk}>
+        {field}
+      </label>
+    )
   // The end's controls stay outside the label, so they are never part of the input's name.
   return (
-    <div className={`ds-search has-end ${className ?? ''}`}>
+    <div className={`ds-search has-end ${className ?? ''}`} data-walk={walk}>
       <label className="ds-search-input">{field}</label>
       <div className="ds-search-end">{end}</div>
     </div>

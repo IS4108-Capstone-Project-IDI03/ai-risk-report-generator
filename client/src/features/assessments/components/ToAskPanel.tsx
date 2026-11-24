@@ -3,6 +3,7 @@
 // refused); ticked rows are muted and sink below the others. Used by screens/Observations.tsx.
 // Calls api.ts getToAsk and updateObservation. Shows nothing while there is nothing to ask.
 import { useEffect, useState } from 'react'
+import { Tip } from '../../help/Tip'
 import { getToAsk, updateObservation, type ToAskItem } from '../api'
 import './to-ask.css'
 
@@ -40,7 +41,10 @@ export function ToAskPanel({ reference, refreshKey }: { reference: string; refre
   return (
     <section className="ta" aria-label="To ask the client">
       <div className="ta-head">
-        <h3 className="ta-title">{'To ask the client'}</h3>
+        <h3 className="ta-title">
+          To ask the client
+          <Tip id="observations.to-ask" />
+        </h3>
         <span className="ta-progress">{`${items.length - sorted.filter((i) => !i.asked).length} of ${items.length} asked`}</span>
       </div>
       <ul className="ta-list">

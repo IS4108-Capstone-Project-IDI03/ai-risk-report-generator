@@ -108,6 +108,7 @@ export function CitationPanel({ selected, onClose }: Props) {
     <aside
       ref={panel}
       className="chat-source"
+      data-walk="chat.source"
       data-tab={tab}
       data-expanded={expanded ? '' : undefined}
       aria-label={`Source of citation ${number}`}
@@ -119,6 +120,7 @@ export function CitationPanel({ selected, onClose }: Props) {
         {/* Narrow screens: the panel covers the chat (chat.css), so the way back is spelled out. */}
         <Button
           className="chat-source-back"
+          data-walk="chat.source-close"
           variant="ghost"
           size="sm"
           iconLeft="arrow-left"
@@ -140,6 +142,7 @@ export function CitationPanel({ selected, onClose }: Props) {
         />
         <IconButton
           className="chat-source-close"
+          data-walk="chat.source-close"
           icon="x"
           label="Close source"
           size="sm"

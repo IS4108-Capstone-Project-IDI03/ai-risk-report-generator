@@ -56,6 +56,11 @@ export interface IAssessment {
   // Set when the engineer archives the assessment (RV-10 AC8): a soft delete
   // that hides it from the work list and keeps everything it holds.
   archivedAt?: Date
+  // F-12: set only on a user's practice assessment (ADR 0003). 'live' is the one they can
+  // open; 'hidden' is one they reset or removed, kept because its logs are append-only;
+  // 'making' is one still being filled, open to no one until practice.service.ts makes it live.
+  // Absent on every real assessment: services/practice/filter.ts NOT_PRACTICE relies on that.
+  practice?: 'live' | 'hidden' | 'making'
   locations: ILocation[]
   // Appendix A's photos (GN-07), in report order, each one of its observations'
   // photos with the caption shown under it. See appendix.service.ts.
@@ -144,6 +149,7 @@ const assessmentSchema = new Schema<IAssessment>(
       enum: REPORT_STATUSES,
     },
     archivedAt: Date,
+    practice: { type: String, enum: ['live', 'hidden', 'making'] },
     // Embedded: a short list, always read with its assessment.
     locations: [
       {
@@ -188,6 +194,14 @@ const assessmentSchema = new Schema<IAssessment>(
     timestamps: true,
     collection: 'assessments',
   },
+)
+
+// F-12: at most one live practice assessment per user, enforced by the database, so two tabs
+// signing in at once can't both make one: the clash comes when a filled one is made live
+// (practice.service.ts treats it as "already made" and removes its own unseen copy).
+assessmentSchema.index(
+  { engineer: 1, practice: 1 },
+  { unique: true, partialFilterExpression: { practice: 'live' }, name: 'one_live_practice' },
 )
 
 export const AssessmentModel = model<IAssessment>('Assessment', assessmentSchema)

@@ -9,6 +9,7 @@ import { ReportSectionModel } from '../../models/report-section.model'
 import type { ListedSite } from '../assessment.service'
 import { daysBetween, dayOf, isoDay } from './dates'
 import { plural } from './item'
+import { NOT_PRACTICE } from '../practice/filter'
 import { STAGES, type BriefItem, type Priority, type PriorityReason, type Stage } from './types'
 
 // Days of work each stage still needs (spec Architecture 6). Setup and Prepare
@@ -92,11 +93,12 @@ export function priorityFor(a: PriorityInput, today: string): Unranked | null {
 /** Returns the caller's own open assessments that need them, ranked (rank 1 first). */
 export async function rankedFocus(userId: string, now = new Date()): Promise<FocusItem[]> {
   const today = dayOf(now)
-  // a. The engineer's own assessments, not archived or exported.
+  // a. The engineer's own assessments, not archived or exported, and never a practice one (F-12).
   const assessments = await AssessmentModel.find({
     engineer: userId,
     archivedAt: { $exists: false },
     stage: { $ne: 'exported' },
+    ...NOT_PRACTICE,
   })
     .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .lean()

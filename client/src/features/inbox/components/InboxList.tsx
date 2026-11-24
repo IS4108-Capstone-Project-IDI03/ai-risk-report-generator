@@ -64,9 +64,10 @@ export function InboxList({
           )
         ) : (
           <ul>
-            {items.map((item) => (
+            {items.map((item, i) => (
               <InboxRow
                 key={item.id}
+                first={i === 0}
                 item={item}
                 tab={tab}
                 phase={phases[item.id]}

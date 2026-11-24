@@ -10,20 +10,24 @@ export function DetailsHeading({
   link,
   count,
   big = false,
+  tip,
 }: {
   children: ReactNode
   link?: ReactNode
   count?: number
   big?: boolean
+  // A help tip beside the label (F-13).
+  tip?: ReactNode
 }) {
   const title = <h3 className={big ? 'mb-bigrow-label' : 'mb-label'}>{children}</h3>
   return (
     <div className={big ? 'mb-bigrow' : 'mb-labelrow'}>
       {/* The count sits outside the heading, so the heading's own name stays the label. */}
-      {count ? (
+      {count || tip ? (
         <span className="mb-headleft">
           {title}
-          <CountPill>{count}</CountPill>
+          {!!count && <CountPill>{count}</CountPill>}
+          {tip}
         </span>
       ) : (
         title

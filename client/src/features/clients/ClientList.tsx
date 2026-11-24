@@ -19,6 +19,7 @@ import {
   type StartMode,
 } from '../new-assessment/components/NewAssessmentButton'
 import { useCompact } from '../assessments/useCompact'
+import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
 import { listClientInfo, type ClientListInfo } from './api'
 import type { Priority } from '../marshbot/types'
 import { dueState, type ClientFacts, type DueState } from './clientFacts'
@@ -85,6 +86,8 @@ export function ClientList({
   bell?: ReactNode
 }) {
   const compact = useCompact()
+  // F-12: ready once the list has loaded; held back (no offer) when there is no client to point at.
+  useWalkthroughScreen('clients', !loading, failed || clients.length === 0)
   const [q, setQ] = useState('')
   const [due, setDue] = useState('')
   const [jurisdiction, setJurisdiction] = useState('')

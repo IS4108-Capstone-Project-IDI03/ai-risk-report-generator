@@ -192,9 +192,10 @@ describe('QA strictness (S-01 AC12, AC14)', () => {
     expect((await SettingsLogModel.find({}).lean()).map((e) => e.setting)).toContain('qaStrictness')
   })
 
-  it('has no personal settings: the note codes and glossary went with the CP-36 tags', async () => {
+  it('has no note codes or glossary: they went with the CP-36 tags', async () => {
     expect((await admin.get('/api/settings')).body.personal).toBeUndefined()
-    expect((await engineer.patch('/api/settings/me').send({ x: 1 })).status).toBe(404)
+    expect((await engineer.patch('/api/settings/me').send({ x: 1 })).status).toBe(400)
+    expect((await engineer.patch('/api/settings/me').send({ noteCodes: null })).status).toBe(400)
     expect((await engineer.get('/api/settings')).body.noteTaking).toBeUndefined()
   })
 })

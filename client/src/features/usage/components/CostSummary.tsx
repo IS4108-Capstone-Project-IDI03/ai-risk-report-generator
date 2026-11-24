@@ -2,6 +2,7 @@
 // (EV-04, AC1, AC7). "Estimated" marks a total that uses an estimated price.
 // Used by the overview, the ingestion tab and both detail pages.
 import { Badge, Card, MetricStat } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { formatMoney } from '../format'
 import type { Totals } from '../api'
 
@@ -9,12 +10,19 @@ export function CostSummary({ totals }: { totals: Totals }) {
   return (
     <Card
       title="Totals"
+      data-walk="usage.totals"
       actions={totals.estimatedCalls > 0 ? <Badge tone="warning">Estimated</Badge> : undefined}
     >
       <div className="uc-metrics">
         <MetricStat
           size="lg"
-          label="Total estimated cost"
+          // A fragment, not a wrapper: the label stays one text element (usage.css puts the tip beside it).
+          label={
+            <>
+              {'Total estimated cost'}
+              <Tip id="usage.total-cost" />
+            </>
+          }
           value={formatMoney(totals.estimatedCostUsd)}
           note="US dollars"
         />

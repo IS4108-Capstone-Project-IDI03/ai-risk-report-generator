@@ -4,13 +4,21 @@
 // priority. Used by ReviewWorkspace at the top of Section 3.
 import { RAM, RAM_CONSEQUENCES, RAM_LEAD_IN } from '../reportFigures'
 
-export function RiskMatrix() {
+export function RiskMatrix({ help }: { help?: React.ReactNode }) {
   return (
     <section className="rv-ram" aria-labelledby="rv-ram-title">
       {RAM_LEAD_IN.map((p) => (
         <p key={p.slice(0, 20)}>{p}</p>
       ))}
-      <h3 id="rv-ram-title">Risk Assessment Matrix (RAM)</h3>
+      {help ? (
+        // A help tip (F-13) beside the heading, in Review only.
+        <div className="rv-ram-head">
+          <h3 id="rv-ram-title">Risk Assessment Matrix (RAM)</h3>
+          {help}
+        </div>
+      ) : (
+        <h3 id="rv-ram-title">Risk Assessment Matrix (RAM)</h3>
+      )}
       <div className="rv-maturity-scroll">
         <table className="rv-ram-table" aria-labelledby="rv-ram-title">
           <thead>

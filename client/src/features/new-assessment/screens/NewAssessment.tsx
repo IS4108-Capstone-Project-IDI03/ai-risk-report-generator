@@ -3,10 +3,13 @@
 // reading screen and the filled-in form. Leaving without creating discards
 // what was added (AC13). Called by assessments/AssessmentApp.tsx. Calls
 // useNewAssessment.ts, useIntake.ts and the two screens below.
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { FormActionBar, Icon, TopBar, toast } from '../../../design-system'
 import type { Assessment } from '../../assessments/api'
 import { plural } from '../../clients/formatClient'
+import { tryItRunning } from '../../walkthrough/engine'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import type { StartMode } from '../components/NewAssessmentButton'
 import { ReadingFileRow } from '../components/ReadingFileRow'
 import { UploadArea } from '../components/UploadArea'
@@ -55,6 +58,8 @@ export function NewAssessment({
     start,
     (created, fromIntake) => {
       if (fromIntake) intake.keep()
+      // F-12: a real Create tells the walkthroughs which way it was made (their "other way" offers).
+      signal(fromIntake ? 'assessment-created-from-documents' : 'assessment-created-by-form')
       toast.success(
         created.length === 1
           ? created[0].reference + ' created'
@@ -90,6 +95,19 @@ export function NewAssessment({
     setByHand(true)
   }
   const formShown = mode === 'form' || intake.phase === 'ready' || byHand
+  // F-12: this screen is "new-form" or "new-docs"; the documents walkthrough also runs on the
+  // reading screen and the filled-in form, so it is offered on the upload start only.
+  useWalkthroughScreen(
+    mode === 'documents' ? 'new-docs' : 'new-form',
+    true,
+    mode === 'documents' && (intake.phase !== 'idle' || byHand),
+  )
+  // The documents walkthrough waits for the form to open, and ends if the sample could not be read.
+  useEffect(() => {
+    if (intake.phase === 'ready') signal('documents-form-opened')
+    if ((intake.phase === 'failed' || (intake.phase === 'idle' && intake.error)) && tryItRunning())
+      signal('try-it-failed')
+  }, [intake.phase, intake.error])
   return (
     <div className="na">
       <div className="na-topbar">
@@ -105,6 +123,7 @@ export function NewAssessment({
           <NewAssessmentForm
             f={f}
             enter={mode === 'documents'}
+            filled={intake.phase === 'ready'}
             readNothing={readNothing}
             rejected={
               intake.phase === 'ready'
@@ -142,6 +161,7 @@ export function NewAssessment({
         <FormActionBar
           onCancel={onLeave}
           primaryLabel="Create"
+          primaryWalk="new-assessment.create"
           primaryLoading={f.busy}
           onPrimary={() => void f.create(intake.phase === 'ready' ? intake.id() : null)}
         />

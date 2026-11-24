@@ -82,8 +82,9 @@
   color: var(--graphite-900);
 }
 
-/* Chips and the New badge */
-.ds-chip {
+/* Chips and the New badge. The category chip (Chip.tsx) is .ds-label-chip. The chip input's bubbles
+   (.ds-chip) are styled in styles.css, next to the rest of the chip input. */
+.ds-label-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -96,12 +97,12 @@
   max-width: 100%;
   min-width: 0;
 }
-.ds-chip-text {
+.ds-label-chip-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ds-chip svg {
+.ds-label-chip svg {
   flex: 0 0 auto;
 }
 .ds-new-badge {

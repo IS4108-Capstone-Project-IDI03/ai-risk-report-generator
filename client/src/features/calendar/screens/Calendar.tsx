@@ -47,6 +47,7 @@ import { EntryRow, type EntryContext } from '../components/Entry'
 import { PeriodPicker } from '../components/PeriodPicker'
 import { RescheduleDialog } from '../components/RescheduleDialog'
 import { keptViews, type KeptView } from '../keptView'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../../assessments/assessment-list.css'
 import '../../clients/clients.css'
 import '../calendar.css'
@@ -93,6 +94,8 @@ export function Calendar({
   today?: string
 }) {
   const phone = useIsPhone()
+  // F-12: the Calendar is ready once the work list has loaded.
+  useWalkthroughScreen('calendar', !loading && !failed)
   const [state, setState] = useState<KeptView>(
     () => keptViews.get(me.id) ?? { view: 'month', day: today, show: '', type: '', engineer: '' },
   )
@@ -200,35 +203,43 @@ export function Calendar({
                 {'Today'}
               </Button>
               {!phone && (
-                <SegmentedControl
-                  ariaLabel="View"
-                  options={[
-                    { value: 'month', label: 'Month' },
-                    { value: 'week', label: 'Week' },
-                  ]}
-                  value={view}
-                  onChange={(next: View) =>
-                    set({
-                      view: next,
-                      // A month opens on today's week when it holds today, else on its first.
-                      day:
-                        next === 'week' && view === 'month'
-                          ? monthStart(today) === cursor
-                            ? today
-                            : cursor
-                          : state.day,
-                    })
-                  }
-                />
+                <span className="cal-walk" data-walk="calendar.view">
+                  <SegmentedControl
+                    ariaLabel="View"
+                    options={[
+                      { value: 'month', label: 'Month' },
+                      { value: 'week', label: 'Week' },
+                    ]}
+                    value={view}
+                    onChange={(next: View) =>
+                      set({
+                        view: next,
+                        // A month opens on today's week when it holds today, else on its first.
+                        day:
+                          next === 'week' && view === 'month'
+                            ? monthStart(today) === cursor
+                              ? today
+                              : cursor
+                            : state.day,
+                      })
+                    }
+                  />
+                </span>
               )}
               <div className="cl-pills cal-pills">
-                <FilterMenu
-                  name="All dates"
-                  anyLabel="All dates"
-                  choices={SHOWS}
-                  value={state.show}
-                  onChange={(show) => set({ show: show as Show })}
-                />
+                {/* F-12: the walkthrough names the view switch and this filter together. A phone
+                    has no switch (the month is listed), so there the same box carries both tags. */}
+                <span className="cal-walk" data-walk={phone ? 'calendar.view' : undefined}>
+                  <span className="cal-walk" data-walk="calendar.dates">
+                    <FilterMenu
+                      name="All dates"
+                      anyLabel="All dates"
+                      choices={SHOWS}
+                      value={state.show}
+                      onChange={(show) => set({ show: show as Show })}
+                    />
+                  </span>
+                </span>
                 <FilterMenu
                   name="Assessment type"
                   choices={TYPES}
@@ -285,7 +296,7 @@ export function Calendar({
             )}
           </section>
           {!loading && !failed && (
-            <aside className="cal-side" aria-label="Needs planning">
+            <aside className="cal-side" aria-label="Needs planning" data-walk="calendar.side">
               <section className="cl-card cal-side-card" aria-labelledby="cal-late">
                 <h2 id="cal-late">
                   {'Late reports'}

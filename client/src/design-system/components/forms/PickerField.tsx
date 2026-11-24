@@ -168,14 +168,16 @@ export function PickerField({
         </span>
         {actions && (
           <span className="cpf-decide" data-out={markOut ? '' : undefined}>
-            <IconAction
-              icon="check"
-              label={confirmLabel}
-              tooltip={confirmLabel}
-              size="sm"
-              shaded
-              onClick={onConfirm}
-            />
+            <span className="cpf-confirm">
+              <IconAction
+                icon="check"
+                label={confirmLabel}
+                tooltip={confirmLabel}
+                size="sm"
+                shaded
+                onClick={onConfirm}
+              />
+            </span>
             <IconAction
               icon="arrow-left-right"
               label={changeLabel}

@@ -80,13 +80,16 @@ button:disabled {
   .ds-dialog-header,
   .ds-swap,
   .cl-panel,
-  .cl-docs tr[data-retagged] td[data-label='Tag'] {
+  .cl-docs tr[data-retagged] td[data-label='Tag'],
+  /* F-12: MarshBot's walkthrough bubble fades in (walkthrough.css; its dimming already only fades). */
+  .wt:not([data-leaving]) {
     animation: ds-fade-in var(--duration-fast) var(--ease-out) !important;
   }
   .na-done.is-leaving .na-done-card,
   .ds-reading-was,
   [role='dialog'][data-state='closed'],
-  .ds-dialog.is-leaving {
+  .ds-dialog.is-leaving,
+  .wt[data-leaving] {
     animation: ds-fade-out var(--duration-fast) var(--ease-out) forwards !important;
   }
   .cl-docs tr[data-fresh] {

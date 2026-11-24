@@ -15,6 +15,7 @@ import { VisitChange } from '../components/VisitChange'
 import { plural } from '../formatClient'
 import type { Measure } from '../insights'
 import { useClientInsights } from '../useClientInsights'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../insights.css'
 
 type Tile = { label: string; value: number; note: string; tone?: 'danger' | 'warn' }
@@ -91,6 +92,8 @@ export function InsightsTab({
   const [measure, setMeasure] = useState<Measure>('severity')
   const grid = useRef<HTMLElement>(null)
   const change = useRef<HTMLElement>(null)
+  // F-12: ready once the figures have loaded; held back (no offer) while there is nothing to point at.
+  useWalkthroughScreen('client-insights', !!insights, !insights || insights.empty)
 
   if (error && !insights)
     return (
@@ -140,7 +143,7 @@ export function InsightsTab({
         }
       </p>
 
-      <dl className="ci-tiles">
+      <dl className="ci-tiles" data-walk="insights.tiles">
         {tilesOf(insights).map((tile) => (
           <div key={tile.label} className="cl-card ci-tile">
             <dt>{tile.label}</dt>
@@ -219,7 +222,11 @@ export function InsightsTab({
             onWrite={() => void write()}
           />
         </div>
-        <section className="cl-card ci-card ci-col" aria-labelledby="ci-attention">
+        <section
+          className="cl-card ci-card ci-col"
+          aria-labelledby="ci-attention"
+          data-walk="insights.attention"
+        >
           <div className="ci-card-head">
             <h2 id="ci-attention" className="ci-h">
               {'Sites needing attention'}
@@ -242,6 +249,7 @@ export function InsightsTab({
           ref={grid}
           className="cl-card ci-card ci-col ci-col--grid"
           aria-labelledby="ci-grid"
+          data-walk="insights.grid"
         >
           <h2 id="ci-grid" className="ci-h">
             {'Where the findings are'}
@@ -261,6 +269,7 @@ export function InsightsTab({
           ref={change}
           className="cl-card ci-card ci-col ci-col--change"
           aria-labelledby="ci-change"
+          data-walk="insights.change"
         >
           <h2 id="ci-change" className="ci-h">
             {'Change between visits'}

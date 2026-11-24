@@ -26,6 +26,10 @@ export type StepCardProps = {
   summary?: string
   collapsed?: boolean
   onExpand?: () => void
+  // A help tip beside the title (F-13); left out while folded, where the header is one button.
+  help?: React.ReactNode
+  // The walkthrough tag of the whole card (F-12), as data-walk.
+  walk?: string
   children?: React.ReactNode
 }
 
@@ -42,6 +46,8 @@ export function StepCard({
   summary,
   collapsed = false,
   onExpand,
+  help,
+  walk,
   children,
 }: StepCardProps) {
   // Opening swaps the header's button for a plain header. Without moving focus to it, focus
@@ -58,7 +64,14 @@ export function StepCard({
       <span className="ds-step-badge" aria-hidden="true">
         {number}
       </span>
-      <h3>{title}</h3>
+      {help && !collapsed ? (
+        <span className="ds-step-titlerow">
+          <h3>{title}</h3>
+          {help}
+        </span>
+      ) : (
+        <h3>{title}</h3>
+      )}
       {line ? (
         <span className="ds-step-line">
           <Icon name={line.icon} size={13} />
@@ -87,6 +100,7 @@ export function StepCard({
       data-state={state}
       aria-label={`Step ${number}: ${title}`}
       aria-busy={busy || undefined}
+      data-walk={walk}
     >
       {collapsed ? (
         <button

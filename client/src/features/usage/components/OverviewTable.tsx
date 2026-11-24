@@ -64,6 +64,7 @@ export function OverviewTable({
     <DataTable
       caption="Assessments and their cost"
       rows={groups}
+      walk={{ head: 'usage.table.head', row: 'usage.table.row-1', isRow: (g) => !!g.reference }}
       columns={[
         {
           header: 'Assessment',
