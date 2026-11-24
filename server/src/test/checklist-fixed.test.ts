@@ -132,6 +132,9 @@ describe('fixed checklist items, admin side (CP-37 AC4)', () => {
     const id = created.body.id
     const edited = await admin.patch(`${SETTINGS}/${id}`).send({ text: 'Valve sealed open?' })
     expect(edited.body.text).toBe('Valve sealed open?')
+    // An empty section clears it, as the editor sends.
+    const cleared = await admin.patch(`${SETTINGS}/${id}`).send({ area: '' })
+    expect(cleared.body.area).toBeNull()
     const removed = await admin.delete(`${SETTINGS}/${id}`)
     expect(removed.body.removed).toBe(true)
     const listed = (await admin.get(SETTINGS)).body.items
