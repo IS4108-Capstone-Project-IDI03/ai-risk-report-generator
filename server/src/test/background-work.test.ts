@@ -650,6 +650,47 @@ describe('knowledge admins', () => {
     ])
   })
 
+  it('a failed ingestion shows the stages done and the stage it failed in', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'failed',
+      error: 'The PDF could not be read.',
+      finishedAt: new Date(),
+    })
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      failedStage: 'chunking',
+      pageCurrent: 12,
+      pageTotal: 40,
+      stageLog: [
+        { stage: 'anonymising', startedAt: new Date(), durationMs: 1000 },
+        { stage: 'parsing', startedAt: new Date(), durationMs: 1000 },
+      ],
+      currentStageStartedAt: new Date(),
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toMatchObject({
+      stage: 'Chunking',
+      step: 3,
+      steps: 4,
+      segments: ['done', 'done', 'failed', 'empty'],
+    })
+  })
+
+  it('a failed ingestion with no record of its stage shows no stages', async () => {
+    const { admin } = await people()
+    await upload('FM 8-9', { status: 'failed', error: 'Lost.', finishedAt: new Date() })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).not.toHaveProperty('segments')
+  })
+
   // Regression: passed from the start, since only queued or processing uploads become rows.
   it('complete and cancelled documents are not listed', async () => {
     const { admin } = await people()

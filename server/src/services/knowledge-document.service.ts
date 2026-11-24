@@ -252,6 +252,10 @@ export type KnowledgeDocumentDto = {
   // Live ingestion progress; present only while `status` is `processing` and a
   // matching ingestion_jobs row exists (E2).
   progress?: ProgressDto
+  // Where a failed ingestion stopped (F-11): the stage it failed in and the
+  // stages it finished first. Present only on a failed document whose job
+  // recorded its stage (IN-10).
+  failedIn?: { stage: IngestionStage; done: string[] }
   // The stored document this one repeats or updates (IN-07); null if none.
   // `otherNeedsReview` is true when that document is also waiting for a decision;
   // `document.withdrawn` changes what Keep both does (it keeps this one withdrawn too).
@@ -398,6 +402,9 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     // Only processing documents carry progress; the caller passes a job only
     // for those (see listKnowledgeDocuments).
     ...(job && d.status === 'processing' ? { progress: toProgressDto(job) } : {}),
+    ...(job?.failedStage && d.status === 'failed'
+      ? { failedIn: { stage: job.failedStage, done: job.stageLog.map((e) => e.stage) } }
+      : {}),
     // A match whose document is gone shows as none; discarding re-matches the
     // documents that pointed at it, so this is only a brief gap.
     match:
@@ -943,10 +950,13 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
     .sort({ createdAt: -1 })
     .lean()
 
-  // Enrich processing documents with their ingestion progress (E2) in a single
-  // batch read. Documents without a job (worker not started) keep no progress.
-  const processingIds = documents.filter((d) => d.status === 'processing').map((d) => String(d._id))
-  const jobs = await getJobProgressBatch(processingIds)
+  // Enrich processing documents with their ingestion progress (E2), and failed
+  // ones with where they stopped (F-11), in a single batch read. Documents
+  // without a job (worker not started) keep no progress.
+  const jobIds = documents
+    .filter((d) => d.status === 'processing' || d.status === 'failed')
+    .map((d) => String(d._id))
+  const jobs = await getJobProgressBatch(jobIds)
 
   return toDtos(documents, jobs)
 }
@@ -972,7 +982,9 @@ export async function listDocumentsByIds(ids: string[]): Promise<KnowledgeDocume
   if (!valid.length) return []
   const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
   const jobs = await getJobProgressBatch(
-    documents.filter((d) => d.status === 'processing').map((d) => String(d._id)),
+    documents
+      .filter((d) => d.status === 'processing' || d.status === 'failed')
+      .map((d) => String(d._id)),
   )
   return toDtos(documents, jobs)
 }

@@ -43,6 +43,9 @@ export type BackgroundWorkRow = {
     // Which stage of how many, for a job that runs through named stages (ingestion).
     step?: number
     steps?: number
+    // One segment per part or stage, in order, where the job has them: what is
+    // done, being worked on, failed or still to come.
+    segments?: Segment[]
   }
   // When the current step began, where it is known (the popover shows the time elapsed).
   startedAt?: string
@@ -52,6 +55,8 @@ export type BackgroundWorkRow = {
   // How to start a failed job again: an existing route the user may call.
   retry?: { method: 'POST'; url: string }
 }
+
+export type Segment = 'done' | 'working' | 'failed' | 'empty'
 
 export type BackgroundWorkDto = { rows: BackgroundWorkRow[] }
 
@@ -328,6 +333,28 @@ const STAGE_NAMES: Record<string, string> = {
   indexing: 'Indexing',
 }
 
+// Ingestion's stages: three, or four when the report is anonymised first (PV-05).
+function ingestionStages(current: string, done: string[]): string[] {
+  const stages = ['parsing', 'chunking', 'indexing']
+  if (current === 'anonymising' || done.includes('anonymising')) stages.unshift('anonymising')
+  return stages
+}
+
+// Which stage of how many, and a segment for each: those before it done, it
+// itself `state`, the rest still to come.
+function stagesOf(current: string, done: string[], state: Segment) {
+  const stages = ingestionStages(current, done)
+  const step = stages.indexOf(current) + 1
+  return {
+    stage: STAGE_NAMES[current] ?? current,
+    step,
+    steps: stages.length,
+    segments: stages.map((_, i): Segment =>
+      i < step - 1 ? 'done' : i === step - 1 ? state : 'empty',
+    ),
+  }
+}
+
 // A document being ingested (E2): its stage, of three, or four when the report
 // is anonymised first (PV-05), and the pages that stage has reached. Before
 // the worker reports (queued, or just taken), it waits, timed from its upload.
@@ -347,7 +374,9 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
       {
         ...row,
         state: 'failed',
-        progress: { type: 'working', stage: 'Ingestion' },
+        progress: d.failedIn
+          ? { type: 'working', ...stagesOf(d.failedIn.stage, d.failedIn.done, 'failed') }
+          : { type: 'working', stage: 'Ingestion' },
         error: d.error ?? 'This document could not be ingested.',
         // Every viewer here holds knowledge:manage, which the retry route checks.
         retry: { method: 'POST', url: `/api/knowledge-documents/${d.id}/retry` },
@@ -363,10 +392,10 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
         startedAt: queuedSince(d),
       },
     ]
-  const stages = ['parsing', 'chunking', 'indexing']
-  const anonymised =
-    p.currentStage === 'anonymising' || p.stageLog.some((e) => e.stage === 'anonymising')
-  if (anonymised) stages.unshift('anonymising')
+  const stages = ingestionStages(
+    p.currentStage,
+    p.stageLog.map((e) => e.stage),
+  )
   return [
     {
       ...row,
