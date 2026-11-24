@@ -862,28 +862,34 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!needsRows) return
     const controller = new AbortController()
     readRows(controller.signal).then(
-      (list) => {
-        setListFailed(false)
-        // An assessment reopened from the URL knows only its reference: its
-        // site name (header, Recent) comes from the list.
-        const rows = list.map(toRow)
-        updateState((previous) => {
-          const row = rows.find((r) => r.id === previous.captureTarget.reference)
-          if (!row || previous.captureTarget.site) return previous
-          const target = { reference: row.id, site: row.site }
-          return {
-            ...previous,
-            captureTarget: target,
-            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
-          }
-        })
-      },
+      () => setListFailed(false),
       () => {
         if (!controller.signal.aborted) setListFailed(true)
       },
     )
     return () => controller.abort()
   }, [needsRows])
+  // An assessment opened from the URL knows only its reference: its site name (header, Recent)
+  // comes from the list, whichever of the two arrives last. F-12: a walkthrough opens the practice
+  // assessment by URL just after making it, when the list was last read on another screen; filled
+  // only as the dashboard's list arrived, its page title stayed blank.
+  const openReference = state.captureTarget.reference
+  const openSite = state.captureTarget.site
+  useEffect(() => {
+    const row = serverRows?.find((r) => r.id === openReference)
+    if (!row || openSite) return
+    const target = { reference: row.id, site: row.site }
+    // Checked again on the state it is applied to: another assessment may have opened meanwhile.
+    updateState((previous) =>
+      previous.captureTarget.reference !== row.id || previous.captureTarget.site
+        ? previous
+        : {
+            ...previous,
+            captureTarget: target,
+            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
+          },
+    )
+  }, [serverRows, openReference, openSite])
   // Reads the work list again after a change elsewhere, e.g. a site corrected
   // from the Overview or a client page (CP-18).
   const reloadRows = () => readRows().catch(() => null)
