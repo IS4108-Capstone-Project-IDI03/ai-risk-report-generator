@@ -77,6 +77,26 @@ function Progress({ row }: { row: BackgroundWorkRow }) {
   // Queued: nothing to measure yet, only the wait.
   if (row.state === 'queued')
     return <span className="bgw-progress__step">{timedWords('Queued', row.startedAt)}</span>
+  // Parts or stages the gateway marked, failed or not: one segment each, so a
+  // failure shows where it fell. Named stages (ingestion) say which, with the
+  // pages done in it as words under them, so a row has one bar.
+  if (progress.segments?.length) {
+    const staged = Boolean(progress.step && progress.steps)
+    return (
+      <div className="bgw-progress">
+        <SegmentBar
+          segments={progress.segments}
+          count={current ?? 0}
+          total={progress.segments.length}
+          word={progress.unit ?? ''}
+          {...(staged && { label: stageWords(progress) })}
+        />
+        {staged && row.state === 'running' && total ? (
+          <span className="bgw-progress__count">{countWords(progress)}</span>
+        ) : null}
+      </div>
+    )
+  }
   // One AI call: no bar, since nothing measures how far it has got.
   if (progress.type === 'working' && row.state === 'running')
     return (
@@ -97,8 +117,8 @@ function Progress({ row }: { row: BackgroundWorkRow }) {
         <span className="bgw-progress__count">{countWords(progress)}</span>
       </div>
     )
-  // Recordings or parts: too few for a smooth bar, so one segment each, the
-  // next one marked as being worked on.
+  // Recordings or parts sent without their marks: one segment each by the
+  // count, the next one marked as being worked on.
   if (progress.type === 'stages' && current !== undefined && total)
     return (
       <div className="bgw-progress">

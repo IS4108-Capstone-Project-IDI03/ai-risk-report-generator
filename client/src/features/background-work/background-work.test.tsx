@@ -100,30 +100,75 @@ describe('the popover', () => {
     expect(within(row).getByText('Jurong Cold Store')).toBeInTheDocument()
   })
 
-  it('shows a document being ingested by its stage, with a bar of the real pages done', async () => {
+  const ingesting: BackgroundWorkRow = {
+    id: 'ingestion:d1',
+    kind: 'ingestion',
+    state: 'running',
+    title: 'FM 8-9',
+    context: { label: 'Knowledge base' },
+    progress: {
+      type: 'count',
+      current: 12,
+      total: 40,
+      unit: 'pages',
+      stage: 'Chunking',
+      step: 2,
+      steps: 3,
+      segments: ['done', 'working', 'empty'],
+    },
+    href: '/admin/knowledge-base',
+  }
+  const states = (popover: HTMLElement) =>
+    [...popover.querySelectorAll('.ds-seg')].map((s) => s.getAttribute('data-state'))
+
+  it('shows a document being ingested as its stages, the one under way, and the real pages done', async () => {
+    const popover = await openWith([ingesting])
+
+    expect(states(popover)).toEqual(['done', 'working', 'empty'])
+    expect(within(popover).getByText('Stage 2 of 3 · Chunking')).toBeInTheDocument()
+    expect(within(popover).getByText('12 of 40 pages')).toBeInTheDocument()
+    // One bar a row: the stages, with the pages as words under them.
+    expect(within(popover).queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  it('shows a failed ingestion with the stage it failed in marked, and the stages done before it', async () => {
     const popover = await openWith([
       {
-        id: 'ingestion:d1',
-        kind: 'ingestion',
-        state: 'running',
-        title: 'FM 8-9',
-        context: { label: 'Knowledge base' },
+        ...ingesting,
+        state: 'failed',
+        error: 'The PDF could not be read.',
         progress: {
-          type: 'count',
-          current: 12,
-          total: 40,
-          unit: 'pages',
+          type: 'working',
           stage: 'Chunking',
-          step: 2,
-          steps: 3,
+          step: 3,
+          steps: 4,
+          segments: ['done', 'done', 'failed', 'empty'],
         },
-        href: '/admin/knowledge-base',
       },
     ])
 
-    expect(within(popover).getByText('Stage 2 of 3 · Chunking')).toBeInTheDocument()
-    expect(within(popover).getByText('12 of 40 pages')).toBeInTheDocument()
-    expect(within(popover).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30')
+    expect(states(popover)).toEqual(['done', 'done', 'failed', 'empty'])
+    expect(within(popover).getByText('Stage 3 of 4 · Chunking')).toBeInTheDocument()
+  })
+
+  it('marks the segments as the gateway sends them, a failed recording among them', async () => {
+    const popover = await openWith([
+      {
+        ...walk,
+        state: 'failed',
+        error: 'A recording could not be transcribed.',
+        progress: {
+          type: 'stages',
+          current: 1,
+          total: 4,
+          unit: 'recordings',
+          segments: ['done', 'failed', 'working', 'empty'],
+        },
+      },
+    ])
+
+    expect(states(popover)).toEqual(['done', 'failed', 'working', 'empty'])
+    expect(within(popover).getByText('recordings')).toBeInTheDocument()
   })
 
   it('shows recordings or parts as one segment each, with the real count', async () => {

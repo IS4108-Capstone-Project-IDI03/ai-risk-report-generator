@@ -2,6 +2,7 @@
 // each one row, as GET /api/background-work serves them
 // (server/src/services/background-work.service.ts). Read by useBackgroundWork.
 import { request } from '../accounts/api'
+import type { SegmentState } from '../../design-system'
 import { send } from '../notifications/api'
 
 export type BackgroundWorkRow = {
@@ -29,6 +30,9 @@ export type BackgroundWorkRow = {
     stage?: string
     step?: number
     steps?: number
+    // One per part or stage, in order, where the job has them; a failed one
+    // marks where the job stopped.
+    segments?: SegmentState[]
   }
   // When the current step began, where the gateway knows it.
   startedAt?: string
