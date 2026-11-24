@@ -194,6 +194,27 @@ def test_removes_details_the_description_adds(monkeypatch, fake_privacy):
     assert fake_privacy.paths() == ["/redact-image", "/mask"]
 
 
+def test_the_admins_never_masked_words_reach_privacy_service(monkeypatch, fake_privacy):
+    # PV-09: the gateway sends the admin's Never masked list. The route dropped it, so
+    # privacy-service used its own file instead.
+    use_fakes(monkeypatch, FakeS3(), **answering("A notice gives +65 8888 7777."))
+
+    describe(privacy={**CHECKED, "never_masked": ["Hosereel"]})
+
+    [(path, body)] = [(p, b) for p, b in fake_privacy.requests if p == "/mask"]
+    assert body["never_masked"] == ["Hosereel"]
+
+
+def test_without_a_never_masked_list_privacy_service_uses_its_file(monkeypatch, fake_privacy):
+    # Left out, not [], until the gateway has seeded the list (docs/areas/privacy.md).
+    use_fakes(monkeypatch, FakeS3(), **answering("A notice gives +65 8888 7777."))
+
+    describe(privacy=CHECKED)
+
+    [(path, body)] = [(p, b) for p, b in fake_privacy.requests if p == "/mask"]
+    assert "never_masked" not in body
+
+
 def test_keeps_a_known_name_the_description_adds(monkeypatch, fake_privacy):
     # The client's name on a sign: known, so it stays, as in photo reading.
     use_fakes(monkeypatch, FakeS3(), **answering("A sign reads Acme Holdings."))

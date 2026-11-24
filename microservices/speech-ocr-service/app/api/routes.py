@@ -62,6 +62,9 @@ class Privacy(BaseModel):
     known_entities: list[KnownEntity] = []
     # Whether details Gemini adds to its answer (a name read off a photo) are taken out.
     check_answers: bool = False
+    # PV-09: the admin's Never masked words, passed on to /mask. None (left out) until the gateway
+    # has seeded the list, so privacy-service uses its own file; [] would mean none at all.
+    never_masked: list[str] | None = None
 
 
 # The photos of one finding to describe (CP-05, CP-24), each by its name, with where it was found
