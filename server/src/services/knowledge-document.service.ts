@@ -983,6 +983,27 @@ export async function listApplicableStandards(
   return toDtos(documents)
 }
 
+// The past Marsh reports a checklist can draw on (CP-37): labelled with the site's facility type and
+// country, or `all`, that search can return (not withdrawn, not needing review).
+export async function listApplicablePastReports(
+  facilityType: string,
+  jurisdiction: string,
+): Promise<KnowledgeDocumentDto[]> {
+  const documents = await KnowledgeDocumentModel.find({
+    status: 'complete',
+    withdrawn: { $exists: false },
+    unconfirmed: { $size: 0 },
+    match: null,
+    'metadata.source_type': 'marsh_report',
+    'metadata.facility_type': { $in: [facilityType, 'all'] },
+    'metadata.jurisdiction': { $in: [jurisdiction, 'all'] },
+  })
+    .collation({ locale: 'en' })
+    .sort({ title: 1 })
+    .lean()
+  return toDtos(documents)
+}
+
 // The review workspace resolves only the documents cited by a draft.
 export async function findKnowledgeDocuments(ids: string[]): Promise<KnowledgeDocumentDto[]> {
   const valid = [...new Set(ids)].filter((id) => isValidObjectId(id))

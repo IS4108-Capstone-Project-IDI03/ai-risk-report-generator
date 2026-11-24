@@ -72,3 +72,31 @@ def test_a_past_report_item_whose_quote_is_not_in_its_passage_is_dropped(monkeyp
 def test_the_prompt_version_is_reported(monkeypatch):
     response, _, _ = generate(monkeypatch, [], past=[REPORT])
     assert response.json()["provenance"]["prompt_version"] == "cp37-v1"
+
+
+def _past_filters(searches):
+    return [f for _, f, _ in searches if f.get("source_type") == "marsh_report"]
+
+
+def test_chosen_report_ids_restrict_the_past_report_search(monkeypatch):
+    _, searches, _ = generate(monkeypatch, [], past=[REPORT], past_report_ids=["rep1", "rep2"])
+    filters = _past_filters(searches)
+    assert filters and all(f["doc_id"] == ["rep1", "rep2"] for f in filters)
+    assert all(f["facility_type"] == "Distribution warehouse" for f in filters)
+
+
+def test_no_report_ids_field_searches_every_matching_report(monkeypatch):
+    _, searches, _ = generate(monkeypatch, [], past=[REPORT])
+    assert all("doc_id" not in f for f in _past_filters(searches))
+
+
+def test_an_empty_choice_runs_no_past_search_and_is_not_flagged(monkeypatch):
+    response, searches, _ = generate(monkeypatch, [item()], past_report_ids=[])
+    assert _past_filters(searches) == []
+    assert response.json()["no_past_reports"] is False
+
+
+def test_a_chosen_report_with_no_passages_is_flagged(monkeypatch):
+    response, searches, _ = generate(monkeypatch, [item()], past_report_ids=["rep9"])
+    assert _past_filters(searches)
+    assert response.json()["no_past_reports"] is True

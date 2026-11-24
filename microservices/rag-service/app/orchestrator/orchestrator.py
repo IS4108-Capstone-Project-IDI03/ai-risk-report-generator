@@ -651,12 +651,17 @@ CHECKLIST_KEPT_PER_QUERY = 2
 MAX_CHECKLIST_PASSAGES = 20
 
 
-def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dict:
+def draft_checklist_for(
+    facility_type: str, jurisdiction: str, standards, past_report_ids: list[str] | None = None
+) -> dict:
     """Generate a pre-survey checklist (CP-30): template items, then items from standards.
 
     `standards` are the knowledge documents the engineer kept in scope (AC1-2): only their
     passages are searched. Nothing about the site but its facility type and country is
     sent, so no client detail reaches Cohere or the model.
+
+    `past_report_ids` is the engineer's choice of past reports: None searches every matching
+    report, a list searches only those, and an empty list searches none.
     """
     paid_calls = usage.start()
     hazards = hazards_for(facility_type)
@@ -698,16 +703,20 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             for h in hazards
         ]
     n_standards = len(requests)
-    past_filter = {
+    past_filter: dict = {
         "facility_type": facility_type,
         "jurisdiction": jurisdiction,
         "source_type": "marsh_report",
     }
-    requests += [(area_query[a], past_filter, CHECKLIST_PER_QUERY) for a in areas]
+    # An empty choice skips the search: no embed or rerank cost, and no "no data" note.
+    if past_report_ids is not None:
+        past_filter["doc_id"] = past_report_ids
+    if past_report_ids != []:
+        requests += [(area_query[a], past_filter, CHECKLIST_PER_QUERY) for a in areas]
     # restore=False: this request has no privacy session, so past reports stay masked.
     results = search(requests, restore=False)
     results, past_results = results[:n_standards], results[n_standards:]
-    no_past_reports = not any(past_results)
+    no_past_reports = past_report_ids != [] and not any(past_results)
     own = {hit["id"] for hits in results + past_results for hit in hits[:CHECKLIST_KEPT_PER_QUERY]}
     pooled = {hit["id"]: hit for hits in results + past_results for hit in hits}
     past_ids = {hit["id"] for hits in past_results for hit in hits} - {

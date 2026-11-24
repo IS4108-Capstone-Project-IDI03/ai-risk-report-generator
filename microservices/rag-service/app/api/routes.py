@@ -349,13 +349,17 @@ class DraftChecklistRequest(BaseModel):
     facility_type: str
     jurisdiction: str
     standards: list[ScopeStandard] = []
+    # The past reports the engineer chose (CP-37): absent = all matching, [] = none.
+    past_report_ids: list[str] | None = None
 
 
 @router.post("/checklist/draft")
 def draft_checklist(request: DraftChecklistRequest) -> dict:
     """Generate a pre-survey checklist (CP-30) for the gateway to save."""
     try:
-        return draft_checklist_for(request.facility_type, request.jurisdiction, request.standards)
+        return draft_checklist_for(
+            request.facility_type, request.jurisdiction, request.standards, request.past_report_ids
+        )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
 

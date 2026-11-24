@@ -30,7 +30,7 @@ export const ITEM_FLAGS = ['uncited'] as const
 // An item marked on site without an observation (CP-31 AC4). Confirmed and
 // Differs are not stored here: they are read from the observation that checks
 // the item, so deleting it unchecks the item (AC5).
-export const CHECK_MARKS = ['not_seen', 'not_applicable'] as const
+export const CHECK_MARKS = ['confirmed', 'differs', 'not_seen', 'not_applicable'] as const
 export type CheckMark = (typeof CHECK_MARKS)[number]
 
 export interface IChecklistMark {

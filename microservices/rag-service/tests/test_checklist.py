@@ -63,6 +63,7 @@ def generate(
     found=(RACKS, ROOF),
     past=(),
     past_items=(),
+    past_report_ids=None,
 ):
     searches, prompts = [], []
 
@@ -83,14 +84,10 @@ def generate(
 
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search)
     monkeypatch.setattr("app.generation.checklist.complete", complete)
-    response = client.post(
-        "/checklist/draft",
-        json={
-            "facility_type": facility_type,
-            "jurisdiction": "SG",
-            "standards": list(standards),
-        },
-    )
+    body = {"facility_type": facility_type, "jurisdiction": "SG", "standards": list(standards)}
+    if past_report_ids is not None:
+        body["past_report_ids"] = past_report_ids
+    response = client.post("/checklist/draft", json=body)
     return response, searches, prompts
 
 

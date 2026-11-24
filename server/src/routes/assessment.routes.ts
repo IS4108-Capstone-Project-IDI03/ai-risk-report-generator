@@ -104,6 +104,7 @@ import {
   removeChecklistItem,
   restoreChecklistItem,
   searchChecklistPassages,
+  UnknownPastReportError,
   UnknownStandardError,
 } from '../services/checklist.service'
 import { FiguresEnteredError, proposeFigures } from '../services/figure-proposal.service'
@@ -1279,7 +1280,7 @@ router.post('/:reference/checklist', requirePermission('reports:generate'), asyn
       res.status(403).json({ error: error.message })
     } else if (error instanceof AssessmentArchivedError) {
       res.status(409).json({ error: error.message })
-    } else if (error instanceof UnknownStandardError) {
+    } else if (error instanceof UnknownStandardError || error instanceof UnknownPastReportError) {
       res.status(400).json({ error: error.message })
     } else if (error instanceof RagServiceError) {
       res.status(503).json({ error: error.message })
