@@ -155,7 +155,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 0 12px;
+  /* The same 14 px gutter as the toolbar and the table. */
+  margin: 12px 0;
+  padding: 0 14px;
 }
 .kp-filter .kp-chip {
   min-height: 32px;

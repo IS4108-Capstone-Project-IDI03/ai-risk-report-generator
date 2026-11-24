@@ -3,6 +3,7 @@
 // refused); ticked rows are muted and sink below the others. Used by screens/Observations.tsx.
 // Calls api.ts getToAsk and updateObservation. Shows nothing while there is nothing to ask.
 import { useEffect, useState } from 'react'
+import { Checkbox, Icon } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { getToAsk, updateObservation, type ToAskItem } from '../api'
 import './to-ask.css'
@@ -38,28 +39,30 @@ export function ToAskPanel({ reference, refreshKey }: { reference: string; refre
   // Unticked first, each group keeping the gateway's order (oldest first).
   const sorted = [...items.filter((i) => !i.asked), ...items.filter((i) => i.asked)]
   const shown = all ? sorted : sorted.slice(0, SHOWN)
+  const asked = items.filter((i) => i.asked).length
   return (
     <section className="ta" aria-label="To ask the client">
       <div className="ta-head">
-        <h3 className="ta-title">
-          To ask the client
-          <Tip id="observations.to-ask" />
-        </h3>
-        <span className="ta-progress">{`${items.length - sorted.filter((i) => !i.asked).length} of ${items.length} asked`}</span>
+        <span className="ta-tile" aria-hidden="true">
+          <Icon name="message-circle-question" size={16} color="var(--marsh-navy)" />
+        </span>
+        <h3 className="ta-title">To ask the client</h3>
+        <span className="ta-count">{`${asked} of ${items.length} asked`}</span>
+        <Tip id="observations.to-ask" />
       </div>
       <ul className="ta-list">
         {shown.map((i) => (
           <li key={i.observationId} className="ta-item" data-asked={i.asked || undefined}>
-            <label className="ta-check">
-              <input
-                type="checkbox"
-                checked={!!i.asked}
-                onChange={(e) => void tick(i.observationId, e.target.checked)}
-              />
-              <span className="ta-text" title={i.text}>
-                {i.text}
-              </span>
-            </label>
+            <Checkbox
+              checked={!!i.asked}
+              onChange={(next) => void tick(i.observationId, next)}
+              label={
+                <span className="ta-text" title={i.text}>
+                  {i.text}
+                </span>
+              }
+              style={{ flex: 1, minWidth: 0, gap: 'var(--space-3)' }}
+            />
             <span className="ta-meta">
               {[i.location, cap(i.severity)].filter(Boolean).join(' · ')}
             </span>
