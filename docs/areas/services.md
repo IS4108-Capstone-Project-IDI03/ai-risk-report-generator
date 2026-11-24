@@ -2481,23 +2481,25 @@ knowledge chatbot stays on 0.4.1.
 work-left days in `focus.service.ts`, and the browser's activity numbers in
 `client/src/features/marshbot/settings.ts`.
 
-## Splitting a shorthand note (CP-35)
+## Tagging an observation (CP-36)
 
-`POST /split-note` (rag-service `site_walk/note_split.py`) takes a note's lines, the engineer's
-own glossary and `privacy`. It masks the lines through privacy-service (fail closed: 503, no model
-call), makes one model call under `LLM_PROVIDER` (feature `split-note`, prompt `cp35-v1`), then
-unmasks and checks in code: a number or unit in a part's shorthand that its text lacks is flagged
-`number_changed`, and a model-reported unknown term is flagged `unknown_term` only if neither the
-Marsh list (`retrieval/site_abbreviations.json`) nor the glossary holds it. Empty parts are
-dropped; a line the model skipped comes back as one fact part. `scripts/make-shorthand-notes.py`
-is a dev script that asks Gemini once for invented test notes (needs `GEMINI_API_KEY`).
+An observation carries `kinds` (see database.md): Fact, Info request, Recommendation, or a mix.
+No note is split and no prefix code is read.
 
-**Hand-off of the other two kinds (CP-35).** Info requests: `GET /api/assessments/:reference/to-ask`
-(`toAskFor` in `observation.service.ts`, `assessments:view`) lists the `info_request` parts of the
-assessment's observations, oldest first; the Observations tab shows them as "To ask the client".
-Recommendations: OFI drafting (`ofi.service.ts`) sends each observation's `recommendation` parts as
-`observations[].recommendations` (`draftingRecommendations` in `section.service.ts`), never in
-`toEvidence`. rag-service masks them with the note (`_mask_evidence`), prints them as
-"Engineer's recommendation:" in the OFI prompt (`gn05-v7`), and the guide says to base the fix on
-them without adding actions. An OFI that rests on such an observation is saved with
-`fromRecommendation: true`. Facts stay the only part read as evidence.
+**Suggesting tags.** `POST /api/assessments/:reference/suggest-kinds` (gateway
+`suggest-kinds.service.ts`, assigned engineer only) sends the text raw with `privacy` to
+rag-service `POST /suggest-kinds` (`site_walk/kind_suggest.py`). It masks the text through
+privacy-service (fail closed: 503, no model call), makes one model call under `LLM_PROVIDER`
+(feature `suggest-kinds`, prompt `cp36-v1`) and returns the tags the text fits, never the text.
+Nothing is saved; the picker shows the answer as a suggestion the engineer can use or ignore.
+
+**Where each tag goes.** Fact: evidence (`observationFacts`, `transcriptsOf`, `handwritingOf` in
+`section.service.ts` return nothing for an observation without `fact`). Info request:
+`GET /api/assessments/:reference/to-ask` (`toAskFor`) lists them, oldest first, at the top of
+the Observations tab as "To ask the client"; never fed into drafting. Recommendation: OFI
+drafting (`ofi.service.ts`) sends each one's text as `observations[].recommendations`
+(`draftingRecommendations`), and a recommendation that is not also a fact goes as an entry with no
+note (`recommendationOnlyEvidence`), so every recommendation is an OFI candidate whatever its
+severity. rag-service masks the text with the note, prints it as "Engineer's recommendation:"
+(`gn05-v8`), and the guide says to base the fix on it. An OFI that rests on such an observation
+is saved with `fromRecommendation: true`.

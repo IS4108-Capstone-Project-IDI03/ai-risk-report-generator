@@ -611,13 +611,14 @@ a `recordings` list (CP-03), a `photos` list (CP-04) and a `pages` list of
 photographed pages of handwritten notes (CP-19), and needs at least one
 of them.
 
-`parts` (CP-35, optional, outside `metadata`): the engineer's confirmed split of a
-shorthand note, each `{id, kind (fact | info_request | recommendation), text, shorthand,
-inferred, flags?}`, at most 50, text 1-1000 characters. The `note` stays exactly as typed.
-Drafting evidence takes the `fact` parts' text, one per line, in place of the note; info
-requests and recommendations are never stated as fact. Splitting (`POST
-/api/assessments/:reference/split-note`) saves nothing: parts are stored only when the
-observation is created with them.
+`kinds` (CP-36, optional, outside `metadata`): the engineer's tags, one to three of `fact`,
+`info_request` and `recommendation`, in that order, no repeats; absent means Fact. They combine
+(a finding with advice is `fact` + `recommendation`) and each works on its own: `fact` is
+drafting evidence (the note, transcripts and handwriting; one without it is never cited as
+fact), `info_request` lists it in "To ask the client", `recommendation` makes it an OFI
+candidate whatever its severity. The `note` stays exactly as typed, and a note that starts with
+`IR:` is just text. Set on create and on `PATCH /api/observations/:id` (`null` clears it).
+`POST /api/assessments/:reference/suggest-kinds` only suggests tags and saves nothing.
 
 Each document links to its `assessment` and the capture `session` it was
 recorded in, the authenticated `engineerId` and `engineer` display name at capture time, and `metadata`
@@ -2297,14 +2298,8 @@ first. The gateway sends the order to rag-service as `tier_order` on every `/cha
 
 ## User settings (CP-35)
 
-`user_settings` holds one document per user (`user` is unique): `noteCodes` (optional
-`{fact, info_request, recommendation}`, 1-8 letters or digits, unique ignoring case once
-defaults fill the gaps) and `glossary` (optional `{term, meaning}` list, at most 200, term
-1-30 characters unique ignoring case, meaning 1-120). The defaults `F`, `IR` and `REC` live in
-code (`settings.service.ts`), not in the database. Written only by `PATCH /api/settings/me`
-for the signed-in user's own document. `metadata` is the same null-filled block as
-`app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
-`COPE_dimension` null, `effective_date`.
+Removed in CP-36: the note codes and glossary went with the split. The `user_settings`
+collection is no longer written or read; documents left in it are ignored.
 
 ## Privacy words (PV-09)
 
