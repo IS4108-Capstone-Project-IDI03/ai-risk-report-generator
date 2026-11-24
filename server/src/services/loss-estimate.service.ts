@@ -214,7 +214,11 @@ export async function saveLossEstimates(reference: string, input: LossInputs, us
 // level's figures, one level per line, for the model to use unchanged; or why
 // it cannot be drafted yet (AC1). Figures are written plain (1000000), as
 // rag-service's check_numbers_grounded reads them.
-export function lossEstimateFacts(saved: IAssessment['lossEstimates']) {
+export function lossEstimateFacts(saved: IAssessment['lossEstimates']): {
+  facts?: string
+  missing?: string
+  notEntered?: string
+} {
   const { inputs, result } = lossEstimatesOf(saved)
   const complete =
     inputs.currency &&
@@ -226,6 +230,7 @@ export function lossEstimateFacts(saved: IAssessment['lossEstimates']) {
     return {
       missing:
         'Enter the values, currency, date, indemnity period and every level’s % and months first.',
+      notEntered: lossesNotEntered(inputs, result),
     }
   return {
     facts: [
@@ -250,4 +255,26 @@ export function lossEstimateFacts(saved: IAssessment['lossEstimates']) {
       ),
     ].join('\n'),
   }
+}
+
+const listed = (names: string[]) =>
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '')
+
+// What Section 5's tables show as "Not entered", as a fact (AS-08 AC4): the
+// details missing, how many site values, and the levels whose losses can't be
+// worked out from what is entered.
+function lossesNotEntered(inputs: LossInputs, result: ReturnType<typeof estimate>): string {
+  const values = [...inputs.pd, ...inputs.te].filter((v) => v.value === null).length
+  const levels = result.levels.filter((l) => l.total === null).map((l) => l.level)
+  const open = [
+    !inputs.currency && 'the currency',
+    !inputs.dateOfValues && 'the date of values',
+    !inputs.indemnityMonths && 'the indemnity period',
+    values > 0 && `${values} site value${values === 1 ? '' : 's'}`,
+    levels.length > 0 &&
+      `the losses of Level${levels.length === 1 ? '' : 's'} ${listed([...levels])}`,
+  ].filter((part): part is string => !!part)
+  return open.length
+    ? `Section 5's loss estimate tables read Not entered for ${listed(open)}.`
+    : "Section 5's loss estimates read Not entered."
 }

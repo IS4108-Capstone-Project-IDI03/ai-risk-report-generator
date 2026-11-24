@@ -3,13 +3,16 @@ import type * as React from 'react'
 import { Button, Icon, IconRegistry, toast as sonner } from '../../design-system'
 import {
   archiveAssessment as requestArchive,
+  createDraftRecordings,
+  discardDraft,
+  getObservation,
   restoreAssessment as requestRestore,
   GatewayError,
   listAssessments,
   type Part,
-  readObservation,
   retranscribePage,
   retryPageTranscription,
+  retrySuggestion,
   retryTranscription,
   saveObservation,
   updateObservation,
@@ -23,7 +26,6 @@ import {
   type PhotoRegion,
   restoreMedia,
   type MediaKind,
-  type ReadingPart,
   type Assessment,
   type ChecklistItem,
   type SavedObservation,
@@ -46,7 +48,15 @@ import {
 } from './evidenceFilters'
 import { NO_SPEECH, searchWords } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
-import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from './media'
+import { observationSaved } from './newObservationWalk'
+import {
+  audioSeconds,
+  choosePhotos,
+  clipSeconds,
+  microphoneProblem,
+  record,
+  unsupportedPhotos,
+} from './media'
 import {
   filtersActive,
   matchedIn,
@@ -59,6 +69,7 @@ import {
   statusOf,
   typeLabel,
 } from './observationFilters'
+import { rowStateOf, toCheckCount } from './observationRowState'
 import {
   BUILDING_WORDS,
   correctName,
@@ -94,7 +105,6 @@ import {
   sameCategories,
   toggleCategory,
   UNCATEGORISED,
-  withCategory,
 } from './categories'
 import type { PageView } from './components/PageEntry'
 import type { BoxContent } from './components/StatBox'
@@ -113,6 +123,8 @@ import {
 import { formatCoordinates, parseCoordinates, type Coordinates } from './googleMaps'
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
+import { useAssessmentEvents } from './useAssessmentEvents'
+import { draftItem, type CaptureRecording } from './captureRecordings'
 import {
   initialState,
   CAPTURE_ASSESSMENT,
@@ -125,7 +137,6 @@ import {
   PLAIN,
   EVIDENCE,
   OBS,
-  sampleInterpretation,
   SURVEY_TYPES,
 } from './demo-data'
 import { roleLabel } from '../accounts/api'
@@ -144,6 +155,7 @@ import {
 } from '../auth/access'
 import { clientFacts, type FactVisit } from '../clients/clientFacts'
 import { useClientPage } from '../clients/useClientPage'
+import { onSignal } from '../walkthrough/signals'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
 // A change to an observation made in place on its page (CP-06, CP-08).
 export type ObservationChange = {
@@ -151,6 +163,8 @@ export type ObservationChange = {
   sev?: string
   locationId?: string
   note?: string
+  // Keeps these not-sure values as they are (CP-24): they become the engineer's.
+  confirm?: ('category' | 'severity')[]
 }
 // Past its report due date (local calendar day) and not finalised. Due today is not overdue.
 function isOverdue(r: AssessmentRow) {
@@ -289,6 +303,10 @@ const NO_LOCATIONS: SiteLocation[] = []
 // chosen. The location stays, as the engineer is still standing in it.
 const BLANK_DRAFT = {
   fNote: '',
+  fDraft: null,
+  fSending: 0,
+  fLengths: {},
+  fLocRefused: 0,
   fParts: null,
   fClips: [],
   fPhotos: [],
@@ -305,7 +323,6 @@ const BLANK_DRAFT = {
   fVoiceError: null,
   fPhotoError: null,
   fSaveError: null,
-  fToast: null,
   fLeaveOpen: false,
 } satisfies Partial<WorkflowState>
 // Recorders stopped to be thrown away with the draft they were recording for.
@@ -420,29 +437,18 @@ function toEntry(o: SavedObservation): Observation {
   // Each handwritten page (CP-19), with its transcript and uncertain words.
   const pages = (o.pages ?? []).map(toPage)
   const removedPages = o.removedPages ?? []
-  const statuses = [...recordings, ...pages].map((r) => r.status)
-  // Where both parts of its proposal stand (CP-21).
-  const reading = [o.interpretation?.status, o.interpretation?.photos?.status]
-  // Where its recordings, pages and photos stand (CP-08 AC2, CP-05 AC2,
-  // CP-19 AC4): anything still running first, then anything that failed.
-  const status = statuses.includes('transcribing')
-    ? 'Transcribing'
-    : reading.includes('interpreting')
-      ? 'Interpreting'
-      : statuses.includes('failed')
-        ? 'Transcription failed'
-        : reading.includes('failed')
-          ? 'Interpretation failed'
-          : 'Complete'
+  // Where its recordings, pages, photo description and suggestion stand, and what is left to
+  // check (CP-08 AC2, CP-19 AC4, CP-24): one rule, in observationRowState.ts.
+  const { status } = rowStateOf({
+    recordings,
+    pages,
+    suggestion: o.suggestion,
+    toCheck: o.toCheck,
+    interpretation: o.interpretation,
+    cats: o.copeDimensions ?? [],
+    sev: o.severity ?? '',
+  })
   const photos = o.photos
-  // The items a finished reading cites (CP-21). One from before CP-21 gave no
-  // reasons and cites nothing, so it can't say what it passed over.
-  const cited = new Set(
-    o.interpretation?.categories.flatMap((c) => c.evidence.map((e) => e.item)) ?? [],
-  )
-  const judged =
-    o.interpretation?.status === 'interpreted' &&
-    o.interpretation.categories.every((c) => c.reason !== null)
   // The row reads as the note, the first recording when there is no note, the
   // first page's handwriting (or how many pages, until there is some), or how
   // many photos it holds when it is only photos.
@@ -474,7 +480,7 @@ function toEntry(o: SavedObservation): Observation {
     building: o.location?.building ?? null,
     locationId: o.location?.id,
     floor: o.location?.floor ?? null,
-    sev: o.severity,
+    sev: o.severity ?? '',
     std: o.standard ?? '',
     checklist: o.checklistItem
       ? { text: o.checklistItem.text, result: o.checklistItem.result }
@@ -534,8 +540,9 @@ function toEntry(o: SavedObservation): Observation {
       ...(pages.length ? ['Scan'] : []),
     ],
     status,
+    suggestion: o.suggestion,
+    toCheck: o.toCheck,
     interpretation: o.interpretation && {
-      status: o.interpretation.status,
       photos: o.interpretation.photos && {
         status: o.interpretation.photos.status,
         description: o.interpretation.photos.description,
@@ -545,31 +552,6 @@ function toEntry(o: SavedObservation): Observation {
         outOfDate: o.interpretation.photos.outOfDate,
         photoIds: o.interpretation.photos.photoIds,
       },
-      categories: o.interpretation.categories,
-      error: o.interpretation.error,
-      model: o.interpretation.model,
-      outOfDate: o.interpretation.outOfDate,
-      // What it read (CP-21), each with where to open it: a photo or page by
-      // its image, kept or since removed (CP-08), and whether any category
-      // cites it.
-      readFrom: o.interpretation.items.map((item) => {
-        const removed =
-          o.removedPhotos.some((p) => p.id === item.id) ||
-          o.removedRecordings.some((r) => r.id === item.id) ||
-          removedPages.some((p) => p.id === item.id)
-        const image =
-          item.kind === 'photo'
-            ? [...photos, ...o.removedPhotos].find((p) => p.id === item.id)?.url
-            : item.kind === 'page'
-              ? [...(o.pages ?? []), ...removedPages].find((p) => p.id === item.id)?.url
-              : null
-        return {
-          ...item,
-          url: image ?? null,
-          removed,
-          notCited: judged && !item.leftOut && !removed && !cited.has(item.label),
-        }
-      }),
     },
     edited: o.edited,
     deleted: o.deleted,
@@ -665,7 +647,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
   // Observations tab; one opened from that tab, or another stepped to, keeps the tab's Back.
   const [obsViaOverview, setObsViaOverview] = useState<string | null>(null)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- forget it once another is open
     if (obsViaOverview && state.obsOpen !== obsViaOverview) setObsViaOverview(null)
   }, [state.obsOpen, obsViaOverview])
   useEffect(() => {
@@ -691,7 +672,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         // Only when the link itself opened an observation: one left open from the Observations
         // tab must keep its own Back.
         if (fromOverview && state.tab === 'observations' && state.obsOpen)
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- noted as the link opens it
           setObsViaOverview(state.obsOpen)
       } else window.history.replaceState(null, '', url)
     }
@@ -759,8 +739,54 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     clips: 0,
     photos: 0,
     pages: 0,
+    // The hidden draft holding New Observation's recordings (CP-24): its id, the sends to it
+    // (one at a time, so two quick uploads never make two drafts), and a count that goes up
+    // whenever the draft is thrown away, so a send that finishes late can see it was.
+    draftId: null as string | null,
+    sends: Promise.resolve() as Promise<unknown>,
+    epoch: 0,
   }))
   useEffect(() => () => media.recorder?.stream.getTracks().forEach((t) => t.stop()), [media])
+  // Throws the draft and its recordings away (CP-24 AC3). Nothing waits on it: if it fails, the
+  // gateway's clean-up of stale drafts removes it.
+  const discardCaptureDraft = () => {
+    const id = media.draftId
+    media.draftId = null
+    media.epoch++
+    if (id) void discardDraft(id).catch(() => {})
+  }
+  // Closing the page, or the app going away, without saving.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once; the draft's id is read from `media` when it fires
+  useEffect(() => () => discardCaptureDraft(), [])
+  // Leaving New Observation by any way but Save (Cancel, Back, another tab or screen) throws the
+  // draft away. Not while a save is on its way: that turns the draft into the observation.
+  // Runs even with no draft id yet: a first upload still on its way is then told it is late (the
+  // epoch moves on), so it discards the draft it makes. Without this, that draft would reappear
+  // on return.
+  useEffect(() => {
+    if (onField || state.fSaving) return
+    const held = media.draftId || state.fSending
+    discardCaptureDraft()
+    if (held) updateState((previous) => ({ ...previous, fDraft: null, fSending: 0, fLengths: {} }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onField, state.fSaving])
+  // A transcript finishing is pushed, never polled: read the draft again (AC1).
+  useAssessmentEvents(
+    onField && state.fDraft ? state.captureTarget.reference : '',
+    'observations',
+    () => {
+      const id = media.draftId
+      if (id)
+        getObservation(id)
+          .then((draft) =>
+            updateState((previous) =>
+              previous.fDraft?.id === id ? { ...previous, fDraft: draft } : previous,
+            ),
+          )
+          .catch(() => {})
+    },
+    { firstConnect: true },
+  )
   // Leaving capture, by Done, the navigation or Back, stops a recording in
   // progress; its clip stays in the draft for when the engineer returns.
   useEffect(() => {
@@ -836,31 +862,40 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!needsRows) return
     const controller = new AbortController()
     readRows(controller.signal).then(
-      (list) => {
-        setListFailed(false)
-        // An assessment reopened from the URL knows only its reference: its
-        // site name (header, Recent) comes from the list.
-        const rows = list.map(toRow)
-        updateState((previous) => {
-          const row = rows.find((r) => r.id === previous.captureTarget.reference)
-          if (!row || previous.captureTarget.site) return previous
-          const target = { reference: row.id, site: row.site }
-          return {
-            ...previous,
-            captureTarget: target,
-            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
-          }
-        })
-      },
+      () => setListFailed(false),
       () => {
         if (!controller.signal.aborted) setListFailed(true)
       },
     )
     return () => controller.abort()
   }, [needsRows])
+  // An assessment opened from the URL knows only its reference: its site name (header, Recent)
+  // comes from the list, whichever of the two arrives last. F-12: a walkthrough opens the practice
+  // assessment by URL just after making it, when the list was last read on another screen; filled
+  // only as the dashboard's list arrived, its page title stayed blank.
+  const openReference = state.captureTarget.reference
+  const openSite = state.captureTarget.site
+  useEffect(() => {
+    const row = serverRows?.find((r) => r.id === openReference)
+    if (!row || openSite) return
+    const target = { reference: row.id, site: row.site }
+    // Checked again on the state it is applied to: another assessment may have opened meanwhile.
+    updateState((previous) =>
+      previous.captureTarget.reference !== row.id || previous.captureTarget.site
+        ? previous
+        : {
+            ...previous,
+            captureTarget: target,
+            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
+          },
+    )
+  }, [serverRows, openReference, openSite])
   // Reads the work list again after a change elsewhere, e.g. a site corrected
   // from the Overview or a client page (CP-18).
   const reloadRows = () => readRows().catch(() => null)
+  // F-12: a practice assessment set up again or reset is a new assessment. Without this read its
+  // screens would open view-only, as the list would still hold the old one.
+  useEffect(() => onSignal('practice-changed', () => void readRows().catch(() => null)), []) // eslint-disable-line react-hooks/exhaustive-deps
   // The Undo in the archived toast (CP-23): restores it and reads the list again.
   async function undoArchive(reference: string) {
     try {
@@ -1006,6 +1041,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }
     for (const file of [...state.fClips, ...state.fPhotos, ...state.fPages])
       URL.revokeObjectURL(file.url)
+    discardCaptureDraft()
   }
   // Before another assessment opens: its draft is about to be cleared.
   function releaseDraft(reference: string) {
@@ -1243,9 +1279,87 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       ),
     )
     const currentGroup = currentLocation && groupKey(currentLocation)
+    // Adds a recording to the hidden draft (CP-24 AC1): the first creates the draft, later ones
+    // join it, and the gateway starts transcribing each at once. If it fails nothing is kept, and
+    // the voice panel says why.
+    const addToDraft = (audio: Blob, name: string, length: string | null) => {
+      const reference = s.captureTarget.reference
+      const epoch = media.epoch
+      updateState((previous) => ({
+        ...previous,
+        fSending: previous.fSending + 1,
+        fVoiceError: null,
+        // A recorded clip knows its length; an uploaded file is read for it.
+        fLengths: length
+          ? { ...previous.fLengths, [name]: clipSeconds(length) }
+          : previous.fLengths,
+      }))
+      if (!length)
+        void audioSeconds(audio).then((seconds) =>
+          updateState((previous) => ({
+            ...previous,
+            fLengths: { ...previous.fLengths, [name]: seconds },
+          })),
+        )
+      media.sends = media.sends.then(async () => {
+        // Left in the meantime: the draft is gone, so this one is not wanted.
+        if (epoch !== media.epoch) return
+        try {
+          const draft = await createDraftRecordings(
+            reference,
+            [{ name, audio }],
+            media.draftId ?? undefined,
+          )
+          if (epoch !== media.epoch) return void discardDraft(draft.id).catch(() => {})
+          media.draftId = draft.id
+          updateState((previous) => ({
+            ...previous,
+            fDraft: draft,
+            fSending: previous.fSending - 1,
+          }))
+        } catch (error: unknown) {
+          if (epoch !== media.epoch) return
+          updateState((previous) => ({
+            ...previous,
+            fSending: previous.fSending - 1,
+            fVoiceError: {
+              title: 'Recording not added',
+              message:
+                (error instanceof GatewayError && error.status !== null
+                  ? error.message
+                  : 'The gateway could not be reached.') + ' Record or upload it again.',
+            },
+          }))
+        }
+      })
+    }
+    // Starts a failed draft recording's transcription again (the gateway pushes the new state).
+    const retryDraftRecording = async (recordingId: string) => {
+      if (!media.draftId) return
+      try {
+        await retryTranscription(media.draftId, recordingId)
+        const draft = await getObservation(media.draftId)
+        updateState((previous) => ({ ...previous, fDraft: draft }))
+      } catch (error: unknown) {
+        toast(tryAgain(refusal(error)), 'warning')
+      }
+    }
+    // Deletes a recording from the draft for good (the gateway does not keep a draft's).
+    const removeDraftRecording = async (recordingId: string) => {
+      if (!media.draftId) return
+      try {
+        const draft = await removeMedia(media.draftId, 'recordings', recordingId)
+        updateState((previous) => ({ ...previous, fDraft: draft }))
+      } catch (error: unknown) {
+        toast(tryAgain(refusal(error)), 'warning')
+      }
+    }
     // A recording is named by its number; an uploaded file keeps its own name.
     const addClip = (audio: Blob, name: string | null, length: string | null) => {
       const id = ++media.clips
+      // Only the assessment's own capture has a draft; a site walk proposal keeps its clips here.
+      if (liveCapture && !proposalTarget)
+        return addToDraft(audio, name ?? 'Recording ' + id, length)
       const clip = {
         id,
         name: name ?? 'Recording ' + id,
@@ -1324,8 +1438,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           {
             note,
             copeDimensions: copeDimensionsOf(cats),
-            severity,
+            severity: severity || null,
             locationId: location.id,
+            // The hidden draft becomes this observation; its recordings are not sent again.
+            ...(media.draftId && { draftId: media.draftId }),
             ...(s.fParts && note && { parts: s.fParts }),
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
@@ -1334,6 +1450,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           pages.map((p) => ({ name: p.name, image: p.image })),
         )
       } catch (error: unknown) {
+        // The gateway no longer has the draft (the form stayed open past its clean-up). Forget it,
+        // so the next Save goes without it: without this every Save re-sends the dead id and the
+        // note and photos could never be saved from this form.
+        if (
+          media.draftId &&
+          error instanceof GatewayError &&
+          error.status === 404 &&
+          /draft/i.test(error.message)
+        ) {
+          media.draftId = null
+          setState({ fSaving: false, fSaveError: null, fDraft: null, fLengths: {} })
+          return toast('Recordings expired. Record them again, then save.', 'warning')
+        }
         const problems = error instanceof GatewayError ? Object.values(error.fields) : []
         const cause = problems.length
           ? problems.join(' ')
@@ -1350,13 +1479,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         return
       }
       captured.add(observation)
+      observationSaved(reference) // F-12
+      // The draft is the observation now: nothing is left to throw away if the screen is left.
+      media.draftId = null
+      media.epoch++
       // Re-reading the list keeps it refreshing until the transcriptions finish.
-      if (clips.length || pages.length) captured.reload()
+      if (clips.length || pages.length || observation.recordings.length) captured.reload()
       // The gateway now serves them; the previews in this browser are done.
       for (const file of [...clips, ...photos, ...pages]) URL.revokeObjectURL(file.url)
       // Keep anything added or changed while the observation was saving. The
       // tags start again empty, so the next observation's are chosen for it.
-      // The Observations tab is to open here, with this one marked New.
+      // The engineer stays on the form; the Observations tab is to mark this one New.
       updateState((previous) => ({
         ...previous,
         obsReturn: {
@@ -1371,26 +1504,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
+        fDraft: null,
+        fLengths: {},
+        fLocRefused: 0,
         fCats: sameCategories(previous.fCats, cats) ? [] : previous.fCats,
         fSev: previous.fSev === severity ? '' : previous.fSev,
         fChecklistItem: previous.fChecklistItem === item ? null : previous.fChecklistItem,
-        fToast: null,
       }))
       // A toast with View, so the engineer stays on the form for the next one.
       toast(
-        'Observation saved' +
-          (item ? ', and the checklist item answered as Differs' : '') +
-          '.' +
-          (clips.length || pages.length
-            ? ' Transcribing ' +
-              [
-                clips.length ? plural(clips.length, 'recording') : '',
-                pages.length ? plural(pages.length, 'page') : '',
-              ]
-                .filter(Boolean)
-                .join(' and ') +
-              ' now.'
-            : ''),
+        'Observation saved' + (item ? ', and the checklist item answered as Differs' : ''),
         'success',
         observation.id,
       )
@@ -1479,6 +1602,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...(change.sev && { severity: sev }),
         ...(location && { locationId: location.id }),
         ...(change.note !== undefined && { note: note.trim() ? note : null }),
+        ...(change.confirm && { confirm: change.confirm }),
       }
       if (!Object.keys(changes).length) return
       let saved
@@ -1578,7 +1702,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       }
       captured.replace(saved)
       setState({ obsDialog: null, obsOpen: null })
-      toast('Observation deleted. Restore it from Deleted observations.')
+      toast('Observation deleted. Restore it from Deleted Observations.')
     }
     // Restores a deleted observation to the list and drafting (AC14).
     async function restoreRow(key: string, o: Observation) {
@@ -1635,10 +1759,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ...(x.pages ?? []),
               ...pages.map((p) => demoPage('local-page-' + p.id, p.name, p.url, added)),
             ],
-            // What it holds changed since it was read (CP-21).
-            interpretation: x.interpretation
-              ? { ...x.interpretation, outOfDate: true }
-              : x.interpretation,
             edited: added,
           })),
           obsDialog: null,
@@ -1712,10 +1832,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ...(page && { page }),
           },
         ],
-        interpretation:
-          (photo || recording || page) && x.interpretation
-            ? { ...x.interpretation, outOfDate: true }
-            : x.interpretation,
         edited: stampNow(),
       }
     }
@@ -1945,6 +2061,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         toast(tryAgain(cause), 'warning')
       }
     }
+    // Tries a failed suggestion, or a failed photo description, once more (CP-24); the gateway
+    // queues it, and the page is pushed the new state.
+    async function retrySuggestionOf(id: string) {
+      try {
+        captured.replace(await retrySuggestion(id))
+      } catch (error: unknown) {
+        const cause = error instanceof Error ? error.message : 'The retry was not accepted.'
+        toast(tryAgain(cause), 'warning')
+      }
+    }
     // The same for a handwritten page whose transcription failed (CP-19 AC11).
     async function retryPage(id: string, pageId: string) {
       try {
@@ -1963,65 +2089,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       } catch (error: unknown) {
         toast(tryAgain(refusal(error)), 'warning')
       }
-    }
-    // Reads a saved observation when the engineer asks (CP-05, CP-21): both
-    // parts the first time, or one part again.
-    async function readSaved(id: string, part?: ReadingPart) {
-      try {
-        await readObservation(id, part)
-        captured.reload()
-      } catch (error: unknown) {
-        const cause = error instanceof Error ? error.message : 'The request was not accepted.'
-        toast(tryAgain(cause), 'warning')
-      }
-    }
-    // A sample proposal settles after a moment, as a real reading would.
-    // Matched by its sample flag, not its place in the list, which a later
-    // observation shifts.
-    function settleSamples() {
-      const settle = (list: Observation[]) =>
-        list.map((x) =>
-          x.interpretation?.sample
-            ? {
-                ...x,
-                interpretation: {
-                  ...x.interpretation,
-                  status: 'interpreted' as const,
-                  photos: x.interpretation.photos && {
-                    ...x.interpretation.photos,
-                    status: 'interpreted' as const,
-                  },
-                },
-              }
-            : x,
-        )
-      updateState((previous) => ({
-        ...previous,
-        fRecent: settle(previous.fRecent),
-        captureObs: Object.fromEntries(
-          Object.entries(previous.captureObs).map(([ref, list]) => [ref, settle(list)]),
-        ),
-      }))
-    }
-    // Reads a sample observation in this demo: nothing is read here, so a
-    // labelled sample proposal stands in (CP-05, CP-21).
-    function readSample(key: string, part?: ReadingPart) {
-      setState(
-        changeLocal(key, (x) => {
-          const sample = sampleInterpretation(x.cats, x.locationName, x.media.length > 0)
-          // One part read again leaves the other as it was (CP-21).
-          return {
-            ...x,
-            interpretation:
-              part && x.interpretation
-                ? part === 'categories'
-                  ? { ...x.interpretation, status: sample.status, categories: sample.categories }
-                  : { ...x.interpretation, photos: sample.photos }
-                : sample,
-          }
-        }),
-      )
-      later(settleSamples, 2000)
     }
     async function startRecording() {
       try {
@@ -2077,6 +2144,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const rows = serverRows
       ? [...visibleCreated.filter((r) => !serverIds.has(r.id)), ...serverRows]
       : [...visibleCreated, ...ROWS]
+    // F-12: the owner's practice assessment is pinned above the list by Dashboard. Every
+    // count, filter, total and client built from rows below uses `counted`, which leaves it out.
+    const practice = rows.find((r) => r.record?.practice)
+    const counted = rows.filter((r) => !r.record?.practice)
     // Every assessment shows its own record, the demo one included. The demo
     // keeps sample drafting and review only while it is not on the server.
     const openRow = rows.find((r) => r.id === s.captureTarget.reference)
@@ -2283,7 +2354,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const workSort = SORT_CHOICES.includes(s.workSort) ? s.workSort : SORT_LATEST
     const byName = (a: string, b: string) =>
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    const filtered = rows
+    const decorate = (r: AssessmentRow) => ({
+      ...r,
+      overdue: isOverdue(r),
+      sevIcon: SEV[r.sev].icon,
+      sevColor: SEV[r.sev].color,
+      dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+      countdown: dueCountdown(r),
+    })
+    const filtered = counted
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (isArchived(r) !== showArchived) return false
@@ -2304,14 +2383,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               (b.siteVisitDate || '').localeCompare(a.siteVisitDate || '')
             : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
       )
-      .map((r) => ({
-        ...r,
-        overdue: isOverdue(r),
-        sevIcon: SEV[r.sev].icon,
-        sevColor: SEV[r.sev].color,
-        dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
-        countdown: dueCountdown(r),
-      }))
+      .map(decorate)
     // The work list by client, then site, in name order, each site's visits in
     // the order chosen (CP-17 AC9). A site saved on the gateway is
     // grouped by its ids; the demo's by name. A search opens every client.
@@ -2426,7 +2498,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           priorities: Priority[]
         }
       >()
-      for (const r of rows) {
+      for (const r of counted) {
         const a = r.record
         if (!r.persisted || !a?.clientId) continue
         const c = byId.get(a.clientId) ?? {
@@ -2707,10 +2779,46 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     )
     const mm = String(Math.floor(s.fSecs / 60)).padStart(2, '0')
     const ss = String(s.fSecs % 60).padStart(2, '0')
-    // What the capture draft holds, shown on the mode switcher. The demo's
-    // sample transcript stands in for a recording.
+    // What the capture draft holds, shown on the mode switcher: the Voice tab's rows are the
+    // draft's recordings, or, for a site walk proposal, the clips held here. The demo's sample
+    // transcript stands in for a recording.
     const noteWritten = !!s.fNote.trim()
-    const voiceCount = s.fClips.length + (s.fTrans ? 1 : 0)
+    const captureRows: CaptureRecording[] = [
+      ...(s.fDraft?.recordings ?? []).map((r) => ({
+        key: r.id,
+        item: draftItem(r, s.fLengths),
+        onRetry: () => void retryDraftRecording(r.id),
+        onRemove: () => void removeDraftRecording(r.id),
+      })),
+      ...s.fClips.map((c) => ({
+        key: 'clip-' + c.id,
+        item: {
+          durationSec: clipSeconds(c.length),
+          status: 'device' as const,
+          transcript: null,
+          audioUrl: null,
+        },
+        onRetry: () => {},
+        onRemove: () => dropClip(c),
+      })),
+      ...(s.fTrans
+        ? [
+            {
+              key: 'sample',
+              item: {
+                durationSec: 12,
+                status: 'done' as const,
+                transcript: SAMPLE_TRANSCRIPT,
+                audioUrl: null,
+              },
+              onRetry: () => {},
+              onRemove: () => setState({ fTrans: false }),
+            },
+          ]
+        : []),
+    ]
+    // A recording still being sent counts too: leaving would lose it.
+    const voiceCount = captureRows.length + s.fSending
     // What Done would discard, a recording still running included: "a note,
     // 2 recordings, 1 photo and 1 page".
     const recordings = voiceCount + (s.fRec || s.fTransBusy ? 1 : 0)
@@ -2757,22 +2865,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const obsSearchWords = searchWords(s.of.q ?? '')
     const obsList = shownRows.map(({ o, key }) => {
       const open = s.obsOpen === key
-      const sev = o.sev || 'low'
+      // '' while it has no severity yet (CP-24).
+      const sev = o.sev
       const status = statusOf(o)
+      // The row's tint and reason line (CP-24), from the same rule as its status.
+      const { tint, reason } = rowStateOf(o)
       // A deleted observation changes only by being restored.
       const canChange = canChangeObs
-      const reading = o.interpretation
-      const proposed = reading?.status === 'interpreted' ? reading : null
-      const described = reading?.photos?.status === 'interpreted' ? reading.photos : null
-      // It is read only when a risk engineer asks (CP-05, CP-21), through the
-      // gateway, or in this demo for a sample observation.
-      const readPart = (part?: ReadingPart) =>
-        canEdit && !readOnlyHere && !o.deleted
-          ? o.id
-            ? () => void readSaved(o.id!, part)
-            : () => readSample(key, part)
-          : null
-      const read = readPart()
+      const described =
+        o.interpretation?.photos?.status === 'interpreted' ? o.interpretation.photos : null
       // Recordings and photos can be added by whoever may change it, and
       // removed while something else stays captured (CP-08).
       const changing = canChange && !o.deleted
@@ -2799,7 +2900,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         matchedIn: matchedIn(o, obsSearchWords),
         status,
         statusTone:
-          status === 'Transcribing' || status === 'Interpreting'
+          status === 'Transcribing' || status === 'Reading'
             ? 'info'
             : status.endsWith('failed')
               ? 'high'
@@ -2827,27 +2928,16 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           removedLabel: 'Removed by ' + stampLabel(m.removed),
           restore: changing ? () => void restoreItem(key, o, m) : null,
         })),
-        // What the model proposes from it (CP-05, CP-21), and what the
-        // engineer can do with it. No action saves anything by itself: each
-        // opens Edit, filled in, for the engineer to save. Not read yet, it
-        // offers only Get AI proposal, to whoever may ask; afterwards, each
-        // part can be regenerated (CP-08, CP-21).
-        proposal: !reading
-          ? read
-            ? { status: 'unread' as const, read }
-            : null
-          : {
-              ...reading,
-              // Each part is read again on its own (CP-21): the categories
-              // from everything, the description from the photos. A
-              // description is offered once there are photos to describe.
-              readCategories: readPart('categories'),
-              readDescription: o.media.length ? readPart('description') : null,
-              // Copies the photos' description into the note, below what the
-              // engineer wrote; offered until the note holds it, so it is
-              // never added twice. These are changes, not actions: the page
-              // saves them in its queue (ObservationPage.tsx), after any save
-              // already on its way, so one never builds on an older note.
+        // The photo description (CP-05, CP-24): written without being asked, with Copy into
+        // note as its one action. Copying is a change, not an action: the page saves it in its
+        // queue (ObservationPage.tsx), after any save already on its way, so one never builds
+        // on an older note. Null while no photo has been described.
+        photoDescription: o.interpretation?.photos
+          ? {
+              status: o.interpretation.photos.status,
+              description: o.interpretation.photos.description,
+              error: o.interpretation.photos.error,
+              // Offered until the note holds it, so it is never added twice.
               addToNote:
                 canChange && !o.deleted && described?.description
                   ? (o.detail ?? '').includes(described.description)
@@ -2858,19 +2948,26 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                           : described.description!,
                       } satisfies ObservationChange)
                   : null,
-              // Each proposed category, with Add while it is not one of the
-              // observation's own: added to those it has.
-              categories: reading.categories.map((c) => ({
-                ...c,
-                added: o.cats.includes(c.category),
-                add:
-                  canChange && !o.deleted && proposed && !o.cats.includes(c.category)
-                    ? ({ cats: withCategory(o.cats, c.category) } satisfies ObservationChange)
-                    : null,
-                // A quote the gateway did not find in the item it cites.
-                unverified: c.evidence.some((e) => e.verified === false),
-              })),
-            },
+            }
+          : null,
+        // The row's tint ('unsure' amber, 'failed' red, 'reading' blue) and reason line (CP-24).
+        tint,
+        reason,
+        // Try again after a failed suggestion; null for anyone who may not change it (CP-24).
+        retrySuggestion:
+          canChange && !o.deleted && !!o.id && o.suggestion?.status === 'failed'
+            ? () => void retrySuggestionOf(o.id!)
+            : null,
+        // Try again after a failed photo description: the same gateway retry. Null while the
+        // suggestion itself failed, so there is one retry control per problem (the Details one).
+        retryDescription:
+          canChange &&
+          !o.deleted &&
+          !!o.id &&
+          o.suggestion?.status !== 'failed' &&
+          o.interpretation?.photos?.status === 'failed'
+            ? () => void retrySuggestionOf(o.id!)
+            : null,
         icon: categoryIcon(o.cats),
         catLabel: categoryLabel(o.cats),
         // The capture date and time, e.g. "11 Apr 2026 09:22" (CP-08 AC2).
@@ -2911,7 +3008,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const listed = (id: string) => places.locations.some((l) => l.id === id)
     // Its listed location; else one listed with the same name, level and
     // building (a sample observation's, say); else the details it was saved with.
-    const placeKey = (o: ObsItem) =>
+    const placeKey = (o: Pick<ObsItem, 'locationId' | 'locationName' | 'floor' | 'building'>) =>
       (o.locationId && listed(o.locationId) ? o.locationId : null) ??
       places.locations.find(
         (l) =>
@@ -2968,6 +3065,31 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           .filter((level) => level.locations.length),
       }))
       .filter((g) => g.levels.length)
+    // The building stack (CP-61) draws every location whatever the filters, so
+    // a building keeps its shape: those listed, then any an observation that
+    // is not deleted was saved at, shown by the filters or not.
+    const stackPlaces: SiteLocation[] = [...places.locations]
+    for (const { o } of obsRows)
+      if (o.locationName && !stackPlaces.some((l) => l.id === placeKey(o)))
+        stackPlaces.push({
+          id: placeKey(o),
+          building: o.building ?? null,
+          floor: o.floor ?? null,
+          name: o.locationName,
+        })
+    // Capture opens at a listed location, with no need to choose where, and
+    // returns there.
+    const addObservationAt = (id: string) =>
+      listed(id) && canEdit && canCapture
+        ? () =>
+            setState({
+              screen: 'field',
+              fLocationId: id,
+              locOpen: false,
+              locDismissed: false,
+              obsReturn: { locationId: id, ids: [], local: 0 },
+            })
+        : undefined
     // Opens the Add or Edit location dialog on the Observations tab (CP-16),
     // the same form as the capture picker's.
     const openLocationForm = (l?: SiteLocation) =>
@@ -3194,7 +3316,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsReturn: null,
         }),
       canCapture,
-      canArchive: isMine && canCapture,
+      // A practice assessment stays open (F-12), so its Archive is not offered.
+      // F-12: the open assessment is archived, so no walkthrough is offered on it.
+      archivedOpen: !!targetRow && targetRow.status === STATUS_LABEL.archived,
+      canArchive: isMine && canCapture && !targetRow?.record?.practice,
+      // The practice assessment shows Archive greyed out, with this reason, so the header's 3 buttons are all there.
+      archiveBlocked:
+        isMine && canCapture && targetRow?.record?.practice
+          ? {
+              title: 'Practice assessment',
+              text: "You can't archive the practice assessment. You can remove it in Settings → Walkthroughs.",
+            }
+          : undefined,
       canRestore: isMine && !canCapture,
       restoreAssessment: async () => {
         if (s.archiveBusy) return
@@ -3235,7 +3368,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       // A row can be archived by its own engineer while it is not archived already.
       canArchiveRow: (r: AssessmentRow) =>
-        !!r.persisted && r.engineerId === session.user.id && r.status !== STATUS_LABEL.archived,
+        !!r.persisted &&
+        r.engineerId === session.user.id &&
+        r.status !== STATUS_LABEL.archived &&
+        !r.record?.practice,
       closeArchive: () => !s.archiveBusy && setState({ archiveOpen: false }),
       confirmArchive: async () => {
         if (s.archiveBusy) return
@@ -3294,7 +3430,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // the list again after new dates are saved.
       isCalendar: sc === 'calendar',
       calendar: {
-        assessments: rows.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
+        assessments: counted.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
         loading: !serverRows && !listFailed,
         failed: !serverRows && listFailed,
         me: { id: session.user.id, name: session.user.name },
@@ -3495,19 +3631,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                 countLabel: l.items.length
                   ? plural(l.items.length, 'observation')
                   : 'No observations',
-                // Capture opens there, with no need to choose where, and
-                // returns there.
-                addObservation:
-                  isListed && canEdit && canCapture
-                    ? () =>
-                        setState({
-                          screen: 'field',
-                          fLocationId: l.id,
-                          locOpen: false,
-                          locDismissed: false,
-                          obsReturn: { locationId: l.id, ids: [], local: 0 },
-                        })
-                    : undefined,
+                addObservation: addObservationAt(l.id),
                 landing: s.obsReturn?.locationId === l.id,
                 edit: isListed && canChangeObs ? () => openLocationForm(l) : undefined,
                 remove:
@@ -3519,6 +3643,21 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })),
         }
       }),
+      /* the building stack (CP-61): the list, or every location as a cell of its
+         building's level, with the observations the filters show there and
+         how many it holds in all */
+      obsView: s.obsView,
+      setObsView: (view: 'list' | 'stack') => setState({ obsView: view }),
+      obsStack: stackPlaces.map((l) => ({
+        ...l,
+        label: locationLabel(l),
+        items: obsList.filter((o) => placeKey(o) === l.id),
+        total: obsRows.filter(({ o }) => placeKey(o) === l.id).length,
+        addObservation: addObservationAt(l.id),
+        landing: s.obsReturn?.locationId === l.id,
+      })),
+      // Observations the filters show that have no location, so no cell.
+      obsUnplacedCount: obsList.filter((o) => !o.locationName).length,
       // Adds a location without capturing, e.g. before the visit (CP-16).
       obsAddLocation: canEdit && canCapture ? () => openLocationForm() : undefined,
       obsLocFormOpen: s.obsLocForm,
@@ -3551,6 +3690,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? 'Showing ' + shownRows.length + ' of ' + plural(obsRows.length, obsNoun)
           : 'Showing 1–' + obsRows.length + ' of ' + plural(obsRows.length, obsNoun)
         : plural(0, obsNoun),
+      // The footer's numbers (CP-24): every listed observation, those the filters show, and
+      // how many need checking (the To check filter's own rule).
+      obsTotal: obsRows.length,
+      // F-12: the gateway has listed this assessment's observations.
+      obsSynced: captured.synced,
+      obsShownCount: shownRows.length,
+      obsToCheckCount: toCheckCount(obsRows.map((r) => r.o)),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
       obsSearchWords,
@@ -3691,7 +3837,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                               : s.captureTarget.site,
       meta:
         sc === 'dashboard'
-          ? plural(rows.length, 'assessment') + ' · ' + session.user.name
+          ? plural(counted.length, 'assessment') + ' · ' + session.user.name
           : sc === 'clients'
             ? plural(myClients.filter((c) => !c.removed).length, 'client') +
               ' · ' +
@@ -3724,6 +3870,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'overview',
           label: 'Overview',
           icon: 'file-pen',
+          // F-12: the first and last tabs frame the tab row; Generation is pointed at alone.
+          walk: 'assessment.tab.overview',
         },
         {
           // The pre-survey checklist (CP-30): read before the visit, so it
@@ -3736,6 +3884,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'observations',
           label: 'Observations',
           icon: 'camera',
+          walk: 'assessment.tab.observations',
           // Same count as the Overview and MarshBot: what the server holds.
           count: savedCount,
         },
@@ -3743,6 +3892,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'generate',
           label: 'Generation',
           icon: 'sparkles',
+          walk: 'assessment.tab.generation',
         },
         {
           value: 'review',
@@ -3755,6 +3905,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'export',
           label: 'Export',
           icon: 'stamp',
+          walk: 'assessment.tab.export',
           count: isDemoCapture && !openRow?.persisted ? open.length : undefined,
         },
       ].filter((item) => canOpenTab(item.value, session)),
@@ -3789,7 +3940,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       stageOptions: [...Object.values(STAGE_LABEL), STATUS_LABEL.archived],
       // Focus (AS-07): the rows the gateway gave a priority (only the engineer's own),
       // in its rank order. Built from the list itself, so it never lags or pops in after it.
-      focus: rows
+      focus: counted
         .flatMap((r) =>
           r.priority
             ? [
@@ -3807,7 +3958,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       visitType: s.fVisitType,
       setVisitType: (value: string) => setState({ fVisitType: value }),
       // The visit types the engineer's assessments have, the standard ones first.
-      visitTypeOptions: [...new Set(rows.map((r) => r.type))].sort(
+      visitTypeOptions: [...new Set(counted.map((r) => r.type))].sort(
         (a, b) =>
           (SURVEY_TYPES.indexOf(a) + 1 || 99) - (SURVEY_TYPES.indexOf(b) + 1 || 99) ||
           a.localeCompare(b),
@@ -3825,9 +3976,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       sortOptions: SORT_CHOICES,
       setWorkSort: (value: string) => setState({ workSort: value }),
       filteredRows: filtered,
+      // The owner's practice assessment, shown first whatever the sort and filters (F-12).
+      practiceRow: practice ? decorate(practice) : null,
       noResults: filtered.length === 0,
       // None at all, archived or not: the list says so, not that filters hid them.
-      noAssessments: rows.length === 0,
+      noAssessments: counted.length === 0,
       // The Due pill (CP-23), which replaced the date boxes above the list.
       dateFilter: s.fDate,
       setDateFilter: (filter: DateFilter | null) => setState({ fDate: filter }),
@@ -3926,12 +4079,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       setFParts: (fParts: Part[] | null) => setState({ fParts }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
-      setFNote: (
-        e: React.ChangeEvent<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>,
-      ) =>
-        setState({
-          fNote: e.target.value,
-        }),
+      setFNote: (fNote: string) => setState({ fNote }),
       waveBars,
       fClock: mm + ':' + ss,
       liveVoice,
@@ -3939,29 +4087,28 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? 'Stop recording'
         : s.fTransBusy
           ? 'Loading transcript…'
-          : liveVoice && s.fClips.length
+          : liveVoice && captureRows.length
             ? 'Record another'
             : 'Start recording',
+      // The live recorder needs no line: the clock and the button say it. Only the demo, whose
+      // recording is simulated, explains itself.
       recHint: liveVoice
-        ? s.fRec
-          ? 'Recording. Stop to add it below.'
-          : 'Each recording is transcribed once you save.'
+        ? ''
         : s.fRec
           ? 'Simulating recording; your microphone is not accessed.'
           : s.fTransBusy
             ? 'Loading the sample transcript.'
             : 'No capture session, so recording is simulated and produces a sample transcript.',
       fVoiceError: s.fVoiceError,
-      recBusy: s.fRec || s.fTransBusy || s.fSaving,
+      recBusy: s.fRec || s.fTransBusy || s.fSaving || s.fSending > 0,
       uploadRecording: (e: React.ChangeEvent<HTMLInputElement>) => {
         for (const file of e.target.files ?? []) addClip(file, file.name, null)
         e.target.value = ''
         setState({ fVoiceError: null })
       },
-      fClips: s.fClips,
-      removeClip: dropClip,
+      captureRows,
       toggleRec: () => {
-        if (s.fTransBusy || s.fSaving) return
+        if (s.fTransBusy || s.fSaving || s.fSending > 0) return
         if (liveVoice) {
           if (media.recorder) {
             // The clock goes back to 00:00; the clip waits in the list for Save observation.
@@ -3990,14 +4137,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             fTrans: false,
           })
       },
-      hasTranscript: s.fTrans,
-      fTranscriptText: SAMPLE_TRANSCRIPT,
-      transcriptToNote: () =>
-        setState({
-          fMode: 'note',
-          fTrans: false,
-          fNote: SAMPLE_TRANSCRIPT,
-        }),
       fPhotos: s.fPhotos,
       fPhotoError: s.fPhotoError,
       photoHint: liveCapture
@@ -4309,18 +4448,28 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             ? { checklistOpen: false, fLeaveOpen: true, fLeaveTo: 'observations' }
             : { ...toTab('observations'), checklistOpen: false, obsOpen: id },
         ),
-      fToast: s.fToast,
+      // Location's red field after a Save with none chosen (AC4): the count says whether it is
+      // the first time (mark it) or a later one (shake it).
+      locationRefused: currentLocation ? 0 : s.fLocRefused,
       saveObservation: () => {
-        if (s.fSaving || s.fRec || capture.state?.status === 'starting') return
+        if (s.fSaving || s.fRec || s.fSending > 0 || capture.state?.status === 'starting') return
+        // Nothing is saved without a location. Category and severity are never required.
         if (!currentLocation) {
-          setState({ fToast: { text: 'Choose a location first.', warn: true }, locOpen: true })
+          setState({ fLocRefused: s.fLocRefused + 1 })
           return
         }
         // With a capture session live, the note, recordings, photos and pages
         // are saved on the server as one observation; otherwise in this demo.
         const note = s.fNote.trim() ? s.fNote : undefined
         const live =
-          !!liveCapture && !!(note || s.fClips.length || s.fPhotos.length || s.fPages.length)
+          !!liveCapture &&
+          !!(
+            note ||
+            s.fClips.length ||
+            s.fDraft?.recordings.length ||
+            s.fPhotos.length ||
+            s.fPages.length
+          )
         const text =
           s.fNote.trim() ||
           (s.fTrans ? SAMPLE_TRANSCRIPT : '') ||
@@ -4334,15 +4483,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               '.'
             : '')
         if (!live && !text) {
-          setState({
-            fToast: { text: 'Add a note, recording, photograph or page first.', warn: true },
-          })
-          return
-        }
-        // Severity is what the report grades the finding by (CP-02), so it is
-        // always chosen, never assumed.
-        if (!s.fSev) {
-          setState({ fToast: { text: 'Choose a severity first.', warn: true } })
+          toast('Add a note, recording, photograph or page first.', 'info')
           return
         }
         if (proposalTarget) {
@@ -4403,9 +4544,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fPhotos: [],
           fPages: [],
           fTrans: false,
+          fLocRefused: 0,
           fCats: [],
           fSev: '',
-          fToast: null,
         })
         // Listed first, so it is local-0 (see obsReturn above).
         toast('Observation saved in this demo only.', 'success', 'local-0')

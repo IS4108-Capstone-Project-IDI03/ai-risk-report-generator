@@ -14,6 +14,10 @@ import { SECTION_ID, type ICommentAnchor } from './report-comment.model'
 // Each answer keeps the sources it cited, the provider, model and prompt
 // version that wrote it, when it was asked and answered, and the run's trace,
 // so the evaluation harness can replay and score it (AC3).
+// A turn can be writing guidance for a section (AS-08): what it should cover,
+// answered by S4 from the template's definition of it and the selected
+// standards; or what is missing from it, listed by the gateway with no AI call
+// (`gaps`).
 // Written by services/assessment-ask.service.ts. See docs/areas/database.md,
 // "Ask conversations".
 
@@ -33,11 +37,14 @@ export const CONFIDENCE_LEVELS = ['high', 'medium', 'low'] as const
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number]
 
 // One source a statement cites: `O:<observation id>`, `C:<chunk id>` for a
-// standard's passage or `P:<chunk id>` for a past report's, with the words it
-// quotes and whether they were found in the source.
+// standard's passage or `P:<chunk id>` for a past report's, or `T:<section>` /
+// `T:<section>.<part>` for the report template's definition of a section or
+// one of its parts (AS-08), with the words it quotes and whether they were
+// found in the source.
+export const CITATION_KINDS = ['observation', 'standard', 'report', 'template'] as const
 export interface IAnswerCitation {
   ref: string
-  kind: 'observation' | 'standard' | 'report'
+  kind: (typeof CITATION_KINDS)[number]
   quote: string | null
   verified: boolean
   // The words are only in a picture's AI description (KB-02): cited, never
@@ -68,6 +75,48 @@ export interface IQuestionPassage {
   findings: string[]
 }
 
+// Writing guidance asked for one section (AS-08): what it should cover, or
+// what is missing from it; the section, and how the report heads it.
+export const GUIDANCE_KINDS = ['cover', 'missing'] as const
+export type GuidanceKind = (typeof GUIDANCE_KINDS)[number]
+export interface IQuestionGuidance {
+  kind: GuidanceKind
+  sectionId: string
+  label: string
+}
+
+// One thing missing from a section (AS-08 AC2), stated as a fact (AC4), with
+// where it is finished: the section (at a subsection or finding when known),
+// or an observation (the Observations tab when `observationId` is null). Those
+// that block the export are the export check's own (AC3).
+export const GAP_KINDS = [
+  'not_drafted',
+  'out_of_date',
+  'no_ofis',
+  'figures',
+  'not_written',
+  'ai_unsupported',
+  'ai_pending',
+  'replacement',
+  'pending_findings',
+  'unsupported_findings',
+  'withdrawn_sources',
+  'no_text',
+  'table',
+  'category',
+  'observation',
+] as const
+export type GapKind = (typeof GAP_KINDS)[number]
+export type GapLink =
+  | { to: 'section'; sectionId: string; subsection?: number; finding?: string }
+  | { to: 'observation'; observationId: string | null }
+export interface ISectionGap {
+  kind: GapKind
+  fact: string
+  blocksExport: boolean
+  link: GapLink
+}
+
 // One question and its answer.
 export interface IConversationTurn {
   _id: Types.ObjectId
@@ -77,6 +126,11 @@ export interface IConversationTurn {
   // A request for text for a section (AS-04), "Draft text" or "Rewrite this":
   // its proposal in report_text_proposals. Absent or null for a question.
   proposal?: Types.ObjectId | null
+  // Writing guidance for a section (AS-08); absent or null for a question.
+  guidance?: IQuestionGuidance | null
+  // What is missing from the section (AS-08 AC2), in that order: those that
+  // block the export first. Absent or empty for anything else.
+  gaps?: ISectionGap[]
   status: QuestionStatus
   statements: IAnswerStatement[]
   // What evidence the answer says is missing (AS-01 AC4).
@@ -133,7 +187,7 @@ export interface IAssistantConversation {
 export const citationSchema = new Schema<IAnswerCitation>(
   {
     ref: { type: String, required: true },
-    kind: { type: String, enum: ['observation', 'standard', 'report'], required: true },
+    kind: { type: String, enum: CITATION_KINDS, required: true },
     quote: { type: String, default: null },
     verified: { type: Boolean, required: true },
     described: { type: Boolean },
@@ -164,11 +218,33 @@ const passageSchema = new Schema<IQuestionPassage>(
   { _id: false },
 )
 
+const guidanceSchema = new Schema<IQuestionGuidance>(
+  {
+    kind: { type: String, enum: GUIDANCE_KINDS, required: true },
+    sectionId: { type: String, required: true, match: SECTION_ID },
+    label: { type: String, required: true },
+  },
+  { _id: false },
+)
+
+// A gap's link is kept as given: a section's or an observation's (see GapLink).
+const gapSchema = new Schema<ISectionGap>(
+  {
+    kind: { type: String, enum: GAP_KINDS, required: true },
+    fact: { type: String, required: true },
+    blocksExport: { type: Boolean, required: true },
+    link: { type: Schema.Types.Mixed, required: true },
+  },
+  { _id: false },
+)
+
 const turnSchema = new Schema<IConversationTurn>(
   {
     question: { type: String, required: true, maxlength: 1000 },
     passage: { type: passageSchema, default: null },
     proposal: { type: Schema.Types.ObjectId, default: null },
+    guidance: { type: guidanceSchema, default: null },
+    gaps: { type: [gapSchema], default: undefined },
     status: { type: String, enum: QUESTION_STATUSES, default: 'answering' },
     statements: {
       type: [

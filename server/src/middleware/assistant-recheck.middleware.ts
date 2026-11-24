@@ -21,8 +21,9 @@ const SCOPES: [RegExp, (id: string) => Promise<string[]>, before: boolean][] = [
 ]
 
 // Writes that change nothing MarshBot checks: the Ask tab's questions and conversations (AS-01,
-// AS-03). Without this, asking a question re-checked the assessment and could move its stage.
-const NOT_CHANGES = /^\/api\/assessments\/[^/]+\/ask(\/|$)/
+// AS-03), and dictated speech turned into text (CP-27), which is saved only when its field is.
+// Without this, asking a question re-checked the assessment and could move its stage.
+const NOT_CHANGES = /^\/api\/assessments\/[^/]+\/(ask|dictation)(\/|$)/
 
 // Its references, or none when the look-up fails (a re-check is never worth failing the request).
 function referencesOf(scope: (typeof SCOPES)[number], path: string): Promise<string[]> {

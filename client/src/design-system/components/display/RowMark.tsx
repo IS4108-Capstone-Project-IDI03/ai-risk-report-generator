@@ -6,13 +6,15 @@ import { Icon } from '../core/Icon'
 import { useSwap } from './useSwap'
 import './steps.css'
 
-export type MarkKind = 'waiting' | 'working' | 'done' | 'stale' | 'failed' | 'open'
+// `unsure` (CP-24) is the amber triangle for a value the AI was not sure of.
+export type MarkKind = 'waiting' | 'working' | 'done' | 'stale' | 'unsure' | 'failed' | 'open'
 
 const SPOKEN: Record<MarkKind, string> = {
   waiting: 'Waiting',
   working: 'Working',
   done: 'Done',
   stale: 'Out of date',
+  unsure: 'Not sure',
   failed: 'Failed',
   open: 'Open',
 }
@@ -32,7 +34,12 @@ function Glyph({ kind, state }: { kind: MarkKind; state?: 'in' | 'out' }) {
         <path d="M4.6 8.3l2.3 2.3 4.5-4.7" />
       </svg>
     )
-  const icon = { stale: 'repeat', failed: 'circle-alert', open: 'chevron-right' }[kind]
+  const icon = {
+    stale: 'repeat',
+    unsure: 'triangle-alert',
+    failed: 'circle-alert',
+    open: 'chevron-right',
+  }[kind]
   return (
     <span className={`ds-mark-${kind}`} {...anim}>
       <Icon name={icon} size={16} />

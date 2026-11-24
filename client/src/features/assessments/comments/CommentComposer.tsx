@@ -1,7 +1,10 @@
 // Writing a comment (RV-03): a new thread's first comment, a reply, or an
-// edit. Ctrl+Enter (Cmd+Enter) posts; Escape cancels.
-import { useState } from 'react'
+// edit. Ctrl+Enter (Cmd+Enter) posts; Escape cancels. Inside a DictationScope
+// it can be dictated into (CP-27).
+import { useRef, useState } from 'react'
 import { Button, Textarea } from '../../../design-system'
+import { DictateButton } from '../dictation/DictateButton'
+import { useDictationReference } from '../dictation/scope'
 import type { CommentInput } from './api'
 
 export function CommentComposer({
@@ -27,6 +30,9 @@ export function CommentComposer({
   const [body, setBody] = useState(initial ?? '')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const reference = useDictationReference()
+  // Holds the text box, for dictation to find: the shared Textarea takes no ref.
+  const box = useRef<HTMLDivElement>(null)
 
   const submit = async () => {
     const text = body.trim()
@@ -40,7 +46,7 @@ export function CommentComposer({
   }
 
   return (
-    <div className="cm-composer">
+    <div className="cm-composer" ref={box}>
       <Textarea
         aria-label={label}
         placeholder={placeholder}
@@ -67,6 +73,13 @@ export function CommentComposer({
         </p>
       )}
       <div className="cm-composer-actions">
+        {reference && !busy && (
+          <DictateButton
+            reference={reference}
+            field={() => box.current?.querySelector('textarea')}
+            onChange={setBody}
+          />
+        )}
         {onCancel && (
           <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
             Cancel

@@ -862,6 +862,29 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Not in this story: correcting a client's or site's details, or a visit's own (CP-28); the knowledge admin's view of every engineer's visits, and merging (CP-44); permanently deleting (rejected, see DECISIONS).
   </details>
 
+- [ ] **CP-27** — Clean up spoken transcripts, and dictate into an assessment's text fields (risk engineer, Should, 5 pts, deps: CP-03, CP-08, CP-22, CB-10, PV-04)
+  <details><summary>Goal / AC</summary>
+
+  Goal: a transcript reads as what the engineer meant, without "um", stumbles or the words they took back, and never says anything they didn't; and they can speak into the text fields where typing on site is slow.
+
+  Tidy transcripts
+
+  1. Given a recording, a walk recording, a walk's voice clip, a spoken chat question or dictation, when it is transcribed, then fillers (um, uh, er, hmm…), a word or short phrase said twice in a row, and stutters ("s- sprinkler") are taken out.
+  2. Given a tidied transcript, when it is compared with what was said, then every word in it was said, in the same order: tidying only deletes.
+  3. Given a repeated number ("room ten ten"), a grammatical double ("that that", "had had"), a hyphenated word, or a word that can carry meaning ("no", "well", "like", "you know", "I mean"), when it is tidied, then it is kept.
+  4. Given a self-correction ("level 3, sorry, level 4"), when protection allows a model to read it, then the abandoned half is taken out; an answer that adds, changes or moves a word, deletes more than a quarter of the words (4 in a short clip), or drops a number the speaker didn't take back is not used, and the rules' tidy text stands.
+  5. Given a tidied recording, when it is saved, then Whisper's own text is kept beside it as evidence, and drafting, Ask, the observation reading and the transcript shown use the tidy text.
+  6. Given protection is on, when the model tidies a transcript, then it sees the client's details only as placeholders; if they can't be masked, the model isn't called and nothing is lost.
+
+  Dictation
+
+  7. Given an observation's note (a new one's too), a walk's note box or a walk note I'm editing (while the walk isn't recording), a transcript or handwritten page text correction, a comment, the Ask question box or a checklist answer, when I press Dictate, speak and stop, then the tidy words go in at the cursor, in place of any selection, for me to check before saving.
+  8. Given the microphone is blocked, no speech was heard, or the speech service fails, when I dictate, then I'm told what went wrong and how to fix it, and the field is unchanged.
+  9. Given an assessment I can't open, when I dictate into it, then it is refused; a dictated clip is stored nowhere.
+
+  Not in this story: languages other than English (Whisper is pinned to English); showing Whisper's own text in the app; Singlish particles ("lah", "meh") in the fixed list, as "meh" can make a question.
+  </details>
+
 - [ ] **CP-28** — Correct a client's and site's details (risk engineer, Must, 5 pts, deps: CP-17, CP-18, RV-10, CP-08, PV-02, Sprint 4; split out of CP-18 on 2026-11-06)
   <details><summary>Goal / AC</summary>
 
@@ -969,6 +992,61 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   18. Given a keyboard, when I am on the month, then the arrow keys move from day to day, and every entry can be reached and says what it is, where and when.
 
   Built 15 Nov 2026 on `feat/xuren-cp-60-calendar` (DECISIONS 2026-11-15), from a clickable mock. A new screen over the work list: no new collection, endpoint or model call. Its one gateway change is that `PUT /api/assessments/:reference` takes the last survey day. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Not in this story: dragging an entry to another day, times of day, export or sync to Outlook or an .ics file, reminders, and other engineers' availability.
+  </details>
+
+- [ ] **CP-61** — Building stack view: where the risk sits and what is not covered yet (risk engineer, 5 pts, deps: CP-16, CP-08, CP-22, CP-24, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see each building drawn as a stack of its levels, with every location coloured by its worst finding, so I can tell at a glance where the risk sits and which locations I have not covered, instead of reading it out of a long list.
+
+  Seeing the site
+
+  1. Given an assessment with locations, when I choose Buildings on the Observations tab, then each building is drawn as a stack of its levels with the lowest at the bottom, in the same order as the location list, and the locations elsewhere on site sit in one row under them.
+  2. Given buildings with different levels, when I view the stacks, then their ground floors line up, with basements below that line and locations that belong to a whole building in a strip at its top.
+  3. Given a location with observations, when I view its cell, then it shows the location's name, how many observations it holds and its worst severity, as a colour, a symbol and a word, so nothing is read from colour alone.
+  4. Given a location with no observations, when I view its cell, then it is an empty dashed cell that reads "Nothing recorded", and before I choose a location the panel beside the stacks lists every such location.
+  5. Given a key above the stacks, when I view it, then it names each colour and says how many locations have it.
+
+  Acting on a location
+
+  6. Given a cell, when I choose it, then its observations are listed beside the stacks, and each opens that observation's own page, from which Back returns to the stacks with the cell still chosen.
+  7. Given a chosen location, when I press Add observation here (or Add observation in the toolbar), then capture opens at that location, and afterwards I am back on the stacks at that location.
+  8. Given a location with nothing recorded in the panel's list, when I press its +, then capture opens at that location.
+
+  Filters and counts
+
+  9. Given the tab's search or its Category, Severity, Type or Status filter is set, when I view the stacks, then each cell counts only the observations that match, every location stays drawn, and one whose observations are all filtered out reads "0 of 3".
+  10. Given a deleted observation, when I view the stacks, then it is not counted.
+  11. Given observations with no location recorded, when I view the stacks, then a line under them says how many there are and opens them in the list.
+  12. Given the stacks, when I read the line under them, then it says how many locations there are, how many have nothing recorded, and how many observations.
+
+  Phone, table and keyboard
+
+  13. Given a phone, when I choose Buildings, then the stacks sit one under another, and a chosen location's observations slide up as a sheet.
+  14. Given the stacks, when I press Show as table, then the same values are listed as a table of location, observations and worst severity.
+  15. Given a keyboard or a screen reader, when I move through the stacks, then every cell can be reached and says where it is, how many observations it holds and the worst of them.
+
+  Who sees and changes what
+
+  16. Given an assessment I can only read (another engineer's as a knowledge admin, or an archived one), when I view the stacks, then I see the same cells and observations but no way to add an observation or a location.
+
+  Built 21 Nov 2026 on `feat/xuren-cp-61-building-stack` (DECISIONS 2026-11-21), from a clickable mock. A second view of the Observations tab, client only: no new collection, endpoint or model call. Added as a new story (not in the vetted sheet); 5 points is the builder's estimate. Beyond the idea as first written: the panel's list of locations with nothing recorded (AC4, AC8), and stronger severity fills than the app's 50 tints, since Critical's and High's are the same pink. `npm --prefix server run seed:cp61` adds a demo site with several levels to try it on. Not in this story: a floor plan, pins, dragging an observation to another location, and the stack in the report.
+  </details>
+
+- [ ] **CP-62** — Site weather check before a site visit (risk engineer, 3 pts, deps: CP-26, CP-18, CP-23, Sprint 5)
+  <details><summary>Goal / AC</summary>
+
+  Goal: see the current weather and short-term rain forecast at the assessment site, so that I know not to head down to the site while it is raining or stormy, and can plan the visit for a safer time.
+
+  1. Site coordinates: when an assessment's site has an address, the gateway geocodes it and stores latitude and longitude on the site. If there is no address, or geocoding fails, the weather panel says "Add the site address to see weather" instead of guessing.
+  2. Weather display: the assessment overview, the Site observation screen and dashboard rows with a site visit today show the site's current conditions: rain or no rain, rainfall (mm/h), temperature, and the rain forecast for the next 2 hours.
+  3. Rain warning: if it is raining at the site, a warning banner says "Raining at site – do not proceed with outdoor or below-ground inspection." If thunderstorms or lightning are reported, a stronger warning appears. If rain is forecast in the next 2 hours, an amber "Rain expected" notice appears. The rain thresholds can be changed in config.
+  4. Advisory only: the banner names the data source and says it is advisory. It doesn't block capture, because engineers may also record observations at their desk.
+  5. Gateway-only access: the weather API is called only by the gateway (`GET /api/assessments/:reference/weather`). The API key lives in the server's `.env` and never reaches the browser. Results are cached for 10 minutes per site.
+  6. Freshness: every reading shows a "last updated" time in the site's local time. A reading older than 30 minutes is labelled stale. If the provider can't be reached, the panel says "Weather unavailable", shows when the last successful reading was taken, and never presents an old reading as current.
+  7. Refresh: the panel refreshes on its own every 10 minutes while open, and has a manual refresh button that's at least 44px tall, in line with the design system's glove-sized targets.
+
+  Built 23 Nov 2026 on `feature/josiah-cp-62` (DECISIONS 2026-11-23), without a board. Google's Weather and Geocoding APIs through a new server key, `GOOGLE_MAPS_SERVER_KEY`; the thresholds are `WEATHER_RAINING_MM_PER_HOUR` and `WEATHER_RAIN_EXPECTED_PERCENT`. Beyond the story as written: an engineer's pin on the site map (CP-26) is used before the address, so a pinned site with no address still gets weather (AC1 asks for the address only when there is neither). Refresh asks the gateway at once, but within 10 minutes the gateway answers from its copy (AC5). Added as a new story (not in the vetted sheet); 3 points is the builder's estimate. Not in this story: weather in the report, alerts or notifications when rain starts, wind and heat warnings, and a forecast beyond 2 hours.
   </details>
 
 - [ ] **CP-19** — Scan and transcribe a handwritten note (risk engineer, Should, 5 pts, deps: CP-01, CP-03, CP-08, GN-01, RV-01, EV-03, Sprint 4)
@@ -1608,6 +1686,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 16 Nov 2026 (DECISIONS 2026-11-16). "Draft text" beside Ask drafts for the section open (Sections 4 to 12); "Rewrite this" beside Ask about this, and in the document editor's toolbar, rewrites the whole paragraphs the selection is in. A draft goes at the end of the subsection the model suggests, or one the engineer chooses. The text is kept as a proposal (`report_text_proposals`); Insert or Replace saves the section's next version with it marked AI draft until the engineer accepts it in the review workspace (Accept, or Delete); Undo restores the version before. A sentence is resolved once given a citation, reworded or deleted; Accept waits for that. The drafting set is the standards selected on the assessment, as AS-01 reads them; past reports are never cited. Since RV-11 knowledge admins hold `reports:generate` too, so the assigned-engineer check is what hides Insert and Replace from them. In the document editor, Insert waits for unsaved changes to be saved.
   </details>
 
+- [ ] **AS-08** — Writing guidance for a section (risk engineer, AI and Machine Learning, deps: AS-01)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, ask what a section should cover and what it still lacks, so that I know what to write or capture before sign-off.
+
+  1. "What should this section cover?" is answered from the section's definition in the report template and the selected standards, with citations.
+  2. "What is missing from this section?" lists the gaps, each with a Go to section or Go to observation link. Gaps include: tables reading "Not entered"; COPE categories with no observation; open findings; out-of-date drafts.
+  3. Gaps that block export come from `exportBlockers`, so the assistant and the Export tab never disagree.
+  4. Gaps are stated as facts, e.g. "Section 7 has no observation tagged Protection", never as advice.
+  5. Guidance never changes the report.
+
+  Built 24 Nov 2026 (DECISIONS 2026-11-24). Two buttons above the Ask tab's question box ask about the part open, never a guess from the wording. "What should this section cover?" (Sections 4 to 12) goes to S4 as an Ask question does, with the template's definition of the section as evidence (T1, T2, …) and the selected standards, and no observations or past reports; a cited part goes to its place in the section. "What is missing from this section?" (Sections 2 to 12) is listed by the gateway with no AI call: the export check's own blockers first (one function, `detailedBlockers`, which also builds `exportBlockers`), each stated as a fact, then parts with no text, tables reading "Not entered", categories with no usable observation and the observations the draft leaves out. Both are kept in the conversation (AS-03).
+  </details>
+
 ## E8 — Evaluation Harness
 
 - [ ] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 4)
@@ -1762,4 +1854,42 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   11. Given the file cannot be generated, or the report is demo sample data shown without the gateway, when I try to export, then the cause is shown, with a retry where one can help. No file is produced or simulated.
 
   Built 4 Nov 2026 (DECISIONS 2026-11-04, "The export is the page layout, printed"). AC1: RV-04 is not built, so a check stands in for it: only a complete report is exported (DECISIONS 2026-11-05), with the Executive Summary drafted and current, an OFI accepted, Sections 4-12 written, Sections 4 and 5's figures entered, and every finding decided, none unsupported, out of date or citing a withdrawn source; RV-04 replaces `exportBlockers`. AC3: the PDF is printed from the page layout's own pages; Page layout now shows citation markers as the PDF prints them and Section 6's programs as Marsh's table, so the two match. With citations, References follow the report on pages of their own; without them, lines may rewrap where markers were. AC4: bookmarks name each section by its title. AC5: Word's contents reads "Section 7 Construction", as Word builds an entry from the heading, and Word refreshes it on opening (it may ask to update fields first). AC8: the agreed print resolution is 300 dpi of the printed size, never above the original's own. AC9: the gateway refuses a file whose text still holds a privacy placeholder, naming where. AC10: comment threads (RV-03) are kept apart from the text and the export's editor has none of them, so none reach the file; the Export tab reminds of any still open.
+  </details>
+
+## E11 — PII protection
+
+Stories PV-01 to PV-08 are still in `.claude/plans/pii-protection-epic.md`; `docs/areas/privacy.md` lists what each protects.
+
+- [ ] **PV-09** — Choose which names are always masked and which words are never masked (knowledge admin, Should, 8 pts, deps: PV-05, PV-06, PV-01)
+  <details><summary>Goal / AC</summary>
+
+  As a knowledge admin, I want to choose which names are always masked and which words are never masked, so that client names the app has never recorded don't reach external AI providers, and technical words aren't hidden from the AI by mistake. A wrong "never masked" entry exposes that word in every flow, so masking always wins and every change is logged.
+
+  Always masked
+
+  1. Given protection is on, when I add a name to Always masked, then from then on it is masked wherever client text goes to an external AI, as a client's name is.
+  2. Given a past report is already indexed, when either list changes, then the report keeps the masking it was indexed with; only reports uploaded afterwards use the new lists.
+
+  Never masked
+
+  3. Given a word the privacy check takes for a person or client, when I add it to Never masked with a reason, then from then on it reaches the AI as written in drafting, chat and later uploads.
+  4. Given a word that matches a recorded client, site, address or user, or a name on Always masked, whatever its case, when I add it to Never masked, then it is refused with the reason, and it stays masked.
+  5. Given the defaults shipped with the app (floor codes, Marsh and its businesses, insurers, standards bodies), when the app first starts, then they appear in the lists with their reasons, and a default I remove does not come back after a restart.
+
+  Access and record
+
+  6. Given I am not a knowledge admin, when I open either list or try to change it, then I am refused, and the always-masked names are never shown to me or included in any export.
+  7. Given any addition or removal, when it is saved, then the change log records who made it, when, the word and the reason. Entries are never edited or deleted.
+
+  Privacy and failure
+
+  8. Given the lists were changed, when a draft, a chat question or an upload is masked within the next minute, then it may still use the previous lists. After that it uses the new ones.
+  9. Given protection is off, when I open Settings, then the lists can still be edited, and I am told they take effect only when protection is on.
+
+  Checking past reports
+
+  10. Given past reports were masked at ingestion, when I open Masked in reports, then I see each masked word once with its kind and how many reports hold it, never the reports' names, and can move any of them to Never masked with a reason.
+
+  Built 22 Nov 2026 (DECISIONS 2026-11-22). Settings > Privacy words, shown to knowledge admins only. AC1: an Always masked name is sent as a known entity of the kind the admin chose (Client, Site, Address or Person). AC3: the gateway sends Never masked as `privacy.never_masked`, which replaces privacy-service's `allow_list.json` words for the call; its floor-code pattern and the Marsh and FM Global teams stay in privacy-service. Removing a Never masked word is immediate with Undo; removing an Always masked name asks first. AC5: the gateway seeds the list from privacy-service's `GET /allow-list` once (`app_settings.privacyWordsSeeded`); until then requests leave `never_masked` out, so the file applies. AC7: `settings_log`, `setting: 'privacyWords'`; the log is a record, not something to revert from. AC8: a change is used at once by the gateway that saved it, and by the others within a minute. AC10: one rag-service change makes an allowed word read as written in drafting and chat even where a past report's mapping still tags it.
+
   </details>

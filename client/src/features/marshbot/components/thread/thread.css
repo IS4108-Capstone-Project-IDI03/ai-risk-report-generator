@@ -491,12 +491,6 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
     position: absolute;
     inset: min(0px, calc(50% - 22px));
   }
-  /* The (?) itself is 44 px: padding round its 16 px icon, taken back by a negative margin so
-     the card's header doesn't grow. */
-  .mbt .mbt-help {
-    padding: 14px;
-    margin: -14px;
-  }
 }
 /* Phone: a choice's label may wrap to 2 lines inside its pill instead of running past the pill's
    edge: the button grows with it (2 lines of 18 px plus 4 px above and below is 44 px). A short

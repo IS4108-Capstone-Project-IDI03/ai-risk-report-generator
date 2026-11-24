@@ -169,6 +169,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           label: v.proposalCapture ? 'Back to site walk' : 'Back to observations',
                           title: 'New Observation',
                           onClick: v.leaveCapture,
+                          // F-12: the same tag as the desktop header's Back (SiteObservation.tsx).
+                          walk: 'new-observation.back',
                         }
                       : undefined
                   }
@@ -186,6 +188,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                 !(v.isDashboard && !v.routeBlocked) &&
                 // The Inbox heads itself with the kit TopBar (F-10).
                 !(v.isInbox && !v.routeBlocked) &&
+                // Settings heads itself with the kit TopBar, like the Assessments list.
+                !(v.isSettings && !v.routeBlocked) &&
                 // New Assessment heads itself with the kit TopBar and its Create (CP-23).
                 !(v.isCreate && !v.routeBlocked) && (
                   <div
@@ -193,7 +197,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       flex: '0 0 auto',
                       background: 'var(--surface-card)',
                       borderBottom: '1px solid var(--border-default)',
-                      padding: '20px clamp(16px,2vw,28px) 0',
+                      // 16 px above, as the TopBar has, so a title sits at one height on every page.
+                      padding: '16px clamp(16px,2vw,28px) 0',
                     }}
                   >
                     <div
@@ -232,16 +237,20 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               display: 'flex',
                               alignItems: 'center',
                               gap: '10px',
-                              marginBottom: '6px',
+                              marginBottom: '2px',
                             }}
                           >
+                            {/* The eyebrow, title and helper below match the design system's TopBar
+                                (kit.css .ds-topbar-*, v2 section 4), so every page title in the app
+                                is the same 28 px navy, whichever header draws it. */}
                             <span
                               style={{
-                                fontSize: '13px',
-                                fontWeight: '600',
+                                fontSize: '11px',
+                                lineHeight: '1.2',
+                                fontWeight: '700',
                                 letterSpacing: '0.08em',
                                 textTransform: 'uppercase',
-                                color: 'var(--text-muted)',
+                                color: 'var(--graphite-600)',
                               }}
                             >
                               {v.eyebrow}
@@ -257,11 +266,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           )}
                           style={{
                             margin: '0',
-                            fontSize: 'clamp(23px,2.4vw,32px)',
+                            // 22 px on a phone, as the TopBar's title is there.
+                            fontSize: v.showTopBar ? '22px' : '28px',
                             lineHeight: '1.2',
                             fontWeight: '700',
-                            letterSpacing: '-0.02em',
-                            color: 'var(--text-primary)',
+                            letterSpacing: '-0.01em',
+                            color: 'var(--marsh-navy)',
                             overflowWrap: 'anywhere',
                             textWrap: 'pretty',
                             display: '-webkit-box',
@@ -275,10 +285,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {!v.routeBlocked && !!v.meta && (
                           <div
                             style={{
-                              marginTop: '6px',
-                              fontSize: '15px',
-                              lineHeight: '22px',
-                              color: 'var(--text-secondary)',
+                              marginTop: '2px',
+                              fontSize: '14px',
+                              lineHeight: '1.4',
+                              color: 'var(--graphite-600)',
                             }}
                           >
                             {v.meta}
@@ -321,6 +331,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               onHistory={() => guardLeave(v.showVersionHistory)}
                               onDetails={openDetails}
                               onArchive={v.canArchive ? v.openArchive : undefined}
+                              archiveBlocked={v.archiveBlocked}
                             />
                           </>
                         )}
@@ -450,7 +461,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isSettings && <Settings />}
+                    {v.isSettings && (
+                      // Desktop has no top bar, so the bell sits in the page's own header.
+                      <Settings bell={!v.showTopBar && <NotificationBell />} />
+                    )}
 
                     {v.isChat && (
                       <Suspense fallback={null}>
@@ -471,6 +485,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           onViewObservation={v.showObservation}
                           area={goTo?.params?.area}
                           item={goTo?.params?.item}
+                          archived={v.archivedOpen}
                         />
                       ) : (
                         <div style={{ padding: '24px' }}>
@@ -501,6 +516,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             setGoTo({ tab: 'review', params: { section } })
                           }}
                           onObservations={v.goObservations}
+                          archived={v.archivedOpen}
                         />
                       ) : (
                         <Generation v={v} />
@@ -521,6 +537,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           historyRequest={v.reviewHistory}
                           openSection={goTo?.params?.section}
                           canAsk={v.canAsk}
+                          archived={v.archivedOpen}
+                          // Writing guidance's Go to observation (AS-08), past an
+                          // unsaved document's leave guard as the tabs are.
+                          onViewObservation={(id) =>
+                            guardLeave(() =>
+                              id ? v.showObservation(id) : v.setTab('observations'),
+                            )
+                          }
                         />
                       ) : (
                         <Review v={v} />
@@ -564,7 +588,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             open={v.archiveOpen}
             className="ds-dialog--v2"
             title="Archive this assessment?"
-            description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Status to Archived."
+            description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Stage to Archived."
             footer={
               <>
                 <Button pill variant="secondary" onClick={v.closeArchive} disabled={v.archiveBusy}>

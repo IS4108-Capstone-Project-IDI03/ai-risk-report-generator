@@ -57,3 +57,26 @@ export async function record(
   recorder.start()
   return recorder
 }
+
+// Whole seconds in "00:47" (what `clipLength` writes); 0 when it is not that.
+export const clipSeconds = (length: string | null) => {
+  const [m, s] = (length ?? '').split(':').map(Number)
+  return Number.isFinite(m) && Number.isFinite(s) ? m * 60 + s : 0
+}
+
+// How long an audio file runs, read from its own header; 0 when the browser can't say.
+// Without the 0, an unreadable file would leave its row's length waiting for ever.
+export function audioSeconds(audio: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(audio)
+    const el = new Audio()
+    const done = (seconds: number) => {
+      URL.revokeObjectURL(url)
+      resolve(seconds)
+    }
+    el.preload = 'metadata'
+    el.onloadedmetadata = () => done(Number.isFinite(el.duration) ? Math.round(el.duration) : 0)
+    el.onerror = () => done(0)
+    el.src = url
+  })
+}

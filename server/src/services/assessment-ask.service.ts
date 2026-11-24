@@ -19,6 +19,13 @@
 // and the drafting set, and the proposal is kept in `report_text_proposals`
 // for Insert or Replace. Asking for it writes nothing to the report.
 //
+// Writing guidance for a section (AS-08) is asked from two buttons: "What
+// should this section cover?" goes to S4 like a question, with `guide`, and is
+// answered from the template's definition of the section and the selected
+// standards; "What is missing from this section?" is listed by the gateway
+// (section-guidance.service) with no AI call, and saved as its answer. Neither
+// writes to the report.
+//
 // Questions are kept in conversations (AS-03, `assistant_conversations`): per
 // assessment and per user, private to that user. The tab opens on the latest;
 // a question without a conversation starts one, and one can be deleted. On an
@@ -37,8 +44,10 @@ import {
   type ConfidenceLevel,
   type IAnswerStatement,
   type IConversationTurn,
+  type IQuestionGuidance,
   type IQuestionPassage,
   type QuestionStatus,
+  GUIDANCE_KINDS,
 } from '../models/assistant-conversation.model'
 import type { ISite } from '../models/site.model'
 import { recordAiCalls } from './ai-usage.service'
@@ -57,7 +66,15 @@ import {
 import { locationText } from './location.service'
 import { captureTimes, listObservations } from './observation.service'
 import { privacyFor } from './privacy.service'
-import { openAskStream, RagServiceError } from './rag.service'
+import { listTemplateSections, openAskStream, RagServiceError } from './rag.service'
+import {
+  COVER_SECTIONS,
+  guidanceQuestion,
+  MISSING_SECTIONS,
+  sectionGaps,
+  sectionLabel,
+  type SectionGap,
+} from './section-guidance.service'
 import {
   assessmentToPropose,
   finishProposal,
@@ -77,6 +94,7 @@ import {
   savedEvidence,
   sectionDrafts,
   transcriptsOf,
+  UnknownSectionError,
   type Draft,
 } from './section.service'
 
@@ -114,13 +132,23 @@ const passageSchema = z.strictObject({
 })
 export type PassageInput = z.infer<typeof passageSchema>
 
+// Writing guidance for a section (AS-08): what it should cover, or what is
+// missing from it. The question asked is the gateway's own wording for it.
+const guideSchema = z.strictObject({
+  kind: z.enum(GUIDANCE_KINDS),
+  sectionId: z.string().regex(/^(1[0-2]|[1-9]|A)$/),
+})
+export type GuideInput = z.infer<typeof guideSchema>
+
 export const questionSchema = z
   .object({
+    // Required, unless the request asks for writing guidance (AS-08).
     question: z
       .string('Type a question to ask.')
       .trim()
       .min(1, 'Type a question to ask.')
-      .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.'),
+      .max(MAX_QUESTION_CHARS, 'Keep the question to 1,000 characters.')
+      .optional(),
     // Text selected in the draft that the question is about (AS-02), or that a
     // rewrite rewrites (AS-04).
     passage: passageSchema.optional(),
@@ -129,8 +157,30 @@ export const questionSchema = z
     // Text for a section instead of an answer (AS-04): a draft for the section
     // named, or a rewrite of the passage.
     propose: proposeSchema.optional(),
+    // Writing guidance for a section instead of an answer to a question (AS-08).
+    guide: guideSchema.optional(),
   })
   .superRefine((q, ctx) => {
+    if (!q.guide && q.question === undefined)
+      ctx.addIssue({ code: 'custom', message: 'Type a question to ask.', path: ['question'] })
+    if (q.guide && (q.passage || q.propose))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Ask for writing guidance on its own, without a passage or a request for text.',
+        path: ['guide'],
+      })
+    if (q.guide?.kind === 'cover' && !COVER_SECTIONS.test(q.guide.sectionId))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Open one of Sections 4 to 12 to ask what it should cover.',
+        path: ['guide', 'sectionId'],
+      })
+    if (q.guide?.kind === 'missing' && !MISSING_SECTIONS.test(q.guide.sectionId))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Open one of Sections 2 to 12 to ask what is missing from it.',
+        path: ['guide', 'sectionId'],
+      })
     if (q.propose?.kind === 'rewrite' && !q.passage)
       ctx.addIssue({
         code: 'custom',
@@ -286,6 +336,10 @@ export type AnswerDto = {
   passage: IQuestionPassage | null
   // The text proposed for a section (AS-04), or null for a question.
   proposal: ProposalDto | null
+  // Writing guidance for a section (AS-08), or null for a question.
+  guidance: IQuestionGuidance | null
+  // What is missing from the section (AS-08 AC2): empty for anything else.
+  gaps: SectionGap[]
   askedAt: Date
   status: QuestionStatus
   statements: IAnswerStatement[]
@@ -293,8 +347,27 @@ export type AnswerDto = {
   // The cited sources, with their documents' details now (as RV-01).
   passages: SourcePassageDto[]
   observations: FieldObservationDto[]
+  // The template's parts it cites (AS-08: what a section should cover).
+  template: TemplatePartDto[]
   confidence: ConfidenceLevel | null
   error: { step: string; cause: string; at: Date } | null
+}
+
+// A section of the report template, or one of its parts, as an answer cites
+// it (AS-08): `T:9` for Section 9 as a whole, `T:9.3` for its fourth part.
+// Selecting it goes to that place in the section.
+export type TemplatePartDto = {
+  id: string
+  sectionId: string
+  // The section as the report heads it, e.g. "9. Fire Protection".
+  label: string
+  // The part's index in the section and its heading; null for the whole section.
+  subsection: number | null
+  heading: string | null
+  kind: 'section' | 'narrative' | 'fields' | 'table'
+  fields: string[]
+  // The definition as S4 gave it to the model.
+  text: string
 }
 
 // A conversation as the Ask tab's picker lists it (AS-03 AC2).
@@ -335,8 +408,27 @@ function toObservation(saved: SavedSource, captured: Map<string, Date>): FieldOb
   }
 }
 
+const TEMPLATE_KINDS = new Set(['narrative', 'fields', 'table'])
+
+// A template part as S4 saved it (rag-service `generation/guide.py`).
+function toTemplatePart(ref: string, saved: SavedSource): TemplatePartDto {
+  const subsection = typeof saved.subsection === 'number' ? saved.subsection : null
+  const kind = text(saved.kind)
+  return {
+    id: ref,
+    sectionId: text(saved.section_id) ?? ref.slice(2).split('.')[0],
+    label: text(saved.section_title) ?? `Section ${ref.slice(2).split('.')[0]}`,
+    subsection,
+    heading: text(saved.heading),
+    kind: kind && TEMPLATE_KINDS.has(kind) ? (kind as TemplatePartDto['kind']) : 'section',
+    fields: texts(saved.fields),
+    text: text(saved.text) ?? '',
+  }
+}
+
 // Sources S4 sent, as the evidence panel opens them: passages with their
-// documents' details, and observations as they were sent.
+// documents' details, observations as they were sent, and the template's parts
+// (AS-08).
 function sourceDtos(
   sources: Record<string, unknown>,
   documents: Map<string, KnowledgeDocumentDto>,
@@ -345,11 +437,14 @@ function sourceDtos(
   const entries = Object.entries(sources) as [string, SavedSource][]
   return {
     passages: entries
-      .filter(([ref]) => !ref.startsWith('O:'))
+      .filter(([ref]) => !ref.startsWith('O:') && !ref.startsWith('T:'))
       .map(([ref, saved]) => toPassage(ref, saved, documents)),
     observations: entries
       .filter(([ref]) => ref.startsWith('O:'))
       .map(([, saved]) => toObservation(saved, captured)),
+    template: entries
+      .filter(([ref]) => ref.startsWith('T:'))
+      .map(([ref, saved]) => toTemplatePart(ref, saved)),
   }
 }
 
@@ -357,7 +452,7 @@ function sourceDtos(
 async function toDtos(questions: IConversationTurn[]): Promise<AnswerDto[]> {
   const all = questions.flatMap((q) => Object.entries(q.sources ?? {})) as [string, SavedSource][]
   const documentIds = all.flatMap(([ref, s]) =>
-    ref.startsWith('O:') ? [] : [documentIdOf(ref, s)],
+    ref.startsWith('O:') || ref.startsWith('T:') ? [] : [documentIdOf(ref, s)],
   )
   const [documents, captured, proposals] = await Promise.all([
     findKnowledgeDocuments(documentIds.filter((id): id is string => !!id)),
@@ -370,6 +465,8 @@ async function toDtos(questions: IConversationTurn[]): Promise<AnswerDto[]> {
     question: q.question,
     passage: passageDto(q.passage),
     proposal: (q.proposal && proposals.get(String(q.proposal))) || null,
+    guidance: guidanceDto(q.guidance),
+    gaps: q.gaps ?? [],
     askedAt: q.askedAt,
     status: q.status,
     statements: q.statements,
@@ -522,6 +619,10 @@ function scopeDto(
     facilityType: assessment.site.facilityType,
     pastReports: scope.reports.length,
   }
+}
+
+function guidanceDto(g: IQuestionGuidance | null | undefined): IQuestionGuidance | null {
+  return g ? { kind: g.kind, sectionId: g.sectionId, label: g.label } : null
 }
 
 function passageDto(p: IQuestionPassage | null | undefined): IQuestionPassage | null {
@@ -723,17 +824,35 @@ async function saveQuestion(
 // it is kept even if the answer fails (as chat does, CB-03). Without a
 // conversation it starts one. A question about a selected passage (AS-02) is
 // sent with it, and saved with its anchor; the report itself is only read.
+// With `guide` (AS-08, "What should this section cover?") the question is the
+// gateway's own wording, and S4 is sent the section to answer from its
+// template definition and the selected standards: no observation or past
+// report is searched.
 export async function prepareQuestion(
   reference: string,
   user: SessionUser,
-  question: string,
+  typed: string | undefined,
   passage?: PassageInput,
   conversation?: string,
   propose?: ProposeInput,
+  guide?: GuideInput,
 ): Promise<PreparedQuestion> {
   const assessment = await openToAsk(reference, user, true)
   // Text for a section is the assigned engineer's to ask for (AS-04 AC5).
   const proposing = propose ? await assessmentToPropose(reference, user) : null
+  // What a section should cover (AS-08 AC1): the template's sections are S4's.
+  const covering = guide?.kind === 'cover' ? guide : null
+  const sections = covering ? await listTemplateSections() : []
+  if (covering && !sections.some((s) => s.id === covering.sectionId))
+    throw new UnknownSectionError(covering.sectionId)
+  const guidance: IQuestionGuidance | null = covering
+    ? {
+        kind: 'cover',
+        sectionId: covering.sectionId,
+        label: sectionLabel(covering.sectionId, sections),
+      }
+    : null
+  const question = guidance ? guidanceQuestion('cover', guidance.label) : (typed ?? '')
   const into = conversation ? await checkConversation(assessment, user, conversation) : null
   const refused = checkChatLimits(user.id, [question])
   if (refused) {
@@ -761,6 +880,7 @@ export async function prepareQuestion(
     question,
     passage: (asked ? asked.saved : about?.saved) ?? null,
     proposal,
+    ...(guidance && { guidance }),
     status: 'answering',
     statements: [],
     missing: [],
@@ -778,12 +898,14 @@ export async function prepareQuestion(
   if (asked && proposing && proposal)
     await startProposal(proposal, proposing, user, asked, question, kept.id, saved._id)
   // Every document S4 may cite, each once: those in scope, and those the
-  // selected passage cites. A proposal cites no past report (AS-04 AC4).
+  // selected passage cites. A proposal cites no past report (AS-04 AC4), nor
+  // does guidance on what a section covers (AS-08 AC1).
   const documents = new Map(
-    [...scope.standards, ...(asked ? [] : scope.reports), ...(about?.documents ?? [])].map((d) => [
-      d.id,
-      d,
-    ]),
+    [
+      ...scope.standards,
+      ...(asked || guidance ? [] : scope.reports),
+      ...(about?.documents ?? []),
+    ].map((d) => [d.id, d]),
   )
   const body = {
     question,
@@ -792,19 +914,86 @@ export async function prepareQuestion(
       jurisdiction,
       facility_type: facilityType,
     },
-    observations: [
-      ...scope.observations,
-      ...(about?.observations ?? []),
-      ...(asked?.observations ?? []),
-    ],
+    // What a section covers is read from the template and the standards, not
+    // from what was observed (AS-08 AC1).
+    observations: guidance
+      ? []
+      : [...scope.observations, ...(about?.observations ?? []), ...(asked?.observations ?? [])],
     standard_ids: scope.standards.map((d) => d.id),
     documents: [...documents.values()].map((d) => ({ id: d.id, name: documentName(d) })),
     // The gateway decides protection (PV-02), as for drafting.
     privacy: await privacyFor(assessment.reference),
     ...(about && { passage: about.body }),
     ...(asked && { propose: asked.propose, ...(asked.passage && { passage: asked.passage }) }),
+    ...(guidance && {
+      guide: { kind: 'cover', section_id: guidance.sectionId, section_title: guidance.label },
+    }),
   }
   return { conversation: kept, saved, assessment, userId: user.id, body, documents, proposal }
+}
+
+// What the gap list's trace records (AS-08): how many of each kind, never their words.
+function gapTrace(sectionId: string, gaps: readonly SectionGap[], at: Date) {
+  const kinds: Record<string, number> = {}
+  for (const gap of gaps) kinds[gap.kind] = (kinds[gap.kind] ?? 0) + 1
+  return {
+    story: 'AS-08',
+    guide: 'missing',
+    // Worked out by the gateway from what is saved: no retrieval and no model.
+    pipeline: ['check'],
+    provider: null,
+    model: null,
+    prompt_version: null,
+    section_id: sectionId,
+    gaps: gaps.length,
+    blocking: gaps.filter((g) => g.blocksExport).length,
+    kinds,
+    generated_at: at.toISOString(),
+  }
+}
+
+/**
+ * Answers "What is missing from this section?" (AS-08 AC2) for one of
+ * Sections 2 to 12: the gaps as the gateway works them out now
+ * (section-guidance.service), saved as the question's answer in the user's
+ * conversation, or as the first of a new one. No AI call, so it counts against
+ * no question limit. As any question: the assigned engineer or a knowledge
+ * admin (403), not on an archived assessment (409), into the user's own
+ * conversation with room (404, 409). Nothing in the report changes (AC5).
+ */
+export async function answerWhatIsMissing(
+  reference: string,
+  user: SessionUser,
+  sectionId: string,
+  conversation?: string,
+): Promise<{ conversation: ConversationDto; saved: IConversationTurn; answer: AnswerDto }> {
+  const assessment = await openToAsk(reference, user, true)
+  const into = conversation ? await checkConversation(assessment, user, conversation) : null
+  const { label, gaps } = await sectionGaps(reference, sectionId)
+  const at = new Date()
+  const saved: IConversationTurn = {
+    _id: new Types.ObjectId(),
+    question: guidanceQuestion('missing', label),
+    passage: null,
+    proposal: null,
+    guidance: { kind: 'missing', sectionId, label },
+    gaps,
+    status: 'complete',
+    statements: [],
+    missing: [],
+    sources: {},
+    confidence: null,
+    error: null,
+    provider: null,
+    model: null,
+    promptVersion: null,
+    askedAt: at,
+    answeredAt: at,
+    trace: gapTrace(sectionId, gaps, at),
+  }
+  const kept = await saveQuestion(assessment, user, into, saved)
+  const [answer] = await toDtos([saved])
+  return { conversation: kept, saved, answer }
 }
 
 // The events S4 streams for one answer (rag-service orchestrator.ask).

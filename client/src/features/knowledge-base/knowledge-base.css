@@ -335,6 +335,24 @@
   flex: 0 1 148px;
   min-width: 128px;
 }
+/* The Status filter with its help tip beside it (F-13): the select takes the label's width. */
+.kb-filter-help {
+  display: flex;
+  flex: 0 1 180px;
+  align-items: center;
+  gap: 2px;
+  min-width: 160px;
+}
+.kb-filter-help > label {
+  flex: 1;
+  min-width: 0;
+}
+/* A detail label with a help tip beside it (F-13). */
+.kb-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .kb-toolbar .kb-count {
   margin-left: auto;
   font-size: var(--text-small-size);
@@ -346,7 +364,8 @@
   color: var(--text-primary);
 }
 @media (max-width: 767px) {
-  .kb-toolbar > label {
+  .kb-toolbar > label,
+  .kb-filter-help {
     flex-basis: 100%;
   }
 }
@@ -932,6 +951,16 @@
   gap: 4px;
   min-width: 0;
 }
+/* The search field with its Words | Meaning tip beside it (F-13). */
+.kb-psearch-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.kb-psearch-row > .ds-search {
+  flex: 1;
+  min-width: 0;
+}
 .kb-psearch-hint {
   margin: 0 0 0 14px;
   font-size: var(--text-caption-size);
@@ -1267,4 +1296,20 @@
 /* The "suggested" note after an automatic tier (RT-04). */
 .kb-tier-note {
   color: var(--text-muted);
+}
+/* A heading or a table heading with its help tip beside it (F-13). */
+.kb-title-row,
+.kb-th-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* A tip inside an uppercase label or table heading must read as a normal sentence, not inherit
+   the label's capitals, spacing and no-wrap. */
+.kb-th-row .ds-help-menu,
+.kb-label-row .ds-help-menu {
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  font-weight: 400;
 }

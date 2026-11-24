@@ -233,6 +233,14 @@ export type TemplateSection = {
   title: string
   cope_dimensions: string[]
   min_observations: number
+  // Its parts in the template's order (AS-08): each heading, its kind and a
+  // part of fields' field names. Absent from an S4 older than AS-08.
+  subsections?: TemplateSubsection[]
+}
+export type TemplateSubsection = {
+  heading: string
+  kind: 'narrative' | 'fields' | 'table'
+  fields?: string[]
 }
 
 export async function listTemplateSections(): Promise<TemplateSection[]> {
@@ -510,6 +518,29 @@ export async function proposeSiteWalk(
     })),
   }
   return { proposal, usage: body.usage }
+}
+
+// One observation's suggested category and severity (CP-24), as rag-service's
+// POST /observations/rate answers (microservices/rag-service/app/api/routes.py,
+// rate_observation_route): `check.x` true means the classifier was not sure.
+export type RatedObservation = {
+  category: string
+  severity: string
+  check: { category: boolean; severity: boolean }
+  usage?: unknown
+}
+
+/**
+ * Asks rag-service to rate one observation's text with the site walk's rating
+ * step (CP-24); returns the answer unchecked. rag-service masks the text first
+ * and refuses with 502 when it can't, sending nothing. Throws RagServiceError.
+ */
+export function rateObservation(input: { text: string; privacy: Privacy }) {
+  return callRag<RatedObservation>('/observations/rate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }
 
 // What the gateway sends rag-service to read a client's documents (CP-23), in

@@ -1,14 +1,20 @@
-// An observation's note, edited in place on its page (CP-08 AC8, CP-22): the
-// text box itself, saved exactly as typed when the engineer leaves it. A
-// refused save keeps what was typed. Rendered by screens/ObservationPage.tsx.
+// An observation's note, edited in place on its page (CP-08 AC8, CP-22, CP-24): the Note card with
+// the design system's text box, saved exactly as typed when the engineer leaves it. A refused save
+// keeps what was typed. On a wide page the card grows to the Details card's bottom edge
+// (observation-page.css). Rendered by screens/ObservationPage.tsx and the site walk proposal page.
+// With the assessment's `reference` it can be dictated into (CP-27).
 import { useId, useRef, useState } from 'react'
+import { Textarea } from '../../../design-system'
+import { DictateButton } from '../dictation/DictateButton'
 import type { ObservationChange } from '../useAssessmentWorkflow'
+import '../observation-page.css'
 
 export function ObservationNote({
   note,
   canChange,
   save,
   live = false,
+  reference,
 }: {
   note: string
   canChange: boolean
@@ -17,6 +23,8 @@ export function ObservationNote({
   // local and debounced, and without this a note typed then left by browser
   // Back is lost, since an unmounted box never blurs.
   live?: boolean
+  // The assessment it belongs to; without it there is no Dictate button.
+  reference?: string
 }) {
   const id = useId()
   // What is typed; follows the saved note until the engineer edits it.
@@ -25,23 +33,32 @@ export function ObservationNote({
   // The text last sent, while its save may still be on its way: a change back
   // to the saved note must still be sent, or the pending one would win.
   const lastSent = useRef<string | null>(null)
+  // What typing does: the draft changes, and a live note is saved at once.
+  const edit = (value: string) => {
+    setDraft(value)
+    if (live) void save({ note: value })
+  }
   return (
-    <section className="ob-card ob-section">
-      <label htmlFor={id} className="ob-section-head">
-        <span>{'Note'}</span>
-      </label>
+    <section className="cpp-card" aria-label="Note">
+      <div className="cpp-card-head">
+        <h3 className="cpp-card-title">{'Note'}</h3>
+        {canChange && reference && (
+          <DictateButton
+            reference={reference}
+            field={() => document.getElementById(id) as HTMLTextAreaElement | null}
+            onChange={edit}
+          />
+        )}
+      </div>
       {canChange ? (
-        <textarea
+        <Textarea
           id={id}
-          className="ob-note"
-          rows={4}
+          aria-label="Note"
+          rows={3}
           maxLength={5000}
           placeholder="What did you see? Write as you would for the record."
           value={text}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            if (live) void save({ note: event.target.value })
-          }}
+          onChange={(event) => edit(event.target.value)}
           onBlur={async () => {
             // Still being saved: keep it on screen until that save is confirmed.
             if (draft !== null && draft === lastSent.current) return
@@ -58,7 +75,7 @@ export function ObservationNote({
           }}
         />
       ) : (
-        <p id={id} className="ob-transcript">
+        <p id={id} className="cpp-note-text">
           {text || 'No note.'}
         </p>
       )}

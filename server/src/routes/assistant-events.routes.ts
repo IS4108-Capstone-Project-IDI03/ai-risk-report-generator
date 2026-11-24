@@ -1,11 +1,13 @@
 // MarshBot's push channel (AS-06, ADR .local-docs/adr/0002): a server-sent
-// event stream that tells an open Overview its brief changed, and Generation and
-// Review that drafting moved on (GN-13), so none of them polls.
+// event stream that tells an open Overview its brief changed, Generation and
+// Review that drafting moved on (GN-13), and the Observations tab and an
+// observation's page that background work changed an observation (CP-24), so
+// none of them polls.
 // Mounted in index.ts under requireAuthNoRefresh. Listens on assistant/bus.ts.
 import { Router } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
 import { canOpenAssessment } from '../services/assessment.service'
-import { onBriefChanged, onDrafting } from '../services/assistant/bus'
+import { onBriefChanged, onDrafting, onObservations } from '../services/assistant/bus'
 
 const router = Router({ mergeParams: true })
 
@@ -41,6 +43,10 @@ router.get('/', requirePermission('assessments:view'), async (req, res) => {
   const unsubscribeDrafting = onDrafting(reference, () =>
     res.write('event: drafting\ndata: {}\n\n'),
   )
+  // And one per observation changed in the background (CP-24); the page then re-reads them.
+  const unsubscribeObservations = onObservations(reference, () =>
+    res.write(`event: observations\ndata: ${JSON.stringify({ at: Date.now() })}\n\n`),
+  )
   const ping = setInterval(() => res.write(': ping\n\n'), PING_MS)
   // c. Closed when the session expires, so a stream never outlives the 15-minute
   // sign-in; EventSource reconnects with whatever cookie the browser now holds.
@@ -50,6 +56,7 @@ router.get('/', requirePermission('assessments:view'), async (req, res) => {
   req.on('close', () => {
     unsubscribe()
     unsubscribeDrafting()
+    unsubscribeObservations()
     clearInterval(ping)
     clearTimeout(expire)
   })

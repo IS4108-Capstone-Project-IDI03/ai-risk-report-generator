@@ -42,12 +42,18 @@ export interface IRecording {
   size: number
   transcription: {
     status: TranscriptionStatus
+    // What was said, tidied by S5 (CP-27): fillers, stumbles and taken-back
+    // words deleted, nothing reworded. Everything that reads a transcript reads
+    // this. Before CP-27 it was Whisper's text as it came.
     transcript?: string
+    // Whisper's text as it came, kept as evidence of what was said (CP-27).
+    // Absent for a recording transcribed before CP-27, whose `transcript` is it.
+    spoken?: string
     // Why the latest attempt failed, shown to the engineer.
     error?: string
     attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
-    // The engineer's correction of `transcript` (CP-08). `transcript` stays as
-    // Whisper wrote it, as evidence of what was said; drafting uses this.
+    // The engineer's correction of `transcript` (CP-08). `transcript` and
+    // `spoken` stay as S5 wrote them; drafting uses this.
     correction?: IStamp & { text: string }
   }
   // Who added it to the observation after it was saved, and when (CP-08);
@@ -135,41 +141,10 @@ export interface IPhotoRedaction {
   at: Date
 }
 
-// Where reading an observation's photos stands (CP-05). Nothing reads them
-// until an engineer asks; each request starts exactly one attempt.
+// Where describing an observation's photos stands (CP-05). Since CP-24 the
+// reading job describes them without asking; each start is one attempt.
 export const INTERPRETATION_STATUSES = ['interpreting', 'interpreted', 'failed'] as const
 export type InterpretationStatus = (typeof INTERPRETATION_STATUSES)[number]
-
-// One COPE category a reading proposes (CP-21), with the items it rests on.
-export interface IProposedCategory {
-  category: CopeDimension
-  // One sentence naming the items, e.g. "Recording 1 says the valve was shut."
-  reason: string
-  evidence: {
-    // The item's label, as the reading named it (see IReadItem).
-    item: string
-    // Words the model says it copied from that item; none for a photo.
-    quote?: string
-    // Whether the quote is in that item's text, as the gateway found it; null
-    // for a photo, which has no words to check.
-    verified: boolean | null
-  }[]
-}
-
-// One thing a reading was given (CP-21), under the label the proposal cites it
-// by. It records the text as read, so a later change shows the proposal out of
-// date: a note, or a recording's or page's transcript (the engineer's
-// correction where there is one). `text` is null for a recording or page left
-// out for having no transcript, and absent for a photo.
-export const READ_ITEM_KINDS = ['note', 'recording', 'page', 'photo'] as const
-export type ReadItemKind = (typeof READ_ITEM_KINDS)[number]
-export interface IReadItem {
-  label: string
-  kind: ReadItemKind
-  // The recording, page or photo; absent for the note.
-  id?: Types.ObjectId
-  text?: string | null
-}
 
 // What wrote a reading and the tokens it took (EV-03); usage is null when the
 // provider reports none.
@@ -211,38 +186,51 @@ export interface IPhotoReading {
   provenance?: IReadingProvenance
 }
 
-// What the model proposes from an observation (CP-05, CP-21), for the
-// engineer to review, in two parts read together or one at a time: from
-// everything captured, the COPE categories it concerns (on this record), and
-// from its photos, if any, a description and hazard type (`photoReading`). It
-// is never drafting evidence: the engineer takes it into the note or the
-// categories through Edit if they agree.
+// The photos' description (CP-05, CP-21), kept in `photoReading`. Readings
+// from before CP-24 also proposed categories here (`categories`, `items`,
+// `copeDimension`); those stay stored but nothing reads them any more (CP-24).
+// A reading from before CP-21 kept the description on this record, with its
+// status, attempts and photos; it is read as the photos' part until they are
+// described again.
 export interface IInterpretation {
-  // Where the categories stand.
-  status: InterpretationStatus
   // The photos' part (CP-21); absent until photos are first described.
   photoReading?: IPhotoReading
-  // A reading from before the parts were split kept the photos' description
-  // and hazard type here, with the categories' status; read as its photos'
-  // part until either part is read again.
+  status?: InterpretationStatus
   description?: string
-  // The proposed categories, which may differ from the engineer's own (CP-21).
-  categories?: IProposedCategory[]
-  // The one category a reading proposed before CP-21; read as a list of one.
-  copeDimension?: CopeDimension
   hazardType?: string
-  // Why the latest attempt failed, as S5 put it; the DTO makes it readable.
-  error?: string
-  attempts: { startedAt: Date; finishedAt?: Date; error?: string }[]
-  // The photos the latest attempt reads, set when it starts (CP-08). Once
-  // photos are added or removed, a finished reading of a different set is out
-  // of date. Absent on readings from before photos could change, which read
-  // every photo the observation was saved with.
+  attempts?: { startedAt: Date; finishedAt?: Date; error?: string }[]
+  // The photos a pre-CP-21 reading read; absent before photos could change.
   photoIds?: Types.ObjectId[]
-  // Everything the latest attempt reads, set when it starts (CP-21). Absent on
-  // readings from before CP-21, which read only photos and the note.
-  items?: IReadItem[]
   provenance?: IReadingProvenance
+}
+
+// Where suggesting an observation's category and severity stands (CP-24):
+// reading while the job is queued, running or waiting for transcripts and the
+// photo description; done; failed once two tries failed or masking was
+// unavailable.
+export const SUGGESTION_STATUSES = ['reading', 'done', 'failed'] as const
+export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number]
+
+// The AI's suggestions on an observation (CP-24). A field's entry is present
+// while its value is an unconfirmed suggestion, with whether the classifier
+// was not sure; null once the engineer chose, changed or confirmed it (then
+// the value is theirs and is never suggested again), or while it is empty.
+export interface ISuggestion {
+  status: SuggestionStatus
+  // Why the latest run failed, shown to the engineer.
+  error?: string
+  // Rating calls made in the latest run: two failed ones make it failed.
+  attempts: number
+  category: { notSure: boolean } | null
+  severity: { notSure: boolean } | null
+  // Bumped by every trigger (save, media, a transcript, Try again). A job
+  // writes only while the stored number is still its own, so a trigger that
+  // arrives while one runs is never lost and an older run never writes last.
+  run: number
+  // false on an observation created from a site walk until the engineer first
+  // changes it: its photos are described but its values, carried from the
+  // proposal, are not rated again (AC17). Absent means true.
+  rate?: boolean
 }
 
 // How the engineer answered a checklist item on site (CP-31): as the
@@ -293,15 +281,25 @@ export interface IObservation {
   photos?: IPhoto[]
   // Absent on observations saved before CP-19.
   pages?: IPage[]
-  // Present once an engineer has asked for its photos to be read (CP-05).
+  // Present once its photos were first described (CP-05).
   interpretation?: IInterpretation
+  // Present once it was first read for suggestions (CP-24), or created from a
+  // site walk with a not-sure value.
+  suggestion?: ISuggestion
   // The standard the engineer tied the finding to, if any. The draft finds the
   // clause itself, so only the standard is recorded.
   standard?: string
-  // How serious the engineer judged it.
-  severity: Severity
-  // Where on site: one of the assessment's locations, by its _id.
-  location: Types.ObjectId
+  // How serious it is; null while empty (CP-24: the engineer may leave it
+  // for the AI to suggest).
+  severity?: Severity | null
+  // Where on site: one of the assessment's locations, by its _id. Absent only
+  // on a draft observation.
+  location?: Types.ObjectId
+  // Present only on a draft observation (CP-24): a hidden one holding the
+  // recordings made on New Observation before Save, so they can transcribe.
+  // Lists, counts, drafting and the report never read one; Save clears this,
+  // and a cleanup deletes one left over 24 hours with its files.
+  draft?: true
   // Present when it was saved from the checklist (CP-31).
   checklistItem?: IChecklistLink
   // The site walk whose proposal created it (CP-22 round 3).
@@ -344,6 +342,7 @@ const recordingSchema = new Schema<IRecording>({
   transcription: {
     status: { type: String, enum: TRANSCRIPTION_STATUSES, required: true },
     transcript: String,
+    spoken: String,
     error: String,
     attempts: [
       { _id: false, startedAt: { type: Date, required: true }, finishedAt: Date, error: String },
@@ -479,54 +478,35 @@ const photoReadingSchema = new Schema<IPhotoReading>(
   { _id: false },
 )
 
+// Categories proposed before CP-24 stay in stored documents, outside this
+// schema: updates touch only the paths they name, so nothing removes them.
 const interpretationSchema = new Schema<IInterpretation>(
   {
-    status: { type: String, enum: INTERPRETATION_STATUSES, required: true },
     photoReading: { type: photoReadingSchema },
+    status: { type: String, enum: INTERPRETATION_STATUSES },
     description: String,
-    categories: {
-      type: [
-        new Schema<IProposedCategory>(
-          {
-            category: { type: String, enum: COPE_DIMENSIONS, required: true },
-            reason: { type: String, required: true },
-            evidence: [
-              {
-                _id: false,
-                item: { type: String, required: true },
-                quote: String,
-                verified: { type: Boolean, default: null },
-              },
-            ],
-          },
-          { _id: false },
-        ),
-      ],
-      // Left out until a reading finishes, rather than defaulting to [], which
-      // would read as "proposed none".
-      default: undefined,
-    },
-    copeDimension: { type: String, enum: COPE_DIMENSIONS },
     hazardType: String,
-    error: String,
-    attempts: readingAttempts(),
+    attempts: { type: readingAttempts(), default: undefined },
     // Left out rather than defaulting to [], which would read as "no photos".
     photoIds: { type: [Schema.Types.ObjectId], default: undefined },
-    items: {
-      type: [
-        new Schema<IReadItem>(
-          {
-            label: { type: String, required: true },
-            kind: { type: String, enum: READ_ITEM_KINDS, required: true },
-            id: Schema.Types.ObjectId,
-            text: { type: String, default: undefined },
-          },
-          { _id: false },
-        ),
-      ],
-      default: undefined,
-    },
     provenance: { type: provenanceSchema },
+  },
+  { _id: false },
+)
+
+const fieldSuggestion = () => ({
+  type: new Schema({ notSure: { type: Boolean, required: true } }, { _id: false }),
+  default: null,
+})
+const suggestionSchema = new Schema<ISuggestion>(
+  {
+    status: { type: String, enum: SUGGESTION_STATUSES, required: true },
+    error: String,
+    attempts: { type: Number, default: 0 },
+    category: fieldSuggestion(),
+    severity: fieldSuggestion(),
+    run: { type: Number, default: 0 },
+    rate: Boolean,
   },
   { _id: false },
 )
@@ -574,9 +554,17 @@ const observationSchema = new Schema<IObservation>(
     photos: [photoSchema],
     pages: [pageSchema],
     interpretation: { type: interpretationSchema },
+    suggestion: { type: suggestionSchema },
     standard: { type: String, trim: true, maxlength: 100 },
-    severity: { type: String, enum: SEVERITIES, required: true },
-    location: { type: Schema.Types.ObjectId, required: true },
+    // null while empty (CP-24); the enum allows null.
+    severity: { type: String, enum: SEVERITIES, default: null },
+    location: {
+      type: Schema.Types.ObjectId,
+      required: function (this: IObservation) {
+        return !this.draft
+      },
+    },
+    draft: { type: Boolean },
     siteWalk: { type: Schema.Types.ObjectId },
     checklistItem: {
       type: new Schema<IChecklistLink>(

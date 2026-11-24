@@ -76,6 +76,7 @@ export function PdfAttach() {
       <IconButton
         icon="file-plus"
         label="Attach a PDF"
+        data-walk="chat.attach-pdf"
         disabledReason={
           full
             ? { title: 'Up to 3 PDFs per chat', text: 'Remove one, or start a new chat.' }

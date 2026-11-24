@@ -1,0 +1,75 @@
+/* Settings > Walkthroughs (F-12), built to design system v2. Three parts, 20 px apart: the switch
+   row, the two-level checklist (the design system's forms/checklist-groups.css) and the practice
+   assessment as its own bordered card. The pane stops at 880 px, so on a wide window the round
+   action at the switch row's end is never stranded far from its switch. */
+.wts {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 880px;
+  /* 12 px on top, not 24: the switch row is 44 px tall round a 20 px switch, so its own 12 px of
+     slack makes the space above the switch 24 px, the same as the space under the last card. */
+  padding: 12px 0 24px;
+}
+/* The same slack under the switch: pull the list up so it sits 24 px below it, not 32. */
+.wts > .st-switch-row {
+  margin-bottom: -8px;
+}
+/* The practice assessment: its own card, set apart from the list above it. */
+.wts-practice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.wts-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+.wts-pname {
+  display: flex;
+  /* On a phone the three buttons wrap onto their own line instead of squeezing the words. */
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.wts-ptitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
+}
+/* Direct children only: the help tip's popover holds spans of its own. */
+.wts-pname > span:not(.wts-ptitle) {
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+}
+.wts-pactions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+@media (max-width: 767px) {
+  .wts-pactions .ds-icon-button,
+  .st-switch-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .st-titlebar .ds-press,
+  .wts-practice .ds-press {
+    min-height: 44px;
+  }
+}

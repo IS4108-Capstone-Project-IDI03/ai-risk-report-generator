@@ -4,6 +4,8 @@ import { ClientModel, type IClient } from '../models/client.model'
 import { SiteModel, type ISite } from '../models/site.model'
 import { UserModel } from '../models/user.model'
 import { AssessmentNotFoundError } from './capture-session.service'
+import { NOT_PRACTICE } from './practice/filter'
+import { privacyWordLists } from './privacy-words.service'
 
 // A detail privacy-service masks wherever it appears (PV-01): one client, site,
 // address or person, under every name it goes by. Its placeholder restores to
@@ -72,13 +74,15 @@ export function chatKnownEntities(): Promise<KnownEntity[]> {
 }
 
 // Every client and site, removed ones included (CP-18): a removed site's name
-// is still a client detail, so it stays masked.
-async function readChatEntities(): Promise<KnownEntity[]> {
+// is still a client detail, so it stays masked. Practice ones are left out (F-12): they are
+// made up, and every cross-record read spreads NOT_PRACTICE.
+/** Returns every client, site, address and active user a chat message may name, read fresh (no cache). */
+export async function readChatEntities(): Promise<KnownEntity[]> {
   const [clients, typed, sites, users] = await Promise.all([
-    ClientModel.find({}, 'name formerNames').lean(),
+    ClientModel.find(NOT_PRACTICE, 'name formerNames').lean(),
     // Assessments from before CP-17 hold the client's name as typed.
-    AssessmentModel.distinct('client', { client: { $nin: [null, ''] } }),
-    SiteModel.find({}, 'name code address formerNames formerAddresses').lean(),
+    AssessmentModel.distinct('client', { client: { $nin: [null, ''] }, ...NOT_PRACTICE }),
+    SiteModel.find(NOT_PRACTICE, 'name code address formerNames formerAddresses').lean(),
     UserModel.find({ active: true }, 'name').lean(),
   ])
   return [
@@ -92,11 +96,19 @@ async function readChatEntities(): Promise<KnownEntity[]> {
 // The `privacy` field the gateway sends with each drafting request (PV-02, the
 // epic's Rule 1): rag masks client details only when it is enabled. The Python
 // services never read PII_PROTECTION themselves.
-export type Privacy = { enabled: boolean; known_entities: KnownEntity[] }
+// With protection on it also carries the admin's lists (PV-09): Always masked names join the
+// known names, and Never masked replaces privacy-service's allow-list words for the call.
+export type Privacy = { enabled: boolean; known_entities: KnownEntity[]; never_masked?: string[] }
 
 export async function privacyFor(reference: string): Promise<Privacy> {
   if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }
-  return { enabled: true, known_entities: await knownEntities(reference) }
+  return withAdminsLists(await knownEntities(reference))
+}
+
+// The protected `privacy` field: the request's known names, then the admin's lists (PV-09).
+async function withAdminsLists(known: KnownEntity[]): Promise<Privacy> {
+  const lists = await privacyWordLists()
+  return { enabled: true, known_entities: [...known, ...lists.always], never_masked: lists.never }
 }
 
 // The `privacy` field sent with each observation reading (PV-04): also whether
@@ -111,7 +123,7 @@ export async function readingPrivacyFor(reference: string): Promise<ReadingPriva
 // The `privacy` field the gateway sends with each chat message (PV-03).
 export async function chatPrivacy(): Promise<Privacy> {
   if (config.piiProtection === 'off') return { enabled: false, known_entities: [] }
-  return { enabled: true, known_entities: await chatKnownEntities() }
+  return withAdminsLists(await chatKnownEntities())
 }
 
 // The `privacy` field sent with a knowledge document's labelling and ingestion

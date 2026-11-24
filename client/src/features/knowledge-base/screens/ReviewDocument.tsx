@@ -20,6 +20,7 @@ import { ConfirmDetailsStep } from '../components/ConfirmDetailsStep'
 import { ReviewPanel } from '../components/ReviewPanel'
 import { named, outcomeMessage } from '../decisions'
 import { needsReview } from '../display'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../review-document.css'
 
 /** Returns the Review page for the document with this id. */
@@ -123,6 +124,10 @@ export function ReviewDocument({
   }
 
   const locked = !!doc && doc.unconfirmed.length > 0
+  // F-12: ready once the document, and its comparison when it shows one, have loaded; held for a
+  // document that no longer needs review, since there is nothing to walk through.
+  const shown = !doc?.match || locked || !!comparison || !!comparisonProblem
+  useWalkthroughScreen('knowledge-review', !!doc && shown, !doc || !needsReview(doc))
 
   return (
     <section className="kb-review" aria-labelledby="kb-review-title">

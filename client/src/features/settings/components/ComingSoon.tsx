@@ -1,10 +1,5 @@
-// A "Coming soon" tile that names who is building it. S-01 AC16.
-// Used by screens/ComingSoonSection and screens/QaSection.
-export function ComingSoon({ name, owner }: { name: string; owner: string }) {
-  return (
-    <div className="st-soon">
-      <strong>{name}</strong>
-      <p className="st-note">Coming soon. Being built by {owner}.</p>
-    </div>
-  )
+// The quiet line for a section another teammate is still building, naming who. S-01 AC16.
+// Used by screens/ComingSoonSection. The section's own title above it already names the section.
+export function ComingSoon({ owner }: { owner: string }) {
+  return <p className="st-note">Coming soon. Being built by {owner}.</p>
 }

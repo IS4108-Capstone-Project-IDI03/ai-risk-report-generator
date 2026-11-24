@@ -13,6 +13,8 @@ export type TableProps = {
   dense?: boolean
   emptyMessage?: string
   style?: React.CSSProperties
+  // The data-walk tags (F-12) for the headings row and the first data row.
+  walk?: { head?: string; row1?: string }
 }
 function Table({
   columns = [],
@@ -21,6 +23,7 @@ function Table({
   dense = false,
   emptyMessage = 'Nothing to show',
   style = {},
+  walk,
 }: TableProps) {
   const pad = dense ? '6px 12px' : '10px 12px'
   return (
@@ -41,7 +44,7 @@ function Table({
           fontSize: 'var(--text-body-size)',
         }}
       >
-        <thead>
+        <thead data-walk={walk?.head}>
           <tr
             className="ds-on-grey"
             style={{
@@ -87,6 +90,7 @@ function Table({
             rows.map((r, i) => (
               <tr
                 key={String(r.id || i)}
+                data-walk={i === 0 ? walk?.row1 : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 onKeyDown={(event) => {

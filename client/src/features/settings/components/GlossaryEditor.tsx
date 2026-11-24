@@ -1,12 +1,13 @@
 // "My glossary" in Settings > Note-taking (CP-35): the person's own shorthand terms, each with
 // its meaning, a Remove per row and an Add form. Called by screens/NoteTakingSection.
-// Each change saves at once with saveMine.
+// Each change saves at once with saveMine and shows a toast; Remove carries Undo.
 import { useState } from 'react'
-import { Button, Icon, Input } from '../../../design-system'
+import { Button, Icon, IconAction, Input } from '../../../design-system'
 import { saveMine, type GlossaryEntry } from '../api'
 import { glossaryProblem } from '../noteRules'
 import type { useSave } from '../useSave'
 import { SaveStatus } from './SaveStatus'
+import { SettingBlock } from './SettingBlock'
 
 // The save state and the problem live in NoteTakingSection, so the two areas can clear each
 // other's messages. onStart runs first on every action to do that.
@@ -29,18 +30,18 @@ export function GlossaryEditor({ glossary, save, problem, onProblem, onStart }: 
     const found = glossaryProblem({ term, meaning }, glossary)
     onProblem(found)
     if (found) return
-    await run(() =>
-      saveMine({ glossary: [...glossary, { term: term.trim(), meaning: meaning.trim() }] }),
+    await run(
+      () => saveMine({ glossary: [...glossary, { term: term.trim(), meaning: meaning.trim() }] }),
+      'Term added',
     )
     setTerm('')
     setMeaning('')
   }
   return (
-    <div className="st-row">
-      <div className="st-row-label">My glossary</div>
-      <p className="st-note">
-        Words you use on site, and what they mean. They are kept for your notes only.
-      </p>
+    <SettingBlock
+      title="My glossary"
+      help="Words you use on site, and what they mean. They are kept for your notes only."
+    >
       {glossary.length === 0 ? (
         <p className="st-note">No terms yet.</p>
       ) : (
@@ -50,46 +51,62 @@ export function GlossaryEditor({ glossary, save, problem, onProblem, onStart }: 
               <span>
                 <strong>{g.term}</strong> {'→'} {g.meaning}
               </span>
-              <Button
-                variant="ghost"
-                size="lg"
-                aria-label={`Remove ${g.term}`}
+              <IconAction
+                icon="trash-2"
+                label={`Remove ${g.term}`}
+                tooltip="Remove term"
+                style={{ color: 'var(--red-600)' }}
                 onClick={() => {
                   onStart()
-                  void run(() => saveMine({ glossary: glossary.filter((x) => x !== g) }))
+                  // Undo saves the list as it was, so the term comes back in its old place.
+                  void run(
+                    () => saveMine({ glossary: glossary.filter((x) => x !== g) }),
+                    'Term removed',
+                    () => void run(() => saveMine({ glossary })),
+                  )
                 }}
-              >
-                Remove
-              </Button>
+              />
             </li>
           ))}
         </ul>
       )}
       <div className="st-editor">
-        <Input
-          label="Term"
-          size="lg"
-          value={term}
-          maxLength={30}
-          onChange={(e) => setTerm(e.target.value)}
-        />
-        <Input
-          label="Meaning"
-          size="lg"
-          value={meaning}
-          maxLength={120}
-          onChange={(e) => setMeaning(e.target.value)}
-        />
-        <Button variant="secondary" size="lg" onClick={add}>
+        <div className="st-field">
+          <Input
+            label="Term"
+            value={term}
+            maxLength={30}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => setTerm(e.target.value)}
+          />
+        </div>
+        <div className="st-field st-field--wide">
+          <Input
+            label="Meaning"
+            value={meaning}
+            maxLength={120}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => setMeaning(e.target.value)}
+          />
+        </div>
+        <Button
+          variant="secondary"
+          pill
+          iconLeft="plus"
+          loading={state.status === 'saving'}
+          onClick={add}
+        >
           Add
         </Button>
-        <SaveStatus state={state} />
       </div>
+      <SaveStatus state={state} />
       {problem && (
         <p className="st-err" role="alert">
           <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}
         </p>
       )}
-    </div>
+    </SettingBlock>
   )
 }

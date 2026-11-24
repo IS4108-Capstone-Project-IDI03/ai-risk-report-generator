@@ -94,9 +94,57 @@ let listed: SavedObservation[] = []
 let saveReply: (sent: Sent) => Promise<Response>
 const saves: Sent[] = []
 const retries: string[] = []
+// The hidden draft that holds the recordings added before Save (CP-24): what the gateway holds,
+// each upload to it, and each draft thrown away.
+const DRAFT_URL = `${OBS_URL}/draft`
+const DRAFT = '/api/observations/d1'
+let draft: SavedObservation | null = null
+let draftSeq = 0
+const draftPosts: { draftId: string | null; names: string[] }[] = []
+const discards: string[] = []
+// When set, the draft upload answers only once this is called (a slow upload).
+let releaseDraftPost: (() => void) | null = null
+let holdDraftPost = false
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     if (url === CAPTURE_URL) return json(201, CAPTURE)
+    if (url === DRAFT_URL && init.method === 'POST') {
+      const form = init.body as FormData
+      const files = form.getAll('recording') as File[]
+      draftPosts.push({
+        draftId: (form.get('draftId') as string | null) ?? null,
+        names: files.map((f) => f.name),
+      })
+      draft = observation({
+        id: 'd1',
+        copeDimensions: null,
+        severity: null,
+        recordings: [
+          ...(draft?.recordings ?? []),
+          ...files.map((f) => ({ ...recording('d' + ++draftSeq), name: f.name })),
+        ],
+      })
+      const reply = json(201, { draft })
+      if (!holdDraftPost) return reply
+      return new Promise<Response>((resolve) => {
+        releaseDraftPost = () => resolve(reply as unknown as Response)
+      }).then((r) => r)
+    }
+    if (url === DRAFT && (!init.method || init.method === 'GET')) return json(200, draft)
+    if (url === DRAFT + '/draft' && init.method === 'DELETE') {
+      discards.push('d1')
+      draft = null
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    if (url.startsWith(DRAFT + '/recordings/') && init.method === 'DELETE') {
+      const id = url.split('/').at(-1)
+      draft = { ...draft!, recordings: draft!.recordings.filter((r) => r.id !== id) }
+      return json(200, draft)
+    }
+    if (url.startsWith(DRAFT + '/recordings/') && url.endsWith('/transcription/retry')) {
+      retries.push(url)
+      return Promise.resolve(new Response(null, { status: 202 }))
+    }
     if (url === SPLIT_URL) return json(200, { parts: SPLIT_PARTS })
     if (url === OBS_URL && init.method === 'POST') {
       const form = init.body as FormData
@@ -130,7 +178,10 @@ function echo(sent: Sent) {
   const saved = observation({
     note: (sent.details.note as string | undefined) ?? null,
     copeDimensions: sent.details.copeDimensions as string[] | null,
-    recordings: sent.recordings.map((file, i) => ({ ...recording('r' + i), name: file.name })),
+    // A draft becomes the observation, with the recordings it already holds.
+    recordings: sent.details.draftId
+      ? (draft?.recordings ?? [])
+      : sent.recordings.map((file, i) => ({ ...recording('r' + i), name: file.name })),
     photos: sent.photos.map((file, i) => ({
       id: 'p' + i,
       name: file.name,
@@ -141,6 +192,7 @@ function echo(sent: Sent) {
     })),
   })
   listed = [saved]
+  draft = null
   return json(201, saved)
 }
 
@@ -167,6 +219,30 @@ function allowMicrophone() {
   )
 }
 
+// jsdom has no EventSource. This one lets a test push `observations` as the gateway does
+// when a transcript finishes (no polling, CP-24).
+class FakeEventSource {
+  static CLOSED = 2
+  static open: FakeEventSource[] = []
+  readyState = 1
+  onerror: (() => void) | null = null
+  private heard: Record<string, (() => void)[]> = {}
+  constructor() {
+    FakeEventSource.open.push(this)
+  }
+  addEventListener(name: string, fn: () => void) {
+    ;(this.heard[name] ??= []).push(fn)
+  }
+  close() {
+    FakeEventSource.open = FakeEventSource.open.filter((s) => s !== this)
+  }
+  push(name: string) {
+    this.heard[name]?.forEach((fn) => fn())
+  }
+}
+const pushObservations = () =>
+  act(() => FakeEventSource.open.forEach((s) => s.push('observations')))
+
 async function openApp() {
   render(<App />)
   await signIn()
@@ -186,20 +262,27 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('butto
 // Capture starts from the Observations tab's Add manually button.
 function addManually() {
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  click('Add manually')
+  click('Add observation')
+  click(/^Add observation manually/)
 }
-// The Note, Voice and Photo modes, named with what each holds ("Voice, 2 recordings").
-const mode = (name: 'Note' | 'Voice' | 'Photo') => click(new RegExp('^' + name))
+// The Note, Voice and Photo tabs, named with what each holds ("Voice, 2").
+const mode = (name: 'Note' | 'Voice' | 'Photo') =>
+  fireEvent.click(screen.getByRole('radio', { name: new RegExp('^' + name) }))
+// The recordings listed under the Voice tab: the draft's, each a row.
+const recordingList = () => screen.getByRole('list', { name: 'Recordings' })
+const rows = () => within(recordingList()).getAllByRole('listitem')
 const write = (text: string) =>
   fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: text } })
+// Records one clip; it goes to the draft at once, so wait until its row is listed.
 async function record() {
   mode('Voice')
+  const before = draftPosts.length
   click(/^(Start recording|Record another)$/)
   fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
+  await vi.waitFor(() => expect(rows()).toHaveLength(before + 1))
 }
-// What the Voice and Photo modes hold, each listed under its mode.
-const recordingList = () => screen.getByRole('region', { name: 'Recordings' })
-const photoList = () => screen.getByRole('region', { name: 'Photos' })
+// What the Photo mode holds, listed under it.
+const photoList = () => screen.getByRole('list', { name: 'Photos' })
 const grade = (severity: string) => fireEvent.click(screen.getByRole('radio', { name: severity }))
 const save = () => click('Save observation')
 // The back button over the form, to the assessment's Observations tab.
@@ -226,6 +309,11 @@ beforeEach(() => {
   listed = []
   saves.length = 0
   retries.length = 0
+  draft = null
+  draftPosts.length = 0
+  discards.length = 0
+  holdDraftPost = false
+  releaseDraftPost = null
   saveReply = echo
   mockGateway()
 })
@@ -262,15 +350,15 @@ describe('Capturing site photographs (CP-04)', () => {
     expect(within(photoList()).getByText('riser.png')).toBeInTheDocument()
     click('Remove riser.png')
     // The switcher counts what the Photo mode holds.
-    expect(screen.getByRole('button', { name: 'Photo, 2 photos' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo, 2' })).toBeInTheDocument()
     grade('Moderate')
     save()
 
-    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].photos.map((f) => f.name)).toEqual(['image.jpg', 'image.jpg'])
     expect(saves[0].details).not.toHaveProperty('note')
-    expect(screen.queryByRole('region', { name: 'Photos' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+    // The waiting photos are gone from the form.
+    expect(screen.queryByRole('list', { name: 'Photos' })).not.toBeInTheDocument()
   })
 
   it('refuses a file that is not a JPG or PNG, saying why (AC4)', async () => {
@@ -305,7 +393,7 @@ describe('Capturing site photographs (CP-04)', () => {
 })
 
 describe('Reading an observation only when asked (CP-05, CP-21)', () => {
-  it('keeps demo photos unread until asked, then shows a labelled sample', async () => {
+  it('keeps demo photos unread, with no button to read them', async () => {
     // No gateway: capture and the Observations tab stay in the demo.
     const sent: string[] = []
     vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
@@ -329,19 +417,13 @@ describe('Reading an observation only when asked (CP-05, CP-21)', () => {
 
     // The toast's View button opens the saved observation.
     click('View')
-    // The card waits with Get AI proposal; nothing is read until it is pressed.
-    const card = screen.getByRole('region', { name: 'AI suggestions' })
-    expect(within(card).queryByText('Reading…')).not.toBeInTheDocument()
-    fireEvent.click(within(card).getByRole('button', { name: 'Get AI proposal' }))
-
-    const reading = screen.getByRole('region', { name: 'AI suggestions' })
-    expect(within(reading).getAllByText('Reading…').length).toBeGreaterThan(0)
-    expect(
-      await screen.findByText(/it was observed that/, {}, { timeout: 4000 }),
-    ).toBeInTheDocument()
+    // Nothing offers to read it: no AI card and none of the old buttons (CP-24 AC15).
+    expect(screen.queryByRole('region', { name: 'AI suggestions' })).not.toBeInTheDocument()
+    for (const name of ['Get AI proposal', 'Describe photos'])
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     // Only the attempt to start a capture session; the photos went nowhere.
     expect(sent).toEqual([CAPTURE_URL])
-  }, 10000) // Waits out the sample reading's two seconds, on top of capturing.
+  }, 10000)
 })
 
 describe('Capturing an observation (CP-02, CP-03)', () => {
@@ -354,40 +436,40 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     mode('Photo')
     addPhotos(photo())
 
-    // Each mode says what it holds; nothing is sent yet.
-    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Voice, 1 recording' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Photo, 1 photo' })).toBeInTheDocument()
+    // Each tab says what it holds; nothing is saved yet, but the recording is already in the draft.
+    expect(screen.getByRole('radio', { name: 'Voice, 1' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo, 1' })).toBeInTheDocument()
     expect(saves).toHaveLength(0)
+    expect(draftPosts).toHaveLength(1)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Protection' }))
     grade('High')
 
     save()
 
-    expect(
-      await screen.findByText('Observation saved. Transcribing 1 recording now.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves).toHaveLength(1)
-    // The note exactly as typed, filed under the tags chosen. The standard is
-    // left to drafting.
+    // The note exactly as typed, filed under the tags chosen. The draft becomes the observation,
+    // so its recording is not uploaded again. The standard is left to drafting.
     expect(saves[0].details).toEqual({
       note: text,
       copeDimensions: ['Protection'],
       severity: 'high',
       locationId: 'l1',
+      draftId: 'd1',
     })
-    expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1'])
+    expect(saves[0].recordings).toEqual([])
     expect(saves[0].photos.map((f) => f.name)).toEqual(['IMG_0460.jpg'])
     // Not marked, so it goes as it always has (CP-10).
     expect(saves[0].regions).toEqual([])
     // The form starts again empty, tags and all.
-    expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Voice' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Voice' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Protection' })).not.toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).not.toBeChecked()
 
-    // It is listed on the Observations tab, which the back button goes to.
+    // It is listed on the Observations tab, which the back button goes to; the draft is not
+    // thrown away.
     leave()
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
       'aria-selected',
@@ -395,8 +477,33 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     )
     expect(
       await screen.findByRole('button', { name: /Valve V-12 chained open/ }),
-    ).toHaveTextContent('Transcribing')
+    ).toBeInTheDocument()
+    expect(discards).toEqual([])
   }, 15_000) // Many steps through the whole screen; slow when every test file runs at once.
+
+  it('forgets a draft the gateway no longer has, says so, and saves the next time without it', async () => {
+    allowMicrophone()
+    await openCapture()
+    write('Hose reel H3 blocked by pallets.')
+    await record()
+    grade('Moderate')
+    saveReply = () => json(404, { error: 'This draft observation was not found.' })
+
+    save()
+
+    expect(
+      await screen.findByText('Recordings expired. Record them again, then save.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Recordings' })).not.toBeInTheDocument()
+    saveReply = echo
+    save()
+
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
+    expect(saves).toHaveLength(2)
+    expect(saves[0].details).toHaveProperty('draftId', 'd1')
+    expect(saves[1].details).not.toHaveProperty('draftId')
+    expect(saves[1].details.note).toBe('Hose reel H3 blocked by pallets.')
+  })
 
   it('saves the note as typed in the box', async () => {
     await openCapture()
@@ -405,13 +512,13 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     save()
 
-    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].details.note).toBe('Hose reel H3 blocked by pallets.')
     expect(saves[0].recordings).toEqual([])
-    expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue('')
+    expect(saves[0].details).not.toHaveProperty('draftId')
   })
 
-  it('removes and edits items before saving', async () => {
+  it('removes a recording from the draft and edits the note before saving', async () => {
     allowMicrophone()
     await openCapture()
     write('First draft.')
@@ -419,8 +526,10 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     await record()
     await record()
 
-    click('Remove Recording 2')
-    expect(screen.getByRole('button', { name: 'Voice, 2 recordings' })).toBeInTheDocument()
+    // The bin deletes it from the draft for good.
+    fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Remove recording' }))
+    await vi.waitFor(() => expect(rows()).toHaveLength(2))
+    expect(screen.getByRole('radio', { name: 'Voice, 2' })).toBeInTheDocument()
     mode('Note')
     write('Second draft.')
     grade('Low')
@@ -428,10 +537,10 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     await screen.findByText(/Observation saved/)
     expect(saves[0].details.note).toBe('Second draft.')
-    expect(saves[0].recordings.map((f) => f.name)).toEqual(['Recording 1', 'Recording 3'])
+    expect(listed[0].recordings.map((r) => r.name)).toEqual(['Recording 1', 'Recording 3'])
   }, 10000)
 
-  it('sends an uploaded audio file with its own name, and offers no standard to pick', async () => {
+  it('sends an uploaded audio file to the draft with its own name, and offers no standard to pick', async () => {
     allowMicrophone()
     await openCapture()
     mode('Voice')
@@ -439,48 +548,71 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     expect(screen.queryByLabelText(/Standard reference/)).not.toBeInTheDocument()
     const file = new File(['audio'], 'bay3.m4a', { type: 'audio/x-m4a' })
     fireEvent.change(screen.getByLabelText('Upload audio files'), { target: { files: [file] } })
-    expect(within(recordingList()).getByText('bay3.m4a')).toBeInTheDocument()
+    await vi.waitFor(() => expect(rows()).toHaveLength(1))
+    expect(draftPosts).toEqual([{ draftId: null, names: ['bay3.m4a'] }])
     grade('High')
 
     save()
 
     await screen.findByText(/Observation saved/)
-    expect(saves[0].recordings[0].name).toBe('bay3.m4a')
+    expect(saves[0].recordings).toEqual([])
     expect(saves[0].details).not.toHaveProperty('standard')
   })
 
-  it('saves an observation left uncategorised and says drafting leaves it out', async () => {
-    allowMicrophone()
-    await openCapture()
-    // No category is ticked until the engineer ticks one.
-    expect(
-      screen.getByText(
-        'None chosen: report drafting leaves this observation out until it is categorised.',
-      ),
-    ).toBeInTheDocument()
-    await record()
-    grade('Low')
-
-    save()
-
-    await screen.findByText(/Observation saved/)
-    expect(saves[0].details.copeDimensions).toBeNull()
-  })
-
-  it('asks for a severity, never assuming one', async () => {
+  it('saves with only a location: no category and no severity (AC4)', async () => {
     await openCapture()
     write('Exit sign E4 unlit.')
-    // No severity is chosen until the engineer picks one.
-    expect(screen.getAllByRole('radio').filter((r) => (r as HTMLInputElement).checked)).toEqual([])
 
     save()
 
-    expect(screen.getByText('Choose a severity first.')).toBeInTheDocument()
-    expect(saves).toHaveLength(0)
+    await screen.findByText('Observation saved')
+    expect(saves[0].details).toEqual({
+      note: 'Exit sign E4 unlit.',
+      copeDimensions: null,
+      severity: null,
+      locationId: 'l1',
+    })
+  })
+
+  it('leaves severity empty, and takes a chosen one off by pressing it again', async () => {
+    await openCapture()
+    const group = screen.getByRole('radiogroup', { name: 'Severity' })
+    // Nothing is chosen, and nothing says it is required.
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .filter((r) => r.getAttribute('aria-checked') === 'true'),
+    ).toEqual([])
+    expect(screen.queryByText('Choose a severity first.')).not.toBeInTheDocument()
     grade('Critical')
+    expect(screen.getByRole('radio', { name: 'Critical' })).toBeChecked()
+    grade('Critical')
+    expect(screen.getByRole('radio', { name: 'Critical' })).not.toBeChecked()
+    write('Exit sign E4 unlit.')
+
     save()
-    await vi.waitFor(() => expect(saves).toHaveLength(1))
-    expect(saves[0].details.severity).toBe('critical')
+
+    await screen.findByText('Observation saved')
+    expect(saves[0].details.severity).toBeNull()
+  })
+
+  it('does not save without a location: Location turns red, and a second Save shakes it (AC4)', async () => {
+    await openApp()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    addManually()
+    await screen.findByRole('img', { name: 'live' })
+    write('Exit sign E4 unlit.')
+
+    save()
+
+    // The one line under the field, and no error box.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a location')
+    expect(saves).toHaveLength(0)
+    const field = document.querySelector('.cap-loc-field')!
+    expect(field).not.toHaveClass('ds-shake')
+    save()
+    expect(field).toHaveClass('ds-shake')
+    expect(saves).toHaveLength(0)
   })
 
   it('keeps everything when the save fails, then saves it on retry', async () => {
@@ -496,8 +628,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Observation not saved' + 'The gateway could not be reached.',
     )
-    expect(within(recordingList()).getByText('Recording 1')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
+    expect(rows()).toHaveLength(1)
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     saveReply = echo
     save()
@@ -530,7 +661,9 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
     save()
 
-    expect(screen.getByText('Add a note, recording, photograph or page first.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Add a note, recording, photograph or page first.'),
+    ).toBeInTheDocument()
     expect(saves).toHaveLength(0)
   })
 
@@ -590,7 +723,7 @@ describe('Leaving capture', () => {
     expect(dialog).toHaveTextContent('Not saved: a note and 1 photo.')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Stay' }))
     expect(screen.queryByRole('dialog', { name: 'Leave without saving?' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Note, written' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo, 1' })).toBeInTheDocument()
 
     leave()
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
@@ -604,11 +737,27 @@ describe('Leaving capture', () => {
     // Capture opens again empty, in the location the engineer is still in.
     addManually()
     await screen.findByRole('img', { name: 'live' })
-    expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Note' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Photo' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /^Location: Warehouse › Ground › Bay 3/ }),
     ).toBeInTheDocument()
+  })
+
+  it('asks the browser before the tab is closed, only while something is unsaved', async () => {
+    await openCapture()
+    const closeTab = () => {
+      const unload = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(unload)
+      return unload.defaultPrevented
+    }
+    expect(closeTab()).toBe(false)
+
+    write('Exit sign E4 unlit.')
+    expect(closeTab()).toBe(true)
+
+    write('')
+    expect(closeTab()).toBe(false)
   })
 
   it('returns to where the engineer saved, marking what was saved New (CP-16)', async () => {
@@ -670,8 +819,8 @@ describe('Leaving capture', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
     addManually()
 
-    expect(await screen.findByRole('button', { name: 'Voice, 1 recording' })).toBeInTheDocument()
-    expect(within(recordingList()).getByText('Recording 1')).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: 'Voice, 1' })).toBeInTheDocument()
+    await vi.waitFor(() => expect(rows()).toHaveLength(1))
     expect(await screen.findByRole('button', { name: 'Record another' })).toBeInTheDocument()
   })
 
@@ -684,6 +833,111 @@ describe('Leaving capture', () => {
     addManually()
 
     expect(await screen.findByRole('textbox', { name: 'Note' })).toHaveValue('')
+  })
+})
+
+describe('Recordings are transcribed before Save (CP-24 AC1-3)', () => {
+  it('sends a recording to the draft at once, then shows its words when the gateway pushes', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource)
+    allowMicrophone()
+    await openCapture()
+
+    await record()
+
+    // The first one makes the draft; its row says it is being transcribed.
+    expect(draftPosts).toEqual([{ draftId: null, names: ['Recording 1'] }])
+    expect(within(rows()[0]).getByText('Transcribing')).toBeInTheDocument()
+    expect(saves).toHaveLength(0)
+    // The transcript arrives: the gateway pushes, and the draft is read again (no polling).
+    draft = {
+      ...draft!,
+      recordings: [
+        recording('d1', {
+          status: 'transcribed',
+          transcript: 'The fire pump room is on the ground floor of the cold store block.',
+        }),
+      ],
+    }
+    await pushObservations()
+    expect(await screen.findByText('“The fire pump room is on…”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show transcript' }))
+    expect(
+      screen.getByText('The fire pump room is on the ground floor of the cold store block.'),
+    ).toBeInTheDocument()
+  })
+
+  it('adds later recordings to the same draft', async () => {
+    allowMicrophone()
+    await openCapture()
+
+    await record()
+    await record()
+
+    expect(draftPosts.map((p) => p.draftId)).toEqual([null, 'd1'])
+    expect(rows()).toHaveLength(2)
+  })
+
+  it('tries a failed recording again through the draft', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource)
+    allowMicrophone()
+    await openCapture()
+    await record()
+    const id = draft!.recordings[0].id
+    draft = { ...draft!, recordings: [recording(id, { status: 'failed', error: 'Timed out.' })] }
+    await pushObservations()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try transcribing again' }))
+
+    await vi.waitFor(() =>
+      expect(retries).toEqual([`/api/observations/d1/recordings/${id}/transcription/retry`]),
+    )
+  })
+
+  it('throws the draft away when Leave is chosen, and keeps nothing', async () => {
+    allowMicrophone()
+    await openCapture()
+    await record()
+
+    click('Cancel')
+    expect(screen.getByRole('dialog', { name: 'Leave without saving?' })).toHaveTextContent(
+      'Not saved: 1 recording.',
+    )
+    expect(discards).toEqual([])
+    click('Leave')
+
+    await vi.waitFor(() => expect(discards).toEqual(['d1']))
+    expect(saves).toHaveLength(0)
+  })
+
+  it('throws away a draft whose first upload answers after the engineer has left', async () => {
+    allowMicrophone()
+    await openCapture()
+    mode('Voice')
+    holdDraftPost = true
+    click(/^(Start recording|Record another)$/)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop recording' }))
+    await vi.waitFor(() => expect(releaseDraftPost).not.toBeNull())
+
+    // The browser's Back leaves without the Leave dialog, while the first recording is still
+    // uploading: there is no draft id yet.
+    act(() => {
+      window.history.pushState({}, '', `/assessment?ref=${REF}&tab=overview`)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+    releaseDraftPost!()
+
+    await vi.waitFor(() => expect(discards).toEqual(['d1']))
+  })
+
+  it('throws the draft away when another tab is opened', async () => {
+    allowMicrophone()
+    await openCapture()
+    await record()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Generation/ }))
+    click('Leave')
+
+    await vi.waitFor(() => expect(discards).toEqual(['d1']))
   })
 })
 
@@ -706,7 +960,7 @@ describe('Capture layout', () => {
 
       const panel = tagsCard()
       expect(within(panel).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
-      expect(within(panel).getByRole('group', { name: /^Severity/ })).toBeInTheDocument()
+      expect(within(panel).getByRole('radiogroup', { name: 'Severity' })).toBeInTheDocument()
       expect(within(panel).queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
       // The media panel sits beside it, and the back button is above both.
       expect(
@@ -740,7 +994,7 @@ describe('Capture layout', () => {
     await openCapture()
 
     // Stacked: the media panel under the details, and Save pinned under both.
-    expect(within(tagsCard()).getByRole('group', { name: /^Severity/ })).toBeInTheDocument()
+    expect(within(tagsCard()).getByRole('radiogroup', { name: 'Severity' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
@@ -842,12 +1096,16 @@ describe('Observations tab (CP-03)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
     expect(screen.getByText('Whisper timed out.')).toBeInTheDocument()
-    click('Retry')
+    click('Try transcribing again')
 
     await vi.waitFor(() =>
       expect(retries).toEqual(['/api/observations/o1/recordings/r9/transcription/retry']),
     )
-    expect(await screen.findByText('Transcribing the recording…')).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(
+        within(screen.getByRole('listitem', { name: 'Recording 1' })).getByText('Transcribing'),
+      ).toBeInTheDocument(),
+    )
     expect(screen.queryByText(/Unexpected end of JSON/)).not.toBeInTheDocument()
   })
 
@@ -867,9 +1125,17 @@ describe('Observations tab (CP-03)', () => {
     expect(row).toHaveTextContent('High')
     fireEvent.click(row)
 
-    const clip = screen.getByRole('region', { name: 'Recording 1' })
-    expect(within(clip).getByText('Racking sits under two heads.')).toBeInTheDocument()
-    expect(within(clip).getByLabelText('Play Recording 1')).toHaveAttribute(
+    // The transcript stays folded behind the chevron until it is opened (CP-24).
+    const clip = screen.getByRole('listitem', { name: 'Recording 1' })
+    expect(
+      within(clip).queryByText('Racking sits under two heads.', { selector: 'p.sw-transcript' }),
+    ).toBeNull()
+    fireEvent.click(within(clip).getByRole('button', { name: 'Show transcript' }))
+    expect(
+      within(clip).getByText('Racking sits under two heads.', { selector: 'p.sw-transcript' }),
+    ).toBeInTheDocument()
+    expect(within(clip).getByRole('button', { name: 'Play recording' })).toBeInTheDocument()
+    expect(clip.querySelector('audio')).toHaveAttribute(
       'src',
       '/api/observations/o1/recordings/r1/audio',
     )
@@ -879,7 +1145,8 @@ describe('Observations tab (CP-03)', () => {
     listed = [observation({ recordings: [recording('r1')] })]
     await openObservations()
 
-    expect(await screen.findByText('Transcribing')).toBeInTheDocument()
+    // The status is one mark with its words as its name (CP-24).
+    expect(await screen.findByRole('img', { name: 'Transcribing' })).toBeInTheDocument()
   })
 })
 
@@ -1002,7 +1269,7 @@ describe('Marking the area of a photo as it is captured (CP-10)', () => {
     // Nothing is sent until the observation is saved.
     expect(saves).toHaveLength(0)
     // The waiting photo shows its mark.
-    const photos = screen.getByRole('region', { name: 'Photos' })
+    const photos = screen.getByRole('list', { name: 'Photos' })
     expect(within(photos).getAllByTestId('photo-mark')).toHaveLength(1)
 
     grade('Low')
@@ -1048,7 +1315,7 @@ describe('Splitting the note on the form (CP-35)', () => {
     await confirm()
     expect(screen.getByText('1 part confirmed (1 fact)')).toBeInTheDocument()
     save()
-    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].details.parts).toEqual(SPLIT_PARTS)
     expect(screen.queryByText(/part confirmed/)).toBeNull()
   })
@@ -1058,7 +1325,7 @@ describe('Splitting the note on the form (CP-35)', () => {
     write('Hose reel blocked.')
     grade('High')
     save()
-    await screen.findByText('Observation saved.')
+    await screen.findByText('Observation saved')
     expect(saves[0].details).not.toHaveProperty('parts')
   })
 
@@ -1070,7 +1337,7 @@ describe('Splitting the note on the form (CP-35)', () => {
     write('v12 chained and tagged')
     expect(await screen.findByText('The note changed, so split it again.')).toBeInTheDocument()
     save()
-    await screen.findByText('Observation saved.')
+    await screen.findByText('Observation saved')
     expect(saves[0].details).not.toHaveProperty('parts')
   })
 })

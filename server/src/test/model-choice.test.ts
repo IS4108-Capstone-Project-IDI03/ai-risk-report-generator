@@ -185,7 +185,7 @@ beforeEach(() => {
     if (path === '/summary/draft') return json(REPLY)
     if (path === '/sections') return json({ sections: [] })
     if (path === '/chat-photo/describe') return json({ description: 'A valve.', usage: [] })
-    if (path === '/interpret') return json({ categories: [], description: 'A valve.' })
+    if (path === '/interpret') return json({ description: 'A valve.' })
     return json({
       transcript: 'Note.',
       uncertain: [],
@@ -249,7 +249,6 @@ describe('photo reading and handwriting use the saved model (S-01 AC5, AC6)', ()
       photos: [],
       texts: [],
       location: null,
-      parts: ['description'],
       privacy: { enabled: false } as never,
     })
     await transcribeHandwriting('k.jpg')

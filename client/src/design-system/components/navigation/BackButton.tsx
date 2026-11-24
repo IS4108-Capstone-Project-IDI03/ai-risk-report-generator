@@ -7,12 +7,20 @@ export type BackButtonProps = {
   // Names the place it goes to, e.g. "Back to Assessments".
   label: string
   onClick: () => void
+  // The button's data-walk tag (F-12), so a walkthrough can press or point at it.
+  walk?: string
 }
 
 /** Returns the round icon Back button (36px, 40px on phones, 44px hit area). */
-export function BackButton({ label, onClick }: BackButtonProps) {
+export function BackButton({ label, onClick, walk }: BackButtonProps) {
   return (
-    <button type="button" className="ds-backbtn" aria-label={label} onClick={onClick}>
+    <button
+      type="button"
+      className="ds-backbtn"
+      aria-label={label}
+      data-walk={walk}
+      onClick={onClick}
+    >
       <span className="ds-backbtn-disc">
         <Icon name="chevron-left" size={20} />
       </span>

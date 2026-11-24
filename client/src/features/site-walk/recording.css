@@ -1,8 +1,12 @@
 /* The Recording screen and camera of a site walk (CP-22). Shared pieces are in
    site-walk.css. One centred column on every width: the phone layout is the layout. */
 
-.sw-bar > .back-button {
+.sw-bar > .back-button,
+.sw-bar-start {
   justify-self: start;
+}
+.sw-bar-end {
+  justify-self: end;
 }
 
 .sw-recording-body {
@@ -103,7 +107,8 @@
 /* ---- Controls: a large main button between two smaller ones ---- */
 .sw-controls {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* minmax(0, ...) keeps a long side label ("Upload recording") from widening its column. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: start;
   gap: 12px;
   width: 100%;
@@ -119,6 +124,8 @@
   background: none;
   color: var(--text-body);
   font: 500 13px/1.2 var(--sw-font);
+  /* Each label on one line: on a 375 px phone "Upload recording" wrapped onto two. */
+  white-space: nowrap;
   cursor: pointer;
 }
 .sw-control-icon {
@@ -179,6 +186,12 @@
   margin: 0 auto;
   padding: 12px 16px max(16px, env(safe-area-inset-bottom));
 }
+/* The reason box wraps a greyed-out Finish walk in an inline box; without this the button
+   shrinks to its words on a phone instead of filling the bar (CP-24). */
+.sw-finish .ds-reason-wrap {
+  display: flex;
+  width: 100%;
+}
 .sw-finish .sw-note {
   margin: 8px 0 0;
   text-align: center;
@@ -194,6 +207,12 @@
   gap: 12px;
   padding: 24px 16px;
   text-align: center;
+}
+.sw-finished-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 .sw-finished h1 {
   margin: 0;

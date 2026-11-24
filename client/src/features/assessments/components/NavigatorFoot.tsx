@@ -11,17 +11,20 @@ function NavFootRow({
   label,
   onClick,
   primary,
+  walk,
 }: {
   icon: string
   label: string
   onClick: () => void
   primary?: boolean
+  walk?: string
 }) {
   return (
     <button
       type="button"
       className="ob-foot-row"
       data-primary={primary || undefined}
+      data-walk={walk}
       onClick={onClick}
     >
       <Icon name={icon} size={16} />
@@ -35,6 +38,7 @@ function NavFootRow({
 // no recordings row, as its walk list already holds the walk's recordings.
 export function NavFoot({
   onAddLocation,
+  addLocationWalk,
   onPhotos,
   onScans,
   onRecordings,
@@ -42,6 +46,8 @@ export function NavFoot({
   onDeleted,
 }: {
   onAddLocation?: () => void
+  // The data-walk tag of Add location, for a walkthrough that points at it alone (F-12).
+  addLocationWalk?: string
   onPhotos: () => void
   onScans: () => void
   onRecordings?: () => void
@@ -51,7 +57,13 @@ export function NavFoot({
   return (
     <div className="ob-nav-foot">
       {!!onAddLocation && (
-        <NavFootRow primary icon="plus" label="Add location" onClick={onAddLocation} />
+        <NavFootRow
+          primary
+          icon="plus"
+          label="Add location"
+          onClick={onAddLocation}
+          walk={addLocationWalk}
+        />
       )}
       {/* Every photo and every handwritten page (CP-04, CP-19). */}
       <NavFootRow icon="image" label="All photos" onClick={onPhotos} />
@@ -71,6 +83,7 @@ export function NavigatorFoot({ v }: { v: AssessmentWorkflow }) {
   return (
     <NavFoot
       onAddLocation={v.obsAddLocation ?? undefined}
+      addLocationWalk="observations.add-location"
       onPhotos={v.goPhotos}
       onScans={v.goScans}
       onRecordings={v.goRecordings}

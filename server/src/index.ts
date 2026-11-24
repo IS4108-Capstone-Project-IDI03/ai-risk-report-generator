@@ -17,12 +17,15 @@ import observationRoutes from './routes/observation.routes'
 import siteWalkRoutes from './routes/site-walk.routes'
 import commentRoutes from './routes/comment.routes'
 import askRoutes from './routes/ask.routes'
+import dictationRoutes from './routes/dictation.routes'
 import proposalRoutes from './routes/proposal.routes'
+import weatherRoutes from './routes/weather.routes'
 import clientIntakeRoutes from './routes/client-intake.routes'
 import clientDocumentRoutes from './routes/client-document.routes'
 import assistantRoutes from './routes/assistant.routes'
 import assistantEventRoutes from './routes/assistant-events.routes'
 import generationRoutes from './routes/generation.routes'
+import { practiceGate, walkthroughUsage } from './middleware/practice.middleware'
 import { assistantRecheck } from './middleware/assistant-recheck.middleware'
 import { scheduleDailyAssessmentChecks } from './services/assistant/check-queue.service'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
@@ -30,12 +33,15 @@ import { startWorkers } from './services/job-queue.service'
 import { resumeInterruptedSiteWalks } from './services/site-walk.service'
 import { resumeDraftingRuns } from './services/generation/drafting-run.service'
 import {
-  failInterruptedInterpretations,
   resumeInterruptedTranscriptions,
+  scheduleDraftCleanup,
 } from './services/observation.service'
+import { resumeReadings } from './services/observation-reading.service'
+import { seedPrivacyWords } from './services/privacy-words.service'
 import usageRoutes from './routes/usage.routes'
 import settingsRoutes from './routes/settings.routes'
 import qaRoutes from './routes/qa.routes'
+import walkthroughRoutes from './routes/walkthrough.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
@@ -67,12 +73,16 @@ app.use(express.json())
 app.use(cookieParser())
 // MarshBot (AS-06): any successful change to an assessment queues a re-check of its brief.
 app.use(assistantRecheck)
+// F-12: AI calls made for a walkthrough are costed as `walkthrough`, not to an assessment.
+app.use(walkthroughUsage)
 
 // Public: health checks and sign-in itself.
 app.use('/api/health', healthRoutes)
 app.use('/api/auth', authRoutes)
 // Everything else needs a session (401 without one, F-04); each route then
 // checks its own permission from the role matrix (403, F-05).
+// F-12: a practice assessment is its owner's alone; 404 to anyone else, on every route below.
+app.use('/api/assessments/:reference', requireAuthNoRefresh, practiceGate)
 // Before the general assessments router, which would otherwise answer first.
 app.use('/api/assessments/:reference/site-walks', requireAuth, siteWalkRoutes)
 // Comment threads on the report (RV-03).
@@ -95,7 +105,12 @@ app.use(
   generationRoutes,
 )
 app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
+// Dictating into an assessment's text fields (CP-27).
+app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
+// The site's weather (CP-62). An open panel refreshes it every 10 minutes, so reading it doesn't
+// refresh the session (F-07), as for MarshBot's brief.
+app.use('/api/assessments/:reference/weather', requireAuthNoRefresh, weatherRoutes)
 app.use('/api/assessments', requireAuth, assessmentRoutes)
 app.use('/api/clients', requireAuth, clientRoutes)
 app.use('/api/sites', requireAuth, siteRoutes)
@@ -110,6 +125,8 @@ app.use('/api/users', requireAuth, userRoutes)
 app.use('/api/usage', requireAuth, usageRoutes)
 app.use('/api/settings', requireAuth, settingsRoutes)
 app.use('/api/qa', requireAuth, qaRoutes)
+// Walkthroughs (F-12): the practice assessment and the quick check before a try-it.
+app.use('/api/walkthroughs', requireAuth, walkthroughRoutes)
 // The count poller runs on a timer, so it authenticates WITHOUT refreshing the
 // session — polling must not keep an idle tab logged in (F-07). Mounted before
 // the general notifications router so this more specific path matches first.
@@ -136,7 +153,9 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 async function start() {
   await connectDb()
-  await failInterruptedInterpretations()
+  // CP-24: before the workers, so a description a worker has just started is
+  // never marked interrupted; it queues a fresh run of each reading cut short.
+  await resumeReadings()
   // GN-13: before the workers, so recovery never resets a job a worker has
   // just picked up (its "done" write would then match nothing).
   await resumeDraftingRuns()
@@ -147,6 +166,13 @@ async function start() {
   )
   scheduleDailyAssessmentChecks().catch((error: unknown) =>
     console.error('Scheduling the daily assessment checks failed:', error),
+  )
+  scheduleDraftCleanup().catch((error: unknown) =>
+    console.error('Scheduling the draft observation cleanup failed:', error),
+  )
+  // PV-09: not awaited, as privacy-service may still be starting; the lists retry when read.
+  seedPrivacyWords().catch((error: unknown) =>
+    console.error('Seeding the privacy word lists failed; retried when they are read:', error),
   )
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()

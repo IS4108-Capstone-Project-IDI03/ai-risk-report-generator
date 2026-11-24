@@ -10,6 +10,12 @@ import {
   savePersonal,
   saveSourcePriority,
 } from '../services/settings.service'
+import {
+  addPrivacyWord,
+  maskedInReports,
+  privacyWordsView,
+  removePrivacyWord,
+} from '../services/privacy-words.service'
 
 const router = Router()
 
@@ -60,6 +66,39 @@ router.put('/source-priority', requirePermission('settings:manage'), async (req,
   try {
     await saveSourcePriority(res.locals.user!, req.body?.order)
     res.json(await getSettings(res.locals.user!))
+  } catch (error) {
+    if (!answer(error, res)) throw error
+  }
+})
+
+// PV-09: the knowledge admin's Always masked and Never masked lists. Admins only, even to read:
+// Always masked names are client data (AC6).
+router.get('/privacy-words', requirePermission('settings:manage'), async (_req, res) => {
+  res.json(await privacyWordsView())
+})
+
+// AC10: each word past reports had masked, to spot one masked by mistake.
+router.get(
+  '/privacy-words/masked-in-reports',
+  requirePermission('settings:manage'),
+  async (_req, res) => {
+    res.json(await maskedInReports())
+  },
+)
+
+router.delete('/privacy-words/:id', requirePermission('settings:manage'), async (req, res) => {
+  try {
+    await removePrivacyWord(res.locals.user!, req.params.id)
+    res.json({})
+  } catch (error) {
+    if (!answer(error, res)) throw error
+  }
+})
+
+router.post('/privacy-words', requirePermission('settings:manage'), async (req, res) => {
+  try {
+    await addPrivacyWord(res.locals.user!, req.body ?? {})
+    res.status(201).json({})
   } catch (error) {
     if (!answer(error, res)) throw error
   }

@@ -2,6 +2,14 @@ import { Badge, Button, Icon, IconRegistry, ProgressBar } from '../../../design-
 import type { FindingCounts, ReviewSection, Summary } from '../api'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
+// F-12 walkthrough tags for the rows the Review walkthroughs open or point at (Section 3 has its own).
+const ROW_WALK: Record<string, string> = {
+  '4': 'review.rail.section-4',
+  '5': 'review.rail.section-5',
+  '7': 'review.rail.section-7',
+  '9': 'review.rail.section-9',
+}
+
 // The review summary (RV-02 AC9): the saved drafts' findings across the
 // report by decision, as the gateway counted them from the saved decisions.
 function ReviewSummary({ summary }: { summary: FindingCounts }) {
@@ -135,6 +143,7 @@ export function ReviewSectionRail({
             iconLeft={IconRegistry.object.report}
             fullWidth
             disabled={editPending}
+            data-walk="review.edit-document"
             onClick={onEditDocument}
           >
             {readOnly ? 'Open document' : 'Edit document'}
@@ -201,6 +210,7 @@ export function ReviewSectionRail({
             type="button"
             className="rv-rail-row"
             aria-current={selected === '3' ? 'true' : undefined}
+            data-walk="review.rail.section-3"
             onClick={() => onSelect('3')}
           >
             <span className="rv-rail-number">3</span>
@@ -228,6 +238,7 @@ export function ReviewSectionRail({
                 type="button"
                 className="rv-rail-row"
                 aria-current={s.id === selected ? 'true' : undefined}
+                data-walk={ROW_WALK[s.id]}
                 onClick={() => onSelect(s.id)}
               >
                 <span className="rv-rail-number">{s.id}</span>

@@ -200,7 +200,7 @@ export function AddMediaDialog({ v, dialog }: Props) {
             aria-label="Handwritten pages"
             style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
           >
-            <p style={heading}>{'Handwritten pages'}</p>
+            <p style={heading}>{'Handwritten Pages'}</p>
             <PhotoPickers
               onChange={addPages}
               busy={busy}

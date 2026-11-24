@@ -5,20 +5,82 @@ Per-service internals: ingestion pipeline stages, RAG orchestrator flow, speech/
 1. The client saves an observation with its recordings to the gateway, which
    stores each recording in S3 and saves it as `transcribing` (see
    [database](database.md#observations)).
-2. The gateway posts `{ "s3_key": ... }` to S5's `POST /transcribe` (via
-   `SPEECH_OCR_SERVICE_URL`) without making the client wait.
+2. The gateway posts `{ "s3_key": ..., "privacy": ... }` to S5's `POST /transcribe` (via
+   `SPEECH_OCR_SERVICE_URL`) without making the client wait. `privacy` is the
+   assessment's (`privacyFor`), for the tidy step below.
 3. S5 reads the audio from S3 with boto3 and sends it to the OpenAI Whisper API
    (`WHISPER_MODEL`, default `whisper-1`; needs `OPENAI_API_KEY`). The file name
-   keeps the key's extension, which Whisper uses to pick the decoder. S5 returns
-   `{ "transcript": ... }`, or 502 with `detail` explaining the failure. It
-   writes nothing to MongoDB.
-4. The gateway stores the transcript or the failure reason on that recording.
-   The client re-reads the list every 3 seconds while a recording is
-   transcribing.
+   keeps the key's extension, which Whisper uses to pick the decoder. S5 tidies
+   the text (see "Tidying a transcript" below) and returns
+   `{ "transcript": <tidy>, "spoken": <Whisper's own>, "segments", "usage" }`, or
+   502 with `detail` explaining the failure. It writes nothing to MongoDB.
+4. The gateway stores the tidy text as `transcript` and Whisper's as `spoken`, or
+   the failure reason, on that recording. The client re-reads the list every 3
+   seconds while a recording is transcribing.
 
-Transcription runs inside the gateway process (no queue or worker). If the
+Transcription runs on the gateway's `transcriptionQueue`
+(`background-queues.service.ts`), which retries a busy or unreachable S5. If the
 gateway restarts mid-attempt, startup marks that attempt failed with a reason,
 so the engineer can retry it instead of waiting forever.
+
+### Tidying a transcript (S5, CP-27)
+
+Every transcript S5 returns, from `/transcribe` and `/transcribe-clip`, is tidied
+in `_whisper()` (`app/processors/stt.py`), so recordings, walk recordings,
+spoken chat questions and dictation all go through it. Tidying only ever
+**deletes** words; it never adds, changes or moves one. Transcripts are English
+(`language="en"` is pinned).
+
+1. **Prompt.** Whisper copies its prompt's style, so both prompts
+   (`RECORDING_PROMPT`, `CLIP_PROMPT`) are fluent sentences with no "um" or "uh",
+   holding the fire-protection terms it otherwise mishears. They are S5's own
+   fixed text: no client words.
+2. **Rules** (`app/processors/tidy.py` `rules`, no model): the fixed `FILLERS`
+   list (um, uh, er, erm, hmm…), a word or phrase of up to 3 words said twice in
+   a row ("the the"), and stutters ("s- sprinkler", "s-s-sprinkler"). Kept as
+   spoken: repeated numbers ("room ten ten"), grammatical doubles ("that that",
+   "had had", "is is"), hyphenated words ("re-reading") and words that can carry
+   meaning ("no", "well", "like", "you know", "I mean"). A word joins a list
+   only with a test beside it (`tests/test_tidy.py`). Segment texts get the rules
+   only; their timings are unchanged.
+3. **Model** (`tidy.repair`), for what rules can't judge: the abandoned half of a
+   self-correction ("level 3, sorry, level 4" becomes "level 4"), false starts
+   and leftover fillers (Singlish particles such as "lah" are left to it, as
+   "meh" can make a question). Provider `TIDY_PROVIDER` / `TIDY_MODEL`, falling
+   back to `VISION_PROVIDER` / `VISION_MODEL`; only Gemini is implemented. Its
+   answer is used only as a choice of which spoken words to drop: the words kept
+   are the speaker's own, punctuation included. The answer is **not used**, and
+   the rules' text stands, when it:
+   - adds, changes or moves a word;
+   - deletes more than a quarter of the words (4 in a short clip);
+   - drops a number without also dropping a correction word ("sorry", "I mean",
+     "no", "actually", "wait", "rather", "correction", "scratch").
+
+   It runs only when the gateway sends `privacy`. The text is masked through
+   privacy-service first (see [privacy](privacy.md)); if masking fails, the model
+   is not called. A model error never fails the transcription either. Its call is
+   reported as `tidy-transcript` usage (billed `gemini-vision`).
+
+### Dictation (gateway, CP-27)
+
+`POST /api/assessments/:reference/dictation`, raw `audio/*` body up to 2 MB, answers
+`{ text }`: the clip goes to S5's `/transcribe-clip` with the assessment's privacy
+and is stored nowhere (`dictation.routes.ts` → `dictation.service.ts`). It needs a
+session (401) and an assessment the caller can open (403, 404); 415 for a file
+that is not audio, 413 too large, 400 empty, 422 when no speech was heard, 503
+when S5 fails. It changes nothing in the assessment, so MarshBot does not
+re-check it (`NOT_CHANGES` in `assistant-recheck.middleware.ts`).
+
+The client's `DictateButton` (`client/src/features/assessments/dictation/`) puts
+the text in at the field's cursor, in place of a selection. It records with
+`useRecorder`, shared with the chat's mic (CB-10). It is on: an observation's
+note (and a walk proposal's), New Observation's Note tab (in a live assessment,
+not the demo), a walk's note box and a walk note being edited (neither while the
+walk records), the transcript and handwritten page text corrections, comments
+(inside a `DictationScope`), the Ask question box and a checklist answer's "What
+you saw". The rule: Dictate is for notes and questions inside an assessment, not
+for the report's own wording (Edit finding, the Review edit, the Regenerate
+instruction), and never outside an assessment, as masking needs its reference.
 
 Running S5 outside Docker: `.env` points `SPEECH_OCR_SERVICE_URL` at
 `http://localhost:8003` (Compose overrides it with the Docker hostname). If a
@@ -29,9 +91,9 @@ credentials, `S3_BUCKET` and `AWS_REGION` from `.env`.
 ### Site walk additions (S5, CP-22)
 
 - `POST /transcribe` returns Whisper's `segments` (`start`, `end`, `text`, seconds into the
-  recording) beside `transcript`. It takes only `s3_key`: no vocabulary
-  hint is sent, because client text must not reach an external AI unmasked and
-  speech-to-text is not masked.
+  recording) beside `transcript`. Its vocabulary prompt is S5's own fixed text
+  (CP-27): no client words are sent to Whisper, because client text must not
+  reach an external AI unmasked and speech-to-text is not masked.
 - `POST /describe-photo` `{ s3_key, privacy? }` returns `{ description, usage, privacy }`: one or two
   plain sentences of what one site-walk photo shows, from `VISION_PROVIDER` /
   `VISION_MODEL`. Only the photo is sent, no client text. The proposal step
@@ -57,47 +119,30 @@ Only `PUT .../site-walks/:id/photos/:photoId` and `.../recordings/:seq` take the
 - `DELETE .../recordings/:seq` and `.../photos/:photoId` remove the item and its stored file while the
   walk is recording. The client waits out a 10 s Undo before calling them, and Finish waits for them.
 
-## Reading an observation (S5, CP-05, CP-21)
+## Reading an observation (S5, rag-service, CP-05, CP-21, CP-24)
 
-An engineer can ask for any observation to be read. The model proposes, in
-two parts, the COPE categories it concerns from everything captured in it (its
-note, recording and page transcripts, and photos), and from its photos, if
-any, a description and hazard type. Both are read in one call the first time;
-after that each can be regenerated on its own.
+Nothing is asked for. When an observation is saved, or its media or a
+transcript changes, one background job reads it. It does two things: S5
+describes the photos, and rag-service suggests the category and severity the
+engineer left empty (see [database](database.md#observations)). The engineer
+checks the result; there are no buttons that start a reading. Before CP-24 an
+engineer asked for it (Get AI proposal, Describe photos), and S5 also proposed
+categories; that half is gone from S5, the gateway and the client.
 
-1. Saving an observation reads nothing: nothing goes to the model until an
-   engineer asks. Get AI proposal on the Observations tab sends `POST
-   /api/observations/:id/interpretation` with no body, which reads both
-   parts: it saves the observation with `interpretation.status:
-   'interpreting'` for the categories and, with photos,
-   `interpretation.photoReading.status: 'interpreting'` for the description
-   (see [database](database.md#observations)). The categories record
-   everything they read in `items`: the note, each recording and page with
-   the transcript read (the engineer's correction where there is one, CP-08),
-   and each kept photo. A recording or page with no transcript (failed, or a
-   page with no handwriting) is left out, and the categories are refused while
-   one is still transcribing. The description records the photos it reads.
-2. Regenerate categories and Regenerate description send the same request
-   with `{ "part": "categories" }` or `{ "part": "description" }`, reading that
-   part again from what the observation holds then and leaving the other as it
-   is; they are offered on every finished part, so the engineer can ask for
-   another whenever they like, each a paid call. The categories are out of date
-   once anything they read is added, removed or changed, except the proposal's
-   own description taken into the note by Use as note; the description only
-   once photos are added or removed. Photos added after a reading without any
-   are offered Describe photos, which asks for the description alone.
-3. The gateway posts `{ "photos": [{ label, s3_key }], "texts": [{ label,
-   kind, text }], "location": ..., "parts": [...] }` to S5's `POST
-   /interpret` without making the client wait. For the description alone it
-   sends the photos and only the note, as a hint. Each item's label is its own name (`Note`, a recording's,
-   page's or photo's name, a repeated one numbered), so the proposal can cite
-   it. The location is where the observation was made, most specific first
-   ("Pump room, Level 43, Tower 1"; see `locationText`). The engineer's
-   categories and severity are not sent, so the proposed categories are the
-   model's own. A photo the engineer marked (CP-10) also carries its `region`
-   (`{ x, y, w, h }`, fractions of the upright photo); an unmarked photo has
-   no `region` key, so its request is as before.
-4. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
+### Photo description (S5)
+
+1. The gateway posts `{ "photos": [{ label, s3_key, region? }], "texts": [{
+   label, kind, text }], "location": ..., "privacy": ... }` to S5's `POST
+   /interpret`. `texts` holds only the note, as a hint for what to look at.
+   Each photo's label is its own name; a name that repeats (phones name every
+   photo `image.jpg`) is numbered, `image.jpg (2)`, and the note's label
+   `Note` counts too, since S5 refuses labels that repeat. The location
+   is where the observation was made, most specific first ("Pump room, Level
+   43, Tower 1"; see `locationText`). A photo the engineer marked (CP-10)
+   carries its `region` (`{ x, y, w, h }`, fractions of the upright photo); an
+   unmarked photo has no `region` key. The request is refused (422) without
+   photos. An old gateway may still send `parts`; S5 ignores it.
+2. S5 (`app/processors/vision.py`) reads each photo from S3, turns it upright
    from its EXIF orientation, shrinks it to 1600 px on the long edge and
    re-encodes it as JPEG for the model only; the original in S3 is never
    changed. For a marked photo it also cuts the marked area from the upright
@@ -107,60 +152,226 @@ after that each can be regenerated on its own.
    the photos, and the rule added only when a photo is marked (`MARKED_RULE`)
    says to describe the marked area, use the full photo for context, and
    cite the close-up by its photo's name. A box drawn on the photo was ruled
-   out because the model can read it as paint or tape. With the gateway's
-   `privacy` enabled (PV-04), it then has
-   privacy-service blur the faces in every photo and close-up (`POST
-   /redact-image`, one call) and mask the texts and location (`POST /mask`, one call), fails
-   closed if either fails, and restores real values in the answer. With
-   `check_answers` (the gateway's `PII_CHECK_ANSWERS`, on by default), it
-   first takes details the model added out of the description and reasons
-   (one more `/mask` call); see docs/areas/privacy.md. It sends each photo after its label, then the texts, to the
-   provider named by `VISION_PROVIDER` (only Gemini is implemented:
-   `VISION_MODEL`, default `gemini-3.8-flash`, needs a paid-tier
-   `GEMINI_API_KEY`, with `store: false`), and asks for a fixed answer with
-   the parts asked for, under rules for those parts only:
-   - `categories`, each of the four at most once, most relevant first, or none
-     when nothing supports one: the `category`, a one-sentence `reason` naming
-     the items, and `evidence`: every item that supports it, not only the
-     clearest, each with a `quote` copied from a note or transcript (none for
-     a photo);
-   - with photos only, `description`, in the form Marsh's reports use ("During
-     the site visit to …, it was observed that …"), stating only what the
-     photos show, whatever the texts claim; and `hazard_type`, one of the OFI
-     Types in Marsh's sample reports, `Other`, or `No hazard visible`, so the
-     model never has to invent a hazard.
-   It returns those, null for a part not asked for, with the provider, model,
-   `prompt_version` and token `usage` (null when the provider reports none),
-   or 502 with `detail`; a description asked for without photos is refused
-   with 422. Like transcription, it writes nothing to MongoDB.
-5. The gateway checks each quote against the item it cites (case, spacing,
-   curly quotes and edge punctuation aside, as `quoteFound` does) and stores
-   the proposal with each check's result, `verified`, or the failure reason,
-   on the observation. It also saves the call to `ai_calls` (EV-03) as
-   `interpret-photo` (labelled "Observation reading"; the id is kept so
-   earlier readings stay on one line), billed to `gemini-vision`, tagged with
-   the assessment: thinking tokens are added to output tokens, since Google
-   bills them as output, and the duration is the gateway's own timing of the
-   request (S5 sends none). A failed request returns no usage, so nothing is
-   saved. A part that failed is retried through the same route, by its
-   `part`; a restart marks each part still running as failed. The client
-   re-reads the list every 3 seconds while either part of any observation is
-   interpreting.
-6. The proposal is for the engineer to review and is never drafting evidence:
-   drafting does not wait for it, never reads it, and a draft does not go out
-   of date when it arrives. On the Observations tab, Use as note and each Add
-   (one per proposed category not yet the observation's own) open the Edit
-   dialog with it filled in; only saving it makes it the engineer's own. A
-   quote not found in its item is shown as Unverified, and an item it read
-   but no category cites is marked "not cited" in its Read from line, so the
-   engineer can check what it passed over.
+   out because the model can read it as paint or tape.
+3. With the gateway's `privacy` enabled (PV-04), S5 has privacy-service blur
+   the faces in every photo and close-up (`POST /redact-image`, one call) and
+   mask the note and location (`POST /mask`, one call), fails closed if either
+   fails, and restores real values in the answer. With `check_answers` (the
+   gateway's `PII_CHECK_ANSWERS`, on by default), it first takes details the
+   model added out of the description (one more `/mask` call); see
+   [privacy](privacy.md).
+4. It sends each photo after its label, then the note, to the provider named by
+   `VISION_PROVIDER` (only Gemini is implemented: `VISION_MODEL`, default
+   `gemini-3.8-flash`, needs a paid-tier `GEMINI_API_KEY`, with `store:
+   false`), and asks for a fixed answer: `description`, in the form Marsh's
+   reports use ("During the site visit to …, it was observed that …"), stating
+   only what the photos show, whatever the note claims; and `hazard_type`, one
+   of the OFI Types in Marsh's sample reports, `Other`, or `No hazard visible`,
+   so the model never has to invent a hazard.
+5. S5 returns `description` and `hazard_type` with the provider, model,
+   `prompt_version`, token `usage` (null when the provider reports none) and
+   `redacted_photos`, or 502 with `detail`. Like transcription, it writes
+   nothing to MongoDB.
+6. The gateway (`observation-reading.service.ts`, `describePhotos`) stores the
+   description in `interpretation.photoReading` with its attempt, the photos
+   and marks it read, and its provenance, or the failure reason. It saves the
+   call to `ai_calls` (EV-03) as `interpret-photo` (labelled "Observation
+   reading"; the id is kept so earlier readings stay on one line), billed to
+   `gemini-vision`, tagged with the assessment: thinking tokens are added to
+   output tokens, since Google bills them as output, and the duration is the
+   gateway's own timing of the request (S5 sends none). A failed request
+   returns no usage, so nothing is saved.
+7. The description is out of date once photos are added or removed or a mark
+   moves (CP-10): the next run describes again. It is never drafting evidence
+   by itself: drafting does not read it. It reaches a draft only if the
+   engineer copies it into the note (Copy into note). The suggestion below
+   does read it, with the rest of the observation's text.
 
-Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`. The
-evaluations are in `microservices/speech-ocr-service/eval/`:
-`eval.interpret_photos` sets photo descriptions beside Marsh's, and
-`eval.suggest_categories` scores proposed categories and quotes against
-`eval/cases/categories.json` (`uv run --extra dev python -m
-eval.suggest_categories`; drafted cases, to be checked by an engineer).
+### Suggested category and severity (the reading job)
+
+The job is `runReading` in `server/src/services/observation-reading.service.ts`.
+Its queue is `observation-reading` (BullMQ, as for transcription), with
+concurrency 3 and 2 tries, 5 seconds apart. A job survives a restart.
+
+**What queues it.** `queueReading` is called after: saving (including one
+turned from a draft observation), adding media, removing or restoring a
+recording, photo or page, marking or clearing a photo, correcting a transcript
+or a page's text, changing the note (only when it actually changed), a
+recording or page finishing or failing its transcription, restoring a deleted
+observation (a reading skipped while it was deleted runs now), restart
+recovery, creating an observation from a site walk (below), and Try again
+(`POST /api/observations/:id/suggestion/retry`). Try again is accepted after a
+failed suggestion or a failed photo description; anything else answers 409.
+Confirming or changing a category or severity queues nothing.
+
+**Site walk observations are not rated.** `suggestion.rate` is a stored flag;
+missing means true, and the API does not return it. An observation created
+from a site walk is queued with `rate: false`: its photos are described, but
+its category and severity are not rated again, so the proposal's values and
+not-sure marks stay as the walk gave them (AC17: the mark must carry from the
+proposal onto the created observation, and a new rating could change or clear
+it). A transcription finishing, restart recovery and a restore leave the flag
+as it is. The engineer's own changes (media added, removed or restored, a
+photo marking, a transcript or page correction, a note edit, Try again) set it
+to true, and from then on the observation is read like any other.
+
+**One job per observation, with a run number.** `queueReading` does one atomic
+write: it adds 1 to `suggestion.run`, sets `suggestion.status` to `reading`
+(or `done` when both fields are the engineer's), resets `attempts` and clears
+`error`. Then it adds a job with the id `obs-reading-<observation id>-<run>`.
+Every write the job makes matches `suggestion.run: <its run>`. Without that, a
+trigger arriving while a job runs, or an older job Redis kept after a restart,
+could write last and bring back text that is out of date; a stale run writes
+nothing, and the newer run does the work. If Redis cannot take the job, the
+suggestion is stored as `failed` with a message, so it never reads for ever.
+
+**The steps** (`runReading`):
+1. Stop if the run is stale. If the observation is deleted, is a draft, or its
+   assessment is archived, mark the run `done` and stop.
+2. Describe the photos first if they have no description of what they are now
+   (above), as the system and not as a user. The description step starts
+   atomically on the photo reading's own status, so two jobs never describe
+   twice. If the description fails it is stored as failed and the rating goes
+   on without it.
+3. Wait while any kept recording or page is `transcribing`: the transcript
+   finishing queues a new run, so this one just stops.
+4. If rating is off (`suggestion.rate` is false), both fields are the engineer's,
+   or there is no text at all, mark the run `done` and stop. With no text (for example the only recording failed to
+   transcribe) the empty fields stay empty and the observation stays to check.
+5. Join the text the rating reads, by blank lines: the note, each kept
+   recording's and page's finished transcript (the engineer's correction where
+   there is one), and the photo description when it matches the photos kept
+   now. Call rag-service `POST /observations/rate` (below).
+6. Fill each field that is still open at the moment of writing, in one update
+   that checks it inside MongoDB: an open field is empty or still holds an
+   unconfirmed suggestion. A value the engineer chose while the call ran is
+   kept. The category is stored as a list of one (`metadata.COPE_dimension`)
+   and the severity in `severity`; `suggestion.category` and
+   `suggestion.severity` are set to `{ notSure }`. The status becomes `done`.
+7. Tell the open page (below) and queue MarshBot's re-check (AS-06).
+
+**Failure.** The first failure of a call is thrown, so BullMQ tries again after
+5 seconds; the second is stored: `suggestion.status: 'failed'` with "The
+category and severity could not be suggested." If masking was unavailable
+(rag-service answers "Client details couldn't be protected…"), nothing was
+sent, trying again at once would not help, and the failure is stored on the
+first try with rag-service's own message. The fields stay as they were. The
+engineer can press Try again.
+
+**Restart.** `resumeReadings` runs at startup before the workers start. For
+every observation with `suggestion.status: 'reading'` or a photo description
+`interpreting`, it marks the description failed ("interrupted by a gateway
+restart") and queues a new run, which describes the photos again and rates. The
+new run number makes any older job Redis kept stale. A handwritten page cut
+short is marked failed and queues a run too (`resumeInterruptedTranscriptions`),
+since a run was waiting for it.
+
+**Cost.** The rating's usage is saved to `ai_calls` (EV-03) under the feature
+the site walk's rating step already uses, `site-walk`, tagged with the
+assessment.
+
+**Push, not polling.** After each change the job calls `publishObservations`
+(`assistant/bus.ts`). The assessment's assistant stream, `GET
+/api/assessments/:reference/assistant/events` (the same one MarshBot and
+drafting use), then sends `event: observations`, and the open Observations tab
+and observation page read the observations again. No new polling was added
+(`.local-docs/adr/0002-push-assistant-updates-no-polling.md`). The tab's own
+poll every 3 seconds while a recording or page is transcribing stays as it was.
+
+### Rating one observation (rag-service, `POST /observations/rate`)
+
+`app/site_walk/observation_rate.py`, called by `routes.py`. It is the site
+walk's rating step (see "Site walk proposal"), run on one observation's text.
+
+- Request `{ text, privacy? }`, no unknown fields; `text` is the joined text
+  above and must not be empty (422).
+- 1. **Mask** the text with `privacy_session(privacy).mask`, the same privacy
+  session as the site walk. If privacy-service fails, nothing is sent and the
+  route answers 502 ("Client details couldn't be protected…"). 2. **Rate** it
+  with `propose._rate`: the same classifier (Jev), the same severity matrix and
+  the same cutoff, `SITE_WALK_CHECK_BELOW` (0.70, unchanged). The observation is
+  rated on its own, with no walk around it, and there is no place matching.
+  3. Return `{ category, severity, check: { category, severity }, usage }`.
+  `category` is one of the four COPE categories (never several, never none) and
+  `severity` one of the four levels. A `check` flag is true when the
+  classifier's probability for that value is under the cutoff: the value is
+  still returned, and the gateway stores it marked not sure. The category and
+  severity are single words from fixed lists, so nothing needs unmasking.
+- A classifier failure answers 502, as the site walk does.
+- The probabilities are not returned; only the eval reads them.
+
+### Draft observation (transcribing before Save)
+
+So a recording added on New Observation can transcribe before the engineer
+saves, the first one creates a hidden draft observation (`draft: true`, no
+location):
+- `POST /api/assessments/:reference/observations/draft` takes `recording` parts
+  and an optional `draftId`; without one it creates the draft. Each recording
+  is stored in S3 and transcribed as a saved one is, and 201 returns `{ draft }`.
+- `GET /api/observations/:id` returns one observation, so the page can read the
+  draft's transcripts as they arrive.
+- Saving sends `details.draftId`. The draft becomes the observation: `draft`
+  is cleared in one update that matches on it, so a discard or a second Save
+  cannot race it, and the reading job is queued.
+- `DELETE /api/observations/:id/draft` discards it and its recordings' files
+  (when New Observation is left without saving). 404 for an observation that
+  is saved. It deletes the stored files first and the record only when every
+  file went; on a storage error the draft is kept for the hourly cleanup and
+  the route still answers 204, since the engineer has left.
+- Removing a draft's recording deletes it and its file for good, file first and
+  the record only once the file went. On a storage error it answers 409 "This
+  recording could not be deleted. Try again." A saved observation's removal
+  stays soft.
+- A Save that brings nothing of its own (no note, recording, photo or page) is
+  refused (400) if the draft's only recording was removed meanwhile; the
+  update that clears `draft` matches on a recording still being there.
+- An hourly job (`observation-draft-cleanup`, BullMQ, `0 * * * *`) deletes
+  drafts unchanged for 24 hours (by `updatedAt`, so adding a recording keeps an
+  open form's draft alive), with their files, files first as above. A draft
+  whose files could not all be deleted stays for the next run.
+- A draft is in no list, count, drafting input, Ask, appendix, MarshBot check
+  or report: `listObservations` and `listObservationsOf` leave it out, and
+  they are what those read. The reading job does nothing on one.
+
+### Evaluation
+
+The photo descriptions are set beside Marsh's by
+`microservices/speech-ocr-service/eval/`, `eval.interpret_photos`. The category
+proposals' own evaluation was deleted with them.
+
+The rating is scored by `eval/site_walk/rate_eval.py` in rag-service. It takes
+each golden finding's note from a saved site walk result (so no model reading
+is paid for again), rates it alone as the route does, and scores it against the
+sample reports' category and severity: agreement, the share marked not sure,
+and how often a value is right when it is not marked. It is paid (one Jev call
+per finding, needs `TYPESAFE_API_KEY`) and outside CI. From
+`microservices/rag-service`:
+
+```
+uv run python -m eval.site_walk.rate_eval --split held-out
+uv run python -m eval.site_walk.rate_eval --split tuning --sweep
+```
+
+`--sweep` also scores cutoffs 0.50 to 0.95. Results go to
+`eval/results/<date>-observation-rate[-split].json` and the scoring is
+unit-tested in `tests/test_observation_rate_eval.py`.
+
+Recorded on 20 Nov 2026 at the cutoff of 0.70, with the classifier the site
+walk uses (no language model reads the observation):
+
+| Split | Findings rated | Category agreement | Severity agreement | Right when not marked (category / severity) | Marked not sure (category / severity) |
+| --- | --- | --- | --- | --- | --- |
+| Held-out | 79 (13 skipped: no saved note) | 1.000 | 0.835 | 1.000 / 0.900 | 5.1% / 24.1% |
+| Tuning | 145 | 1.000 | 0.862 | 1.000 / 0.933 | 5.5% / 28.3% |
+
+The held-out severity is one finding short of the 0.84 target. 13 of the 16
+held-out cases had saved notes. Cost was about US$0.011 for both runs. The
+cutoff stays 0.70. On the tuning sweep 0.75 gives 97% severity right when not
+marked, but marks 35% of severities as not sure. The notes are the site walk's
+clean notes, not an engineer's raw text, so this is a first check of the
+rating on one observation at a time and not of real manual notes.
+
+Running S5 outside Docker: as for transcription, plus `GEMINI_API_KEY`.
 
 ## Handwritten pages (S5, CP-19)
 
@@ -1312,6 +1523,57 @@ so it adds no endpoint, collection or model call.
 - **New assessment on a day** opens the New Assessment form (CP-23) with that day as the first
   assessment's survey start; nothing is created until the form is.
 
+## Site weather (gateway, CP-62)
+
+Whether it is raining or stormy at an assessment's site now, and whether rain is expected in the
+next 2 hours, so an engineer doesn't set off for an outdoor or below-ground inspection in it. It is
+advisory: nothing is blocked. Shown on the Overview (a bar above MarshBot's conversation), on New
+Observation (a card above the form) and on each Assessments row whose survey days include today.
+
+- **Route:** `GET /api/assessments/:reference/weather` (`routes/weather.routes.ts`,
+  `assessments:view`), mounted with `requireAuthNoRefresh`: the panel reads it every 10 minutes and
+  must not keep an idle session alive (F-07). 404 for an unknown assessment; `Cache-Control: no-store`.
+  It answers 200 with one of:
+  - `{ status: 'ok', reading, source }`: `reading` holds `observedAt`, `fetchedAt`, `timeZone` (the
+    site's IANA zone), `condition` (the provider's words), `raining`, `thunder`,
+    `rainfallMmPerHour`, `temperatureC`, `forecast` (`hours` that overlap the next 2 hours, each with
+    `chancePercent`, `rainfallMm`, `rain`, `thunder`; and `rainExpected`, `thunderExpected`) and
+    `located` (`pin` or `address`); `source` is `{ name: 'Google Weather', url }`.
+  - `{ status: 'no-address', address }`: no address and no pin (`address: null`), or an address the
+    geocoder can't place (the address). The panel says "Add the site address to see weather".
+  - `{ status: 'unavailable', lastReadingAt, timeZone, source }`: the geocoder or the weather API
+    couldn't be reached, timed out (8 s) or refused. Never a reading.
+  - `{ status: 'unconfigured' }`: no `GOOGLE_MAPS_SERVER_KEY`.
+- **Where** (`site-weather.service.ts` `locate`): the site's own `coordinates` (the engineer's pin,
+  CP-26) when set; otherwise its `address`, geocoded once (`weather-provider.ts` `geocodeAddress`,
+  Google's Geocoding API with the jurisdiction as `region`) and kept on the site as `geocode`. A
+  result that is only a country or a state counts as not found. The look-up happens on the first
+  weather read, so sites made before CP-62 need nothing run, and a corrected address (CP-18) is
+  looked up again because `geocode.address` no longer matches.
+- **Reading** (`readWeather`): Google's Weather API, `currentConditions:lookup` and
+  `forecast/hours:lookup?hours=3`, in metric. Its current `precipitation.qpf` is the last hour's
+  rain, shown as mm/h.
+- **What counts** (`judge`, thresholds in `.env`, so every screen agrees):
+  - Raining: a rain, hail or thunder condition (`RAIN_TYPES`; `CHANCE_OF_SHOWERS` is not rain), or
+    rain at or above `WEATHER_RAINING_MM_PER_HOUR` (default 0.5; 0 means any).
+  - Thunder: a condition whose type contains `THUNDER`.
+  - Rain expected: an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT`
+    (default 50), or rain at or above the mm/h threshold. Thunder expected: a thunder condition, or a
+    thunder chance at or above the same percent.
+- **Kept** in memory per site for 10 minutes (`WEATHER_CACHE_MS`), so assessments at one site share
+  a reading and the provider is called at most once per site in that time; reads at the same moment
+  share one call. After a failure the provider isn't asked again for 30 seconds
+  (`WEATHER_RETRY_MS`). The last good reading's time is kept for `unavailable`. A restart forgets
+  them all, at the cost of one call per site.
+- **Browser** (`client/src/features/assessments/weather/`): `useSiteWeather.ts` reads on open, 10
+  minutes after each answer and on Refresh; a hidden tab skips its turn and reads when shown, and the
+  clock ticks each minute so a reading over 30 minutes old is labelled Stale. A failed read shows
+  "Weather unavailable" with the last good reading's time, never the old reading. Refresh asks the
+  gateway at once, which still answers from its 10-minute copy. `weatherWords.ts` words it and picks
+  the one warning, strongest first: a thunderstorm (`role="alert"`), rain now, then rain expected
+  (`role="status"`), each naming the source and that it is advisory. Times are in the site's zone.
+  `SiteWeatherPanel.tsx` is the panel (bar or card), `RowWeather.tsx` an Assessments row's line.
+
 ## Report review workspace (RV-01)
 
 1. The Review tab of a saved assessment asks the gateway for
@@ -1741,13 +2003,94 @@ S4 may cite and what happens to the answer.
 - **Export**: `exportBlockers` lists a section with AI text awaiting Accept or
   with an unsupported sentence of it (AC3).
 
+### Writing guidance for a section (AS-08)
+
+Two buttons above the Ask tab's question box ask about the part of the report
+open (in the document editor, the one the cursor is in): **What should this
+section cover?** (`list-checks`) and **What is missing from this section?**
+(`list-x`). They are asked by button, never guessed from what is typed
+(DECISIONS 2026-11-24), into the conversation on screen, and need only
+`reports:ask`, so a knowledge admin can ask too. The question kept is the
+gateway's own wording ("What is missing from 9. Fire Protection?"). On an
+archived assessment the buttons are not shown and the gateway answers 409.
+
+- **What it should cover** (AC1), Sections 4 to 12: `POST …/ask` with
+  `{ guide: { kind: 'cover', sectionId } }`. The gateway names the section
+  from S4's template (`GET /sections`; 404 for one it doesn't list), counts the
+  question against the limits as any other, and sends S4 `guide: { kind,
+  section_id, section_title }` with the standards selected on the assessment
+  (as AS-01 reads them) and no observations or past reports. S4
+  (`orchestrator.cover`, prompt and template in `app/generation/guide.py`,
+  `as08-v1`, `ASK_EFFORT` on `ASK_MODEL`) runs retrieve → assemble → generate
+  → guardrail as an answer does:
+  - **retrieve**: one `/mask` call for the question and the documents'
+    names; the template's definition of the section from `sections.json` as
+    evidence, T1 for the section as a whole (its categories and its parts in
+    order; Sections 4 and 5 also say their figures are the engineer's), T2
+    onwards one per part (its heading, kind and fields); one batched embed
+    searching the selected standards (Chroma `doc_id` filter) once per part, 5
+    candidates each, then one rerank of them all against the section and its
+    headings, keeping up to 8 scoring at least `ASK_MIN_RELEVANCE`. With no
+    standard kept it says so in a Missing line, and the model still answers
+    from the template.
+  - **generate**: one line per statement, the template first, part by part
+    (`[T3]`), then what the standards say (`[C1 "exact words"]`), and at most
+    two Missing lines for parts no standard covers.
+  - **guardrail**: `ask.check_statement`, a template part cited as a whole (a
+    quote, when given, must be in it). The content rules are an answer's, so a
+    line telling the engineer what to write is dropped as a recommendation.
+  - The trace's `story` is `AS-08`, with `guide: { kind, section_id,
+    template_parts, template_parts_cited }` and `retrieved.template`.
+
+  A cited part comes back as `template` (`{ id: 'T:9.3', sectionId, label,
+  subsection, heading, kind, fields, text }`) beside the answer's passages and
+  observations, and is listed under Sources as "Report template". Selecting it
+  goes to that part of the section (its note in the draft editor), not to the
+  Evidence tab.
+- **What is missing** (AC2-AC4), Sections 2 to 12: `POST …/ask` with
+  `{ guide: { kind: 'missing', sectionId } }`. The gateway
+  (`section-guidance.service.ts`, `sectionGaps`) works it out from what is
+  saved, with no AI call, and saves it as the question's answer at once (two
+  events: `question`, then `result`). It counts against no question limit. In
+  order:
+  1. What blocks the export, from `detailedBlockers` (`export.service.ts`), the
+     one function the Export tab's check (`blockersFrom`) and MarshBot read
+     too, filtered to the section and in its order (AC3). Each blocker carries
+     its `fact` beside the Export tab's `reason`: the same condition, stated
+     without a next step ("Section 9 has 2 findings waiting for a decision.").
+     Sections 4 and 5's missing figures name what reads "Not entered" (e.g.
+     "Section 4's risk quality table reads Not entered for 2 of its 7
+     categories: Fire Protection (potential) and Water Supply (current and
+     potential).").
+  2. Parts with no text, once the section has some: no finding still in the
+     draft and nothing written in the document editor.
+  3. Tables reading "Not entered": every `table` part (Sections 7 to 10), which
+     nothing fills yet, so the report prints "Not entered" in each.
+  4. COPE categories with no observation its draft can use ("Section 9 has no
+     observation tagged Protection."), and each observation tagged with the
+     section's categories that the draft leaves out: still to check (CP-24),
+     still being transcribed, or with nothing recorded. At most 20 are listed,
+     then a count.
+
+  Sections 2 and 3 list only 1. Each gap links to its section (Go to section:
+  the part open in the review workspace, scrolled to the finding or the part
+  when the gap names one; in the document editor, scrolled to the section) or
+  an observation (Go to observation: the Observations tab with it open, or the
+  tab itself for a category with none; past the document editor's leave
+  guard). The list sits in a grey card, never AI violet, with "As of 14:02",
+  what blocks the export first, and a note that it was listed with no AI.
+- **Never the report** (AC5): neither writes to sections, versions, the review
+  log, comment threads or the assessment; only the conversation keeps them.
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
 file. Nothing is stored: the file is the gateway's answer.
 
 1. **Check** (`GET /api/assessments/:reference/export`, `reports:export`):
-   `exportBlockers` in `server/src/services/export.service.ts`, until RV-04:
+   `exportBlockers` in `server/src/services/export.service.ts` (built by
+   `detailedBlockers`, which the Ask tab's writing guidance reads too, AS-08),
+   until RV-04:
    only a complete report goes. Section 2 drafted and current; an accepted
    OFI; Sections 4-12 drafted or written, 4 and 5 with every figure; and in
    each draft no new draft waiting, every finding decided, none unsupported,
@@ -2087,8 +2430,9 @@ assessment is 409 without that code; e.g. another visit with its date moves
 `siteVisitEndDate`), `POST /activity` (the browser's engaged time and content
 seen per place, sent with `sendBeacon`). Each row of `GET /api/assessments`
 carries its `stage` and, for the engineer's own assessments, a `priority` with
-its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue, then Fix now,
-then least time to spare); the Focus list is those rows in rank order. Client
+its Focus rank (AS-07; `rankedFocus` in `focus.service.ts`: overdue first, then
+least time to spare; Fix now puts an assessment in Focus but ranks by its spare
+time too); the Focus list is those rows in rank order. Client
 page visits carry the same. An admin, or anyone who isn't the assigned
 engineer, sees the stage and progress only, never the engineer's activity.
 
@@ -2153,3 +2497,122 @@ Recommendations: OFI drafting (`ofi.service.ts`) sends each observation's `recom
 "Engineer's recommendation:" in the OFI prompt (`gn05-v7`), and the guide says to base the fix on
 them without adding actions. An OFI that rests on such an observation is saved with
 `fromRecommendation: true`. Facts stay the only part read as evidence.
+
+## Walkthroughs and the practice assessment (gateway, client, F-12)
+
+MarshBot's walkthroughs are fixed text in the client. The gateway only keeps each account's
+record, makes the practice assessment, and answers one question before a try-it.
+
+- **Routes** (`routes/walkthrough.routes.ts`, a session and no permission, the caller's own
+  account only): `POST /api/walkthroughs/practice` (Reset and "Set it up again": hides the old one,
+  makes a fresh one, 201 `{reference}`), `DELETE /api/walkthroughs/practice` (Remove: hides it, 204),
+  `GET /api/walkthroughs/check?for=<walkthrough id>` (`{ok}`; 404 when that walkthrough has no
+  try-it). The record itself rides on `PATCH /api/settings/me` and the signed-in user (see
+  docs/areas/database.md, "The walkthrough record").
+- **First sign-in** (`ensurePractice`, called while building the signed-in user): makes the
+  practice assessment once, unless the user removed it. It never throws: a failure is logged and
+  sign-in carries on with `practice: null`. It is made as `practice: 'making'` (open to no one,
+  listed nowhere) and made live only once filled; two tabs at once make one (the unique index
+  on live ones decides, and the loser removes its own unseen copy), and a call that finds one
+  still being made answers `null` (one over a minute old counts as abandoned). Remove saves its
+  "removed" mark before it hides, and first sign-in reads the mark first and again after
+  making, so a Remove at the same moment is never undone.
+  The record service loads the practice service lazily, because `settings.service` imports the
+  record service and the practice service reaches `settings.service` again through drafting.
+- **The quick check** (`walkthrough-check.service.ts`): a try-it is a walkthrough step that calls
+  live AI on the user's own input (6 walkthroughs: `new-docs`, `new-observation`, `split-note`,
+  `site-walk`, `ask`, `chat`). Before one is offered or started the client asks the check, which
+  calls each needed service's `/health` and one tiny provider request: rag-service
+  `GET /health/providers?need=llm|chat|search|privacy` (a one-word request through the same
+  provider layer and `X-Model` as real work) and speech-ocr-service `GET /health/providers`
+  (the speech-to-text model's metadata, no audio). No client text is sent. The free health calls
+  run first, and the provider calls only when they all pass. Health calls time out at 5 s and
+  provider calls at 15 s; any failure is `ok: false`. A pass is remembered for 5 minutes in
+  memory and a fail for 30 s, per set of checks and drafting model, and requests that arrive
+  while a check runs share it. The tiny language-model call is recorded under `walkthrough`.
+- **Try-its use the real features** on the practice assessment, so masking, fail-closed behaviour
+  and every hard rule hold unchanged. The chat question and the sample email have no assessment:
+  the client sends `x-walkthrough: <id>` on those requests and `walkthroughUsage`
+  (`middleware/practice.middleware.ts`) marks the request so its calls are recorded the same way.
+  It honours the header only for those two ids on their own routes (`chat`: `POST /api/chat`;
+  `new-docs`: `POST /api/client-intakes` and `/:id/read`), so a real assessment's request keeps
+  its usage.
+- **MarshBot on the practice assessment** re-checks on change and pushes to its open Overview as
+  for any assessment. It is left out of the daily re-check and of Focus.
+- **Client** (`client/src/features/walkthrough/`): one engine mounted once at the app shell
+  (`WalkthroughHost`). Each screen with a walkthrough makes one `useWalkthroughScreen(key, ready,
+  hold)` call; features raise `signal('<name>')` when something a hands-on step waits on has
+  finished; nothing polls. A definition is data in a `*walkthroughs.ts` file beside its feature
+  (found by `registry.ts`), and each step points at a `data-walk` tag. The dimming and cut-out are
+  drawn by driver.js (pinned, `spotlight.ts`), round an invisible stand-in placed where the cut-out
+  goes (several tags' union, clipped to the window, kept clear of the bubble and the phone sheet).
+  Only its drawing is used: the bubble, keys, focus and what can be pressed are the engine's own
+  layer, placed inside the open modal dialog when there is one (a layer in `body` sits under a
+  native dialog); there the layer doubles as the dialog's `driver-layer`, so the dimming is drawn
+  under the bubble. An `apart` step's other cut-outs are added to driver.js's path whenever it
+  redraws. A walkthrough whose place has `{practice}` always plays on the practice assessment.
+  - **What a step can ask for** (`types.ts`): a tag ending in `?` is lit only where it is on the
+    screen (table headings a phone layout leaves out); `apart` gives each tag its own cut-out
+    (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
+    show whole. Before a step shows, its target is scrolled into view through every scroll
+    container round it and clear of any pinned bar over its edge.
+  - **On a phone** MarshBot's words always show whole, and the sheet never covers what they name.
+    The sheet goes below the target when it fits whole, else above it. When it fits neither, a
+    target shown from its end (`show: 'end'`: Confirm all parts, the drawer's Tools list) gets the
+    sheet at the top and is lit from its first whole row under it to its end; any other target is
+    scrolled to the top (clear of the sticky header) and lit from its top down to its last whole
+    row above a sheet at the bottom (the top only if that would show less than its first row). A
+    row (a block no taller than 120 px and at least half the target's width) is never cut: one
+    the edge crosses is left out whole, a dim gap of at least 8 px stays between the cut-out and
+    the sheet, and the cut-out never goes past what the target's scroller shows (a target running
+    past the screen is lit down to its last whole row on it). On any screen size, a bar pinned
+    over a target's edge (the Ask panel's question box over the answer) is never lit with it
+    (`pinnedCut` in `placement.ts`, used by `targets.ts`). Only a target with no whole row on
+    either side keeps the sheet to the larger side, cut between two lines. The one exception to the gap: a target whose own top is at most 8 px under a sheet at the top
+    is lit from that top (the admin's Tools list). Split note's parts and Insights' three panels
+    draw compact while lit there (CSS keyed on `data-walk-on`). The cut-out opens with the sheet,
+    after that scroll (opened before it, it lit what scrolled into the target's old place), and
+    Back and Next stay whole at the sheet's foot.
+  - **Hands-on steps, one model** (`do` and `until`): `do` is only what the person does. A single
+    `press` keeps the spotlight until the press; with more to do (a `signal`: a menu, typing, a
+    recording; or several actions) the spotlight goes at the first press or key inside the cut-out
+    and the bubble stays where it is. The person's own save landing (Confirm, Accept, Save) is a
+    `do` signal, so a refused save leaves the step showing. The moment the last action lands, the
+    bubble and the spotlight leave together and nothing of the walkthrough shows while the app
+    answers. `until` names the app's own "result is ready" signal (an AI answer, MarshBot's turn
+    shown): the engine waits for it (remembered if it came early), keeps the result on screen alone
+    for 1 s (`QUIET_MS` in `run.ts`), then shows the next step, the result, after the settle
+    rule. When that next step needs an `open` press (New Observation's result is on the
+    Observations list), the engine makes it a second after the person's action, so they watch the
+    app work on the right screen. An answer that sets the app working ("Use the sample email") can
+    carry an `until` too. That wait is never open-ended: it lasts at most the walkthrough's
+    `fail.slow` time (its own line, then it ends) or else 90 s (`QUIET_LIMIT_MS` in `hands.ts`), after which a
+    hands-on step shows again when its control is still there, and otherwise ends with the "didn't
+    work" line, as a try-it does. A refused answer ends
+    it at once the same way: the Overview raises `try-it-failed` for a refused reply while its
+    walkthrough plays (`MarshBotOverview.tsx`). Leaving the screen during the wait (an app link,
+    which fires no Back event) ends the walkthrough as a skip, noticed through
+    `useWalkthroughScreen`'s cleanup. During the wait the walkthrough takes no key (`keys.ts`): Esc
+    closing a menu goes to the app and never skips a walkthrough the person cannot see. The same
+    goes for Esc outside the bubble once a hands-on step has let its spotlight go: it closes the
+    list the person opened (a press on a list's text leaves focus on the page's body, so this is
+    not decided by focus), and Esc from the bubble still skips. A person who leaves in
+    the second before the engine's own press ends it as a skip too (`hands.ts`). A screen reader hears "I'll carry on when this is ready."
+    meanwhile (a polite status line in `WalkthroughHost`). There are no waiting steps.
+  - **Back** is greyed where the step before cannot show again: it was hands-on, or this step
+    opened something.
+  - **A used-up practice assessment** (the one amber observation already confirmed, the sample
+    walk already created): when a hands-on walkthrough cannot find its target there, the engine
+    resets the practice assessment and plays the walkthrough again, once. Reset, Remove and
+    "Set it up again" raise `practice-changed`, and the assessments list reads itself again.
+  - **Unsaved work**: a screen passes `hold: 'unsaved'` while it has any. A walkthrough that
+    would have to leave that screen does not start; MarshBot says it will wait.
+  - **A slow try-it** (`fail.slow`): when the app's answer (`until`) has not come within its time,
+    the walkthrough ends with its own line (the site walk: 90 s) and the AI's work carries on.
+  - **The site walk try-it** learns its walk is ready from the assessment's event stream (the
+    MarshBot re-check that follows reading pushes), then reads the walk once. The recorder's own
+    5 s re-read still stops at Finish walk, as before.
+- **Help tips** (F-13): `HelpTip` in the design system is the one (?) button and popover;
+  `features/help/Tip.tsx` adds the tip's fixed text (`features/help/tips.ts`), its roles and the
+  "Show me" link, which replays a walkthrough through the engine.
+

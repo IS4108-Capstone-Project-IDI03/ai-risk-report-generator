@@ -385,25 +385,6 @@
   font-size: 14px;
   text-wrap: pretty;
 }
-/* A count in a quiet pill, as on the workspace tabs (workflow.css .ws-tabs):
-   graphite, or navy on ink where it marks the one to act on. */
-.ob-pill {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  min-width: 24px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--graphite-100);
-  color: var(--text-secondary);
-  font: 600 13px/1 var(--ob-font);
-  font-variant-numeric: tabular-nums;
-}
-.ob-pill[data-tone='navy'] {
-  background: var(--ink-100);
-  color: var(--marsh-navy);
-}
 /* In the phone sheet the whole sheet scrolls, so the foot sticks to its bottom. */
 .ds-dialog-sheet .ob-nav-foot {
   position: sticky;
@@ -537,9 +518,6 @@
     min-width: 0;
     padding: 0 8px;
   }
-  .ob-head-actions > .ob-walks-button {
-    flex-basis: 100%;
-  }
   /* Two columns of exactly even width, however long a chip's label. */
   .ob-filter-set {
     display: grid;
@@ -585,6 +563,11 @@
   margin: 0;
   padding: 6px;
   list-style: none;
+}
+.ds-sheet .ob-menu {
+  /* The sheet scrolls as a whole, so the list needs no cap of its own. */
+  max-height: none;
+  overflow: visible;
 }
 .ob-menu-item {
   display: flex;
@@ -663,6 +646,12 @@
   justify-self: center;
   text-align: center;
 }
+/* The Status heading with its help tip beside it (F-13). */
+.ob-colhead-last {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .ob-group-head {
   margin: 0;
   padding: 14px 14px 6px;
@@ -709,18 +698,6 @@
   font-size: 14px;
   line-height: 1.35;
   color: var(--text-secondary);
-}
-/* In red, what a proposed observation still needs, on its own line above the
-   note (site-walk/components/ProposalRow.tsx). */
-.ob-needs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 0 2px;
-  color: var(--red-600);
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
 }
 /* A status badge (components/ObservationBadge.tsx): a small tinted capsule with
    its icon. Ink blue for "From site walk" (a real observation that came from a
@@ -943,39 +920,9 @@
   font-weight: 600;
   color: var(--text-secondary);
 }
-.ob-section-head > span:first-child {
+.ob-section-head > span:first-child,
+.ob-section-label {
   flex: 1 1 auto;
-}
-.ob-required {
-  color: var(--red-600);
-  margin-left: 2px;
-}
-.ob-note {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 112px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--ob-fill);
-  color: var(--text-body);
-  font: 400 15px/1.55 var(--ob-font);
-  resize: vertical;
-  field-sizing: content;
-  transition:
-    background-color 120ms var(--ob-ease),
-    border-color 120ms var(--ob-ease);
-}
-.ob-note:hover {
-  background: rgb(0 15 71 / 0.075);
-}
-.ob-note:focus {
-  /* The same 2px ring as every other control. */
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-  border-color: var(--border-focus);
-  background: var(--surface-card);
 }
 .ob-line {
   display: flex;
@@ -1030,38 +977,6 @@
   height: 40px;
   margin-top: 8px;
 }
-.ob-tag-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.ob-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--ob-fill);
-  color: var(--text-primary);
-  font: 500 14px/1.3 var(--ob-font);
-  text-align: left;
-  cursor: pointer;
-}
-.ob-picker:hover:not(:disabled) {
-  background: rgb(0 15 71 / 0.09);
-}
-.ob-picker:disabled {
-  cursor: default;
-}
-.ob-picker > span:nth-child(2) {
-  min-width: 0;
-  text-wrap: pretty;
-}
 .ob-proposal {
   padding: 16px;
 }
@@ -1100,12 +1015,10 @@
   font-weight: 700;
   color: var(--marsh-navy);
 }
+/* No fill of its own: a grey "All locations" beside the selected row looked selected too (board 14).
+   Only the selected row is filled (.ob-nav-row[data-selected]); hover is the row's own tint. */
 .ob-nav-all {
   margin-bottom: 4px;
-  background: var(--ob-fill);
-}
-.ob-nav-all[data-selected] {
-  background: var(--graphite-100);
 }
 /* The place picked, above the table. */
 .ob-where {
@@ -1129,11 +1042,6 @@
 }
 .ob-filters:has(> .ob-count:only-child) {
   min-height: 48px;
-}
-/* The Site walks button keeps its label ahead of the count. */
-.ob-walks-button {
-  flex: none;
-  white-space: nowrap;
 }
 
 /* All Photos and All Handwritten Pages: thumbnail, observation, location, category. */
@@ -1560,4 +1468,215 @@ span.ob-pt-thumb {
     background: Mark;
     color: MarkText;
   }
+}
+
+/* ---- CP-24: the Observations tab's title row, one-row toolbar, flagged rows and footer ---- */
+/* "All Observations" at the left, Site walk proposals at the right. */
+.cpo-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.cpo-title-row > .ob-title {
+  padding-bottom: 0;
+}
+
+/* One toolbar row: search, the four pills, then Add observation (or the deleted list's count). */
+.ob-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--ob-line);
+}
+.ob-bar-search {
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 300px;
+}
+/* The pills are flex items of the bar itself on a wide card. */
+.ob-bar-pills {
+  display: contents;
+}
+.ob-bar-add,
+.ob-bar > .ob-count {
+  flex: none;
+  margin-left: auto;
+}
+/* A pill that is set: ink tint, navy words. */
+.ob-fp {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+}
+.ob-fp[data-set] {
+  background: var(--ink-50);
+}
+.ob-fp[data-set] .ds-filter-pill {
+  background: transparent;
+  color: var(--marsh-navy);
+}
+/* The ✕ takes the chevron's place, so a set pill never shows both side by side. */
+.ob-fp[data-set] .ds-filter-pill > :last-child {
+  display: none !important; /* the icon has an inline display */
+}
+.ob-fp-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: 0 6px 0 -10px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--marsh-navy);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ob-fp[data-set] .ds-filter-pill:hover,
+  .ob-fp-clear:hover {
+    background: var(--ink-100);
+  }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .ob-fp-clear {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* Where the card can't hold the words, "Add observation" says "Add" (its name stays whole). */
+@container (max-width: 780px) {
+  .cpo-more {
+    display: none;
+  }
+}
+/* A card too narrow for one row (a laptop with the sidebar open): search and Add on the first
+   row, the pills under them. */
+@container (max-width: 700px) {
+  .ob-bar {
+    flex-wrap: wrap;
+  }
+  .ob-bar-search {
+    flex: 1 1 200px;
+    max-width: none;
+  }
+  .ob-bar-add {
+    order: 1;
+  }
+  .ob-bar-pills {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    order: 2;
+  }
+}
+/* A phone: Add observation across the top (44 px, with its whole name), the search on its own
+   row, the filters two to a row. */
+@media (max-width: 767px) {
+  .ob-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ob-bar-add {
+    order: -1;
+    margin-left: 0;
+  }
+  .ob-bar-search {
+    order: 0;
+    max-width: none;
+    height: 44px;
+  }
+  .ob-bar-search input {
+    font-size: 16px;
+  }
+  .ob-bar-pills {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    order: 1;
+  }
+  .ob-bar-pills > .ob-button {
+    grid-column: 1 / -1;
+  }
+  .ob-fp {
+    display: flex;
+    min-width: 0;
+  }
+  .ob-fp > :first-child,
+  .ob-fp > :first-child > :first-child {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .ob-fp .ds-filter-pill {
+    width: 100%;
+    height: 44px;
+    justify-content: space-between;
+  }
+  .ob-bar-add .cpo-more {
+    display: inline;
+  }
+}
+
+/* A row with something to say (v2 "Flagged row"): the wrapper holds the tint and the hairline, so
+   hovering the row still shades over it. Amber to check, red for a failed suggestion, blue while
+   being read (the "just changed" tint). */
+.ob-row-wrap {
+  border-top: 1px solid var(--ob-line);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+.ob-row-wrap > .ob-row {
+  border-top: 0;
+}
+.ob-row-wrap[data-tint='unsure'] {
+  background: var(--flagged-row-warn-bg);
+}
+.ob-row-wrap[data-tint='failed'] {
+  background: var(--flagged-row-bad-bg);
+}
+.ob-row-wrap[data-tint='reading'] {
+  background: var(--ink-50);
+}
+/* The short reason under the text: "Check severity", "Suggestion failed". */
+.ob-row-reason {
+  display: block;
+  margin-top: 1px;
+  color: var(--amber-600);
+  font: 600 13px/18px var(--font-sans);
+}
+.ob-row-wrap[data-tint='failed'] .ob-row-reason {
+  color: var(--red-600);
+}
+/* Only a reason that appears while the row is on screen animates, never one present on load. */
+.ob-row-reason[data-in] {
+  animation: ds-step-drop var(--duration-base) var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-row-reason[data-in] {
+    animation-name: ds-fade-in;
+  }
+}
+/* The status mark: RowMark's 16 px box, centred in the Status column. */
+.ob-status {
+  display: grid;
+  place-items: center;
+}
+/* A phone shows one symbol at the right: the severity's, or while there is none the status
+   mark (a failed row, or one still being read) in its place. */
+@media (max-width: 639px) {
+  .ob-row:has(> .ob-sev.ob-none) > .ob-sev {
+    display: none;
+  }
+  .ob-row:has(> .ob-sev.ob-none) > .ob-status {
+    display: grid;
+  }
+}
+
+/* The footer line under the table, above its own hairline. */
+.ob-card > .ds-table-footer {
+  border-top: 1px solid var(--ob-line);
 }

@@ -11,6 +11,7 @@ export function ReportPart({
   onNext,
   onHistory,
   action,
+  help,
   children,
 }: {
   title: string
@@ -21,6 +22,8 @@ export function ReportPart({
   onHistory?: () => void
   // Sits at the right of the heading, e.g. Redraft on Section 2 (GN-13).
   action?: React.ReactNode
+  // A help tip beside the heading (F-13), e.g. on Section 2.
+  help?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -51,15 +54,23 @@ export function ReportPart({
               variant="ghost"
               size="sm"
               iconLeft={IconRegistry.object.history}
+              data-walk="review.version-history"
               onClick={onHistory}
             >
               Version history
             </Button>
           )}
         </div>
-        {action ? (
+        {action || help ? (
           <div className="rv-heading-row">
-            <h2>{title}</h2>
+            {help ? (
+              <span className="rv-heading-title">
+                <h2>{title}</h2>
+                {help}
+              </span>
+            ) : (
+              <h2>{title}</h2>
+            )}
             {action}
           </div>
         ) : (

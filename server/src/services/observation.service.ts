@@ -13,38 +13,40 @@ import {
   SEVERITIES,
   type CopeDimension,
   type IInterpretation,
-  type IObservation,
   type IPage,
   type IPhoto,
   type IPhotoRegion,
-  type IPhotoReading,
-  type IReadItem,
   type IRecording,
   type IStamp,
   type CheckResult,
   type IChecklistLink,
-  type ReadItemKind,
+  type ISuggestion,
+  type Severity,
   PART_KINDS,
   type IPart,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
-import { recordAiCalls, visionUsageToWire } from './ai-usage.service'
-import { NotAssignedError } from './assessment.service'
+import { NotAssignedError, opensAssessment } from './assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
 import { locationText, toLocationDto, type LocationDto } from './location.service'
 import { onTranscriptionJob, transcriptionQueue } from './background-queues.service'
-import { retryJobId, type JobContext } from './job-queue.service'
+import { defineQueue, retryJobId, type JobContext } from './job-queue.service'
+import { publishObservations } from './assistant/bus'
 import { queueAssessmentCheck } from './assistant/check-queue.service'
 import { duplicateKeyField } from './mongo-errors'
-import { observationFacts } from './section.service'
-import { readingPrivacyFor } from './privacy.service'
 import {
-  interpret,
+  interpretationFailureReason,
+  kept,
+  photoReadingOf,
+  photosOutOfDate,
+  queueReading,
+  type StoredObservation,
+} from './observation-reading.service'
+import {
   SpeechServiceError,
   transcribe,
   transcribeHandwriting,
   transcriptionFailureReason,
-  type InterpretationResult,
 } from './speech.service'
 import * as storage from './storage.service'
 import type { ByteRange } from './storage.service'
@@ -197,10 +199,17 @@ export const newObservationSchema = z.object({
     // Always a fresh id: a client-sent id could repeat, and two parts would then share one.
     .transform((parts) => parts?.map((p) => ({ ...p, id: randomUUID() }))),
 
-  // Sent explicitly: null or [] leaves the observation uncategorised (CP-02 AC4).
-  copeDimensions: copeDimensionsField,
-  severity: severityField,
+  // null, [] or absent leaves it uncategorised (CP-02 AC4), for the AI to
+  // suggest (CP-24); a severity left null or absent likewise.
+  copeDimensions: copeDimensionsField.optional().transform((list) => list ?? null),
+  severity: severityField
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
   locationId: locationIdField,
+  // The draft observation holding the recordings made before Save (CP-24): it
+  // becomes this observation.
+  draftId: z.string().refine(isValidObjectId, 'This draft observation was not found.').optional(),
   standard: standardField.optional().transform((value) => value || undefined),
   // The checklist item it answers (CP-31), when saved from the checklist.
   checklistItem: z
@@ -216,9 +225,15 @@ export type ObservationDetails = z.infer<typeof newObservationSchema>
 // A field left out stays as it is; null or [] uncategorises the observation, and
 // null or '' removes the standard. The note is stored exactly as written, and
 // null or a blank one removes it.
+// Sending a category or severity makes it the engineer's (CP-24): its
+// suggestion's not-sure mark clears, even for the same value. `confirm` keeps
+// the values named as they are and clears their marks. null empties severity.
 export const observationChangesSchema = z.object({
   copeDimensions: copeDimensionsField.optional(),
-  severity: severityField.optional(),
+  severity: severityField.nullable().optional(),
+  confirm: z
+    .array(z.enum(['category', 'severity'], 'Confirm the category or the severity.'))
+    .optional(),
   locationId: locationIdField.optional(),
   standard: standardField
     .nullable()
@@ -330,8 +345,9 @@ export type ObservationDto = {
   // Its categories in C-O-P-E order; null when not categorised yet.
   copeDimensions: CopeDimension[] | null
   standard: string | null
-  severity: IObservation['severity']
-  // null only if the location is no longer listed.
+  // null while empty (CP-24).
+  severity: Severity | null
+  // null only if the location is no longer listed, or on a draft observation.
   location: LocationDto | null
   note: string | null
   // The confirmed parts of a shorthand note (CP-35); empty when it was not split.
@@ -346,17 +362,11 @@ export type ObservationDto = {
   removedRecordings: (RecordingDto & { removed: StampDto })[]
   removedPhotos: (PhotoDto & { removed: StampDto })[]
   removedPages: (PageDto & { removed: StampDto })[]
-  // What the model proposes from it (CP-05, CP-21), for the engineer to
-  // review; null until an engineer asks for it to be read. Its two parts are
-  // read together the first time and one at a time after: the categories
-  // (these fields) and the photos' description (`photos`).
+  // Its photos' description (CP-05, CP-21), written without asking since
+  // CP-24; null until they are first described.
   interpretation: {
-    // Where the categories stand.
-    status: IInterpretation['status']
-    // The photos' description and hazard type, with where they stand; null
-    // until its photos are first described.
     photos: {
-      status: IInterpretation['status']
+      status: NonNullable<IInterpretation['status']>
       description: string | null
       hazardType: string | null
       error: string | null
@@ -364,35 +374,23 @@ export type ObservationDto = {
       model: string | null
       // The photos it describes, removed ones included.
       photoIds: string[]
-      // Finished, but of photos other than those it has now.
+      // Finished, but of photos or marks other than those it has now.
       outOfDate: boolean
     } | null
-    // The proposed categories, each with what it rests on. A reading from
-    // before CP-21 proposed one, with no reason.
-    categories: {
-      category: CopeDimension
-      reason: string | null
-      evidence: {
-        item: string
-        quote: string | null
-        // null for a photo, which has no words to check.
-        verified: boolean | null
-      }[]
-    }[]
-    error: string | null
-    attempts: number
-    // The model that wrote it.
-    model: string | null
-    // The photos it reads (CP-08), removed ones included.
-    photoIds: string[]
-    // Everything it reads, by the labels its evidence cites (CP-21); a
-    // recording or page with no transcript is listed as left out.
-    items: { label: string; kind: ReadItemKind; id: string | null; leftOut: boolean }[]
-    // A finished reading of something other than what it has now: photos,
-    // recordings or pages added or removed, a transcript changed, or the note
-    // edited other than by taking in the proposal's description (CP-08, CP-21).
-    outOfDate: boolean
   } | null
+  // The AI's suggestions (CP-24); null when nothing is suggested and nothing
+  // is running. A field's entry is present while its value is an unconfirmed
+  // suggestion; null once it is the engineer's, or while it is empty.
+  suggestion: {
+    status: ISuggestion['status']
+    // Short reason when failed.
+    error: string | null
+    category: { notSure: boolean } | null
+    severity: { notSure: boolean } | null
+  } | null
+  // Left out of drafting until settled (CP-24): category or severity empty,
+  // a not-sure value, or a failed suggestion. The one shared rule.
+  toCheck: boolean
   // The checklist item it answers (CP-31), with the item's text then; null
   // when it was captured on its own.
   checklistItem: { itemId: string; result: CheckResult; text: string } | null
@@ -406,8 +404,6 @@ export type ObservationDto = {
   // Set while it is deleted (CP-08).
   deleted: StampDto | null
 }
-
-type StoredObservation = IObservation & { _id: Types.ObjectId }
 
 // The same for a handwritten page (CP-19), from S5's message prefixes
 // (microservices/speech-ocr-service/app/processors/handwriting.py).
@@ -429,205 +425,11 @@ function pageFailureReason(error?: string): string | null {
   return error.length > 200 ? 'Transcription failed. Please retry or contact support.' : error
 }
 
-// The same for reading an observation (CP-05, CP-21), from S5's message
-// prefixes (microservices/speech-ocr-service/app/processors/vision.py).
-function interpretationFailureReason(error?: string): string | null {
-  if (!error) return null
-  if (error.startsWith('The photo could not be read from storage:'))
-    return 'A photo could not be read from storage.'
-  if (error.startsWith('The photo could not be opened:')) return 'A photo could not be opened.'
-  if (
-    error.startsWith('The observation could not be read:') ||
-    // Stored by readings from before CP-21.
-    error.startsWith('The photos could not be interpreted:')
-  ) {
-    // The provider's own status, when it says why, as for a handwritten page.
-    if (/Error code: 429|rate limit|quota/i.test(error))
-      return 'The AI service has reached its usage limit. Try again later.'
-    if (/Error code: 503|high demand|overloaded/i.test(error))
-      return 'The AI service is busy. Try again in a minute.'
-    return 'The AI service could not read this observation.'
-  }
-  return error.length > 200 ? 'Interpretation failed. Please retry or contact support.' : error
-}
-
-// The recordings, photos or pages not removed (CP-08, CP-20): the observation's evidence.
-const kept = <T extends { removed?: IStamp }>(items: T[]) => items.filter((item) => !item.removed)
-
-// The photos a reading reads, by id: its own list, or for a reading from
-// before photos could change, every photo the observation was saved with.
-function readPhotoIds(o: StoredObservation): string[] {
-  const ids =
-    o.interpretation?.photoIds ?? (o.photos ?? []).filter((p) => !p.added).map((p) => p._id)
-  return ids.map(String)
-}
-
-// A transcript a reading can use: the engineer's correction where there is one
-// (CP-08 AC5, CP-20), and none while it is still transcribing, failed, or
-// empty (a page with no handwriting).
-function readableText(t: IRecording['transcription'] | IPage['transcription']): string | null {
-  if (t.status !== 'transcribed') return null
-  const text = t.correction?.text || t.transcript
-  return text?.trim() ? text : null
-}
-
-// Everything an observation holds for a reading to read (CP-21), each under
-// the label its proposal will cite it by: the note, then its recordings, pages
-// and photos not removed, by their own names, a repeated name numbered.
-function readingItems(o: StoredObservation): IReadItem[] {
-  const items: IReadItem[] = [
-    ...(observationFacts(o)?.trim()
-      ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(o)! }]
-      : []),
-    ...kept(o.recordings).map((r) => ({
-      label: r.name,
-      kind: 'recording' as const,
-      id: r._id,
-      text: readableText(r.transcription),
-    })),
-    ...kept(o.pages ?? []).map((p) => ({
-      label: p.name,
-      kind: 'page' as const,
-      id: p._id,
-      text: readableText(p.transcription),
-    })),
-    ...kept(o.photos ?? []).map((p) => ({ label: p.name, kind: 'photo' as const, id: p._id })),
-  ]
-  const seen = new Map<string, number>()
-  return items.map((item) => {
-    const count = (seen.get(item.label) ?? 0) + 1
-    seen.set(item.label, count)
-    return count === 1 ? item : { ...item, label: `${item.label} (${count})` }
-  })
-}
-
-// Whether what an observation holds now differs from what a reading read
-// (CP-21): any recording, page or photo added or removed, a transcript
-// changed, or the note changed. Taking the proposal's description into the
-// note, as Use as note writes it, is not a change: it came from the reading.
-function itemsChanged(read: IReadItem[], now: IReadItem[], description?: string): boolean {
-  const key = (item: IReadItem) => `${item.kind}:${item.id ?? ''}`
-  const evidence = (items: IReadItem[]) => items.filter((item) => item.kind !== 'note')
-  const before = new Map(evidence(read).map((item) => [key(item), item.text ?? null]))
-  const after = evidence(now)
-  if (
-    after.length !== before.size ||
-    after.some((item) => !before.has(key(item)) || before.get(key(item)) !== (item.text ?? null))
-  )
-    return true
-  const noteOf = (items: IReadItem[]) => items.find((item) => item.kind === 'note')?.text ?? ''
-  const noteBefore = noteOf(read)
-  const noteNow = noteOf(now)
-  if (noteNow === noteBefore) return false
-  return !description || noteNow !== (noteBefore ? `${noteBefore}\n\n${description}` : description)
-}
-
-// The photos' part of a reading as it stands (CP-21): its own record, or on a
-// reading from before the parts were split, the description kept with the
-// categories, under their status.
-function photoReadingOf(o: StoredObservation): IPhotoReading | null {
-  const reading = o.interpretation
-  if (!reading) return null
-  if (reading.photoReading) return reading.photoReading
-  if (reading.description === undefined && reading.hazardType === undefined) return null
-  return {
-    status: reading.status,
-    description: reading.description,
-    hazardType: reading.hazardType,
-    attempts: reading.attempts,
-    photoIds: readPhotoIds(o).map((id) => new Types.ObjectId(id)),
-    provenance: reading.provenance,
-  }
-}
-
-// A finished description of photos other than those kept now (CP-08): photos
-// were added or removed since. Nothing else it reads changes it.
-function photosOutOfDate(o: StoredObservation): boolean {
-  const reading = photoReadingOf(o)
-  if (reading?.status !== 'interpreted') return false
-  const read = reading.photoIds.map(String)
-  const now = kept(o.photos ?? []).map((p) => String(p._id))
-  if (read.length !== now.length || now.some((id) => !read.includes(id))) return true
-  // A mark moved, added or cleared since (CP-10): the model saw something else.
-  return markKey(marksOf(o.photos ?? [], now)) !== markKey(reading.marks ?? [])
-}
-
-// The marks on the given photos (CP-10), as a photo reading keeps them.
-function marksOf(photos: IPhoto[], ids: string[]) {
-  return photos
-    .filter((p) => p.region && ids.includes(String(p._id)))
-    .map((p) => ({ photo: p._id, region: p.region! }))
-}
-// Marks compared whatever their order.
-const markKey = (marks: { photo: Types.ObjectId; region: IPhotoRegion }[]) =>
-  JSON.stringify(
-    marks
-      .map(({ photo, region: { x, y, w, h } }) => [String(photo), x, y, w, h])
-      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
-  )
-
-// Finished categories of something other than what the observation holds now.
-// A reading from before CP-21 read only its photos and note: it is judged by
-// its photos (CP-08), and is out of date once there is a transcript it never
-// read, so the engineer can ask for one that reads it.
-function readingOutOfDate(o: StoredObservation): boolean {
-  if (o.interpretation?.status !== 'interpreted') return false
-  const now = readingItems(o)
-  if (o.interpretation.items)
-    return itemsChanged(o.interpretation.items, now, photoReadingOf(o)?.description)
-  const read = readPhotoIds(o)
-  const photos = now.filter((item) => item.kind === 'photo').map((item) => String(item.id))
-  return (
-    read.length !== photos.length ||
-    photos.some((id) => !read.includes(id)) ||
-    now.some((item) => (item.kind === 'recording' || item.kind === 'page') && item.text)
-  )
-}
-
-// Curly quotes and long dashes as typed on a phone, read as their plain forms.
-const PLAIN: Record<string, string> = { '‘': "'", '’': "'", '“': '"', '”': '"', '–': '-', '—': '-' }
-const plain = (text: string) =>
-  text
-    .replace(/[‘’“”–—]/g, (c) => PLAIN[c])
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-// Spaces and ASCII punctuation at a quote's edges, as Python's string.punctuation.
-const EDGES = /^[\s!-/:-@[-`{-~]+|[\s!-/:-@[-`{-~]+$/g
-
-// Whether a quote appears in an item's text (CP-21): case, spacing, curly
-// quotes and punctuation at its edges aside. The category eval checks quotes
-// the same way (speech-ocr-service/eval/suggest_categories.py).
-export function quoteFound(quote: string | null | undefined, text: string): boolean {
-  const words = plain(quote ?? '').replace(EDGES, '')
-  return !!words && plain(text).includes(words)
-}
-
-function interpretationDto(
-  o: StoredObservation,
-  reading: IInterpretation,
-): NonNullable<ObservationDto['interpretation']> {
-  // A reading from before CP-21 read the note and photos, and proposed one
-  // category with no reason.
-  const items =
-    reading.items ??
-    (o.photos ?? [])
-      .filter((p) => readPhotoIds(o).includes(String(p._id)))
-      .map((p) => ({ label: p.name, kind: 'photo' as const, id: p._id }))
-  const categories =
-    reading.categories?.map((c) => ({
-      category: c.category,
-      reason: c.reason,
-      evidence: c.evidence.map((e) => ({
-        item: e.item,
-        quote: e.quote ?? null,
-        verified: e.verified ?? null,
-      })),
-    })) ??
-    (reading.copeDimension ? [{ category: reading.copeDimension, reason: null, evidence: [] }] : [])
+// The photos' description as the DTO gives it (CP-21); null until described.
+function interpretationDto(o: StoredObservation): ObservationDto['interpretation'] {
+  if (!o.interpretation) return null
   const photos = photoReadingOf(o)
   return {
-    status: reading.status,
     photos: photos && {
       status: photos.status,
       description: photos.description ?? null,
@@ -638,23 +440,37 @@ function interpretationDto(
       photoIds: photos.photoIds.map(String),
       outOfDate: photosOutOfDate(o),
     },
-    categories,
-    error: interpretationFailureReason(reading.error),
-    attempts: reading.attempts.length,
-    model: reading.provenance?.model ?? null,
-    photoIds: readPhotoIds(o),
-    items: items.map((item) => ({
-      label: item.label,
-      kind: item.kind,
-      id: item.id ? String(item.id) : null,
-      leftOut: item.kind !== 'note' && item.kind !== 'photo' && !item.text,
-    })),
-    outOfDate: readingOutOfDate(o),
   }
 }
 
+// The suggestions as the DTO gives them (CP-24): null when there is nothing to
+// show, i.e. done with no field still a suggestion (or a stored entry with no
+// status, which an engineer's change can leave before any run).
+function suggestionDto(s: ISuggestion | undefined): ObservationDto['suggestion'] {
+  if (!s?.status) return null
+  if (s.status === 'done' && !s.category && !s.severity) return null
+  return {
+    status: s.status,
+    error: s.error ?? null,
+    category: s.category ? { notSure: s.category.notSure } : null,
+    severity: s.severity ? { notSure: s.severity.notSure } : null,
+  }
+}
+
+/** Returns whether an observation is to check (CP-24), the rule drafting also uses. */
+export function isToCheck(o: StoredObservation): boolean {
+  const s = o.suggestion?.status ? o.suggestion : undefined
+  return (
+    !copeDimensionsOf(o.metadata.COPE_dimension) ||
+    !o.severity ||
+    !!s?.category?.notSure ||
+    !!s?.severity?.notSure ||
+    s?.status === 'failed'
+  )
+}
+
 function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
-  const location = locations.find((l) => l._id.equals(o.location))
+  const location = o.location && locations.find((l) => l._id.equals(o.location))
   const recording = (r: IRecording): RecordingDto => ({
     type: 'Voice',
     id: String(r._id),
@@ -721,7 +537,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     engineerId: o.engineerId ? String(o.engineerId) : null,
     copeDimensions: copeDimensionsOf(o.metadata.COPE_dimension),
     standard: o.standard ?? null,
-    severity: o.severity,
+    severity: o.severity ?? null,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
     parts: o.parts ?? [],
@@ -737,7 +553,9 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     removedPages: pages
       .filter((p) => p.removed)
       .map((p) => ({ ...page(p), removed: stampDto(p.removed)! })),
-    interpretation: o.interpretation ? interpretationDto(o, o.interpretation) : null,
+    interpretation: interpretationDto(o),
+    suggestion: suggestionDto(o.suggestion),
+    toCheck: isToCheck(o),
     checklistItem: o.checklistItem
       ? {
           itemId: String(o.checklistItem.item),
@@ -779,9 +597,11 @@ async function activeCapture(reference: string, user: SessionUser) {
 // against the assessment's active capture session. Each recording, photo and
 // page goes to S3 as raw evidence (CP-03 AC1, CP-04 AC1, CP-19 AC1), and each
 // recording and page starts its initial transcription (CP-03 AC3, CP-19 AC6).
-// Nothing is read: nothing goes to the model until an engineer asks
-// (readObservation). The session stays active, so the engineer can keep adding
-// observations.
+// With `draftId`, the draft observation holding the recordings made before
+// Save becomes this one, keeping them and their transcripts (CP-24). Then the
+// reading job is queued: it describes the photos and suggests what the
+// engineer left empty (CP-24). The session stays active, so the engineer can
+// keep adding observations.
 export async function saveObservation(
   reference: string,
   details: ObservationDetails,
@@ -793,35 +613,74 @@ export async function saveObservation(
   const { assessment, session } = await activeCapture(reference, user)
   const locations = assessment.locations ?? []
   if (!locations.some((l) => l._id.equals(details.locationId))) throw new UnknownLocationError()
+  const draft =
+    details.draftId &&
+    (await ObservationModel.findOne(
+      { _id: details.draftId, assessment: assessment._id, draft: true },
+      'recordings',
+    ).lean<StoredObservation>())
+  if (details.draftId && !draft) throw new ObservationNotFoundError('draft observation')
+  // The draft's recordings count as captured; without any, the route's own check applied.
+  const bringsNothing = !details.note && !recordings.length && !photos.length && !pages.length
+  if (draft && bringsNothing && !kept(draft.recordings).length) throw new EmptyObservationError()
   const link = details.checklistItem && (await checklistLink(assessment._id, details.checklistItem))
-  const id = new Types.ObjectId()
+  const id = draft ? draft._id : new Types.ObjectId()
   const now = new Date()
   const media = storedMedia(reference, id, { recordings, photos, pages }, now)
-  const observation = await withUploads(media.files, () =>
-    ObservationModel.create({
-      _id: id,
-      assessment: assessment._id,
-      session: session._id,
-      engineer: user.name,
-      engineerId: user.id,
-      note: details.note,
-      ...(details.parts?.length && { parts: details.parts }),
-      recordings: media.recordings,
-      photos: media.photos,
-      pages: media.pages,
-      standard: details.standard,
-      severity: details.severity,
-      location: details.locationId,
-      ...(link && { checklistItem: link }),
-      metadata: {
-        source_type: 'observation',
-        jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
-        facility_type: assessment.site?.facilityType ?? 'unknown',
-        COPE_dimension: details.copeDimensions,
-        effective_date: now,
+  const fields = {
+    session: session._id,
+    engineer: user.name,
+    engineerId: user.id,
+    note: details.note,
+    ...(details.parts?.length && { parts: details.parts }),
+    standard: details.standard,
+    severity: details.severity,
+    location: details.locationId,
+    ...(link && { checklistItem: link }),
+    metadata: {
+      source_type: 'observation' as const,
+      jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
+      facility_type: assessment.site?.facilityType ?? 'unknown',
+      COPE_dimension: details.copeDimensions,
+      effective_date: now,
+    },
+  }
+  const observation = await withUploads(media.files, async () => {
+    if (!draft)
+      return (
+        await ObservationModel.create({
+          _id: id,
+          assessment: assessment._id,
+          ...fields,
+          recordings: media.recordings,
+          photos: media.photos,
+          pages: media.pages,
+        })
+      ).toObject()
+    // Recorded now, not when the first recording was added, so it lists in the
+    // order saved. Matching on `draft` stops a discard or a second Save racing it.
+    // When the Save brings nothing of its own, the draft must still hold a
+    // recording: without this, one removed meanwhile would save an empty observation.
+    const saved = await ObservationModel.findOneAndUpdate(
+      { _id: id, draft: true, ...(bringsNothing && KEEPS_RECORDING) },
+      {
+        $set: { ...fields, createdAt: now },
+        $unset: { draft: 1 },
+        $push: {
+          recordings: { $each: media.recordings },
+          photos: { $each: media.photos },
+          pages: { $each: media.pages },
+        },
       },
-    }),
-  )
+      { returnDocument: 'after', overwriteImmutable: true },
+    ).lean<StoredObservation>()
+    if (!saved) {
+      // Still a draft: its last recording went between the read and the write.
+      if (await ObservationModel.exists({ _id: id, draft: true })) throw new EmptyObservationError()
+      throw new ObservationNotFoundError('draft observation')
+    }
+    return saved
+  })
 
   // The observation now checks the item, so a Not seen or Not applicable mark
   // on it no longer says anything.
@@ -834,7 +693,7 @@ export async function saveObservation(
 
   for (const r of media.recordings) queueTranscription(String(id), String(r._id))
   for (const p of media.pages) void runPageTranscription(String(id), String(p._id))
-  return toDto(observation.toObject(), locations)
+  return toDto((await queueReading(id)) ?? observation, locations)
 }
 
 // The observations not deleted that check an item of the assessment's
@@ -973,9 +832,9 @@ const stamp = (user: SessionUser): IStamp => ({
 })
 
 // Throws unless the user is the engineer assigned to the observation's assessment.
-// For the changes that need no other check (a transcription retry, reading the
-// photos): without it a knowledge admin, who holds assessments:edit (RV-11), could
-// start work, and spend AI money, on someone else's assessment.
+// For the changes that need no other check (a transcription retry): without it
+// a knowledge admin, who holds assessments:edit (RV-11), could start work, and
+// spend AI money, on someone else's assessment.
 async function mustBeAssigned(id: string, user: SessionUser) {
   const observation = await ObservationModel.findById(id, 'assessment').lean()
   if (!observation) throw new ObservationNotFoundError()
@@ -1019,6 +878,9 @@ const KEEPS_PAGE = { pages: { $elemMatch: { removed: { $exists: false } } } }
 // uncategorised observation brings it into drafting (CP-02 AC4). Only what
 // differs is saved, with who changed it; a change to nothing records nothing.
 // The value drafts cited stays in each draft's own `evidence` (CP-08 AC15).
+// This is the one write path for category and severity (CP-24): choosing,
+// changing or confirming one clears its suggestion entry, so the value is the
+// engineer's and the reading job never replaces it.
 export async function updateObservation(
   id: string,
   changes: ObservationChanges,
@@ -1043,16 +905,48 @@ export async function updateObservation(
     if (next === null) unset[path] = 1
     else set[path] = next
   }
+  // The fields now the engineer's. While a run is reading, the entry is cleared
+  // even if it holds none yet, in case the run fills it before this lands.
+  // shortcut: Confirm keeps whatever value is stored when it lands, not the one the engineer saw, if a
+  // new suggestion arrives in the same instant; send the seen value with Confirm if that ever shows up.
+  const owned = new Set(changes.confirm ?? [])
+  if (changes.copeDimensions !== undefined) owned.add('category')
+  if (changes.severity !== undefined) owned.add('severity')
+  const s = o.suggestion
+  const clears = (field: 'category' | 'severity') =>
+    owned.has(field) && !!s && (!!s[field] || s.status === 'reading')
+  for (const field of ['category', 'severity'] as const)
+    if (clears(field)) set[`suggestion.${field}`] = null
+  // A value sent for a field whose entry is cleared is written even when it
+  // matches what was read (null included), in that same update: without this,
+  // a run landing between the read and the write would leave the AI's value
+  // stored as the engineer's (AC9).
   if (
     changes.copeDimensions !== undefined &&
-    String(changes.copeDimensions) !== String(copeDimensionsOf(o.metadata.COPE_dimension))
+    (clears('category') ||
+      String(changes.copeDimensions) !== String(copeDimensionsOf(o.metadata.COPE_dimension)))
   )
     set['metadata.COPE_dimension'] = changes.copeDimensions
-  change('severity', o.severity, changes.severity)
-  if (changes.locationId && !o.location.equals(changes.locationId))
+  if (
+    changes.severity !== undefined &&
+    (clears('severity') || changes.severity !== (o.severity ?? null))
+  )
+    set.severity = changes.severity
+  if (changes.locationId && !o.location?.equals(changes.locationId))
     set.location = changes.locationId
   change('standard', o.standard, changes.standard)
   change('note', o.note, changes.note)
+  // A failed suggestion with nothing left to suggest is over: both fields filled and the engineer's.
+  const filled = (field: 'category' | 'severity', value: unknown, now: unknown) =>
+    !!(value === undefined ? now : value) && (owned.has(field) || !s?.[field])
+  if (
+    s?.status === 'failed' &&
+    filled('category', changes.copeDimensions, copeDimensionsOf(o.metadata.COPE_dimension)) &&
+    filled('severity', changes.severity, o.severity)
+  ) {
+    set['suggestion.status'] = 'done'
+    unset['suggestion.error'] = 1
+  }
   if (!Object.keys(set).length && !Object.keys(unset).length) return toDto(o, locations)
 
   // Removing the note matches only while a recording, photo or page stays, so
@@ -1077,14 +971,16 @@ export async function updateObservation(
       throw new ObservationStateError(DELETED)
     throw new EmptyObservationError()
   }
+  // The note is the main text the rating reads: a new one suggests again (CP-24).
+  if ('note' in set || unset.note)
+    return toDto((await queueReading(id, { rate: true })) ?? updated, locations)
   return toDto(updated, locations)
 }
 
 // Adds recordings, photos and handwritten pages to a saved observation (CP-08,
 // CP-20), each stored in S3 as raw evidence and marked with who added it. Each
-// recording and page starts its transcription. No photo is read until an
-// engineer asks, and a reading of what the observation held before shows as
-// out of date. No capture session is needed: like the other changes, it is a
+// recording and page starts its transcription, and the reading job is queued
+// (CP-24). No capture session is needed: like the other changes, it is a
 // correction its assigned engineer can make later.
 export async function addMedia(
   id: string,
@@ -1116,7 +1012,8 @@ export async function addMedia(
   })
   for (const r of media.recordings) queueTranscription(id, String(r._id))
   for (const p of media.pages) void runPageTranscription(id, String(p._id))
-  return toDto(updated, locations)
+  // New media: describe the photos and suggest again (CP-24).
+  return toDto((await queueReading(id, { rate: true })) ?? updated, locations)
 }
 
 export const MEDIA_KINDS = ['recordings', 'photos', 'pages'] as const
@@ -1148,6 +1045,11 @@ async function setRemoved(
   const noun = NOUN[kind]
   if (!isValidObjectId(itemId)) throw new ObservationNotFoundError(noun)
   const item = new Types.ObjectId(itemId)
+  // A draft observation's recording goes for good, file and all (CP-24).
+  if (observation.draft) {
+    if (!remove || kind !== 'recordings') throw new ObservationNotFoundError(noun)
+    return removeDraftRecording(observation, item, locations)
+  }
   // Why the change can't be made to the observation as it stands, if it can't.
   const refusal = (o: StoredObservation) => {
     if (o.deleted) return new ObservationStateError(DELETED)
@@ -1204,7 +1106,47 @@ async function setRemoved(
       new ObservationStateError('This observation changed while saving. Try again.')
     )
   }
+  // Its evidence changed: describe and suggest again (CP-24).
+  return toDto((await queueReading(id, { rate: true })) ?? updated, locations)
+}
+
+// Deletes a draft observation's recording and its file (CP-24): a draft keeps
+// nothing the engineer threw away. The file goes first and the record only
+// once it has: without this order, a storage error would leave audio that
+// nothing points at, never deleted.
+async function removeDraftRecording(
+  draft: StoredObservation,
+  recordingId: Types.ObjectId,
+  locations: ILocation[],
+): Promise<ObservationDto> {
+  const recording = draft.recordings.find((r) => r._id.equals(recordingId))
+  if (!recording) throw new ObservationNotFoundError('recording')
+  if (!(await deleteFiles([recording.key])))
+    throw new ObservationStateError('This recording could not be deleted. Try again.')
+  const updated = await ObservationModel.findOneAndUpdate(
+    { _id: draft._id, draft: true },
+    { $pull: { recordings: { _id: recordingId } } },
+    { returnDocument: 'after' },
+  ).lean<StoredObservation>()
+  if (!updated) throw new ObservationNotFoundError('draft observation')
   return toDto(updated, locations)
+}
+
+// Deletes files from S3, logging any that fail; returns whether every one went,
+// so the caller keeps the record of any left (and can try again).
+async function deleteFiles(keys: string[]): Promise<boolean> {
+  const results = await Promise.all(
+    keys.map((key) =>
+      storage.deleteObject(key).then(
+        () => true,
+        (error: unknown) => {
+          console.error(`Deleting ${key} failed:`, error)
+          return false
+        },
+      ),
+    ),
+  )
+  return results.every(Boolean)
 }
 
 // Marks the area of a photo that matters (CP-10), or clears the mark with null.
@@ -1250,7 +1192,8 @@ export async function markPhoto(
       new ObservationStateError('This observation changed while saving. Try again.')
     )
   }
-  return toDto(updated, locations)
+  // The model saw other marks: describe and suggest again (CP-24).
+  return toDto((await queueReading(id, { rate: true })) ?? updated, locations)
 }
 
 // Corrects a finished transcript of a recording (CP-08 AC10) or a handwritten
@@ -1305,7 +1248,8 @@ export async function correctTranscript(
       throw new ObservationStateError(DELETED)
     throw new ObservationStateError(`This ${noun} changed while saving. Try again.`)
   }
-  return toDto(updated, locations)
+  // A corrected transcript or page: suggest again from it (CP-24).
+  return toDto((await queueReading(id, { rate: true })) ?? updated, locations)
 }
 
 /** Returns the observation's assessment reference as a one-item list, or [] (AS-06's re-check). */
@@ -1343,12 +1287,16 @@ export async function restoreObservation(id: string, user: SessionUser): Promise
     { returnDocument: 'after' },
   ).lean<StoredObservation>()
   if (!updated) throw new ObservationStateError('This observation is not deleted.')
-  return toDto(updated, locations)
+  // A reading skipped while it was deleted runs now (CP-24): without this, it
+  // could stay empty with no way to ask again.
+  return toDto((await queueReading(id)) ?? updated, locations)
 }
 
 // Every observation of the assessment, newest first. Deleted ones are left
 // out (CP-08 AC13), so the list, section evidence counts and drafting never
-// read them, unless asked for.
+// read them, unless asked for. Draft observations (CP-24) are never listed:
+// this is what every list, count, drafting input, Ask, the appendix and
+// MarshBot read, so leaving them out here leaves them out everywhere.
 export async function listObservations(
   reference: string,
   { includeDeleted = false } = {},
@@ -1357,6 +1305,7 @@ export async function listObservations(
   if (!assessment) throw new AssessmentNotFoundError(reference)
   const observations = await ObservationModel.find({
     assessment: assessment._id,
+    draft: { $ne: true },
     ...(!includeDeleted && { deleted: { $exists: false } }),
   })
     .sort({ createdAt: -1 })
@@ -1385,7 +1334,8 @@ export async function toAskFor(reference: string): Promise<ToAskItem[]> {
         observationId: o.id,
         text: p.text,
         location: o.location ? locationText(o.location) : null,
-        severity: o.severity,
+        // Empty while the severity is still to be suggested or chosen (CP-24).
+        severity: o.severity ?? '',
       })),
   )
 }
@@ -1403,6 +1353,8 @@ export async function listObservationsOf(
   const locations = new Map(assessments.map((a) => [String(a._id), a.locations ?? []]))
   const observations = await ObservationModel.find({
     assessment: { $in: assessments.map((a) => a._id) },
+    // Never a draft observation (CP-24), as in listObservations.
+    draft: { $ne: true },
     deleted: { $exists: false },
   })
     .sort({ createdAt: -1 })
@@ -1436,6 +1388,8 @@ export async function listCategoryObservations(
   const observations = await ObservationModel.find({
     assessment: assessment._id,
     'metadata.COPE_dimension': copeDimension,
+    // Never a draft observation (CP-24), as in listObservations.
+    draft: { $ne: true },
     deleted: { $exists: false },
   })
     .sort({ createdAt: 1 })
@@ -1446,6 +1400,8 @@ export async function listCategoryObservations(
 // Starts a new attempt for the same recording (CP-03 AC7). Matching on the
 // failed status makes it atomic, so a double click cannot start two attempts.
 // A removed recording (CP-08) is not retried until it is restored.
+// shortcut: on a site walk observation this does not switch rating back on (only the engineer's own
+// changes do, CP-24 AC17); add it to the reading's triggers if engineers expect a new suggestion here.
 export async function retryTranscription(
   id: string,
   recordingId: string,
@@ -1545,8 +1501,10 @@ export async function runTranscription(
   const attempt = `recordings.$.transcription.attempts.${recording.transcription.attempts.length - 1}`
   let outcome: Record<string, unknown>
   try {
+    const { transcript, spoken } = await transcribe(recording.key, reportId)
     outcome = {
-      'recordings.$.transcription.transcript': await transcribe(recording.key, reportId),
+      'recordings.$.transcription.transcript': transcript,
+      'recordings.$.transcription.spoken': spoken,
       'recordings.$.transcription.status': 'transcribed',
     }
   } catch (error) {
@@ -1563,8 +1521,18 @@ export async function runTranscription(
     { _id: id, 'recordings._id': recordingId },
     { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
   )
-  // MarshBot (AS-06) ticks off or raises the recording's item.
-  if (reportId) queueAssessmentCheck(reportId)
+  await transcriptFinished(id, reportId)
+}
+
+// After a recording or page transcribed or failed: the reading job runs again
+// (CP-24; it waited for this, and does nothing on a draft), the open page hears
+// of it (drafts included, so New Observation shows the text), and MarshBot
+// (AS-06) ticks off or raises the item.
+async function transcriptFinished(id: string, reportId: string | undefined) {
+  await queueReading(id)
+  if (!reportId) return
+  publishObservations(reportId)
+  queueAssessmentCheck(reportId)
 }
 
 // Starts a new attempt for the same handwritten page (CP-19 AC11), as for a
@@ -1712,7 +1680,7 @@ export async function runPageTranscription(id: string, pageId: string): Promise<
     { _id: id, 'pages._id': pageId },
     { $set: { ...outcome, [`${attempt}.finishedAt`]: new Date() } },
   ).catch((error) => console.error('Saving page transcription failed:', error))
-  if (reportId) queueAssessmentCheck(reportId)
+  await transcriptFinished(id, reportId)
 }
 
 // After a restart: a voice note still Transcribing goes back on the queue
@@ -1728,6 +1696,9 @@ export async function resumeInterruptedTranscriptions() {
     for (const r of o.recordings)
       if (r.transcription.status === 'transcribing')
         queueTranscription(String(o._id), String(r._id))
+  const pagesWaiting = await ObservationModel.distinct('_id', {
+    'pages.transcription.status': 'transcribing',
+  })
   await ObservationModel.updateMany(
     { 'pages.transcription.status': 'transcribing' },
     {
@@ -1739,325 +1710,8 @@ export async function resumeInterruptedTranscriptions() {
     },
     { arrayFilters: [{ 'r.transcription.status': 'transcribing' }] },
   )
-}
-
-// The parts of a proposal that can be read again one at a time (CP-21).
-export const READING_PARTS = ['categories', 'description'] as const
-export type ReadingPart = (typeof READING_PARTS)[number]
-
-// Reads an observation when an engineer asks (CP-05, CP-21): saving never
-// sends anything to the model, so a client's notes and site photos leave the
-// system only by choice. The first time, or without `part`, it reads both
-// parts in one call: the categories, and with photos, their description. With
-// `part`, it reads that part again, replacing it, whenever the engineer asks:
-// after a failure, once what it reads changed (CP-08), or for another proposal.
-// Each reading records everything it reads. The categories wait for
-// transcriptions still running and leave out a recording or page with no
-// transcript; the description reads the photos, with the note as a hint.
-// Matching on the state it found makes it atomic, so a double click cannot
-// start two.
-export async function readObservation(
-  id: string,
-  part: ReadingPart | undefined,
-  user: SessionUser,
-): Promise<void> {
-  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
-  await mustBeAssigned(id, user)
-  const o = await ObservationModel.findById(
-    id,
-    'note recordings pages photos interpretation deleted',
-  ).lean<StoredObservation>()
-  if (!o) throw new ObservationNotFoundError()
-  if (o.deleted) throw new ObservationStateError(DELETED)
-  const items = readingItems(o)
-  const photoIds = items.filter((item) => item.kind === 'photo').map((item) => item.id!)
-  const parts: ReadingPart[] = part
-    ? [part]
-    : ['categories', ...(photoIds.length ? (['description'] as const) : [])]
-  const reading = o.interpretation
-  const photoReading = reading?.photoReading
-  const busy = 'It is already being read.'
-
-  if (parts.includes('categories')) {
-    const transcribing = [...kept(o.recordings), ...kept(o.pages ?? [])].some(
-      (item) => item.transcription.status === 'transcribing',
-    )
-    if (transcribing)
-      throw new ObservationStateError(
-        'Its recordings and pages are still being transcribed. Try again once they finish.',
-      )
-    if (!items.some((item) => item.kind === 'photo' || item.text))
-      throw new ObservationStateError('This observation has nothing to read yet.')
-    if (reading?.status === 'interpreting') throw new ObservationStateError(busy)
-  }
-  if (parts.includes('description')) {
-    if (!photoIds.length)
-      throw new ObservationStateError('This observation has no photos to describe.')
-    if (photoReadingOf(o)?.status === 'interpreting') throw new ObservationStateError(busy)
-  }
-
-  const attempt = { startedAt: new Date() }
-  const started = { status: 'interpreting', attempts: [attempt], photoIds }
-  // The photos' part also keeps the marks it reads (CP-10), to tell when one changes.
-  const marks = marksOf(o.photos ?? [], photoIds.map(String))
-  const startedPhotos = { ...started, marks }
-  const filter: Record<string, unknown> = { _id: id, deleted: { $exists: false } }
-  const set: Record<string, unknown> = {}
-  const unset: Record<string, 1> = {}
-  const push: Record<string, unknown> = {}
-  if (!reading) {
-    filter.interpretation = { $exists: false }
-    set.interpretation = {
-      ...started,
-      items,
-      ...(parts.includes('description') && { photoReading: startedPhotos }),
-    }
-  } else {
-    // The photos' description, wherever a reading kept it, now lives in its
-    // own part: one from before the parts were split moves there.
-    unset['interpretation.description'] = 1
-    unset['interpretation.hazardType'] = 1
-    if (parts.includes('categories')) {
-      filter['interpretation.status'] = reading.status
-      Object.assign(set, {
-        'interpretation.status': 'interpreting',
-        'interpretation.photoIds': photoIds,
-        'interpretation.items': items,
-      })
-      // The categories always match what their reading names.
-      for (const field of ['error', 'categories', 'copeDimension', 'provenance'])
-        unset[`interpretation.${field}`] = 1
-      push['interpretation.attempts'] = attempt
-    }
-    if (parts.includes('description') && photoReading) {
-      filter['interpretation.photoReading.status'] = photoReading.status
-      Object.assign(set, {
-        'interpretation.photoReading.status': 'interpreting',
-        'interpretation.photoReading.photoIds': photoIds,
-        'interpretation.photoReading.marks': marks,
-      })
-      for (const field of ['description', 'hazardType', 'error', 'provenance'])
-        unset[`interpretation.photoReading.${field}`] = 1
-      push['interpretation.photoReading.attempts'] = attempt
-    } else if (parts.includes('description')) {
-      filter['interpretation.photoReading'] = { $exists: false }
-      set['interpretation.photoReading'] = startedPhotos
-    } else if (!photoReading && photoReadingOf(o)) {
-      // Reading the categories alone keeps a description read before the split.
-      set['interpretation.photoReading'] = photoReadingOf(o)
-    }
-  }
-  const { matchedCount } = await ObservationModel.updateOne(filter, {
-    $set: set,
-    ...(Object.keys(unset).length && { $unset: unset }),
-    ...(Object.keys(push).length && { $push: push }),
-  })
-  // Someone else started one between the read and the write.
-  if (!matchedCount) throw new ObservationStateError(busy)
-  void runInterpretation(id, parts)
-}
-
-// Runs the latest attempt at reading the given parts of an observation and
-// records the proposal (CP-05 AC3-AC5, CP-21), once an engineer has asked
-// (readObservation): one call for the parts together. It reads what the
-// attempt names, so a change made while it runs leaves it reading what it
-// started with. Never throws: a failure is stored on each part as the reason
-// the engineer sees. The model is told where the finding was made and what was
-// captured, but not the engineer's categories or severity, so its proposed
-// categories are its own. Each quote it gives is checked against the item it
-// names. The proposal is not drafting evidence, so a draft never reads it and
-// never goes out of date because of it.
-// ponytail: runs in the gateway process, like runTranscription.
-export async function runInterpretation(
-  id: string,
-  parts: ReadingPart[] = [...READING_PARTS],
-): Promise<void> {
-  const observation = await ObservationModel.findById(
-    id,
-    'assessment photos note location interpretation',
-  )
-    .lean<StoredObservation>()
-    .catch(() => null)
-  const reading = observation?.interpretation
-  if (!reading) return
-  const categories = parts.includes('categories')
-  // The categories read every item their attempt names; the description alone
-  // reads the photos its attempt names, under their own names, with the note.
-  const items: IReadItem[] = categories
-    ? (reading.items ?? [])
-    : [
-        ...(observationFacts(observation)?.trim()
-          ? [{ label: 'Note', kind: 'note' as const, text: observationFacts(observation)! }]
-          : []),
-        ...(reading.photoReading?.photoIds ?? []).map((photoId) => ({
-          label: observation.photos?.find((p) => p._id.equals(photoId))?.name ?? 'Photo',
-          kind: 'photo' as const,
-          id: photoId,
-        })),
-      ]
-  const photos = items.flatMap((item) => {
-    const photo = item.kind === 'photo' && observation.photos?.find((p) => p._id.equals(item.id!))
-    if (!photo) return []
-    // A marked photo (CP-10) goes with its mark, so S5 sends the model a close-up too.
-    const { region } = photo
-    return [
-      {
-        label: item.label,
-        s3Key: photo.key,
-        ...(region && { region: { x: region.x, y: region.y, w: region.w, h: region.h } }),
-      },
-    ]
-  })
-  const texts = items.flatMap((item) =>
-    item.kind !== 'photo' && item.text
-      ? [{ label: item.label, kind: item.kind, text: item.text }]
-      : [],
-  )
-  if (categories ? !photos.length && !texts.length : !photos.length) return
-  const assessment = await AssessmentModel.findById(observation.assessment, 'locations reference')
-    .lean()
-    .catch(() => null)
-  const place = assessment?.locations?.find((l) => l._id.equals(observation.location))
-  // Each part's latest attempt, finished whatever the outcome.
-  const prefix = (p: ReadingPart) =>
-    p === 'categories' ? 'interpretation' : 'interpretation.photoReading'
-  const attempt = (p: ReadingPart) => {
-    const attempts = p === 'categories' ? reading.attempts : (reading.photoReading?.attempts ?? [])
-    return `${prefix(p)}.attempts.${attempts.length - 1}`
-  }
-  let outcome: Record<string, unknown> = {}
-  try {
-    const started = performance.now()
-    const result = await interpret({
-      photos,
-      texts,
-      location: place ? locationText(place) : null,
-      parts,
-      // Read inside the try, so a failure is stored as the attempt's reason (PV-04).
-      // Without the assessment, protection on fails as not found rather than send unprotected.
-      privacy: await readingPrivacyFor(assessment?.reference ?? ''),
-    })
-    // EV-03: the paid call, tagged with the assessment. Never throws.
-    await recordAiCalls(visionUsageToWire(result, performance.now() - started), {
-      reportId: assessment?.reference,
-    })
-    const provenance = {
-      provider: result.provider,
-      model: result.model,
-      promptVersion: result.prompt_version,
-      usage: result.usage && {
-        inputTokens: result.usage.input_tokens,
-        outputTokens: result.usage.output_tokens,
-        thoughtTokens: result.usage.thought_tokens,
-      },
-      ...(result.privacy && {
-        privacy: {
-          enabled: result.privacy.enabled,
-          maskedCount: result.privacy.masked_count,
-          facesBlurred: result.privacy.faces_blurred,
-          removedFromAnswer: result.privacy.removed_from_answer,
-        },
-      }),
-      interpretedAt: new Date(),
-    }
-    const textOf = new Map(texts.map((t) => [t.label, t.text]))
-    const photoLabels = new Set(photos.map((p) => p.label))
-    if (categories)
-      Object.assign(outcome, {
-        'interpretation.status': 'interpreted',
-        'interpretation.categories': (result.categories ?? [])
-          .filter((c): c is typeof c & { category: CopeDimension } =>
-            (COPE_DIMENSIONS as readonly string[]).includes(c.category),
-          )
-          .map((c) => ({
-            category: c.category,
-            reason: c.reason,
-            evidence: c.evidence.map((e) =>
-              // A photo has no words: any quote given for one is dropped.
-              photoLabels.has(e.item)
-                ? { item: e.item, verified: null }
-                : {
-                    item: e.item,
-                    ...(e.quote && { quote: e.quote }),
-                    verified: textOf.has(e.item) && quoteFound(e.quote, textOf.get(e.item)!),
-                  },
-            ),
-          })),
-        'interpretation.provenance': provenance,
-      })
-    if (parts.includes('description'))
-      Object.assign(outcome, {
-        'interpretation.photoReading.status': 'interpreted',
-        'interpretation.photoReading.description': result.description,
-        'interpretation.photoReading.hazardType': result.hazard_type,
-        'interpretation.photoReading.provenance': provenance,
-      })
-    Object.assign(outcome, await keepRedactedPhotos(observation, photos, result.redacted_photos))
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : 'Interpretation failed.'
-    outcome = {}
-    for (const p of parts)
-      Object.assign(outcome, {
-        [`${prefix(p)}.status`]: 'failed',
-        [`${prefix(p)}.error`]: reason,
-        [`${attempt(p)}.error`]: reason,
-      })
-  }
-  for (const p of parts) outcome[`${attempt(p)}.finishedAt`] = new Date()
-  await ObservationModel.updateOne({ _id: id }, { $set: outcome }).catch((error) =>
-    console.error('Saving interpretation failed:', error),
-  )
-  if (assessment) queueAssessmentCheck(assessment.reference)
-}
-
-// Each photo as the model saw it, when protection blurred a face in it (PV-04):
-// stored beside the original, which is never changed, so the engineer can see
-// what left. A photo with no face went out as taken (only shrunk), so only that
-// it was checked is recorded. Returns the fields to set on the observation.
-async function keepRedactedPhotos(
-  observation: StoredObservation,
-  photos: { label: string; s3Key: string }[],
-  redacted: InterpretationResult['redacted_photos'],
-): Promise<Record<string, unknown>> {
-  const fields: Record<string, unknown> = {}
-  for (const { label, faces, image } of redacted ?? []) {
-    const key = photos.find((p) => p.label === label)?.s3Key
-    const index = observation.photos?.findIndex((p) => p.key === key) ?? -1
-    if (index < 0) continue
-    if (!faces) {
-      fields[`photos.${index}.redaction`] = { key: null, faces: 0, at: new Date() }
-      continue
-    }
-    const copy = Buffer.from(image, 'base64')
-    // One copy per photo: reading it again replaces the last one.
-    const copyKey = key!.replace(/\.[^./]+$/, '') + '.redacted.jpg'
-    try {
-      await storage.putObject(copyKey, copy, 'image/jpeg')
-    } catch (error) {
-      // The copy only shows the engineer what left: the reading still stands.
-      // Logged by key, never with the image.
-      console.error(`Keeping the blurred copy ${copyKey} failed:`, (error as Error).message)
-      continue
-    }
-    fields[`photos.${index}.redaction`] = {
-      key: copyKey,
-      faces,
-      size: copy.length,
-      at: new Date(),
-    }
-  }
-  return fields
-}
-
-// As for transcriptions: a restart loses an attempt still running in memory,
-// so mark each part still running as failed with the reason, ready to retry.
-export async function failInterruptedInterpretations() {
-  const reason = 'Interpretation was interrupted by a gateway restart. Retry it.'
-  for (const prefix of ['interpretation', 'interpretation.photoReading'])
-    await ObservationModel.updateMany(
-      { [`${prefix}.status`]: 'interpreting' },
-      { $set: { [`${prefix}.status`]: 'failed', [`${prefix}.error`]: reason } },
-    )
+  // Their reading waited for these pages (CP-24); without this it would wait forever.
+  await Promise.all(pagesWaiting.map((id) => queueReading(id as Types.ObjectId)))
 }
 
 // The recording's type, size and `open`, which streams all of it or a byte range.
@@ -2159,10 +1813,13 @@ export async function createWalkObservation(input: {
   user: SessionUser
   locationId: Types.ObjectId
   note: string
-  severity: IObservation['severity']
+  severity: Severity
   copeDimensions: CopeDimension[] | null
   evidence: WalkEvidence
   siteWalk: Types.ObjectId
+  // The proposal's not-sure flags (CP-24), carried onto the observation as its
+  // suggestion marks; absent on proposals saved before the flags were shown.
+  check?: { category: boolean; severity: boolean }
 }): Promise<void> {
   // Same id from the same walk = already created. Not keyed on the session or
   // engineer: a retry after the session ended or a reassignment would 500 forever.
@@ -2246,6 +1903,15 @@ export async function createWalkObservation(input: {
         severity: input.severity,
         location: input.locationId,
         siteWalk: input.siteWalk,
+        // Each value the walk was not sure of starts marked, until the engineer
+        // confirms or changes it (CP-24).
+        ...((input.check?.category || input.check?.severity) && {
+          suggestion: {
+            status: 'done',
+            category: input.check.category ? { notSure: true } : null,
+            severity: input.check.severity ? { notSure: true } : null,
+          },
+        }),
         metadata: {
           source_type: 'observation',
           jurisdiction: input.site?.jurisdiction ?? 'unknown',
@@ -2263,8 +1929,141 @@ export async function createWalkObservation(input: {
   })
   // Only the call that made it starts the transcriptions, so a repeat runs none twice.
   if (!created) return
+  // Its photos are described, but rating stays off until the engineer first
+  // changes it, so the proposal's values and marks carry over (AC5, AC17).
+  // Before the transcriptions, so none can finish and rate before it is off.
+  await queueReading(input.id, { rate: false })
   for (const r of voiceRecordings)
     if (r.transcription.status === 'transcribing')
       queueTranscription(String(input.id), String(r._id))
   for (const p of storedPages) void runPageTranscription(String(input.id), String(p._id))
 }
+
+// Tries again after a failed suggestion (CP-24 AC13) or a failed photo
+// description (the job describes them again): a new run, Reading at once. For
+// whoever may change the observation, as for PATCH.
+export async function retrySuggestion(id: string, user: SessionUser): Promise<ObservationDto> {
+  const { observation: o, locations } = await changeable(id, user)
+  if (o.draft) throw new ObservationNotFoundError()
+  if (o.deleted) throw new ObservationStateError(DELETED)
+  if (o.suggestion?.status !== 'failed' && photoReadingOf(o)?.status !== 'failed')
+    throw new ObservationStateError(
+      'Only a failed suggestion or photo description can be tried again.',
+    )
+  return toDto((await queueReading(id, { rate: true })) ?? o, locations)
+}
+
+/**
+ * Returns one observation (CP-24: the open page re-reads it on each push). A
+ * draft observation only to whoever may edit its assessment; a saved one to
+ * anyone who can open the assessment.
+ */
+export async function getObservation(id: string, user: SessionUser): Promise<ObservationDto> {
+  if (!isValidObjectId(id)) throw new ObservationNotFoundError()
+  const o = await ObservationModel.findById(id).lean<StoredObservation>()
+  if (!o) throw new ObservationNotFoundError()
+  if (o.draft) return toDto(o, (await changeable(id, user)).locations)
+  const assessment = await AssessmentModel.findById(o.assessment, 'engineer locations').lean()
+  if (!assessment) throw new ObservationNotFoundError()
+  if (!opensAssessment(user, assessment.engineer))
+    throw new NotAssignedError('Only the assigned engineer or an admin can open this.')
+  return toDto(o, assessment.locations ?? [])
+}
+
+// Adds recordings made on New Observation before Save (CP-24 AC1), each
+// stored in S3 and transcribed as a saved one is. The first creates the draft
+// observation that holds them: hidden from every list, with no location, until
+// Save turns it into the observation. Only the assessment's assigned engineer,
+// in its active capture session, as for saving.
+export async function addDraftRecordings(
+  reference: string,
+  recordings: NewRecording[],
+  user: SessionUser,
+  draftId?: string,
+): Promise<ObservationDto> {
+  const { assessment, session } = await activeCapture(reference, user)
+  if (draftId !== undefined && !isValidObjectId(draftId))
+    throw new ObservationNotFoundError('draft observation')
+  const id = draftId ? new Types.ObjectId(draftId) : new Types.ObjectId()
+  const media = storedMedia(reference, id, { recordings, photos: [] }, new Date())
+  const saved = await withUploads(media.files, async () => {
+    if (!draftId)
+      return (
+        await ObservationModel.create({
+          _id: id,
+          assessment: assessment._id,
+          session: session._id,
+          engineer: user.name,
+          engineerId: user.id,
+          draft: true,
+          recordings: media.recordings,
+          metadata: {
+            source_type: 'observation',
+            jurisdiction: assessment.site?.jurisdiction ?? 'unknown',
+            facility_type: assessment.site?.facilityType ?? 'unknown',
+            COPE_dimension: null,
+            effective_date: new Date(),
+          },
+        })
+      ).toObject<StoredObservation>()
+    const found = await ObservationModel.findOneAndUpdate(
+      { _id: id, assessment: assessment._id, draft: true },
+      { $push: { recordings: { $each: media.recordings } } },
+      { returnDocument: 'after' },
+    ).lean<StoredObservation>()
+    // Saved or discarded meanwhile.
+    if (!found) throw new ObservationNotFoundError('draft observation')
+    return found
+  })
+  for (const r of media.recordings) queueTranscription(String(id), String(r._id))
+  return toDto(saved, assessment.locations ?? [])
+}
+
+// Deletes a draft observation and its recordings' files (CP-24 AC3), when the
+// engineer leaves New Observation without saving. Not found unless it is one.
+// A storage error still answers as done (the engineer has left): the draft
+// stays, and the hourly cleanup tries again.
+export async function discardDraft(id: string, user: SessionUser): Promise<void> {
+  const { observation } = await changeable(id, user)
+  if (!observation.draft) throw new ObservationNotFoundError('draft observation')
+  await deleteDraft(observation)
+}
+
+// Deletes the files first and the record only once every one went: without
+// this order, a storage error would orphan audio nothing points at. Matching on
+// `draft` stops it deleting an observation saved a moment before. Returns
+// whether the draft was deleted.
+// shortcut: a Save landing between the two steps keeps a record whose audio is gone (a window of a
+// few milliseconds); lock the draft while it is discarded if that ever shows up.
+async function deleteDraft(draft: StoredObservation): Promise<boolean> {
+  if (!(await deleteFiles(draft.recordings.map((r) => r.key)))) return false
+  const { deletedCount } = await ObservationModel.deleteOne({ _id: draft._id, draft: true })
+  return deletedCount > 0
+}
+
+/** Deletes draft observations unchanged for 24 hours before `now`, with their files; returns how many. */
+export async function cleanupStaleDrafts(now: Date): Promise<number> {
+  // By last change, not start: adding a recording keeps an open form's draft alive.
+  const stale = await ObservationModel.find({
+    draft: true,
+    updatedAt: { $lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+  }).lean<StoredObservation[]>()
+  let deleted = 0
+  for (const draft of stale) if (await deleteDraft(draft)) deleted++
+  return deleted
+}
+
+// The hourly cleanup of drafts left behind, e.g. by a closed tab (CP-24),
+// run by BullMQ in this process (job-queue.service.ts).
+const draftCleanupQueue = defineQueue<{ kind: 'cleanup' }>(
+  'observation-draft-cleanup',
+  { concurrency: 1, attempts: 3, backoffMs: 60_000 },
+  async () => {
+    const deleted = await cleanupStaleDrafts(new Date())
+    if (deleted) console.log(`Deleted ${deleted} stale draft observation(s).`)
+  },
+)
+
+/** Schedules the draft cleanup hourly; returns once Redis holds it. Called once the gateway boots. */
+export const scheduleDraftCleanup = () =>
+  draftCleanupQueue.schedule('observation-draft-cleanup-hourly', '0 * * * *', { kind: 'cleanup' })

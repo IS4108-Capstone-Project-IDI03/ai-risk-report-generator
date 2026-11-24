@@ -39,6 +39,7 @@ class FakeOpenAI:
     language = None
     prompt = None
     segments = None  # None means the mock returns no segments
+    text = "Sprinkler valve chained open."
     duration = 4.2  # None means the mock returns no duration
 
     def __init__(self):
@@ -52,7 +53,7 @@ class FakeOpenAI:
         FakeOpenAI.response_format = response_format
         FakeOpenAI.language = language
         FakeOpenAI.prompt = extra
-        attrs = {"text": "Sprinkler valve chained open."}
+        attrs = {"text": FakeOpenAI.text}
         if FakeOpenAI.segments is not None:
             attrs["segments"] = FakeOpenAI.segments
         if FakeOpenAI.duration is not None:
@@ -64,6 +65,7 @@ def use_fakes(monkeypatch, s3, duration=4.2):
     FakeOpenAI.error = None
     FakeOpenAI.duration = duration
     FakeOpenAI.segments = None
+    FakeOpenAI.text = "Sprinkler valve chained open."
     monkeypatch.setattr(stt.boto3, "client", lambda *args, **kwargs: s3)
     monkeypatch.setattr(stt, "OpenAI", FakeOpenAI)
 
@@ -204,10 +206,84 @@ def test_transcribe_segments_are_empty_when_whisper_gives_none(monkeypatch):
     assert body["segments"] == []
 
 
-def test_transcribe_never_sends_a_prompt_to_whisper(monkeypatch):
-    # Client text must not reach an external AI unmasked, and speech-to-text is not masked.
+def test_transcribe_never_sends_client_text_in_the_prompt(monkeypatch):
+    # Client text must not reach an external AI unmasked, and speech-to-text is not masked: the
+    # prompt is S5's own fixed sentence (CP-27), never words the caller sends.
+    from app.processors.stt import RECORDING_PROMPT
+
     use_fakes(monkeypatch, FakeS3())
 
     client.post("/transcribe", json={"s3_key": "audio/a.webm", "prompt": "Acme, AHU-3"})
 
-    assert FakeOpenAI.prompt == {}
+    assert FakeOpenAI.prompt == {"prompt": RECORDING_PROMPT}
+
+
+def test_a_clip_comes_back_tidied_with_what_was_spoken_beside_it(monkeypatch):
+    # CP-27: fillers and stumbles are taken out; Whisper's own words come back as `spoken`.
+    use_fakes(monkeypatch, FakeS3())
+    FakeOpenAI.text = "um the the pump is wet"
+    clip = {"audio_base64": base64.b64encode(b"x").decode(), "filename": "q.webm"}
+
+    body = client.post("/transcribe-clip", json=clip).json()
+
+    assert body["transcript"] == "the pump is wet"
+    assert body["spoken"] == "um the the pump is wet"
+
+
+def test_a_recording_comes_back_tidied_segment_by_segment(monkeypatch):
+    use_fakes(monkeypatch, FakeS3())
+    FakeOpenAI.text = "Um, the valve is shut. Uh, the the pump runs."
+    FakeOpenAI.segments = [
+        {"start": 0, "end": 2.5, "text": " Um, the valve is shut.", "no_speech_prob": 0.01},
+        {"start": 2.5, "end": 5, "text": " Uh, the the pump runs.", "no_speech_prob": 0.01},
+    ]
+
+    body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
+
+    assert body["transcript"] == "The valve is shut. The pump runs."
+    assert body["spoken"] == "Um, the valve is shut. Uh, the the pump runs."
+    assert body["segments"] == [
+        {"start": 0, "end": 2.5, "text": "The valve is shut."},
+        {"start": 2.5, "end": 5, "text": "The pump runs."},
+    ]
+
+
+def test_whisper_is_prompted_in_fluent_sentences_so_it_leaves_fillers_out(monkeypatch):
+    # Whisper copies its prompt's style: a fluent prompt keeps fillers out of the text it writes.
+    from app.processors.tidy import FILLERS, bare
+
+    use_fakes(monkeypatch, FakeS3())
+    clip = {"audio_base64": base64.b64encode(b"x").decode(), "filename": "q.webm"}
+    for path, body in [("/transcribe", {"s3_key": "audio/a.webm"}), ("/transcribe-clip", clip)]:
+        FakeOpenAI.prompt = {}
+        client.post(path, json=body)
+        prompt = FakeOpenAI.prompt.get("prompt", "")
+        assert prompt.endswith("."), path  # sentences, not a bare word list
+        assert "NFPA" in prompt, path
+        assert not FILLERS & {bare(w) for w in prompt.split()}, path
+
+
+class FakeModels:
+    error = None
+    asked = None
+
+    def retrieve(self, model):
+        FakeModels.asked = model
+        if FakeModels.error:
+            raise FakeModels.error
+
+
+def test_health_providers_asks_whisper_for_its_model_and_sends_no_audio(monkeypatch):
+    FakeModels.error = None
+    monkeypatch.setattr(stt, "OpenAI", lambda: type("C", (), {"models": FakeModels()})())
+    response = client.get("/health/providers")
+    assert response.json() == {"ok": True}
+    assert FakeModels.asked == stt.WHISPER_MODEL
+
+
+def test_health_providers_is_ok_false_when_whisper_refuses(monkeypatch):
+    FakeModels.error = RuntimeError("401 bad key")
+    monkeypatch.setattr(stt, "OpenAI", lambda: type("C", (), {"models": FakeModels()})())
+    response = client.get("/health/providers")
+    assert response.status_code == 200
+    assert response.json() == {"ok": False}

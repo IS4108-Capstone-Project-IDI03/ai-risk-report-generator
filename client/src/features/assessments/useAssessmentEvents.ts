@@ -1,10 +1,10 @@
 // The live connection to one assessment (AS-06, ADR .local-docs/adr/0002): the gateway
 // pushes "this changed" events, so no screen polls. Used by MarshBot (`brief`) and by
-// Generation and Review (`brief` and `drafting`, GN-13).
+// Generation and Review (`brief` and `drafting`, GN-13) and the Observations tab (`observations`, CP-24).
 // Listens to server/src/routes/assistant-events.routes.ts.
 import { useEffect, useRef } from 'react'
 
-type AssessmentEvent = 'brief' | 'drafting'
+type AssessmentEvent = 'brief' | 'drafting' | 'observations'
 
 /** Calls `onChange` whenever the gateway pushes one of `events` for `reference`, all on one
     stream, and after every reconnect, since a change made while the stream was down sent no
@@ -26,7 +26,8 @@ export function useAssessmentEvents(
   const names = [events].flat().join(',')
   useEffect(() => {
     // jsdom and very old browsers have no EventSource: the screen then just doesn't update live.
-    if (typeof EventSource === 'undefined') return
+    // An empty reference means the caller has no assessment open, so there is nothing to follow.
+    if (!reference || typeof EventSource === 'undefined') return
     const source = new EventSource(
       `/api/assessments/${encodeURIComponent(reference)}/assistant/events`,
     )

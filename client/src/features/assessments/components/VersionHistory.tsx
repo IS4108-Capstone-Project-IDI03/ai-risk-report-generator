@@ -11,6 +11,8 @@ import {
 import { contentCitationNumbers } from '../documentContent'
 import { formatDayYearTime } from '../format'
 import { restoredLabel, versionLabel, versionOrigin } from '../reviewDisplay'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useSectionHistory } from '../useSectionHistory'
 import {
   diffSections,
@@ -246,6 +248,8 @@ export function VersionHistory({
   panelStyle: React.CSSProperties
 }) {
   const { history, loadError, reload } = useSectionHistory(reference, sectionId)
+  // The walkthrough engine (F-12) hears the versions have loaded.
+  useWalkthroughScreen('versions', !!history && !!current)
   const [chosen, setChosen] = useState<string | null>(null)
   const [compare, setCompare] = useState<'current' | 'previous'>('current')
   const [confirming, setConfirming] = useState(false)
@@ -308,16 +312,20 @@ export function VersionHistory({
             <p className="rv-version-origin">{versionOrigin(selected, entries)}</p>
           </div>
           {canRestore && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={IconRegistry.action.reinstate}
-              disabled={unchanged}
-              title={unchanged ? 'Its text is the current text.' : undefined}
-              onClick={() => setConfirming(true)}
-            >
-              Restore this version
-            </Button>
+            <div className="rv-version-restore">
+              <Tip id="versions.restore" align="right" />
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={IconRegistry.action.reinstate}
+                disabled={unchanged}
+                title={unchanged ? 'Its text is the current text.' : undefined}
+                data-walk="versions.restore"
+                onClick={() => setConfirming(true)}
+              >
+                Restore this version
+              </Button>
+            </div>
           )}
         </div>
         {!selected.onSavedDraft && (
@@ -380,7 +388,11 @@ export function VersionHistory({
         </div>
       </section>
       <aside aria-label="Versions" className="om-scroll" style={panelStyle}>
-        <section className="rv-panel-section" aria-label="Section versions">
+        <section
+          className="rv-panel-section"
+          aria-label="Section versions"
+          data-walk="versions.list"
+        >
           <div className="rv-panel-head">
             <h3 className="rv-label">Versions</h3>
             <span className="rv-mono">{entries.length}</span>

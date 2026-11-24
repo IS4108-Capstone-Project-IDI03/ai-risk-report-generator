@@ -1,5 +1,6 @@
 // The walk so far on the Recording screen (CP-22 round 1): recordings and typed
-// notes in the order they were made. Used by screens/Recording.tsx.
+// notes in the order they were made. Used by screens/Recording.tsx. With the assessment's
+// `reference` a note being edited can be dictated into (CP-27).
 import { usePhone } from '../usePhone'
 import type { WalkItem } from '../walkItems'
 import { NoteRow } from './NoteRow'
@@ -11,18 +12,20 @@ export function WalkList({
   onSaveNote,
   onRetry,
   onRemove,
+  reference,
 }: {
   items: WalkItem[]
   onSaveNote: (seq: number, text: string) => Promise<boolean>
   onRetry: (seq: number) => void
   onRemove: (item: WalkItem) => void
+  reference?: string
 }) {
   const phone = usePhone()
   // Only a wide screen shows this: the list's column would otherwise sit empty beside the recorder.
   if (!items.length)
     return <p className="sw-list-empty">Recordings and notes appear here as you make them.</p>
   return (
-    <ul className="sw-list" aria-label="This walk">
+    <ul className="sw-list" aria-label="This walk" data-walk="site-walk.list">
       {items.map((item) =>
         item.kind === 'recording' ? (
           <RecordingRow
@@ -39,6 +42,7 @@ export function WalkList({
             legacy={item.legacy}
             onSave={(text) => onSaveNote(item.seq, text)}
             onRemove={() => onRemove(item)}
+            reference={reference}
           />
         ),
       )}

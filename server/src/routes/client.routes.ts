@@ -24,8 +24,12 @@ import {
 import { fieldErrors } from './field-errors'
 import { documentFiles, documentsTooLarge, multipartBody, readForm } from './media-form'
 import { requirePermission } from '../middleware/auth.middleware'
+import { practiceRecordGate } from '../middleware/practice.middleware'
 
 const router = Router()
+
+// F-12: a practice record is its owner's alone; 404 to anyone else on every route below.
+router.param('id', practiceRecordGate('client'))
 
 // Answers a refused change to a client or site (CP-18) with its status: 400
 // naming the field, 403 not the engineer's to change, 404 unknown, 409 in the

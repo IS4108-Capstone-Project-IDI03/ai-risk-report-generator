@@ -2,6 +2,7 @@ import { PhotoReferences } from './PhotoReferences'
 import type { SavedObservation } from '../api'
 import { useEffect, useRef } from 'react'
 import { Badge, EvidenceCitation, IconButton, IconRegistry } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { calendarDate } from '../../knowledge-base/display'
 import type { FieldObservation, ReviewSection, SourcePassage } from '../api'
 import { formatDay } from '../format'
@@ -349,6 +350,7 @@ export function SourcePanel({
           <article
             ref={viewer}
             className="rv-viewer"
+            data-walk="review.evidence.source"
             aria-label={passage ? 'Source passage' : observation ? 'Field observation' : 'Citation'}
           >
             {passage ? (
@@ -391,7 +393,11 @@ export function SourcePanel({
 
       <section className="rv-panel-section" aria-label="Reference sources">
         <div className="rv-panel-head">
-          <h3 className="rv-label">Reference sources</h3>
+          {/* The panel has no heading of its own, so its help (F-13) sits on the first list's. */}
+          <span className="rv-panel-title">
+            <h3 className="rv-label">Reference sources</h3>
+            <Tip id="review.evidence" />
+          </span>
           <span className="rv-mono">{passages.length}</span>
         </div>
         {passages.length ? (

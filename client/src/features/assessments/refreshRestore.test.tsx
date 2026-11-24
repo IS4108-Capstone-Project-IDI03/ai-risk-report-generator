@@ -142,14 +142,15 @@ it('reopens the Record site walk screen after a refresh', async () => {
     (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
   )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Record site walk' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('button', { name: /^Record a site walk/ }))
   expect(document.querySelector('.sw-recording')).not.toBeNull()
 
   await refresh()
 
   await screen.findByRole('tab', { name: /Observations/ })
   expect(document.querySelector('.sw-recording')).not.toBeNull()
-  expect(screen.queryByRole('button', { name: 'Record site walk' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
 })
 
 it('reopens the proposed observation that was open in a review', async () => {

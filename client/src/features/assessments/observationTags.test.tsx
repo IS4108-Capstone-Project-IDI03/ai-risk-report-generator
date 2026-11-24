@@ -146,9 +146,9 @@ const shown = (...summaries: string[]) => summaries.filter((text) => screen.quer
 const ALL = [HOSE_REEL.note!, STAIRWELL_DOOR.note!, VALVE.note!, RACKING, PUMP_TEST, SORTATION]
 // Opens the observation's page, unless it still is from last time.
 function openPage(summary: string) {
-  if (!screen.queryByRole('complementary', { name: 'Tags' }))
+  if (!screen.queryByRole('complementary', { name: 'Details' }))
     fireEvent.click(screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) }))
-  return screen.getByRole('complementary', { name: 'Tags' })
+  return screen.getByRole('complementary', { name: 'Details' })
 }
 // Opens a tag's menu on the page ("Severity: High. Change") and returns it.
 function openTag(name: string) {
@@ -336,14 +336,7 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     // The categories come from the shared vocabulary (AC3); an uncategorised
     // observation has none ticked.
     const menu = openTag('Category')
-    // Suggest categories is the menu's first item, then the four categories.
-    expect(menuLabels(menu)).toEqual([
-      'Suggest categories',
-      'Construction',
-      'Occupancy',
-      'Protection',
-      'Exposure',
-    ])
+    expect(menuLabels(menu)).toEqual(['Construction', 'Occupancy', 'Protection', 'Exposure'])
     expect(
       within(menu)
         .getAllByRole('menuitemcheckbox')

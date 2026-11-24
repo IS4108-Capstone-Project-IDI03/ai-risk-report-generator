@@ -7,6 +7,7 @@ import boto3
 from openai import OpenAI
 
 from app.config import AWS_REGION, S3_BUCKET, WHISPER_MODEL
+from app.processors import tidy
 
 
 class TranscriptionError(Exception):
@@ -19,9 +20,10 @@ def _get(segment, key):
 
 
 def _segments(result) -> list[dict]:
-    """Whisper's timed pieces as {start, end, text}; [] when it returns none."""
+    """Whisper's timed pieces as {start, end, text}, each text tidied (CP-27); [] when it returns
+    none."""
     return [
-        {"start": _get(s, "start"), "end": _get(s, "end"), "text": _get(s, "text").strip()}
+        {"start": _get(s, "start"), "end": _get(s, "end"), "text": tidy.rules(_get(s, "text"))}
         for s in getattr(result, "segments", None) or []
     ]
 
@@ -42,17 +44,30 @@ def _spoken(result) -> str:
     return " ".join(heard).strip()
 
 
-# Words Whisper hears wrongly without a hint (it passes them to the model as the previous
-# sentence): the standards and fire-protection terms engineers say in a chat question (CB-10).
-CLIP_PROMPT = (
-    "Fire protection survey question. NFPA 13, NFPA 25, NFPA 72, FM Global, FM Data Sheet, "
-    "sprinkler, design density, ordinary hazard group 2, extra hazard, fire pump, standpipe, "
-    "deluge, clearance, storage, Singapore SS CP 52, Marsh risk engineering."
+# Whisper takes the prompt as the sentence said before the audio. It hears the terms in it
+# correctly (the standards and fire-protection words engineers say), and it copies the prompt's
+# style: fluent sentences with no "um" or "uh" make it leave fillers out (CP-27).
+_TERMS = (
+    "We checked it against NFPA 13, NFPA 25 and NFPA 72, the FM Global data sheets and "
+    "Singapore SS CP 52, looking at the sprinkler design density for ordinary hazard group 2 "
+    "and extra hazard storage, the fire pump, the standpipe, the deluge system and the clearance "
+    "below the sprinklers."
 )
+# A spoken chat question (CB-10) or dictated text.
+CLIP_PROMPT = "This is a question for Marsh risk engineering about fire protection. " + _TERMS
+# A voice note or a site-walk recording.
+RECORDING_PROMPT = "This is a Marsh risk engineer's site survey note on fire protection. " + _TERMS
 
 
-def _whisper(name: str, audio: bytes, prompt: str | None = None, only_speech: bool = False) -> dict:
-    """Send audio to Whisper; return {transcript, segments, usage}. `name` carries the format."""
+def _whisper(
+    name: str,
+    audio: bytes,
+    prompt: str | None = None,
+    only_speech: bool = False,
+    privacy: dict | None = None,
+) -> dict:
+    """Send audio to Whisper; return {transcript, spoken, segments, usage}. `name` carries the
+    format; `privacy` is passed to the tidy model's pass (CP-27)."""
     # Time only the OpenAI call, so duration_ms excludes any storage read.
     started = time.perf_counter()
     try:
@@ -86,11 +101,19 @@ def _whisper(name: str, audio: bytes, prompt: str | None = None, only_speech: bo
         "audio_seconds": audio_seconds,
         "usage_status": "recorded" if audio_seconds is not None else "unavailable",
     }
-    transcript = _spoken(result) if only_speech else result.text.strip()
-    return {"transcript": transcript, "segments": _segments(result), "usage": [usage]}
+    spoken = _spoken(result) if only_speech else result.text.strip()
+    # CP-27: `transcript` is tidied (fillers and stumbles deleted, nothing reworded); `spoken` is
+    # Whisper's own text, which the gateway keeps as evidence.
+    transcript, tidy_usage = tidy.repair(tidy.rules(spoken), privacy)
+    return {
+        "transcript": transcript,
+        "spoken": spoken,
+        "segments": _segments(result),
+        "usage": [usage, *tidy_usage],
+    }
 
 
-def transcribe(s3_key: str) -> dict:
+def transcribe(s3_key: str, privacy: dict | None = None) -> dict:
     try:
         stored = boto3.client("s3", region_name=AWS_REGION).get_object(Bucket=S3_BUCKET, Key=s3_key)
         audio = stored["Body"].read()
@@ -100,10 +123,17 @@ def transcribe(s3_key: str) -> dict:
         reason = f"The recording could not be read from storage: {error}"
         raise TranscriptionError(reason) from error
     # Whisper picks the decoder from the file name's extension, which the key carries.
-    return _whisper(os.path.basename(s3_key), audio)
+    return _whisper(os.path.basename(s3_key), audio, RECORDING_PROMPT, privacy=privacy)
 
 
-def transcribe_clip(audio: bytes, filename: str) -> dict:
-    """Transcribe a short clip sent directly (a spoken chat question), with the vocabulary hint."""
+def transcribe_clip(audio: bytes, filename: str, privacy: dict | None = None) -> dict:
+    """Transcribe a short clip sent directly (a spoken chat question or dictated text)."""
     # only_speech: a silent or noisy clip must come back empty, not as an invented sentence.
-    return _whisper(filename, audio, CLIP_PROMPT, only_speech=True)
+    return _whisper(filename, audio, CLIP_PROMPT, only_speech=True, privacy=privacy)
+
+
+def check_whisper() -> None:
+    """Prove the key and Whisper answer, without sending any audio (F-12's quick check).
+
+    Reading the model's metadata is free; raises whatever the SDK raises when it fails."""
+    OpenAI().models.retrieve(WHISPER_MODEL)

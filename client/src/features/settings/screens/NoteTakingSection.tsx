@@ -1,10 +1,12 @@
 // Settings > Note-taking (CP-35): the three line codes for shorthand notes, and the person's
 // glossary. Called by Settings.tsx. Everyone edits their OWN values, so no "set by admin" line.
+// Each good save is a toast (Reset and glossary removals carry Undo); a failure stays inline.
 import { useState } from 'react'
 import { Button, Icon, Input } from '../../../design-system'
 import { saveMine, type NoteCodes, type Settings } from '../api'
 import { GlossaryEditor } from '../components/GlossaryEditor'
 import { SaveStatus } from '../components/SaveStatus'
+import { SettingBlock } from '../components/SettingBlock'
 import { codeProblem, DEFAULT_CODES } from '../noteRules'
 import { useSave } from '../useSave'
 
@@ -17,6 +19,8 @@ const FIELDS: { key: keyof NoteCodes; label: string }[] = [
 
 export function NoteTakingSection({ settings, onSaved }: Props) {
   const { state, run, reset: clearState } = useSave(onSaved)
+  // Which button is saving, so only that one shows its loading state.
+  const [pending, setPending] = useState<'save' | 'reset' | null>(null)
   const glossary = useSave(onSaved)
   const [codes, setCodes] = useState<NoteCodes>(settings.noteTaking.codes)
   const [problem, setProblem] = useState('')
@@ -37,33 +41,51 @@ export function NoteTakingSection({ settings, onSaved }: Props) {
     clearGlossary()
   }
 
+  // Save is for a code that differs from the saved one; with nothing changed there is nothing to send.
+  const saved = settings.noteTaking.codes
+  const changed = FIELDS.some((f) => codes[f.key] !== saved[f.key])
+
   // Without the check, a duplicate code would only come back as a gateway error.
-  const save = () => {
+  const save = async () => {
     startCodeAction()
     const found = codeProblem(codes)
     setProblem(found)
-    if (!found) void run(() => saveMine({ noteCodes: codes }))
+    if (found) return
+    setPending('save')
+    await run(() => saveMine({ noteCodes: codes }), 'Codes saved')
+    setPending(null)
   }
-  const reset = () => {
+  // Undo puts the codes that were saved before the reset back, in the boxes and in the gateway.
+  const reset = async () => {
     startCodeAction()
     setCodes(DEFAULT_CODES)
-    void run(() => saveMine({ noteCodes: null }))
+    setPending('reset')
+    await run(
+      () => saveMine({ noteCodes: null }),
+      'Codes reset to defaults',
+      () => {
+        setCodes(saved)
+        void run(() => saveMine({ noteCodes: saved }))
+      },
+    )
+    setPending(null)
   }
   return (
-    <div className="st-stack">
-      <div className="st-row">
-        <p className="st-note">
-          These are yours. A line that starts with your code, like IR: hydrant test report, is
-          sorted with no guessing.
-        </p>
-        <div className="st-editor">
+    <>
+      <SettingBlock
+        title="My codes"
+        help="These are yours. A line that starts with your code, like IR: hydrant test report, is sorted with no guessing."
+      >
+        <div className="st-fields">
           {FIELDS.map((f) => (
             <Input
               key={f.key}
               label={f.label}
-              size="lg"
               value={codes[f.key]}
               maxLength={8}
+              // Short codes like IR are not words; a spell-check squiggle under them is noise.
+              spellCheck={false}
+              autoComplete="off"
               onChange={(e) => {
                 startCodeAction()
                 setCodes({ ...codes, [f.key]: e.target.value })
@@ -76,16 +98,24 @@ export function NoteTakingSection({ settings, onSaved }: Props) {
             <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}
           </p>
         )}
-        <div className="st-editor">
-          <Button variant="primary" size="lg" onClick={save}>
+        <div className="st-editor st-editor--actions">
+          <Button
+            variant="primary"
+            pill
+            loading={pending === 'save'}
+            disabledReason={
+              changed ? undefined : { title: 'No changes', text: 'Change a code, then save.' }
+            }
+            onClick={save}
+          >
             Save
           </Button>
-          <Button variant="secondary" size="lg" onClick={reset}>
+          <Button variant="secondary" pill loading={pending === 'reset'} onClick={reset}>
             Reset to defaults
           </Button>
           <SaveStatus state={state} />
         </div>
-      </div>
+      </SettingBlock>
       <GlossaryEditor
         glossary={settings.noteTaking.glossary}
         save={glossary}
@@ -96,6 +126,6 @@ export function NoteTakingSection({ settings, onSaved }: Props) {
           clearGlossary()
         }}
       />
-    </div>
+    </>
   )
 }

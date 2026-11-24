@@ -8,6 +8,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'draft-section': 'Drafting',
   retrieval: 'Retrieval (search)',
   transcribe: 'Voice transcription',
+  // Taking a self-correction's abandoned half out of a transcript (CP-27).
+  'tidy-transcript': 'Transcript tidying',
   'transcribe-handwriting': 'Handwriting transcription',
   'label-document': 'Document labelling',
   // Kept as `interpret-photo` so earlier readings stay on one line (CP-21):
@@ -23,6 +25,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   'knowledge-search': 'Knowledge base search',
   // Sorting a shorthand note into facts, requests and recommendations (CP-35).
   'split-note': 'Shorthand note split',
+  // Calls made while a walkthrough's try-it runs (F-12); costed to no assessment.
+  walkthrough: 'Walkthrough',
 }
 
 export const SERVICE_LABELS: Record<string, string> = {

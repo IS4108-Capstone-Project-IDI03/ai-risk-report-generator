@@ -256,6 +256,13 @@ def test_lists_the_drafted_sections_4_to_12():
         "title": "Construction",
         "cope_dimensions": ["Construction"],
         "min_observations": 1,
+        # Its parts (AS-08), so the gateway can say which have no text or read Not entered.
+        "subsections": [
+            {"heading": "Construction Narrative", "kind": "narrative"},
+            {"heading": "Construction Table", "kind": "table"},
+            {"heading": "Compartmentalization and Fire Divisions", "kind": "narrative"},
+            {"heading": "Details on Combustible Construction", "kind": "narrative"},
+        ],
     }
 
 

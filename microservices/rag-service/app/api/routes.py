@@ -1,5 +1,8 @@
+import logging
+import time
 from typing import Annotated, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import (
@@ -11,13 +14,14 @@ from pydantic import (
     model_validator,
 )
 
-from app import usage
+from app import config, usage
 from app.assistant.coverage import check_coverage
 from app.assistant.wording import word_messages
 from app.chat.answer import answer_events
 from app.chat.passages import get_passage
 from app.client_insights.summary import summarise_client
 from app.client_intake.read import read_client_intake
+from app.generation import llm
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
 from app.generation.proposals import propose_figures
@@ -33,7 +37,9 @@ from app.privacy import PrivacyUnavailable
 from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
+from app.retrieval_config import EMBEDDING_MODEL, chroma_client, cohere_client
 from app.site_walk.note_split import split_note
+from app.site_walk.observation_rate import rate_observation
 from app.site_walk.propose import propose_site_walk
 
 router = APIRouter()
@@ -111,6 +117,9 @@ class Privacy(BaseModel):
     known_entities: list[KnownEntity] = []
     # Kinds privacy-service also finds on its own (CP-23 client intake only).
     detect: list[Literal["CLIENT", "SITE"]] = []
+    # PV-09: the admin's Never masked words, passed on to /mask. None (left out) until the gateway
+    # has seeded the list, so privacy-service uses its own file; [] would mean none at all.
+    never_masked: list[str] | None = None
 
 
 def _privacy(request) -> dict | None:
@@ -178,6 +187,77 @@ def health() -> dict:
     return {"status": "ok", "service": "rag"}
 
 
+class _Ping(BaseModel):
+    ok: bool
+
+
+def _ping_llm() -> None:
+    # The drafting path: LLM_PROVIDER, and the admin's model from the X-Model header.
+    llm.complete("Answer with ok true.", "ok?", _Ping, "low", feature="walkthrough")
+
+
+def _ping_chat() -> None:
+    llm.complete_json(
+        "Answer with ok true.",
+        "ok?",
+        _Ping,
+        provider=config.CHAT_PROVIDER,
+        model=config.CHAT_MODEL,
+        effort=config.CHAT_EFFORT,
+        feature="walkthrough",
+    )
+
+
+def _ping_search() -> None:
+    # Chat's and Ask's search: Chroma must answer and Cohere must embed. One fixed word, no
+    # reranking (that is the costly call), nothing from any user.
+    chroma_client().heartbeat()
+    started = time.perf_counter()
+    response = cohere_client().embed(
+        model=EMBEDDING_MODEL,
+        texts=["ping"],
+        input_type="search_query",
+        embedding_types=["float"],
+        truncate="NONE",
+    )
+    usage.record(
+        "walkthrough",
+        "cohere-embed",
+        EMBEDDING_MODEL,
+        started,
+        input_tokens=usage.billed(response, "input_tokens"),
+    )
+
+
+def _ping_privacy() -> None:
+    httpx.get(f"{config.PRIVACY_SERVICE_URL}/health", timeout=5).raise_for_status()
+
+
+_PINGS = {
+    "llm": _ping_llm,
+    "chat": _ping_chat,
+    "search": _ping_search,
+    "privacy": _ping_privacy,
+}
+
+
+@router.get("/health/providers")
+def health_providers(need: Literal["llm", "chat", "search", "privacy"]) -> dict:
+    """Make one tiny real request for one thing a walkthrough's try-it needs (F-12).
+
+    `llm` is the drafting model, `chat` the chat model, `search` the embedding search and
+    `privacy` privacy-service. Sends a fixed word, never user text. Returns `ok` and the
+    paid call's `usage`, for the gateway to record; a failure is `ok: false`, not an error.
+    """
+    calls = usage.start()
+    try:
+        _PINGS[need]()
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("Provider check %r failed", need)
+        return {"ok": False, "usage": calls}
+    return {"ok": True, "usage": calls}
+
+
 @router.post("/generate")
 def generate_report(request: GenerateRequest) -> dict:
     return run(request.query)
@@ -191,7 +271,8 @@ def retrieve_chunks(request: RetrieveRequest) -> dict:
 
 @router.get("/sections")
 def list_sections() -> dict:
-    # The template's sections and what each needs, so the gateway doesn't keep its own copy.
+    # The template's sections and what each needs, so the gateway doesn't keep its own copy. Each
+    # lists its parts too (AS-08), so the gateway can say which have no text or read Not entered.
     return {
         "sections": [
             {
@@ -199,6 +280,14 @@ def list_sections() -> dict:
                 "title": section["title"],
                 "cope_dimensions": section["cope_dimensions"],
                 "min_observations": section["min_observations"],
+                "subsections": [
+                    {
+                        "heading": sub["heading"],
+                        "kind": sub["kind"],
+                        **({"fields": sub["fields"]} if sub.get("fields") else {}),
+                    }
+                    for sub in section["subsections"]
+                ],
             }
             for section_id, section in TEMPLATE["sections"].items()
         ],
@@ -376,6 +465,24 @@ def propose_site_walk_route(request: ProposeSiteWalkRequest) -> dict:
         )
     except GenerationFailed as error:
         raise HTTPException(502, str(error)) from error
+
+
+class RateObservationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # The note, transcripts, page text and photo description, joined by blank lines.
+    text: Annotated[str, Field(min_length=1)]
+    privacy: Privacy | None = None
+
+
+@router.post("/observations/rate")
+def rate_observation_route(request: RateObservationRequest) -> dict:
+    """Suggest a category and severity for one observation (CP-24), with not-sure flags."""
+    try:
+        rated = rate_observation(request.text, _privacy(request))
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+    rated.pop("probabilities")
+    return rated
 
 
 # A client intake (CP-23), as the gateway sends it once each file's text is out. Must match
@@ -675,6 +782,17 @@ class AskPropose(BaseModel):
     subsections: Annotated[list[AskSubsection], Field(max_length=50)] = []
 
 
+# Writing guidance for one of Sections 4 to 12 instead of an answer (AS-08): what the section
+# should cover, from the report template's definition of it and the selected standards. The
+# section as the report heads it ("9. Fire Protection"). ("What is missing" needs no model: the
+# gateway lists it.)
+class AskGuide(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["cover"]
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[4-9])$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: Question
@@ -688,19 +806,23 @@ class AskRequest(BaseModel):
     privacy: Privacy | None = None
     passage: AskPassage | None = None
     propose: AskPropose | None = None
+    guide: AskGuide | None = None
 
     @model_validator(mode="after")
     def _rewrite_has_passage(self):
         if self.propose and self.propose.kind == "rewrite" and self.passage is None:
             raise ValueError("A rewrite needs the passage to rewrite.")
+        if self.guide and (self.passage or self.propose):
+            raise ValueError("Writing guidance is asked on its own.")
         return self
 
 
 @router.post("/assessments/ask")
 def ask_assessment(request: AskRequest) -> StreamingResponse:
     """Stream one cited answer to a question about an assessment (AS-01), or about a passage
-    selected in its draft (AS-02), or text proposed for a section (AS-04), through the
-    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
+    selected in its draft (AS-02), or text proposed for a section (AS-04), or what a section
+    should cover (AS-08), through the orchestrator: retrieve, assemble, generate, guardrail. Its
+    last event is the result."""
     events = ask_events(
         request.question,
         request.assessment,
@@ -710,6 +832,7 @@ def ask_assessment(request: AskRequest) -> StreamingResponse:
         privacy=_privacy(request),
         passage=request.passage,
         propose=request.propose,
+        guide=request.guide,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 

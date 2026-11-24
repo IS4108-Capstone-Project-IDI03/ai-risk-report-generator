@@ -21,8 +21,6 @@ const ordered = (cats: string[]) => COPE_CATEGORIES.filter((c) => cats.includes(
 // Adds a category, or takes it off when it is already there.
 export const toggleCategory = (cats: string[], cat: string) =>
   cats.includes(cat) ? cats.filter((c) => c !== cat) : ordered([...cats, cat])
-// Adds a category, keeping those already chosen.
-export const withCategory = (cats: string[], cat: string) => ordered([...cats, cat])
 export const sameCategories = (a: string[], b: string[]) => String(a) === String(b)
 
 // "Construction, Protection", or "Uncategorised".

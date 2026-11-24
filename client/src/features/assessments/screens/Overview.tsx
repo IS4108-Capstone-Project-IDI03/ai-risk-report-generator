@@ -36,6 +36,7 @@ export function Overview({
         })
       }
       openDetails={openDetails}
+      archived={v.archivedOpen}
     />
   ) : (
     <OverviewLayout v={v} />

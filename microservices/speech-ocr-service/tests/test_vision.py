@@ -1,4 +1,4 @@
-"""Contract tests for S5's observation reader (CP-05, CP-21), against fake S3 and Gemini clients."""
+"""Contract tests for S5's photo reader (CP-05, CP-21, CP-24), against fake S3 and Gemini."""
 
 import base64
 import io
@@ -35,26 +35,12 @@ class FakeS3:
         return {"Body": io.BytesIO(self.objects[Key])}
 
 
-PROTECTION = {
-    "category": "Protection",
-    "reason": "Recording 1 says the valves were left shut; Photo 1 shows them.",
-    "evidence": [
-        {"item": "Recording 1", "quote": "valves were left shut"},
-        {"item": "Photo 1", "quote": None},
-    ],
-}
-CONSTRUCTION = {
-    "category": "Construction",
-    "reason": "The note says the wall penetration is unsealed.",
-    "evidence": [{"item": "Note", "quote": "penetration unsealed"}],
-}
 DESCRIPTION = (
     "During the site visit to the L43 hosereel pump room, it was observed that the valves were "
     "not locked open."
 )
 ANSWER = json.dumps(
     {
-        "categories": [PROTECTION, CONSTRUCTION],
         "description": DESCRIPTION,
         "hazard_type": "Fire Protection System Operation",
     }
@@ -139,7 +125,6 @@ def test_reads_every_photo_upright_and_shrunk_with_the_texts(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {
-        "categories": [PROTECTION, CONSTRUCTION],
         "description": DESCRIPTION,
         "hazard_type": "Fire Protection System Operation",
         "provider": "gemini",
@@ -171,120 +156,35 @@ def test_reads_every_photo_upright_and_shrunk_with_the_texts(monkeypatch):
     assert FakeGemini.closed is True
 
 
-def test_with_photos_asks_for_categories_a_description_and_a_hazard(monkeypatch):
+def test_asks_for_a_description_and_a_hazard_only(monkeypatch):
     use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
 
     client.post("/interpret", json={"photos": photos("k")})
 
     schema = FakeGemini.request["response_format"]["schema"]
-    category = schema["$defs"]["ProposedCategory"]["properties"]["category"]
-    assert category["enum"] == ["Construction", "Occupancy", "Protection", "Exposure"]
+    assert set(schema["properties"]) == {"description", "hazard_type"}
     assert "No hazard visible" in schema["properties"]["hazard_type"]["enum"]
     instruction = FakeGemini.request["system_instruction"]
+    assert "COPE" not in instruction and "categories" not in instruction
     assert "Never invent a hazard" in instruction
-    # Each category cites every item behind it, so none is silently passed over.
-    assert "every item that supports it" in instruction
     # Text guides where to look, but a description states only what the photos show.
     assert "describe what the photographs show, not what the text claims" in instruction
     # Without a location or text, the prompt names only the photo.
     assert FakeGemini.request["input"][-1]["text"] == "One finding, captured as: Photo 1."
 
 
-def test_reads_text_alone_for_categories_only(monkeypatch):
-    # No photos, so nothing is read from S3 and nothing is described.
-    use_fakes(
-        monkeypatch,
-        FakeS3({}, fail=True),
-        output_text=json.dumps({"categories": [CONSTRUCTION]}),
-    )
+def test_ignores_parts_from_an_older_gateway(monkeypatch):
+    use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}))
 
-    response = client.post(
-        "/interpret",
-        json={"texts": [NOTE, {"label": "Page 1", "kind": "page", "text": "Roof leaking"}]},
-    )
+    for parts in (["categories"], ["categories", "description"], ["summary"], []):
+        response = client.post(
+            "/interpret", json={"photos": photos("k"), "texts": [NOTE], "parts": parts}
+        )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["categories"] == [CONSTRUCTION]
-    assert body["description"] is None and body["hazard_type"] is None
-    sent = FakeGemini.request
-    assert [p["type"] for p in sent["input"]] == ["text"]
-    assert "Page 1 (handwritten page transcript):\nRoof leaking" in sent["input"][0]["text"]
-    assert "description" not in sent["response_format"]["schema"]["properties"]
-    assert "photographs" not in sent["system_instruction"]
-
-
-def test_regenerates_the_categories_alone_from_every_item(monkeypatch):
-    # Photos are still evidence for the categories, but nothing is described.
-    use_fakes(
-        monkeypatch,
-        FakeS3({"k": photo((50, 50))}),
-        output_text=json.dumps({"categories": [PROTECTION]}),
-    )
-
-    response = client.post(
-        "/interpret", json={"photos": photos("k"), "texts": [NOTE], "parts": ["categories"]}
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["categories"] == [PROTECTION]
-    assert body["description"] is None and body["hazard_type"] is None
-    sent = FakeGemini.request
-    assert len(sent_images()) == 1
-    assert set(sent["response_format"]["schema"]["properties"]) == {"categories"}
-    assert "hazard_type" not in sent["system_instruction"]
-
-
-def test_regenerates_the_description_alone_from_the_photos(monkeypatch):
-    use_fakes(
-        monkeypatch,
-        FakeS3({"k": photo((50, 50))}),
-        output_text=json.dumps({"description": DESCRIPTION, "hazard_type": "Other"}),
-    )
-
-    response = client.post(
-        "/interpret", json={"photos": photos("k"), "texts": [NOTE], "parts": ["description"]}
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["categories"] is None
-    assert (body["description"], body["hazard_type"]) == (DESCRIPTION, "Other")
-    sent = FakeGemini.request
-    assert set(sent["response_format"]["schema"]["properties"]) == {"description", "hazard_type"}
-    instruction = sent["system_instruction"]
-    assert "COPE" not in instruction
-    assert "describe what the photographs show, not what the text claims" in instruction
-
-
-def test_keeps_each_category_once_and_at_most_four(monkeypatch):
-    def proposed(category):
-        return {**CONSTRUCTION, "category": category}
-
-    answer = [
-        proposed(c)
-        for c in ("Exposure", "Exposure", "Construction", "Occupancy", "Protection", "Occupancy")
-    ]
-    use_fakes(monkeypatch, FakeS3({}), output_text=json.dumps({"categories": answer}))
-
-    response = client.post("/interpret", json={"texts": [NOTE]})
-
-    assert [c["category"] for c in response.json()["categories"]] == [
-        "Exposure",
-        "Construction",
-        "Occupancy",
-        "Protection",
-    ]
-
-
-def test_may_propose_no_category(monkeypatch):
-    use_fakes(monkeypatch, FakeS3({}), output_text='{"categories": []}')
-
-    response = client.post("/interpret", json={"texts": [NOTE]})
-
-    assert response.status_code == 200
-    assert response.json()["categories"] == []
+        assert response.status_code == 200, response.text
+        assert "categories" not in response.json()
+        schema = FakeGemini.request["response_format"]["schema"]
+        assert set(schema["properties"]) == {"description", "hazard_type"}
 
 
 def test_reports_a_missing_photo(monkeypatch):
@@ -318,22 +218,22 @@ def test_reports_why_the_model_failed(monkeypatch):
 
 
 def test_reports_a_blocked_or_unusable_answer(monkeypatch):
-    # "Roofing" is not a COPE category, so the answer does not fit the schema.
-    unfit = json.dumps({"categories": [{**CONSTRUCTION, "category": "Roofing"}]})
+    # "Roofing" is not a hazard type, so the answer does not fit the schema.
+    unfit = json.dumps({"description": DESCRIPTION, "hazard_type": "Roofing"})
     for reply in ({"status": "failed", "output_text": None}, {"output_text": unfit}):
-        use_fakes(monkeypatch, FakeS3({}), **reply)
+        use_fakes(monkeypatch, FakeS3({"k": photo((50, 50))}), **reply)
 
-        response = client.post("/interpret", json={"texts": [NOTE]})
+        response = client.post("/interpret", json={"photos": photos("k")})
 
         assert response.status_code == 502
         assert response.json()["detail"].startswith("The observation could not be read:")
 
 
-def test_a_photo_reading_needs_a_description(monkeypatch):
+def test_an_answer_without_a_description_is_refused(monkeypatch):
     use_fakes(
         monkeypatch,
         FakeS3({"k": photo((50, 50))}),
-        output_text=json.dumps({"categories": [CONSTRUCTION]}),
+        output_text=json.dumps({"hazard_type": "Other"}),
     )
 
     response = client.post("/interpret", json={"photos": photos("k")})
@@ -350,19 +250,23 @@ def test_marks_usage_unavailable_when_none_is_reported(monkeypatch):
     assert response.json()["usage"] is None
 
 
-def test_interpret_needs_something_to_read():
+def test_interpret_needs_photos_to_describe(monkeypatch):
+    use_fakes(monkeypatch, FakeS3({}, fail=True))
+    # Without a photo there is nothing to describe, whatever text comes with it.
     assert client.post("/interpret", json={}).status_code == 422
     assert client.post("/interpret", json={"photos": [], "texts": []}).status_code == 422
+    assert client.post("/interpret", json={"texts": [NOTE]}).status_code == 422
+    assert FakeGemini.request is None
     # An empty text, an unknown kind or a repeated label is refused too.
     for texts in (
         [{**NOTE, "text": ""}],
         [{**NOTE, "kind": "email"}],
         [NOTE, {**RECORDING, "label": "Note"}],
     ):
-        assert client.post("/interpret", json={"texts": texts}).status_code == 422
-    # Nothing to describe without photos, and an unknown or empty list of parts.
-    for parts in (["description"], ["summary"], []):
-        assert client.post("/interpret", json={"texts": [NOTE], "parts": parts}).status_code == 422
+        assert (
+            client.post("/interpret", json={"photos": photos("k"), "texts": texts}).status_code
+            == 422
+        )
 
 
 # CP-10: the engineer can mark the area of a photo that matters, as fractions of the upright photo.
@@ -426,6 +330,7 @@ def test_tells_the_model_about_a_marked_area_only_when_one_is_marked(monkeypatch
     instruction = FakeGemini.request["system_instruction"]
     assert "'<photo name>, marked area' is a close-up" in instruction
     assert "Describe the condition in the marked area" in instruction
+    assert "COPE" not in instruction
     assert vision.PROMPT_VERSION == "cp10-v1"
 
 

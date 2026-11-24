@@ -168,12 +168,21 @@ async function checkAgainstRecords(input: NewAssessments) {
   if (input.client.id) {
     try {
       client = await getClient(input.client.id)
+      // F-12: the practice client only ever holds the practice assessment, made by
+      // practice.service.ts; without this, a real assessment could be filed under it.
+      if (client.practice) throw new UnknownClientError()
     } catch (error) {
       if (!(error instanceof UnknownClientError)) throw error
       fields['client.id'] = error.message
     }
   } else {
     client = await ClientModel.findOne({ key: clientKey(input.client.name!) }).lean()
+    // F-12: the same for a practice client found by name (one renamed before renameClient kept
+    // its key); without this, findOrCreateClient would file the assessment under it.
+    if (client?.practice) {
+      fields['client.name'] = 'Choose another name for this client.'
+      client = null
+    }
   }
   const listed = new Map<string, StoredSite>()
   const visited = new Set<string>()

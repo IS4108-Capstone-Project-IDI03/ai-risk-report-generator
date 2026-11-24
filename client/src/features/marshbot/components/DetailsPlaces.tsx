@@ -1,6 +1,7 @@
 // The Details panel's Site map block (AS-06, board D1): the site and blocks in two columns,
 // a small pin after each pinned one, and Open map. Called by DetailsContent.tsx.
 import { Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import type { PlaceRow } from '../../assessments/components/siteMapEdit'
 import { DetailsHeading, DetailsLink } from './DetailsHeading'
 
@@ -21,14 +22,16 @@ export function DetailsPlaces({
   if (links)
     return (
       <section>
-        <DetailsHeading big link={open}>
+        <DetailsHeading big link={open} tip={<Tip id="overview.site-map" />}>
           Site Map
         </DetailsHeading>
       </section>
     )
   return (
     <section>
-      <DetailsHeading link={open}>Site Map</DetailsHeading>
+      <DetailsHeading link={open} tip={<Tip id="overview.site-map" />}>
+        Site Map
+      </DetailsHeading>
       <ul className="mb-places">
         {rows.slice(0, shown).map((row) => (
           <li key={row.key}>

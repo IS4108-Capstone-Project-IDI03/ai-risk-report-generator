@@ -215,7 +215,8 @@ async function openChecklist() {
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   // Capture starts from the Observations tab's Add manually button (CP-22).
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
     await screen.findByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
@@ -331,7 +332,7 @@ it('records a Differs in full capture, for a recording or handwritten notes (AC3
   fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
   expect(
-    await screen.findByText('Observation saved, and the checklist item answered as Differs.'),
+    await screen.findByText('Observation saved, and the checklist item answered as Differs'),
   ).toBeInTheDocument()
   expect(saves[0]).toMatchObject({
     copeDimensions: ['Occupancy', 'Protection'],
@@ -357,7 +358,7 @@ it('goes back to the checklist from full capture, leaving the item unanswered', 
   fireEvent.click(screen.getByRole('radio', { name: 'Low' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
-  await screen.findByText('Observation saved.')
+  await screen.findByText('Observation saved')
   expect(saves[0]).not.toHaveProperty('checklistItem')
 })
 

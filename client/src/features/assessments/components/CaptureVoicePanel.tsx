@@ -1,93 +1,59 @@
-// The Voice mode of the capture screen: record or upload, the transcript, and the recordings so far (CP-02).
-// Called by screens/SiteObservation.tsx.
-import { Fragment } from 'react'
-import { Callout, Icon } from '../../../design-system'
+// The Voice tab of New Observation: record or upload, and the recordings so far (CP-02, CP-24).
+// A recording starts transcribing as soon as it is added, and its row shows its first words once
+// it has them; the chevron opens the whole transcript. Called by screens/SiteObservation.tsx.
+import { Fragment, useEffect, useRef } from 'react'
+import { Button, Callout } from '../../../design-system'
+import { RecordingRow } from '../../site-walk/components/RecordingRow'
+import { signal } from '../../walkthrough/signals'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { DraftList } from './DraftList'
-import { ReadyItem, RemoveButton } from './MediaPickers'
+import { CaptureFilePicker } from './CaptureFilePicker'
+import '../../site-walk/site-walk.css'
+import '../../site-walk/walkList.css'
 import '../capture.css'
 
 export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
+  const recording = v.recLabel.startsWith('Stop')
+  // F-12: a recording joining the list means one has stopped and been kept. The "Add an observation"
+  // walkthrough waits on this; the count at first showing is the baseline, so only a new one counts.
+  const clips = useRef(v.captureRows.length)
+  useEffect(() => {
+    if (v.captureRows.length > clips.current) signal('observation-recording-stopped')
+    clips.current = v.captureRows.length
+  }, [v.captureRows.length])
   return (
     <>
-      <div
-        style={{
-          background: 'var(--cap-fill)',
-          borderRadius: '16px',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          alignItems: 'center',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: '3px',
-            height: '44px',
-          }}
-        >
+      <div className="cap-rec">
+        <div className="cap-rec-bars" aria-hidden="true">
           {v.waveBars.map((b, index) => (
             <Fragment key={index}>
               <span style={b.style}></span>
             </Fragment>
           ))}
         </div>
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '25px',
-            lineHeight: '31px',
-            fontWeight: '700',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {v.fClock}
-        </div>
-        <button
-          type="button"
+        <div className="cap-rec-clock">{v.fClock}</div>
+        {/* A white pill on the grey box, not navy: Save observation is the screen's one main action. */}
+        <Button
+          pill
+          variant={recording ? 'danger' : 'secondary'}
+          iconLeft={recording ? 'square' : 'mic'}
+          fullWidth
+          disabled={v.recBusy && !recording}
+          data-walk="new-observation.record"
           onClick={v.toggleRec}
-          className={
-            'cap-btn cap-btn--block ' +
-            (v.recLabel.startsWith('Stop') ? 'cap-btn--danger' : 'cap-btn--primary')
-          }
         >
           {v.recLabel}
-        </button>
-        <span
-          style={{
-            fontSize: '14px',
-            lineHeight: '20px',
-            color: 'var(--text-muted)',
-            textAlign: 'center',
-          }}
-        >
-          {v.recHint}
-        </span>
+        </Button>
+        {!!v.recHint && <span className="cap-hint cap-rec-hint">{v.recHint}</span>}
         {!!v.liveVoice && (
-          <label
-            className="ds-choice"
-            style={{
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: v.recBusy ? 'var(--text-muted)' : 'var(--marsh-navy)',
-              cursor: v.recBusy ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <Icon name="upload" size={16} />
-            {'Upload audio files'}
-            <input
-              type="file"
-              accept="audio/*"
-              multiple
-              onChange={v.uploadRecording}
-              disabled={v.recBusy}
-            />
-          </label>
+          <CaptureFilePicker
+            tone="link"
+            icon="upload"
+            label="Upload audio files"
+            accept="audio/*"
+            multiple
+            disabled={v.recBusy}
+            onChange={v.uploadRecording}
+          />
         )}
       </div>
       {!!v.fVoiceError && (
@@ -97,62 +63,22 @@ export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
           </Callout>
         </div>
       )}
-      {!!v.hasTranscript && (
-        <>
-          <div
-            style={{
-              background: 'var(--cap-fill)',
-              borderRadius: '16px',
-              padding: '16px',
-            }}
-          >
-            <p
-              style={{
-                margin: '0',
-                fontSize: '15px',
-                lineHeight: '24px',
-                color: 'var(--text-body)',
-              }}
-            >
-              {v.fTranscriptText}
-            </p>
-            <div style={{ marginTop: '12px' }}>
-              <button
-                type="button"
-                className="cap-btn cap-btn--secondary"
-                style={{ background: 'var(--surface-card)' }}
-                onClick={v.transcriptToNote}
-              >
-                <Icon name="pencil" size={16} />
-                {'Edit as text note'}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-      {v.fClips.length > 0 && (
-        <DraftList label="Recordings">
-          {v.fClips.map((clip) => (
-            <ReadyItem
-              key={clip.id}
-              icon={clip.length ? 'mic' : 'file-audio'}
-              title={clip.name}
-              detail={clip.length}
-            >
-              <audio
-                controls
-                src={clip.url}
-                aria-label={'Play ' + clip.name}
-                style={{ height: '32px', flex: '1 1 180px', minWidth: 0 }}
-              />
-              <RemoveButton
-                label={'Remove ' + clip.name}
-                disabled={v.recBusy}
-                onClick={() => v.removeClip(clip)}
-              />
-            </ReadyItem>
+      {v.captureRows.length > 0 && (
+        <ul
+          className="sw-list cap-clips"
+          aria-label="Recordings"
+          data-walk="new-observation.recordings"
+        >
+          {v.captureRows.map((row) => (
+            <RecordingRow
+              key={row.key}
+              item={row.item}
+              phone={v.phone}
+              onRetry={row.onRetry}
+              onRemove={row.onRemove}
+            />
           ))}
-        </DraftList>
+        </ul>
       )}
     </>
   )

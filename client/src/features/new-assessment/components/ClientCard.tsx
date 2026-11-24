@@ -17,7 +17,7 @@ function ChooseClient({ f }: { f: NewAssessmentForm }) {
   const [text, setText] = useState('')
   const error = f.errors['client.id']
   return (
-    <section className="na-card" aria-label="Client">
+    <section className="na-card" aria-label="Client" data-walk="new-assessment.client-card">
       <div className="na-card-head">
         <span className="na-tile">
           <Icon name="building-2" size={16} />
@@ -50,7 +50,11 @@ export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: In
   if (clientMode === 'existing') {
     const name = f.listedClient?.name ?? client.name
     return (
-      <section className="na-card na-client-chosen" aria-label="Client">
+      <section
+        className="na-card na-client-chosen"
+        aria-label="Client"
+        data-walk="new-assessment.client-card"
+      >
         <ClientAvatar name={name} small />
         <span className="na-client-text">
           <strong dir="auto">{name}</strong>
@@ -71,7 +75,7 @@ export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: In
     )
   }
   return (
-    <section className="na-card" aria-label="Client">
+    <section className="na-card" aria-label="Client" data-walk="new-assessment.client-card">
       <div className="na-card-head">
         <span className="na-tile">
           <Icon name="building-2" size={16} />

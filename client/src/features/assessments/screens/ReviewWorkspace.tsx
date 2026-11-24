@@ -41,7 +41,7 @@ import {
 } from '../components/ReviewInspector'
 import { READ_ONLY, useAsk } from '../ask/useAsk'
 import { applyProposal, ProposalRefusedError } from '../ask/api'
-import type { AskDrafting } from '../ask/AskPanel'
+import type { AskDrafting, AskGuidanceTarget } from '../ask/AskPanel'
 import { contentText, passageAt, type AskPassage } from '../ask/passage'
 import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
@@ -53,9 +53,12 @@ import {
   sectionContent,
   summaryContent,
 } from '../documentContent'
-import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
+import { describeCitation, subsectionId, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useActivity } from '../../marshbot/useActivity'
+import { Tip } from '../../help/Tip'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useObservations } from '../useObservations'
 import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
@@ -117,6 +120,10 @@ function replacementView(section: ReviewSection): ReviewSection {
   }
 }
 
+// Where writing guidance's Go to section went (AS-08): a part of a section,
+// scrolled to once drawn; `at` makes a second go to the same part scroll again.
+type GuidanceGoal = { sectionId: string; subsection: number; at: number }
+
 // The Review tab for a saved assessment (RV-01): sections 7-12 down the side
 // with their completion and review states, the selected section's draft in
 // the middle, and its sources, original observations and claims beside it.
@@ -145,6 +152,8 @@ export function ReviewWorkspace({
   historyRequest = 0,
   openSection,
   canAsk = false,
+  archived = false,
+  onViewObservation,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -170,6 +179,11 @@ export function ReviewWorkspace({
   // May ask questions about the assessment in the inspector's Ask tab (AS-01):
   // anyone who can open it with `reports:ask`.
   canAsk?: boolean
+  // The assessment is archived: no walkthrough is offered on it (F-12).
+  archived?: boolean
+  // Opens an observation on the Observations tab, or the tab itself for null:
+  // where writing guidance's Go to observation goes (AS-08).
+  onViewObservation?: (id: string | null) => void
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis, reload: reloadOfis } = useOfis(reference)
@@ -213,6 +227,18 @@ export function ReviewWorkspace({
   // and which findings they saw. An admin who only reads is not counted.
   // `sections` can be missing while a workspace is still loading; without `?.` Review would crash.
   const shownId = selected ?? workspace?.sections?.find((s) => s.draft)?.id ?? null
+  // F-12: one walkthrough screen per kind of section, so each is offered the first time its
+  // section opens: Section 3 (OFIs), Sections 4 and 5 (figures), the drafted sections.
+  // Held back with nothing drafted (the empty state) or on an archived assessment.
+  useWalkthroughScreen(
+    shownId === '3'
+      ? 'review-ofi'
+      : shownId === '4' || shownId === '5'
+        ? 'review-scores'
+        : 'review',
+    !!workspace?.sections && (!!jobs.generation || !!jobs.loadError),
+    archived || !workspace?.sections?.some((s) => s.draft),
+  )
   useActivity(reference, 'review', canReview)
   useActivity(reference, 'section:' + shownId, canReview && !!shownId && !documentAt, true)
   // The Ask tab (AS-01), kept here so an answer keeps streaming from section to section.
@@ -227,12 +253,20 @@ export function ReviewWorkspace({
   const [shownPassage, setShownPassage] = useState<CommentAnchor | null>(null)
   // AI-drafted text being accepted or deleted (AS-04), by its proposal.
   const [aiBusy, setAiBusy] = useState<string | null>(null)
+  // A part of a section writing guidance went to (AS-08), scrolled to once drawn.
+  const [goal, setGoal] = useState<GuidanceGoal | null>(null)
   // Brings a source opened from an answer into view, also when the panel sits
   // below the draft (tablet) or the sheet just closed (phone).
   useEffect(() => {
     if (askedRef)
       document.querySelector('[data-asked-viewer]')?.scrollIntoView?.({ block: 'nearest' })
   }, [askedRef])
+  useEffect(() => {
+    if (goal)
+      document
+        .getElementById(subsectionId(goal.sectionId, goal.subsection))
+        ?.scrollIntoView?.({ block: 'center' })
+  }, [goal])
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the
@@ -294,6 +328,7 @@ export function ReviewWorkspace({
           canComment={canComment}
           me={me ?? undefined}
           ask={canAsk ? ask : null}
+          onViewObservation={onViewObservation}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)
             setDocumentAt(null)
@@ -415,6 +450,7 @@ export function ReviewWorkspace({
           locate: locatePassage,
           onShowPassage: showPassage,
           drafting: drafting(),
+          guidance: guidance(),
         }
       : undefined
   // A source opened from an answer, in a part with no draft to cite it.
@@ -454,6 +490,30 @@ export function ReviewWorkspace({
   // engineer only (AC5), into the section open when it is one of Sections 4
   // to 12. Once text is inserted, replaced or undone, the workspace shows the
   // section's new version, on that section.
+  // Writing guidance for the part open (AS-08), for anyone who can ask: what
+  // it should cover and what is missing from it. Go to section opens the
+  // section, at the finding or the part when the gap names one; Go to
+  // observation opens it on the Observations tab. The Ask tab stays open, but
+  // on a phone the sheet closes to show the section.
+  const guidance = (): AskGuidanceTarget => {
+    const open = sections.find((s) => s.id === railId)
+    const label = open ? `${open.id}. ${open.title}` : PART_TITLES[railId]
+    return {
+      target: label ? { sectionId: railId, label } : null,
+      onGo: (link) => {
+        if (link.to === 'observation') {
+          onViewObservation?.(link.observationId)
+          return
+        }
+        setHistoryOpen(false)
+        setAskSheet(false)
+        if (link.sectionId !== railId) select(link.sectionId)
+        if (link.finding) setFocus({ citation: null, statement: link.finding })
+        if (link.subsection !== undefined)
+          setGoal({ sectionId: link.sectionId, subsection: link.subsection, at: Date.now() })
+      },
+    }
+  }
   const drafting = (): AskDrafting | undefined => {
     if (!canReview || ask.archived) return undefined
     const open = sections.find((s) => s.id === railId)
@@ -629,6 +689,7 @@ export function ReviewWorkspace({
         position={positionOf(id)}
         onHistory={openHistory}
         action={action}
+        help={id === '2' ? <Tip id="review.executive-summary" /> : undefined}
         {...nav}
       >
         {restoredNotice(id)}
@@ -734,6 +795,7 @@ export function ReviewWorkspace({
                 variant="ghost"
                 size="sm"
                 iconLeft={IconRegistry.object.history}
+                data-walk="review.version-history"
                 onClick={openHistory}
               >
                 Version history
@@ -746,7 +808,7 @@ export function ReviewWorkspace({
             <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
             {restoredNotice('3')}
             {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
-            <RiskMatrix />
+            <RiskMatrix help={<Tip id="review.ofi-matrix" />} />
             {!drafted ? (
               <EmptyState
                 icon="file-text"
@@ -819,11 +881,13 @@ export function ReviewWorkspace({
   // Saves a decision made outside a dialog, showing why if it is refused. A 409 (the decision
   // no longer applies, e.g. a drafting run began redrafting the section) is a toast, with
   // Reload, since the workspace on screen is out of step with the gateway.
-  const decide = async (key: string, save: () => Promise<Workspace>) => {
+  // `done` names the walkthrough signal to fire once the decision is saved (F-12).
+  const decide = async (key: string, save: () => Promise<Workspace>, done?: string) => {
     setBusy(key)
     setProblem(null)
     try {
       keep(await save())
+      if (done) signal(done)
     } catch (error: unknown) {
       if (error instanceof GatewayError && error.status === 409)
         toast.error(error.message, { action: { label: 'Reload', onClick: reload } })
@@ -871,8 +935,10 @@ export function ReviewWorkspace({
       ? {
           busy: busyNow,
           onAccept: (claim) =>
-            decide(claim.key, () =>
-              decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
+            decide(
+              claim.key,
+              () => decideFinding(reference, sectionId, draftId, claim.key, 'accept'),
+              'finding-accepted',
             ),
           onEdit: (claim) => setDialog({ kind: 'edit', claim }),
           onReject: (claim) => setDialog({ kind: 'reject', claim }),

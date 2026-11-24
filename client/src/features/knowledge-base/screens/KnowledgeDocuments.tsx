@@ -30,6 +30,8 @@ import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
 import { PassagesDialog } from '../components/PassagesDialog'
 import { NO_FILTERS, type Filters } from '../documentFilters'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 
 const GROUPS: Group[] = [
   { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
@@ -143,6 +145,8 @@ export function KnowledgeDocuments({
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
   const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
   const [passagesOf, setPassagesOf] = useState<KnowledgeDocument | null>(null)
+  // F-12: ready once the list has loaded; held while it is empty, since the walkthroughs point at rows.
+  useWalkthroughScreen('knowledge-base', documents !== null, documents?.length === 0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -222,6 +226,14 @@ export function KnowledgeDocuments({
       })
     }
   }
+  // F-12: the rows the walkthroughs point at. First = the table's first row. Open = the first plain
+  // active one, whose details show all four actions. Review = a Needs review one, preferring a match.
+  const ordered = GROUPS.flatMap((g) => shown.filter((d) => d.sourceType === g.sourceType))
+  const walk = {
+    first: ordered[0]?.id,
+    open: (ordered.find((d) => !d.withdrawn && !isDraft(d) && !needsReview(d)) ?? ordered[0])?.id,
+    review: (needReview.find((d) => d.match) ?? needReview[0])?.id,
+  }
   const clearFilters = () => setFilters(NO_FILTERS)
   const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
 
@@ -252,7 +264,7 @@ export function KnowledgeDocuments({
 
       {/* Placeholder for the app-wide notification feature (IN-05). */}
       {canManage && needReview.length > 0 && (
-        <div role="status" aria-label="Documents to review">
+        <div role="status" aria-label="Documents to review" data-walk="knowledge.review-banner">
           <ReviewBanner
             documents={needReview}
             onReview={(document) => onReview(document.id, filters)}
@@ -275,6 +287,7 @@ export function KnowledgeDocuments({
           <Select
             size="sm"
             aria-label="Source type"
+            data-walk="knowledge.filter.source"
             options={SOURCE_FILTER}
             value={filters.sourceType}
             onChange={(e) => setFilters({ ...filters, sourceType: e.target.value })}
@@ -282,6 +295,7 @@ export function KnowledgeDocuments({
           <Select
             size="sm"
             aria-label="Country"
+            data-walk="knowledge.filter.country"
             options={COUNTRY_FILTER}
             value={filters.jurisdiction}
             onChange={(e) => setFilters({ ...filters, jurisdiction: e.target.value })}
@@ -289,17 +303,23 @@ export function KnowledgeDocuments({
           <Select
             size="sm"
             aria-label="Facility type"
+            data-walk="knowledge.filter.facility"
             options={FACILITY_FILTER}
             value={filters.facilityType}
             onChange={(e) => setFilters({ ...filters, facilityType: e.target.value })}
           />
-          <Select
-            size="sm"
-            aria-label="Status"
-            options={STATUS_FILTER}
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          />
+          {/* The status tip (F-13) sits beside the filter; the span keeps the two on one line. */}
+          <span className="kb-filter-help">
+            <Select
+              size="sm"
+              aria-label="Status"
+              data-walk="knowledge.filter.status"
+              options={STATUS_FILTER}
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            />
+            <Tip id="knowledge.status" />
+          </span>
           <Select
             size="sm"
             aria-label="Entry"
@@ -363,11 +383,13 @@ export function KnowledgeDocuments({
         ) : (
           // A real table, so every header sits over its own column.
           <table className="kb-table">
-            <thead>
+            <thead data-walk="knowledge.head">
               <tr>
                 <th className="kb-col-toggle" aria-label="Open details" />
                 <th>Document</th>
-                <th className="kb-col-status">Status</th>
+                <th className="kb-col-status" data-walk="knowledge.status.head">
+                  Status
+                </th>
                 <th className="kb-col-actions">
                   <span className="kb-sr">Actions</span>
                 </th>
@@ -395,6 +417,7 @@ export function KnowledgeDocuments({
                   onPublish={publish}
                   onClauses={(document) => onClauses(document.id, filters)}
                   canManage={canManage}
+                  walk={walk}
                 />
               )
             })}

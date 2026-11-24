@@ -11,14 +11,25 @@ import {
 import { withPhotos } from './photoStore'
 import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
+import { tryItRunning } from '../walkthrough/engine'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
 export const chatLLM = fetchLLM({
   url: '/api/chat',
   streamAdapter: smoothAdapter(agUIAdapter()),
   // The photos chosen for the question go with it (CB-08).
-  fetch: withPhotos((input, init) => fetch(input, init)),
+  fetch: withPhotos((input, init) => fetch(input, withWalkthrough(init))),
 })
+
+// During the "Ask MarshBot" walkthrough the question carries x-walkthrough: <id>, so the gateway
+// records its AI cost under the usage feature "walkthrough" (F-12) and not as the person's own work.
+function withWalkthrough(init?: RequestInit): RequestInit | undefined {
+  const walkthrough = tryItRunning()
+  if (!walkthrough) return init
+  const headers = new Headers(init?.headers)
+  headers.set('x-walkthrough', walkthrough)
+  return { ...init, headers }
+}
 
 /** One passage as GET /api/chat/passages/:id sends it (CB-02). Boxes are in PDF points, origin bottom-left. */
 export type Passage = {

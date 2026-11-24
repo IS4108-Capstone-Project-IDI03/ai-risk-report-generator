@@ -1,7 +1,11 @@
 // The Split note button and panel under the Note box (CP-35): shows the proposed parts in three
 // groups, lets the engineer fix them, and confirms them (held as fParts until Save observation).
 // Called by screens/SiteObservation. Calls useSplitNote and PartRow.
+import { useEffect } from 'react'
 import { Button, Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
+import { useWalkStep } from '../../site-walk/walkSteps'
+import { signal } from '../../walkthrough/signals'
 import type { Part } from '../api'
 import {
   addTo,
@@ -18,6 +22,13 @@ import {
 import { PartRow } from './PartRow'
 import { useSplitNote } from './useSplitNote'
 import '../split-note.css'
+
+// Each group heading's data-walk tag (F-12): "Use note codes and Split note" lights the three headings one by one.
+const GROUP_WALK = {
+  fact: 'new-observation.split-facts',
+  info_request: 'new-observation.split-info-requests',
+  recommendation: 'new-observation.split-recommendations',
+} as const
 
 type Props = {
   reference: string
@@ -38,19 +49,34 @@ export function SplitNotePanel({ reference, note, saving, parts, setParts }: Pro
       ? 'Add some text to a part first.'
       : ''
   const change = (next: Part[]) => setDraft(next)
+  // F-12: the walkthrough waits for the parts to show; this tells it they have.
+  const opened = s.status === 'open'
+  useEffect(() => {
+    if (opened) signal('note-split-opened')
+  }, [opened])
+  // A failed split ends the try-it with MarshBot's "didn't work" line instead of leaving it waiting.
+  const walking = useWalkStep('split-note') > 0
+  const failed = !!s.error
+  useEffect(() => {
+    if (walking && failed) signal('try-it-failed')
+  }, [walking, failed])
 
   return (
     <div className="sp">
       {s.status !== 'open' && s.status !== 'confirmed' && (
-        <Button
-          variant="secondary"
-          size="lg"
-          disabled={!note.trim() || saving || s.status === 'loading'}
-          loading={s.status === 'loading'}
-          onClick={s.start}
-        >
-          Split note
-        </Button>
+        <div className="sp-lead">
+          <Button
+            variant="secondary"
+            size="lg"
+            disabled={!note.trim() || saving || s.status === 'loading'}
+            loading={s.status === 'loading'}
+            data-walk="new-observation.split"
+            onClick={s.start}
+          >
+            Split note
+          </Button>
+          <Tip id="new-observation.split-note" align="left" />
+        </div>
       )}
       {s.stale && <p className="sp-note">The note changed, so split it again.</p>}
       {s.error && (
@@ -70,12 +96,16 @@ export function SplitNotePanel({ reference, note, saving, parts, setParts }: Pro
         </p>
       )}
       {s.status === 'open' && (
-        <section className="sp-panel" aria-label="Split note">
+        <section
+          className="sp-panel"
+          aria-label="Split note"
+          data-walk="new-observation.split-panel"
+        >
           {KINDS.map(({ kind, heading }) => {
             const group = draft.filter((p) => p.kind === kind)
             return (
               <div key={kind} className="sp-group" role="group" aria-label={heading}>
-                <h3 className="sp-heading">
+                <h3 className="sp-heading" data-walk={GROUP_WALK[kind as keyof typeof GROUP_WALK]}>
                   <span className={`sp-chip sp-chip--${kind}`}>{heading}</span>
                   <span className="sp-count">{group.length}</span>
                 </h3>

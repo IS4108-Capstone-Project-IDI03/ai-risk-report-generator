@@ -2,8 +2,8 @@
    It is built from the Observations tab's own classes and components (.ob-*,
    .op-*, .cap-*: observations.css, observation-page.css, capture.css; the bar is
    components/screen-header.css), so this file holds only what the review adds:
-   the save state, the ready state by Create all, the rename pencil, the red
-   empty fields on an observation's page and a few dialog bits. */
+   the save state, the ready state by Create all, the rename pencil, the flagged
+   (red and amber) rows, the table's footer and a few dialog bits (v2 in CP-24). */
 
 .swr {
   display: flex;
@@ -39,45 +39,17 @@
   cursor: pointer;
 }
 
-/* ---- The rename pencil after the name: quiet until pointed at, centred on
-   the name's line (a flex row, not a baseline nudge; a long name still wraps) ---- */
-.swr .sh-title:has(> .swr-rename) {
+/* ---- The rename pencil (the design system's IconAction) after the name, on the name's line;
+   a long name still wraps ---- */
+.swr .sh-title:has(.ds-icon-button) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.swr .sh-title > .swr-rename {
+.swr .sh-title > .ds-icon-button {
   flex: none;
   margin-left: 0;
   vertical-align: baseline;
-}
-.swr-rename {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-/* 44px to tap, drawn at 28px so the title line stays one line. */
-.swr-rename::after {
-  content: '';
-  position: absolute;
-  inset: -8px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .swr-rename:hover {
-    background: var(--ob-hover);
-    color: var(--marsh-navy);
-  }
-}
-.swr-rename:focus-visible {
-  outline: 2px solid var(--border-focus);
 }
 
 /* ---- Ready or not, beside Create all: a tinted pill, the not-ready one a
@@ -114,26 +86,8 @@
   background: var(--green-50);
   color: var(--green-600);
 }
-.swr-help {
-  width: 36px;
-  height: 36px;
-  margin: 0;
-  color: var(--text-secondary);
-}
-.swr-create {
-  min-height: 40px;
-  padding: 0 20px;
-  font-weight: 700;
-}
-/* Create all and Add location in the proposal's violet (round 6), the colour of
-   its badge and frame: the proposal's own actions, not the tab's navy ones. */
-.swr .swr-create.ob-button--primary {
-  background: var(--violet-600);
-  box-shadow: 0 1px 2px rgb(98 88 163 / 0.28);
-}
-.swr .swr-create.ob-button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--violet-600) 86%, black);
-}
+/* Add location in the proposal's violet (round 6), the colour of its badge and frame. Create all
+   is the design system's navy button, as on every screen (v2: navy is for actions). */
 .swr .ob-foot-row[data-primary],
 .swr-sheet .ob-foot-row[data-primary] {
   background: var(--ai-bg);
@@ -147,27 +101,24 @@
   }
 }
 @media (pointer: coarse), (max-width: 559px) {
-  .swr-state,
-  .swr-help,
-  .swr-create {
+  .swr-state {
     min-height: 44px;
-  }
-  .swr-help {
-    width: 44px;
   }
 }
 
 /* ---- A proposal, never mistaken for the real tab (round 6): every card on its
-   screens wears a violet hairline, the AI colour of its Proposal badge, and the
-   table's toolbar a faint violet wash ---- */
+   screens wears a violet hairline, the AI colour of its Proposal badge ---- */
 .swr .ob-card {
   box-shadow:
     var(--ob-shadow-sm),
     0 0 0 1px var(--ai-border);
 }
-.swr .ob-filters {
-  background: color-mix(in srgb, var(--ai-bg) 70%, var(--surface-card));
-  border-bottom-color: var(--ai-border);
+/* The toolbar stays white, with the app's grey pills (board 14). Add observation says its
+   whole name unless the card is too narrow for it to fit beside the four pills. */
+@container (min-width: 640px) {
+  .swr .ob-head-actions .ob-more {
+    display: inline;
+  }
 }
 
 /* ---- Navigator: the red mark after a name where something needs details ---- */
@@ -178,12 +129,71 @@
   color: var(--red-600);
 }
 
-/* ---- Observation page: an empty field reads as red, like the list's Needs ---- */
-.swr .ob-picker[data-empty] {
+/* ---- Flagged rows: the tint and reason are the Observations tab's own (.ob-row-wrap and
+   .ob-row-reason, assessments/observations.css); red is for something missing, amber for a value
+   the AI was not sure of. ---- */
+/* Phone rows show one symbol at the right (observations.css, under 640 px): a row missing
+   something shows its red mark there instead of its severity. */
+@media (max-width: 639px) {
+  .swr .ob-row-wrap[data-tint='failed'] .ob-row .ob-sev {
+    display: none;
+  }
+  .swr .ob-row-wrap[data-tint='failed'] .ob-row .ob-status {
+    display: grid;
+  }
+}
+
+/* ---- The table's toolbar: filter pills (design system) and Add observation ---- */
+@media (max-width: 559px) {
+  /* The pills fill their two even columns, 44 px tall, name left and chevron right (each is a
+     menu wrapper div, then a span, then the pill). */
+  .swr .ob-filter-set > div,
+  .swr .ob-filter-set > div > span {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .swr .ob-filter-set .ds-filter-pill {
+    flex: 1 1 auto;
+    justify-content: space-between;
+    min-width: 0;
+    height: 44px;
+  }
+  .swr .ob-filter-set > .ds-press {
+    grid-column: 1 / -1;
+  }
+  /* 44 px taps on a phone, also where the browser reports a fine pointer. */
+  .swr .sh-actions .ds-press,
+  .swr .ob-head-actions .ds-press {
+    min-height: 44px;
+  }
+  /* The Add button has a row to itself here, so it keeps its whole name. */
+  .swr .ob-head-actions .ob-more {
+    display: inline;
+  }
+}
+/* The footer count rests on the card's bottom edge while the rows scroll. */
+.swr-foot {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface-card);
+}
+.swr-foot .ds-table-footer {
+  border-top: 1px solid var(--ob-line);
+}
+
+/* ---- Observation page: an empty required field reads red with its "Choose a …" words, as it
+   did before CP-24 (no error line: v2 shows one only after a failed Create) ---- */
+[data-needed] .cpf-button {
   border-color: color-mix(in srgb, var(--red-600) 45%, transparent);
   background: var(--red-50);
   color: var(--red-600);
   font-weight: 600;
+}
+/* The three fields share one label line height, so Confirm and Change showing on one never
+   pushes its field below the others. */
+.op-fields .cpf-label {
+  min-height: 32px;
 }
 
 /* ---- Messages, dialogs ---- */

@@ -6,7 +6,9 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Button, Icon, Textarea } from '../../../design-system'
 import { ACCEPT } from '../reading'
-import { Help } from './Help'
+import { sampleEmail } from '../sampleEmail'
+import { Tip } from '../../help/Tip'
+import { onSignal } from '../../walkthrough/signals'
 
 export function UploadArea({
   slim = false,
@@ -35,6 +37,12 @@ export function UploadArea({
     setText('')
     onAdd(files, pasted)
   }
+  // F-12: "Use the sample email" in MarshBot's bubble adds the sample the way a chosen file is
+  // added. Only the large start area listens: the slim one above the reading screen has no use for it.
+  useEffect(() => {
+    if (slim) return
+    return onSignal('sample-email-wanted', () => onAdd([sampleEmail()], ''))
+  }, [slim, onAdd])
   const drop = (e: DragEvent) => {
     e.preventDefault()
     setOver(false)
@@ -60,6 +68,7 @@ export function UploadArea({
       <section
         className={'na-drop' + (slim ? ' na-drop--slim' : '') + (over ? ' is-over' : '')}
         aria-label="Add client documents"
+        data-walk={slim ? undefined : 'new-assessment.upload'}
         onDragOver={(e) => {
           e.preventDefault()
           setOver(true)
@@ -80,20 +89,22 @@ export function UploadArea({
             <strong>{'Add the client’s documents'}</strong>
             <span className="na-muted">
               {'PDF, Word, Outlook (.msg) or .eml files'}
-              <Help label="How to save an email">
-                <ul className="na-help-list">
+              <Tip id="new-assessment.save-email">
+                <ul>
                   <li>
-                    <strong>{'Outlook: '}</strong>
-                    {'open the email, then File > Save As, as Outlook Message Format (.msg).'}
+                    <b>{'Outlook: '}</b>
+                    {'open the email, then choose '}
+                    <b>{'File → Save As'}</b>
+                    {' and save it as Outlook Message Format (.msg).'}
                   </li>
                   <li>
-                    <strong>{'Gmail: '}</strong>
-                    {'open the email, then '}
-                    <span className="na-nowrap">{'⋮ > Download message'}</span>
-                    {' (.eml).'}
+                    <b>{'Gmail: '}</b>
+                    {'open the email, then choose '}
+                    <b className="na-nowrap">{'⋮ → Download message'}</b>
+                    {' to save it as an .eml file.'}
                   </li>
                 </ul>
-              </Help>
+              </Tip>
             </span>
           </span>
         )}

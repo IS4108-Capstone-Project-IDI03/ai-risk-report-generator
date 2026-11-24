@@ -9,7 +9,7 @@ import type { GlanceFact } from '../types'
 export function Glance({ facts }: { facts: GlanceFact[] }) {
   if (!facts.length) return null
   return (
-    <section className="mb-glance" aria-label="At a Glance">
+    <section className="mb-glance" aria-label="At a Glance" data-walk="overview.glance">
       <div className="mb-glance-in">
         <h2>At a Glance</h2>
         <dl>

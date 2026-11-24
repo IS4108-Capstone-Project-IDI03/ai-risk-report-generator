@@ -31,9 +31,11 @@ import {
   maturityEntries,
   plural,
   statementId,
+  subsectionId,
   type Claim,
   type ReviewFocus,
 } from '../reviewDisplay'
+import { Tip } from '../../help/Tip'
 import { CitationMark } from './CitationMark'
 import { RichWords, WrittenBlocks } from './WrittenBlocks'
 import { MaturityTable } from './MaturityTable'
@@ -104,6 +106,8 @@ const citeMark =
   (
     { numbers, focus, describe, onCite }: Omit<Citing, 'sectionId' | 'askText'>,
     claimKey: string | null,
+    // The citation that carries the F-12 tag (Finding 1's first), if any.
+    walkId?: string,
   ) =>
   (id: string) => (
     <CitationMark
@@ -111,8 +115,21 @@ const citeMark =
       label={describe(id)}
       current={focus.citation === id}
       onSelect={() => onCite(id, claimKey)}
+      walk={walkId !== undefined && id === walkId ? 'review.finding-1.cite' : undefined}
     />
   )
+
+// A finding's sentence. When it is flagged Unsupported the help (?) sits beside it (F-13): in a
+// row of its own, since the (?) holds a div, which may not be inside the sentence's <p>.
+function StatementRow({ tip, children }: { tip: boolean; children: React.ReactNode }) {
+  if (!tip) return <>{children}</>
+  return (
+    <div className="rv-statement-row">
+      {children}
+      <Tip id="review.unsupported" />
+    </div>
+  )
+}
 
 // One finding: its text and citations, its review decision and who made it,
 // and the actions on it.
@@ -155,45 +172,54 @@ function Finding({
       aria-label={`Finding ${claim.number}`}
       // AS-06: counted as seen once it stays on screen (marshbot/useActivity).
       data-activity-key={claim.key}
+      data-walk={claim.number === 1 ? 'review.finding-1.card' : undefined}
       className={'rv-finding' + (review.state === 'pending' ? ' is-pending' : '')}
     >
-      <p
-        id={statementId(sectionId, claim.key)}
-        className={
-          'rv-statement' +
-          (heading ? ' rv-statement-heading' : '') +
-          (focus.statement === claim.key ? ' is-active' : '') +
-          (claim.supported ? '' : ' is-unsupported')
-        }
-        {...findingAttrs(askText, claim.key, shown)}
-      >
-        {content && shown === undefined ? (
-          <RichWords
-            content={content}
-            cite={citeMark({ numbers, focus, describe, onCite }, claim.key)}
-          />
-        ) : (
-          <>
-            <span className="rv-statement-text">{shown ?? claim.text}</span>
-            {claim.citations.map((c, n) => (
-              <CitationMark
-                key={n}
-                number={numbers.get(c)!}
-                label={describe(c)}
-                current={focus.citation === c}
-                onSelect={() => onCite(c, claim.key)}
-              />
-            ))}
-          </>
-        )}
-        {!claim.supported && (
-          <span className="rv-flag">
-            <Badge tone="moderate" icon="triangle-alert">
-              Unsupported
-            </Badge>
-          </span>
-        )}
-      </p>
+      <StatementRow tip={!claim.supported}>
+        <p
+          id={statementId(sectionId, claim.key)}
+          className={
+            'rv-statement' +
+            (heading ? ' rv-statement-heading' : '') +
+            (focus.statement === claim.key ? ' is-active' : '') +
+            (claim.supported ? '' : ' is-unsupported')
+          }
+          data-walk={claim.number === 1 ? 'review.finding-1' : undefined}
+          {...findingAttrs(askText, claim.key, shown)}
+        >
+          {content && shown === undefined ? (
+            <RichWords
+              content={content}
+              cite={citeMark(
+                { numbers, focus, describe, onCite },
+                claim.key,
+                claim.number === 1 ? claim.citations[0] : undefined,
+              )}
+            />
+          ) : (
+            <>
+              <span className="rv-statement-text">{shown ?? claim.text}</span>
+              {claim.citations.map((c, n) => (
+                <CitationMark
+                  key={n}
+                  number={numbers.get(c)!}
+                  label={describe(c)}
+                  current={focus.citation === c}
+                  onSelect={() => onCite(c, claim.key)}
+                  walk={claim.number === 1 && n === 0 ? 'review.finding-1.cite' : undefined}
+                />
+              ))}
+            </>
+          )}
+          {!claim.supported && (
+            <span className="rv-flag">
+              <Badge tone="moderate" icon="triangle-alert">
+                Unsupported
+              </Badge>
+            </span>
+          )}
+        </p>
+      </StatementRow>
       <div className="rv-finding-bar">
         {/* Only a decision is labelled: a pending finding is marked by its violet rule. */}
         {review.state !== 'pending' && (
@@ -208,7 +234,11 @@ function Finding({
         )}
         <span className="rv-finding-gap" />
         {actions && (
-          <>
+          // One box round the decisions, so a walkthrough can point at all three (F-12).
+          <span
+            className="rv-finding-actions"
+            data-walk={claim.number === 1 ? 'review.finding-1.decisions' : undefined}
+          >
             <Button
               variant="ghost"
               size="sm"
@@ -235,6 +265,8 @@ function Finding({
                 size="sm"
                 iconLeft={IconRegistry.action.accept}
                 aria-label={`Accept finding ${claim.number}`}
+                // The one control a walkthrough lets through (see review.css, rv-finding-actions).
+                data-walk={claim.number === 1 ? 'review.finding-1.accept' : undefined}
                 disabled={busy}
                 loading={actions.busy === claim.key}
                 onClick={() => actions.onAccept(claim)}
@@ -242,7 +274,7 @@ function Finding({
                 Accept
               </Button>
             )}
-          </>
+          </span>
         )}
       </div>
       {removed.length > 0 && (
@@ -409,6 +441,7 @@ function AiParagraph({
 
 function DraftSubsection({
   sub,
+  index,
   blocks,
   claims: all,
   actions,
@@ -417,6 +450,8 @@ function DraftSubsection({
   ...citing
 }: Citing & {
   sub: ReviewDraft['subsections'][number]
+  // Its place in the section, for writing guidance to go to its note (AS-08).
+  index: number
   // The subsection's text: its findings and anything the engineer wrote (RV-08).
   blocks: DocumentBlock[]
   // Every finding in the draft, by which those in `blocks` are shown.
@@ -437,7 +472,7 @@ function DraftSubsection({
   }
   if (sub.kind === 'table' || (!sub.statements.length && !written && !claims.length)) {
     return (
-      <div className="rv-subsection-note">
+      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
         <strong>{sub.heading}</strong>
         <p className="rv-muted">
           {sub.kind === 'table'
@@ -449,7 +484,7 @@ function DraftSubsection({
   }
   if (!claims.length && !written) {
     return (
-      <div className="rv-subsection-note">
+      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
         <strong>{sub.heading}</strong>
         <p className="rv-muted">
           Every finding in this subsection was rejected, so it is left out of the report. The review
@@ -739,6 +774,7 @@ export function DraftEditor({
               variant="ghost"
               size="sm"
               iconLeft={IconRegistry.object.history}
+              data-walk="review.version-history"
               onClick={onHistory}
             >
               Version history
@@ -833,6 +869,7 @@ export function DraftEditor({
                 <DraftSubsection
                   key={sub.heading}
                   sub={sub}
+                  index={i}
                   blocks={content.subsections[i]?.blocks ?? []}
                   claims={claims}
                   actions={actions}

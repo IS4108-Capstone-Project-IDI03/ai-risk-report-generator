@@ -35,6 +35,24 @@ def test_with_protection_known_details_are_masked_and_restored(fake_privacy):
     )
 
 
+def test_the_admins_never_masked_list_goes_with_every_mask_call(fake_privacy):
+    # PV-09: the gateway sends Settings' list; privacy-service uses it in place of its file.
+    privacy.session({**ON, "never_masked": ["Hosereel"]}).mask(["Hosereel pump"])
+    privacy.session(ON).mask(["Hosereel pump"])  # not yet seeded: the file's words apply
+
+    assert fake_privacy.requests[0]["never_masked"] == ["Hosereel"]
+    assert "never_masked" not in fake_privacy.requests[1]
+
+
+def test_a_never_masked_word_a_past_report_mapped_is_not_masked_again(fake_privacy):
+    # PV-09: a word masked by mistake at ingestion and since allowed by the admin reads as
+    # written, though the report keeps its tag until it is re-run.
+    s = privacy.session({**ON, "never_masked": ["Sprinkl"]})
+    s.know([{"type": "PERSON", "names": ["Sprinkl"]}, {"type": "PERSON", "names": ["Mei Lin"]}])
+
+    assert s.mask(["Sprinkl for Mei Lin"]) == ["Sprinkl for [PERSON_1]"]
+
+
 def test_a_second_call_keeps_the_first_calls_placeholders(fake_privacy):
     s = privacy.session(ON)
     [first] = s.mask(["Call +65 9123 4567"])

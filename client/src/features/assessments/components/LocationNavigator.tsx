@@ -9,7 +9,13 @@ import { NavAction as Action, NavRow as Row } from './NavRow'
 import type { NavLocation, Place, useObservationsView } from '../useObservationsView'
 
 type View = ReturnType<typeof useObservationsView>
-type Props = { v: AssessmentWorkflow; view: View; onPick: (place: Place) => void }
+type Props = {
+  v: AssessmentWorkflow
+  view: View
+  onPick: (place: Place) => void
+  // The data-walk tag of the tree's list (F-12): the walkthrough lights the tree, not the whole panel.
+  walk?: string
+}
 
 // Returns the panel, or on a phone the button and its sheet.
 export function LocationNavigator({ v, view }: Omit<Props, 'onPick'>) {
@@ -17,7 +23,7 @@ export function LocationNavigator({ v, view }: Omit<Props, 'onPick'>) {
   if (!v.phone)
     return (
       <nav className="ob-card ob-nav" aria-label="Locations">
-        <Tree v={v} view={view} onPick={view.pick} />
+        <Tree v={v} view={view} onPick={view.pick} walk="observations.locations" />
         <NavigatorFoot v={v} />
       </nav>
     )
@@ -26,6 +32,7 @@ export function LocationNavigator({ v, view }: Omit<Props, 'onPick'>) {
       <button
         type="button"
         className="ob-nav-button"
+        data-walk="observations.locations"
         aria-label={'Location: ' + view.title + '. Change'}
         onClick={() => setOpen(true)}
       >
@@ -57,13 +64,13 @@ export function LocationNavigator({ v, view }: Omit<Props, 'onPick'>) {
 }
 
 // All locations, then each building with its levels and locations.
-function Tree({ v, view, onPick }: Props) {
+function Tree({ v, view, onPick, walk }: Props) {
   // Levels fold on their own; buildings remember their fold for the visit.
   const [folded, setFolded] = useState<Record<string, boolean>>({})
   const is = (place: Place) => JSON.stringify(place) === JSON.stringify(view.place)
   return (
     <>
-      <ul className="ob-nav-tree">
+      <ul className="ob-nav-tree" data-walk={walk}>
         <li>
           <Row
             all

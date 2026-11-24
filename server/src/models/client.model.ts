@@ -16,6 +16,8 @@ export interface IClient {
   formerNames?: string[]
   // Its latest rename (CP-18).
   edited?: IStamp
+  // F-12: set only on a practice assessment's made-up client (ADR 0003); absent on real ones.
+  practice?: true
 }
 
 const clientSchema = new Schema<IClient>(
@@ -25,6 +27,7 @@ const clientSchema = new Schema<IClient>(
     division: { type: String, trim: true, maxlength: 200 },
     // Left out until there is one, rather than defaulting to [].
     formerNames: { type: [String], default: undefined },
+    practice: Boolean,
     edited: {
       type: new Schema(
         {
