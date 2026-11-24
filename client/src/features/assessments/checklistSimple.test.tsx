@@ -201,7 +201,7 @@ it('lists fixed, then past-report, then other questions, with a muted suffix and
     'Other one',
   ])
   expect(within(rows[0]).getByText('Fixed')).toBeInTheDocument()
-  expect(within(rows[1]).getByText('Past report: Jurong DC 2024')).toBeInTheDocument()
+  expect(within(rows[1]).getByText('Past report · Jurong DC 2024')).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Priority risks' })).toBeInTheDocument()
   expect(screen.queryByRole('tab')).toBeNull()
 })

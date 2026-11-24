@@ -31,12 +31,16 @@ function nextMark(result: CheckResult | undefined): Mark | null {
   return NEXT[result ?? 'none']
 }
 
-// "Fixed", and "Past report: <title>" where the question came from past reports.
+// A report's short name: the part after its last ": " ("Office, 28 Feb 2025"), since every title
+// starts with the same "Marsh Property Risk Evaluation Report". The full title shows on hover.
+const shortName = (title: string) => title.split(': ').pop() ?? title
+
+// "Fixed", and "Past report · <short name>" where the question came from past reports.
 function suffix(item: ChecklistItem) {
   const parts = [
     item.fixed && 'Fixed',
     item.sourceReports?.length &&
-      `Past report: ${item.sourceReports.map((r) => r.title).join(', ')}`,
+      `Past report · ${item.sourceReports.map((r) => shortName(r.title)).join(', ')}`,
   ].filter(Boolean)
   return parts.join(' · ')
 }
@@ -135,7 +139,14 @@ export function ChecklistRow({
       ) : (
         <span className={'cl-row-text' + (faded ? ' cl-fade' : '')}>
           {title}
-          {suffix(item) && <span className="cl-suffix">{suffix(item)}</span>}
+          {suffix(item) && (
+            <span
+              className="cl-suffix"
+              title={item.sourceReports?.map((r) => r.title).join('\n') || undefined}
+            >
+              {suffix(item)}
+            </span>
+          )}
           {observation && (
             <button
               type="button"

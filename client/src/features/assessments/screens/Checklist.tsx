@@ -216,7 +216,17 @@ export function Checklist({
             gap: 'var(--space-5)',
           }}
         >
-          <h2 style={{ ...heading, fontSize: '20px', flex: '1 1 360px' }}>Pre-survey checklist</h2>
+          <h2
+            style={{
+              ...heading,
+              fontSize: 'var(--text-h2-size)',
+              fontWeight: 'var(--weight-bold)',
+              color: 'var(--marsh-navy)',
+              flex: '1 1 360px',
+            }}
+          >
+            Pre-survey checklist
+          </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             {view.checklist && (
               <IconButton
@@ -266,7 +276,7 @@ export function Checklist({
         />
       ) : view.checklist && generated ? (
         <>
-          <p style={{ ...caption, fontFamily: 'var(--font-mono)' }}>
+          <p style={caption}>
             Generated {formatDay(generated)}{' '}
             {generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ·{' '}
             {view.checklist.provenance.model ?? 'no model called'} ·{' '}
