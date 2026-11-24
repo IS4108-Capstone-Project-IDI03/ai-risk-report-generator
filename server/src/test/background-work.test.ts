@@ -441,6 +441,35 @@ describe('drafting (GN-13)', () => {
     ])
   })
 
+  it("a run's failed sections show where they fall among those drafted, in run order", async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      {
+        '10': job('failed', { error: 'No evidence.' }),
+        '3': job('done'),
+        '6': job('failed', { error: 'No evidence.' }),
+        '8': job('done'),
+      },
+      {
+        parts: ['3', '6', '8', '10'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toEqual({
+      type: 'stages',
+      current: 2,
+      total: 4,
+      unit: 'parts',
+      segments: ['done', 'failed', 'done', 'failed'],
+    })
+  })
+
   it('a part redrafted from Review shows as one AI call, timed from the request', async () => {
     const { engineer } = await people()
     const { id } = await assessment(engineer._id)

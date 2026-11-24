@@ -4,7 +4,11 @@
 // reads lean batches: one query per collection, not one per assessment.
 import type { Types } from 'mongoose'
 import { AssessmentModel, type ILocation } from '../models/assessment.model'
-import { DraftingRunModel, type IDraftingRun } from '../models/drafting-run.model'
+import {
+  DraftingRunModel,
+  type IDraftingRun,
+  type PartJobStatus,
+} from '../models/drafting-run.model'
 import type { ISite } from '../models/site.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
@@ -252,6 +256,12 @@ function readingRow(o: ObservationDto, assessment: OwnAssessment): BackgroundWor
 // again, which is the drafting tab's choice (a new run drafts what its
 // checkpoint offers), so the rows link there and offer no Try again.
 const PART_STATE = { queued: 'queued', drafting: 'running' } as const
+const SEGMENT: Record<PartJobStatus, Segment> = {
+  done: 'done',
+  failed: 'failed',
+  drafting: 'working',
+  queued: 'empty',
+}
 function draftingRows(
   d: Pick<IDraftingRun, 'parts' | 'run'>,
   assessment: OwnAssessment,
@@ -305,7 +315,17 @@ function draftingRows(
       id: `drafting:${assessment.reference}:failed`,
       state: 'failed',
       title: 'Drafting the report',
-      progress: { type: 'working', stage: 'Drafting' },
+      // The run's sections in order, so the failed ones show where they fall.
+      // Failures from Review alone, with no run, have no order to show.
+      progress: run
+        ? {
+            type: 'stages',
+            current: run.parts.filter((id) => d.parts?.[id]?.status === 'done').length,
+            total: run.parts.length,
+            unit: 'parts',
+            segments: run.parts.map((id) => SEGMENT[d.parts?.[id]?.status ?? 'queued']),
+          }
+        : { type: 'working', stage: 'Drafting' },
       error:
         failed.length === 1
           ? (only.error ?? `Section ${onlyId} could not be drafted.`)
