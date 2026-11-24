@@ -177,9 +177,7 @@ function WordList({
   const [addedBy, setAddedBy] = useState('')
   const origin = (w: PrivacyWord) => (w.source === 'default' ? 'default' : (w.addedBy?.id ?? ''))
   const origins = [
-    ...(words.some((w) => w.source === 'default')
-      ? [{ value: 'default', label: 'Default' }]
-      : []),
+    ...(words.some((w) => w.source === 'default') ? [{ value: 'default', label: 'Default' }] : []),
     ...[...new Map(words.flatMap((w) => (w.addedBy ? [[w.addedBy.id, w.addedBy.name]] : [])))]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label)),
