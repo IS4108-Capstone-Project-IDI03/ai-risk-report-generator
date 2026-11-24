@@ -759,6 +759,40 @@ const listed = async (query = '') =>
     (o: { id: string }) => o.id,
   )
 
+describe('custom labels and the asked mark (CP-36)', () => {
+  it('saves labels trimmed and without repeats, and returns them', async () => {
+    await assessmentWithSession()
+    const res = await note({ labels: [' Roof ', 'roof', 'Electrical'] })
+    expect(res.status).toBe(201)
+    expect(res.body.labels).toEqual(['Roof', 'Electrical'])
+    expect((await note()).body.labels).toEqual([])
+  })
+  it('refuses a blank, an over-long or too many labels', async () => {
+    await assessmentWithSession()
+    expect((await note({ labels: ['  '] })).status).toBe(400)
+    expect((await note({ labels: ['x'.repeat(31)] })).status).toBe(400)
+    expect((await note({ labels: Array.from({ length: 9 }, (_, n) => `l${n}`) })).status).toBe(400)
+  })
+  it('changes and clears labels without touching the note or the tags', async () => {
+    await assessmentWithSession()
+    const { id, note: text } = (await note({ labels: ['Roof'], kinds: ['info_request'] })).body
+    const changed = await edit(id, { labels: ['Electrical'] })
+    expect(changed.body.labels).toEqual(['Electrical'])
+    expect(changed.body.note).toBe(text)
+    expect(changed.body.kinds).toEqual(['info_request'])
+    expect((await edit(id, { labels: null })).body.labels).toEqual([])
+  })
+  it('marks an observation asked and clears the mark', async () => {
+    await assessmentWithSession()
+    const { id } = (await note({ kinds: ['info_request'] })).body
+    expect((await note()).body.asked).toBe(false)
+    const asked = await edit(id, { asked: true })
+    expect(asked.status).toBe(200)
+    expect(asked.body.asked).toBe(true)
+    expect((await edit(id, { asked: false })).body.asked).toBe(false)
+  })
+})
+
 describe('changing the tags of an observation (CP-36)', () => {
   it('changes and clears the tags without touching the note', async () => {
     await assessmentWithSession()

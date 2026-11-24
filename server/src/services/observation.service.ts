@@ -165,6 +165,17 @@ const kindsField = z
   .min(1, 'Choose at least one tag.')
   .transform((list) => OBSERVATION_KINDS.filter((k) => list.includes(k)))
 
+// Up to 8 labels of 1 to 30 characters, trimmed, repeats (ignoring case) dropped. They only sort
+// the list (CP-36).
+const labelsField = z
+  .array(
+    z.string().trim().min(1, 'A label needs a word.').max(30, 'A label is 30 characters or fewer.'),
+  )
+  .max(8, 'An observation can have at most 8 labels.')
+  .transform((list) =>
+    list.filter((l, n) => list.findIndex((x) => x.toLowerCase() === l.toLowerCase()) === n),
+  )
+
 // The fields of POST /api/assessments/:reference/observations, sent as the
 // form's `details` part alongside any recordings.
 // Attribution comes from the authenticated session, never from these fields.
@@ -178,6 +189,7 @@ export const newObservationSchema = z.object({
 
   // The engineer's tags (CP-36); absent means Fact. The note stays as typed.
   kinds: kindsField.optional(),
+  labels: labelsField.optional(),
 
   // null, [] or absent leaves it uncategorised (CP-02 AC4), for the AI to
   // suggest (CP-24); a severity left null or absent likewise.
@@ -211,6 +223,10 @@ export type ObservationDetails = z.infer<typeof newObservationSchema>
 export const observationChangesSchema = z.object({
   // null clears the tags (back to Fact).
   kinds: kindsField.nullable().optional(),
+  // null or [] clears the labels.
+  labels: labelsField.nullable().optional(),
+  // true marks the info request asked; false clears the mark.
+  asked: z.boolean().optional(),
   copeDimensions: copeDimensionsField.optional(),
   severity: severityField.nullable().optional(),
   confirm: z
@@ -334,6 +350,9 @@ export type ObservationDto = {
   note: string | null
   // The engineer's tags (CP-36); null when untagged, which reads as Fact.
   kinds: ObservationKind[] | null
+  // Sort-only labels (CP-36), and whether the client has been asked for it.
+  labels: string[]
+  asked: boolean
   // Its evidence: the recordings and photos not removed. Everything that
   // reads these, drafting included, leaves removed ones out (CP-08).
   recordings: RecordingDto[]
@@ -523,6 +542,8 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
     kinds: o.kinds ?? null,
+    labels: o.labels ?? [],
+    asked: !!o.asked,
     recordings: kept(o.recordings).map(recording),
     photos: keptPhotos.map(photo),
     pages: kept(pages).map(page),
@@ -615,6 +636,7 @@ export async function saveObservation(
     engineerId: user.id,
     note: details.note,
     ...(details.kinds && { kinds: details.kinds }),
+    ...(details.labels?.length && { labels: details.labels }),
     standard: details.standard,
     severity: details.severity,
     location: details.locationId,
@@ -920,6 +942,14 @@ export async function updateObservation(
   change('note', o.note, changes.note)
   if (changes.kinds === null) unset.kinds = 1
   else if (changes.kinds) set.kinds = changes.kinds
+  if (changes.labels !== undefined) {
+    if (changes.labels === null || !changes.labels.length) unset.labels = 1
+    else set.labels = changes.labels
+  }
+  if (changes.asked !== undefined) {
+    if (changes.asked) set.asked = stamp(user)
+    else unset.asked = 1
+  }
   // A failed suggestion with nothing left to suggest is over: both fields filled and the engineer's.
   const filled = (field: 'category' | 'severity', value: unknown, now: unknown) =>
     !!(value === undefined ? now : value) && (owned.has(field) || !s?.[field])
@@ -935,6 +965,7 @@ export async function updateObservation(
 
   // Removing the note matches only while a recording, photo or page stays, so
   // a removal at the same moment can't leave nothing captured.
+  const onlyAsked = [...Object.keys(set), ...Object.keys(unset)].every((k) => k === 'asked')
   const updated = await ObservationModel.findOneAndUpdate(
     {
       _id: id,
@@ -942,7 +973,8 @@ export async function updateObservation(
       ...(unset.note && { $or: [KEEPS_RECORDING, KEEPS_PHOTO, KEEPS_PAGE] }),
     },
     {
-      $set: { ...set, edited: stamp(user) },
+      // Ticking an info request asked is not an edit of the observation.
+      $set: { ...set, ...(!onlyAsked && { edited: stamp(user) }) },
       ...(Object.keys(unset).length && { $unset: unset }),
     },
     { returnDocument: 'after' },
@@ -1300,6 +1332,8 @@ export type ToAskItem = {
   text: string
   location: string | null
   severity: string
+  // True once the engineer ticked it as asked.
+  asked: boolean
 }
 
 // What to ask, in the engineer's words: the note, else a transcription, else the photo description.
@@ -1327,6 +1361,7 @@ export async function toAskFor(reference: string): Promise<ToAskItem[]> {
       location: o.location ? locationText(o.location) : null,
       // Empty while the severity is still to be suggested or chosen (CP-24).
       severity: o.severity ?? '',
+      asked: o.asked,
     }))
 }
 

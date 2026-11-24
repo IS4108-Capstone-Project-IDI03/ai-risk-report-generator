@@ -266,6 +266,10 @@ export interface IObservation {
   note?: string
   // The engineer's tags (CP-36); absent means Fact. Never empty when present.
   kinds?: ObservationKind[]
+  // Sort-only labels the engineer typed (CP-36): they change nothing about drafting.
+  labels?: string[]
+  // Set when the engineer has asked the client for what this info request needs (CP-36).
+  asked?: IStamp
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
@@ -509,6 +513,8 @@ const observationSchema = new Schema<IObservation>(
     engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
     kinds: { type: [{ type: String, enum: OBSERVATION_KINDS }], default: undefined },
+    labels: { type: [{ type: String, maxlength: 30 }], default: undefined },
+    asked: { type: Schema.Types.Mixed },
     recordings: [recordingSchema],
     photos: [photoSchema],
     pages: [pageSchema],

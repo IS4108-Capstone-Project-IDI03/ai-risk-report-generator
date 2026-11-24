@@ -97,6 +97,15 @@ describe('GET /api/assessments/:reference/to-ask (CP-36)', () => {
     expect(res.body.items[1].severity).toBe('critical')
   })
 
+  it('says which requests are asked, and ticking one does not change the others', async () => {
+    const ids = await setup()
+    const a = await obs(ids, ['info_request'], 'Ask for the valve schedule.')
+    await obs(ids, ['info_request'], 'Ask who tests the pump.')
+    expect((await api.patch(`/api/observations/${a._id}`).send({ asked: true })).status).toBe(200)
+    const items = (await api.get(URL)).body.items
+    expect(items.map((i: { asked: boolean }) => i.asked)).toEqual([true, false])
+  })
+
   it('is empty when none is tagged, and skips a deleted observation', async () => {
     const ids = await setup()
     expect((await api.get(URL)).body.items).toEqual([])
