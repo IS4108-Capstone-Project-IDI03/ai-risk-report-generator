@@ -259,7 +259,26 @@ describe('Privacy words (PV-09)', () => {
     expect(within(panel).getByLabelText(/^Reason/)).toHaveFocus()
   })
 
-  it('filters the words to the shipped ones or one admin’s', async () => {
+  it('labels the words that come with the app Default', async () => {
+    mock(
+      true,
+      lists({
+        never: [
+          word({}),
+          word({ id: 'w2', word: 'Hosereel', source: 'admin', addedBy: { id: 'u2', name: 'Lee' } }),
+        ],
+      }),
+    )
+    render(<Settings />)
+    const panel = await openPrivacyWords()
+    const row = (await within(panel).findByText('Sprinkl')).closest('tr')!
+
+    expect(within(row).getByText('Default')).toBeInTheDocument()
+    expect(within(panel).getByRole('option', { name: 'Default' })).toHaveValue('default')
+    expect(within(panel).queryByText('Shipped with the app')).not.toBeInTheDocument()
+  })
+
+  it('filters the words to the defaults or one admin’s', async () => {
     mock(
       true,
       lists({
