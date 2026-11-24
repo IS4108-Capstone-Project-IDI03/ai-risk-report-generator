@@ -240,11 +240,13 @@ function readingRow(o: ObservationDto, assessment: OwnAssessment): BackgroundWor
 }
 
 // Drafting (GN-13). A run under way is one row: its parts drafted of the
-// parts it drafts. Outside a run, each part still queued, drafting (from
-// Review) or failed is a row of its own, a failed one until it is drafted
-// again. Drafting it again is the drafting tab's choice (a new run drafts what
-// its checkpoint offers), so these rows link there and offer no Try again.
-const PART_STATE = { queued: 'queued', drafting: 'running', failed: 'failed' } as const
+// parts it drafts. Outside a run, a section still queued or being drafted again
+// from Review is a row of its own, and the sections that failed fold into one
+// row for the assessment ("3 sections not drafted"; one keeps its reason), so
+// several assessments don't flood the popover. It stays until they are drafted
+// again, which is the drafting tab's choice (a new run drafts what its
+// checkpoint offers), so the rows link there and offer no Try again.
+const PART_STATE = { queued: 'queued', drafting: 'running' } as const
 function draftingRows(
   d: Pick<IDraftingRun, 'parts' | 'run'>,
   assessment: OwnAssessment,
@@ -271,10 +273,10 @@ function draftingRows(
         startedAt: new Date(run.startedAt).toISOString(),
       },
     ]
-  return Object.entries(d.parts ?? {}).flatMap(([id, job]): BackgroundWorkRow[] =>
-    job.status === 'done'
-      ? []
-      : [
+  const parts = Object.entries(d.parts ?? {})
+  const working = parts.flatMap(([id, job]): BackgroundWorkRow[] =>
+    job.status === 'queued' || job.status === 'drafting'
+      ? [
           {
             ...base,
             id: `drafting:${assessment.reference}:${id}`,
@@ -284,12 +286,27 @@ function draftingRows(
             ...(job.status === 'drafting' && {
               startedAt: new Date(job.requestedAt).toISOString(),
             }),
-            ...(job.status === 'failed' && {
-              error: job.error ?? `Section ${id} could not be drafted.`,
-            }),
           },
-        ],
+        ]
+      : [],
   )
+  const failed = parts.filter(([, job]) => job.status === 'failed')
+  if (!failed.length) return working
+  const [[onlyId, only]] = failed
+  return [
+    ...working,
+    {
+      ...base,
+      id: `drafting:${assessment.reference}:failed`,
+      state: 'failed',
+      title: 'Drafting the report',
+      progress: { type: 'working', stage: 'Drafting' },
+      error:
+        failed.length === 1
+          ? (only.error ?? `Section ${onlyId} could not be drafted.`)
+          : `${failed.length} sections not drafted`,
+    },
+  ]
 }
 
 // Chunking's OCR pass reads regions out of page order, so it is counted by

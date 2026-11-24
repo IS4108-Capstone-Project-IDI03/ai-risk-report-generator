@@ -378,7 +378,7 @@ describe('drafting (GN-13)', () => {
     ])
   })
 
-  it('a part that failed, once the run is over, shows its reason and where to draft it again', async () => {
+  it('a section that failed, once the run is over, shows its reason and where to draft it again', async () => {
     const { engineer } = await people()
     const { id } = await assessment(engineer._id)
     await draftingRun(
@@ -400,13 +400,45 @@ describe('drafting (GN-13)', () => {
       expect.objectContaining({
         kind: 'drafting',
         state: 'failed',
-        title: 'Section 7',
+        title: 'Drafting the report',
         error: 'Section 7 could not be drafted.',
         href: `/assessment?ref=${REF}&tab=generate`,
       }),
     ])
     // Drafting it again is the drafting tab's choice: a new run drafts what its checkpoint offers.
     expect(res.body.rows[0].retry).toBeUndefined()
+  })
+
+  it('sections that failed fold into one row for their assessment, not one row each', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const notEnough = 'Not enough evidence to draft this section: 0 of 1 usable observation needed.'
+    await draftingRun(
+      id,
+      {
+        '3': job('done'),
+        '8': job('failed', { error: notEnough }),
+        '9': job('failed', { error: notEnough }),
+        '10': job('failed', { error: notEnough }),
+      },
+      {
+        parts: ['3', '8', '9', '10'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        id: `drafting:${REF}:failed`,
+        state: 'failed',
+        title: 'Drafting the report',
+        error: '3 sections not drafted',
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
   })
 
   it('a part redrafted from Review shows as one AI call, timed from the request', async () => {
