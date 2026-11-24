@@ -129,7 +129,6 @@ export function ObservationDetails({
           failed={cat.failed}
           disabled={!can}
           help={<Tip id="observation.suggested" />}
-          confirmWalk={cat.notSure ? 'observation.confirm' : undefined}
           onConfirm={() => void confirm('category')}
           multiple
           choices={CATEGORY_OPTIONS}
@@ -147,8 +146,6 @@ export function ObservationDetails({
         notSure={sev.notSure}
         failed={sev.failed}
         disabled={!can}
-        // F-12: the walkthrough presses the first Confirm there is, the category's before the severity's.
-        confirmWalk={sev.notSure && !cat.notSure ? 'observation.confirm' : undefined}
         onConfirm={() => void confirm('severity')}
         choices={SEVERITY_OPTIONS}
         selected={[o.sev]}

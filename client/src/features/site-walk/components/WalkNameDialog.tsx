@@ -39,12 +39,7 @@ export function WalkNameDialog({
       width={440}
       onClose={busy ? undefined : onClose}
     >
-      <form
-        className="cap-form"
-        onSubmit={submit}
-        aria-label={title}
-        data-walk="site-walk.name-form"
-      >
+      <form className="cap-form" onSubmit={submit} aria-label={title}>
         <Input
           label="Name"
           required

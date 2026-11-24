@@ -76,10 +76,7 @@ export function UserMessage({ message }: { message: Message }) {
     <div className="openui-agent-thread-message-user has-actions">
       <MessagePhotos ids={photos} />
       <MessagePdf pdfs={pdfs} />
-      {/* F-12: the sent question is what the "Ask MarshBot" walkthrough points at while the answer is written. */}
-      <div className="openui-agent-thread-message-user__content" data-walk="chat.question">
-        {text}
-      </div>
+      <div className="openui-agent-thread-message-user__content">{text}</div>
       <div className="message-actions">
         {info && (
           <VersionSwitcher info={info} label="question" onPick={(id) => void switchTo(id)} />

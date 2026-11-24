@@ -931,10 +931,7 @@ export function AskPanel({
         <ol ref={thread} className="ask-thread" aria-label="Questions and answers">
           {ask.items.map((item, i) => (
             <li key={item.key} className="ask-item">
-              <div
-                className="ask-question"
-                data-walk={i === count - 1 ? 'ask.question' : undefined}
-              >
+              <div className="ask-question">
                 {passageOf(item)}
                 <p className="ask-question-text">
                   <span className="ask-sr-only">Question: </span>

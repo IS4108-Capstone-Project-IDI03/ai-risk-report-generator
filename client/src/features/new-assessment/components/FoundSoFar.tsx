@@ -167,11 +167,7 @@ export function FoundSoFar({
         )
       : full.assessments
   return (
-    <section
-      className="na-card na-found"
-      aria-label="Found so far"
-      data-walk="new-assessment.found"
-    >
+    <section className="na-card na-found" aria-label="Found so far">
       <h2>{'Found so far'}</h2>
       <Section
         title="Client"
