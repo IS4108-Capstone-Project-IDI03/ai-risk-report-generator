@@ -2428,6 +2428,21 @@ record, makes the practice assessment, and answers one question before a try-it.
     (three buttons with others between them); `show: 'end'` shows the end of a target too tall to
     show whole. Before a step shows, its target is scrolled into view through every scroll
     container round it and clear of any pinned bar over its edge.
+  - **On a phone** MarshBot's words always show whole, and the sheet never covers what they name.
+    The sheet goes below the target when it fits whole, else above it. When it fits neither, a
+    target shown from its end (`show: 'end'`: Confirm all parts, the drawer's Tools list) gets the
+    sheet at the top and is lit from its first whole row under it to its end; any other target is
+    scrolled to the top (clear of the sticky header) and lit from its top down to its last whole
+    row above a sheet at the bottom (the top only if that would show less than its first row). A
+    row (a block no taller than 120 px and at least half the target's width) is never cut: one
+    the edge crosses is left out whole, a dim gap of at least 8 px stays between the cut-out and
+    the sheet, and the cut-out never goes past what the target's scroller shows (a target running
+    past the screen is lit down to its last whole row on it). Only a target with no whole row on
+    either side keeps the sheet to the larger side, cut between two lines. The one exception to the gap: a target whose own top is at most 8 px under a sheet at the top
+    is lit from that top (the admin's Tools list). Split note's parts and Insights' three panels
+    draw compact while lit there (CSS keyed on `data-walk-on`). The cut-out opens with the sheet,
+    after that scroll (opened before it, it lit what scrolled into the target's old place), and
+    Back and Next stay whole at the sheet's foot.
   - **Hands-on steps, one model** (`do` and `until`): `do` is only what the person does. A single
     `press` keeps the spotlight until the press; with more to do (a `signal`: a menu, typing, a
     recording; or several actions) the spotlight goes at the first press or key inside the cut-out
@@ -2436,17 +2451,22 @@ record, makes the practice assessment, and answers one question before a try-it.
     bubble and the spotlight leave together and nothing of the walkthrough shows while the app
     answers. `until` names the app's own "result is ready" signal (an AI answer, MarshBot's turn
     shown): the engine waits for it (remembered if it came early), keeps the result on screen alone
-    for 1 s (`QUIET_MS` in `player.ts`), then shows the next step, the result, after the settle
+    for 1 s (`QUIET_MS` in `run.ts`), then shows the next step, the result, after the settle
     rule. When that next step needs an `open` press (New Observation's result is on the
     Observations list), the engine makes it a second after the person's action, so they watch the
     app work on the right screen. An answer that sets the app working ("Use the sample email") can
     carry an `until` too. That wait is never open-ended: it lasts at most the walkthrough's
-    `fail.slow` time (its own line, then it ends) or else 90 s (`QUIET_LIMIT_MS`), after which a
-    hands-on step shows again and a try-it ends with its "didn't work" line. A refused answer ends
+    `fail.slow` time (its own line, then it ends) or else 90 s (`QUIET_LIMIT_MS` in `hands.ts`), after which a
+    hands-on step shows again when its control is still there, and otherwise ends with the "didn't
+    work" line, as a try-it does. A refused answer ends
     it at once the same way: the Overview raises `try-it-failed` for a refused reply while its
     walkthrough plays (`MarshBotOverview.tsx`). Leaving the screen during the wait (an app link,
     which fires no Back event) ends the walkthrough as a skip, noticed through
-    `useWalkthroughScreen`'s cleanup. A screen reader hears "I'll carry on when this is ready."
+    `useWalkthroughScreen`'s cleanup. During the wait the walkthrough takes no key (`keys.ts`): Esc
+    closing a menu goes to the app and never skips a walkthrough the person cannot see. The same
+    goes for Esc in one of the page's controls once a hands-on step has let its spotlight go: it
+    closes the list the person opened, and Esc from the bubble still skips. A person who leaves in
+    the second before the engine's own press ends it as a skip too (`hands.ts`). A screen reader hears "I'll carry on when this is ready."
     meanwhile (a polite status line in `WalkthroughHost`). There are no waiting steps.
   - **Back** is greyed where the step before cannot show again: it was hands-on, or this step
     opened something.
