@@ -280,7 +280,8 @@ export type ComparisonItemView = {
   // The New item's current source, by key.
   source: string | null
   outcome: ItemOutcome | null
-  // What the comparison said, before any decision.
+  // What the comparison said, before any decision: its outcome after the rules
+  // (the model's own answer stays in the saved item's `suggested`).
   suggested: ItemOutcome | null
   sources: string[]
   disagree: string[]

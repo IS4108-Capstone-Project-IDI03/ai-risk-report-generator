@@ -121,7 +121,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 // ---- Records -----------------------------------------------------------------
 
-const metadata = (cope: string) => ({
+// Generic, so each model sees the literal category it allows ('Protection', 'all').
+const metadata = <Cope extends string>(cope: Cope) => ({
   jurisdiction: 'SG',
   facility_type: 'Warehouse',
   COPE_dimension: cope,
@@ -191,7 +192,7 @@ async function sectionNine(
       COPE_dimension: ['Protection'],
       note: s.observation.note ?? '',
       transcripts: [],
-      severity: s.observation.severity,
+      severity: s.observation.severity ?? undefined,
       location: 'Pump room, B1',
     })),
     questions: [],
@@ -380,9 +381,11 @@ describe('Compare with previous report', () => {
       comparison.items.map((i: { key: string }) => [i.key, i]),
     ) as Record<string, Record<string, unknown>>
     const first = byKey['P:9:0.0']
+    // The tab reads the comparison's outcome after the rules; the model's own answer is kept.
     expect(first).toMatchObject({
       outcome: 'worse',
-      suggested: 'unchanged',
+      suggested: 'worse',
+      corrections: ['severity'],
       sources: [O(pump)],
       severity: { previous: 'High', current: 'Critical', direction: 1 },
       confidence: 'low',
@@ -402,6 +405,11 @@ describe('Compare with previous report', () => {
         note: null,
       },
     ])
+    const saved = await ReportComparisonModel.findOne().lean()
+    expect(saved!.items.find((i) => i.key === 'P:9:0.0')).toMatchObject({
+      outcome: 'worse',
+      suggested: 'unchanged',
+    })
     expect(byKey['P:9:0.1']).toMatchObject({ outcome: 'not_checked', sources: [] })
     expect(byKey['P:9:0.1'].missing).toMatch(/^No observation, draft finding or draft OFI/)
     expect(byKey[`N:${O(fresh)}`]).toMatchObject({ kind: 'new', outcome: 'new' })

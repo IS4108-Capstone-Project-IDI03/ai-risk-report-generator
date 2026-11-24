@@ -1,11 +1,21 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ComparisonItem, ComparisonPage, CurrentSource } from './api'
 import { ComparisonTab } from './ComparisonTab'
 import { filterItems, NO_FILTERS, outcomePill, shownLine } from './comparisonDisplay'
 
 // RV-13: the Comparison tab, from the gateway's answers (a stubbed fetch).
+
+// jsdom has no <dialog> methods; the decision dialogs open with showModal.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
 
 afterEach(() => {
   cleanup()
