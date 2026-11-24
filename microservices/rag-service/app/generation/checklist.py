@@ -16,7 +16,7 @@ from app.generation.generator import TEMPLATE, _block, _chunk_block
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved checklist names the prompt it came from.
-CHECKLIST_PROMPT_VERSION = "cp30-v5"  # v5: no item from a loss history or example
+CHECKLIST_PROMPT_VERSION = "cp37-v1"  # v1: questions from past Marsh reports (cp30-v5 before)
 CHECKLIST = json.loads((Path(__file__).parent / "checklist.json").read_text())
 
 # "NFPA 13" -> ("nfpa_standard", "13"), as standards are labelled in the knowledge base.
@@ -101,9 +101,20 @@ class Item(BaseModel):
     citations: list[Citation]
 
 
+class PastItem(BaseModel):
+    """A question to check on this site, drawn from one past report's passage (CP-37)."""
+
+    model_config = ConfigDict(extra="forbid")
+    area: str
+    subsection: str | None
+    text: str
+    citation: Citation
+
+
 class ChecklistDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
     items: list[Item]
+    past_report_items: list[PastItem]
 
 
 def _areas() -> str:
@@ -150,6 +161,14 @@ requirements. Never base an item on one.
 about the site itself.
 - Each requirement appears once, under the one area or hazard it best belongs to. Never \
 write the same check twice in different words.
+- Past Marsh reports (<past_reports>) are separate from the standards. For a finding or \
+recommendation in one that an engineer could check on this kind of site, write a \
+`past_report_items` entry: a QUESTION to check ("Is ...?", "Are ...?"), with `area` and \
+`subsection` as for an item, at most one per past report passage, and `citation` its \
+label (R1, R2) and `quote`, copied exactly, at most 30 words. Make the question general: \
+never copy a name, place, quantity, date or tag such as [PERSON_1] from the past report. \
+Write none for a passage with nothing to check. Never cite a past report in `items`, \
+or a standard in `past_report_items`.
 - Do not repeat a template subsection as an item. Do not recommend improvements; this is \
 a list of what to inspect."""
 
@@ -163,7 +182,13 @@ def _found_lines(found_for: dict[str, list[str]], labels: dict[str, str]) -> str
 
 
 def _user_prompt(
-    facility_type: str, jurisdiction: str, hazards: list[dict], found: str, blocks
+    facility_type: str,
+    jurisdiction: str,
+    hazards: list[dict],
+    found: str,
+    blocks,
+    past_found: str = "",
+    past_blocks=(),
 ) -> str:
     return "\n\n".join(
         [
@@ -172,6 +197,8 @@ def _user_prompt(
             f"<hazards>\n{_hazard_lines(hazards) or 'none'}\n</hazards>",
             f"<found_for>\n{found or 'none'}\n</found_for>",
             _block("standards", blocks),
+            f"<past_found_for>\n{past_found or 'none'}\n</past_found_for>",
+            _block("past_reports", list(past_blocks)),
         ]
     )
 
@@ -186,12 +213,15 @@ def draft_items(
     passages: list[dict],
     found_for: dict[str, list[str]],
     effort: str,
+    past: list[dict] = (),
+    past_found: dict[str, list[str]] | None = None,
 ) -> tuple[list[dict], str]:
     """Return the model's items, with labels mapped to `C:<chunk id>`, and the model.
 
     `found_for` maps each report area and hazard id to the passage ids its search found.
-    An item for an area or hazard that does not exist is dropped; a citation of a label
-    it was not given is kept as written, so the caller's check flags it.
+    `past` are past-report passages (CP-37), labelled R1, R2; their items have origin
+    "past_report". An item for an area or hazard that does not exist is dropped; a citation
+    of a label it was not given is kept as written, so the caller's check flags it.
     """
     full: dict[str, str] = {}
     labels: dict[str, str] = {}
@@ -200,9 +230,22 @@ def draft_items(
         full[f"C{n}"] = f"C:{passage['id']}"
         labels[passage["id"]] = f"C{n}"
         blocks.append(_chunk_block(f"C{n}", passage))
+    past_blocks = []
+    for n, passage in enumerate(past, 1):
+        full[f"R{n}"] = f"C:{passage['id']}"
+        labels[passage["id"]] = f"R{n}"
+        past_blocks.append(_chunk_block(f"R{n}", passage))
     draft, model = complete(
         SYSTEM_PROMPT,
-        _user_prompt(facility_type, jurisdiction, hazards, _found_lines(found_for, labels), blocks),
+        _user_prompt(
+            facility_type,
+            jurisdiction,
+            hazards,
+            _found_lines(found_for, labels),
+            blocks,
+            _found_lines(past_found or {}, labels),
+            past_blocks,
+        ),
         ChecklistDraft,
         effort,
     )
@@ -242,6 +285,30 @@ def draft_items(
                 "citations": [
                     {"ref": full.get(c.label, c.label), "quote": c.quote} for c in item.citations
                 ],
+                "flags": [],
+            }
+        )
+    # One question per past-report passage at most; the first to cite it stays.
+    used: set[str] = set()
+    for item in draft.past_report_items:
+        section = TEMPLATE["sections"].get(item.area) if item.area in _SECTIONS else None
+        ref = full.get(item.citation.label)
+        if section is None or ref is None or ref in used:
+            continue
+        used.add(ref)
+        headings = {
+            s["heading"] for s in section["subsections"] if not s["heading"].endswith("Comments")
+        }
+        items.append(
+            {
+                "area": item.area,
+                "subsection": item.subsection if item.subsection in headings else None,
+                "origin": "past_report",
+                "hazard": None,
+                "text": re.sub(r"\s+", " ", item.text).strip(),
+                "fields": [],
+                "COPE_dimension": section["cope_dimensions"],
+                "citations": [{"ref": ref, "quote": item.citation.quote}],
                 "flags": [],
             }
         )

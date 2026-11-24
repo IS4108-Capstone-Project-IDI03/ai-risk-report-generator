@@ -46,6 +46,7 @@ from app.generation.generator import (
 )
 from app.generation.llm import GenerationFailed, stream_text
 from app.guardrails.checker import check, check_citations
+from app.past_reports import report_titles
 from app.retrieval.retriever import rerank, retrieve, search
 
 # uvicorn's own logger, as in generation/llm.py, so warnings show in the service logs.
@@ -674,21 +675,21 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
         ]
 
     passages: list[dict] = []
+    past: list[dict] = []
     # The passages each report area and hazard's own search found, by area or hazard id, so
     # the model knows what to write for each.
     found_for: dict[str, list[str]] = {}
+    past_found: dict[str, list[str]] = {}
+    areas = CHECKLIST["template_sections"]
+    area_query = {
+        a: f"{facility_type}: {TEMPLATE['sections'][a]['title']}: {area_scope(a)}" for a in areas
+    }
+    # One batched search: each report area, then each hazard within the standards it is
+    # checked against (AC7), or every standard in scope when none of those is; then each
+    # area again in past Marsh reports of the same site type and country (CP-37).
+    requests = []
     if ids:
-        areas = CHECKLIST["template_sections"]
-        # One batched search: each report area, then each hazard within the standards it is
-        # checked against (AC7), or every standard in scope when none of those is.
-        requests = [
-            (
-                f"{facility_type}: {TEMPLATE['sections'][a]['title']}: {area_scope(a)}",
-                {"doc_id": ids},
-                CHECKLIST_PER_QUERY,
-            )
-            for a in areas
-        ] + [
+        requests = [(area_query[a], {"doc_id": ids}, CHECKLIST_PER_QUERY) for a in areas] + [
             (
                 f"{facility_type}: {h['search']}",
                 {"doc_id": named_ids(h) or ids},
@@ -696,11 +697,24 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             )
             for h in hazards
         ]
-        results = search(requests)
-        keys = [*areas, *(h["id"] for h in hazards)]
-        own = {hit["id"] for hits in results for hit in hits[:CHECKLIST_KEPT_PER_QUERY]}
-        pooled = {hit["id"]: hit for hits in results for hit in hits}
-        candidates = list(pooled.values())
+    n_standards = len(requests)
+    past_filter = {
+        "facility_type": facility_type,
+        "jurisdiction": jurisdiction,
+        "source_type": "marsh_report",
+    }
+    requests += [(area_query[a], past_filter, CHECKLIST_PER_QUERY) for a in areas]
+    # restore=False: this request has no privacy session, so past reports stay masked.
+    results = search(requests, restore=False)
+    results, past_results = results[:n_standards], results[n_standards:]
+    no_past_reports = not any(past_results)
+    own = {hit["id"] for hits in results + past_results for hit in hits[:CHECKLIST_KEPT_PER_QUERY]}
+    pooled = {hit["id"]: hit for hits in results + past_results for hit in hits}
+    past_ids = {hit["id"] for hits in past_results for hit in hits} - {
+        hit["id"] for hits in results for hit in hits
+    }
+    candidates = list(pooled.values())
+    if candidates:
         try:
             candidates = rerank(
                 f"What to inspect at a {facility_type}: "
@@ -711,12 +725,19 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             )
         except Exception:
             log.warning("Rerank failed for the checklist; using vector order", exc_info=True)
-        kept = {c["id"] for c in candidates[:MAX_CHECKLIST_PASSAGES]} | own
-        passages = [c for c in candidates if c["id"] in kept]
+    kept = {c["id"] for c in candidates[:MAX_CHECKLIST_PASSAGES]} | own
+    kept_passages = [c for c in candidates if c["id"] in kept]
+    passages = [c for c in kept_passages if c["id"] not in past_ids]
+    past = [c for c in kept_passages if c["id"] in past_ids]
+    past_found = {
+        a: [hit["id"] for hit in hits if hit["id"] in kept] for a, hits in zip(areas, past_results)
+    }
+    if ids:
         # Each passage is listed under one area or hazard only (offered for two, the model
         # wrote the same requirement in both): a hazard's, if any hazard's search found it, so
         # a hazard keeps its own standards' passages (AC7); else the area's that found it
         # nearest. Among hazards, or among areas, the nearest wins.
+        keys = [*areas, *(h["id"] for h in hazards)]
         owner: dict[str, tuple[bool, float, str]] = {}
         for key, hits in zip(keys, results):
             is_area = key in areas
@@ -731,15 +752,22 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
 
     drafted, model = (
         draft_items(
-            facility_type, jurisdiction, hazards, passages, found_for, config.CHECKLIST_EFFORT
+            facility_type,
+            jurisdiction,
+            hazards,
+            passages,
+            found_for,
+            config.CHECKLIST_EFFORT,
+            past,
+            past_found,
         )
-        if passages
+        if passages or past
         else ([], None)
     )
 
     # Checks in code (AC6): a citation counts only if it names a passage the model was given,
     # and its quote is looked for in that passage. An item left with none is "uncited".
-    given = {f"C:{p['id']}": p for p in passages}
+    given = {f"C:{p['id']}": p for p in [*passages, *past]}
     for item in drafted:
         item["citations"] = [
             {
@@ -753,6 +781,14 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
         ]
         if not item["citations"]:
             item["flags"].append("uncited")
+    # A past-report question stands only on a quote found in its passage (CP-37); the
+    # standards' items are kept and flagged instead.
+    drafted = [
+        i
+        for i in drafted
+        if i["origin"] != "past_report"
+        or any(c["quote_found"] or c["quote_described"] for c in i["citations"])
+    ]
 
     # Every configured hazard gets an item (AC4), from the config when the model wrote none.
     # Its own origin, as the team wrote it, not the model (AC8).
@@ -789,8 +825,10 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
     )
 
     cited = {c["ref"] for item in items for c in item["citations"]}
+    titles = report_titles({given[r]["metadata"].get("doc_id") for r in cited if given[r] in past})
     return {
         "items": items,
+        "no_past_reports": no_past_reports,
         "areas": [
             {"id": s, "title": TEMPLATE["sections"][s]["title"]}
             for s in CHECKLIST["template_sections"]
@@ -805,7 +843,19 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
             for h in hazards
         ],
         "sources": {
-            ref: {"text": passage["text"], **(passage["metadata"] or {})}
+            ref: {
+                "text": passage["text"],
+                **(passage["metadata"] or {}),
+                # A past report's source: its title and document id (CP-37).
+                **(
+                    {
+                        "doc_id": passage["metadata"].get("doc_id"),
+                        "title": titles.get(passage["metadata"].get("doc_id")),
+                    }
+                    if passage in past
+                    else {}
+                ),
+            }
             for ref, passage in given.items()
             if ref in cited
         },
