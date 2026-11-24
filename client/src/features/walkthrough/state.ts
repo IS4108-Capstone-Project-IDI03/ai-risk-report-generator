@@ -1,6 +1,6 @@
 // The walkthrough store and its small shared helpers (F-12): the saved record, who is signed in,
 // and what WalkthroughHost draws (the bubble, the highlight's tags, the dimming).
-// Read by engine.ts, player.ts, offers.ts and WalkthroughHost. Calls api.ts to save the record.
+// Read by engine.ts, the player (run.ts, play.ts, step.ts, hands.ts), offers.ts and WalkthroughHost. Calls api.ts to save the record.
 import { create } from 'zustand'
 import type { UserRole } from '../accounts/api'
 import type { Mood } from '../marshbot/types'
@@ -19,7 +19,7 @@ export type BubbleView = {
   // target with no dimming.
   place: 'target' | 'card' | 'corner' | 'bare'
   // The stepper; `hands` greys Next (a hands-on step: the person's action moves it on). `noBack`
-  // greys Back (player.ts, canGoBack).
+  // greys Back (step.ts, canGoBack).
   step?: { at: number; total: number; hands?: boolean; noBack?: boolean }
   answers?: BubbleAnswer[]
   closable: boolean
@@ -47,7 +47,7 @@ export type WalkState = {
   // The step points at the sidebar: on a phone the navigation drawer is opened for it.
   nav: boolean
   // The person's part of a hands-on step is done and nothing shows while the app answers
-  // (player.ts, quiet): the host says so to a screen reader.
+  // (hands.ts, quiet): the host says so to a screen reader.
   quiet: boolean
 }
 
@@ -158,6 +158,7 @@ export function dropScreen(key: string) {
   const at = shown.findIndex((s) => s.key === key)
   if (at >= 0) shown.splice(at, 1)
   screenNow.current = shown[shown.length - 1] ?? null
+  waiting.forEach((wake) => wake())
 }
 
 /** Resolves true once screen `key` says it is ready, or false after `ms` (no polling: woken by noteScreen). */
@@ -172,6 +173,23 @@ export function whenReady(key: string, ms: number): Promise<boolean> {
       resolve(true)
     }
     const timer = setTimeout(() => (waiting.delete(wake), resolve(false)), ms)
+    waiting.add(wake)
+  })
+}
+
+/** Resolves once another screen than `key` says it is showing (none at all does not count), or after
+    `ms` (no polling: woken by noteScreen and dropScreen). */
+export function whenScreenNot(key: string | null, ms: number): Promise<void> {
+  const moved = () => !!screenNow.current && screenNow.current.key !== key
+  if (moved()) return Promise.resolve()
+  return new Promise((resolve) => {
+    const wake = () => {
+      if (!moved()) return
+      waiting.delete(wake)
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => (waiting.delete(wake), resolve()), ms)
     waiting.add(wake)
   })
 }

@@ -1,6 +1,6 @@
 // The settle rule (F-12, Architecture 5): a step shows only once its target exists, is visible and
 // has kept the same place for 2 animation frames, with no screen transition running.
-// Called by player.ts and WalkthroughHost. Calls nothing.
+// Called by step.ts, play.ts, hands.ts and WalkthroughHost. Calls nothing.
 
 export const SETTLE_MS = 4000
 

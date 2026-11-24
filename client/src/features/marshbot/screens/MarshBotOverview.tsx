@@ -161,7 +161,7 @@ function Conversation({
       // Cleared on a refusal too, so no bubble is left behind for a reply that wasn't sent.
       setPending(null)
       // F-12: a refusal while the walkthrough waits on the answer shows its step again, so the
-      // person can press the reply again (player.ts, failedPartWay). Without this it waited unseen.
+      // person can press the reply again (walkthrough/play.ts, failedPartWay). Without this it waited unseen.
       if (!next) return void (walking && signal('try-it-failed'))
       setAnswered((n) => n + 1)
       confirmChange(thread, next, r.id)

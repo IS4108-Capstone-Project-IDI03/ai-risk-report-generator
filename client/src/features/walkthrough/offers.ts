@@ -133,7 +133,7 @@ async function offer(key: string, first: WalkthroughDef | null) {
   }
   if (first) {
     offered = { screen: key, id: first.id, bare: first.bare }
-    // Bare: straight in where the person is; its OK records it as played (player.ts).
+    // Bare: straight in where the person is; its OK records it as played (play.ts).
     if (first.bare) return playQueue([first.id], true)
     return show(first.offer!, 'idle', [
       { label: 'Show me', act: () => accept(() => playQueue([first.id])) },

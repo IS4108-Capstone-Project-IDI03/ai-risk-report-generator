@@ -52,7 +52,7 @@ export type StepDef = {
   // - A signal that is the person's own save landing (Confirm, Accept, Save) is a `do` action, so a
   //   refused save leaves the step showing and the person can act again.
   // - Once the last action lands, the bubble and the spotlight leave at once and nothing of the
-  //   walkthrough shows until the next step (player.ts, quiet).
+  //   walkthrough shows until the next step (hands.ts, quiet).
   do?: Action[]
   // The app's own "result is ready" signal after the person's part (an AI answer, a turn shown): the
   // walkthrough shows nothing until it comes (remembered if early), then 1 s more, then the next
@@ -81,7 +81,7 @@ export type WalkthroughDef = {
   bare?: true // one bubble beside its target with no dimming and no stepper (new-choice, proposals-list)
   // A try-it's own lines when the quick check fails or it fails part-way; `slow` ends the wait for
   // a step's `until` after `afterMs` with its own line (the AI's work carries on without the
-  // walkthrough). Without `slow` that wait is limited to 90 s (player.ts, QUIET_LIMIT_MS).
+  // walkthrough). Without `slow` that wait is limited to 90 s (hands.ts, QUIET_LIMIT_MS).
   fail?: {
     offer?: string
     replay?: string

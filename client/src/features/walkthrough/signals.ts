@@ -27,7 +27,7 @@ export const SIGNALS = [
   'site-walk-finished', // Finish walk went through (site-walk/useRecordingWalk.ts)
   'site-walk-proposal-ready', // the finished walk's proposal is ready (site-walk/useRecordingWalk.ts)
   'marshbot-turn-shown', // MarshBot's newest pushed turn on the Overview is all shown, its replies too (marshbot/screens/MarshBotOverview.tsx)
-  'practice-changed', // the practice assessment was set up again or reset (walkthrough/player.ts, engine.ts); the assessments list re-reads
+  'practice-changed', // the practice assessment was set up again or reset (walkthrough/play.ts, engine.ts); the assessments list re-reads
   'proposal-created', // Create all added the proposal to the assessment (site-walk/screens/Review.tsx)
 ] as const
 
