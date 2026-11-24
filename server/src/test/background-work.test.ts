@@ -557,6 +557,20 @@ describe('knowledge admins', () => {
     ])
   })
 
+  it('a document tried again says queued since the retry, not since its upload', async () => {
+    const { admin } = await people()
+    const retriedAt = new Date(Date.now() - 2 * 60_000)
+    await upload('FM 2-0', {
+      status: 'queued',
+      createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+      handled: { at: retriedAt, by: { id: 'a1', name: 'Sana Patel' } },
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0]).toMatchObject({ state: 'queued', startedAt: retriedAt.toISOString() })
+  })
+
   it("chunking's OCR pass counts the table and formula regions read", async () => {
     const { admin } = await people()
     const document = await upload('FM 8-9')

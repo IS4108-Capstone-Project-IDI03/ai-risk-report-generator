@@ -343,7 +343,7 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
         ...row,
         state: 'queued',
         progress: { type: 'working', stage: 'Queued' },
-        startedAt: new Date(d.uploadedAt).toISOString(),
+        startedAt: queuedSince(d),
       },
     ]
   const stages = ['parsing', 'chunking', 'indexing']
@@ -413,4 +413,12 @@ async function requestRows(user: SessionUser, admin: boolean): Promise<Backgroun
       }))
     }),
   )
+}
+
+// When a document joined the queue: its upload, or later, the admin's Try again
+// or source type choice, which put it back (both stamp `handled`).
+function queuedSince(d: KnowledgeDocumentDto): string {
+  const uploaded = new Date(d.uploadedAt).getTime()
+  const handled = d.handled ? new Date(d.handled.at).getTime() : 0
+  return new Date(Math.max(uploaded, handled)).toISOString()
 }
