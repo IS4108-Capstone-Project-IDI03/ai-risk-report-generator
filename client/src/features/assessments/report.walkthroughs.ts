@@ -57,8 +57,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       "I see this is your first time on the Review tab.\n\nIt's an important one, so would you like me to walk you through it?",
     steps: [
       {
-        // Four rows (6 to 9) show the badges; the whole list is taller than a phone's screen.
-        target: ['review.rail.section-6', 'review.rail.section-9'],
+        // Rows 7 to 9 show every badge the practice report has (AI draft, Reviewed, Needs review);
+        // three rows fit above MarshBot's whole sheet on a phone, where four (6 to 9) did not.
+        target: ['review.rail.section-7', 'review.rail.section-9'],
         say: "This is your report, section by section. The badge beside each section shows where it stands:\n- **AI draft** means you haven't started on it.\n- **In review** means you've decided some of it.\n- **Reviewed** means you've decided all of it.\n- **Needs review** means something has changed and it needs another look.",
       },
       {

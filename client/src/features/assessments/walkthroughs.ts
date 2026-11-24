@@ -48,6 +48,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         target: 'nav.group.tools',
         nav: true,
+        // From its end: on a phone, under MarshBot's whole sheet at the top, every tool shows.
+        show: 'end',
         say: 'And these are your tools:\n- **MarshBot** is where you can ask me about standards and past reports.\n- **Knowledge base** holds every standard and past report I draw on.\n- **Usage and Costs** shows what the AI has cost on your assessments.\n- **Settings** is where you change your password and preferences.',
         sayAdmin:
           'And these are your tools:\n- **MarshBot** is where you can ask me about standards and past reports.\n- **Knowledge base** is yours to manage: you add, review and withdraw documents.\n- **Usage and Costs** shows what the AI has cost across the team.\n- **User accounts** is where you add people and set their roles.\n- **Settings** is where you choose the AI models for everyone.',

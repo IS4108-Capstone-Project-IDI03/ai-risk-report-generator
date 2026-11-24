@@ -111,6 +111,19 @@ describe('what driver.js is asked to draw', () => {
     expect(plug.style.transition).toContain('180ms')
   })
 
+  // A phone's cut-out waits for its sheet (WalkthroughHost): dimming first, then the hole fades open.
+  it('dimming drawn before its target is measured: the cut-out fades open, never pops', async () => {
+    showSpot(spot({ box: null }))
+    showSpot(spot({}))
+    const plug = host.querySelector<HTMLElement>('.wt-plug')!
+    expect(lit()!.style.left).toBe('100px')
+    expect(plug.style.opacity).toBe('1')
+    await frame()
+    await frame()
+    expect(plug.style.opacity).toBe('0')
+    expect(plug.style.transition).toContain('180ms')
+  })
+
   it('a new target on the same screen glides; with reduced motion it jumps', () => {
     showSpot(spot({}))
     const first = lit()

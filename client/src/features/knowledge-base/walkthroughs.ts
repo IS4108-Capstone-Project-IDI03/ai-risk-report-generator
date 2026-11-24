@@ -139,6 +139,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         target: 'knowledge-review.choices',
         optional: true,
+        // From its end: on a phone, under MarshBot's whole sheet at the top, all three choices show.
+        show: 'end',
         say: "Then it's up to you what happens to it. You can keep both, replace the one we have, or delete one of them. I'll mark the **usual choice** for you, but the decision is always yours.",
       },
     ],

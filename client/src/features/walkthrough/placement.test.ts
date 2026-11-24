@@ -1,14 +1,16 @@
 // Where the highlight and bubble go (F-12): clipping to the window, the bubble beside the visible
-// part, the phone sheet's side, and bringing a target into view on both axes.
+// part, whole rows beside a phone sheet, and bringing a target into view on both axes.
 import { describe, expect, it, vi } from 'vitest'
 import {
   apartBoxes,
+  betweenLines,
   bringIntoView,
   clipBox,
   cutTo,
   placeBubble,
   roomFor,
-  sheetSide,
+  wholeRowsFrom,
+  wholeRowsTo,
 } from './placement'
 
 const WIN = { w: 1440, h: 900 }
@@ -84,14 +86,6 @@ describe('roomFor', () => {
     expect(holes).toHaveLength(3)
     for (const h of holes) expect(h.y + h.h + 6).toBeLessThanOrEqual(bubble.y)
     expect(cutTo([{ x: 0, y: 800, w: 10, h: 10 }], part)).toEqual([])
-  })
-})
-
-describe('sheetSide', () => {
-  it('docks at the bottom when the highlight is above the sheet, else at the top', () => {
-    expect(sheetSide({ x: 16, y: 100, w: 200, h: 44 }, 200, 812)).toBe('bottom')
-    // A composer button pinned to the bottom edge.
-    expect(sheetSide({ x: 300, y: 760, w: 44, h: 44 }, 200, 812)).toBe('top')
   })
 })
 
@@ -192,5 +186,102 @@ describe('bringIntoView', () => {
     bringIntoView([target], WIN)
     expect(box.scrollBy).not.toHaveBeenCalled()
     box.remove()
+  })
+})
+
+describe('wholeRowsTo', () => {
+  // A list 1000 px tall from y 100 (heading 40 px, rows 60 px each), with the sheet's top at 500.
+  it('stops the cut-out at the last whole row above the limit, never through one', () => {
+    const list = document.createElement('div')
+    const at = (el: HTMLElement, top: number, h: number, w = 300) =>
+      (el.getBoundingClientRect = () => new DOMRect(0, top, w, h))
+    at(list, 100, 1000)
+    const heading = document.createElement('h2')
+    at(heading, 100, 40)
+    list.append(heading)
+    for (let i = 0; i < 15; i++) {
+      const row = document.createElement('div')
+      at(row, 140 + i * 60, 60)
+      list.append(row)
+    }
+    const icon = document.createElement('span')
+    at(icon, 380, 100, 20) // narrow: not a row
+    list.append(icon)
+    expect(wholeRowsTo([list], { x: 0, y: 100, w: 300, h: 1000 }, 494)).toBe(440 - 100) // the row ending at 440; the next ends at 500, under the sheet
+  })
+})
+
+describe('rows are never cut inside', () => {
+  // A list from y 100: a 40 px heading, then 100 px cards (each with two 40 px lines inside), 10 px apart.
+  const list = () => {
+    const el = document.createElement('div')
+    const at = (node: HTMLElement, top: number, h: number, w = 300) =>
+      (node.getBoundingClientRect = () => new DOMRect(0, top, w, h))
+    at(el, 100, 600)
+    const heading = document.createElement('h2')
+    at(heading, 100, 40)
+    el.append(heading)
+    for (let i = 0; i < 4; i++) {
+      const card = document.createElement('div')
+      const top = 150 + i * 110
+      at(card, top, 100)
+      for (const dy of [10, 50]) {
+        const line = document.createElement('p')
+        at(line, top + dy, 40)
+        card.append(line)
+      }
+      el.append(card)
+    }
+    return el
+  }
+  const BOX = { x: 0, y: 100, w: 300, h: 600 }
+
+  it('stops above a card the limit crosses, not at a line inside it', () => {
+    // The limit (330) falls inside the second card (260 to 360), after its first line (270 to 310).
+    expect(wholeRowsTo([list()], BOX, 330)).toBe(250 - 100)
+  })
+
+  it('stops at what the target’s scroller shows, never past it (the Ask composer below)', () => {
+    expect(wholeRowsTo([list()], { ...BOX, h: 300 }, 700)).toBe(360 - 100) // the box ends at 400
+  })
+
+  it('starts below a card the limit crosses, at the next whole card', () => {
+    expect(wholeRowsFrom([list()], BOX, 200)).toBe(260) // the first card (150 to 250) is cut by 200
+  })
+})
+
+describe('wholeRowsFrom', () => {
+  // A panel from y 100 to 760 (rows 60 px each from 140), shown from its end under a sheet ending at 226.
+  it('starts the cut-out at the first whole row under the sheet, never through one', () => {
+    const panel = document.createElement('div')
+    const at = (el: HTMLElement, top: number, h: number) =>
+      (el.getBoundingClientRect = () => new DOMRect(0, top, 300, h))
+    at(panel, 100, 660)
+    for (let i = 0; i < 10; i++) {
+      const row = document.createElement('div')
+      at(row, 140 + i * 60, 60)
+      panel.append(row)
+    }
+    expect(wholeRowsFrom([panel], { x: 0, y: 100, w: 300, h: 660 }, 240)).toBe(260) // 200 starts above it
+  })
+})
+
+describe('betweenLines', () => {
+  // A sheet from y 500: three lines ending at 540, 562 and 584, a 58 px foot and 16 px of padding under it.
+  it('cuts a capped sheet after the last whole line that fits, never through one', () => {
+    const sheet = document.createElement('div')
+    sheet.innerHTML = '<div class="wt-text">words</div><div class="wt-foot"></div>'
+    sheet.style.paddingBottom = '16px'
+    sheet.getBoundingClientRect = () => new DOMRect(0, 500, 375, 300)
+    sheet.querySelector('.wt-foot')!.getBoundingClientRect = () => new DOMRect(0, 0, 375, 58)
+    document.body.append(sheet)
+    const lines = [540, 562, 584].map((bottom) => new DOMRect(16, bottom - 20, 300, 20))
+    // jsdom lays nothing out, so Range has no getClientRects of its own.
+    Range.prototype.getClientRects = () => lines as unknown as DOMRectList
+    // Line ends plus the foot and padding (74): 114, 136, 158.
+    expect(betweenLines(sheet, 150)).toBe(136)
+    expect(betweenLines(sheet, 200)).toBe(158)
+    Reflect.deleteProperty(Range.prototype, 'getClientRects')
+    sheet.remove()
   })
 })

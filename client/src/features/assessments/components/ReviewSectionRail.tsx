@@ -8,7 +8,6 @@ import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../review
 const ROW_WALK: Record<string, string> = {
   '4': 'review.rail.section-4',
   '5': 'review.rail.section-5',
-  '6': 'review.rail.section-6',
   '7': 'review.rail.section-7',
   '9': 'review.rail.section-9',
 }

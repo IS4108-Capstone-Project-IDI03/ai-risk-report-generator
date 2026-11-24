@@ -344,6 +344,18 @@
     width: 44px !important;
     height: 44px !important;
   }
+  /* A sheet kept to the room beside the highlight scrolls its words under its foot: Back and Next
+     (or the answers) stay whole in view. Padding, not margin, so the words never show in the gap. */
+  .wt .wt-foot {
+    position: sticky;
+    bottom: 0;
+    margin-top: 0;
+    padding-top: 14px;
+    background: var(--surface-card);
+  }
+  .wt .wt-answers {
+    padding-top: 16px;
+  }
 }
 
 @keyframes wt-fade-in {

@@ -169,7 +169,8 @@ export function showSpot(spot: Spot): void {
   extra = (spot.holes ?? []).slice(1).map(roundRect).join('')
   if (!main) {
     fade([], 0, 0)
-    shut = false
+    // Tags with no box yet (a phone's cut-out waits for its sheet): its cut-out fades open, as after a shut.
+    shut = !!spot.key
     light(NOWHERE, false)
   } else if (!before?.box || before.key !== spot.key || !here) {
     const holes = spot.holes?.length ? spot.holes : [main]

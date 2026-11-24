@@ -1,6 +1,6 @@
 // Where the highlight and MarshBot's bubble go (F-12): the cut-out clipped to the window, the bubble
-// beside the visible part, which edge the phone sheet docks to, and scrolling a target into view.
-// Called by WalkthroughHost and player.ts. Calls nothing.
+// beside the visible part, whole rows beside a phone sheet, and scrolling a target into view.
+// Called by WalkthroughHost and step.ts. Calls nothing.
 /** A box in window px. */
 export type Box = { x: number; y: number; w: number; h: number }
 
@@ -62,17 +62,6 @@ export function cutTo(boxes: Box[], area: Box): Box[] {
       return { x, y, w, h }
     })
     .filter((b) => b.w > 0 && b.h > 0)
-}
-
-/** Returns which edge the phone sheet docks to: the bottom, unless the cut-out would sit under it
-    (a control pinned to the bottom edge), then the top. */
-export function sheetSide(
-  box: Box | null,
-  sheetHeight: number,
-  windowHeight: number,
-): 'bottom' | 'top' {
-  if (!box) return 'bottom'
-  return box.y + box.h + PAD <= windowHeight - sheetHeight - EDGE ? 'bottom' : 'top'
 }
 
 /** Returns the nearest box that really scrolls on that axis (overflow auto or scroll, with more
@@ -150,7 +139,12 @@ export function uncover(els: HTMLElement[], win: Size, edges: ('bottom' | 'top')
     const r = rects[at]
     const x = Math.min(Math.max((r.left + r.right) / 2, 1), win.w - 1)
     const y = edge === 'bottom' ? Math.min(r.bottom, win.h) - 2 : Math.max(r.top, 0) + 2
-    const hit = document.elementsFromPoint(x, y).find((n) => !n.closest('.wt-layer'))
+    // Past our own layer and driver.js's dimming: the dimming is hit only outside the cut-out, so
+    // without skipping it a bar was found on one pass and not the next, and the page scrolled to
+    // and fro for ever (Knowledge base's review choices on a phone).
+    const hit = document
+      .elementsFromPoint(x, y)
+      .find((n) => !n.closest('.wt-layer, .driver-overlay'))
     const bar = hit && !els[at].contains(hit) ? pinnedOver(hit, els[at]) : null
     if (!bar) continue
     const b = bar.getBoundingClientRect()
@@ -195,4 +189,90 @@ export function visibleY(scroller: HTMLElement, win: Size): [number, number] {
   if (scroller === document.scrollingElement) return [0, win.h]
   const r = scroller.getBoundingClientRect()
   return [Math.max(r.top, 0), Math.min(r.bottom, win.h)]
+}
+
+/** Scrolls the target's top to the top of what its scroller shows (a dialog's body, under its
+    header), then clear of any pinned bar there (the phone's tab row); returns nothing. Without the
+    second part the headings a step names sat under the sticky header, unseen. */
+export function toTop(els: HTMLElement[], scroller: HTMLElement, top: number, win: Size) {
+  const [vTop] = visibleY(scroller, win)
+  if (Math.abs(top - (vTop + 22)) > 1) scroller.scrollBy?.({ top: top - (vTop + 22) })
+  uncover(els, win, ['top'])
+}
+
+// A block at least half as wide as the target and no taller than this is one row: nothing inside it
+// is an edge a cut-out may stop at.
+const ROW_MAX = 120
+
+// The target's rows (window px), each the outermost such block: a row inside a row is no row.
+function rowsOf(targets: HTMLElement[], box: Box): DOMRect[] {
+  const rows: DOMRect[] = []
+  const rowEls: Element[] = []
+  // Document order: a block comes before what is inside it.
+  const blocks = targets.flatMap((t) => [t, ...t.querySelectorAll<HTMLElement>('*')]).slice(0, 600)
+  for (const el of blocks) {
+    if (rowEls.some((row) => row.contains(el))) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < box.w / 2 || !r.height || r.height > ROW_MAX) continue
+    rowEls.push(el)
+    rows.push(r)
+  }
+  return rows
+}
+
+/** Returns the height of `box` (round the lit targets, from its top) down to its last whole row above
+    `limit` and inside the box (what the target's scroller shows): a row that crosses the edge is
+    left out whole. A target with no rows is lit down to the limit. */
+export function wholeRowsTo(targets: HTMLElement[], box: Box, limit: number): number {
+  const end = Math.min(limit, box.y + box.h)
+  const rows = rowsOf(targets, box).filter((r) => r.top >= box.y - 1)
+  if (!rows.length) return Math.max(end - box.y, 0)
+  let edge = Math.max(box.y, ...rows.filter((r) => r.bottom <= end).map((r) => r.bottom))
+  // Never inside a row: one that straddles the edge moves it up to that row's top.
+  for (let moved = true; moved;) {
+    moved = false
+    for (const r of rows)
+      if (r.top < edge - 1 && r.bottom > edge + 1) {
+        edge = r.top
+        moved = true
+      }
+  }
+  return Math.max(edge - box.y, 0)
+}
+
+/** Returns where `box` starts when it is lit from its first whole row below `limit` to its end (a
+    target shown from its end, under a sheet at the top): a row that crosses the edge is left out
+    whole. A target with no rows starts at the limit. */
+export function wholeRowsFrom(targets: HTMLElement[], box: Box, limit: number): number {
+  const end = box.y + box.h
+  const start = Math.max(limit, box.y)
+  const rows = rowsOf(targets, box).filter((r) => r.bottom <= end + 1)
+  if (!rows.length) return Math.min(start, end)
+  let edge = Math.min(end, ...rows.filter((r) => r.top >= start).map((r) => r.top))
+  for (let moved = true; moved;) {
+    moved = false
+    for (const r of rows)
+      if (r.top < edge - 1 && r.bottom > edge + 1) {
+        edge = r.bottom
+        moved = true
+      }
+  }
+  return Math.min(edge, end)
+}
+
+/** Returns the height, at most `max`, at which a phone sheet's last whole line of words ends just
+    above its foot (Back and Next): a capped sheet is cut between two lines, never through one. */
+export function betweenLines(sheet: HTMLElement, max: number): number {
+  const text = sheet.querySelector('.wt-text')
+  const foot = sheet.querySelector('.wt-foot')
+  if (!text || !foot || !Range.prototype.getClientRects) return max // jsdom lays nothing out
+  const top = sheet.getBoundingClientRect().top - sheet.scrollTop
+  const under =
+    foot.getBoundingClientRect().height + parseFloat(getComputedStyle(sheet).paddingBottom)
+  const range = document.createRange()
+  range.selectNodeContents(text)
+  const ends = [...range.getClientRects()]
+    .map((r) => r.bottom - top + under)
+    .filter((h) => h <= max)
+  return ends.length ? Math.max(...ends) : max
 }
