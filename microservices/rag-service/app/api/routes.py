@@ -112,6 +112,9 @@ class Privacy(BaseModel):
     known_entities: list[KnownEntity] = []
     # Kinds privacy-service also finds on its own (CP-23 client intake only).
     detect: list[Literal["CLIENT", "SITE"]] = []
+    # PV-09: the admin's Never masked words, passed on to /mask. None (left out) until the gateway
+    # has seeded the list, so privacy-service uses its own file; [] would mean none at all.
+    never_masked: list[str] | None = None
 
 
 def _privacy(request) -> dict | None:

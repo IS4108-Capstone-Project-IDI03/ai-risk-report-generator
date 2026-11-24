@@ -105,6 +105,23 @@ def test_the_result_records_protection_but_never_the_names(fake, fake_privacy):
     assert leaked([json.dumps(result)]) == []
 
 
+def test_the_admins_never_masked_words_reach_privacy_service(fake, fake_privacy):
+    # PV-09: the gateway sends the admin's Never masked list with every request. The endpoint
+    # must take it (it answered 422) and pass it on to /mask.
+    ask("Is the Hosereel tested?", privacy={**PRIVACY, "never_masked": ["Hosereel"]})
+
+    assert fake_privacy.requests
+    assert all(r["never_masked"] == ["Hosereel"] for r in fake_privacy.requests)
+
+
+def test_without_a_never_masked_list_privacy_service_uses_its_file(fake, fake_privacy):
+    # Left out, not [], until the gateway has seeded the list (docs/areas/privacy.md).
+    ask("Is the Hosereel tested?")
+
+    assert fake_privacy.requests
+    assert all("never_masked" not in r for r in fake_privacy.requests)
+
+
 def test_the_result_records_protection_off(fake):
     events = ask("Did John Tan agree?", privacy=None)
 
