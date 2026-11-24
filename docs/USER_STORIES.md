@@ -108,7 +108,7 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   The invitation has its own link and set-password screen, separate from the forgotten-password reset (F-06): a new account is never set up by resetting a password.
   </details>
 
-- [ ] **F-11** — See background work and what is holding it up (knowledge admin or risk engineer, Should, deps: F-10, CP-22, CP-24, GN-13, E2, CB-07)
+- [x] **F-11** — See background work and what is holding it up (knowledge admin or risk engineer, Should, deps: F-10, CP-22, CP-24, GN-13, E2, CB-07)
   <details><summary>Goal / AC</summary>
 
   Goal: as a risk engineer or knowledge admin, I want to see all my long-running background work and its progress in one place, so that I know what's still running, what's stuck and what it's waiting on without visiting each screen.
