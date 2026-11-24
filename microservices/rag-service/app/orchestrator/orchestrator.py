@@ -28,6 +28,7 @@ from app.generation.checklist import (
     hazards_for,
     named_standard,
     template_items,
+    verb_led,
 )
 from app.generation.generator import (
     OFI_CONFIG,
@@ -810,7 +811,7 @@ def draft_checklist_for(
                     "subsection": None,
                     "origin": "hazard_list",
                     "hazard": hazard["id"],
-                    "text": hazard["item"],
+                    "text": verb_led(hazard["item"]),
                     "fields": [],
                     "COPE_dimension": hazard["cope"],
                     "citations": [],

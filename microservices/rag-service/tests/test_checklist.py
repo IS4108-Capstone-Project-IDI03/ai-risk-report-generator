@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.generation.checklist import (
+    _VERBS,
     CHECKLIST,
     ChecklistDraft,
     Citation,
@@ -11,6 +12,7 @@ from app.generation.checklist import (
     hazards_for,
     named_standard,
     template_items,
+    verb_led,
 )
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
@@ -104,7 +106,7 @@ def test_every_template_subsection_but_comments_is_an_item():
     assert all(i["origin"] == "template" and not i["citations"] for i in made)
     # Construction covers walls, roof and frame.
     narrative = next(i for i in made if i["subsection"] == "Construction Narrative")
-    assert all(word in narrative["text"] for word in ("Walls", "roof", "frame"))
+    assert all(word in narrative["text"] for word in ("walls", "roof", "frame"))
     # A subsection with fields lists them.
     power = next(i for i in made if i["subsection"] == "Power")
     assert "Site Feed" in power["fields"]
@@ -153,7 +155,7 @@ def test_a_warehouse_checklist_covers_its_hazards_with_cited_items(monkeypatch):
     # AC9: provenance names the model, prompt and hazard list.
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "cp37-v1"
+    assert provenance["prompt_version"] == "cp37-v2"
     assert provenance["checklist_version"] == CHECKLIST["version"]
     assert provenance["effort"] == prompts[0][2] == "medium"
     assert isinstance(body["usage"], list)
@@ -509,3 +511,32 @@ def test_a_heading_too_long_to_be_one_is_not_shown_to_the_model(monkeypatch):
     assert "hot work permit" not in user
     # Nor is a story of a past fire a requirement to check (cp30-v5).
     assert "Never base an item on one." in system
+
+
+def test_every_template_item_is_a_short_verb_led_check():
+    made = template_items()
+    assert all(i["text"].split()[0].lower() in _VERBS for i in made)
+    assert all(len(i["text"].split()) <= 20 for i in made)
+
+
+def test_a_noun_phrase_item_gets_a_verb_and_a_long_one_is_shortened(monkeypatch):
+    long = (
+        "Check the sprinkler, pump and water supply arrangements across every building on the "
+        "site and note whether each of them has been tested, serviced and signed off by a "
+        "competent person in the last twelve months."
+    )
+    response, _, _ = generate(
+        monkeypatch,
+        [item(text="CCTV coverage"), item(hazard="idle_pallets", text=long)],
+    )
+    texts = [i["text"] for i in response.json()["items"] if i["origin"] == "hazard"]
+    assert "Check CCTV coverage" in texts
+    assert all(len(t.split()) <= 20 for t in texts)
+    assert verb_led("Management programmes in place") == "Check management programmes in place"
+
+
+def test_the_prompt_asks_for_short_verb_led_items():
+    from app.generation.checklist import CHECKLIST_PROMPT_VERSION, SYSTEM_PROMPT
+
+    assert CHECKLIST_PROMPT_VERSION == "cp37-v2"
+    assert "at most 20 words" in SYSTEM_PROMPT and "starts with a verb" in SYSTEM_PROMPT

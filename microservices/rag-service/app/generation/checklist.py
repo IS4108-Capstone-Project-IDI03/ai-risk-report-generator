@@ -16,11 +16,58 @@ from app.generation.generator import TEMPLATE, _block, _chunk_block
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved checklist names the prompt it came from.
-CHECKLIST_PROMPT_VERSION = "cp37-v1"  # v1: questions from past Marsh reports (cp30-v5 before)
+CHECKLIST_PROMPT_VERSION = "cp37-v2"  # v2: short verb-led items; v1: past-report questions
 CHECKLIST = json.loads((Path(__file__).parent / "checklist.json").read_text())
 
 # "NFPA 13" -> ("nfpa_standard", "13"), as standards are labelled in the knowledge base.
 _ISSUERS = {"NFPA": "nfpa_standard", "FM": "fm_standard"}
+
+
+_VERBS = set(
+    "check confirm verify ask inspect record review test look measure note see find establish "
+    "identify ensure walk photograph compare count open read".split()
+)
+# Words a cut-short item must not end on.
+_DANGLING = {
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "for",
+    "and",
+    "or",
+    "with",
+    "by",
+    "from",
+    "the",
+    "a",
+    "an",
+}
+
+
+def verb_led(text: str) -> str:
+    """The item text as one short instruction: it starts with a verb, in about 20 words or fewer.
+
+    The model and the config sometimes give a bare noun ("CCTV"); without this the checklist
+    would show headings, not things to do. Only the wording changes, never a citation or quote.
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    first = text.split(" ", 1)[0]
+    if first.strip(".,:;").lower() not in _VERBS:
+        # Keep acronyms and tags (CCTV, FM, NFPA13) as written; lower-case other first words.
+        keep = sum(c.isupper() for c in first) > 1 or any(c.isdigit() for c in first)
+        text = "Check " + (text if keep else text[:1].lower() + text[1:])
+    if len(text.split()) > 20:
+        text = re.split(r"(?<=[.;:])\s|,\s", text, maxsplit=1)[0]
+        words = text.split()
+        if len(words) > 24:
+            words = words[:20]
+            while words and words[-1].lower().strip(",;:") in _DANGLING:
+                words.pop()
+            text = " ".join(words)
+        text = text.rstrip(".,;: ") + "."
+    return text
 
 
 def named_standard(name: str) -> tuple[str, str]:
@@ -72,7 +119,9 @@ def template_items() -> list[dict]:
                     "subsection": heading,
                     "origin": "template",
                     "hazard": None,
-                    "text": CHECKLIST["template_details"].get(f"{section_id}/{heading}", heading),
+                    "text": verb_led(
+                        CHECKLIST["template_details"].get(f"{section_id}/{heading}", heading)
+                    ),
                     "fields": sub.get("fields", []),
                     "COPE_dimension": section["cope_dimensions"],
                     "citations": [],
@@ -150,8 +199,9 @@ requirement no area's scope covers gets no item: never stretch a passage to fill
 Prefer the passages of the standards the hazard is checked against.
 
 Rules:
-- Each item is one inspection point, written as an instruction to the engineer \
-("Check ...", "Record ..."), in one sentence, in Singapore English.
+- Each item is one check of at most 20 words, written as an instruction to the engineer \
+that starts with a verb ("Check ...", "Confirm ...", "Verify ...", "Ask ...", "Inspect ...", \
+"Record ..."), never a noun phrase like "CCTV coverage", in Singapore English.
 - Every item rests on the standards passages given. `citations` lists each passage it \
 rests on by its label (C1, C2), with `quote`: the passage's own words that support it, \
 copied exactly, at most 30 words. Never write an item no passage supports.
@@ -279,7 +329,7 @@ def draft_items(
                 "subsection": subsection,
                 "origin": "hazard" if hazard else "standard",
                 "hazard": hazard["id"] if hazard else None,
-                "text": re.sub(r"\s+", " ", item.text).strip(),
+                "text": verb_led(item.text),
                 "fields": [],
                 "COPE_dimension": cope,
                 "citations": [
