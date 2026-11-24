@@ -103,7 +103,10 @@ describe('GET /api/assessments/:reference/to-ask (CP-36)', () => {
     await obs(ids, ['info_request'], 'Ask who tests the pump.')
     expect((await api.patch(`/api/observations/${a._id}`).send({ asked: true })).status).toBe(200)
     const items = (await api.get(URL)).body.items
-    expect(items.map((i: { asked: boolean }) => i.asked)).toEqual([true, false])
+    expect(
+      items.find((i: { observationId: string }) => i.observationId === String(a._id)).asked,
+    ).toBe(true)
+    expect(items.filter((i: { asked: boolean }) => i.asked)).toHaveLength(1)
   })
 
   it('is empty when none is tagged, and skips a deleted observation', async () => {
