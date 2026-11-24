@@ -47,8 +47,8 @@ export function ToAskPanel({ reference, refreshKey }: { reference: string; refre
           <Icon name="message-circle-question" size={16} color="var(--marsh-navy)" />
         </span>
         <h3 className="ta-title">To ask the client</h3>
-        <span className="ta-count">{`${asked} of ${items.length} asked`}</span>
         <Tip id="observations.to-ask" />
+        <span className="ta-count">{`${asked} of ${items.length} asked`}</span>
       </div>
       <ul className="ta-list">
         {shown.map((i) => (
