@@ -2350,6 +2350,8 @@ per attempt. An attempt is the walk's `retries` count, which Retry increments.
 the signed-in user's long-running jobs as one row shape: `kind`, `state` (`queued`,
 `running`, `failed`, `waiting_on_you`), `title`, `context`, `progress`, `startedAt`,
 `error`, `href` and, where the user may start it again, `retry` (an existing route).
+Where a job has parts or stages, `progress.segments` marks each in order (`done`,
+`working`, `failed`, `empty`), so a failure shows where it fell, during the job or after.
 The header's activity icon (`client/src/features/background-work/`) reads it.
 
 Where each row comes from. Every source is read in one batch per poll, never one
@@ -2357,11 +2359,11 @@ query per assessment, and archived assessments are left out:
 
 | Row | Read from | Progress |
 |---|---|---|
-| A site walk transcribing, proposing or failed | `site_walks` | recordings transcribed of all (`stages`); proposing is one AI call (`working`), timed from the walk's last change |
+| A site walk transcribing, proposing or failed | `site_walks` | recordings transcribed of all (`stages`), a segment per recording; proposing is one AI call (`working`), timed from the walk's last change |
 | A voice note or handwritten page transcribing or failed | `listObservationsOf` (drafts left out) | one AI call, timed from its latest attempt |
 | An observation's reading (photo description, then suggestion) | `listObservationsOf` | one AI call; failed shows its reason and Try again (`/suggestion/retry`) |
-| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`); a part from Review is one AI call. Once a run is over, its failed sections fold into one row per assessment ("3 sections not drafted"; one keeps its reason). No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
-| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), then pages, or OCR regions in chunking's OCR pass (`count`); queued is timed from its upload, or from `handled.at` when Try again or a source type choice put it back |
+| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`), a segment per part in run order, a failed one marked as soon as it fails; a part from Review is one AI call. Once a run is over, its failed sections fold into one row per assessment ("3 sections not drafted"; one keeps its reason), still with the run's segments. No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
+| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), a segment per stage, then pages, or OCR regions in chunking's OCR pass (`count`); a failed one marks the stage it failed in (the job's `failedStage`, passed on as the document's `failedIn`), or shows no stages when the job never recorded it; queued is timed from its upload, or from `handled.at` when Try again or a source type choice put it back |
 | A document waiting on an admin (admins) | `listAwaitingDecision` | what to do: choose its source type, confirm its details, or decide on the match |
 | A document uploaded for the user's own open request | `openRequestsWithIncoming` + `listDocumentsByIds` | as ingestion; Try again only for admins |
 

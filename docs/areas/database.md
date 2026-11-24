@@ -2106,7 +2106,8 @@ regions finish out of page order; null until the pass starts, when nothing needs
 OCR, and at the start of every stage), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
-from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+from `stageLog`; absent otherwise — used by the ingestion notification, IN-10, and by background
+work to mark the stage a failed document stopped in, F-11),
 `privacy` (`{ enabled, masked_count }`: whether the document was redacted and
 how many details, never the mapping, PV-05; written when the run finishes),
 `currentStageStartedAt`, `startedAt`, and
