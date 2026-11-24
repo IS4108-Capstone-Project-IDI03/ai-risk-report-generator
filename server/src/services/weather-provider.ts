@@ -109,6 +109,23 @@ export async function geocodeAddress(
   return lat === null || lng === null ? null : { lat, lng }
 }
 
+/**
+ * Returns the street address nearest a point (reverse geocoding), or null when Google has none.
+ * Throws WeatherProviderError when the geocoder can't be reached or refuses. Used by the mobile
+ * new-site form: the engineer sets the pin and the Address fills in (GET /api/sites/address).
+ */
+export async function addressAt(point: Point, key: string): Promise<string | null> {
+  const url = new URL(GEOCODE_URL)
+  url.searchParams.set('latlng', `${point.lat},${point.lng}`)
+  url.searchParams.set('key', key)
+  const body = await getJson('The geocoder', url)
+  const status = text(field(body, 'status'))
+  if (status === 'ZERO_RESULTS') return null
+  if (status !== 'OK') throw new WeatherProviderError('The geocoder', `answered ${status}`)
+  const first = (field(body, 'results') as unknown[] | undefined)?.[0]
+  return text(field(first, 'formatted_address')) || null
+}
+
 function weatherUrl(base: string, point: Point, key: string) {
   const url = new URL(base)
   url.searchParams.set('location.latitude', String(point.lat))

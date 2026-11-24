@@ -11,6 +11,7 @@ import {
 } from '../services/client.service'
 import { refuseClientChange } from './client.routes'
 import { fieldErrors } from './field-errors'
+import { addressAt, WeatherProviderError } from '../services/weather-provider'
 import { requirePermission } from '../middleware/auth.middleware'
 
 const router = Router()
@@ -22,6 +23,29 @@ const router = Router()
 // because the EC2 client is a static build with no env vars of its own.
 router.get('/map-config', (_req, res) => {
   res.json({ key: config.googleMapsBrowserKey ?? null })
+})
+
+// The address nearest a point, for the new-site form's Address (reverse geocoding): 200 with
+// `{ address }` (null when Google has none), 400 for a bad point, 503 with no server key or when
+// Google can't be reached. One way only: an address is never turned into a pin.
+router.get('/address', requirePermission('assessments:edit'), async (req, res) => {
+  const lat = Number(req.query.lat)
+  const lng = Number(req.query.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    res.status(400).json({ error: 'lat and lng must be a point on Earth.' })
+    return
+  }
+  const key = config.weather.key
+  if (!key) {
+    res.status(503).json({ error: 'Address lookup is not set up.' })
+    return
+  }
+  try {
+    res.json({ address: await addressAt({ lat, lng }, key) })
+  } catch (error: unknown) {
+    if (!(error instanceof WeatherProviderError)) throw error
+    res.status(503).json({ error: 'The address could not be looked up.' })
+  }
 })
 
 // One change to its location or a block's pin (CP-26): 204, or 400 naming the field,
