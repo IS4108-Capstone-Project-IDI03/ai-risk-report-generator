@@ -18,9 +18,9 @@
   position: absolute;
   inset: 5px;
   border-radius: 50%;
-  border: 1.5px solid transparent;
-  border-top-color: currentColor;
-  opacity: 0.55;
+  /* A faint full ring with a brighter arc turning on it, so it reads as a spinner, not a glyph. */
+  border: 1.5px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-top-color: color-mix(in srgb, currentColor 70%, transparent);
   animation: dsSpin 1.2s linear infinite;
   pointer-events: none;
 }
@@ -35,6 +35,11 @@
   .activity-button--working::after {
     animation: dsPulse 1.6s ease-in-out infinite;
   }
+}
+
+/* The list's header keeps its 40 px however long the list: only the body scrolls. */
+.bgw-list > .notification-list__header {
+  flex: 0 0 auto;
 }
 
 /* The popover's groups: a quiet label over each, so "Waiting on you" reads first. */

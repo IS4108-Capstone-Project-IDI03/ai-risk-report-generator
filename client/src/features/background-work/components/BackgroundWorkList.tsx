@@ -24,7 +24,7 @@ export function BackgroundWorkList({
     ['In progress', IN_PROGRESS.flatMap((state) => rows.filter((r) => r.state === state))],
   ]
   return (
-    <div className="notification-list">
+    <div className="notification-list bgw-list">
       <header className="notification-list__header">
         <h2>Background work</h2>
       </header>
