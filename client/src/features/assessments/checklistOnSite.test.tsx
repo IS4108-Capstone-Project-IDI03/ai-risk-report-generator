@@ -59,7 +59,11 @@ const CHECKLIST: Checklist = {
   standards: [],
   areas: [{ id: '7', title: 'Construction' }],
   items: [
-    item({ id: 't1', subsection: 'Construction Narrative', text: 'Walls, roof, frame and floors' }),
+    item({
+      id: 't1',
+      subsection: 'Walls, roof, frame and floors',
+      text: 'Walls, roof, frame and floors',
+    }),
     item({ id: 't2', subsection: 'Roof', text: 'Roof', check: CONFIRMED }),
     item({
       id: 'h1',
@@ -257,16 +261,16 @@ it('opens from capture as one plain list with a header and count per section (AC
 
 it('cycles the state box through tick, cross, not seen and back, with no observation (AC4)', async () => {
   await openChecklist()
-  await screen.findByRole('listitem', { name: 'Construction Narrative' })
+  await screen.findByRole('listitem', { name: 'Walls, roof, frame and floors' })
 
   for (const mark of ['confirmed', 'differs', 'not_seen', null]) {
-    press('Construction Narrative')
+    press('Walls, roof, frame and floors')
     await waitFor(() => expect(marks.at(-1)?.body).toEqual({ mark }))
   }
   expect(marks.map((m) => m.url)).toEqual(Array(4).fill(CHECKLIST_URL + '/items/t1/mark'))
   expect(saves).toEqual([])
   expect(
-    await within(row('Construction Narrative')).findByRole('button', {
+    await within(row('Walls, roof, frame and floors')).findByRole('button', {
       name: /Not checked, press to change/,
     }),
   ).toBeInTheDocument()
@@ -274,17 +278,17 @@ it('cycles the state box through tick, cross, not seen and back, with no observa
 
 it('puts the mark back and says so when it could not be saved', async () => {
   await openChecklist()
-  await screen.findByRole('listitem', { name: 'Construction Narrative' })
+  await screen.findByRole('listitem', { name: 'Walls, roof, frame and floors' })
   const ok = globalThis.fetch
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
     init?.method === 'PUT' ? json(500, { error: 'Nope' }) : ok(url, init),
   )
 
-  press('Construction Narrative')
+  press('Walls, roof, frame and floors')
 
   expect(await screen.findByText("Couldn't save the mark")).toBeInTheDocument()
   expect(
-    within(row('Construction Narrative')).getByRole('button', {
+    within(row('Walls, roof, frame and floors')).getByRole('button', {
       name: /Not checked, press to change/,
     }),
   ).toBeInTheDocument()
@@ -343,6 +347,6 @@ it('shows the same list beside the recording on a wide screen, no sheet (CP-37 A
   expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
   expect(await within(pane).findByRole('heading', { name: 'Priority risks' })).toBeInTheDocument()
 
-  press('Construction Narrative')
+  press('Walls, roof, frame and floors')
   await waitFor(() => expect(marks[0].body).toEqual({ mark: 'confirmed' }))
 })

@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react'
 import { Button, Callout, Dialog, IconButton, Select, Textarea } from '../../../design-system'
 import { GatewayError, type ChecklistItem, type SiteLocation } from '../api'
 import { categoryLabel } from '../categories'
-import { itemTitle } from '../checklistChecks'
 import { DictateButton } from '../dictation/DictateButton'
 import { locationLabel } from '../locations'
 import { SeverityPicker } from './SeverityPicker'
@@ -47,9 +46,7 @@ export function AnswerDialog({
   // The assessment, so what was seen can be dictated (CP-27); without it, no Dictate button.
   reference?: string
 }) {
-  const [note, setNote] = useState(
-    kind === 'confirm' ? `Confirmed on site: ${itemTitle(item)}` : '',
-  )
+  const [note, setNote] = useState(kind === 'confirm' ? `Confirmed on site: ${item.text}` : '')
   const [severity, setSeverity] = useState('')
   const [locationId, setLocationId] = useState(
     place.kind === 'site'

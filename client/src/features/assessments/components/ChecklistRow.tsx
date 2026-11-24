@@ -1,9 +1,8 @@
 // One checklist question as a plain row (CP-37): a state box that cycles on click, the question,
-// a muted suffix, a link menu on ticked and crossed rows, and a ⋯ menu that appears on hover or focus. Called by ChecklistItems.
+// a quiet "Fixed" tag, a "from ..." line, a link menu on ticked and crossed rows, and a ⋯ menu that appears on hover or focus. Called by ChecklistItems.
 import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import type { CheckResult, ChecklistItem } from '../api'
-import { itemTitle } from '../checklistChecks'
 import { ChecklistEditText } from './ChecklistEditText'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
 import '../checklist.css'
@@ -31,18 +30,12 @@ function nextMark(result: CheckResult | undefined): Mark | null {
   return NEXT[result ?? 'none']
 }
 
-// A report's short name: the part after its last ": " ("Office, 28 Feb 2025"), since every title
-// starts with the same "Marsh Property Risk Evaluation Report". The full title shows on hover.
-const shortName = (title: string) => title.split(': ').pop() ?? title
-
-// "Fixed", and "Past report · <short name>" where the question came from past reports.
-function suffix(item: ChecklistItem) {
-  const parts = [
-    item.fixed && 'Fixed',
-    item.sourceReports?.length &&
-      `Past report · ${item.sourceReports.map((r) => shortName(r.title)).join(', ')}`,
-  ].filter(Boolean)
-  return parts.join(' · ')
+// The "from ..." line under a question: its standards, else the past reports it came from.
+function sourceLine(item: ChecklistItem) {
+  const titles = item.sourceStandards?.length
+    ? item.sourceStandards.map((s) => s.title)
+    : (item.sourceReports ?? []).map((r) => r.title)
+  return titles.length ? `from ${titles.join(', ')}` : null
 }
 
 /** Returns one question's row; the menus show only when there is something to do in them. */
@@ -53,6 +46,7 @@ export function ChecklistRow({
   onMark,
   onSaveText,
   onRemove,
+  onToggleImportant,
   onRecord,
   onViewObservation,
   onLinkExisting,
@@ -65,6 +59,8 @@ export function ChecklistRow({
   onMark: (next: Mark | null) => void
   onSaveText: (text: string) => Promise<void>
   onRemove: () => void
+  // Marks the item important, or removes the mark; the menu says which.
+  onToggleImportant: () => void
   // Only in the site walk: record what was seen as a difference.
   onRecord?: () => void
   onViewObservation: (observationId: string) => void
@@ -76,12 +72,18 @@ export function ChecklistRow({
   const [editing, setEditing] = useState(false)
   // True after an edit closes, so the text fades back in instead of snapping.
   const [faded, setFaded] = useState(false)
-  const title = itemTitle(item)
+  const title = item.text
+  const source = sourceLine(item)
   const state = STATE[item.check?.result ?? 'none']
   const observation = item.check?.observation
   const answered = item.check?.result === 'confirmed' || item.check?.result === 'differs'
   const menu: MoreMenuItem[] = [
     { label: 'Edit', icon: 'pencil', onSelect: () => (setFaded(false), setEditing(true)) },
+    {
+      label: item.important ? 'Remove importance' : 'Mark as important',
+      icon: 'star',
+      onSelect: onToggleImportant,
+    },
     { label: 'Delete', icon: 'trash-2', onSelect: onRemove },
     ...(onRecord ? [{ label: 'Record what you saw...', icon: 'mic', onSelect: onRecord }] : []),
   ]
@@ -138,15 +140,17 @@ export function ChecklistRow({
         />
       ) : (
         <span className={'cl-row-text' + (faded ? ' cl-fade' : '')}>
-          {title}
-          {suffix(item) && (
-            <span
-              className="cl-suffix"
-              title={item.sourceReports?.map((r) => r.title).join('\n') || undefined}
-            >
-              {suffix(item)}
-            </span>
+          {item.important && (
+            <Icon
+              name="star"
+              size={14}
+              title="Important"
+              className="cl-important"
+              color="var(--text-secondary)"
+            />
           )}
+          {title}
+          {item.fixed && <span className="cl-suffix">Fixed</span>}
           {observation && (
             <button
               type="button"
@@ -155,6 +159,11 @@ export function ChecklistRow({
             >
               View observation
             </button>
+          )}
+          {source && (
+            <span className="cl-source" title={source}>
+              {source}
+            </span>
           )}
         </span>
       )}

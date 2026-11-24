@@ -201,7 +201,11 @@ it('lists fixed, then past-report, then other questions, with a muted suffix and
     'Other one',
   ])
   expect(within(rows[0]).getByText('Fixed')).toBeInTheDocument()
-  expect(within(rows[1]).getByText('Past report · Jurong DC 2024')).toBeInTheDocument()
+  expect(within(rows[1]).getByText('from Jurong DC 2024')).toHaveAttribute(
+    'title',
+    'from Jurong DC 2024',
+  )
+  expect(within(rows[1]).queryByText(/Past report/)).toBeNull()
   expect(screen.getByRole('region', { name: 'Priority risks' })).toBeInTheDocument()
   expect(screen.queryByRole('tab')).toBeNull()
 })
@@ -261,7 +265,7 @@ const OBS = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-it('moves marked items to the bottom of their section, keeping order, and un-marking returns them', async () => {
+it('never moves a row when it is marked', async () => {
   const items = [
     item({ id: 'a', text: 'Alpha' }),
     marked('b', 'Bravo', 'confirmed'),
@@ -275,17 +279,95 @@ it('moves marked items to the bottom of their section, keeping order, and un-mar
     within(screen.getByRole('region', { name: 'Construction' }))
       .getAllByRole('listitem')
       .map((r) => r.getAttribute('aria-label'))
-  expect(order()).toEqual(['Alpha', 'Charlie', 'Bravo', 'Delta'])
+  expect(order()).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
+  fireEvent.click(within(rowOf('Alpha')).getByRole('button', { name: /press to change/ }))
+  expect(order()).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
 })
 
-it('applies the Show more limit to unmarked items first', async () => {
-  mock(base(checklist([marked('z', 'Done one', 'differs'), ...many])))
+it('shows the question text for a template item, never its subsection heading', async () => {
+  mock(
+    base(checklist([item({ id: 't', origin: 'template', subsection: 'Roof', text: 'Roof deck' })])),
+  )
   show()
-  const section = await screen.findByRole('region', { name: 'Construction' })
-  const names = within(section)
-    .getAllByRole('listitem')
-    .map((r) => r.getAttribute('aria-label'))
-  expect(names).toEqual(many.slice(0, 8).map((m) => m.text))
+  expect(await screen.findByRole('listitem', { name: 'Roof deck' })).toBeInTheDocument()
+  expect(screen.queryByText('Roof')).toBeNull()
+})
+
+it('puts important items on top, oldest mark first, and marks one with a rollback', async () => {
+  const imp = (id: string, text: string, at: string) => item({ id, text, important: { at } })
+  mock(
+    base(
+      checklist([
+        item({ id: 'a', text: 'Alpha' }),
+        imp('b', 'Bravo', '2026-11-24T09:00:00Z'),
+        item({ id: 'c', text: 'Charlie' }),
+        imp('d', 'Delta', '2026-11-24T08:00:00Z'),
+      ]),
+    ),
+  )
+  show()
+  await screen.findByRole('listitem', { name: 'Alpha' })
+  const order = () =>
+    within(screen.getByRole('region', { name: 'Construction' }))
+      .getAllByRole('listitem')
+      .map((r) => r.getAttribute('aria-label'))
+  expect(order()).toEqual(['Delta', 'Bravo', 'Alpha', 'Charlie'])
+  expect(within(rowOf('Delta')).getByRole('img', { name: 'Important' })).toBeInTheDocument()
+  expect(within(rowOf('Alpha')).queryByRole('img', { name: 'Important' })).toBeNull()
+
+  // The newest important item goes under the earlier ones.
+  fireEvent.click(screen.getByRole('button', { name: 'More actions for Charlie' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as important' }))
+  expect(order()).toEqual(['Delta', 'Bravo', 'Charlie', 'Alpha'])
+  await waitFor(() =>
+    expect(calls[0]).toMatchObject({ method: 'PATCH', body: { important: true } }),
+  )
+
+  // A refusal puts it back.
+  vi.stubGlobal('fetch', () => json({ message: 'no' }, 500))
+  fireEvent.click(screen.getByRole('button', { name: 'More actions for Delta' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Remove importance' }))
+  expect(order()[0]).toBe('Bravo')
+  await waitFor(() => expect(order()[0]).toBe('Delta'))
+})
+
+it('shows a muted "from" line for standards and past reports, and the fixed tag inline', async () => {
+  mock(
+    base(
+      checklist([
+        item({
+          id: 'a',
+          text: 'Alpha',
+          sourceStandards: [{ title: 'NFPA 13' }, { title: 'FM 1-57' }],
+        }),
+        item({
+          id: 'b',
+          text: 'Bravo',
+          fixed: true,
+          origin: 'past_report',
+          sourceReports: [{ title: 'Marsh Report: Office, 28 Feb 2025' }],
+        }),
+      ]),
+    ),
+  )
+  show()
+  await screen.findByRole('listitem', { name: 'Alpha' })
+  expect(within(rowOf('Alpha')).getByText('from NFPA 13, FM 1-57')).toHaveClass('cl-source')
+  const line = within(rowOf('Bravo')).getByText('from Marsh Report: Office, 28 Feb 2025')
+  expect(line).toHaveAttribute('title', 'from Marsh Report: Office, 28 Feb 2025')
+  expect(within(rowOf('Bravo')).getByText('Fixed')).toBeInTheDocument()
+})
+
+// jsdom lays nothing out, so alignment is pinned by structure: the box and the text are siblings in
+// a flex row, and the CSS (checklist.css) centres the box on the first line.
+it('puts the state box and the question side by side in one row', async () => {
+  mock(base(checklist([item({ id: 'a', text: 'Alpha '.repeat(40) })])))
+  show()
+  const row = (await screen.findByRole('region', { name: 'Construction' })).querySelector(
+    '.cl-row',
+  )!
+  expect(row.firstElementChild).toHaveClass('cl-state')
+  expect(row.children[1]).toHaveClass('cl-row-text')
 })
 
 it('colours the state box by mark: green tick, red cross, neutral not seen', async () => {
@@ -443,36 +525,100 @@ it('deletes a question, hides it, and Undo restores it', async () => {
   expect(calls[1].url).toMatch(/\/items\/a\/restore$/)
 })
 
-it('adds an item to an existing section, or to a new one', async () => {
+const pickSection = (name: string) => {
+  fireEvent.click(screen.getByRole('button', { name: 'Section' }))
+  fireEvent.click(screen.getByRole('option', { name }))
+}
+
+it('adds an item to the last section by default, or picks another from the custom dropdown', async () => {
   const c = checklist([item({ id: 'a', text: 'Roof' })])
   mock(base(c))
   show()
   await screen.findByRole('listitem', { name: 'Roof' })
 
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  expect(document.querySelector('select')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Section' })).toHaveTextContent('Protection')
   fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
     target: { value: 'Walls' },
   })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Section' }), { target: { value: '8' } })
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
   await waitFor(() => expect(calls[0].body).toEqual({ text: 'Walls', area: '8' }))
+  // Focus returns to the Add item button; the page is not scrolled.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Add item' })).toHaveFocus())
 
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
+    target: { value: 'Beams' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Section' }))
+  expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+    'Construction',
+    'Protection',
+    '+ New section',
+  ])
+  fireEvent.click(screen.getByRole('option', { name: 'Construction' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await waitFor(() => expect(calls[1].body).toEqual({ text: 'Beams', area: '7' }))
+})
+
+it('adds an item to a new section', async () => {
+  const c = checklist([item({ id: 'a', text: 'Roof' })])
+  mock(base(c))
+  show()
+  await screen.findByRole('listitem', { name: 'Roof' })
   next = base({
     ...c,
     areas: [...c.areas, { id: '9', title: 'Housekeeping' }],
     items: [...c.items, item({ id: 'n', area: '9', origin: 'manual', text: 'Bins' })],
   })
-  fireEvent.click(await screen.findByRole('button', { name: 'Add item' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), { target: { value: 'Bins' } })
-  fireEvent.change(screen.getByRole('combobox', { name: 'Section' }), {
-    target: { value: '__new__' },
-  })
+  pickSection('+ New section')
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
   expect(screen.getByRole('alert')).toHaveTextContent('Name the new section.')
   fireEvent.change(screen.getByRole('textbox', { name: 'New section name' }), {
     target: { value: 'Housekeeping' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-  await waitFor(() => expect(calls[1].body).toEqual({ text: 'Bins', newSection: 'Housekeeping' }))
+  await waitFor(() => expect(calls[0].body).toEqual({ text: 'Bins', newSection: 'Housekeeping' }))
   expect(await screen.findByRole('region', { name: 'Housekeeping' })).toBeInTheDocument()
+})
+
+const words = (n: number) => Array.from({ length: n }, (_, k) => `w${k}`).join(' ')
+
+it('counts words in the add form and refuses over 25', async () => {
+  mock(base(checklist([item({ id: 'a', text: 'Roof' })])))
+  show()
+  await screen.findByRole('listitem', { name: 'Roof' })
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
+    target: { value: words(22) },
+  })
+  expect(screen.getByText('22 / 20 words')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await waitFor(() => expect(calls).toHaveLength(1))
+  calls.length = 0
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Add item' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
+    target: { value: words(26) },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('Keep it to about 20 words.')
+  expect(calls).toEqual([])
+})
+
+it('refuses to save an edit over 25 words', async () => {
+  mock(base(checklist([item({ id: 'a', text: 'Roof' })])))
+  show()
+  await screen.findByRole('listitem', { name: 'Roof' })
+  fireEvent.click(screen.getByRole('button', { name: 'More actions for Roof' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const box = screen.getByRole('textbox', { name: 'Edit Roof' })
+  fireEvent.change(box, { target: { value: words(26) } })
+  fireEvent.keyDown(box, { key: 'Enter' })
+  expect(screen.getByRole('alert')).toHaveTextContent('Keep it to about 20 words.')
+  expect(calls).toEqual([])
+  expect(screen.getByRole('textbox', { name: 'Edit Roof' })).toBeInTheDocument()
 })

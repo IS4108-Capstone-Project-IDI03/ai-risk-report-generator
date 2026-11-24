@@ -59,7 +59,8 @@
   /* One set of metrics, so the editor sits exactly where the text was. */
   box-sizing: border-box;
   margin: 0;
-  padding: 4px 0;
+  /* (box height - line height) / 2 puts the first line's middle level with the box's middle. */
+  padding: calc((var(--control-height-sm) - var(--text-body-lh)) / 2) 0;
   font: inherit;
   font-size: var(--text-body-size);
   line-height: var(--text-body-lh);
@@ -78,6 +79,14 @@
     animation: none;
   }
 }
+/* One block for the editor and its message, so the pair sits where the text was. */
+.cl-edit-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cl-edit-wrap .cl-note {
+  margin: var(--space-2) 0 0;
+}
 /* The editor: no box at rest, only a thin focus underline. */
 .cl-edit {
   display: block;
@@ -93,6 +102,78 @@
   margin-left: var(--space-4);
   font-size: var(--text-caption-size);
   color: var(--text-muted);
+}
+/* The quiet "Important" star before the question, on the first line. */
+.cl-important {
+  margin-right: var(--space-3);
+  vertical-align: -2px;
+}
+/* "from <standard or past report>": one muted line, ellipsis on wide screens (full title on hover),
+   free to wrap on a phone. */
+.cl-source {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-muted);
+}
+@media (max-width: 767px) {
+  .cl-source {
+    white-space: normal;
+  }
+}
+/* Add form: the word counter and the section dropdown. */
+.cl-count-words {
+  margin: calc(-1 * var(--space-3)) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-lh);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cl-field-label {
+  margin-bottom: calc(-1 * var(--space-3));
+  font-size: var(--text-small-size);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+.cl-section-btn {
+  align-self: flex-start;
+  max-width: 100%;
+}
+.cl-section-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-section-pop {
+  width: min(320px, calc(100vw - 2 * var(--space-4)));
+}
+.cl-section-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding: var(--space-2) var(--space-4);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-field);
+  font: inherit;
+  font-size: var(--text-small-size);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.cl-section-opt:hover,
+.cl-section-opt[aria-selected='true'] {
+  background: var(--surface-hover);
+}
+.cl-section-opt:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 .cl-state {
   flex: 0 0 auto;
@@ -342,7 +423,8 @@ span.cl-state {
   }
   .cl-row-text,
   .cl-edit {
-    padding-top: 10px;
+    padding-top: calc((44px - var(--text-body-lh)) / 2);
+    padding-bottom: calc((44px - var(--text-body-lh)) / 2);
   }
   .cl-pick-btn,
   .cl-obs,

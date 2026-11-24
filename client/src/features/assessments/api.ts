@@ -915,6 +915,10 @@ export type ChecklistItem = {
   fixed?: boolean
   // The past Marsh reports a 'past_report' item came from (CP-37).
   sourceReports?: { title: string; docId?: string }[]
+  // The codes and standards it cites, for its "from ..." line (CP-37).
+  sourceStandards?: { title: string }[]
+  // When the engineer marked it important (they sort to the top, oldest mark first); null if not.
+  important?: { at: string } | null
   hazard: string | null
   text: string
   fields: string[]
@@ -1046,6 +1050,7 @@ export async function editChecklistItem(
     text?: string
     COPE_dimension?: string[]
     citations?: { ref: string; quote: string }[]
+    important?: boolean
   },
 ) {
   const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}`

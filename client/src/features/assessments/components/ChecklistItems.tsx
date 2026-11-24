@@ -39,15 +39,33 @@ const SHOWN = 8
 const FLASH_MS = 2000
 const HAZARDS = 'hazards'
 
-// Unmarked first, then marked (ticked, crossed, not seen); inside each, fixed first, then
-// past-report questions, then the rest, in the list's own order. Presentation only: un-marking
-// puts an item back where it was.
+// Important items first, oldest mark first (the newest goes under the earlier ones); then fixed,
+// past-report questions, then the rest, in the list's own order. A mark never moves a row.
 const rank = (i: ChecklistItem) => (i.fixed ? 0 : i.origin === 'past_report' ? 1 : 2)
 const byRank = (items: ChecklistItem[]) =>
   items
     .map((item, at) => ({ item, at }))
-    .sort((a, b) => +!!a.item.check - +!!b.item.check || rank(a.item) - rank(b.item) || a.at - b.at)
+    .sort((a, b) => {
+      const ai = a.item.important?.at
+      const bi = b.item.important?.at
+      if (ai || bi) return !ai ? 1 : !bi ? -1 : ai < bi ? -1 : ai > bi ? 1 : a.at - b.at
+      return rank(a.item) - rank(b.item) || a.at - b.at
+    })
     .map((x) => x.item)
+
+// The same view with one item's importance replaced, to show it before the gateway answers.
+function withImportant(view: ChecklistView, itemId: string, on: boolean): ChecklistView {
+  const checklist = view.checklist!
+  return {
+    ...view,
+    checklist: {
+      ...checklist,
+      items: checklist.items.map((i) =>
+        i.id === itemId ? { ...i, important: on ? { at: new Date().toISOString() } : null } : i,
+      ),
+    },
+  }
+}
 
 // The same view with one item's check replaced, to show a mark before the gateway answers.
 function withMark(view: ChecklistView, itemId: string, mark: Mark | null): ChecklistView {
@@ -150,6 +168,18 @@ export function ChecklistItems({
     } catch (e: unknown) {
       setView(before)
       failed("Couldn't save the mark", e)
+    }
+  }
+  // Optimistic like a mark: the star shows at once and the row moves up; a refusal puts it back.
+  const toggleImportant = async (item: ChecklistItem) => {
+    const before = view
+    const on = !item.important
+    setView(withImportant(view, item.id, on))
+    try {
+      setView(await editChecklistItem(reference, item.id, { important: on }))
+    } catch (e: unknown) {
+      setView(before)
+      failed("Couldn't change the importance", e)
     }
   }
   const saveText = async (item: ChecklistItem, text: string) => {
@@ -282,6 +312,7 @@ export function ChecklistItems({
                   onMark={(next) => void mark(item, next)}
                   onSaveText={(text) => saveText(item, text)}
                   onRemove={() => void remove(item)}
+                  onToggleImportant={() => void toggleImportant(item)}
                   onRecord={answering?.place.kind === 'site' ? () => record(item) : undefined}
                   onLinkExisting={
                     answering && item.check
