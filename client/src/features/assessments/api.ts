@@ -3,6 +3,7 @@
 
 import type { Coordinates } from './googleMaps'
 import type { Priority, Stage } from '../marshbot/types'
+import { started } from '../background-work/started'
 
 // Capture statuses come from the assessment's capture session; report
 // statuses are stored once a report exists.
@@ -476,7 +477,7 @@ export async function saveObservation(
   for (const r of recordings) form.append('recording', r.audio, r.name)
   appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
-  return (await request<SavedObservation>('POST', observationsPath(reference), form)).data
+  return (await started(request<SavedObservation>('POST', observationsPath(reference), form))).data
 }
 
 /** Asks the gateway to sort a note into parts (CP-35); nothing is saved. */
@@ -554,7 +555,9 @@ export async function confirmSuggestion(
 
 /** Returns the observation with its failed suggestion queued once more (CP-24). */
 export async function retrySuggestion(id: string): Promise<SavedObservation> {
-  return (await request<SavedObservation>('POST', `${observationPath(id)}/suggestion/retry`)).data
+  return (
+    await started(request<SavedObservation>('POST', `${observationPath(id)}/suggestion/retry`))
+  ).data
 }
 
 // Corrects a finished transcript, keeping what Whisper wrote (CP-08).
@@ -610,7 +613,8 @@ export async function addObservationMedia(
   for (const r of recordings) form.append('recording', r.audio, r.name)
   appendPhotos(form, photos)
   for (const p of pages) form.append('page', p.image, p.name)
-  return (await request<SavedObservation>('POST', `${observationPath(id)}/media`, form)).data
+  return (await started(request<SavedObservation>('POST', `${observationPath(id)}/media`, form)))
+    .data
 }
 
 // Removes a recording, photo or handwritten page from an observation, a soft
@@ -647,17 +651,21 @@ export async function restoreMedia(
 
 // Starts a new transcription attempt for a failed recording.
 export async function retryTranscription(observationId: string, recordingId: string) {
-  await request<void>(
-    'POST',
-    `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
+  await started(
+    request<void>(
+      'POST',
+      `/api/observations/${encodeURIComponent(observationId)}/recordings/${encodeURIComponent(recordingId)}/transcription/retry`,
+    ),
   )
 }
 
 // Starts a new transcription attempt for a failed handwritten page (CP-19).
 export async function retryPageTranscription(observationId: string, pageId: string) {
-  await request<void>(
-    'POST',
-    `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/transcription/retry`,
+  await started(
+    request<void>(
+      'POST',
+      `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/transcription/retry`,
+    ),
   )
 }
 
@@ -668,9 +676,11 @@ export async function retranscribePage(
   pageId: string,
 ): Promise<SavedObservation> {
   return (
-    await request<SavedObservation>(
-      'POST',
-      `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/retranscribe`,
+    await started(
+      request<SavedObservation>(
+        'POST',
+        `${observationPath(observationId)}/pages/${encodeURIComponent(pageId)}/retranscribe`,
+      ),
     )
   ).data
 }

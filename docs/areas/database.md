@@ -2106,7 +2106,8 @@ regions finish out of page order; null until the pass starts, when nothing needs
 OCR, and at the start of every stage), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
-from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+from `stageLog`; absent otherwise — used by the ingestion notification, IN-10, and by background
+work to mark the stage a failed document stopped in, F-11),
 `privacy` (`{ enabled, masked_count }`: whether the document was redacted and
 how many details, never the mapping, PV-05; written when the run finishes),
 `currentStageStartedAt`, `startedAt`, and
@@ -2239,8 +2240,10 @@ a knowledge admin add a document the chatbot lacked
 
 Fields: `question` (≤ 4,000 chars, the chat's limit), `message` (optional, ≤ 1,000,
 absent when blank), `askedBy` (user id), `status` (`open`, `filled` or `dismissed`),
-`documentIds` (knowledge document ids, set when filled), `reason` (≤ 500, set when
-dismissed), `closedBy`, `closedAt`, and timestamps.
+`documentIds` (knowledge document ids, set when filled), `incomingDocumentIds`
+(F-11: documents an admin uploaded for it while open, added with `$addToSet` only
+while `status` is `open`; absent until the first, and filling does not need them),
+`reason` (≤ 500, set when dismissed), `closedBy`, `closedAt`, and timestamps.
 
 Closing is atomic: fill and dismiss update only where `status` is `open`, so two
 admins acting at once cannot both close it (the second gets 409). Filling and

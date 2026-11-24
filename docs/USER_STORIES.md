@@ -108,6 +108,25 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   The invitation has its own link and set-password screen, separate from the forgotten-password reset (F-06): a new account is never set up by resetting a password.
   </details>
 
+- [x] **F-11** — See background work and what is holding it up (knowledge admin or risk engineer, Should, deps: F-10, CP-22, CP-24, GN-13, E2, CB-07)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer or knowledge admin, I want to see all my long-running background work and its progress in one place, so that I know what's still running, what's stuck and what it's waiting on without visiting each screen.
+
+  1. Given an engineer has background work on their assessments (site walk transcription, walk proposal, voice note, photo reading, drafting), when they open the activity popover, then each job is listed with its assessment, what it is and its state (queued, running, failed).
+  2. Given a knowledge admin has documents being ingested, when they open the activity popover, then each shows its stage (e.g. "Stage 2 of 4 · Chunking") and a bar for that stage's pages or OCR regions.
+  3. Given a job made of countable parts, when it runs, then it shows the real count done (e.g. "3 of 5 recordings", "4 of 11 parts"), never an estimated percentage.
+  4. Given a job that is a single AI call, when it runs, then it shows a working mark and the time elapsed, with no bar.
+  5. Given a job is queued, when it is shown, then it says Queued and how long it has waited.
+  6. Given an admin uploads a document for an engineer's open knowledge request, when the engineer opens the activity popover, then the request shows that document's ingestion stage.
+  7. Given a document waiting on the admin's decision (its source type, unconfirmed details or a match), when the admin opens the activity popover, then it is listed under "Waiting on you" and links to the document.
+  8. Given a job failed after its last retry, when it is shown, then it gives the reason in plain English, and Try again only to users allowed to retry it.
+  9. Given work is running, when the popover is open, then its rows update without a reload; when nothing is queued, running, failed or waiting, the activity icon is not shown.
+  10. Given a row, when I open it, then I go to the walk, observation, drafting step, document or request it is about. Engineers never see another engineer's work, and finished work leaves the list.
+
+  The activity icon sits beside the bell and opens a popover; it carries no red count (red counts are the Inbox's and the bell's). Rows refresh by polling while work runs, since the ingestion worker writes its progress straight to MongoDB. Queue positions are not shown.
+  </details>
+
 ## E2 — Ingestion & Processing
 
 - [x] **IN-01** — Upload knowledge base document(s) (knowledge admin, Must, 5 pts, deps: none, Sprint 1)

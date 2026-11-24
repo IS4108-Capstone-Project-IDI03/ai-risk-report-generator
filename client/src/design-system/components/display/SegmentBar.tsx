@@ -1,7 +1,8 @@
 // Segmented bar (GN-13, NEW pattern): one segment per part in run order, split into groups with
 // a wider gap, then "N of M drafted". Green = done (grows from the left), light blue with a
 // sweep = being worked on now, amber outline = out of date, red outline = failed.
-// Used by Generation's checkpoint header. Calls NumberSwap.
+// Used by Generation's checkpoint header and the activity popover (F-11). Calls NumberSwap.
+import type { ReactNode } from 'react'
 import { NumberSwap } from './NumberSwap'
 import './steps.css'
 
@@ -15,6 +16,8 @@ export type SegmentBarProps = {
   count: number
   total: number
   word: string
+  // Words in place of the count, for segments that are named stages ("Stage 2 of 3 · Chunking").
+  label?: ReactNode
 }
 
 /** Returns the bar and its count; the segments are decoration, the count is what is read out. */
@@ -24,6 +27,7 @@ export function SegmentBar({
   count,
   total,
   word,
+  label,
 }: SegmentBarProps) {
   const starts = groups.map((_, i) => groups.slice(0, i).reduce((a, b) => a + b, 0))
   return (
@@ -40,7 +44,11 @@ export function SegmentBar({
         ))}
       </div>
       <span className="ds-segbar-label">
-        <NumberSwap value={count} /> of {total} <span>{word}</span>
+        {label ?? (
+          <>
+            <NumberSwap value={count} /> of {total} <span>{word}</span>
+          </>
+        )}
       </span>
     </div>
   )

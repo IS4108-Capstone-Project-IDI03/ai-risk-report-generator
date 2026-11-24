@@ -112,7 +112,7 @@ import { useCaptureSession } from './useCaptureSession'
 import type { Cope, Severity } from '../site-walk/api'
 import { siteWalkReview } from '../site-walk/openReview'
 import { overviewNav } from './openOverviewLink'
-import { reportAssessmentMissing } from './openAssessment'
+import { reportAssessmentMissing, type AssessmentPlace } from './openAssessment'
 import { useActivity } from '../marshbot/useActivity'
 import type { Priority } from '../marshbot/types'
 import {
@@ -2112,7 +2112,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
 
     // Opens an assessment pressed elsewhere (an Inbox or bell row). A row that came in by poll
     // can be newer than the list held here, so a miss reads the list again before giving up.
-    async function openFromOutside(reference: string, tab?: 'observations') {
+    // A place (F-11's activity rows) opens a tab, and an observation on it.
+    async function openFromOutside(reference: string, place?: AssessmentPlace) {
       const row =
         rows.find((r) => r.id === reference) ??
         (await reloadRows())?.map(toRow).find((r) => r.id === reference)
@@ -2129,7 +2130,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       updateState((previous) => ({
         ...previous,
         ...openAssessment(target, previous),
-        ...(tab && { tab }),
+        ...(place && { tab: place.tab, obsOpen: place.obs ?? null }),
       }))
     }
 
@@ -3667,7 +3668,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         places.reload()
       },
       // Opens an assessment on its Observations tab, e.g. from the bell (CP-22).
-      openObservationsOf: (reference: string) => void openFromOutside(reference, 'observations'),
+      openObservationsOf: (reference: string) =>
+        void openFromOutside(reference, { tab: 'observations' }),
+      openPlaceOf: (reference: string, place: AssessmentPlace) =>
+        void openFromOutside(reference, place),
       // Opens an assessment on its Overview, e.g. from an assigned Inbox row (F-10).
       openOverviewOf: (reference: string) => void openFromOutside(reference),
       // Opens an observation on its own page, or back to the list with null.

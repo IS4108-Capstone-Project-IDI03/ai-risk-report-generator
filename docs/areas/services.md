@@ -2344,6 +2344,45 @@ A site walk fails in three places (the reading runs out of retries, a recording
 cannot be transcribed, the job cannot be queued); each tells the engineer once
 per attempt. An attempt is the walk's `retries` count, which Retry increments.
 
+## Background work (F-11)
+
+`GET /api/background-work` (`background-work.service.ts`, `backgroundWorkFor`) lists
+the signed-in user's long-running jobs as one row shape: `kind`, `state` (`queued`,
+`running`, `failed`, `waiting_on_you`), `title`, `context`, `progress`, `startedAt`,
+`error`, `href` and, where the user may start it again, `retry` (an existing route).
+Where a job has parts or stages, `progress.segments` marks each in order (`done`,
+`working`, `failed`, `empty`), so a failure shows where it fell, during the job or after.
+The header's activity icon (`client/src/features/background-work/`) reads it.
+
+Where each row comes from. Every source is read in one batch per poll, never one
+query per assessment, and archived assessments are left out:
+
+| Row | Read from | Progress |
+|---|---|---|
+| A site walk transcribing, proposing or failed | `site_walks` | recordings transcribed of all (`stages`), a segment per recording; proposing is one AI call (`working`), timed from the walk's last change |
+| A voice note or handwritten page transcribing or failed | `listObservationsOf` (drafts left out) | one AI call, timed from its latest attempt |
+| An observation's reading (photo description, then suggestion) | `listObservationsOf` | one AI call; failed shows its reason and Try again (`/suggestion/retry`) |
+| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`), a segment per part in run order, a failed one marked as soon as it fails; a part from Review is one AI call. Once a run is over, its failed sections fold into one row per assessment ("3 sections not drafted"; one keeps its reason), still with the run's segments. No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
+| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), a segment per stage, then pages, or OCR regions in chunking's OCR pass (`count`); a failed one marks the stage it failed in (the job's `failedStage`, passed on as the document's `failedIn`), or shows no stages when the job never recorded it; queued is timed from its upload, or from `handled.at` when Try again or a source type choice put it back |
+| A document waiting on an admin (admins) | `listAwaitingDecision` | what to do: choose its source type, confirm its details, or decide on the match |
+| A document uploaded for the user's own open request | `openRequestsWithIncoming` + `listDocumentsByIds` | as ingestion; Try again only for admins |
+
+Who sees what: every role sees jobs on the assessments assigned to them (an admin
+does not see an engineer's). Uploads and decisions are the admins'
+(`knowledge:manage`); every admin sees every upload, as on the uploads list.
+
+The route is mounted with `requireAuthNoRefresh`: the icon polls it every 5 seconds
+while a row is queued or running and every 30 seconds otherwise (new work usually
+starts from the person's own action, which moves no notification count), reads at
+once when the popover opens, when the person starts a job (`started.ts`: the calls
+that start one announce it once accepted) or the tab is shown again, and not while
+the tab is hidden. No queue position is shown: queued rows say how long they have waited.
+
+An admin uploads a document for an open knowledge request from the Requests tab
+(`POST /api/knowledge-documents?requestId=…`): an unknown request answers 404 and a
+closed one 409, before anything is stored. The document's id is added to the
+request's `incomingDocumentIds`; the request stays open until the admin fills it.
+
 ## Assessment assistant (MarshBot, AS-06)
 
 MarshBot is the Overview tab: a saved conversation that tells the engineer the

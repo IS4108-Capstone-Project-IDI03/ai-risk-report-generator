@@ -88,7 +88,7 @@ export type PrivacyWord = {
   // Always masked only: the placeholder's kind. Null on Never masked.
   kind: PrivacyKind | null
   reason: string
-  // `default`: shipped with the app (allow_list.json); `admin`: added in Settings.
+  // `default`: the app's defaults (allow_list.json); `admin`: added in Settings.
   source: 'default' | 'admin'
   addedBy: { id: string; name: string } | null
   at: string
