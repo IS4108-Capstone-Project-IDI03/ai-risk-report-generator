@@ -21,7 +21,16 @@ import { useSave } from '../components/useSave'
 import { formatTimeOfDay } from '../format'
 import { excerpt, pageLocator, severityLabel } from '../reviewDisplay'
 import { DictateButton } from '../dictation/DictateButton'
-import type { AskCitation, AskConversation, AskStatement, Proposal } from './api'
+import type {
+  AskCitation,
+  AskConversation,
+  AskStatement,
+  GapLink,
+  GuideKind,
+  Proposal,
+  SectionGap,
+  TemplatePart,
+} from './api'
 import { quotedWords, type AskPassage } from './passage'
 import type { AskItem, AskWorkflow } from './useAsk'
 import './ask.css'
@@ -32,12 +41,15 @@ const KIND_LABEL: Record<AskCitation['kind'], string> = {
   observation: 'Site observation',
   standard: 'External standard',
   report: 'Past report',
+  template: 'Report template',
 }
 
-// A cited source of an answer, as the evidence panel opens it.
+// A cited source of an answer, as the evidence panel opens it; a part of the
+// report template (AS-08) opens where it sits in the section instead.
 type AskSource =
   | { ref: string; kind: 'observation'; observation: FieldObservation }
   | { ref: string; kind: 'standard' | 'report'; passage: SourcePassage }
+  | { ref: string; kind: 'template'; part: TemplatePart }
 
 /** An answer's cited sources by citation ID, once its result has arrived. */
 function sourcesOf(item: AskItem): Map<string, AskSource> {
@@ -46,7 +58,27 @@ function sourcesOf(item: AskItem): Map<string, AskSource> {
     found.set(p.id, { ref: p.id, kind: p.kind === 'precedent' ? 'report' : 'standard', passage: p })
   for (const o of item.observations)
     found.set(`O:${o.id}`, { ref: `O:${o.id}`, kind: 'observation', observation: o })
+  for (const t of item.template ?? []) found.set(t.id, { ref: t.id, kind: 'template', part: t })
   return found
+}
+
+// What a template part is, as its source line says it.
+const PART_KIND: Record<TemplatePart['kind'], string> = {
+  section: 'The whole section',
+  narrative: 'Written text',
+  fields: 'Fields',
+  table: 'Table',
+}
+
+/** Returns where a template citation (`T:9` or `T:9.3`) goes: its section, at the part. */
+export function templateLink(ref: string, part?: TemplatePart): GapLink {
+  const [sectionId, index] = ref.slice(2).split('.')
+  const subsection = part?.subsection ?? (index === undefined ? null : Number(index))
+  return {
+    to: 'section',
+    sectionId: part?.sectionId ?? sectionId,
+    ...(subsection !== null && !Number.isNaN(subsection) && { subsection }),
+  }
 }
 
 // The answer's sources in the order its statements first cite them, numbered from 1.
@@ -72,11 +104,19 @@ const notFound = (c: AskCitation) => !c.verified && !c.described
 function sourceName(source: AskSource | undefined, citation: AskCitation): string {
   if (!source) return KIND_LABEL[citation.kind]
   if (source.kind === 'observation') return source.observation.location ?? 'Location not recorded'
+  if (source.kind === 'template')
+    return source.part.heading ? `${source.part.label} › ${source.part.heading}` : source.part.label
   return source.passage.document?.title ?? source.passage.documentId ?? 'Document not found'
 }
 
 const STEP_TEXT = {
   retrieve: 'Searching the observations, selected standards and past reports…',
+  generate: 'Writing the answer…',
+}
+// What a section should cover (AS-08), which reads the template and searches
+// the selected standards only.
+const COVER_STEP_TEXT = {
+  retrieve: 'Reading the report template and searching the selected standards…',
   generate: 'Writing the answer…',
 }
 // For proposed text (AS-04), which searches no past report.
@@ -172,6 +212,7 @@ function Answer({
   const number = new Map(order.map((c, n) => [c.ref, n + 1]))
   const sources = sourcesOf(item)
   const failedAt = item.failure ? formatTimeOfDay(new Date(item.failure.at)) : null
+  const steps = item.guidance?.kind === 'cover' ? COVER_STEP_TEXT : STEP_TEXT
   return (
     <article
       className="ask-answer"
@@ -187,7 +228,7 @@ function Answer({
       {answering && item.step && (
         <p className="ask-step" role="status">
           <span className="ask-dot" aria-hidden="true" />
-          {STEP_TEXT[item.step]}
+          {steps[item.step]}
         </p>
       )}
       {item.statements.length > 0 && (
@@ -528,8 +569,10 @@ function SourceList({
       <ul className="rv-panel-list">
         {order.map((c) => {
           const source = sources.get(c.ref)
-          const passage = source && source.kind !== 'observation' ? source.passage : null
+          const passage =
+            source?.kind === 'standard' || source?.kind === 'report' ? source.passage : null
           const observation = source?.kind === 'observation' ? source.observation : null
+          const part = source?.kind === 'template' ? source.part : null
           return (
             <li key={c.ref}>
               <EvidenceCitation
@@ -560,7 +603,9 @@ function SourceList({
                     ? (pageLocator(passage) ?? undefined)
                     : observation
                       ? severityLabel(observation.severity || 'not set')
-                      : undefined
+                      : part
+                        ? PART_KIND[part.kind]
+                        : undefined
                 }
                 excerpt={
                   c.quote
@@ -569,7 +614,9 @@ function SourceList({
                       ? excerpt(passage.text)
                       : observation?.note
                         ? excerpt(observation.note)
-                        : undefined
+                        : part
+                          ? excerpt(part.text)
+                          : undefined
                 }
                 onOpen={() => onOpen(c.ref)}
                 style={
@@ -589,10 +636,167 @@ function SourceList({
   )
 }
 
+// Writing guidance in the Ask tab (AS-08): the part of the report open, which
+// the two buttons ask about, and going to where a gap is finished or a cited
+// template part sits. Given to anyone who can ask.
+export type AskGuidanceTarget = {
+  // The part open, as the report heads it; null when none is.
+  target: { sectionId: string; label: string } | null
+  onGo: (link: GapLink) => void
+}
+
+// Which parts each button asks about (as the gateway's section-guidance.service).
+const COVER_SECTIONS = /^(1[0-2]|[4-9])$/
+const MISSING_SECTIONS = /^(1[0-2]|[2-9])$/
+
+// Why a guidance button can't be used for the part open, if it can't.
+function guideBlocked(kind: GuideKind, target: AskGuidanceTarget['target']): Reason | undefined {
+  if (!target)
+    return { title: 'No section open', text: 'Open a section of the report to ask about it.' }
+  if (kind === 'cover' && !COVER_SECTIONS.test(target.sectionId))
+    return {
+      title: 'Not for this part',
+      text: 'The report template defines Sections 4 to 12. Open one of them to ask what it should cover.',
+    }
+  if (kind === 'missing' && !MISSING_SECTIONS.test(target.sectionId))
+    return {
+      title: 'Not for this part',
+      text: `${target.label} is filled in from the assessment. Open one of Sections 2 to 12 to ask what is missing from it.`,
+    }
+  return undefined
+}
+
+const goLabel = (link: GapLink) =>
+  link.to === 'section'
+    ? 'Go to section'
+    : link.observationId
+      ? 'Go to observation'
+      : 'Go to observations'
+
+function GapGroup({
+  title,
+  gaps,
+  onGo,
+}: {
+  title: string
+  gaps: SectionGap[]
+  onGo?: (link: GapLink) => void
+}) {
+  return (
+    <section className="ask-gap-group" aria-label={title}>
+      <h4 className="rv-label ask-gap-head">
+        {title} <span className="ask-gap-count">{gaps.length}</span>
+      </h4>
+      <ul className="ask-gap-list">
+        {gaps.map((gap, i) => (
+          <li key={i} className={gap.blocksExport ? 'ask-gap is-blocking' : 'ask-gap'}>
+            <span className="ask-gap-fact">{gap.fact}</span>
+            {onGo && (
+              <button
+                type="button"
+                className="ask-link"
+                aria-label={`${goLabel(gap.link)}: ${gap.fact}`}
+                onClick={() => onGo(gap.link)}
+              >
+                {goLabel(gap.link)}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// What is missing from a section (AS-08 AC2), as the gateway listed it when
+// asked: those that block the export first, as the Export tab lists them (AC3),
+// then the rest, each a fact (AC4) with Go to section or Go to observation.
+// Worked out with no AI, so it sits in grey, not AI violet.
+function GapList({
+  item,
+  onGo,
+  onAskAgain,
+  canAsk,
+}: {
+  item: AskItem
+  onGo?: (link: GapLink) => void
+  onAskAgain: () => void
+  canAsk: boolean
+}) {
+  const gaps = item.gaps ?? []
+  const label = item.guidance?.label ?? 'the section'
+  const blocking = gaps.filter((g) => g.blocksExport)
+  const others = gaps.filter((g) => !g.blocksExport)
+  const checking = item.status === 'answering'
+  return (
+    <article
+      className="ask-gaps"
+      aria-label={`Answer to: ${item.question}`}
+      aria-busy={checking || undefined}
+    >
+      <div className="ask-gaps-top">
+        <Icon name="list-x" size={14} color="var(--text-secondary)" />
+        <span className="ask-gaps-title">Missing from {label}</span>
+        <span />
+        {!checking && !item.failure && (
+          <span className="ask-gaps-at">As of {formatTimeOfDay(new Date(item.askedAt))}</span>
+        )}
+      </div>
+      {checking ? (
+        <p className="ask-gaps-checking" role="status">
+          Checking {label}…
+        </p>
+      ) : item.failure ? (
+        <div role="alert">
+          <Callout
+            tone="danger"
+            title="The check stopped"
+            actions={
+              canAsk ? (
+                <Button variant="secondary" size="sm" iconLeft="rotate-ccw" onClick={onAskAgain}>
+                  Check again
+                </Button>
+              ) : undefined
+            }
+          >
+            Check stopped at {formatTimeOfDay(new Date(item.failure.at))}: {item.failure.cause}.{' '}
+            {item.failure.next}
+          </Callout>
+        </div>
+      ) : gaps.length === 0 ? (
+        <p className="ask-gaps-none">Nothing is missing from {label}.</p>
+      ) : (
+        <>
+          {blocking.length > 0 && (
+            <GapGroup title="Blocks the export" gaps={blocking} onGo={onGo} />
+          )}
+          {others.length > 0 && (
+            <GapGroup
+              title={blocking.length ? 'Also missing' : 'Missing'}
+              gaps={others}
+              onGo={onGo}
+            />
+          )}
+        </>
+      )}
+      {!checking && !item.failure && (
+        <p className="ask-gaps-note">
+          Listed from the report as saved, with no AI. The Export tab lists the same blockers.
+        </p>
+      )}
+    </article>
+  )
+}
+
 // Why the conversation can't be changed while an answer is written.
 const ANSWERING: Reason = {
   title: 'An answer is being written',
   text: 'Wait for it to finish, or stop it, to change conversation.',
+}
+// Why nothing more can be asked while an answer is written (AS-08's buttons).
+const ANSWERING_NOW: Reason = {
+  title: 'An answer is being written',
+  text: 'Wait for it to finish, or stop it, to ask again.',
 }
 
 // The conversation picker (AS-03 AC2): this user's conversations on the
@@ -743,7 +947,10 @@ function scopeLine(ask: AskWorkflow) {
 // text is still there and `onShowPassage` goes back to it. With `drafting`
 // (the assigned engineer, AS-04), Draft text asks for text for the open
 // section instead of an answer, a passage chosen with Rewrite this is
-// rewritten, and proposed text can be inserted, replaced and undone.
+// rewritten, and proposed text can be inserted, replaced and undone. With
+// `guidance` (AS-08), two buttons ask what the open section should cover and
+// what is missing from it; a gap's link, or a cited part of the template, goes
+// to its place through `guidance.onGo`.
 export function AskPanel({
   ask,
   unavailable,
@@ -753,6 +960,7 @@ export function AskPanel({
   locate,
   onShowPassage,
   drafting,
+  guidance,
 }: {
   ask: AskWorkflow | null
   unavailable?: string
@@ -762,6 +970,7 @@ export function AskPanel({
   locate?: (anchor: CommentAnchor) => boolean | undefined
   onShowPassage?: (passage: AskPassage) => void
   drafting?: AskDrafting
+  guidance?: AskGuidanceTarget
 }) {
   const [question, setQuestion] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
@@ -864,6 +1073,27 @@ export function AskPanel({
           text: 'Remove it to draft new text, or ask about it.',
         }
       : undefined
+  // Writing guidance for the part open (AS-08).
+  const askGuide = (kind: GuideKind, section = guidance?.target ?? null) => {
+    if (ask.switching || ask.archived || ask.busy || !section) return
+    if (guideBlocked(kind, section)) return
+    setProblem(null)
+    void ask.guide(kind, section)
+  }
+  const guideReason = (kind: GuideKind): Reason | undefined =>
+    ask.busy ? ANSWERING_NOW : guideBlocked(kind, guidance?.target ?? null)
+  // A citation of the template's part goes to its place in the section (AS-08);
+  // any other opens its source.
+  const cite = (ref: string, item: AskItem) => {
+    if (ref.startsWith('T:') && guidance)
+      guidance.onGo(
+        templateLink(
+          ref,
+          item.template?.find((t) => t.id === ref),
+        ),
+      )
+    else onCite(ref, item)
+  }
   const passageOf = (item: AskItem) =>
     item.passage && (
       <PassageQuote
@@ -918,12 +1148,23 @@ export function AskPanel({
                   current={current}
                   onCite={onCite}
                 />
+              ) : item.guidance?.kind === 'missing' ? (
+                <GapList
+                  item={item}
+                  onGo={guidance?.onGo}
+                  onAskAgain={() => askGuide('missing', item.guidance)}
+                  canAsk={!ask.busy && !ask.archived}
+                />
               ) : (
                 <Answer
                   item={item}
                   current={current}
-                  onCite={onCite}
-                  onAskAgain={send}
+                  onCite={cite}
+                  onAskAgain={(text, passage) =>
+                    item.guidance
+                      ? askGuide(item.guidance.kind, item.guidance)
+                      : send(text, passage)
+                  }
                   canAsk={!ask.busy && !ask.archived}
                 />
               )}
@@ -941,105 +1182,116 @@ export function AskPanel({
           </span>
         </p>
       ) : (
-        <form
-          className="ask-composer"
-          aria-label="Ask a question"
-          onSubmit={(event) => {
-            event.preventDefault()
-            send(question)
-          }}
-        >
-          {about && (
-            <PassageQuote
-              passage={about}
-              heading={`${rewriting ? 'Rewriting' : 'Asking about'} ${about.label}`}
-              onRemove={() => {
-                ask.setAbout(null)
-                focusBox()
-              }}
-            />
+        <>
+          {guidance && (
+            // Writing guidance for the part open (AS-08): two questions asked
+            // by button, never guessed from what is typed.
+            <div className="ask-guide" role="group" aria-label="Writing guidance">
+              <p className="ask-guide-for">
+                <span className="rv-label">Writing guidance</span>
+                <span className="ask-guide-section">
+                  {guidance.target?.label ?? 'No section open'}
+                </span>
+              </p>
+              <div className="ask-guide-buttons">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="list-checks"
+                  disabled={ask.switching}
+                  disabledReason={guideReason('cover')}
+                  onClick={() => askGuide('cover')}
+                >
+                  What should this section cover?
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="list-x"
+                  disabled={ask.switching}
+                  disabledReason={guideReason('missing')}
+                  onClick={() => askGuide('missing')}
+                >
+                  What is missing from this section?
+                </Button>
+              </div>
+            </div>
           )}
-          <div ref={box}>
-            <Textarea
-              label={rewriting ? 'How to rewrite it' : 'Question'}
-              name="question"
-              rows={3}
-              value={question}
-              maxLength={MAX_QUESTION}
-              placeholder={
-                rewriting
-                  ? 'e.g. Make it more concise, keeping its citations (optional)'
-                  : about
-                    ? 'e.g. Where does this figure come from?'
-                    : drafting
-                      ? 'e.g. Which observations concern the valves? Or: Draft a paragraph on flood exposure'
-                      : 'e.g. Which observations concern the sprinkler control valves?'
-              }
-              error={problem ?? undefined}
-              onChange={(event) => {
-                setQuestion(event.target.value)
-                if (problem) setProblem(null)
-              }}
-              onKeyDown={(event) => {
-                // Enter asks; Shift+Enter starts a new line.
-                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  if (!ask.busy) send(question)
-                }
-              }}
-            />
-          </div>
-          <div className="ask-composer-actions">
-            {!ask.busy && (
-              <DictateButton
-                reference={ask.reference}
-                field={() => box.current?.querySelector('textarea')}
-                onChange={(text) => {
-                  setQuestion(text)
-                  if (problem) setProblem(null)
+          <form
+            className="ask-composer"
+            aria-label="Ask a question"
+            onSubmit={(event) => {
+              event.preventDefault()
+              send(question)
+            }}
+          >
+            {about && (
+              <PassageQuote
+                passage={about}
+                heading={`${rewriting ? 'Rewriting' : 'Asking about'} ${about.label}`}
+                onRemove={() => {
+                  ask.setAbout(null)
+                  focusBox()
                 }}
               />
             )}
-            <span className="rv-muted ask-hint">
-              {rewriting
-                ? 'Enter to rewrite, Shift+Enter for a new line'
-                : 'Enter to ask, Shift+Enter for a new line'}
-            </span>
-            {ask.busy ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                iconLeft="square"
-                onClick={ask.stop}
-              >
-                Stop
-              </Button>
-            ) : rewriting ? (
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                iconLeft="sparkles"
-                disabled={ask.switching}
-              >
-                Rewrite
-              </Button>
-            ) : (
-              <>
-                {drafting && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    iconLeft="pen-line"
-                    disabled={ask.switching}
-                    disabledReason={draftBlocked}
-                    onClick={() => draft('draft')}
-                  >
-                    Draft text
-                  </Button>
-                )}
+            <div ref={box}>
+              <Textarea
+                label={rewriting ? 'How to rewrite it' : 'Question'}
+                name="question"
+                rows={3}
+                value={question}
+                maxLength={MAX_QUESTION}
+                placeholder={
+                  rewriting
+                    ? 'e.g. Make it more concise, keeping its citations (optional)'
+                    : about
+                      ? 'e.g. Where does this figure come from?'
+                      : drafting
+                        ? 'e.g. Which observations concern the valves? Or: Draft a paragraph on flood exposure'
+                        : 'e.g. Which observations concern the sprinkler control valves?'
+                }
+                error={problem ?? undefined}
+                onChange={(event) => {
+                  setQuestion(event.target.value)
+                  if (problem) setProblem(null)
+                }}
+                onKeyDown={(event) => {
+                  // Enter asks; Shift+Enter starts a new line.
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    if (!ask.busy) send(question)
+                  }
+                }}
+              />
+            </div>
+            <div className="ask-composer-actions">
+              {!ask.busy && (
+                <DictateButton
+                  reference={ask.reference}
+                  field={() => box.current?.querySelector('textarea')}
+                  onChange={(text) => {
+                    setQuestion(text)
+                    if (problem) setProblem(null)
+                  }}
+                />
+              )}
+              <span className="rv-muted ask-hint">
+                {rewriting
+                  ? 'Enter to rewrite, Shift+Enter for a new line'
+                  : 'Enter to ask, Shift+Enter for a new line'}
+              </span>
+              {ask.busy ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="square"
+                  onClick={ask.stop}
+                >
+                  Stop
+                </Button>
+              ) : rewriting ? (
                 <Button
                   type="submit"
                   variant="primary"
@@ -1047,12 +1299,37 @@ export function AskPanel({
                   iconLeft="sparkles"
                   disabled={ask.switching}
                 >
-                  Ask
+                  Rewrite
                 </Button>
-              </>
-            )}
-          </div>
-        </form>
+              ) : (
+                <>
+                  {drafting && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      iconLeft="pen-line"
+                      disabled={ask.switching}
+                      disabledReason={draftBlocked}
+                      onClick={() => draft('draft')}
+                    >
+                      Draft text
+                    </Button>
+                  )}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    iconLeft="sparkles"
+                    disabled={ask.switching}
+                  >
+                    Ask
+                  </Button>
+                </>
+              )}
+            </div>
+          </form>
+        </>
       )}
       {deleting && (
         <DeleteConversationDialog

@@ -41,7 +41,7 @@ import {
 } from '../components/ReviewInspector'
 import { READ_ONLY, useAsk } from '../ask/useAsk'
 import { applyProposal, ProposalRefusedError } from '../ask/api'
-import type { AskDrafting } from '../ask/AskPanel'
+import type { AskDrafting, AskGuidanceTarget } from '../ask/AskPanel'
 import { contentText, passageAt, type AskPassage } from '../ask/passage'
 import type { CommentAnchor } from '../comments/api'
 import { VersionHistory } from '../components/VersionHistory'
@@ -53,7 +53,7 @@ import {
   sectionContent,
   summaryContent,
 } from '../documentContent'
-import { describeCitation, type Claim, type ReviewFocus } from '../reviewDisplay'
+import { describeCitation, subsectionId, type Claim, type ReviewFocus } from '../reviewDisplay'
 import { formatDayTime } from '../format'
 import { useActivity } from '../../marshbot/useActivity'
 import { useObservations } from '../useObservations'
@@ -145,6 +145,7 @@ export function ReviewWorkspace({
   historyRequest = 0,
   openSection,
   canAsk = false,
+  onViewObservation,
 }: {
   reference: string
   // The assessment with its client and site, for the document's page layout
@@ -170,6 +171,9 @@ export function ReviewWorkspace({
   // May ask questions about the assessment in the inspector's Ask tab (AS-01):
   // anyone who can open it with `reports:ask`.
   canAsk?: boolean
+  // Opens an observation on the Observations tab, or the tab itself for null:
+  // where writing guidance's Go to observation goes (AS-08).
+  onViewObservation?: (id: string | null) => void
 }) {
   const { workspace, loadError, keep, reload } = useReview(reference)
   const { ofis, setOfis, reload: reloadOfis } = useOfis(reference)
@@ -227,12 +231,22 @@ export function ReviewWorkspace({
   const [shownPassage, setShownPassage] = useState<CommentAnchor | null>(null)
   // AI-drafted text being accepted or deleted (AS-04), by its proposal.
   const [aiBusy, setAiBusy] = useState<string | null>(null)
+  // A part of a section writing guidance went to (AS-08), scrolled to once drawn.
+  const [goal, setGoal] = useState<{ sectionId: string; subsection: number; at: number } | null>(
+    null,
+  )
   // Brings a source opened from an answer into view, also when the panel sits
   // below the draft (tablet) or the sheet just closed (phone).
   useEffect(() => {
     if (askedRef)
       document.querySelector('[data-asked-viewer]')?.scrollIntoView?.({ block: 'nearest' })
   }, [askedRef])
+  useEffect(() => {
+    if (goal)
+      document
+        .getElementById(subsectionId(goal.sectionId, goal.subsection))
+        ?.scrollIntoView?.({ block: 'center' })
+  }, [goal])
 
   // Version history chosen from the ⋯ menu opens it, leaving the document
   // editor (the menu asked first if anything there was unsaved) for the
@@ -294,6 +308,7 @@ export function ReviewWorkspace({
           canComment={canComment}
           me={me ?? undefined}
           ask={canAsk ? ask : null}
+          onViewObservation={onViewObservation}
           onReturn={(id) => {
             setReturnedFrom(workspace.asOf)
             setDocumentAt(null)
@@ -415,6 +430,7 @@ export function ReviewWorkspace({
           locate: locatePassage,
           onShowPassage: showPassage,
           drafting: drafting(),
+          guidance: guidance(),
         }
       : undefined
   // A source opened from an answer, in a part with no draft to cite it.
@@ -454,6 +470,30 @@ export function ReviewWorkspace({
   // engineer only (AC5), into the section open when it is one of Sections 4
   // to 12. Once text is inserted, replaced or undone, the workspace shows the
   // section's new version, on that section.
+  // Writing guidance for the part open (AS-08), for anyone who can ask: what
+  // it should cover and what is missing from it. Go to section opens the
+  // section, at the finding or the part when the gap names one; Go to
+  // observation opens it on the Observations tab. The Ask tab stays open, but
+  // on a phone the sheet closes to show the section.
+  const guidance = (): AskGuidanceTarget => {
+    const open = sections.find((s) => s.id === railId)
+    const label = open ? `${open.id}. ${open.title}` : PART_TITLES[railId]
+    return {
+      target: label ? { sectionId: railId, label } : null,
+      onGo: (link) => {
+        if (link.to === 'observation') {
+          onViewObservation?.(link.observationId)
+          return
+        }
+        setHistoryOpen(false)
+        setAskSheet(false)
+        if (link.sectionId !== railId) select(link.sectionId)
+        if (link.finding) setFocus({ citation: null, statement: link.finding })
+        if (link.subsection !== undefined)
+          setGoal({ sectionId: link.sectionId, subsection: link.subsection, at: Date.now() })
+      },
+    }
+  }
   const drafting = (): AskDrafting | undefined => {
     if (!canReview || ask.archived) return undefined
     const open = sections.find((s) => s.id === railId)

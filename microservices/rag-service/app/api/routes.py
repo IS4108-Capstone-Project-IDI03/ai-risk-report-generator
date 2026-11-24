@@ -195,7 +195,8 @@ def retrieve_chunks(request: RetrieveRequest) -> dict:
 
 @router.get("/sections")
 def list_sections() -> dict:
-    # The template's sections and what each needs, so the gateway doesn't keep its own copy.
+    # The template's sections and what each needs, so the gateway doesn't keep its own copy. Each
+    # lists its parts too (AS-08), so the gateway can say which have no text or read Not entered.
     return {
         "sections": [
             {
@@ -203,6 +204,14 @@ def list_sections() -> dict:
                 "title": section["title"],
                 "cope_dimensions": section["cope_dimensions"],
                 "min_observations": section["min_observations"],
+                "subsections": [
+                    {
+                        "heading": sub["heading"],
+                        "kind": sub["kind"],
+                        **({"fields": sub["fields"]} if sub.get("fields") else {}),
+                    }
+                    for sub in section["subsections"]
+                ],
             }
             for section_id, section in TEMPLATE["sections"].items()
         ],
@@ -697,6 +706,17 @@ class AskPropose(BaseModel):
     subsections: Annotated[list[AskSubsection], Field(max_length=50)] = []
 
 
+# Writing guidance for one of Sections 4 to 12 instead of an answer (AS-08): what the section
+# should cover, from the report template's definition of it and the selected standards. The
+# section as the report heads it ("9. Fire Protection"). ("What is missing" needs no model: the
+# gateway lists it.)
+class AskGuide(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["cover"]
+    section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[4-9])$")]
+    section_title: Annotated[str, StringConstraints(max_length=200)]
+
+
 class AskRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: Question
@@ -710,19 +730,23 @@ class AskRequest(BaseModel):
     privacy: Privacy | None = None
     passage: AskPassage | None = None
     propose: AskPropose | None = None
+    guide: AskGuide | None = None
 
     @model_validator(mode="after")
     def _rewrite_has_passage(self):
         if self.propose and self.propose.kind == "rewrite" and self.passage is None:
             raise ValueError("A rewrite needs the passage to rewrite.")
+        if self.guide and (self.passage or self.propose):
+            raise ValueError("Writing guidance is asked on its own.")
         return self
 
 
 @router.post("/assessments/ask")
 def ask_assessment(request: AskRequest) -> StreamingResponse:
     """Stream one cited answer to a question about an assessment (AS-01), or about a passage
-    selected in its draft (AS-02), or text proposed for a section (AS-04), through the
-    orchestrator: retrieve, assemble, generate, guardrail. Its last event is the result."""
+    selected in its draft (AS-02), or text proposed for a section (AS-04), or what a section
+    should cover (AS-08), through the orchestrator: retrieve, assemble, generate, guardrail. Its
+    last event is the result."""
     events = ask_events(
         request.question,
         request.assessment,
@@ -732,6 +756,7 @@ def ask_assessment(request: AskRequest) -> StreamingResponse:
         privacy=_privacy(request),
         passage=request.passage,
         propose=request.propose,
+        guide=request.guide,
     )
     return StreamingResponse(events, media_type="text/event-stream")
 

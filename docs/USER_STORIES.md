@@ -1686,6 +1686,20 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 16 Nov 2026 (DECISIONS 2026-11-16). "Draft text" beside Ask drafts for the section open (Sections 4 to 12); "Rewrite this" beside Ask about this, and in the document editor's toolbar, rewrites the whole paragraphs the selection is in. A draft goes at the end of the subsection the model suggests, or one the engineer chooses. The text is kept as a proposal (`report_text_proposals`); Insert or Replace saves the section's next version with it marked AI draft until the engineer accepts it in the review workspace (Accept, or Delete); Undo restores the version before. A sentence is resolved once given a citation, reworded or deleted; Accept waits for that. The drafting set is the standards selected on the assessment, as AS-01 reads them; past reports are never cited. Since RV-11 knowledge admins hold `reports:generate` too, so the assigned-engineer check is what hides Insert and Replace from them. In the document editor, Insert waits for unsaved changes to be saved.
   </details>
 
+- [ ] **AS-08** — Writing guidance for a section (risk engineer, AI and Machine Learning, deps: AS-01)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, ask what a section should cover and what it still lacks, so that I know what to write or capture before sign-off.
+
+  1. "What should this section cover?" is answered from the section's definition in the report template and the selected standards, with citations.
+  2. "What is missing from this section?" lists the gaps, each with a Go to section or Go to observation link. Gaps include: tables reading "Not entered"; COPE categories with no observation; open findings; out-of-date drafts.
+  3. Gaps that block export come from `exportBlockers`, so the assistant and the Export tab never disagree.
+  4. Gaps are stated as facts, e.g. "Section 7 has no observation tagged Protection", never as advice.
+  5. Guidance never changes the report.
+
+  Built 24 Nov 2026 (DECISIONS 2026-11-24). Two buttons above the Ask tab's question box ask about the part open, never a guess from the wording. "What should this section cover?" (Sections 4 to 12) goes to S4 as an Ask question does, with the template's definition of the section as evidence (T1, T2, …) and the selected standards, and no observations or past reports; a cited part goes to its place in the section. "What is missing from this section?" (Sections 2 to 12) is listed by the gateway with no AI call: the export check's own blockers first (one function, `detailedBlockers`, which also builds `exportBlockers`), each stated as a fact, then parts with no text, tables reading "Not entered", categories with no usable observation and the observations the draft leaves out. Both are kept in the conversation (AS-03).
+  </details>
+
 ## E8 — Evaluation Harness
 
 - [ ] **EV-01** — Validate report evidence links and structure (risk engineer, Must, 3 pts, deps: GN-01, Sprint 4)

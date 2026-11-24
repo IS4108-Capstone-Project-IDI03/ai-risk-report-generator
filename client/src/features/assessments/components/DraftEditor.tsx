@@ -31,6 +31,7 @@ import {
   maturityEntries,
   plural,
   statementId,
+  subsectionId,
   type Claim,
   type ReviewFocus,
 } from '../reviewDisplay'
@@ -409,6 +410,7 @@ function AiParagraph({
 
 function DraftSubsection({
   sub,
+  index,
   blocks,
   claims: all,
   actions,
@@ -417,6 +419,8 @@ function DraftSubsection({
   ...citing
 }: Citing & {
   sub: ReviewDraft['subsections'][number]
+  // Its place in the section, for writing guidance to go to its note (AS-08).
+  index: number
   // The subsection's text: its findings and anything the engineer wrote (RV-08).
   blocks: DocumentBlock[]
   // Every finding in the draft, by which those in `blocks` are shown.
@@ -437,7 +441,7 @@ function DraftSubsection({
   }
   if (sub.kind === 'table' || (!sub.statements.length && !written && !claims.length)) {
     return (
-      <div className="rv-subsection-note">
+      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
         <strong>{sub.heading}</strong>
         <p className="rv-muted">
           {sub.kind === 'table'
@@ -449,7 +453,7 @@ function DraftSubsection({
   }
   if (!claims.length && !written) {
     return (
-      <div className="rv-subsection-note">
+      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
         <strong>{sub.heading}</strong>
         <p className="rv-muted">
           Every finding in this subsection was rejected, so it is left out of the report. The review
@@ -833,6 +837,7 @@ export function DraftEditor({
                 <DraftSubsection
                   key={sub.heading}
                   sub={sub}
+                  index={i}
                   blocks={content.subsections[i]?.blocks ?? []}
                   claims={claims}
                   actions={actions}
