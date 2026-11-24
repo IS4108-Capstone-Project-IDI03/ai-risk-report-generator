@@ -10,7 +10,7 @@ import {
   type PartJobStatus,
 } from '../models/drafting-run.model'
 import type { ISite } from '../models/site.model'
-import { SiteWalkModel } from '../models/site-walk.model'
+import { SiteWalkModel, type RecordingTranscription } from '../models/site-walk.model'
 import type { SessionUser } from './auth.service'
 import {
   listAwaitingDecision,
@@ -139,7 +139,14 @@ function walkRow(walk: StoredWalk, assessment: OwnAssessment): BackgroundWorkRow
   }
 }
 
-// Transcribing counts recordings done. Proposing is one model call with no
+const RECORDING_SEGMENT: Record<RecordingTranscription, Segment> = {
+  transcribed: 'done',
+  transcribing: 'working',
+  failed: 'failed',
+  queued: 'empty',
+}
+
+// Transcribing counts recordings done, each recording a segment. Proposing is one model call with no
 // progress of its own; nothing else changes the walk while it runs, so its
 // last change is when proposing began.
 function walkProgress(walk: StoredWalk): Pick<BackgroundWorkRow, 'progress' | 'startedAt'> {
@@ -154,6 +161,7 @@ function walkProgress(walk: StoredWalk): Pick<BackgroundWorkRow, 'progress' | 's
       current: walk.recordings.filter((r) => r.transcription.status === 'transcribed').length,
       total: walk.recordings.length,
       unit: 'recordings',
+      segments: walk.recordings.map((r) => RECORDING_SEGMENT[r.transcription.status]),
     },
   }
 }

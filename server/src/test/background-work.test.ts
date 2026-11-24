@@ -78,7 +78,13 @@ describe('site walks', () => {
         state: 'running',
         title: 'Morning walk',
         context: { label: 'Jurong Cold Store', reference: REF },
-        progress: { type: 'stages', current: 1, total: 2, unit: 'recordings' },
+        progress: {
+          type: 'stages',
+          current: 1,
+          total: 2,
+          unit: 'recordings',
+          segments: ['done', 'working'],
+        },
         href: `/assessment?ref=${REF}&tab=observations&walk=${created._id}`,
       }),
     ])
@@ -131,6 +137,31 @@ describe('site walks', () => {
         },
       }),
     ])
+  })
+
+  it("a walk's recordings show which are transcribed, under way, failed or still to come", async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    await walk(assessmentId, engineer._id, {
+      status: 'failed',
+      error: 'A recording could not be transcribed.',
+      recordings: [
+        recording(1, 'transcribed'),
+        recording(2, 'failed'),
+        recording(3, 'transcribing'),
+        recording(4, 'queued'),
+      ],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toEqual({
+      type: 'stages',
+      current: 1,
+      total: 4,
+      unit: 'recordings',
+      segments: ['done', 'failed', 'working', 'empty'],
+    })
   })
 
   // Regression: passed from the start, since only working or failed walks are read.
