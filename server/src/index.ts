@@ -26,6 +26,7 @@ import assistantRoutes from './routes/assistant.routes'
 import assistantEventRoutes from './routes/assistant-events.routes'
 import generationRoutes from './routes/generation.routes'
 import { practiceGate, walkthroughUsage } from './middleware/practice.middleware'
+import comparisonRoutes from './routes/comparison.routes'
 import { assistantRecheck } from './middleware/assistant-recheck.middleware'
 import { scheduleDailyAssessmentChecks } from './services/assistant/check-queue.service'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
@@ -108,6 +109,8 @@ app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
 // Dictating into an assessment's text fields (CP-27).
 app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
+// Comparing with the previous report for the same site (RV-13).
+app.use('/api/assessments/:reference/comparison', requireAuth, comparisonRoutes)
 // The site's weather (CP-62). An open panel refreshes it every 10 minutes, so reading it doesn't
 // refresh the session (F-07), as for MarshBot's brief.
 app.use('/api/assessments/:reference/weather', requireAuthNoRefresh, weatherRoutes)

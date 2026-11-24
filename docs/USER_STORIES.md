@@ -1612,6 +1612,28 @@ Full product backlog, carried over from planning. Tick a story's checkbox when i
   Built 4 Nov 2026 (DECISIONS 2026-11-04). AC2 now names the details page: Marsh's samples put the site, address and date on the cover and the client, surveyor and dates on page i, so both are drawn. The template was measured from the two samples (US Letter, Arial); the fonts are Arial, so no substitute is needed where it is installed. A block moves whole to the next page, so a long paragraph is never split across two, and pages break a little earlier than Word's. AC6's pages reflow as the text changes, before it is saved. AC9 needs a full seeded report for each sample: the eval cases are single sections.
   </details>
 
+- [ ] **RV-13** — Compare an assessment with the previous report for the same site (risk engineer, AI and Machine Learning, deps: CP-17, CP-23, RV-02, RV-08, GN-05, PV-02)
+  <details><summary>Goal / AC</summary>
+
+  Goal: as a risk engineer, compare an assessment with the previous report for the same site, so that I can see what changed since the last survey, what was fixed and what got worse. The comparison is drafted by AI from the previous finalised report and the current assessment's observations and draft findings. Every outcome cites both reports, and the engineer confirms each one. The comparison never changes the report or its export.
+
+  1. Resurveying a known site: the engineer can choose a site that already has an assessment, and the new assessment is linked to it.
+  2. Finding the previous report: the Comparison tab names the report it compares against (reference, site visit date, lead engineer), the latest earlier finalised report by default, and another can be picked. With none, the tab says so and when a comparison becomes available.
+  3. Running: with a previous report and at least one saved observation, each previous finding and recommendation gets one outcome (Fixed, Improved, Unchanged, Worse or Not checked), each current finding with no counterpart is New, and a summary gives exact counts.
+  4. Both sides: an item shows the previous words verbatim with their section, the current evidence (each opening its source) and a confidence of High, Medium or Low.
+  5. Silence is not a fix: an item no current evidence covers is Not checked and says what evidence is missing; Fixed or Unchanged always cites a current source.
+  6. Changes are measured: differing severities make Worse or Improved, both shown; a figure in both reports shows both values and the difference, worked out in code.
+  7. Uncertainty is flagged: sources that disagree show "Sources disagree", name both, cap confidence at Medium and leave the outcome to the engineer; no clear match means listed separately.
+  8. The engineer decides each outcome (accept, change, re-pair, unpair, dismiss), saved with name and time; the AI marking turns neutral and the counts update. Fixed without a current source needs a short note.
+  9. It stays current: a changed observation or draft finding marks it out of date, naming what changed; Compare again keeps decisions on unchanged items and flags the rest.
+  10. Order and filters: Worse, New at Critical or High, Not checked, Unchanged, Improved, Fixed; filters by outcome, COPE category, severity and location, with the count shown.
+  11. Access: the assigned engineer runs and decides, a knowledge admin reads, other engineers are refused, and an archived assessment is read only.
+  12. Kept apart from the report: sections, versions, review log, findings and the exported files hold nothing from it.
+  13. A failed run states the cause and time and offers Retry, keeping the last comparison; without the gateway the tab says it is unavailable with sample data; below 1080 px the list and item stack, below 760 px an item opens in a bottom sheet.
+
+  Built 24 Nov 2026 (DECISIONS 2026-11-24, "RV-13"). AC1 was already met by CP-23's New Assessment form (a listed site), so nothing changed there. The previous report is the latest earlier assessment of the same site with `reportStatus: 'finalised'`, not archived, by site visit date (else creation). Its items are each paragraph and list item of Sections 4 to 12 as the report reads them, drafted or the engineer's own, and each accepted OFI; Section 2 is left out as it summarises the others. The current evidence is the observations with words, the draft findings as reviewed and the accepted OFIs. S4 suggests; the gateway's rules decide Not checked, Worse or Improved by severity, Sources disagree, New items, figures and confidence. Kept in `report_comparisons`; nothing in the export reads it.
+  </details>
+
 - [x] **RV-10** — Find assessments/reports (risk engineer, Must, 2 pts, deps: CP-01, Sprint 1)
   <details><summary>Goal / AC</summary>
 

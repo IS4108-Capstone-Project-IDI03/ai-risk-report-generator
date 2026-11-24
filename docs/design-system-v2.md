@@ -1,4 +1,4 @@
-# Risk Report Generator design system, v2.20
+# Risk Report Generator design system, v2.21
 
 The look every new screen follows: calm, Apple-like screens, white cards on a pale page, Marsh navy for actions and titles, and colour only where it means something.
 
@@ -302,6 +302,7 @@ Not animated: rows reordering on sort or filter, row hover actions and the rows 
   - v2.18 (23 Nov 2026, CP-62): the site weather panel (a bar on the Overview, a card on New Observation), its one warning, and an Assessments row's weather line (section 6), built without a board; to approve on the canvas. Red now also means "do not proceed" in a safety warning.
   - v2.19 (24 Nov 2026, AS-08): writing guidance in the Ask tab: the two guidance buttons, the gap list card and the Report template citation (section 6), built without a board; to approve on the canvas.
   - v2.20 (24 Nov 2026, F-12 and F-13): the walkthrough bubble, its spotlight and "Your turn" ring, the shared help tip, and the walkthrough checklist in Settings (section 6), built from the F-12 canvas.
+  - v2.21 (25 Nov 2026, RV-13): the Comparison tab: the report compared with, outcome count tiles that filter, the item list beside the open item (stacked below 1080 px, a bottom sheet below 760 px) and the decision dialogs, built without a board; to approve on the canvas. A suggested outcome is an AI violet pill with a sparkle and a decided one a neutral pill with a tick, because the story asks for an AI marking that turns neutral: an exception to "No made by AI labels".
 
 ## 10. When this file says nothing
 

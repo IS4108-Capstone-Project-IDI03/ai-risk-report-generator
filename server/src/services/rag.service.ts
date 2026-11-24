@@ -683,3 +683,61 @@ export async function requestInsightSummary(
     body: JSON.stringify(body),
   })
 }
+
+// One previous report item, or one piece of current evidence, as the report
+// comparison (RV-13) sends it to S4, in the shape of POST /comparison/compare.
+// Must match rag-service routes.py's ComparedItem.
+export type ComparedItem = {
+  label: string
+  kind: 'finding' | 'recommendation' | 'observation'
+  section: string
+  title: string | null
+  text: string
+  severity: string | null
+  priority: string | null
+  categories: string[]
+  location: string | null
+}
+
+// S4's suggestion for each previous item, labels tidied and checked
+// (app/comparison/compare.py); the gateway's rules decide the rest.
+export type ReportComparisonResult = {
+  items: {
+    previous: string
+    outcome: 'fixed' | 'improved' | 'unchanged' | 'worse' | 'not_checked'
+    sources: string[]
+    match: 'clear' | 'partial'
+    disagree: string[]
+    possible: string[]
+    reason: string | null
+    missing: string | null
+    figures: { name: string; previous: string; current: string; source: string }[]
+    omitted: boolean
+  }[]
+  dropped: number
+  provenance: {
+    provider: string
+    model: string
+    effort: string
+    prompt_version: string
+    privacy: DraftPrivacy
+  }
+  usage: unknown
+}
+
+/**
+ * Asks rag-service to suggest an outcome for each previous report item
+ * (RV-13). Throws RagServiceError; its `status` is 503 when privacy protection
+ * is on and masking is unavailable, so nothing was sent to the model.
+ */
+export async function requestReportComparison(body: {
+  previous: ComparedItem[]
+  current: ComparedItem[]
+  privacy: { enabled: boolean; known_entities: unknown[] }
+}): Promise<ReportComparisonResult> {
+  return callRag<ReportComparisonResult>('/comparison/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

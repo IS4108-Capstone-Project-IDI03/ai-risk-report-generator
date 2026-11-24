@@ -3791,6 +3791,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       isChecklist: isAssessment && s.tab === 'checklist',
       isGenerate: isAssessment && s.tab === 'generate',
       isReview: isAssessment && s.tab === 'review',
+      // Compared with the previous report for the same site (RV-13).
+      isComparison: isAssessment && s.tab === 'comparison',
       isExport: isAssessment && s.tab === 'export',
       // Capture is part of the workspace, so it keeps the workspace's header,
       // named from the capture session when one is live. New Assessment has
@@ -3900,6 +3902,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           icon: 'user-round-search',
           // Counts only for the demo's sample review, shown while it is not on the server.
           count: isDemoCapture && !openRow?.persisted ? live.length : undefined,
+        },
+        {
+          // What changed since the site's previous finalised report (RV-13). Read by anyone who
+          // can open the assessment; only its engineer runs it and decides (the gateway checks).
+          value: 'comparison',
+          label: 'Comparison',
+          icon: 'git-compare',
         },
         {
           value: 'export',

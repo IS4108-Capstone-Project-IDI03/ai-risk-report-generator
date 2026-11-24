@@ -2082,6 +2082,59 @@ archived assessment the buttons are not shown and the gateway answers 409.
 - **Never the report** (AC5): neither writes to sections, versions, the review
   log, comment threads or the assessment; only the conversation keeps them.
 
+## Comparing with the previous report (S4, gateway, RV-13)
+
+The assessment workspace's Comparison tab compares the assessment with an
+earlier finalised report of the same site: what was fixed, what got worse and
+what is new since that survey. The model suggests; code decides what an outcome
+may be; the engineer confirms. Nothing here changes the report or its export.
+Storage and routes: docs/areas/database.md, "Report comparisons".
+
+1. The gateway (`report-comparison.service.ts`) finds the site's earlier
+   finalised reports: assessments of the same site with `reportStatus:
+   'finalised'`, not archived, whose site visit (else creation) came first,
+   latest first.
+2. Compare with previous report reads the previous report's text as it reads
+   now (`sectionNow` for Sections 4 to 12, then accepted OFIs) and the current
+   evidence (observations with words, oldest first; draft findings as reviewed;
+   accepted OFIs), and sends both, labelled P1… and O1…, F1…, R1…, to `POST
+   /comparison/compare` with `privacy` from `privacyFor`. Template section names
+   come from S4's `GET /sections`.
+3. rag-service (`app/comparison/compare.py`, prompt `rv13-v1`, `COMPARISON_MODEL`
+   and `COMPARISON_EFFORT` on `LLM_PROVIDER`) masks everything in one `/mask`
+   call (fail closed: 503, nothing sent), asks the model 40 previous items at a
+   time with all the current evidence, and returns one entry per previous item:
+   the suggested outcome, sources, a clear or partial match, disagreeing
+   sources, possible matches, a reason or the missing evidence, and figures
+   copied as written. It drops labels it never gave, answers an item the model
+   left out as Not checked (`omitted`), and leaves out a reason or missing line
+   that gives advice, speaks in the first person or holds a placeholder it
+   can't restore. Usage is recorded as `report-comparison`.
+4. The gateway settles each item (`settleItem`): no current source means Not
+   checked; differing severities (or OFI priorities) mean Worse or Improved;
+   two or more disagreeing sources leave the outcome to the engineer and cap
+   confidence at Medium; a figure is kept only when both values are in their
+   texts as copied, and its difference is worked out on the written digits
+   (`figureDifference`). Confidence is worked out from these checks.
+5. On every read, `foldComparison` applies the engineer's decisions, adds New
+   items (current findings no previous item is compared with; a draft finding
+   stands for the observations it cites), counts and orders them (Worse, New at
+   Critical or High, sources disagree, Not checked, other New, Unchanged,
+   Improved, Fixed; dismissed last), and `changesSince` names what changed in
+   the evidence since the run.
+6. Compare again (`carryDecisions`) copies onto the new comparison the decisions
+   whose sources read and are tagged as when decided, and flags the rest, and
+   any item whose evidence changed, for another look.
+
+The client (`client/src/features/assessments/comparison/`) shows the report
+compared with (a picker when there are several), the counts as tiles that
+filter, filters by outcome, COPE category, severity and location with the count
+shown, and the list beside the open item; below 1080 px they stack, below
+760 px an item opens in a bottom sheet. An observation source opens the
+observation; a draft finding or OFI opens its section in Review. Without the
+gateway the tab says it is unavailable with sample data. Comparisons and
+decisions don't queue MarshBot's re-check (`assistant-recheck.middleware.ts`).
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
