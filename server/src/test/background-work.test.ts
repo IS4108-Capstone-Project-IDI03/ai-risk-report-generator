@@ -530,7 +530,7 @@ describe('knowledge admins', () => {
     expect(res.body.rows).toEqual([])
   })
 
-  it('a document being ingested shows its stage and the pages done in it', async () => {
+  it('a document being ingested shows its stages, the one under way, and the pages done in it', async () => {
     const { admin } = await people()
     const document = await upload('FM 8-9')
     const stageStarted = new Date('2026-11-23T09:02:00Z')
@@ -565,6 +565,7 @@ describe('knowledge admins', () => {
           stage: 'Chunking',
           step: 2,
           steps: 3,
+          segments: ['done', 'working', 'empty'],
         },
         startedAt: stageStarted.toISOString(),
         href: '/admin/knowledge-base',
@@ -819,6 +820,7 @@ describe('knowledge requests (CB-07)', () => {
           stage: 'Parsing',
           step: 1,
           steps: 3,
+          segments: ['working', 'empty', 'empty'],
         },
       }),
     ])

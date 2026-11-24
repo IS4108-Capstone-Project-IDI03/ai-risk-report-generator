@@ -355,8 +355,8 @@ function stagesOf(current: string, done: string[], state: Segment) {
   }
 }
 
-// A document being ingested (E2): its stage, of three, or four when the report
-// is anonymised first (PV-05), and the pages that stage has reached. Before
+// A document being ingested (E2): its stages, the one under way, and the pages
+// that stage has reached. Before
 // the worker reports (queued, or just taken), it waits, timed from its upload.
 // A failed one can be tried again.
 function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
@@ -392,10 +392,6 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
         startedAt: queuedSince(d),
       },
     ]
-  const stages = ingestionStages(
-    p.currentStage,
-    p.stageLog.map((e) => e.stage),
-  )
   return [
     {
       ...row,
@@ -403,9 +399,11 @@ function ingestionRows(d: KnowledgeDocumentDto): BackgroundWorkRow[] {
       progress: {
         type: 'count',
         ...counted(p),
-        stage: STAGE_NAMES[p.currentStage] ?? p.currentStage,
-        step: stages.indexOf(p.currentStage) + 1,
-        steps: stages.length,
+        ...stagesOf(
+          p.currentStage,
+          p.stageLog.map((e) => e.stage),
+          'working',
+        ),
       },
       startedAt: p.currentStageStartedAt,
     },
