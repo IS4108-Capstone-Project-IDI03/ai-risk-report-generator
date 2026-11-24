@@ -2437,7 +2437,9 @@ record, makes the practice assessment, and answers one question before a try-it.
     row (a block no taller than 120 px and at least half the target's width) is never cut: one
     the edge crosses is left out whole, a dim gap of at least 8 px stays between the cut-out and
     the sheet, and the cut-out never goes past what the target's scroller shows (a target running
-    past the screen is lit down to its last whole row on it). Only a target with no whole row on
+    past the screen is lit down to its last whole row on it). On any screen size, a bar pinned
+    over a target's edge (the Ask panel's question box over the answer) is never lit with it
+    (`pinnedCut` in `placement.ts`, used by `targets.ts`). Only a target with no whole row on
     either side keeps the sheet to the larger side, cut between two lines. The one exception to the gap: a target whose own top is at most 8 px under a sheet at the top
     is lit from that top (the admin's Tools list). Split note's parts and Insights' three panels
     draw compact while lit there (CSS keyed on `data-walk-on`). The cut-out opens with the sheet,
@@ -2464,8 +2466,9 @@ record, makes the practice assessment, and answers one question before a try-it.
     which fires no Back event) ends the walkthrough as a skip, noticed through
     `useWalkthroughScreen`'s cleanup. During the wait the walkthrough takes no key (`keys.ts`): Esc
     closing a menu goes to the app and never skips a walkthrough the person cannot see. The same
-    goes for Esc in one of the page's controls once a hands-on step has let its spotlight go: it
-    closes the list the person opened, and Esc from the bubble still skips. A person who leaves in
+    goes for Esc outside the bubble once a hands-on step has let its spotlight go: it closes the
+    list the person opened (a press on a list's text leaves focus on the page's body, so this is
+    not decided by focus), and Esc from the bubble still skips. A person who leaves in
     the second before the engine's own press ends it as a skip too (`hands.ts`). A screen reader hears "I'll carry on when this is ready."
     meanwhile (a polite status line in `WalkthroughHost`). There are no waiting steps.
   - **Back** is greyed where the step before cannot show again: it was hands-on, or this step
