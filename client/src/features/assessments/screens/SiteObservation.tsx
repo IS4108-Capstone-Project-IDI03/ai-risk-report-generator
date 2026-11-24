@@ -99,6 +99,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
               <KindPicker
                 value={v.fKinds}
                 onChange={v.setFKinds}
+                labels={v.fLabels}
+                onLabels={v.proposalCapture ? undefined : v.setFLabels}
                 reference={v.proposalCapture ? null : v.liveVoice ? v.captureRef : null}
                 text={v.fNote}
                 blurred={blurred}

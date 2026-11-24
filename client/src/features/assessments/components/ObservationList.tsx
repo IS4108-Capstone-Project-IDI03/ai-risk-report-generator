@@ -33,7 +33,7 @@ export function ObservationList({ v, view }: { v: AssessmentWorkflow; view: View
     // A search says what it looked for (CP-13). As on All Photos, Pages and
     // Recordings: Clear all while a filter is set, else Clear search.
     const query = v.obsFilters.q.trim()
-    const filtered = v.obsFilterChips.length > 0
+    const filtered = v.obsFilterChips.length > 0 || !!v.obsTag
     return (
       <div className="ob-empty">
         <EmptyState

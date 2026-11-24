@@ -328,6 +328,19 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
   })
 }, 10000)
 
+describe('Filtering the list by tag (CP-36)', () => {
+  it('narrows the list to a kind or label, with counts, and back to All', async () => {
+    listed = [observation({ kinds: ['recommendation'], labels: ['pump'] }), STAIRWELL_DOOR, VALVE]
+    await openObservations()
+    const row = screen.getByRole('group', { name: 'Filter by tag' })
+    expect(within(row).getByRole('button', { name: /^Recommendation 1/ })).toBeInTheDocument()
+    fireEvent.click(within(row).getByRole('button', { name: /^pump 1/ }))
+    expect(shown(...ALL)).toEqual([HOSE_REEL.note])
+    fireEvent.click(within(row).getByRole('button', { name: /^All/ }))
+    expect(shown(...ALL)).toEqual(ALL)
+  }, 10000)
+})
+
 describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
   // Renders the app twice, so it is given as long as the filtering tests.
   it('categorises an observation and keeps its new tags after reopening', async () => {

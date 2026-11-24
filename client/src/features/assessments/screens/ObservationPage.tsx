@@ -210,8 +210,9 @@ export function ObservationPage({
           <ObservationKinds
             key={o.key}
             kinds={o.kinds}
+            labels={o.labels}
             canChange={o.canChange}
-            save={(kinds) => save({ kinds })}
+            save={(change) => save(change)}
             reference={v.liveReference ?? undefined}
             text={o.detail || o.recordings[0]?.text || ''}
             blurred={blurred}

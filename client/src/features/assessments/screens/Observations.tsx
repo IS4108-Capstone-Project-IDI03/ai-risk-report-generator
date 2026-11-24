@@ -33,6 +33,7 @@ import { ObservationFilters } from '../components/ObservationFilters'
 import { ObservationFooter } from '../components/ObservationFooter'
 import { ObservationTitleRow } from '../components/ObservationTitleRow'
 import { ObservationList } from '../components/ObservationList'
+import { ObservationTagFilter } from '../components/ObservationTagFilter'
 import { ToAskPanel } from '../components/ToAskPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -316,6 +317,7 @@ export function Observations({
                   {!v.obsShowDeleted && (
                     <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
                   )}
+                  {!v.obsShowDeleted && <ObservationTagFilter v={v} />}
                   <ObservationList v={v} view={view} />
                   {!v.obsShowDeleted && v.obsTotal > 0 && !v.obsNoMatch && (
                     <ObservationFooter

@@ -206,6 +206,10 @@ export type Kind = 'fact' | 'info_request' | 'recommendation'
 export type SavedObservation = {
   id: string
   kinds?: Kind[]
+  // Sort-only labels the engineer typed (CP-36); they change nothing in the report.
+  labels?: string[]
+  // Ticked once the info request was put to the client (CP-36).
+  asked?: boolean
   engineer: string
   // Its categories in C-O-P-E order; null when not categorised yet.
   copeDimensions: string[] | null
@@ -448,6 +452,8 @@ export async function saveObservation(
     draftId?: string
     // The tags the engineer chose (CP-36); left out when none.
     kinds?: Kind[]
+    // Their own sort-only labels (CP-36); left out when none.
+    labels?: string[]
   },
   recordings: { name: string; audio: Blob }[],
   photos: NewPhotoPart[] = [],
@@ -521,6 +527,10 @@ export async function updateObservation(
     note?: string | null
     // The tags (CP-36); null clears them.
     kinds?: Kind[] | null
+    // The sort-only labels; null clears them.
+    labels?: string[] | null
+    // Ticks or unticks an info request as asked; this is not an edit of the observation.
+    asked?: boolean
     // Keeps these not-sure values as they are: they become the engineer's (CP-24).
     confirm?: ('category' | 'severity')[]
   },
@@ -825,6 +835,7 @@ export type ToAskItem = {
   text: string
   location: string | null
   severity: string
+  asked: boolean
 }
 
 /** Returns the observations tagged Info request (CP-36), oldest first. */

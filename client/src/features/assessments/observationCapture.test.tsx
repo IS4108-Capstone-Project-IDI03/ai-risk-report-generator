@@ -1291,17 +1291,35 @@ describe('Marking the area of a photo as it is captured (CP-10)', () => {
 })
 
 describe('Tagging the observation on the form (CP-36)', () => {
-  const tag = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
+  const tag = (name: string) =>
+    fireEvent.click(screen.getByRole('button', { name: new RegExp('^' + name) }))
   it('sends the chosen tags with the observation, then starts empty', async () => {
     await openCapture()
     write('Pump is old, replace it.')
     grade('High')
-    tag('Fact')
     tag('Recommendation')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'This note also states a fact' }))
     save()
     expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(saves[0].details.kinds).toEqual(['fact', 'recommendation'])
-    expect(screen.getByRole('button', { name: 'Fact' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^Recommendation/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
+
+  it('sends custom labels with the observation', async () => {
+    await openCapture()
+    write('Hose reel blocked.')
+    grade('High')
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }))
+    const box = screen.getByRole('textbox', { name: 'New label' })
+    fireEvent.change(box, { target: { value: 'hoses' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    save()
+    await screen.findByText('Observation saved')
+    expect(saves[0].details.labels).toEqual(['hoses'])
+    expect(saves[0].details).not.toHaveProperty('kinds')
   })
 
   it('sends no tags when none is chosen', async () => {

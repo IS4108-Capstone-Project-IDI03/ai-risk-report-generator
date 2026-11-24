@@ -1,36 +1,50 @@
 // An observation's tags on its page (CP-36 AC3): the picker while it can be changed, else the
-// badges. A choice saves at once; clearing every chip sends null. A refused save puts the chips
+// tags. A choice saves at once; clearing every tag sends null. A refused save puts the tags
 // back. Rendered by screens/ObservationPage.tsx and site-walk/screens/ProposalPage.tsx.
 import { useState } from 'react'
 import type { Kind } from '../api'
 import { KindBadges } from './KindBadges'
 import { KindPicker } from './KindPicker'
 
+type Change = { kinds?: Kind[] | null; labels?: string[] | null }
+
 export function ObservationKinds({
   kinds,
+  labels,
   canChange,
   save,
   reference,
   text,
   blurred,
+  withLabels = true,
 }: {
   kinds?: Kind[]
+  labels?: string[]
   canChange: boolean
-  // Saves the tags (null clears them); true when it went through.
-  save: (kinds: Kind[] | null) => Promise<boolean>
+  // Saves a change (null clears); true when it went through.
+  save: (change: Change) => Promise<boolean>
   reference?: string
   text: string
   blurred?: string
+  // A site walk proposal has no labels yet.
+  withLabels?: boolean
 }) {
-  // The choice while its save is on its way; null otherwise, so the chips follow the saved tags.
-  const [pending, setPending] = useState<Kind[] | null>(null)
-  const shown = pending ?? kinds ?? []
+  // The choice while its save is on its way; empty otherwise, so the tags follow the saved ones.
+  const [pending, setPending] = useState<Change>({})
+  const shownKinds = pending.kinds !== undefined ? (pending.kinds ?? []) : (kinds ?? [])
+  const shownLabels = pending.labels !== undefined ? (pending.labels ?? []) : (labels ?? [])
+  async function change(next: Change) {
+    setPending((p) => ({ ...p, ...next }))
+    await save(next)
+    // Saved: the tags now come from the observation. Refused: back to what it had.
+    setPending({})
+  }
   if (!canChange)
     return (
       <section className="cpp-card" aria-label="Tags">
         <h3 className="cpp-card-title">{'Tags'}</h3>
-        {kinds?.length ? (
-          <KindBadges kinds={kinds} />
+        {kinds?.length || labels?.length ? (
+          <KindBadges kinds={kinds} labels={labels} />
         ) : (
           <p className="cpp-note-text">{'None (a Fact).'}</p>
         )}
@@ -39,16 +53,16 @@ export function ObservationKinds({
   return (
     <section className="cpp-card" aria-label="Tags">
       <KindPicker
-        value={shown}
+        mode="saved"
+        value={shownKinds}
+        labels={shownLabels}
         reference={reference}
         text={text}
         blurred={blurred}
-        onChange={async (next) => {
-          setPending(next)
-          await save(next.length ? next : null)
-          // Saved: the tags now come from the observation. Refused: back to what it had.
-          setPending(null)
-        }}
+        onChange={(next) => void change({ kinds: next.length ? next : null })}
+        onLabels={
+          withLabels ? (next) => void change({ labels: next.length ? next : null }) : undefined
+        }
       />
     </section>
   )

@@ -209,7 +209,8 @@ export function ProposalPage({
             key={o.ref}
             kinds={o.kinds}
             canChange={!deleted && !readOnly}
-            save={async (kinds) => {
+            withLabels={false}
+            save={async ({ kinds }) => {
               edit({ kinds })
               return true
             }}

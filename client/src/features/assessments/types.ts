@@ -83,6 +83,8 @@ export type Observation = {
   id?: string
   // Its tags (CP-36); absent when untagged.
   kinds?: Kind[]
+  // Its own sort-only labels (CP-36); absent when none.
+  labels?: string[]
   // The checklist item it answers (CP-31), with the item's text then.
   checklist?: { text: string; result: 'confirmed' | 'differs' } | null
   // Created from a site walk proposal (CP-22 round 3), marked "From site walk".
@@ -222,6 +224,9 @@ export type WorkflowState = {
   fNote: string
   // The tags chosen on New Observation (CP-36); empty means untagged, which reads as a Fact.
   fKinds: Kind[]
+  // Their sort-only labels (CP-36), and the tag the Observations list is narrowed to ('' = all).
+  fLabels: string[]
+  obsTag: string
   // Capture was left with something unsaved: the Leave without saving?
   // dialog, and the workspace tab leaving goes to.
   fLeaveOpen: boolean
