@@ -890,7 +890,11 @@ export type ChecklistItem = {
   subsection: string | null
   // Only 'standard' and 'hazard' are written by the model (AC8); 'manual' is
   // the engineer's own (CP-32).
-  origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'manual'
+  origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'manual' | 'past_report'
+  // Always on the checklist for the site type, set in Settings (CP-37).
+  fixed?: boolean
+  // The past Marsh reports a 'past_report' item came from (CP-37).
+  sourceReports?: { title: string; docId?: string }[]
   hazard: string | null
   text: string
   fields: string[]
@@ -935,6 +939,8 @@ export type Checklist = {
   jurisdiction: string
   standards: Omit<ScopeStandard, 'issuingBody' | 'uploadedAt'>[]
   items: ChecklistItem[]
+  // Calm lines above the list, e.g. why only the fixed questions are shown (CP-37).
+  notes?: string[]
   areas: { id: string; title: string }[]
   hazards: { id: string; name: string; standards: string[]; inScope: string[] }[]
   sources: Record<string, ChecklistSource>

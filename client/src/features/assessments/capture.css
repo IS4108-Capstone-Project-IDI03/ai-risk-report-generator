@@ -738,3 +738,38 @@
     transition: none;
   }
 }
+
+/* ---- The checklist beside the recording (CP-37 AC2) ----
+   From 1100 px the cards and the checklist sit side by side; the checklist scrolls by itself. */
+.cap-with-pane {
+  min-width: 0;
+}
+.cap-with-pane[data-pane] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: 16px;
+  align-items: start;
+}
+.cap-checklist-pane {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-card);
+  box-shadow:
+    0 1px 2px rgb(0 15 71 / 0.06),
+    0 0 0 1px var(--cap-line);
+}
+.cap-checklist-pane-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.cap-checklist-pane-note {
+  margin: 4px 0 12px;
+  color: var(--text-secondary);
+  font: 400 13px/1.35 var(--font-sans);
+}

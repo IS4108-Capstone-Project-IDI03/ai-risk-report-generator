@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { getSettings, type Settings as SettingsData } from './api'
+import { ChecklistSection } from './screens/ChecklistSection'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
@@ -57,6 +58,11 @@ const ADMIN: Section[] = [
     render: needs((s, f) => <SourcePrioritySection settings={s} onSaved={f} />),
   },
   {
+    id: 'checklist',
+    label: 'Checklist',
+    render: needs((s) => <ChecklistSection canEdit={s.canEditGlobal} />),
+  },
+  {
     id: 'privacy-words',
     label: 'Privacy words',
     adminOnly: true,
@@ -64,10 +70,7 @@ const ADMIN: Section[] = [
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
-const SOON: Section[] = [
-  ['QA eval', 'Chris'],
-  ['Checklist', 'Xuren'],
-].map(([name, owner]) => ({
+const SOON: Section[] = [['QA eval', 'Chris']].map(([name, owner]) => ({
   id: name,
   label: name,
   owner,

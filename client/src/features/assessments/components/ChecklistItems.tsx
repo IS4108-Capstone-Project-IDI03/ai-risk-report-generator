@@ -283,7 +283,9 @@ function ItemRow({
 }) {
   // Only the model's items are AI-written (CP-30 AC8); the template's and the
   // hazard list's own are the team's, and an edited item is the engineer's.
-  const written = (item.origin === 'standard' || item.origin === 'hazard') && !item.edited
+  const written =
+    (item.origin === 'standard' || item.origin === 'hazard' || item.origin === 'past_report') &&
+    !item.edited
   // Citations of one page of one standard share a chip; opened, it shows each quote.
   const pages = groupCitations(item.citations, checklist)
   const [open, setOpen] = useState<string | null>(null)
@@ -332,6 +334,23 @@ function ItemRow({
         {actions}
       </div>
       {detail && <p style={{ ...muted, marginTop: 'var(--space-2)' }}>{detail}</p>}
+      {/* Where a CP-37 item comes from: Settings (fixed) or past Marsh reports. */}
+      {(item.fixed || item.sourceReports?.length) && (
+        <p
+          style={{
+            ...caption,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--space-3)',
+            marginTop: 'var(--space-2)',
+          }}
+        >
+          {item.fixed && <Badge tone="neutral">Fixed</Badge>}
+          {item.origin === 'past_report' && !!item.sourceReports?.length && (
+            <span>From past report: {item.sourceReports.map((r) => r.title).join(', ')}</span>
+          )}
+        </p>
+      )}
       {general && (
         <p
           style={{
@@ -834,7 +853,11 @@ export function ChecklistItems({
   // set: the standards' items and the engineer's own, and the template's in all.
   const riskItems = checklist.items.filter((i) => i.area === 'hazards')
   const shownInSection = (i: ChecklistItem) =>
-    i.origin === 'standard' || i.origin === 'manual' || (all && i.origin === 'template')
+    i.origin === 'standard' ||
+    i.origin === 'manual' ||
+    i.origin === 'past_report' ||
+    !!i.fixed ||
+    (all && i.origin === 'template')
   const sectionItems = checklist.items.filter((i) => i.area !== 'hazards' && shownInSection(i))
   // A tab's answered items, and any to check after a regenerate lost answers.
   const count = (items: ChecklistItem[]) => {
@@ -855,6 +878,12 @@ export function ChecklistItems({
           {regenerateHint}
         </Callout>
       )}
+      {/* Why the list is short, e.g. no past reports for this site type (CP-37 AC5). */}
+      {checklist.notes?.map((note) => (
+        <Callout key={note} tone="info" title="Note">
+          {note}
+        </Callout>
+      ))}
       <p style={muted}>
         {areaProgress(checklist.items).checked} of {checklist.items.length} answered
       </p>
@@ -1055,7 +1084,12 @@ function SectionsPart({
   // What a section adds to the template: the standards' items and the engineer's own.
   const addedTo = (areaId: string) =>
     checklist.items.filter(
-      (i) => i.area === areaId && (i.origin === 'standard' || i.origin === 'manual'),
+      (i) =>
+        i.area === areaId &&
+        (i.origin === 'standard' ||
+          i.origin === 'manual' ||
+          i.origin === 'past_report' ||
+          (!!i.fixed && i.origin !== 'template')),
     )
   const empty = checklist.areas.filter((area) => addedTo(area.id).length === 0)
   return (

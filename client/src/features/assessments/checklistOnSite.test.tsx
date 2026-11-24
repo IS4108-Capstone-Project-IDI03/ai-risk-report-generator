@@ -209,7 +209,14 @@ afterEach(() => {
 })
 
 // Opens capture at Bay 3, then the checklist over it.
-async function openChecklist() {
+// With wide set, the window is 1100 px or more, so the checklist is a pane (CP-37 AC2).
+async function openChecklist(wide = false) {
+  if (wide)
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('min-width: 1100px'),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }))
   render(<App />)
   await signIn()
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
@@ -221,6 +228,7 @@ async function openChecklist() {
   fireEvent.click(
     await screen.findByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
   )
+  if (wide) return screen.findByRole('complementary', { name: 'Checklist' })
   fireEvent.click(screen.getByRole('button', { name: 'Open checklist' }))
   return screen.findByRole('dialog', { name: 'Checklist' })
 }
@@ -386,4 +394,26 @@ it('marks an item Not seen from ⋯ without an observation, and clears it (AC4)'
     ).toBeInTheDocument(),
   )
   expect(marks[1].body).toEqual({ mark: null })
+})
+
+it('shows the whole checklist beside the recording on a wide screen, no sheet (CP-37 AC2)', async () => {
+  const pane = await openChecklist(true)
+
+  // The pane replaces the Open checklist button and the sheet.
+  expect(screen.queryByRole('button', { name: 'Open checklist' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Checklist' })).not.toBeInTheDocument()
+  // The recording's own controls are still on the screen beside it.
+  expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument()
+  expect(await within(pane).findByRole('region', { name: 'Rack storage' })).toBeInTheDocument()
+
+  // An item is marked there as in the sheet.
+  fireEvent.click(within(pane).getByRole('tab', { name: /^Report sections/ }))
+  fireEvent.click(
+    within(row('Construction Narrative')).getByRole('button', { name: 'More actions' }),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Not seen' }))
+  await waitFor(() =>
+    expect(within(row('Construction Narrative')).getByText('Not seen')).toBeInTheDocument(),
+  )
+  expect(marks[0].body).toEqual({ mark: 'not_seen' })
 })
