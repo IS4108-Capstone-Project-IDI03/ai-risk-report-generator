@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityButton } from './components/ActivityButton'
 import type { BackgroundWorkRow } from './api'
+import { announceBackgroundWork } from './started'
 import { assessmentPlace } from '../assessments/openAssessment'
 import { siteWalkReview } from '../site-walk/openReview'
 import { knowledgeTab } from '../knowledge-base/openTab'
@@ -221,6 +222,17 @@ describe('keeping up to date', () => {
     await act(() => vi.advanceTimersByTimeAsync(29_000))
     expect(reads.count).toBe(1)
     await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(reads.count).toBe(2)
+  })
+
+  it('reads at once when the person starts a job, not at the next 30-second read', async () => {
+    const reads = serve([])
+    render(<ActivityButton />)
+    await settle()
+
+    announceBackgroundWork()
+    await settle()
+
     expect(reads.count).toBe(2)
   })
 

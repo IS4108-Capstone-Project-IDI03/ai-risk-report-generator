@@ -2,13 +2,14 @@
 // activity icon, and kept up to date: every 5 seconds while something is
 // queued or running, every 30 seconds otherwise (new work usually starts from
 // the person's own action, which moves no notification count), and at once
-// when asked (the popover opening) or when the tab is shown again. A hidden
-// tab doesn't read. The route doesn't extend the session, so this polling
-// can't keep an idle tab signed in. Calls api.ts.
+// when asked (the popover opening, or the person starting a job: started.ts) or
+// when the tab is shown again. A hidden tab doesn't read. The route doesn't
+// extend the session, so this polling can't keep an idle tab signed in. Calls api.ts.
 //
 // A failed read keeps the last rows: the icon is a glance, never an error message.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getBackgroundWork, type BackgroundWorkRow } from './api'
+import { backgroundWorkStarted } from './started'
 
 const ACTIVE_MS = 5_000
 const IDLE_MS = 30_000
@@ -46,10 +47,13 @@ export function useBackgroundWork(): { rows: BackgroundWorkRow[]; reload: () => 
     reload()
     const onVisible = () => document.visibilityState === 'visible' && reload()
     document.addEventListener('visibilitychange', onVisible)
+    // The person just started a job (started.ts): read now, so even a short one shows.
+    window.addEventListener(backgroundWorkStarted.event, reload)
     return () => {
       clearTimeout(timer.current)
       inFlight.current?.abort()
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener(backgroundWorkStarted.event, reload)
     }
   }, [reload])
 
