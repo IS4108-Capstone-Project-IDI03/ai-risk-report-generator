@@ -173,12 +173,12 @@ function WordList({
   onRemove: (w: PrivacyWord) => void
 }) {
   const [filter, setFilter] = useState('')
-  // '' is everyone, 'default' the words shipped with the app, otherwise an admin's id.
+  // '' is everyone, 'default' the app's default words, otherwise an admin's id.
   const [addedBy, setAddedBy] = useState('')
   const origin = (w: PrivacyWord) => (w.source === 'default' ? 'default' : (w.addedBy?.id ?? ''))
   const origins = [
     ...(words.some((w) => w.source === 'default')
-      ? [{ value: 'default', label: 'Shipped with the app' }]
+      ? [{ value: 'default', label: 'Default' }]
       : []),
     ...[...new Map(words.flatMap((w) => (w.addedBy ? [[w.addedBy.id, w.addedBy.name]] : [])))]
       .map(([value, label]) => ({ value, label }))
@@ -246,7 +246,7 @@ function WordList({
             added: (
               <span className="st-pw-added">
                 {w.source === 'default'
-                  ? 'Shipped with the app'
+                  ? 'Default'
                   : `${w.addedBy?.name ?? 'An admin'} · ${day(w.at)}`}
               </span>
             ),

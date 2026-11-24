@@ -200,7 +200,7 @@ describe('reading, removing and the change log (PV-09 AC7, AC9)', () => {
   })
 })
 
-describe('the defaults shipped with the app (PV-09 AC5)', () => {
+describe('the defaults that come with the app (PV-09 AC5)', () => {
   const words = async () =>
     (await admin.get('/api/settings/privacy-words')).body.never.map(
       (w: { word: string; reason: string; source: string }) => [w.word, w.reason, w.source],
@@ -230,6 +230,8 @@ describe('the defaults shipped with the app (PV-09 AC5)', () => {
       .post('/api/settings/privacy-words')
       .send({ list: 'never', word: 'Hosereel', reason: 'equipment' })
     expect(res.status).toBe(503)
+    expect(res.body.error).toContain('default Never masked words')
+    expect(res.body.error).not.toContain('shipped')
     expect((await admin.get('/api/settings/privacy-words')).status).toBe(503)
   })
 })
