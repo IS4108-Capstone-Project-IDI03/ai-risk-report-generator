@@ -2859,12 +2859,13 @@ Stories: RV-13, CP-23, RV-02, RV-08, GN-05, PV-02, CP-24.
 - **A document can be uploaded for a request.** The asking engineer could not see that an admin had started on it: a request only gained documents when filled, after ingestion. Uploading from the request records the document in the request's `incomingDocumentIds` and leaves it open; the engineer's row shows its ingestion.
 - **A popover, not a page.** A row is a link to where the job lives, which fits a popover; the bell already sets the pattern. No count badge, since red counts are the Inbox's and the bell's.
 - **Drafting has no Try again in the popover.** Drafting a failed part again means a new run, which drafts what the drafting tab's checkpoint offers; the row opens that tab.
+- **Failures don't flood it.** A finished run's failed sections fold into one row per assessment ("3 sections not drafted"), and every failure's reason is one line, its whole text a tooltip and on the job's own page. A failure for missing evidence is the engineer's input, not a broken job: the popover says drafting stopped and points to the drafting tab, which with MarshBot explains why.
 
 Rejected:
 - A server-sent-events channel per user: needs every job type, the ingestion worker included, to publish.
 - One combined bar for all work: pages, recordings and parts can't be added together.
 - A full page listing every engineer's work for admins: a glance is what's needed; Assessments already lists every engineer's assessments.
 
-Known limits: a job whose worker died still shows as running; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
+Known limits: a job whose worker died still shows as running; a failure inside a run still going shows only once the run is over; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
 
 Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.

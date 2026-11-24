@@ -2360,8 +2360,8 @@ query per assessment, and archived assessments are left out:
 | A site walk transcribing, proposing or failed | `site_walks` | recordings transcribed of all (`stages`); proposing is one AI call (`working`), timed from the walk's last change |
 | A voice note or handwritten page transcribing or failed | `listObservationsOf` (drafts left out) | one AI call, timed from its latest attempt |
 | An observation's reading (photo description, then suggestion) | `listObservationsOf` | one AI call; failed shows its reason and Try again (`/suggestion/retry`) |
-| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`); a part from Review is one AI call. No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
-| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), then pages, or OCR regions in chunking's OCR pass (`count`) |
+| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`); a part from Review is one AI call. Once a run is over, its failed sections fold into one row per assessment ("3 sections not drafted"; one keeps its reason). No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
+| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), then pages, or OCR regions in chunking's OCR pass (`count`); queued is timed from its upload, or from `handled.at` when Try again or a source type choice put it back |
 | A document waiting on an admin (admins) | `listAwaitingDecision` | what to do: choose its source type, confirm its details, or decide on the match |
 | A document uploaded for the user's own open request | `openRequestsWithIncoming` + `listDocumentsByIds` | as ingestion; Try again only for admins |
 
