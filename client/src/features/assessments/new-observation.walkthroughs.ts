@@ -138,7 +138,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // The whole panel: the parts to correct, and Confirm all parts (at its end, so `show: 'end'`).
         target: 'new-observation.split-panel',
         show: 'end',
-        say: "If I've got anything wrong, you can correct it here, and then press **Confirm all parts**. You can also change your codes any time in **Settings → Note-taking**.",
+        say: "If I've got anything wrong, you can correct it here, and then press **Confirm all parts**. You can also change your codes any time in **Settings → Note-Taking**.",
       },
     ],
   },

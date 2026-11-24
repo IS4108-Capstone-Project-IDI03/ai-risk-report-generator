@@ -81,11 +81,11 @@ describe('Settings', () => {
       for (const name of [
         'Password',
         'Models',
-        'QA eval',
-        'Chat and voice',
+        'QA Eval',
+        'Chat and Voice',
         'Checklist',
-        'Source priority',
-        'Note-taking',
+        'Source Priority',
+        'Note-Taking',
       ])
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       // Removed on request: the three defaults, and the Drafting section (S-01 follow-up).
@@ -100,14 +100,14 @@ describe('Settings', () => {
     render(<Settings />)
     open('Checklist')
     expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
-    open('QA eval')
+    open('QA Eval')
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
     // One quiet line, under the title: no second name and no card of its own.
-    expect(screen.getAllByText('QA eval')).toHaveLength(2) // the menu item and the title
+    expect(screen.getAllByText('QA Eval')).toHaveLength(2) // the menu item and the title
     expect(document.querySelector('.st-soon')).toBeNull()
     expect(screen.queryByRole('radio')).toBeNull()
     // Note-taking works now (CP-35): not a Coming soon tile.
-    expect(screen.queryByRole('button', { name: 'Note-taking' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Note-Taking' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
   })
 
@@ -120,11 +120,11 @@ describe('Settings', () => {
       within(el)
         .getAllByRole('button')
         .map((b) => b.textContent)
-    expect(names(group('Set by admin'))).toEqual(['Models', 'Source priority'])
-    expect(names(group('Coming soon'))).toEqual(['QA eval', 'Checklist'])
+    expect(names(group('Set by admin'))).toEqual(['Models', 'Source Priority'])
+    expect(names(group('Coming soon'))).toEqual(['QA Eval', 'Checklist'])
     // What a person sets for themselves has no heading and comes first.
     const personal = menu.firstElementChild as HTMLElement
-    expect(names(personal)).toEqual(['Password', 'Chat and voice', 'Note-taking', 'Walkthroughs'])
+    expect(names(personal)).toEqual(['Password', 'Chat and Voice', 'Note-Taking', 'Walkthroughs'])
     expect(within(personal).queryByText('Set by admin')).toBeNull()
   })
 
@@ -254,7 +254,7 @@ describe('Settings', () => {
   it('shows the memory switch from the chat API', async () => {
     mock(data(false))
     render(<Settings />)
-    open('Chat and voice')
+    open('Chat and Voice')
     await waitFor(() => expect(screen.getByRole('switch')).toBeChecked())
   })
 
@@ -268,7 +268,7 @@ describe('Settings', () => {
         : null,
     )
     render(<Settings />)
-    open('Chat and voice')
+    open('Chat and Voice')
     const memory = await screen.findByRole('switch', { name: 'Remember facts about me in chat' })
     await waitFor(() => expect(memory).toBeChecked())
     fireEvent.click(memory)
@@ -283,7 +283,7 @@ describe('Settings', () => {
     const whisper = row('transcription', { label: 'Voice transcription', fixed: true })
     mock(data(false, [whisper]))
     render(<Settings />)
-    open('Chat and voice')
+    open('Chat and Voice')
     await screen.findByRole('combobox', { name: 'Voice transcription' })
     expect(screen.getAllByText('Set by an admin')).toHaveLength(1)
     expect(document.querySelector('.st-titlebar-end')).toBeEmptyDOMElement()
@@ -339,8 +339,8 @@ describe('Settings QA eval', () => {
     render(<Settings />)
     const menu = screen.getByRole('navigation', { name: 'Settings sections' })
     const soon = within(menu).getByText('Coming soon').parentElement!
-    expect(within(soon).getByRole('button', { name: 'QA eval' })).toBeInTheDocument()
-    open('QA eval')
+    expect(within(soon).getByRole('button', { name: 'QA Eval' })).toBeInTheDocument()
+    open('QA Eval')
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
     expect(screen.queryByText('Standard (current)')).toBeNull()
   })
@@ -358,7 +358,7 @@ describe('Settings Chat and voice', () => {
     open('Models')
     await screen.findByRole('combobox', { name: 'Drafting' })
     expect(screen.queryByRole('combobox', { name: 'Voice transcription' })).toBeNull()
-    open('Chat and voice')
+    open('Chat and Voice')
     expect(isGreyed(screen.getByRole('combobox', { name: 'Voice transcription' }))).toBe(true)
   })
 })
@@ -412,7 +412,7 @@ describe('Settings Source priority (RT-04)', () => {
     render(<Settings />)
     await screen.findByRole('button', { name: 'Models' })
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    open('Source priority')
+    open('Source Priority')
     await screen.findByRole('list', { name: /Source priority/ })
     return fetchMock
   }

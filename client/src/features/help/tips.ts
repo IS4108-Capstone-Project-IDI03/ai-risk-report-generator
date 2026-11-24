@@ -113,7 +113,7 @@ export const TIPS = {
     label: 'About Split note',
     roles: ['risk_engineer'],
     walkthrough: 'split-note',
-    text: 'This sorts your note into facts, info requests and recommendations. If a line starts with one of your codes (F, IR or REC), it goes straight to the right group. You can change your codes in **Settings → Note-taking**.',
+    text: 'This sorts your note into facts, info requests and recommendations. If a line starts with one of your codes (F, IR or REC), it goes straight to the right group. You can change your codes in **Settings → Note-Taking**.',
   },
   // 18. New Observation: Scan
   'new-observation.scan': {
@@ -307,7 +307,7 @@ export const TIPS = {
   'knowledge.tier': {
     label: 'About tiers',
     roles: ['knowledge_admin'],
-    text: 'When 2 sources disagree, the one in the higher tier wins. You can set the order in **Settings → Source priority**.',
+    text: 'When 2 sources disagree, the one in the higher tier wins. You can set the order in **Settings → Source Priority**.',
   },
   // 48. Add documents: Upload panel
   'knowledge-add.upload': {

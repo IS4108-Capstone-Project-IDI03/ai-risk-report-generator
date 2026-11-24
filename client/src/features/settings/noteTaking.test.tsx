@@ -55,7 +55,7 @@ function mock(start: SettingsData) {
 const openIt = async (s: SettingsData) => {
   const patches = mock(s)
   render(<Settings />)
-  fireEvent.click(screen.getByRole('button', { name: 'Note-taking' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Note-Taking' }))
   await screen.findByLabelText('Fact code')
   return patches
 }

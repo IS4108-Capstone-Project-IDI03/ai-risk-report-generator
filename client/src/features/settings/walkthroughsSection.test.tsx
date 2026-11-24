@@ -97,7 +97,7 @@ describe('Settings > Walkthroughs', () => {
       const personal = within(menu.firstElementChild as HTMLElement)
         .getAllByRole('button')
         .map((b) => b.textContent)
-      expect(personal).toEqual(['Password', 'Chat and voice', 'Note-taking', 'Walkthroughs'])
+      expect(personal).toEqual(['Password', 'Chat and Voice', 'Note-Taking', 'Walkthroughs'])
       cleanup()
     }
   })

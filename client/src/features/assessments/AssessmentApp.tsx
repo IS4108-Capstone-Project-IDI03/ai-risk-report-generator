@@ -197,7 +197,8 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       flex: '0 0 auto',
                       background: 'var(--surface-card)',
                       borderBottom: '1px solid var(--border-default)',
-                      padding: '20px clamp(16px,2vw,28px) 0',
+                      // 16 px above, as the TopBar has, so a title sits at one height on every page.
+                      padding: '16px clamp(16px,2vw,28px) 0',
                     }}
                   >
                     <div
@@ -236,16 +237,20 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                               display: 'flex',
                               alignItems: 'center',
                               gap: '10px',
-                              marginBottom: '6px',
+                              marginBottom: '2px',
                             }}
                           >
+                            {/* The eyebrow, title and helper below match the design system's TopBar
+                                (kit.css .ds-topbar-*, v2 section 4), so every page title in the app
+                                is the same 28 px navy, whichever header draws it. */}
                             <span
                               style={{
-                                fontSize: '13px',
-                                fontWeight: '600',
+                                fontSize: '11px',
+                                lineHeight: '1.2',
+                                fontWeight: '700',
                                 letterSpacing: '0.08em',
                                 textTransform: 'uppercase',
-                                color: 'var(--text-muted)',
+                                color: 'var(--graphite-600)',
                               }}
                             >
                               {v.eyebrow}
@@ -261,11 +266,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                           )}
                           style={{
                             margin: '0',
-                            fontSize: 'clamp(23px,2.4vw,32px)',
+                            // 22 px on a phone, as the TopBar's title is there.
+                            fontSize: v.showTopBar ? '22px' : '28px',
                             lineHeight: '1.2',
                             fontWeight: '700',
-                            letterSpacing: '-0.02em',
-                            color: 'var(--text-primary)',
+                            letterSpacing: '-0.01em',
+                            color: 'var(--marsh-navy)',
                             overflowWrap: 'anywhere',
                             textWrap: 'pretty',
                             display: '-webkit-box',
@@ -279,10 +285,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {!v.routeBlocked && !!v.meta && (
                           <div
                             style={{
-                              marginTop: '6px',
-                              fontSize: '15px',
-                              lineHeight: '22px',
-                              color: 'var(--text-secondary)',
+                              marginTop: '2px',
+                              fontSize: '14px',
+                              lineHeight: '1.4',
+                              color: 'var(--graphite-600)',
                             }}
                           >
                             {v.meta}

@@ -551,9 +551,10 @@
      strip was three small scrolling boxes and an item could sit half hidden inside one. */
   .st-menu {
     gap: 4px;
-    scroll-snap-type: x proximity;
-    scroll-padding-inline: 8px;
-    /* A fade at the right edge says the strip scrolls sideways. */
+    /* A fade at the right edge says the strip scrolls sideways; the room after the last item
+       keeps it clear of the fade. No scroll snap: it pulled the strip back from its end, and the
+       last item (QA Eval) stayed cut off when opened. */
+    padding-right: 24px;
     mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
   }
   .st-menu-group {
@@ -571,7 +572,6 @@
   .st-menu-item {
     min-height: 44px;
     white-space: nowrap;
-    scroll-snap-align: start;
   }
   /* "(recommended)" stays in the open list; the closed box keeps room for the model's name. */
   .st-rec--trim {

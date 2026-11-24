@@ -721,7 +721,9 @@ mark.rv-ai-unsupported {
   gap: 8px 12px;
 }
 .rv-review-counts {
-  flex: 1;
+  /* Wide enough to read on one or two lines: on a phone the buttons wrap under it. Without the
+     width it shrank to a column one word wide beside them. */
+  flex: 1 1 220px;
   min-width: 0;
   margin: 0;
   font-size: var(--text-small-size);

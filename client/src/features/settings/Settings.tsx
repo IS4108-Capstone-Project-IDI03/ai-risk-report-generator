@@ -55,14 +55,14 @@ const MINE: Section[] = [
   {
     id: 'chat',
     icon: 'messages-square',
-    label: 'Chat and voice',
+    label: 'Chat and Voice',
     walk: 'settings.menu.chat',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
   },
   {
     id: 'note-taking',
     icon: 'notebook-pen',
-    label: 'Note-taking',
+    label: 'Note-Taking',
     walk: 'settings.menu.note-taking',
     render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
   },
@@ -87,14 +87,14 @@ const ADMIN: Section[] = [
   {
     id: 'source-priority',
     icon: 'list-ordered',
-    label: 'Source priority',
+    label: 'Source Priority',
     walk: 'settings.menu.source-priority',
     render: needs((s, f, end) => <SourcePrioritySection settings={s} onSaved={f} titleEnd={end} />),
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
 const SOON: Section[] = [
-  ['QA eval', 'Chris', 'flask-conical'],
+  ['QA Eval', 'Chris', 'flask-conical'],
   ['Checklist', 'Xuren', 'list-checks'],
 ].map(([name, owner, icon]) => ({
   id: name,
