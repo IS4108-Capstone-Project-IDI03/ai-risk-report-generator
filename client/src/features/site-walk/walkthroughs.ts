@@ -76,7 +76,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         until: 'site-walk-proposal-ready',
       },
       {
-        card: true,
+        // The result: the "Walk finished" block (screens/Recording.tsx), lit with the bubble beside it.
+        target: 'site-walk.finished',
         mood: 'pleased',
         say: "Your walk is ready! On a real walk, you can carry on working while I read it, and I'll let you know in your **Inbox** when it's done.\n\nShall we take a look at what I heard?",
         answers: [

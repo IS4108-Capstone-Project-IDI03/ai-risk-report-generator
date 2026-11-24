@@ -152,17 +152,20 @@ export function SiteWalkRecording({
   if (w.finished)
     return (
       <div className="sw sw-recording">
-        <div className="sw-finished" role="status" data-walk="site-walk.finished">
-          <span className="sw-finished-mark" aria-hidden="true">
-            <Icon name="check" size={28} />
-          </span>
-          <h1>Walk finished</h1>
-          <p className="sw-note">
-            We’ll let you know when it’s ready. You can keep working in the meantime.
-          </p>
-          <button type="button" className="sw-button sw-button--primary" onClick={onClose}>
-            Done
-          </button>
+        <div className="sw-finished" role="status">
+          {/* The block the site walk walkthrough lights (F-12): only its content, not the whole page. */}
+          <div className="sw-finished-body" data-walk="site-walk.finished">
+            <span className="sw-finished-mark" aria-hidden="true">
+              <Icon name="check" size={28} />
+            </span>
+            <h1>Walk finished</h1>
+            <p className="sw-note">
+              We’ll let you know when it’s ready. You can keep working in the meantime.
+            </p>
+            <button type="button" className="sw-button sw-button--primary" onClick={onClose}>
+              Done
+            </button>
+          </div>
         </div>
       </div>
     )
