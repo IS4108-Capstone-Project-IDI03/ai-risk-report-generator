@@ -25,6 +25,7 @@ import { checklistPdfHtml } from './checklist-pdf'
 import { clientNameOf } from './client.service'
 import { printPdf, withExportPage } from './export-render.service'
 import { exportDay } from './export.service'
+import { fixedItemsFor } from './checklist-fixed.service'
 import { listApplicableStandards } from './knowledge-document.service'
 import { locationText } from './location.service'
 import { checkingObservations } from './observation.service'
@@ -149,6 +150,11 @@ export type StandardDto = {
 
 type Checklist = IChecklist & { _id: Types.ObjectId }
 
+// CP-37: where fixed questions sit, and the note shown when no past Marsh report matched.
+const FIXED_AREA = { id: 'fixed', title: 'Always check' }
+const NO_PAST_REPORTS =
+  'No past Marsh reports match this site type and country, so only the fixed questions and the standards are used.'
+
 // Where an item stands on site (CP-31): answered by an observation, Confirmed
 // or Differs, or marked without one; null while unchecked.
 export type ItemCheckDto = {
@@ -194,6 +200,15 @@ async function itemChecks(checklist: Checklist): Promise<Map<string, ItemCheckDt
   return checks
 }
 
+// The past reports an item cites, once each, read from the passages saved with the checklist.
+function reportsOf(citations: IChecklistCitation[], sources: Record<string, unknown>) {
+  const found = citations.flatMap(({ ref }) => {
+    const s = sources?.[ref] as { title?: string; doc_id?: string } | undefined
+    return s?.title ? [{ title: s.title, docId: s.doc_id }] : []
+  })
+  return found.filter((r, n) => found.findIndex((x) => x.title === r.title) === n)
+}
+
 function toDto(
   { _id, assessment: _a, createdBy: _c, metadata: _m, items, ...c }: Checklist,
   checks: Map<string, ItemCheckDto>,
@@ -204,6 +219,9 @@ function toDto(
     items: items.map(({ _id: itemId, check: _k, carried: _f, edited, removed, ...item }) => ({
       id: String(itemId),
       ...item,
+      // CP-37: the admin's fixed questions are marked; a past-report question names its reports.
+      fixed: item.origin === 'fixed',
+      sourceReports: item.origin === 'past_report' ? reportsOf(item.citations, c.sources) : [],
       // Who edited or removed it, and when (CP-32); checklists from before
       // CP-32 have neither.
       edited: edited ? { at: edited.at, by: edited.by.name } : null,
@@ -295,7 +313,8 @@ const asGenerated = (i: IChecklistItem): IChecklistItem => ({ ...i, ...(i.edited
 // the engineer's own never is.
 function flagsFor(origin: ItemOrigin, citations: IChecklistCitation[], flags: 'uncited'[]) {
   const others = flags.filter((f) => f !== 'uncited')
-  const cited = origin === 'template' || origin === 'manual' || citations.length > 0
+  const cited =
+    origin === 'template' || origin === 'manual' || origin === 'fixed' || citations.length > 0
   return cited ? others : [...others, 'uncited' as const]
 }
 
@@ -458,19 +477,36 @@ export async function generateChecklist(
     )
   }
 
+  // CP-37: the admin's fixed questions for this site type always come first, in their own area
+  // unless the admin gave one the checklist has.
+  const known = new Set(draft.areas.map((a) => a.id))
+  const fixed = (await fixedItemsFor(site.facilityType)).map(({ text, area }) => ({
+    area: area && known.has(area) ? area : FIXED_AREA.id,
+    subsection: null,
+    origin: 'fixed' as const,
+    hazard: null,
+    text,
+    fields: [],
+    COPE_dimension: [],
+    citations: [],
+    flags: [],
+  }))
   const previous = await latestStored(assessment._id)
   const carried = carryOver(
     previous,
     previous ? await itemChecks(previous) : new Map<string, ItemCheckDto>(),
-    draft.items.map(({ citations, ...item }) => ({
-      ...item,
-      citations: citations.map((c) => ({
-        ref: c.ref,
-        quote: c.quote,
-        quoteFound: c.quote_found,
-        ...(c.quote_described && { quoteDescribed: true }),
+    [
+      ...fixed,
+      ...draft.items.map(({ citations, ...item }) => ({
+        ...item,
+        citations: citations.map((c) => ({
+          ref: c.ref,
+          quote: c.quote,
+          quoteFound: c.quote_found,
+          ...(c.quote_described && { quoteDescribed: true }),
+        })),
       })),
-    })),
+    ],
   )
   const saved = await ChecklistModel.create({
     assessment: assessment._id,
@@ -478,7 +514,8 @@ export async function generateChecklist(
     jurisdiction: site.jurisdiction,
     standards: inScope.map(({ issuingBody: _i, uploadedAt: _u, ...s }) => s),
     items: carried.items,
-    areas: draft.areas,
+    notes: draft.no_past_reports ? [NO_PAST_REPORTS] : [],
+    areas: fixed.some((i) => i.area === FIXED_AREA.id) ? [FIXED_AREA, ...draft.areas] : draft.areas,
     hazards: draft.hazards.map(({ in_scope, ...h }) => ({ ...h, inScope: in_scope })),
     // The engineer's references keep the passages they were chosen from (CP-32
     // AC3, AC5).

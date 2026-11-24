@@ -1,0 +1,24 @@
+{
+  "_about": "TEST DATA (CP-37). Placeholder fixed questions until Javin's real list arrives. Replace this file with that list: same shape, site type to questions. Seeded once into checklist_fixed_items when it is empty.",
+  "Distribution warehouse": [
+    "Is the fire pump and its controller in automatic mode?",
+    "Are all sprinkler control valves sealed or locked open?",
+    "Is storage kept clear of sprinkler heads by at least 0.5 m?"
+  ],
+  "Cold store": [
+    "What insulation panel type is used, and is its fire rating known?",
+    "Is the refrigerant type and its charge recorded?"
+  ],
+  "Chemical plant": [
+    "Are flammable liquids stored in rated cabinets or bunded areas?",
+    "Is there a process shutdown and isolation procedure?"
+  ],
+  "Paper mill": ["Is dust build-up on beams and ducts cleaned on a schedule?"],
+  "Port terminal": ["How is stacked container storage separated and accessed by fire services?"],
+  "Data centre": [
+    "Is a clean-agent or very early warning detection system fitted in the data halls?"
+  ],
+  "Office": ["Are fire doors kept closed and not wedged open?"],
+  "Shopping mall": ["Are tenant fit-outs checked against the sprinkler layout?"],
+  "Mixed-use development": ["Is there fire separation between the different occupancies?"]
+}

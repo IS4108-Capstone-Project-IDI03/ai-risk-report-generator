@@ -36,9 +36,11 @@ import {
   scheduleDraftCleanup,
 } from './services/observation.service'
 import { resumeReadings } from './services/observation-reading.service'
+import { seedFixedItems } from './services/checklist-fixed.service'
 import { seedPrivacyWords } from './services/privacy-words.service'
 import usageRoutes from './routes/usage.routes'
 import settingsRoutes from './routes/settings.routes'
+import checklistSettingsRoutes from './routes/checklist-settings.routes'
 import qaRoutes from './routes/qa.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
@@ -117,6 +119,7 @@ app.use('/api/chat', requireAuth, chatRoutes)
 app.use('/api/observations', requireAuth, observationRoutes)
 app.use('/api/users', requireAuth, userRoutes)
 app.use('/api/usage', requireAuth, usageRoutes)
+app.use('/api/settings/checklist', requireAuth, checklistSettingsRoutes)
 app.use('/api/settings', requireAuth, settingsRoutes)
 app.use('/api/qa', requireAuth, qaRoutes)
 // The count poller runs on a timer, so it authenticates WITHOUT refreshing the
@@ -166,6 +169,7 @@ async function start() {
   seedPrivacyWords().catch((error: unknown) =>
     console.error('Seeding the privacy word lists failed; retried when they are read:', error),
   )
+  await seedFixedItems()
   await resumeInterruptedTranscriptions()
   await resumeInterruptedSiteWalks()
   app.listen(config.port, () => {
