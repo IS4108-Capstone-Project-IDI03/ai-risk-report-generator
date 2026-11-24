@@ -31,6 +31,7 @@ export function CaptureActions({ v, pinned }: { v: AssessmentWorkflow; pinned: b
           primaryLabel={label}
           onPrimary={v.saveObservation}
           primaryLoading={saving}
+          primaryWalk="new-observation.save"
         />
       </>
     )
@@ -46,6 +47,7 @@ export function CaptureActions({ v, pinned }: { v: AssessmentWorkflow; pinned: b
           iconLeft="check"
           style={{ height: 40 }}
           loading={saving}
+          data-walk="new-observation.save"
           onClick={v.saveObservation}
         >
           {label}

@@ -48,6 +48,7 @@ import {
 } from './evidenceFilters'
 import { NO_SPEECH, searchWords } from './evidenceSearch'
 import { guardLeave } from './leaveGuard'
+import { observationSaved } from './newObservationWalk'
 import {
   audioSeconds,
   choosePhotos,
@@ -154,6 +155,7 @@ import {
 } from '../auth/access'
 import { clientFacts, type FactVisit } from '../clients/clientFacts'
 import { useClientPage } from '../clients/useClientPage'
+import { onSignal } from '../walkthrough/signals'
 export type AssessmentWorkflow = ReturnType<typeof useAssessmentWorkflow>
 // A change to an observation made in place on its page (CP-06, CP-08).
 export type ObservationChange = {
@@ -860,31 +862,40 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     if (!needsRows) return
     const controller = new AbortController()
     readRows(controller.signal).then(
-      (list) => {
-        setListFailed(false)
-        // An assessment reopened from the URL knows only its reference: its
-        // site name (header, Recent) comes from the list.
-        const rows = list.map(toRow)
-        updateState((previous) => {
-          const row = rows.find((r) => r.id === previous.captureTarget.reference)
-          if (!row || previous.captureTarget.site) return previous
-          const target = { reference: row.id, site: row.site }
-          return {
-            ...previous,
-            captureTarget: target,
-            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
-          }
-        })
-      },
+      () => setListFailed(false),
       () => {
         if (!controller.signal.aborted) setListFailed(true)
       },
     )
     return () => controller.abort()
   }, [needsRows])
+  // An assessment opened from the URL knows only its reference: its site name (header, Recent)
+  // comes from the list, whichever of the two arrives last. F-12: a walkthrough opens the practice
+  // assessment by URL just after making it, when the list was last read on another screen; filled
+  // only as the dashboard's list arrived, its page title stayed blank.
+  const openReference = state.captureTarget.reference
+  const openSite = state.captureTarget.site
+  useEffect(() => {
+    const row = serverRows?.find((r) => r.id === openReference)
+    if (!row || openSite) return
+    const target = { reference: row.id, site: row.site }
+    // Checked again on the state it is applied to: another assessment may have opened meanwhile.
+    updateState((previous) =>
+      previous.captureTarget.reference !== row.id || previous.captureTarget.site
+        ? previous
+        : {
+            ...previous,
+            captureTarget: target,
+            recent: previous.recent.map((r) => (r.reference === row.id ? target : r)),
+          },
+    )
+  }, [serverRows, openReference, openSite])
   // Reads the work list again after a change elsewhere, e.g. a site corrected
   // from the Overview or a client page (CP-18).
   const reloadRows = () => readRows().catch(() => null)
+  // F-12: a practice assessment set up again or reset is a new assessment. Without this read its
+  // screens would open view-only, as the list would still hold the old one.
+  useEffect(() => onSignal('practice-changed', () => void readRows().catch(() => null)), []) // eslint-disable-line react-hooks/exhaustive-deps
   // The Undo in the archived toast (CP-23): restores it and reads the list again.
   async function undoArchive(reference: string) {
     try {
@@ -1468,6 +1479,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         return
       }
       captured.add(observation)
+      observationSaved(reference) // F-12
       // The draft is the observation now: nothing is left to throw away if the screen is left.
       media.draftId = null
       media.epoch++
@@ -2132,6 +2144,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const rows = serverRows
       ? [...visibleCreated.filter((r) => !serverIds.has(r.id)), ...serverRows]
       : [...visibleCreated, ...ROWS]
+    // F-12: the owner's practice assessment is pinned above the list by Dashboard. Every
+    // count, filter, total and client built from rows below uses `counted`, which leaves it out.
+    const practice = rows.find((r) => r.record?.practice)
+    const counted = rows.filter((r) => !r.record?.practice)
     // Every assessment shows its own record, the demo one included. The demo
     // keeps sample drafting and review only while it is not on the server.
     const openRow = rows.find((r) => r.id === s.captureTarget.reference)
@@ -2338,7 +2354,15 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const workSort = SORT_CHOICES.includes(s.workSort) ? s.workSort : SORT_LATEST
     const byName = (a: string, b: string) =>
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    const filtered = rows
+    const decorate = (r: AssessmentRow) => ({
+      ...r,
+      overdue: isOverdue(r),
+      sevIcon: SEV[r.sev].icon,
+      sevColor: SEV[r.sev].color,
+      dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
+      countdown: dueCountdown(r),
+    })
+    const filtered = counted
       .filter((r) => {
         if (q && !(r.site + ' ' + r.client + ' ' + r.id).toLowerCase().includes(q)) return false
         if (isArchived(r) !== showArchived) return false
@@ -2359,14 +2383,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               (b.siteVisitDate || '').localeCompare(a.siteVisitDate || '')
             : (b.siteVisitDate || '').localeCompare(a.siteVisitDate || ''),
       )
-      .map((r) => ({
-        ...r,
-        overdue: isOverdue(r),
-        sevIcon: SEV[r.sev].icon,
-        sevColor: SEV[r.sev].color,
-        dueDate: r.reportDueDate ? formatDay(r.reportDueDate) : 'Not set',
-        countdown: dueCountdown(r),
-      }))
+      .map(decorate)
     // The work list by client, then site, in name order, each site's visits in
     // the order chosen (CP-17 AC9). A site saved on the gateway is
     // grouped by its ids; the demo's by name. A search opens every client.
@@ -2481,7 +2498,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           priorities: Priority[]
         }
       >()
-      for (const r of rows) {
+      for (const r of counted) {
         const a = r.record
         if (!r.persisted || !a?.clientId) continue
         const c = byId.get(a.clientId) ?? {
@@ -3299,7 +3316,18 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsReturn: null,
         }),
       canCapture,
-      canArchive: isMine && canCapture,
+      // A practice assessment stays open (F-12), so its Archive is not offered.
+      // F-12: the open assessment is archived, so no walkthrough is offered on it.
+      archivedOpen: !!targetRow && targetRow.status === STATUS_LABEL.archived,
+      canArchive: isMine && canCapture && !targetRow?.record?.practice,
+      // The practice assessment shows Archive greyed out, with this reason, so the header's 3 buttons are all there.
+      archiveBlocked:
+        isMine && canCapture && targetRow?.record?.practice
+          ? {
+              title: 'Practice assessment',
+              text: "You can't archive the practice assessment. You can remove it in Settings → Walkthroughs.",
+            }
+          : undefined,
       canRestore: isMine && !canCapture,
       restoreAssessment: async () => {
         if (s.archiveBusy) return
@@ -3340,7 +3368,10 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       },
       // A row can be archived by its own engineer while it is not archived already.
       canArchiveRow: (r: AssessmentRow) =>
-        !!r.persisted && r.engineerId === session.user.id && r.status !== STATUS_LABEL.archived,
+        !!r.persisted &&
+        r.engineerId === session.user.id &&
+        r.status !== STATUS_LABEL.archived &&
+        !r.record?.practice,
       closeArchive: () => !s.archiveBusy && setState({ archiveOpen: false }),
       confirmArchive: async () => {
         if (s.archiveBusy) return
@@ -3399,7 +3430,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // the list again after new dates are saved.
       isCalendar: sc === 'calendar',
       calendar: {
-        assessments: rows.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
+        assessments: counted.flatMap((r) => (r.persisted && r.record ? [r.record] : [])),
         loading: !serverRows && !listFailed,
         failed: !serverRows && listFailed,
         me: { id: session.user.id, name: session.user.name },
@@ -3662,6 +3693,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // The footer's numbers (CP-24): every listed observation, those the filters show, and
       // how many need checking (the To check filter's own rule).
       obsTotal: obsRows.length,
+      // F-12: the gateway has listed this assessment's observations.
+      obsSynced: captured.synced,
       obsShownCount: shownRows.length,
       obsToCheckCount: toCheckCount(obsRows.map((r) => r.o)),
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
@@ -3804,7 +3837,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                               : s.captureTarget.site,
       meta:
         sc === 'dashboard'
-          ? plural(rows.length, 'assessment') + ' · ' + session.user.name
+          ? plural(counted.length, 'assessment') + ' · ' + session.user.name
           : sc === 'clients'
             ? plural(myClients.filter((c) => !c.removed).length, 'client') +
               ' · ' +
@@ -3837,6 +3870,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'overview',
           label: 'Overview',
           icon: 'file-pen',
+          // F-12: the first and last tabs frame the tab row; Generation is pointed at alone.
+          walk: 'assessment.tab.overview',
         },
         {
           // The pre-survey checklist (CP-30): read before the visit, so it
@@ -3849,6 +3884,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'observations',
           label: 'Observations',
           icon: 'camera',
+          walk: 'assessment.tab.observations',
           // Same count as the Overview and MarshBot: what the server holds.
           count: savedCount,
         },
@@ -3856,6 +3892,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'generate',
           label: 'Generation',
           icon: 'sparkles',
+          walk: 'assessment.tab.generation',
         },
         {
           value: 'review',
@@ -3868,6 +3905,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           value: 'export',
           label: 'Export',
           icon: 'stamp',
+          walk: 'assessment.tab.export',
           count: isDemoCapture && !openRow?.persisted ? open.length : undefined,
         },
       ].filter((item) => canOpenTab(item.value, session)),
@@ -3902,7 +3940,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       stageOptions: [...Object.values(STAGE_LABEL), STATUS_LABEL.archived],
       // Focus (AS-07): the rows the gateway gave a priority (only the engineer's own),
       // in its rank order. Built from the list itself, so it never lags or pops in after it.
-      focus: rows
+      focus: counted
         .flatMap((r) =>
           r.priority
             ? [
@@ -3920,7 +3958,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       visitType: s.fVisitType,
       setVisitType: (value: string) => setState({ fVisitType: value }),
       // The visit types the engineer's assessments have, the standard ones first.
-      visitTypeOptions: [...new Set(rows.map((r) => r.type))].sort(
+      visitTypeOptions: [...new Set(counted.map((r) => r.type))].sort(
         (a, b) =>
           (SURVEY_TYPES.indexOf(a) + 1 || 99) - (SURVEY_TYPES.indexOf(b) + 1 || 99) ||
           a.localeCompare(b),
@@ -3938,9 +3976,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       sortOptions: SORT_CHOICES,
       setWorkSort: (value: string) => setState({ workSort: value }),
       filteredRows: filtered,
+      // The owner's practice assessment, shown first whatever the sort and filters (F-12).
+      practiceRow: practice ? decorate(practice) : null,
       noResults: filtered.length === 0,
       // None at all, archived or not: the list says so, not that filters hid them.
-      noAssessments: rows.length === 0,
+      noAssessments: counted.length === 0,
       // The Due pill (CP-23), which replaced the date boxes above the list.
       dateFilter: s.fDate,
       setDateFilter: (filter: DateFilter | null) => setState({ fDate: filter }),

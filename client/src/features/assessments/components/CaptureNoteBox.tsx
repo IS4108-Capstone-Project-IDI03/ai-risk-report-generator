@@ -21,7 +21,7 @@ export function CaptureNoteBox({
   const box = useRef<HTMLDivElement>(null)
   return (
     <>
-      <div ref={box}>
+      <div ref={box} data-walk="new-observation.note">
         <Textarea
           aria-label="Note"
           maxLength={5000}

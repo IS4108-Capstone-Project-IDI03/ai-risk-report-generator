@@ -6,6 +6,8 @@
 // Calls ChoicePickerField, RecordCard, FailedLine.
 import { useEffect, useRef, type ReactNode } from 'react'
 import { FailedLine, Icon } from '../../../design-system'
+import { Tip } from '../../help/Tip'
+import { signal } from '../../walkthrough/signals'
 import { CATEGORY_OPTIONS, SEVERITY_OPTIONS } from '../../site-walk/options'
 import { toggleCategory, UNCATEGORISED_HINT } from '../categories'
 import type { ObservationChange } from '../useAssessmentWorkflow'
@@ -66,7 +68,10 @@ export function ObservationDetails({
     if (!ok) chosen.current = o.cats
   }
   async function confirm(field: Field) {
-    if (await save({ confirm: [field] })) onConfirmed(field)
+    if (!(await save({ confirm: [field] }))) return
+    onConfirmed(field)
+    // F-12: "Check your observations" moves on only now, so a refused save never reads as done.
+    if (field === 'category') signal('observation-category-confirmed')
   }
 
   // A field's state, from the observation's stored suggestion (CP-24). Empty, or still an
@@ -105,29 +110,33 @@ export function ObservationDetails({
         selected={[o.locationId ?? '']}
         onChoose={(locationId) => void save({ locationId })}
       />
-      <ChoicePickerField
-        label="Category"
-        valueLabel={o.cats.length ? o.catLabel : undefined}
-        placeholder="Choose a category"
-        value={
-          o.cats.length ? (
-            <>
-              <CategoryMark cats={o.cats} />
-              <span className="cpf-text">{o.catLabel}</span>
-            </>
-          ) : undefined
-        }
-        suggesting={cat.suggesting ? 'Suggesting a category' : undefined}
-        notSure={cat.notSure}
-        failed={cat.failed}
-        disabled={!can}
-        onConfirm={() => void confirm('category')}
-        multiple
-        choices={CATEGORY_OPTIONS}
-        selected={o.cats}
-        onChoose={(c) => void toggle(c)}
-        hint={UNCATEGORISED_HINT}
-      />
+      {/* F-12: the walkthrough lights this field with its Confirm, and again once it is confirmed. */}
+      <div data-walk="observation.category-field">
+        <ChoicePickerField
+          label="Category"
+          valueLabel={o.cats.length ? o.catLabel : undefined}
+          placeholder="Choose a category"
+          value={
+            o.cats.length ? (
+              <>
+                <CategoryMark cats={o.cats} />
+                <span className="cpf-text">{o.catLabel}</span>
+              </>
+            ) : undefined
+          }
+          suggesting={cat.suggesting ? 'Suggesting a category' : undefined}
+          notSure={cat.notSure}
+          failed={cat.failed}
+          disabled={!can}
+          help={<Tip id="observation.suggested" />}
+          onConfirm={() => void confirm('category')}
+          multiple
+          choices={CATEGORY_OPTIONS}
+          selected={o.cats}
+          onChoose={(c) => void toggle(c)}
+          hint={UNCATEGORISED_HINT}
+        />
+      </div>
       <ChoicePickerField
         label="Severity"
         valueLabel={o.sev ? o.sevLabel : undefined}

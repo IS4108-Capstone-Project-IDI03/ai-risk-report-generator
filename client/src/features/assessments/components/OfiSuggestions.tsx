@@ -94,6 +94,7 @@ export function OfiBlock({
   onSaveLossValues,
   busy = false,
   withSources = true,
+  walk,
 }: {
   ofi: Ofi
   // Set once accepted: the OFI's report number.
@@ -103,6 +104,9 @@ export function OfiBlock({
   onSaveLossValues?: (values: OfiLossValues) => Promise<void>
   busy?: boolean
   withSources?: boolean
+  // Walkthrough tags (F-12), as data-walk: the heading bar, the whole card, the Accept button, and
+  // the label cell of the table row to show down to. Set on the first of a list only.
+  walk?: { header?: string; card?: string; accept?: string; tableRow?: string }
 }) {
   const [showSources, setShowSources] = useState(false)
   const saved = JSON.stringify(ofi.lossExpectancy ?? null)
@@ -155,6 +159,9 @@ export function OfiBlock({
         onAccept={onAccept}
         acceptLabel={`Accept ${ofi.title}`}
         acceptDisabled={busy}
+        headWalk={walk?.header}
+        cardWalk={walk?.card}
+        acceptWalk={walk?.accept}
         // A table, not prose: as wide as an OFI in the report (OfisInReport).
         fullWidth
       >
@@ -166,6 +173,7 @@ export function OfiBlock({
           typed={onSaveLossValues ? typed : undefined}
           onChange={setTyped}
           disabled={busy}
+          walk={walk?.tableRow}
         />
       </AIDraftBlock>
       {onSaveLossValues && ofi.category !== 'Management Programs' && (
@@ -234,6 +242,7 @@ function OfiTable({
   typed,
   onChange,
   disabled,
+  walk,
 }: {
   // null for a suggestion: it is numbered once accepted.
   number: string | null
@@ -243,7 +252,15 @@ function OfiTable({
   typed?: TypedLossValues
   onChange?: (values: TypedLossValues) => void
   disabled?: boolean
+  // Walkthrough tag (F-12): the label cell of the first row left "To be completed" (else the
+  // Priority row), so a highlight can run from the heading bar down to it. A cell, not the row:
+  // the table scrolls sideways in its box, and a row is wider than the box shows.
+  walk?: string
 }) {
+  const shownTo = Math.max(
+    1,
+    rows.findIndex((cells) => cells.some(([, value]) => value === OPEN)),
+  )
   const cell = {
     padding: '8px 12px',
     border: '1px solid var(--border-subtle)',
@@ -292,7 +309,12 @@ function OfiTable({
             <tr key={i}>
               {cells.map(([name, value], j) => (
                 <Fragment key={name}>
-                  <th scope="row" style={{ ...cell, ...rowLabel }} colSpan={1}>
+                  <th
+                    scope="row"
+                    style={{ ...cell, ...rowLabel }}
+                    colSpan={1}
+                    data-walk={i === shownTo && j === 0 ? walk : undefined}
+                  >
                     {name}
                   </th>
                   {value === LOSS_FIGURES || value === AFTER_LOSS_FIGURES ? (

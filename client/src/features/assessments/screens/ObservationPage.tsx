@@ -132,6 +132,7 @@ export function ObservationPage({
       <RecordHeader
         back={backLabel}
         onBack={() => leave(null)}
+        backWalk="observation.back"
         tile={tile}
         eyebrow={eyebrow}
         title={o.path?.name ?? 'No location yet'}

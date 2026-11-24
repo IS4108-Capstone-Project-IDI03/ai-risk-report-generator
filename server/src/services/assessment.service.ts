@@ -14,6 +14,7 @@ import type { ISite } from '../models/site.model'
 import { isDuplicateKeyError } from './mongo-errors'
 import { changeRights, clientNameOf, restoreSiteOf, type Allowed } from './client.service'
 import { rankedFocus } from './assistant/focus.service'
+import { NOT_PRACTICE } from './practice/filter'
 import type { Priority, Stage } from './assistant/types'
 
 export const required = (label: string) =>
@@ -185,13 +186,19 @@ export async function canOpenAssessment(
   reference: string,
   user: { id: string; role: string },
 ): Promise<boolean | null> {
-  const assessment = await AssessmentModel.findOne({ reference }, 'engineer').lean()
-  return assessment && opensAssessment(user, assessment.engineer)
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer practice').lean()
+  if (!assessment) return null
+  // F-12: a practice assessment opens only for its owner while live; to anyone else, an
+  // admin included, it does not exist (null, a 404), so no one learns it is there.
+  if (assessment.practice)
+    return assessment.practice === 'live' && String(assessment.engineer) === user.id ? true : null
+  return opensAssessment(user, assessment.engineer)
 }
 
 // Assigned assessments for engineers, all assessments for knowledge admins
 // (opensAssessment). Two queries: matching assessments, then their capture
-// sessions. `only` narrows it further, e.g. to one reference.
+// sessions. `only` narrows it further, e.g. to one reference. Practice assessments are left
+// out (F-12), except the user's own live one, which leads the list.
 // ponytail: paginate once one engineer's work list outgrows one response.
 export async function listAssessments(
   user: SessionUser,
@@ -199,9 +206,10 @@ export async function listAssessments(
 ): Promise<AssessmentDto[]> {
   const assessments = await AssessmentModel.find({
     ...(user.role === 'knowledge_admin' ? {} : { engineer: user.id }),
+    $or: [NOT_PRACTICE, { practice: 'live', engineer: user.id }],
     ...only,
   })
-    .sort({ siteVisitDate: -1, createdAt: -1 })
+    .sort({ practice: -1, siteVisitDate: -1, createdAt: -1 })
     .populate<{ site: ListedSite }>({ path: 'site', populate: { path: 'client', select: 'name' } })
     .populate<{ engineer: AssignedEngineer | null }>('engineer', 'name')
     .lean()
@@ -226,6 +234,7 @@ export async function listAssessments(
     return {
       ...toDto(a, a.site, a.engineer, rights(a.site), status, session?.createdAt ?? null),
       priority: priorities.get(a.reference) ?? null,
+      ...(a.practice && { practice: true as const }),
     }
   })
 }
@@ -233,6 +242,13 @@ export async function listAssessments(
 export class NotAssignedError extends Error {
   constructor(message = 'Only the assigned engineer can change this assessment.') {
     super(message)
+  }
+}
+
+// F-12: the practice assessment stays its owner's and stays open (ADR 0003).
+export class PracticeAssessmentError extends Error {
+  constructor() {
+    super("This is your practice assessment, so it can't be archived or reassigned.")
   }
 }
 
@@ -244,9 +260,10 @@ export class NotArchivedError extends Error {
 
 // The assessment's ID, when the user is its assigned engineer.
 async function assignedAssessment(reference: string, user: SessionUser) {
-  const assessment = await AssessmentModel.findOne({ reference }, 'engineer').lean()
+  const assessment = await AssessmentModel.findOne({ reference }, 'engineer practice').lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (String(assessment.engineer) !== user.id) throw new NotAssignedError()
+  if (assessment.practice) throw new PracticeAssessmentError()
   return assessment._id
 }
 

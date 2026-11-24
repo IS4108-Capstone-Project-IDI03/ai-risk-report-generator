@@ -197,6 +197,16 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* The Confirm button's own box, for a walkthrough to point at (F-12); it changes nothing on screen. */
+.cpf-confirm {
+  display: flex;
+}
+/* Kept visible while a walkthrough lights the field holding Confirm (the engine sets data-walk-on:
+   "Check your observations" lights the whole Category field). */
+[data-walk-on] .cpf-decide {
+  opacity: 1;
+  pointer-events: auto;
+}
 @media (hover: hover) and (pointer: fine) {
   .cpf:is(:hover, :focus-within) .cpf-decide {
     opacity: 1;

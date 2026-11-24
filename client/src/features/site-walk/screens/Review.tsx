@@ -26,6 +26,8 @@ import { walkName } from '../walkLabels'
 import * as edit from '../proposal'
 import { siteWalkReview } from '../openReview'
 import { openProposalCapture } from '../proposalCapture'
+import { signal } from '../../walkthrough/signals'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useProposal } from '../useProposal'
 import { usePhone } from '../usePhone'
 import { ProposalMedia } from './ProposalMedia'
@@ -111,6 +113,8 @@ export function SiteWalkReview({
   }, [openRef, screen])
   const p = r.proposal
   const ready = !!p && r.walk?.status === 'ready'
+  // F-12: nothing is offered while a page, a foot screen or Create all is showing, or on someone else's walk.
+  useWalkthroughScreen('proposal', ready, readOnly || !!openRef || screen !== 'list' || r.creating)
 
   // a. The selected entry: No location yet first if any, else the first location, else All.
   const needs = !!p?.observations.some((o) => !o.locationRef)
@@ -223,7 +227,11 @@ export function SiteWalkReview({
           onRename={() => setNaming({ busy: false, problem: null })}
           onFix={openFirstIncomplete}
           onCreate={() =>
-            void r.create().then((created) => created && onCreated(edit.createdMessage(p!)))
+            void r.create().then((created) => {
+              if (!created) return
+              onCreated(edit.createdMessage(p!))
+              signal('proposal-created') // F-12: "Review a site walk" waits on this
+            })
           }
           readOnly={readOnly}
         />

@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { IconButton, IconRegistry, type Reason } from '../../../design-system'
 import { editorPassage } from '../ask/passage'
+import { Tip } from '../../help/Tip'
 import { commentTarget } from '../comments/anchor'
 import { toggleSubheading } from './commands'
 
@@ -21,6 +22,8 @@ type Tool = {
   // Greyed out, with a reason box saying why (design system v2).
   reason?: Reason
   title?: string
+  // The walkthrough tag (F-12).
+  walk?: string
   run: () => void
 }
 
@@ -170,6 +173,7 @@ export function DocumentToolbar({
                 name: 'Comment',
                 icon: IconRegistry.editor.comment,
                 keys: ['Mod', 'Alt', 'M'],
+                walk: 'document.comment',
                 reason: target && 'reason' in target ? target.reason : undefined,
                 run: onComment,
               },
@@ -190,6 +194,7 @@ export function DocumentToolbar({
           name: 'Ask about this',
           icon: IconRegistry.editor.ask,
           keys: ['Mod', 'Alt', 'K'],
+          walk: 'document.ask',
           reason:
             ask.blocked ?? (askTarget && 'reason' in askTarget ? askTarget.reason : undefined),
           run: ask.onAsk,
@@ -200,6 +205,7 @@ export function DocumentToolbar({
                 name: 'Rewrite this',
                 icon: IconRegistry.editor.rewrite,
                 keys: [],
+                walk: 'document.rewrite',
                 reason:
                   ask.blocked ??
                   (askTarget && 'reason' in askTarget ? askTarget.reason : undefined),
@@ -237,12 +243,14 @@ export function DocumentToolbar({
                 selected={!!tool.active}
                 disabled={tool.disabled}
                 disabledReason={tool.reason}
+                data-walk={tool.walk}
                 // Keeps the selection in the document while the button is pressed.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={tool.run}
               />
             )
           })}
+          {group === commenting && onComment && <Tip id="document.comment" />}
         </div>
       ))}
     </div>

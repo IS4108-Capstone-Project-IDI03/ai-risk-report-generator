@@ -9,6 +9,7 @@ import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import { UserModel } from '../models/user.model'
 import type { SessionUser } from './auth.service'
 import { clientNameOf } from './client.service'
+import { NOT_PRACTICE } from './practice/filter'
 import { SUMMARISED_SECTIONS } from './summary.service'
 
 // A risk engineer asked for a report that is not assigned to them (EV-04 AC9).
@@ -128,7 +129,10 @@ function toRow(key: string, rows: IAiCall[]): UsageRow {
 // only reports where they are the assigned engineer (EV-04 AC9).
 async function visibleReports(user: SessionUser): Promise<string[] | null> {
   if (user.role === 'knowledge_admin') return null
-  const own = await AssessmentModel.find({ engineer: user.id }, { reference: 1 }).lean()
+  const own = await AssessmentModel.find(
+    { engineer: user.id, ...NOT_PRACTICE },
+    { reference: 1 },
+  ).lean()
   return own.map((a) => a.reference)
 }
 
@@ -137,7 +141,17 @@ export async function summarizeUsage(user: SessionUser, reportId?: string): Prom
   const visible = await visibleReports(user)
   if (reportId && visible && !visible.includes(reportId)) throw new ReportNotInScopeError()
 
-  const filter = reportId ? { reportId } : visible ? { reportId: { $in: visible } } : {}
+  // An engineer also sees their own walkthrough calls (F-12), which belong to no report.
+  const filter = reportId
+    ? { reportId }
+    : visible
+      ? {
+          $or: [
+            { reportId: { $in: visible } },
+            { feature: 'walkthrough' as const, userId: new Types.ObjectId(user.id) },
+          ],
+        }
+      : {}
   // ponytail: summed in Node because the table is small; move to a Mongo
   // $group pipeline if it grows past tens of thousands of rows.
   const rows = await AiCallModel.find(filter).lean<IAiCall[]>()
@@ -530,8 +544,10 @@ export const INGESTION_FEATURES: readonly IAiCall['feature'][] = [
 export const CHAT_GROUP = 'chat'
 // The group knowledge base searches (IN-17) fall under: no assessment either.
 export const KNOWLEDGE_SEARCH_GROUP = 'knowledge-search'
+// The group walkthrough calls (F-12) fall under: practice work is costed to no assessment.
+export const WALKTHROUGH_GROUP = 'walkthrough'
 // Calls that belong to the user who made them, not an assessment.
-const PERSONAL_FEATURES: IAiCall['feature'][] = ['chat', 'knowledge-search']
+const PERSONAL_FEATURES: IAiCall['feature'][] = ['chat', 'knowledge-search', 'walkthrough']
 // The group for an assessment with no engineer assigned.
 export const UNASSIGNED_GROUP = 'unassigned'
 
@@ -593,7 +609,7 @@ type AssessmentInfo = {
 /**
  * Returns report-generation cost across assessments or engineers, for the
  * period chosen. A knowledge admin sees everything; a risk engineer only their
- * assigned assessments and their own chat. Report calls belong to the
+ * assigned assessments and their own chat and walkthroughs. Report calls belong to the
  * assessment's assigned engineer; chat calls to the user who asked.
  */
 export async function usageOverview(
@@ -652,8 +668,9 @@ export async function usageOverview(
   const kept = query.engineer ? rows.filter((r) => engineerOf(r) === query.engineer) : rows
   const groupKey = (r: IAiCall) => {
     if (query.groupBy === 'engineer') return engineerOf(r) ?? UNASSIGNED_GROUP
-    // Outside ingestion, only chat and knowledge base searches have no report.
+    // Outside ingestion, only chat, knowledge base searches and walkthroughs have no report.
     if (r.reportId) return r.reportId
+    if (r.feature === 'walkthrough') return WALKTHROUGH_GROUP
     return r.feature === 'knowledge-search' ? KNOWLEDGE_SEARCH_GROUP : CHAT_GROUP
   }
   const splitKey = splitKeyFor(query.split)
@@ -674,6 +691,8 @@ export async function usageOverview(
     }
     if (key === CHAT_GROUP)
       return { ...shared, ...none, label: 'Chatbot', engineerId: null, engineerName: null }
+    if (key === WALKTHROUGH_GROUP)
+      return { ...shared, ...none, label: 'Walkthrough', engineerId: null, engineerName: null }
     if (key === KNOWLEDGE_SEARCH_GROUP)
       return {
         ...shared,

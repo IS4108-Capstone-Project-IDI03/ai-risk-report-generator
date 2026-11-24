@@ -17,12 +17,15 @@ import { CaptureSeverity } from '../components/CaptureSeverity'
 import { CaptureVoicePanel } from '../components/CaptureVoicePanel'
 import { CategoryPicker } from '../components/CategoryPicker'
 import { ChecklistSheet } from '../components/ChecklistSheet'
+import { Tip } from '../../help/Tip'
 import { LocationPicker } from '../components/LocationSheet'
 import { SplitNotePanel } from '../components/SplitNotePanel'
 import { SiteWeatherPanel } from '../weather/SiteWeatherPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useCaptureFit } from '../useCaptureFit'
+import { useNewObservationWalk } from '../newObservationWalk'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../capture.css'
 
 // The one line under the title: what to do, and what happens to what is left blank.
@@ -37,6 +40,14 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   // Closing the tab asks first while something is unsaved: the same test as the Leave dialog's
   // "Not saved: ..." line. Without this, closing the tab would lose the draft silently.
   const unsaved = v.unsavedLabel !== ''
+  // F-12: ready once the capture session is live. Nothing is offered over unsaved work, a site walk
+  // proposal's capture, a checklist item being answered as Differs, or an archived assessment.
+  useWalkthroughScreen(
+    'new-observation',
+    v.liveVoice,
+    unsaved ? 'unsaved' : v.proposalCapture || !!v.fChecklistItem || v.archivedOpen,
+  )
+  useNewObservationWalk(v)
   useEffect(() => {
     if (!unsaved) return
     const warn = (event: BeforeUnloadEvent) => {
@@ -65,6 +76,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             }
             back={v.proposalCapture ? 'Site walk proposal' : 'Observations'}
             onBack={v.leaveCapture}
+            // F-12: "Add an observation" presses Back (the phone bar's ← carries the same tag).
+            backWalk="new-observation.back"
           />
         )}
         {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may
@@ -89,6 +102,11 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 cats={v.fCats}
                 onToggle={v.toggleFCat}
                 hint={null}
+                walk="new-observation.categories"
+                // A site walk proposal's capture is not suggested after saving, so the tip does not apply.
+                help={
+                  !v.proposalCapture && <Tip id="new-observation.category-severity" align="left" />
+                }
                 {...(v.proposalCapture && { legend: 'Category' })}
               />
               <CaptureSeverity value={v.fSev} onChange={v.setFSev} />

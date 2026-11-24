@@ -4,7 +4,18 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GlossaryEntry, Settings as SettingsData } from './api'
 import { Settings } from './Settings'
+import { DEFAULT_CODES } from './noteRules'
 import { TIER_IDS } from './tiers'
+
+// A good save is a toast; the real one needs the app's Toaster, so the tests watch the calls.
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('../../design-system', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../design-system')>()),
+  toast: toasts,
+}))
+// Presses the Undo button of the latest success toast, as a person would.
+const pressUndo = () =>
+  (toasts.success.mock.lastCall![1] as { action: { onClick: () => void } }).action.onClick()
 
 const base = (canEditGlobal: boolean, glossary: GlossaryEntry[] = []): SettingsData => ({
   canEditGlobal,
@@ -16,21 +27,27 @@ const base = (canEditGlobal: boolean, glossary: GlossaryEntry[] = []): SettingsD
 const reply = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }))
 
-// Every PATCH is recorded; the reply is the settings with the saved glossary applied.
+// Every PATCH is recorded; the reply is the settings with that change applied (codes: null is
+// the defaults), and later reads see it, as the real gateway would.
 function mock(start: SettingsData) {
   const patches: unknown[] = []
+  let now = start
   vi.stubGlobal(
     'fetch',
     vi.fn((_url: string, init?: RequestInit) => {
       if (init?.method === 'PATCH') {
         const body = JSON.parse(String(init.body))
         patches.push(body)
-        return reply({
-          ...start,
-          noteTaking: { ...start.noteTaking, glossary: body.glossary ?? start.noteTaking.glossary },
-        })
+        const { codes, glossary } = now.noteTaking
+        now = {
+          ...now,
+          noteTaking: {
+            codes: 'noteCodes' in body ? (body.noteCodes ?? DEFAULT_CODES) : codes,
+            glossary: body.glossary ?? glossary,
+          },
+        }
       }
-      return reply(start)
+      return reply(now)
     }),
   )
   return patches
@@ -38,7 +55,7 @@ function mock(start: SettingsData) {
 const openIt = async (s: SettingsData) => {
   const patches = mock(s)
   render(<Settings />)
-  fireEvent.click(screen.getByRole('button', { name: 'Note-taking' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Note-Taking' }))
   await screen.findByLabelText('Fact code')
   return patches
 }
@@ -47,6 +64,7 @@ const type = (label: string, value: string) =>
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.clearAllMocks()
 })
 
 describe('Settings > Note-taking (CP-35)', () => {
@@ -64,8 +82,30 @@ describe('Settings > Note-taking (CP-35)', () => {
       expect(patches[0]).toEqual({
         noteCodes: { fact: 'FACT', info_request: 'IR', recommendation: 'REC' },
       })
+      expect(toasts.success).toHaveBeenCalledWith('Codes saved')
     },
   )
+
+  it('greys out Save with its reason until a code differs from the saved one', async () => {
+    const patches = await openIt(base(false))
+    // The button is drawn again when its reason box comes or goes, so look it up each time.
+    const save = () => screen.getByRole('button', { name: 'Save' })
+    expect(save()).toHaveAttribute('aria-disabled', 'true')
+    expect(save()).toHaveAccessibleDescription('No changes. Change a code, then save.')
+    fireEvent.click(save())
+    type('Fact code', 'X')
+    expect(save()).not.toHaveAttribute('aria-disabled')
+    type('Fact code', 'F')
+    expect(save()).toHaveAttribute('aria-disabled', 'true')
+    expect(patches).toHaveLength(0)
+  })
+
+  it('keeps the shorthand boxes from spell-checking or autofilling', async () => {
+    await openIt(base(false))
+    for (const label of ['Fact code', 'Term', 'Meaning'])
+      expect(screen.getByLabelText(label)).toHaveAttribute('spellcheck', 'false')
+    expect(screen.getByLabelText('Term')).toHaveAttribute('autocomplete', 'off')
+  })
 
   it('blocks an empty or long code, and a shared code, before sending', async () => {
     const patches = await openIt(base(false))
@@ -87,6 +127,20 @@ describe('Settings > Note-taking (CP-35)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }))
     await waitFor(() => expect(patches).toEqual([{ noteCodes: null }]))
     expect(screen.getByLabelText('Fact code')).toHaveValue('F')
+    expect(toasts.success).toHaveBeenCalledWith('Codes reset to defaults', expect.anything())
+  })
+
+  it('puts the saved codes back when Undo is pressed on the reset toast', async () => {
+    const mine = base(false)
+    mine.noteTaking.codes = { fact: 'FACT', info_request: 'ASK', recommendation: 'ADV' }
+    const patches = await openIt(mine)
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }))
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledOnce())
+    expect(screen.getByLabelText('Fact code')).toHaveValue('F')
+    pressUndo()
+    await waitFor(() => expect(patches).toHaveLength(2))
+    expect(patches[1]).toEqual({ noteCodes: mine.noteTaking.codes })
+    expect(screen.getByLabelText('Fact code')).toHaveValue('FACT')
   })
 
   it('adds and removes glossary terms, checking them first', async () => {
@@ -108,9 +162,27 @@ describe('Settings > Note-taking (CP-35)', () => {
         { term: 'bsmt', meaning: 'basement' },
       ],
     })
+    expect(toasts.success).toHaveBeenCalledWith('Term added')
     fireEvent.click(screen.getByRole('button', { name: 'Remove fcc' }))
     await waitFor(() => expect(patches).toHaveLength(2))
     expect(patches[1]).toEqual({ glossary: [{ term: 'bsmt', meaning: 'basement' }] })
+    expect(toasts.success).toHaveBeenCalledWith('Term removed', expect.anything())
+  })
+
+  it('brings a removed term back when Undo is pressed on the toast', async () => {
+    const list = [
+      { term: 'fcc', meaning: 'fire control centre' },
+      { term: 'bsmt', meaning: 'basement' },
+    ]
+    const patches = await openIt(base(false, list))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove fcc' }))
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith('Term removed', expect.anything()),
+    )
+    pressUndo()
+    await waitFor(() => expect(patches).toHaveLength(2))
+    expect(patches[1]).toEqual({ glossary: list })
+    expect(await screen.findByRole('button', { name: 'Remove fcc' })).toBeInTheDocument()
   })
 
   // CP-35: an alert or "Saved" must not outlive the action that made it.
@@ -142,7 +214,7 @@ describe('Settings > Note-taking (CP-35)', () => {
       type('Meaning', 'basement')
       click('Add')
       expect(codeError()).toBeNull()
-      await screen.findByText('Saved')
+      await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Term added'))
     })
 
     it('clears a term error after Remove and after Reset to defaults', async () => {
@@ -151,7 +223,7 @@ describe('Settings > Note-taking (CP-35)', () => {
       expect(termError()).toBeInTheDocument()
       click('Remove fcc')
       expect(termError()).toBeNull()
-      await screen.findByText('Saved')
+      await waitFor(() => expect(toasts.success).toHaveBeenCalled())
       dupTerm()
       click('Reset to defaults')
       expect(termError()).toBeNull()
@@ -164,20 +236,20 @@ describe('Settings > Note-taking (CP-35)', () => {
       expect(codeError()).toBeNull()
     })
 
-    it('never shows Saved beside an error alert, in either area', async () => {
+    it('shows no success toast for an error, in either area', async () => {
       await openIt(base(false, gloss))
+      type('Fact code', 'X')
       click('Save')
-      await screen.findByText('Saved')
+      await waitFor(() => expect(toasts.success).toHaveBeenCalledTimes(1))
       dupCode()
       expect(codeError()).toBeInTheDocument()
-      expect(screen.queryByText('Saved')).toBeNull()
       type('Fact code', 'F')
       click('Save')
-      await screen.findByText('Saved')
+      await waitFor(() => expect(toasts.success).toHaveBeenCalledTimes(2))
       expect(codeError()).toBeNull()
       dupTerm()
       expect(termError()).toBeInTheDocument()
-      expect(screen.queryByText('Saved')).toBeNull()
+      expect(toasts.success).toHaveBeenCalledTimes(2)
     })
   })
 })

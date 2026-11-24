@@ -7,13 +7,16 @@ import type { FigureProposal, ProposedWhy } from '../api'
 export function ProposalNote({
   proposal,
   reasons,
+  walk,
 }: {
   proposal: FigureProposal<object>
   // Each still-proposed figure's label (e.g. "Fire Protection, current") and why.
   reasons: [string, ProposedWhy][]
+  // The walkthrough tag (F-12), as data-walk.
+  walk?: string
 }) {
   return (
-    <div className="rv-proposal-note">
+    <div className="rv-proposal-note" data-walk={walk}>
       <p>
         <Badge tone="ai" icon="sparkles">
           AI proposal

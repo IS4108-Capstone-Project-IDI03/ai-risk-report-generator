@@ -20,6 +20,10 @@
 .inbox-tabs {
   display: flex;
 }
+/* Wraps the switch so a walkthrough can highlight it alone (F-12); it takes the switch's width. */
+.inbox-tabs-switch {
+  display: flex;
+}
 /* The To do count is red, like the sidebar's (.ds-sidenav-count). Scoped here: the Client page's
    tabs share .ds-seg-count and stay blue. */
 .inbox-tabs .ds-seg-count {
@@ -462,6 +466,9 @@
 @media (max-width: 767px) {
   .inbox-content {
     padding: 12px 16px 24px;
+  }
+  .inbox-tabs-switch {
+    flex: 1;
   }
   .inbox-tabs .ds-segmented {
     display: flex;

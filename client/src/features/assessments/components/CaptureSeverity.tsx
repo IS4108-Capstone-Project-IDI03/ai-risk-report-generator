@@ -14,7 +14,7 @@ export function CaptureSeverity({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="cap-field cap-sev">
+    <div className="cap-field cap-sev" data-walk="new-observation.severity">
       <span className="cap-label">{'Severity'}</span>
       <SegmentedControl
         ariaLabel="Severity"

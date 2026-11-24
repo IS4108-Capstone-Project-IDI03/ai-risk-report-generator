@@ -66,7 +66,7 @@ export function ProposalTable({
         )}
       </div>
       {selected !== ALL && (
-        <p className="ob-where">
+        <p className="ob-where" data-walk="site-walk.location">
           <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
           {location ? locationLabel(pathOf(location)) : title}
         </p>

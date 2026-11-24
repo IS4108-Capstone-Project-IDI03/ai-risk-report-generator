@@ -24,7 +24,10 @@ export function useMarshBot(): MarshBot {
 }
 
 // The turn being drawn, so Card("<id>") finds its card. `past`: an earlier session, read-only.
-export const TurnContext = createContext<{ turn: Turn; past: boolean } | null>(null)
+// `newest`: MarshBot's latest turn of today, the one the Overview walkthrough points at (F-12).
+export const TurnContext = createContext<{ turn: Turn; past: boolean; newest?: boolean } | null>(
+  null,
+)
 
 // A piece's place in its turn: the first bubble carries the tail towards MarshBot's face.
 export const SlotContext = createContext<{ tail: boolean }>({ tail: false })

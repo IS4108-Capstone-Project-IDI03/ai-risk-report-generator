@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react'
 import { Badge, Callout, Icon, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
+import { Tip } from '../../help/Tip'
 import { CitedImage } from '../../sources/CitedImage'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
@@ -107,7 +108,15 @@ export function PassageDetails(props: Props) {
       )}
       {/* CB-01 AC2: nothing is highlighted then, so the quoted words are shown instead. */}
       {state === 'unverified' && (
-        <Callout tone="danger" title={`Not found on ${where}`}>
+        <Callout
+          tone="danger"
+          title={
+            <span className="chat-check-tip">
+              {`Not found on ${where}`}
+              <Tip id="chat.citation-unverified" />
+            </span>
+          }
+        >
           “{quote}” Check the source before relying on this statement.
         </Callout>
       )}

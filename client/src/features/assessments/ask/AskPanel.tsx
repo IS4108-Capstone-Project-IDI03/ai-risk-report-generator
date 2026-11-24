@@ -21,6 +21,8 @@ import { useSave } from '../components/useSave'
 import { formatTimeOfDay } from '../format'
 import { excerpt, pageLocator, severityLabel } from '../reviewDisplay'
 import { DictateButton } from '../dictation/DictateButton'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughs } from '../../walkthrough/engine'
 import type {
   AskCitation,
   AskConversation,
@@ -36,6 +38,9 @@ import type { AskItem, AskWorkflow } from './useAsk'
 import './ask.css'
 
 const MAX_QUESTION = 1000
+
+// The question the Ask walkthrough (F-12) types in for the person on its step 2; its words name it.
+const WALK_QUESTION = 'Which observations concern fire protection?'
 
 const KIND_LABEL: Record<AskCitation['kind'], string> = {
   observation: 'Site observation',
@@ -200,12 +205,15 @@ function Answer({
   onCite,
   onAskAgain,
   canAsk,
+  walk,
 }: {
   item: AskItem
   current: string | null
   onCite: (ref: string, item: AskItem) => void
   onAskAgain: (question: string, passage: AskPassage | null) => void
   canAsk: boolean
+  // The walkthrough tag, on the newest answer only (F-12).
+  walk?: string
 }) {
   const answering = item.status === 'answering'
   const order = citedOrder(item)
@@ -218,12 +226,18 @@ function Answer({
       className="ask-answer"
       aria-label={`Answer to: ${item.question}`}
       aria-busy={answering || undefined}
+      data-walk={walk}
     >
       <div className="ask-answer-head">
         <Icon name="sparkles" size={14} color="var(--ai-fg)" />
         <span className="ask-answer-title">Answer</span>
         <span />
-        {item.confidence && <ConfidenceIndicator level={item.confidence} />}
+        {item.confidence && (
+          <>
+            <ConfidenceIndicator level={item.confidence} />
+            <Tip id="ask.confidence" align="right" />
+          </>
+        )}
       </div>
       {answering && item.step && (
         <p className="ask-step" role="status">
@@ -996,6 +1010,15 @@ export function AskPanel({
   useEffect(() => {
     if (about) box.current?.querySelector('textarea')?.focus()
   }, [about])
+  // The Ask walkthrough's step 2 (F-12) says it has typed a question in: fill the box when that step
+  // shows, only if it is empty. Without the empty check it would overwrite what the person typed.
+  const walking = useWalkthroughs((s) => s.running)
+  const walkStep = walking?.id === 'ask' ? walking.at : 0
+  const [seenWalkStep, setSeenWalkStep] = useState(0)
+  if (walkStep !== seenWalkStep) {
+    setSeenWalkStep(walkStep)
+    if (walkStep === 2) setQuestion((q) => q || WALK_QUESTION)
+  }
 
   if (!ask || ask.state === 'unavailable')
     return (
@@ -1116,7 +1139,12 @@ export function AskPanel({
       )}
       <div className="ask-intro">
         <h3 className="rv-label">Ask about this assessment</h3>
-        <p className="rv-muted">{scopeLine(ask)}</p>
+        <div className="ask-scope">
+          <p className="rv-muted" data-walk="ask.scope">
+            {scopeLine(ask)}
+          </p>
+          <Tip id="ask.searches" />
+        </div>
       </div>
       {ask.state === 'loading' ? (
         <p className="rv-muted">Loading earlier questions…</p>
@@ -1131,7 +1159,7 @@ export function AskPanel({
         </p>
       ) : (
         <ol ref={thread} className="ask-thread" aria-label="Questions and answers">
-          {ask.items.map((item) => (
+          {ask.items.map((item, i) => (
             <li key={item.key} className="ask-item">
               <div className="ask-question">
                 {passageOf(item)}
@@ -1166,6 +1194,7 @@ export function AskPanel({
                       : send(text, passage)
                   }
                   canAsk={!ask.busy && !ask.archived}
+                  walk={i === count - 1 ? 'ask.answer' : undefined}
                 />
               )}
             </li>
@@ -1220,6 +1249,7 @@ export function AskPanel({
           <form
             className="ask-composer"
             aria-label="Ask a question"
+            data-walk="ask.composer"
             onSubmit={(event) => {
               event.preventDefault()
               send(question)
@@ -1304,17 +1334,21 @@ export function AskPanel({
               ) : (
                 <>
                   {drafting && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      iconLeft="pen-line"
-                      disabled={ask.switching}
-                      disabledReason={draftBlocked}
-                      onClick={() => draft('draft')}
-                    >
-                      Draft text
-                    </Button>
+                    <>
+                      <Tip id="ask.draft-text" align="right" />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        iconLeft="pen-line"
+                        disabled={ask.switching}
+                        disabledReason={draftBlocked}
+                        data-walk="ask.draft-text"
+                        onClick={() => draft('draft')}
+                      >
+                        Draft text
+                      </Button>
+                    </>
                   )}
                   <Button
                     type="submit"

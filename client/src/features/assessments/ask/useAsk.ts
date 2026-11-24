@@ -19,6 +19,7 @@ import {
   type ProposalAction,
   type ProposeRequest,
 } from './api'
+import { signal } from '../../walkthrough/signals'
 import type { AskPassage } from './passage'
 
 // A failure as the Ask tab shows it (AC8): its cause and time, and the next step.
@@ -257,6 +258,8 @@ export function useAsk(reference: string, enabled: boolean) {
       const controller = new AbortController()
       running.current = controller
       setBusy(true)
+      // A question (not drafted text) is on its way: a running Ask walkthrough moves on.
+      if (!propose) signal('ask-question-sent')
       const key = `pending-${Date.now()}`
       const update = (change: (item: AskItem) => AskItem) =>
         setItems((list) => list.map((item) => (item.key === key ? change(item) : item)))
@@ -285,13 +288,17 @@ export function useAsk(reference: string, enabled: boolean) {
           refusal: null,
         },
       ])
-      const fail = (cause: string, next = NEXT, at = new Date().toISOString()) =>
+      // A failure that was not the person pressing Stop ends a running try-it (F-12); without this
+      // the walkthrough would wait for an answer that is never coming.
+      const fail = (cause: string, next = NEXT, at = new Date().toISOString()) => {
+        if (!controller.signal.aborted) signal('try-it-failed')
         update((item) => ({
           ...item,
           status: item.statements.length ? 'stopped' : 'failed',
           step: null,
           failure: { cause, at, next },
         }))
+      }
       let finished = false
       const onEvent = (event: AskEvent) => {
         if (event.type === 'question') {
@@ -342,6 +349,8 @@ export function useAsk(reference: string, enabled: boolean) {
           guidance,
         )
         if (!finished) fail('the answer ended before it was finished')
+        // Only after every line was checked and the result arrived (the walkthrough's wait ends here).
+        else if (!propose) signal('ask-answer-finished')
       } catch (error: unknown) {
         if (controller.signal.aborted) fail('the answer was stopped before it finished')
         else if (error instanceof AskRefusedError) fail(error.reason, error.next, error.at)

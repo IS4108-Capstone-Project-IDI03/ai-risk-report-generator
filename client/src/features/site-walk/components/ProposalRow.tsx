@@ -17,10 +17,16 @@ export function ProposalRow({
   o,
   onOpen,
   onRestore,
+  first = false,
+  flagged = false,
 }: {
   o: ProposedObservation
   onOpen: () => void
   onRestore?: () => void
+  // The list's first row, which the "Review a site walk" walkthrough points at (F-12).
+  first?: boolean
+  // The first red-marked row after the first: the walkthrough lights it as well.
+  flagged?: boolean
 }) {
   const missing = missingFields(o)
   // a. Which look it wears: red when something is missing, else amber when not sure.
@@ -53,7 +59,11 @@ export function ProposalRow({
     // The same wrapper and tints as the Observations tab's rows (assessments/observations.css).
     const tint = missing.length ? 'failed' : unsure ? 'unsure' : undefined
     return (
-      <div className="ob-row-wrap" data-tint={tint}>
+      <div
+        className="ob-row-wrap"
+        data-tint={tint}
+        data-walk={first ? 'site-walk.row-1' : flagged ? 'site-walk.row-red' : undefined}
+      >
         {row}
       </div>
     )

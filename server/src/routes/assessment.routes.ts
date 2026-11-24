@@ -8,6 +8,7 @@ import {
   listAssessments,
   NotArchivedError,
   NotAssignedError,
+  PracticeAssessmentError,
   restoreAssessment,
   storedSurveyType,
   updateAssessment,
@@ -198,7 +199,7 @@ router.post('/', requirePermission('assessments:edit'), async (req, res) => {
 // Moves an assessment to another engineer (RV-11): 200 with its row as the
 // Assessments list shows it. 400 names `engineerId` for an unknown or inactive
 // account, 404 for an unknown assessment, 409 once it is archived or when another
-// admin reassigned it first.
+// admin reassigned it first, or for a practice assessment (F-12).
 router.post('/:reference/reassign', requirePermission('assessments:assign'), async (req, res) => {
   try {
     res.json(await reassignAssessment(req.params.reference, req.body?.engineerId, res.locals.user!))
@@ -215,7 +216,7 @@ router.post('/:reference/reassign', requirePermission('assessments:assign'), asy
       res.status(409).json({ error: `${error.message} Restore it before reassigning it.` })
       return
     }
-    if (error instanceof AssessmentReassignedError) {
+    if (error instanceof AssessmentReassignedError || error instanceof PracticeAssessmentError) {
       res.status(409).json({ error: error.message })
       return
     }
@@ -290,7 +291,7 @@ router.put('/:reference', requirePermission('assessments:edit'), async (req, res
 
 // Archives (RV-10 AC8) or restores (AC9) an assessment: 204 when done, 403
 // for anyone but its assigned engineer, 409 when it is already in that state,
-// or when its removed site's name has since been taken (CP-18).
+// when its removed site's name has since been taken (CP-18), or for a practice assessment (F-12).
 for (const [action, change] of [
   ['archive', archiveAssessment],
   ['restore', restoreAssessment],
@@ -308,7 +309,11 @@ for (const [action, change] of [
         res.status(403).json({ error: error.message })
         return
       }
-      if (error instanceof AssessmentArchivedError || error instanceof NotArchivedError) {
+      if (
+        error instanceof AssessmentArchivedError ||
+        error instanceof NotArchivedError ||
+        error instanceof PracticeAssessmentError
+      ) {
         res.status(409).json({ error: error.message })
         return
       }

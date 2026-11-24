@@ -34,6 +34,7 @@ import { getObjectRangeStream } from './file-copy.service'
 import { toPdf } from './converter.service'
 import { ReportOfiModel } from '../models/report-ofi.model'
 import { ReportSectionModel } from '../models/report-section.model'
+import { AssessmentModel } from '../models/assessment.model'
 
 const text = (label: string, max: number) =>
   z
@@ -304,11 +305,14 @@ export async function citedDocumentIds(): Promise<Set<string>> {
 
 // Every passage citation in report section statements and OFIs (`C:` / `P:` + passage id).
 // IN-12 reads it for documents; a manual clause's delete (IN-18) for its own passages.
+// A practice assessment's citations (F-12) don't count: it is no real report.
 export async function reportCitations(): Promise<string[]> {
+  const practice = await AssessmentModel.distinct('_id', { practice: { $exists: true } })
+  const real = { assessment: { $nin: practice as Types.ObjectId[] } }
   const [fromSections, standards, precedents] = await Promise.all([
-    ReportSectionModel.distinct('subsections.statements.citations') as Promise<string[]>,
-    ReportOfiModel.distinct('standards') as Promise<string[]>,
-    ReportOfiModel.distinct('precedent') as Promise<(string | null)[]>,
+    ReportSectionModel.distinct('subsections.statements.citations', real) as Promise<string[]>,
+    ReportOfiModel.distinct('standards', real) as Promise<string[]>,
+    ReportOfiModel.distinct('precedent', real) as Promise<(string | null)[]>,
   ])
   return [...fromSections, ...standards, ...precedents].filter(
     (citation): citation is string => typeof citation === 'string',

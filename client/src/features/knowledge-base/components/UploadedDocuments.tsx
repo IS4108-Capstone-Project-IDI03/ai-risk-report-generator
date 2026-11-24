@@ -22,6 +22,7 @@ import {
   SOURCE_LABELS,
 } from '../display'
 import { followList } from '../uploads'
+import { Tip } from '../../help/Tip'
 import { ChooseSourceType } from './ChooseSourceType'
 import { ReviewBadge } from './ReviewBadge'
 
@@ -57,6 +58,7 @@ export function UploadedDocuments({
   narrow,
   refreshKey,
   onCompleted,
+  onLoaded,
   onReview,
 }: {
   narrow: boolean
@@ -65,6 +67,8 @@ export function UploadedDocuments({
   onReview: (id: string) => void
   // Reports how many recent uploads finished ingesting.
   onCompleted: (count: number) => void
+  // Reports the list each time it is read, so the screen knows Recent uploads has loaded (F-12).
+  onLoaded?: (documents: KnowledgeDocument[]) => void
 }) {
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
@@ -116,6 +120,7 @@ export function UploadedDocuments({
         (list) => {
           setDocuments(list)
           setUnreachable(false)
+          onLoaded?.(list)
           // An upload row waiting on a type turns Uploaded once one is chosen here (IN-19).
           followList(list)
           // An upload finishing changes what the knowledge base holds, so the
@@ -134,7 +139,11 @@ export function UploadedDocuments({
       controller.abort()
       clearTimeout(timer)
     }
-  }, [refreshKey, attempt, onCompleted])
+  }, [refreshKey, attempt, onCompleted, onLoaded])
+
+  // F-12: the first Needs review row and the first Type needed row, which two walkthrough steps point at.
+  const firstReview = documents?.find((d) => d.status === 'complete' && needsReview(d))?.id
+  const firstType = documents?.find((d) => d.status === 'awaiting_type')?.id
 
   const title = (d: KnowledgeDocument) => (
     <span className="kb-doc">
@@ -179,12 +188,19 @@ export function UploadedDocuments({
           : null
 
     return (
-      <span className="kb-status">
+      <span
+        className="kb-status"
+        data-walk={d.id === firstType ? 'knowledge-add.type-needed.status' : undefined}
+      >
         <span className="kb-status-line">
           {/* One badge: a finished upload that needs review shows the Documents
               list's Needs review badge instead of Complete (IN-05, IN-07). */}
           {d.status === 'complete' && needsReview(d) ? (
-            <ReviewBadge title={d.title} onReview={() => onReview(d.id)} />
+            <ReviewBadge
+              title={d.title}
+              onReview={() => onReview(d.id)}
+              walk={d.id === firstReview ? 'knowledge-add.needs-review' : undefined}
+            />
           ) : (
             <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
           )}
@@ -206,7 +222,14 @@ export function UploadedDocuments({
   }
   const action = (d: KnowledgeDocument) => {
     if (d.status === 'awaiting_type') {
-      return <ChooseSourceType document={d} onStarted={refresh} onError={setStartError} />
+      return (
+        <ChooseSourceType
+          document={d}
+          onStarted={refresh}
+          onError={setStartError}
+          walk={d.id === firstType ? 'knowledge-add.type-needed.action' : undefined}
+        />
+      )
     }
     if (d.status === 'failed' || d.status === 'cancelled') {
       return (
@@ -250,8 +273,13 @@ export function UploadedDocuments({
 
   return (
     <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
-      <header className="kb-uploaded-head">
-        <h2 id="kb-uploaded-title">Recent uploads</h2>
+      {/* On a phone there is no table: this heading stands in for its headings (F-12). */}
+      <header className="kb-uploaded-head" data-walk={narrow ? 'knowledge-add.head' : undefined}>
+        <div className="kb-title-row">
+          <h2 id="kb-uploaded-title">Recent uploads</h2>
+          {/* The status tip (F-13): on a phone, which has no Status heading, it sits here. */}
+          {narrow && <Tip id="knowledge-add.status" />}
+        </div>
         <p>
           Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.
         </p>
@@ -299,8 +327,8 @@ export function UploadedDocuments({
         />
       ) : narrow ? (
         <ul className="kb-stack" aria-label="Recent uploads">
-          {documents.map((d) => (
-            <li key={d.id}>
+          {documents.map((d, i) => (
+            <li key={d.id} data-walk={i === 0 ? 'knowledge-add.row-1' : undefined}>
               {title(d)}
               {status(d)}
               <span className="kb-stack-meta">
@@ -315,10 +343,19 @@ export function UploadedDocuments({
         </ul>
       ) : (
         <Table
+          walk={{ head: 'knowledge-add.head', row1: 'knowledge-add.row-1' }}
           columns={[
             { key: 'document', header: 'Document' },
             { key: 'uploaded', header: 'Uploaded' },
-            { key: 'status', header: 'Status' },
+            {
+              key: 'status',
+              header: (
+                <span className="kb-th-row">
+                  Status
+                  <Tip id="knowledge-add.status" />
+                </span>
+              ),
+            },
             { key: 'action', header: 'Action', align: 'right' },
             { key: 'original', header: 'Original' },
           ]}

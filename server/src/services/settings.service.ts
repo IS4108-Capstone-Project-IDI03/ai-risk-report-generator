@@ -27,6 +27,7 @@ import {
 import type { SessionUser } from './auth.service'
 import { hasPermission } from './permissions.service'
 import { DEFAULT_TIER_ORDER, TIER_IDS, type TierId } from './source-tiers'
+import { checkWalkthroughPatch, saveWalkthroughs } from './walkthrough-record.service'
 
 // A bad request to the settings API; `status` is the HTTP code the route answers with.
 export class SettingsInputError extends Error {
@@ -355,11 +356,11 @@ function checkGlossary(input: unknown): GlossaryEntry[] {
   })
 }
 
-/** Saves this engineer's own note codes and glossary (CP-35); returns nothing. Throws SettingsInputError on a bad value, saving nothing. */
+/** Saves this engineer's own note codes, glossary (CP-35) and walkthrough record (F-12); returns nothing. Throws SettingsInputError on a bad value, saving nothing. */
 export async function savePersonal(userId: string, input: unknown) {
   const body = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
   const keys = Object.keys(body)
-  const bad = keys.find((k) => k !== 'noteCodes' && k !== 'glossary')
+  const bad = keys.find((k) => !['noteCodes', 'glossary', 'walkthroughs'].includes(k))
   if (bad) throw new SettingsInputError(`"${bad}" is not a setting.`)
   if (!keys.length) throw new SettingsInputError('Nothing to save.')
 
@@ -377,13 +378,18 @@ export async function savePersonal(userId: string, input: unknown) {
     else unset.noteCodes = ''
   }
   if (Object.hasOwn(body, 'glossary')) set.glossary = checkGlossary(body.glossary)
-  await UserSettingsModel.updateOne(
-    { user: userId },
-    {
-      ...(Object.keys(set).length && { $set: set }),
-      ...(Object.keys(unset).length && { $unset: unset }),
-      $setOnInsert: { user: userId, metadata: metadata('settings') },
-    },
-    { upsert: true },
-  )
+  // Checked before anything is written, so a bad walkthrough part saves nothing at all.
+  if (Object.hasOwn(body, 'walkthroughs')) checkWalkthroughPatch(body.walkthroughs)
+  if (Object.keys(set).length || Object.keys(unset).length) {
+    await UserSettingsModel.updateOne(
+      { user: userId },
+      {
+        ...(Object.keys(set).length && { $set: set }),
+        ...(Object.keys(unset).length && { $unset: unset }),
+        $setOnInsert: { user: userId, metadata: metadata('settings') },
+      },
+      { upsert: true },
+    )
+  }
+  if (Object.hasOwn(body, 'walkthroughs')) await saveWalkthroughs(userId, body.walkthroughs)
 }

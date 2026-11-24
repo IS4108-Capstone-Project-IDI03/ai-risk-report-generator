@@ -42,6 +42,7 @@ export function RecordPanel({
         (running ? (phase === 'paused' ? ' sw-record--paused' : ' sw-record--live') : '')
       }
       aria-label="Recording"
+      data-walk="site-walk.record-panel"
     >
       <div className="sw-record-state" aria-live="polite">
         {running ? (
@@ -80,7 +81,12 @@ export function RecordPanel({
       )}
 
       <div className="sw-controls">
-        <button type="button" className="sw-control" onClick={onCamera}>
+        <button
+          type="button"
+          className="sw-control"
+          data-walk="site-walk.camera"
+          onClick={onCamera}
+        >
           <span className="sw-control-icon">
             <Icon name="camera" size={22} />
           </span>

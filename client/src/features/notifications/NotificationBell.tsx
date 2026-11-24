@@ -68,6 +68,7 @@ export function NotificationBell({
           // Large, so the bell is noticed on every page (UI polish, 21 Oct).
           size="lg"
           selected={open}
+          data-walk="shell.bell"
           className={`notif-bell notif-bell--${tone}${ringing ? ' notif-bell--ring' : ''}`}
           onAnimationEnd={(e) => e.target === e.currentTarget && setRinging(false)}
           onClick={toggle}

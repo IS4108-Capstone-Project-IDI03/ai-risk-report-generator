@@ -5,6 +5,7 @@
 // decision.
 import { useState } from 'react'
 import { Badge, Button, Callout, Radio } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import type { DecisionChoice, KnowledgeDocument } from '../api'
 import { choicesFor } from '../decisions'
 import { DiscardDialog } from './DiscardDialog'
@@ -42,8 +43,13 @@ export function DecisionPanel({
 
   return (
     <div className="kb-decide">
-      <fieldset className="kb-decide-choices">
-        <legend>What should happen to this document?</legend>
+      <fieldset className="kb-decide-choices" data-walk="knowledge-review.choices">
+        <legend>
+          <span className="kb-title-row">
+            What should happen to this document?
+            <Tip id="knowledge-review.decision" />
+          </span>
+        </legend>
         {/* Each choice is a card, so the whole card is the click target and
             the chosen one is marked by its fill, not just the radio dot. */}
         {choices.map((c) => (

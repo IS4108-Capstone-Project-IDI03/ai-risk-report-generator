@@ -5,11 +5,14 @@ export function CitationMark({
   label,
   current,
   onSelect,
+  walk,
 }: {
   number: number
   label: string
   current: boolean
   onSelect: () => void
+  // The walkthrough tag (F-12), as data-walk: set on Finding 1's first citation only.
+  walk?: string
 }) {
   return (
     <button
@@ -17,6 +20,7 @@ export function CitationMark({
       className="rv-cite"
       aria-label={`Citation ${number}: ${label}`}
       aria-current={current ? 'true' : undefined}
+      data-walk={walk}
       onClick={onSelect}
     >
       {number}

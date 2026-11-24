@@ -40,6 +40,8 @@ export interface ISite {
   // The client it belongs to (CP-17). Every site created since has one; one
   // created before gets it from `npm run migrate:clients`.
   client?: Types.ObjectId
+  // F-12: set only on a practice assessment's made-up site (ADR 0003); absent on real ones.
+  practice?: true
   // The names and addresses it had before it was corrected (CP-18), kept so
   // notes written with them are still masked before external AI calls (PV-02).
   // Absent until it is first corrected.
@@ -119,6 +121,7 @@ const siteSchema = new Schema<ISite>(
       default: undefined,
     },
     client: { type: Schema.Types.ObjectId, ref: 'Client', index: true },
+    practice: Boolean,
     // Left out until there is one, rather than defaulting to [].
     formerNames: { type: [String], default: undefined },
     formerAddresses: { type: [String], default: undefined },

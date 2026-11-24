@@ -129,3 +129,10 @@
     flex-wrap: wrap;
   }
 }
+
+/* The "Left to finish" title with its help (?) beside it (F-13). */
+.ex-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

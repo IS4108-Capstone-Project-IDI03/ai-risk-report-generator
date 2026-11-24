@@ -5,6 +5,7 @@
 // screens/NewAssessment.tsx. Calls useNewAssessment.ts's state and actions.
 import { useEffect, useRef } from 'react'
 import { AddRow, Callout, SegmentedControl } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { Block, FormOpened } from '../components/Block'
 import { ClientCard } from '../components/ClientCard'
 import { SiteCard } from '../components/SiteCard'
@@ -22,12 +23,15 @@ const MODES = [
 export function NewAssessmentForm({
   f,
   enter,
+  filled,
   readNothing,
   rejected,
 }: {
   f: Form
   // Fresh from reading: the cards fade and rise in, 40 ms apart (motion 5).
   enter: boolean
+  // Filled in from documents that were read: the amber fields' help tip shows.
+  filled: boolean
   readNothing: boolean
   // The files refused or failed to read, for the Rejected pill; none if filled in by hand.
   rejected: IntakeFile[]
@@ -82,12 +86,15 @@ export function NewAssessmentForm({
           </Callout>
         )}
         <div className="na-mode">
-          <SegmentedControl<ClientMode>
-            ariaLabel="Client"
-            options={MODES}
-            value={form.clientMode}
-            onChange={f.setClientMode}
-          />
+          <span className="na-mode-switch" data-walk="new-assessment.client-mode">
+            <SegmentedControl<ClientMode>
+              ariaLabel="Client"
+              options={MODES}
+              value={form.clientMode}
+              onChange={f.setClientMode}
+            />
+          </span>
+          {filled && <Tip id="new-assessment.amber-fields" align="right" />}
         </div>
         <ClientCard f={f} rejected={rejected} />
         {form.clientMode === 'existing' && !!form.client.id && <SitesPicker f={f} />}
@@ -97,7 +104,11 @@ export function NewAssessmentForm({
               <SiteCard f={f} i={i} site={site} />
             </Block>
           ))}
-        {form.clientMode === 'new' && <AddRow onClick={f.addSite}>{'Add site'}</AddRow>}
+        {form.clientMode === 'new' && (
+          <AddRow data-walk="new-assessment.add-site" onClick={f.addSite}>
+            {'Add site'}
+          </AddRow>
+        )}
       </div>
     </FormOpened.Provider>
   )

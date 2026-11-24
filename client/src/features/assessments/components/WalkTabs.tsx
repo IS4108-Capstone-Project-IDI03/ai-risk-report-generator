@@ -6,10 +6,35 @@ import { Tabs } from '../../../design-system'
 export type WalkTab = 'ready' | 'working' | 'added'
 
 // `short`: the name on a phone, where all three must fit on one line.
-export const WALK_TABS: { tab: WalkTab; label: string; short: string; icon: string }[] = [
-  { tab: 'ready', label: 'Ready to review', short: 'Ready', icon: 'inbox' },
-  { tab: 'working', label: 'In progress', short: 'In progress', icon: 'clock' },
-  { tab: 'added', label: 'Added', short: 'Added', icon: 'circle-check' },
+// `walk`: the tab's tag for the "Find your site walks" walkthrough (F-12).
+export const WALK_TABS: {
+  tab: WalkTab
+  label: string
+  short: string
+  icon: string
+  walk: string
+}[] = [
+  {
+    tab: 'ready',
+    label: 'Ready to review',
+    short: 'Ready',
+    icon: 'inbox',
+    walk: 'proposals.tab.ready',
+  },
+  {
+    tab: 'working',
+    label: 'In progress',
+    short: 'In progress',
+    icon: 'clock',
+    walk: 'proposals.tab.working',
+  },
+  {
+    tab: 'added',
+    label: 'Added',
+    short: 'Added',
+    icon: 'circle-check',
+    walk: 'proposals.tab.added',
+  },
 ]
 
 // Shows the three groups with their counts; the nav keeps the screen known as "Site walk proposals".
@@ -31,6 +56,7 @@ export function WalkTabs({
           shortLabel: t.short,
           icon: t.icon,
           count: counts[t.tab],
+          walk: t.walk,
         }))}
         value={tab}
         onChange={(value) => onPick(value as WalkTab)}

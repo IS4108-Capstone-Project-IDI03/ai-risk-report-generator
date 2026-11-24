@@ -20,11 +20,13 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.aa-item + .aa-item {
+.aa-item + .aa-item,
+.aa-item + .ds-reason-wrap > .aa-item {
   position: relative;
 }
 /* The hairline between the two halves. */
-.aa-item + .aa-item::before {
+.aa-item + .aa-item::before,
+.aa-item + .ds-reason-wrap > .aa-item::before {
   content: '';
   position: absolute;
   left: 0;

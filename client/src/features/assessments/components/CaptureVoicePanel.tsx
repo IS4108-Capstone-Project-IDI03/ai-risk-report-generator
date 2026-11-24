@@ -1,9 +1,10 @@
 // The Voice tab of New Observation: record or upload, and the recordings so far (CP-02, CP-24).
 // A recording starts transcribing as soon as it is added, and its row shows its first words once
 // it has them; the chevron opens the whole transcript. Called by screens/SiteObservation.tsx.
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { Button, Callout } from '../../../design-system'
 import { RecordingRow } from '../../site-walk/components/RecordingRow'
+import { signal } from '../../walkthrough/signals'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { CaptureFilePicker } from './CaptureFilePicker'
 import '../../site-walk/site-walk.css'
@@ -12,6 +13,13 @@ import '../capture.css'
 
 export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
   const recording = v.recLabel.startsWith('Stop')
+  // F-12: a recording joining the list means one has stopped and been kept. The "Add an observation"
+  // walkthrough waits on this; the count at first showing is the baseline, so only a new one counts.
+  const clips = useRef(v.captureRows.length)
+  useEffect(() => {
+    if (v.captureRows.length > clips.current) signal('observation-recording-stopped')
+    clips.current = v.captureRows.length
+  }, [v.captureRows.length])
   return (
     <>
       <div className="cap-rec">
@@ -30,6 +38,7 @@ export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
           iconLeft={recording ? 'square' : 'mic'}
           fullWidth
           disabled={v.recBusy && !recording}
+          data-walk="new-observation.record"
           onClick={v.toggleRec}
         >
           {v.recLabel}
@@ -55,7 +64,11 @@ export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
         </div>
       )}
       {v.captureRows.length > 0 && (
-        <ul className="sw-list cap-clips" aria-label="Recordings">
+        <ul
+          className="sw-list cap-clips"
+          aria-label="Recordings"
+          data-walk="new-observation.recordings"
+        >
           {v.captureRows.map((row) => (
             <RecordingRow
               key={row.key}

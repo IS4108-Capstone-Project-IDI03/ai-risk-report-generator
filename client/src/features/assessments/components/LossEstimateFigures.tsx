@@ -6,6 +6,7 @@
 // Used by ReviewWorkspace above Section 5's drafted scenarios.
 import { useState } from 'react'
 import { Button, Callout } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import {
   getLossEstimates,
   proposeLossEstimates,
@@ -253,15 +254,18 @@ export function LossEstimateFigures({
         <div className="rv-figures-actions">
           <span className="rv-muted">Losses update when the figures are saved.</span>
           {!entered && !figures.proposal && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft="sparkles"
-              loading={proposing}
-              onClick={() => void propose()}
-            >
-              Propose figures
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft="sparkles"
+                loading={proposing}
+                onClick={() => void propose()}
+              >
+                Propose figures
+              </Button>
+              <Tip id="review.propose-figures" align="right" />
+            </>
           )}
           <Button
             variant="primary"

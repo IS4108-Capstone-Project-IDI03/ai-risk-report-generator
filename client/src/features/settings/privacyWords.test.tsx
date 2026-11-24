@@ -55,8 +55,8 @@ function mock(
   return fetchMock
 }
 async function openPrivacyWords() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Privacy words' }))
-  return screen.findByRole('region', { name: 'Privacy words' })
+  fireEvent.click(await screen.findByRole('button', { name: 'Privacy Words' }))
+  return screen.findByRole('region', { name: 'Privacy Words' })
 }
 beforeAll(() => {
   // jsdom has no native modal dialog.
@@ -84,7 +84,7 @@ describe('Privacy words (PV-09)', () => {
     render(<Settings />)
     await screen.findByRole('button', { name: 'Models' })
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: 'Privacy words' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Privacy Words' })).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/settings/privacy-words')
   })
 

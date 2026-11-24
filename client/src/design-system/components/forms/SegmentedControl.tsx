@@ -16,6 +16,8 @@ export type SegmentedOption<T extends string> = {
   color?: string
   // A small count after the label (the Inbox's To do, F-10); none when undefined or 0.
   count?: number
+  // The option's data-walk tag (F-12), so a walkthrough can press or point at this one option.
+  walk?: string
 }
 
 export type SegmentedControlProps<T extends string> = {
@@ -89,6 +91,7 @@ export function SegmentedControl<T extends string>({
           disabled={o.disabled}
           style={o.color ? { color: o.color } : undefined}
           title={o.label}
+          data-walk={o.walk}
           aria-label={o.count ? `${o.label}, ${o.count}` : undefined}
           onClick={() => onChange(o.value)}
           onKeyDown={(e) => onKeyDown(e, o.value)}

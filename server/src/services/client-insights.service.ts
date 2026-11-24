@@ -447,7 +447,7 @@ export async function readClientInsights(
   id: string,
   user: SessionUser,
 ): Promise<{
-  client: { id: string; name: string }
+  client: { id: string; name: string; practice: boolean }
   insights: ClientInsightsDto
   evidence: InsightEvidence
 }> {
@@ -559,7 +559,7 @@ export async function readClientInsights(
     findings: findingsOf(sites, byCategory),
   }
   return {
-    client: { id: String(client._id), name: client.name },
+    client: { id: String(client._id), name: client.name, practice: !!client.practice },
     insights,
     evidence: evidenceOf(sites, byCategory, current),
   }

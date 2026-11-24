@@ -22,6 +22,7 @@ import {
   JURISDICTIONS,
   PDF_MARKER,
 } from './knowledge-document.service'
+import { NOT_PRACTICE } from './practice/filter'
 import { chatPrivacy } from './privacy.service'
 import { readClientIntake, type ClientIntakeReadBody } from './rag.service'
 import { hyphenated } from './speech.service'
@@ -273,11 +274,14 @@ async function textOf(file: IClientIntake['files'][number]): Promise<Read | stri
   }
 }
 
-// Every recorded client with its listed sites, for rag-service to match the
-// documents' client and sites against (AC7), in code after unmasking.
-async function recordedClients(): Promise<ClientIntakeReadBody['clients']> {
+/**
+ * Returns every recorded client with its listed sites, for rag-service to match the documents'
+ * client and sites against (AC7), in code after unmasking. Practice clients (F-12), and with
+ * them their sites, are left out: they are no one's real client.
+ */
+export async function recordedClients(): Promise<ClientIntakeReadBody['clients']> {
   const [clients, sites, visited] = await Promise.all([
-    ClientModel.find({}, 'name division').lean(),
+    ClientModel.find(NOT_PRACTICE, 'name division').lean(),
     SiteModel.find(
       { client: { $exists: true }, removed: { $exists: false } },
       'name address client',

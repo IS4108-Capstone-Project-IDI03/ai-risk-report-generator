@@ -59,6 +59,7 @@ export function ObservationFilters({
     <div className="ob-bar" ref={bar}>
       <SearchField
         className="ob-bar-search"
+        walk="observations.search"
         label="Search observations"
         placeholder={narrow ? 'Search' : 'Search observations'}
         value={v.obsFilters.q}
@@ -72,6 +73,8 @@ export function ObservationFilters({
             choices={choices}
             value={v.obsFilters[key]}
             onChoose={(value) => v.setObsFilter(key, value)}
+            // F-12: the search and the last pill frame the filters (the pills' wrapper has no box).
+            walk={key === 'status' ? 'observations.filter-status' : undefined}
           />
         ))}
         {set > 1 && (
@@ -92,15 +95,17 @@ function FilterMenu({
   choices,
   value,
   onChoose,
+  walk,
 }: {
   name: string
   choices: Choice[]
   value: string
   onChoose: (value: string) => void
+  walk?: string
 }) {
   const chosen = value ? choices.find((c) => c.value === value) : undefined
   return (
-    <span className="ob-fp" data-set={chosen ? '' : undefined}>
+    <span className="ob-fp" data-set={chosen ? '' : undefined} data-walk={walk}>
       <ChoiceMenu
         label={name}
         choices={choices}
