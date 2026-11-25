@@ -14,12 +14,12 @@
 <!-- Any judgment calls, trade-offs, or alternatives considered while
      implementing this — especially anything not obvious from the diff
      alone. If a decision is significant enough to matter later, also
-     add it to docs/DECISIONS.md in this same PR. -->
+     add it to docs/devguides/DECISIONS.md in this same PR. -->
 
 ## Checklist
 - [ ] Tests pass locally (`docker-compose up` + manual smoke test)
 - [ ] Docs updated — if this PR changes behaviour, architecture, or a known
       pitfall, the relevant file is updated in this same PR:
-      CLAUDE.md · docs/areas/ · README.md · docs/DECISIONS.md
+      CLAUDE.md · docs/areas/ · README.md · docs/devguides/DECISIONS.md
 - [ ] No credentials or `.env` values committed
 - [ ] Reviewed by at least one other team member

@@ -152,7 +152,7 @@ function palette(variant: string, hover: boolean, active: boolean) {
       }
     // Red text and the soft red edge of `danger-tonal`, no fill: a rare,
     // irreversible row action set apart from the row's others (see
-    // docs/design-system.md).
+    // docs/areas/design-system-v2.md).
     case 'danger-outline':
       return {
         background: active || hover ? 'var(--red-50)' : 'transparent',

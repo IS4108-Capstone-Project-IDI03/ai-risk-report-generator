@@ -41,7 +41,7 @@ COMPARISON_MODEL = os.getenv("COMPARISON_MODEL", LLM_MODEL)
 COMPARISON_EFFORT = os.getenv("COMPARISON_EFFORT", "medium")
 
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
-# The defaults are the CB-01 model comparison's winner (docs/DECISIONS.md, 2026-10-15).
+# The defaults are the CB-01 model comparison's winner (docs/devguides/DECISIONS.md, 2026-10-15).
 CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-6.1-sol")
 # Chat usually does well at low effort (fewer thinking tokens: cheaper and faster).
