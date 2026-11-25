@@ -7,6 +7,7 @@ import app from '../index'
 import { AiCallModel } from '../models/ai-call.model'
 import { ClientModel } from '../models/client.model'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
+import { KnowledgeGapRequestModel } from '../models/knowledge-gap-request.model'
 import { IngestionJobModel } from '../models/ingestion-job.model'
 import {
   cancelIngestion,
@@ -2347,5 +2348,45 @@ describe('document authority tier (RT-04)', () => {
       who.put(`/api/knowledge-documents/${id}`).send({ ...DETAILS, tier })
     expect((await put(api, 'gold')).status).toBe(400)
     expect((await put(engineer, 'national_code')).status).toBe(403)
+  })
+})
+
+// AC6 of F-11: an admin uploads a document for an engineer's open knowledge
+// request, so the engineer can follow its ingestion.
+describe('uploading for a knowledge request (F-11)', () => {
+  const request = (status: 'open' | 'filled' = 'open') =>
+    KnowledgeGapRequestModel.create({
+      question: 'What sprinkler density for cold stores?',
+      askedBy: new Types.ObjectId(),
+      status,
+    })
+  const uploadFor = (requestId: string) => {
+    labelling.mockResolvedValue(Response.json(labelAnswer(DETAILS)))
+    return api
+      .post('/api/knowledge-documents')
+      .query({ fileName: 'file.pdf', requestId })
+      .set('Content-Type', 'application/pdf')
+      .send(freshPdf())
+  }
+
+  it("adds the uploaded document to the request's incoming documents", async () => {
+    const asked = await request()
+
+    const res = await uploadFor(String(asked._id)).expect(201)
+
+    const stored = await KnowledgeGapRequestModel.findById(asked._id).lean()
+    expect(stored?.incomingDocumentIds?.map(String)).toEqual([res.body.id])
+    expect(stored?.status).toBe('open')
+  })
+
+  // Written after the refusal it covers (F-11 T13), so it passed from the start.
+  it('refuses an unknown request (404) or a closed one (409) and keeps nothing', async () => {
+    const filled = await request('filled')
+
+    await uploadFor(String(new Types.ObjectId())).expect(404)
+    await uploadFor(String(filled._id)).expect(409)
+
+    expect(await KnowledgeDocumentModel.countDocuments()).toBe(0)
+    expect(queued).not.toHaveBeenCalled()
   })
 })

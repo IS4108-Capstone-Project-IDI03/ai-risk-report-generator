@@ -32,18 +32,21 @@ function respond(status: number, body: unknown = CAPTURE) {
 }
 // The dashboard's GET of the work list is answered by listReply, so fetchMock
 // sees only the POSTs a test queues. The list defaults to an unreachable gateway.
+// The header's background work (F-11) is answered as unreachable too.
 const unreachable = () => Promise.reject(new TypeError('Failed to fetch'))
 let listReply: () => Promise<Response> = unreachable
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    init?.method === 'GET'
-      ? listReply()
-      : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
-        url === '/api/settings/me'
-        ? Promise.resolve(new Response(null, { status: 204 }))
-        : fetchMock(url, init),
+    url.startsWith('/api/background-work')
+      ? unreachable()
+      : init?.method === 'GET'
+        ? listReply()
+        : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
+          url === '/api/settings/me'
+          ? Promise.resolve(new Response(null, { status: 204 }))
+          : fetchMock(url, init),
   )
   return fetchMock
 }

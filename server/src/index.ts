@@ -26,6 +26,7 @@ import assistantRoutes from './routes/assistant.routes'
 import assistantEventRoutes from './routes/assistant-events.routes'
 import generationRoutes from './routes/generation.routes'
 import { practiceGate, walkthroughUsage } from './middleware/practice.middleware'
+import comparisonRoutes from './routes/comparison.routes'
 import { assistantRecheck } from './middleware/assistant-recheck.middleware'
 import { scheduleDailyAssessmentChecks } from './services/assistant/check-queue.service'
 import { scheduleIntakeCleanup } from './services/client-intake.service'
@@ -47,6 +48,7 @@ import walkthroughRoutes from './routes/walkthrough.routes'
 import userRoutes from './routes/user.routes'
 import notificationRoutes from './routes/notification.routes'
 import notificationCountRoutes from './routes/notification-count.routes'
+import backgroundWorkRoutes from './routes/background-work.routes'
 import internalNotificationRoutes from './routes/internal-notification.routes'
 import internalAiUsageRoutes from './routes/internal-ai-usage.routes'
 import internalKnowledgeDocumentRoutes from './routes/internal-knowledge-document.routes'
@@ -110,6 +112,8 @@ app.use('/api/assessments/:reference/ask', requireAuth, askRoutes)
 // Dictating into an assessment's text fields (CP-27).
 app.use('/api/assessments/:reference/dictation', requireAuth, dictationRoutes)
 app.use('/api/assessments/:reference/proposals', requireAuth, proposalRoutes)
+// Comparing with the previous report for the same site (RV-13).
+app.use('/api/assessments/:reference/comparison', requireAuth, comparisonRoutes)
 // The site's weather (CP-62). An open panel refreshes it every 10 minutes, so reading it doesn't
 // refresh the session (F-07), as for MarshBot's brief.
 app.use('/api/assessments/:reference/weather', requireAuthNoRefresh, weatherRoutes)
@@ -136,6 +140,8 @@ app.use('/api/walkthroughs', requireAuth, walkthroughRoutes)
 app.use('/api/notifications/count', requireAuthNoRefresh, notificationCountRoutes)
 // Scoped to the caller's own session, not a role capability (no permission).
 app.use('/api/notifications', requireAuth, notificationRoutes)
+// Polled by the activity popover while work runs (F-11), so it doesn't refresh the session either.
+app.use('/api/background-work', requireAuthNoRefresh, backgroundWorkRoutes)
 // Service-to-service: authenticated by a shared secret, not a session, so it
 // mounts on its own path outside the requireAuth chain above.
 app.use('/api/internal/notifications', requireServiceKey, internalNotificationRoutes)

@@ -3,6 +3,7 @@
 // Calls server/src/routes/generation.routes.ts.
 import { request } from '../api'
 import type { GenerationDto } from './types'
+import { started } from '../../background-work/started'
 
 const generationPath = (reference: string) =>
   `/api/assessments/${encodeURIComponent(reference)}/generation`
@@ -17,7 +18,7 @@ export async function getGeneration(
 
 /** Starts the drafting run the current checkpoint offers; returns the state with the run queued. */
 export async function startDraftingRun(reference: string): Promise<GenerationDto> {
-  return (await request<GenerationDto>('POST', `${generationPath(reference)}/run`)).data
+  return (await started(request<GenerationDto>('POST', `${generationPath(reference)}/run`))).data
 }
 
 /** Drafts one part again in the background, from Review: Redraft for Section 2 and
@@ -29,5 +30,6 @@ export async function draftPart(
   instruction?: string | null,
 ): Promise<GenerationDto> {
   const path = `${generationPath(reference)}/parts/${encodeURIComponent(partId)}`
-  return (await request<GenerationDto>('POST', path, { instruction: instruction ?? null })).data
+  return (await started(request<GenerationDto>('POST', path, { instruction: instruction ?? null })))
+    .data
 }

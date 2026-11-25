@@ -296,6 +296,11 @@ const TABLE: [string, (who: Viewer) => Promise<unknown>][] = [
   ["intake's known clients", () => recordedClients()],
   ["chat's masked details", () => readChatEntities()],
   ["the daily re-check's due list", () => dueReferences()],
+  // RV-13: the site's earlier finalised reports a comparison offers.
+  [
+    'the comparison with the previous report',
+    (who) => http(who, '/api/assessments/RPT-2026-0001/comparison'),
+  ],
 ]
 
 const readAll = async <T>(read: (who: Viewer) => Promise<T>) => ({

@@ -125,6 +125,47 @@ export type GapRequestDetailDto = GapRequestDto & {
   closed: { at: string; by: { id: string; name: string } } | null
 }
 
+/**
+ * Checks that a document can be uploaded for this request (F-11): it exists
+ * and is open. Throws GapRequestNotFoundError or GapRequestClosedError, before
+ * anything is uploaded.
+ */
+export async function assertRequestOpen(id: string): Promise<void> {
+  if (!isValidObjectId(id)) throw new GapRequestNotFoundError()
+  const r = await KnowledgeGapRequestModel.findById(id, 'status').lean()
+  if (!r) throw new GapRequestNotFoundError()
+  if (r.status !== 'open') throw new GapRequestClosedError()
+}
+
+/**
+ * Records a document uploaded for an open request (F-11), so its asker sees
+ * the document's ingestion. A request closed meanwhile is left as it is.
+ */
+export async function recordIncomingDocument(id: string, documentId: string): Promise<void> {
+  await KnowledgeGapRequestModel.updateOne(
+    { _id: id, status: 'open' },
+    { $addToSet: { incomingDocumentIds: new Types.ObjectId(documentId) } },
+  )
+}
+
+/** Returns the user's own open requests that have documents uploaded for them (F-11). */
+export async function openRequestsWithIncoming(
+  userId: string,
+): Promise<{ id: string; question: string; incomingDocumentIds: string[] }[]> {
+  if (!isValidObjectId(userId)) return []
+  const requests = await KnowledgeGapRequestModel.find(
+    { askedBy: userId, status: 'open', 'incomingDocumentIds.0': { $exists: true } },
+    'question incomingDocumentIds',
+  )
+    .sort({ createdAt: 1 })
+    .lean()
+  return requests.map((r) => ({
+    id: String(r._id),
+    question: r.question,
+    incomingDocumentIds: (r.incomingDocumentIds ?? []).map(String),
+  }))
+}
+
 /** Returns one request, open or closed. Throws GapRequestNotFoundError for an unknown or malformed id. */
 export async function getRequest(id: string): Promise<GapRequestDetailDto> {
   if (!isValidObjectId(id)) throw new GapRequestNotFoundError()

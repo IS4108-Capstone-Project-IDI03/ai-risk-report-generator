@@ -4,6 +4,12 @@ import express, { Router, type ErrorRequestHandler } from 'express'
 import { pipeline } from 'stream'
 import { IngestionUnavailableError } from '../services/ingestion.service'
 import { ConverterUnavailableError } from '../services/converter.service'
+import {
+  assertRequestOpen,
+  GapRequestClosedError,
+  GapRequestNotFoundError,
+  recordIncomingDocument,
+} from '../services/knowledge-gap.service'
 import type { z } from 'zod'
 import { isTierId } from '../services/source-tiers'
 import {
@@ -104,9 +110,23 @@ router.post(
       res.status(400).json(invalidDetails(parsed.error))
       return
     }
+    const { fileName, requestId } = parsed.data
     try {
-      res.status(201).json(await uploadKnowledgeDocument(req.body, parsed.data.fileName))
+      // Uploaded for a knowledge request (F-11): refused before the upload when
+      // the request is unknown (404) or closed (409).
+      if (requestId) await assertRequestOpen(requestId)
+      const document = await uploadKnowledgeDocument(req.body, fileName)
+      if (requestId) await recordIncomingDocument(requestId, document.id)
+      res.status(201).json(document)
     } catch (error: unknown) {
+      if (error instanceof GapRequestNotFoundError) {
+        res.status(404).json({ error: error.message })
+        return
+      }
+      if (error instanceof GapRequestClosedError) {
+        res.status(409).json({ error: error.message })
+        return
+      }
       if (error instanceof RejectedFileError) {
         res.status(error.status).json({ error: error.message })
         return

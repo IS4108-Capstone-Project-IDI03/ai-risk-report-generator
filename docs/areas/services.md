@@ -1070,10 +1070,6 @@ screenshot go to Cohere and `OCR_PROVIDER` as they are (see
     [database](database.md#report-sections-gn-01)). Any S4 failure reaches
     the client as a 503 with the reason.
 
-### Standards search and its fallback (GN-16)
-
-A section draft searches standards (`fm_standard`, `nfpa_standard`, `local_standard`) once per observation, by the site's jurisdiction and facility type. If that returns no passage at all, `draft()` runs the same queries once more by jurisdiction only; the kept passages come back in `sources` with `broader: true`. A section with no observations searches nothing. Each draft also returns `standards_report` (`section`, `searched`, `fallback_searched`, `found`, `kept`, `dropped: {distance, cap}`, `broader`); the gateway ignores it. To see why a section has few standards, pipe a real response into `microservices/rag-service/eval/standards_diagnosis.py`.
-
 ## Opportunities for Improvement (S4, GN-05)
 
 Section 3's OFIs are drafted on the Report generation tab, as the first row of
@@ -2098,6 +2094,59 @@ archived assessment the buttons are not shown and the gateway answers 409.
 - **Never the report** (AC5): neither writes to sections, versions, the review
   log, comment threads or the assessment; only the conversation keeps them.
 
+## Comparing with the previous report (S4, gateway, RV-13)
+
+The assessment workspace's Comparison tab compares the assessment with an
+earlier finalised report of the same site: what was fixed, what got worse and
+what is new since that survey. The model suggests; code decides what an outcome
+may be; the engineer confirms. Nothing here changes the report or its export.
+Storage and routes: docs/areas/database.md, "Report comparisons".
+
+1. The gateway (`report-comparison.service.ts`) finds the site's earlier
+   finalised reports: assessments of the same site with `reportStatus:
+   'finalised'`, not archived, whose site visit (else creation) came first,
+   latest first.
+2. Compare with previous report reads the previous report's text as it reads
+   now (`sectionNow` for Sections 4 to 12, then accepted OFIs) and the current
+   evidence (observations with words, oldest first; draft findings as reviewed;
+   accepted OFIs), and sends both, labelled P1… and O1…, F1…, R1…, to `POST
+   /comparison/compare` with `privacy` from `privacyFor`. Template section names
+   come from S4's `GET /sections`.
+3. rag-service (`app/comparison/compare.py`, prompt `rv13-v1`, `COMPARISON_MODEL`
+   and `COMPARISON_EFFORT` on `LLM_PROVIDER`) masks everything in one `/mask`
+   call (fail closed: 503, nothing sent), asks the model 40 previous items at a
+   time with all the current evidence, and returns one entry per previous item:
+   the suggested outcome, sources, a clear or partial match, disagreeing
+   sources, possible matches, a reason or the missing evidence, and figures
+   copied as written. It drops labels it never gave, answers an item the model
+   left out as Not checked (`omitted`), and leaves out a reason or missing line
+   that gives advice, speaks in the first person or holds a placeholder it
+   can't restore. Usage is recorded as `report-comparison`.
+4. The gateway settles each item (`settleItem`): no current source means Not
+   checked; differing severities (or OFI priorities) mean Worse or Improved;
+   two or more disagreeing sources leave the outcome to the engineer and cap
+   confidence at Medium; a figure is kept only when both values are in their
+   texts as copied, and its difference is worked out on the written digits
+   (`figureDifference`). Confidence is worked out from these checks.
+5. On every read, `foldComparison` applies the engineer's decisions, adds New
+   items (current findings no previous item is compared with; a draft finding
+   stands for the observations it cites), counts and orders them (Worse, New at
+   Critical or High, sources disagree, Not checked, other New, Unchanged,
+   Improved, Fixed; dismissed last), and `changesSince` names what changed in
+   the evidence since the run.
+6. Compare again (`carryDecisions`) copies onto the new comparison the decisions
+   whose sources read and are tagged as when decided, and flags the rest, and
+   any item whose evidence changed, for another look.
+
+The client (`client/src/features/assessments/comparison/`) shows the report
+compared with (a picker when there are several), the counts as tiles that
+filter, filters by outcome, COPE category, severity and location with the count
+shown, and the list beside the open item; below 1080 px they stack, below
+760 px an item opens in a bottom sheet. An observation source opens the
+observation; a draft finding or OFI opens its section in Review. Without the
+gateway the tab says it is unavailable with sample data. Comparisons and
+decisions don't queue MarshBot's re-check (`assistant-recheck.middleware.ts`).
+
 ## Report export (S2, EX-01)
 
 The Export tab of a saved assessment exports the report as a PDF or a Word
@@ -2306,6 +2355,45 @@ fail the action that already saved (they log and carry on, except the site walk
 A site walk fails in three places (the reading runs out of retries, a recording
 cannot be transcribed, the job cannot be queued); each tells the engineer once
 per attempt. An attempt is the walk's `retries` count, which Retry increments.
+
+## Background work (F-11)
+
+`GET /api/background-work` (`background-work.service.ts`, `backgroundWorkFor`) lists
+the signed-in user's long-running jobs as one row shape: `kind`, `state` (`queued`,
+`running`, `failed`, `waiting_on_you`), `title`, `context`, `progress`, `startedAt`,
+`error`, `href` and, where the user may start it again, `retry` (an existing route).
+Where a job has parts or stages, `progress.segments` marks each in order (`done`,
+`working`, `failed`, `empty`), so a failure shows where it fell, during the job or after.
+The header's activity icon (`client/src/features/background-work/`) reads it.
+
+Where each row comes from. Every source is read in one batch per poll, never one
+query per assessment, and archived assessments are left out:
+
+| Row | Read from | Progress |
+|---|---|---|
+| A site walk transcribing, proposing or failed | `site_walks` | recordings transcribed of all (`stages`), a segment per recording; proposing is one AI call (`working`), timed from the walk's last change |
+| A voice note or handwritten page transcribing or failed | `listObservationsOf` (drafts left out) | one AI call, timed from its latest attempt |
+| An observation's reading (photo description, then suggestion) | `listObservationsOf` | one AI call; failed shows its reason and Try again (`/suggestion/retry`) |
+| A drafting run, or a part outside one | `drafting_runs` | parts done of the run (`stages`), a segment per part in run order, a failed one marked as soon as it fails; a part from Review is one AI call. Once a run is over, its failed sections fold into one row per assessment ("3 sections not drafted"; one keeps its reason), still with the run's segments. No Try again: a new run drafts what the checkpoint offers, so the row opens the drafting tab |
+| A document queued, ingesting or failed (admins) | `listKnowledgeDocuments` + `ingestion_jobs` | stage N of 3 (4 when anonymised), a segment per stage, then pages, or OCR regions in chunking's OCR pass (`count`); a failed one marks the stage it failed in (the job's `failedStage`, passed on as the document's `failedIn`), or shows no stages when the job never recorded it; queued is timed from its upload, or from `handled.at` when Try again or a source type choice put it back |
+| A document waiting on an admin (admins) | `listAwaitingDecision` | what to do: choose its source type, confirm its details, or decide on the match |
+| A document uploaded for the user's own open request | `openRequestsWithIncoming` + `listDocumentsByIds` | as ingestion; Try again only for admins |
+
+Who sees what: every role sees jobs on the assessments assigned to them (an admin
+does not see an engineer's). Uploads and decisions are the admins'
+(`knowledge:manage`); every admin sees every upload, as on the uploads list.
+
+The route is mounted with `requireAuthNoRefresh`: the icon polls it every 5 seconds
+while a row is queued or running and every 30 seconds otherwise (new work usually
+starts from the person's own action, which moves no notification count), reads at
+once when the popover opens, when the person starts a job (`started.ts`: the calls
+that start one announce it once accepted) or the tab is shown again, and not while
+the tab is hidden. No queue position is shown: queued rows say how long they have waited.
+
+An admin uploads a document for an open knowledge request from the Requests tab
+(`POST /api/knowledge-documents?requestId=…`): an unknown request answers 404 and a
+closed one 409, before anything is stored. The document's id is added to the
+request's `incomingDocumentIds`; the request stays open until the admin fills it.
 
 ## Assessment assistant (MarshBot, AS-06)
 

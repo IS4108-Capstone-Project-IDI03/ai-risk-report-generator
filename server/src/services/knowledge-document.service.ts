@@ -157,7 +157,11 @@ export type DocumentDetails = z.infer<typeof documentDetailsSchema>
 
 // An upload asks for nothing but the file's name (IN-05 replaces IN-01 AC1).
 // It arrives in the query string because the request body is the PDF itself.
-export const uploadQuerySchema = z.object({ fileName: text('File name', 255) })
+export const uploadQuerySchema = z.object({
+  fileName: text('File name', 255),
+  // The open knowledge request it is uploaded for (F-11), if any.
+  requestId: z.string().optional(),
+})
 
 // Who publishes each source type; the admin never types it. A local standard
 // has no fixed publisher: its issuing body is a detail of each document.
@@ -182,6 +186,8 @@ type ProgressDto = {
   ocrTotal: number | null
   elapsedMs: number
   currentStageElapsedMs: number
+  // When the current stage began (F-11 times it from here).
+  currentStageStartedAt: string
   stageLog: { stage: string; startedAt: string; durationMs: number }[]
 }
 
@@ -246,6 +252,10 @@ export type KnowledgeDocumentDto = {
   // Live ingestion progress; present only while `status` is `processing` and a
   // matching ingestion_jobs row exists (E2).
   progress?: ProgressDto
+  // Where a failed ingestion stopped (F-11): the stage it failed in and the
+  // stages it finished first. Present only on a failed document whose job
+  // recorded its stage (IN-10).
+  failedIn?: { stage: IngestionStage; done: string[] }
   // The stored document this one repeats or updates (IN-07); null if none.
   // `otherNeedsReview` is true when that document is also waiting for a decision;
   // `document.withdrawn` changes what Keep both does (it keeps this one withdrawn too).
@@ -331,6 +341,7 @@ function toProgressDto(job: IIngestionJob): ProgressDto {
     ocrTotal: job.ocrTotal ?? null,
     elapsedMs: now - job.startedAt.getTime(),
     currentStageElapsedMs: now - job.currentStageStartedAt.getTime(),
+    currentStageStartedAt: job.currentStageStartedAt.toISOString(),
     stageLog: job.stageLog.map((entry) => ({
       stage: entry.stage,
       startedAt: entry.startedAt.toISOString(),
@@ -391,6 +402,9 @@ function toDto(d: Doc, job: IIngestionJob | undefined, refs: DtoRefs): Knowledge
     // Only processing documents carry progress; the caller passes a job only
     // for those (see listKnowledgeDocuments).
     ...(job && d.status === 'processing' ? { progress: toProgressDto(job) } : {}),
+    ...(job?.failedStage && d.status === 'failed'
+      ? { failedIn: { stage: job.failedStage, done: job.stageLog.map((e) => e.stage) } }
+      : {}),
     // A match whose document is gone shows as none; discarding re-matches the
     // documents that pointed at it, so this is only a brief gap.
     match:
@@ -936,10 +950,13 @@ export async function listKnowledgeDocuments(): Promise<KnowledgeDocumentDto[]> 
     .sort({ createdAt: -1 })
     .lean()
 
-  // Enrich processing documents with their ingestion progress (E2) in a single
-  // batch read. Documents without a job (worker not started) keep no progress.
-  const processingIds = documents.filter((d) => d.status === 'processing').map((d) => String(d._id))
-  const jobs = await getJobProgressBatch(processingIds)
+  // Enrich processing documents with their ingestion progress (E2), and failed
+  // ones with where they stopped (F-11), in a single batch read. Documents
+  // without a job (worker not started) keep no progress.
+  const jobIds = documents
+    .filter((d) => d.status === 'processing' || d.status === 'failed')
+    .map((d) => String(d._id))
+  const jobs = await getJobProgressBatch(jobIds)
 
   return toDtos(documents, jobs)
 }
@@ -956,6 +973,40 @@ export async function listIngestedDocuments(): Promise<KnowledgeDocumentDto[]> {
     .sort({ title: 1 })
     .lean()
   // Complete documents carry no progress, so no job is passed.
+  return toDtos(documents)
+}
+
+/** Returns these documents, with their ingestion progress while processing (F-11). */
+export async function listDocumentsByIds(ids: string[]): Promise<KnowledgeDocumentDto[]> {
+  const valid = ids.filter(isValidObjectId)
+  if (!valid.length) return []
+  const documents = await KnowledgeDocumentModel.find({ _id: { $in: valid } }).lean()
+  const jobs = await getJobProgressBatch(
+    documents
+      .filter((d) => d.status === 'processing' || d.status === 'failed')
+      .map((d) => String(d._id)),
+  )
+  return toDtos(documents, jobs)
+}
+
+/**
+ * Returns the documents waiting for an admin's decision, oldest first, however
+ * long they have waited (F-11): those whose source type labelling couldn't
+ * tell (IN-19), and active ingested ones that needsReview (IN-07).
+ */
+export async function listAwaitingDecision(): Promise<KnowledgeDocumentDto[]> {
+  const documents = await KnowledgeDocumentModel.find({
+    $or: [
+      { status: 'awaiting_type' },
+      {
+        status: 'complete',
+        withdrawn: null,
+        $or: [{ 'unconfirmed.0': { $exists: true } }, { match: { $ne: null } }],
+      },
+    ],
+  })
+    .sort({ createdAt: 1 })
+    .lean()
   return toDtos(documents)
 }
 

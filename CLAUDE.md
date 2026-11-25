@@ -142,6 +142,14 @@
   action has finished: never add polling for it. Hands-on steps run only on the
   practice assessment. See docs/areas/services.md, "Walkthroughs and the
   practice assessment".
+- Comparing with the previous report (RV-13) lives in `report_comparisons`, kept
+  apart from the report: never write a section, version, review log entry or
+  finding from it, and nothing in the export may read it. S4 only suggests
+  each outcome; the rules that decide what an outcome may be (no Fixed or
+  Unchanged without a current source, a severity change is Worse or Improved,
+  disagreeing sources are the engineer's call) and every figure's difference
+  are worked out by the gateway (`report-comparison-rules.ts`), never by a
+  model. See docs/areas/services.md, "Comparing with the previous report".
 
 - The site's weather (CP-62) is read from Google only by the gateway
   (`site-weather.service.ts`, `weather-provider.ts`) with `GOOGLE_MAPS_SERVER_KEY`, which never

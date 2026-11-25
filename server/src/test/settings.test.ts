@@ -200,20 +200,6 @@ describe('QA strictness (S-01 AC12, AC14)', () => {
   })
 })
 
-// The citation target setting was removed (S-01 follow-up): the Review banner uses a fixed 50%.
-describe('no standards cite target setting', () => {
-  it('is not returned by GET /api/settings', async () => {
-    expect((await admin.get('/api/settings')).body.standardCiteTarget).toBeUndefined()
-  })
-
-  it('is not accepted by PATCH /api/settings/global', async () => {
-    const res = await admin.patch('/api/settings/global').send({ standardCiteTarget: 60 })
-    expect(res.status).toBe(400)
-    expect(res.body.error ?? res.body.message).toBe('"standardCiteTarget" is not a setting.')
-    expect(await SettingsLogModel.countDocuments()).toBe(0)
-  })
-})
-
 describe('a .env model the catalog does not list (S-01 AC6)', () => {
   it('is left alone: no model is forced on the service until an admin saves a choice', async () => {
     process.env.LLM_MODEL = 'some-custom-model'

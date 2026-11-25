@@ -2,8 +2,8 @@
 // question the chatbot could not answer. Mark filled and Dismiss each open a dialog and, on
 // success, the request leaves the list. Shown by KnowledgeBase.tsx; talks to api.ts.
 import { useCallback, useEffect, useState } from 'react'
-import { Callout, EmptyState } from '../../../design-system'
-import { listKnowledgeRequests, type KnowledgeGapRequest } from '../api'
+import { Callout, EmptyState, toast } from '../../../design-system'
+import { listKnowledgeRequests, uploadKnowledgeDocument, type KnowledgeGapRequest } from '../api'
 import { DismissRequestDialog } from '../components/DismissRequestDialog'
 import { FillRequestDialog } from '../components/FillRequestDialog'
 import { RequestRow } from '../components/RequestRow'
@@ -55,6 +55,16 @@ export function Requests({
       document.getElementById(`request-${focused}`)?.scrollIntoView({ block: 'center' })
   }, [requests, focused])
 
+  // A document uploaded for a request (F-11): the request stays open until it is marked filled.
+  const upload = (r: KnowledgeGapRequest, file: File) =>
+    uploadKnowledgeDocument(file, undefined, r.id).then(
+      () => notify(`${file.name} is uploading for this request. ${r.askedBy.name} can follow it.`),
+      (error: unknown) =>
+        toast.error(`${file.name} was not uploaded`, {
+          description: error instanceof Error && error.message ? error.message : undefined,
+        }),
+    )
+
   const done = (message: string) => {
     setFilling(null)
     setDismissing(null)
@@ -93,6 +103,7 @@ export function Requests({
             focused={r.id === focused}
             onFill={() => setFilling(r)}
             onDismiss={() => setDismissing(r)}
+            onUpload={(file) => upload(r, file)}
           />
         ))}
       </ul>
