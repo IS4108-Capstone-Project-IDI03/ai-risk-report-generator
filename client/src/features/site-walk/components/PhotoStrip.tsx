@@ -43,11 +43,8 @@ export function PhotoStrip({
   const picker = useRef<HTMLInputElement>(null)
 
   return (
-    <section className="sw-photostrip" aria-label="Photos in this walk">
-      <h2>
-        <Icon name="camera" size={15} />
-        Photos{tiles.length ? ` · ${tiles.length}` : ''}
-      </h2>
+    <section className="sw-photostrip sw-card" aria-label="Photos in this walk">
+      <h2 className="sw-card-title">Photos{tiles.length ? ` · ${tiles.length}` : ''}</h2>
       <ul>
         {tiles.map((tile, i) => (
           <li key={tile.src}>

@@ -28,6 +28,7 @@ const tabOf = (w: SiteWalk): WalkTab =>
 
 export function SiteWalks({
   walks,
+  loaded = true,
   waiting,
   onBack,
   onRecord,
@@ -37,6 +38,8 @@ export function SiteWalks({
   archived,
 }: {
   walks: SiteWalk[]
+  // False until the first read answers: the empty state waits for it, so it never flashes.
+  loaded?: boolean
   // Files kept on this device until the engineer is online again.
   waiting: number
   onBack: () => void
@@ -96,11 +99,15 @@ export function SiteWalks({
     <div className="ob wr-screen">
       <ScreenHeader
         title="Site Walk Proposals"
+        // Left out while there is nothing to review: the empty state already says what to do.
+        detail={
+          empty ? undefined : 'Review each walk, then add its observations to the assessment.'
+        }
         back="Observations"
         onBack={onBack}
         actions={walks.length > 0 ? record : undefined}
       />
-      {walks.length === 0 && !waiting ? (
+      {empty && !loaded ? null : empty ? (
         <EmptyState
           icon="mic"
           title="No site walk proposals yet"

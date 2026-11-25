@@ -400,7 +400,7 @@ describe('site walk review', () => {
     // Without this, leaving dropped the only copy of the edit.
     expect(await screen.findByText(/could not be saved/)).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Not saved. Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(row('Edited offline')).toBeInTheDocument()
   })
 
@@ -448,18 +448,19 @@ describe('site walk review', () => {
     expect(
       screen.getByRole('button', { name: 'Back to Loading bay · Chiller room' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('2 of 3')
     expect(
       within(screen.getByRole('region', { name: 'Photos' })).getByRole('button', {
         name: 'Open Photo 1',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Site walk recording' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'Site walk recording' })).toBeInTheDocument()
     expect(document.querySelector('audio')).toHaveAttribute('src', '/audio/w1-1.webm#t=10,20')
     expect(screen.getByRole('button', { name: 'Previous observation' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Next observation' }))
     expect(noteBox()).toHaveValue('PU panels, no covering.')
-    expect(screen.getByText('3 of 3')).toBeInTheDocument()
+    // The page is drawn again for the next observation, so the stepper is found again.
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('3 of 3')
     expect(screen.getByRole('button', { name: 'Next observation' })).toBeDisabled()
   })
 
@@ -844,7 +845,10 @@ describe('adding an observation through the Add manually screen', () => {
       />,
     )
 
-    expect(await screen.findByText('Hose reel missing.')).toBeInTheDocument()
+    // The recording row names itself by the first words of what was said; the rest opens.
+    expect(await screen.findByText('“Hose reel missing.”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show transcript' }))
+    expect(screen.getByText('Hose reel missing.')).toBeInTheDocument()
     expect(document.querySelector('audio[src="/m/m1"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: /Photo 1/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Page 1/ })).toBeInTheDocument()

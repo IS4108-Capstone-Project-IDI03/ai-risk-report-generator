@@ -14,11 +14,15 @@ import { ProposalHelp } from './ProposalHelp'
 // The save state under the name: a grey double tick, never the green ready tick.
 function SaveStatus({ state, onSave }: { state: SaveState; onSave: () => void }) {
   if (state === 'failed')
+    // FailedLine's words and pill, drawn inline: this sits in the title's one-line detail.
     return (
-      <button type="button" className="swr-retry" onClick={onSave}>
-        <Icon name="circle-alert" size={15} color="var(--red-600)" />
-        Not saved. Retry
-      </button>
+      <span className="swr-failed">
+        <Icon name="circle-alert" size={16} color="var(--red-600)" />
+        <strong>Not saved</strong>
+        <Button variant="pill" size="sm" iconLeft="rotate-ccw" onClick={onSave}>
+          Retry
+        </Button>
+      </span>
     )
   return state === 'saved' ? (
     <>

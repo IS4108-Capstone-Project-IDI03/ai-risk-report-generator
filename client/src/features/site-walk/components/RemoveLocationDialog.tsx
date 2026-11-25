@@ -1,6 +1,6 @@
 // Confirms deleting a new location from the proposal (CP-22 round 1): its
 // observations stay, and move to "No location yet". Used by screens/Review.tsx.
-import { Dialog } from '../../../design-system'
+import { Button, Dialog } from '../../../design-system'
 
 // Confirms a location removal and explains where its observations go.
 export function RemoveLocationDialog({
@@ -27,12 +27,12 @@ export function RemoveLocationDialog({
       onClose={onClose}
       footer={
         <>
-          <button type="button" className="cap-btn cap-btn--secondary" onClick={onClose}>
+          <Button pill variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="button" className="cap-btn cap-btn--danger" onClick={onConfirm}>
+          </Button>
+          <Button pill variant="danger" onClick={onConfirm}>
             Delete location
-          </button>
+          </Button>
         </>
       }
     />

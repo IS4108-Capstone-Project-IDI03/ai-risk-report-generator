@@ -2,21 +2,6 @@
    The clock and controls are in recording.css. */
 
 /* ---- Photo strip ---- */
-.sw-photostrip h2,
-.sw-composer-row .sw-note {
-  margin: 0;
-}
-/* "Add note" stays on one line; the hint beside it wraps instead. */
-.sw-composer-row > .sw-button {
-  flex: none;
-  white-space: nowrap;
-}
-.sw-photostrip h2 {
-  margin-bottom: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-}
 .sw-photo-large {
   display: block;
   width: 100%;
@@ -25,38 +10,24 @@
   object-fit: contain;
 }
 
-/* ---- Note composer ---- */
+/* ---- Note composer: the design system's Textarea and a row of Dictate and Add note ---- */
 .sw-composer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
-.sw-composer textarea,
-.sw-item--editing textarea {
-  min-height: 88px;
-  padding: 12px 14px;
-  border: 1px solid var(--sw-line);
-  border-radius: 14px;
-  background: var(--graphite-0);
-  color: var(--text-primary);
-  font: 400 16px/1.45 var(--sw-font); /* 16px stops iOS zooming in on focus */
-  resize: vertical;
-}
-.sw-composer textarea:focus,
-.sw-item--editing textarea:focus {
-  outline: none;
-  border-color: var(--border-focus);
-  box-shadow: var(--focus-ring);
-}
-.sw-composer textarea:disabled {
-  background: var(--sw-fill);
-  opacity: 0.6;
+.sw-composer > label {
+  display: block;
 }
 .sw-composer-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* A note being edited in the list: the box, then Dictate, Cancel and Save note under it. */
+.sw-item--editing textarea {
+  width: 100%;
 }
 
 /* ---- The walk, in order ---- */

@@ -2,8 +2,8 @@
 // opened, with edit and a red remove bin (Undo is in useWalkRemovals). A note typed before notes existed is read only.
 // With the assessment's `reference` the note being edited can be dictated into (CP-27).
 // Used by components/WalkList.tsx.
-import { useRef, useState } from 'react'
-import { Icon } from '../../../design-system'
+import { useId, useState } from 'react'
+import { Button, Icon, Textarea } from '../../../design-system'
 import { DictateButton } from '../../assessments/dictation/DictateButton'
 
 const LONG = 140
@@ -28,13 +28,13 @@ export function NoteRow({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
   const long = text.length > LONG
-  const box = useRef<HTMLTextAreaElement>(null)
+  const id = useId()
 
   if (draft !== null)
     return (
       <li className="sw-item sw-item--editing">
-        <textarea
-          ref={box}
+        <Textarea
+          id={id}
           aria-label="Edit note"
           value={draft}
           rows={3}
@@ -42,21 +42,25 @@ export function NoteRow({
         />
         <div className="sw-item-actions">
           {reference && (
-            <DictateButton reference={reference} field={() => box.current} onChange={setDraft} />
+            <DictateButton
+              reference={reference}
+              field={() => document.getElementById(id) as HTMLTextAreaElement | null}
+              onChange={setDraft}
+            />
           )}
-          <button type="button" className="sw-button" onClick={() => setDraft(null)}>
+          <Button pill variant="secondary" onClick={() => setDraft(null)}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="sw-button sw-button--primary"
+          </Button>
+          <Button
+            pill
+            variant="primary"
             disabled={!draft.trim()}
             onClick={async () => {
               if (await onSave(draft)) setDraft(null)
             }}
           >
             Save note
-          </button>
+          </Button>
         </div>
       </li>
     )

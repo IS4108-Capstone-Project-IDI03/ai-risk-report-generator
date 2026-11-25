@@ -2,15 +2,17 @@
 // says exactly what goes, with counts, and that it cannot be undone, the key
 // words in bold. The assessment does not change. Used by
 // assessments/screens/SiteWalks.tsx; deleted through api.ts discardWalk.
-import { Dialog } from '../../../design-system'
+import { Button, Dialog } from '../../../design-system'
 import { plural } from '../../assessments/reviewDisplay'
 import type { SiteWalk } from '../api'
 import { walkName } from '../walkLabels'
+import { DialogProblem } from './DialogProblem'
 
-// "2 recordings, 3 photos and 5 proposed observations": only what it holds.
+// "2 recordings, 1 note, 3 photos and 5 proposed observations": only what it holds.
 function holdings(walk: SiteWalk) {
   const parts = [
     walk.recordings.length && plural(walk.recordings.length, 'recording'),
+    walk.notes.length && plural(walk.notes.length, 'note'),
     walk.photos.length && plural(walk.photos.length, 'photo'),
     walk.proposal?.observations.length &&
       plural(walk.proposal.observations.length, 'proposed observation'),
@@ -52,30 +54,16 @@ export function DeleteWalkDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={onClose}
-          >
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--danger"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {busy ? 'Deleting…' : 'Delete proposal'}
-          </button>
+          </Button>
+          <Button pill variant="danger" loading={busy} onClick={onConfirm}>
+            Delete proposal
+          </Button>
         </>
       }
     >
-      {problem && (
-        <p className="swr-problem" role="alert">
-          {problem}
-        </p>
-      )}
+      <DialogProblem title="Proposal not deleted" problem={problem} />
     </Dialog>
   )
 }

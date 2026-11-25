@@ -7,7 +7,7 @@
 // Opened from the Observations tab's walk list or the bell; state lives in
 // useProposal, the edits in proposal.ts.
 import { useEffect, useRef, useState } from 'react'
-import { toast } from '../../../design-system'
+import { Callout, toast } from '../../../design-system'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
 import { ScreenHeader } from '../../assessments/components/ScreenHeader'
 import { setLeaveGuard } from '../../assessments/leaveGuard'
@@ -245,9 +245,9 @@ export function SiteWalkReview({
         />
       )}
       {r.problem && ready && !page && (
-        <p className="swr-problem" role="alert">
-          {r.problem}
-        </p>
+        <div role="alert">
+          <Callout tone="danger">{r.problem}</Callout>
+        </div>
       )}
       {!ready || !p ? (
         <WalkStatusMessage

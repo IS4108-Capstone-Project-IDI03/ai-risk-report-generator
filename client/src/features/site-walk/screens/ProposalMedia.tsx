@@ -72,6 +72,14 @@ export function ProposalMedia({
     <>
       <ScreenHeader
         title={photos ? 'All Photos' : 'All Handwritten Pages'}
+        // Left out while there is none: the empty state below says what to do.
+        detail={
+          rows.length
+            ? photos
+              ? 'Every photo of the proposed observations, with where it was taken.'
+              : 'Every handwritten page of the proposed observations.'
+            : undefined
+        }
         back={back.label}
         onBack={back.onClick}
         badge={<ObservationBadge kind="proposal" />}

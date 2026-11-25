@@ -2,8 +2,8 @@
 // Observations tab's Add location form (assessments/components/LocationForm.tsx)
 // in a dialog. In a building (building, optional level, name) or elsewhere on
 // site (name only), with the rules in proposal.ts. Used by screens/Review.tsx.
-import { useState, type FormEvent } from 'react'
-import { Combobox, Dialog } from '../../../design-system'
+import { useId, useState, type FormEvent } from 'react'
+import { Button, Combobox, Dialog, SegmentedControl } from '../../../design-system'
 import {
   LEVEL_SUGGESTIONS,
   LOCATION_NAMES,
@@ -11,11 +11,11 @@ import {
   type Place,
 } from '../../assessments/locations'
 import type { LocationInput } from '../proposal'
-import '../../assessments/capture.css'
+import { DialogProblem } from './DialogProblem'
 
 const KINDS = [
-  { kind: 'building', label: 'In a building' },
-  { kind: 'elsewhere', label: 'Elsewhere on site' },
+  { value: 'building', label: 'In a building' },
+  { value: 'elsewhere', label: 'Elsewhere on site' },
 ] as const
 
 // Adds or renames a proposed location through the shared place fields.
@@ -44,6 +44,8 @@ export function LocationForm({
     initial ?? { kind: 'building', building: '', floor: '', name: '' },
   )
   const [problem, setProblem] = useState<string | null>(null)
+  // The footer's button is outside the form, so it names the form it submits.
+  const form = useId()
   const set = (patch: Partial<LocationInput>) => {
     setInput((i) => ({ ...i, ...patch }))
     setProblem(null)
@@ -63,28 +65,27 @@ export function LocationForm({
       title={title}
       width={480}
       onClose={onClose}
+      footer={
+        <>
+          <Button pill variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button pill variant="primary" type="submit" form={form}>
+            {action}
+          </Button>
+        </>
+      }
     >
-      <form className="cap-form" onSubmit={submit} aria-label={title}>
-        <fieldset style={{ margin: 0, padding: 0, border: 'none', minWidth: 0 }}>
-          <legend className="cap-label" style={{ padding: 0, marginBottom: '6px' }}>
-            Where is it?
-          </legend>
-          <div className="cap-kinds">
-            {KINDS.map(({ kind, label }) => (
-              <label key={kind} className="ds-choice cap-kind">
-                <input
-                  type="radio"
-                  name="location-kind"
-                  checked={input.kind === kind}
-                  onChange={() => set({ kind })}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+      <form id={form} className="swd-form" onSubmit={submit} aria-label={title}>
+        <DialogProblem title="Location not saved" problem={problem} />
+        <SegmentedControl
+          ariaLabel="Where is it?"
+          options={[...KINDS]}
+          value={input.kind}
+          onChange={(kind) => set({ kind })}
+        />
         {inBuilding && (
-          <div className="cap-form-row">
+          <div className="swd-form-row">
             <Combobox
               label="Building"
               required
@@ -97,6 +98,7 @@ export function LocationForm({
             />
             <Combobox
               label="Level"
+              hint="Leave blank for the whole building."
               size="lg"
               placeholder="e.g. Level 2"
               maxLength={40}
@@ -108,11 +110,6 @@ export function LocationForm({
               onValueChange={(value) => set({ floor: value })}
             />
           </div>
-        )}
-        {inBuilding && (
-          <p className="cap-hint" style={{ marginTop: '-8px' }}>
-            Leave the level blank if the location is the whole building, such as its roof.
-          </p>
         )}
         <Combobox
           label="Location"
@@ -129,19 +126,6 @@ export function LocationForm({
           value={input.name}
           onValueChange={(value) => set({ name: value })}
         />
-        {problem && (
-          <p className="swr-problem" role="alert">
-            {problem}
-          </p>
-        )}
-        <div className="cap-form-actions">
-          <button type="button" className="cap-btn cap-btn--secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="cap-btn cap-btn--primary">
-            {action}
-          </button>
-        </div>
       </form>
     </Dialog>
   )

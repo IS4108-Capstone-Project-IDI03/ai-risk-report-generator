@@ -2,7 +2,7 @@
 // warning, why recording stopped by itself, and the controls (Camera,
 // Start/Pause/Resume, and Upload recording or Save recording). Used by screens/Recording.tsx.
 import { useRef } from 'react'
-import { Icon } from '../../../design-system'
+import { Button, Callout, Icon } from '../../../design-system'
 import { RECORDING_ACCEPT } from '../uploadTypes'
 import { CAP_SEC, clock } from '../recorder'
 import type { Phase, StopNotice } from '../useWalkRecorder'
@@ -44,15 +44,12 @@ export function RecordPanel({
       aria-label="Recording"
       data-walk="site-walk.record-panel"
     >
+      {/* Reserved even while idle, so starting a recording never moves the clock. */}
       <div className="sw-record-state" aria-live="polite">
-        {running ? (
+        {running && (
           <span className={'sw-rec-pill' + (phase === 'paused' ? ' sw-rec-pill--paused' : '')}>
             <span className="sw-rec-dot" aria-hidden="true" />
             {phase === 'paused' ? 'Recording paused' : 'Recording'}
-          </span>
-        ) : (
-          <span className="sw-record-idle">
-            {hasRecordings ? 'Not recording' : 'Ready when you are'}
           </span>
         )}
       </div>
@@ -63,20 +60,27 @@ export function RecordPanel({
 
       {/* Calm, not an alarm: the tone has already told them, this says what to do. */}
       {warning && (
-        <p className="sw-warning" role="status">
-          One minute left in this recording. Save it and start the next one when you reach a pause.
-        </p>
+        <div className="sw-callout" role="status">
+          <Callout tone="warning">
+            One minute left in this recording, so save it and start the next one when you reach a
+            pause.
+          </Callout>
+        </div>
       )}
 
       {notice === 'ended' && (
-        <div className="sw-alert" role="alert">
-          <p>
-            Recording stopped, probably because the screen locked or you left the app. What you said
-            up to then is kept.
-          </p>
-          <button type="button" className="sw-button sw-button--primary" onClick={onStart}>
-            Continue recording
-          </button>
+        <div className="sw-callout" role="alert">
+          <Callout
+            tone="warning"
+            title="Recording stopped"
+            actions={
+              <Button pill variant="primary" size="sm" onClick={onStart}>
+                Continue recording
+              </Button>
+            }
+          >
+            The screen probably locked or you left the app. What you said up to then is kept.
+          </Callout>
         </div>
       )}
 
