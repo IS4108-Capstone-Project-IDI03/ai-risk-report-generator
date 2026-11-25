@@ -30,7 +30,10 @@ afterEach(() => {
 
 describe('GET /api/sites/address', () => {
   it('returns the address nearest the point', async () => {
-    const fetchMock = google({ status: 'OK', results: [{ formatted_address: '21 Lower Kent Ridge Rd, Singapore' }] })
+    const fetchMock = google({
+      status: 'OK',
+      results: [{ formatted_address: '21 Lower Kent Ridge Rd, Singapore' }],
+    })
     vi.stubGlobal('fetch', fetchMock)
     const res = await api.get('/api/sites/address?lat=1.2966&lng=103.852')
     expect(res.status).toBe(200)
@@ -54,7 +57,10 @@ describe('GET /api/sites/address', () => {
   })
 
   it('answers 503 when Google cannot be reached', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 500 })),
+    )
     expect((await api.get('/api/sites/address?lat=1&lng=1')).status).toBe(503)
   })
 })
