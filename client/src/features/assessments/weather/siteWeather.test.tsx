@@ -219,7 +219,7 @@ describe('the panel (AC2-AC4)', () => {
     expect(panel()).toHaveTextContent("“2 Jurong Port Rd” couldn't be found on the map.")
   })
 
-  it('shows nothing for a sample assessment, which has no site on the gateway', async () => {
+  it('shows nothing without an assessment reference', async () => {
     await open('card', null)
     expect(screen.queryByRole('region', { name: 'Site weather' })).not.toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()

@@ -9,8 +9,11 @@ import App from '../../App'
 import { signIn } from '../../test/session'
 import type { SiteWalk } from '../site-walk/api'
 import type { SavedObservation } from './api'
+import { created } from '../new-assessment/testKit'
 
 const REF = 'RPT-2026-0411'
+// The assessment every test opens: the signed-in engineer's own.
+const ASSESSMENT = { ...created(REF, 'Tilbury Distribution Centre'), status: 'capturing' }
 const WALKS = `/api/assessments/${REF}/site-walks`
 const json = (status: number, body: unknown) =>
   Promise.resolve(
@@ -71,6 +74,7 @@ beforeEach(() => {
   observations = null
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     calls.push((init.method ?? 'GET') + ' ' + url)
+    if (url === '/api/assessments') return json(200, [ASSESSMENT])
     // Continue on a recording walk starts or resumes it.
     if (url === WALKS && init.method === 'POST') return json(200, walks[0])
     if (url === WALKS) return json(200, walks)

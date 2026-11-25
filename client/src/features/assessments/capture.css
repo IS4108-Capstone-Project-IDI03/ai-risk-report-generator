@@ -626,9 +626,6 @@
   font: 700 25px/31px var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
-.cap-rec-hint {
-  text-align: center;
-}
 /* The clips sit in the walk list's grey rounded panel (boards 05 to 12f). The Record screen's own
    sheet (site-walk/recording.css) makes .sw-list a white card, so the panel is stated here, as
    observation-page.css does for .cpp-list; the list also carries the --sw-* values the row reads. */

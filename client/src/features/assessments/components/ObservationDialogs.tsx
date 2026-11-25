@@ -75,8 +75,7 @@ export function TranscriptDialog({ v, dialog }: Props) {
   )
 }
 
-// Corrects a handwritten page's text (CP-20), or writes it for a demo page
-// that was never transcribed. The gateway keeps what the model wrote, and
+// Corrects a handwritten page's text (CP-20). The gateway keeps what the model wrote, and
 // drafting uses the correction. The page's photo is shown to check against.
 export function PageTextDialog({ v, dialog }: Props) {
   const page = dialog.page!

@@ -15,7 +15,7 @@ export function CaptureNoteBox({
   value: string
   onChange: (text: string) => void
   phone: boolean
-  // Null outside a live assessment (the demo's): there is nothing to dictate into.
+  // Null until the capture session is live, or for a site walk proposal: nothing to dictate into.
   reference: string | null
   // Called with the note when the engineer leaves the box (the tag picker's cue to suggest).
   onBlur?: (text: string) => void

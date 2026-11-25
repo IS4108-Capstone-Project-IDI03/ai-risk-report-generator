@@ -26,11 +26,10 @@ export type AssessmentRow = {
   // The lead engineer.
   eng: string
   status: string
-  // From the gateway (AS-06); a sample row has neither.
+  // From the gateway (AS-06).
   stage?: Stage
   priority?: Priority | null
   sev: string
-  live?: boolean
   open?: number
   // Created through the gateway, so it can be opened for capture.
   persisted?: boolean
@@ -50,9 +49,8 @@ export type Observation = {
   // '' while it has none (CP-24).
   sev: string
   std: string
-  // Its photographs (CP-04): url opens the original, or is null for a sample
-  // one, which has only a name. Not removed ones (CP-08); id is set on a
-  // saved one or one added in the demo, and added on one added after saving.
+  // Its photographs (CP-04): url opens the original. Not removed ones (CP-08);
+  // added is set on one added after saving.
   media: {
     id?: string
     name: string
@@ -64,18 +62,15 @@ export type Observation = {
     region?: SavedPhoto['region']
   }[]
   // Recordings, photos and handwritten pages removed from it, to restore
-  // (CP-08, CP-20). A page removed in the demo keeps itself here, so restoring
-  // it brings back any text written for it.
+  // (CP-08, CP-20).
   removedMedia?: {
     kind: MediaKind
     id: string
     name: string
     url: string | null
     removed: Stamp
-    page?: ObservationPage
   }[]
   detail: string
-  audio?: string
   // The location by id, when known rather than only by name, and its level.
   locationId?: string
   floor?: string | null
@@ -94,12 +89,11 @@ export type Observation = {
   // Shown while a recording is transcribing or after one failed.
   badge?: { tone: 'info' | 'high'; label: string } | null
   // What it holds: any of 'Note', 'Voice', 'Photo' and 'Scan' (CP-08, CP-19);
-  // worked out for sample ones.
   types?: string[]
   // Transcribing, Reading, Transcription failed, Reading failed, To check or
   // Complete (CP-08, CP-24); worked out by observationRowState.ts.
   status?: string
-  // The AI's suggestion for an empty category or severity (CP-24); a sample row has none.
+  // The AI's suggestion for an empty category or severity (CP-24).
   suggestion?: SavedSuggestion | null
   // Category or severity empty or not sure, or the suggestion failed (CP-24).
   toCheck?: boolean
@@ -112,8 +106,8 @@ export type Observation = {
       error: string | null
       model: string | null
       outOfDate: boolean
-      // The photos it describes, when known (a sample one's are not): All
-      // Photos says which of them each describes.
+      // The photos it describes, when known: All Photos says which of them
+      // each describes.
       photoIds?: string[]
     } | null
   } | null
@@ -136,8 +130,7 @@ export type Observation = {
     // Who added it after the observation was saved (CP-08).
     added: Stamp | null
   }[]
-  // Its photographed pages of handwritten notes (CP-19). A page kept in this
-  // browser by the demo has no status: it is never transcribed.
+  // Its photographed pages of handwritten notes (CP-19).
   pages?: ObservationPage[]
 }
 // A photographed page of handwritten notes on an observation (CP-19, CP-20).
@@ -146,13 +139,13 @@ export type ObservationPage = {
   name: string
   // The original photo of the page.
   url: string
-  status: TranscriptionStatus | null
+  status: TranscriptionStatus
   // Its text: the engineer's correction where there is one (CP-20), else the
   // handwriting word for word, '' when the page has none, or null while there
   // is no transcript.
   transcript: string | null
   // What the model wrote, kept beside a correction (CP-20); null when the
-  // page is not corrected, or was written in the demo with no transcription.
+  // page is not corrected.
   original: string | null
   // The words the model was unsure of, as [start, end) in what it wrote.
   uncertain: [number, number][]
@@ -160,15 +153,6 @@ export type ObservationPage = {
   // Who corrected its text, and who added it after saving (CP-20).
   correction: Stamp | null
   added: Stamp | null
-}
-export type GenerationSection = {
-  id: string
-  n: string
-  title: string
-  st: string
-  p?: number
-  ev: number
-  conf: string
 }
 // The work list's Due filter: reports past due, reports due within 7 days,
 // and site visits within 7 days.
@@ -218,8 +202,6 @@ export type WorkflowState = {
   captureTarget: { reference: string; site: string }
   // The navigation's Recent list: assessments last opened, newest first.
   recent: { reference: string; site: string }[]
-  // Observations for assessments other than the demo one, by reference.
-  captureObs: Record<string, Observation[]>
   fMode: string
   fNote: string
   // The tags chosen on New Observation (CP-36); empty means untagged, which reads as a Fact.
@@ -236,8 +218,6 @@ export type WorkflowState = {
   fSaveError: { title: string; message: string } | null
   fRec: boolean
   fSecs: number
-  fTrans: boolean
-  fTransBusy: boolean
   // Why the microphone could not start, shown on the voice panel.
   fVoiceError: { title: string; message: string } | null
   // The hidden draft observation that holds the recordings added on New Observation, as the
@@ -295,25 +275,6 @@ export type WorkflowState = {
   checklistOpen: boolean
   fChecklistItem: { id: string; text: string } | null
   // warn: a prompt to do something first, shown in the warning tone.
-  fRecent: Observation[]
-  gsecs: GenerationSection[]
-  running: boolean
-  stopOpen: boolean
-  sel: string
-  secSt: Record<string, string>
-  bodyOv: Record<string, string>
-  editing: boolean
-  draft: string
-  rejected: Record<string, boolean>
-  u1: string | null
-  u2: string | null
-  u3: string | null
-  activeCite: number | null
-  fmt: string
-  optCite: boolean
-  optPhotos: boolean
-  optIdx: boolean
-  exportOpen: boolean
   navOpen?: boolean
   navCollapsed?: boolean
   // The expanded row on the Observations tab, by its key.
@@ -341,10 +302,9 @@ export type WorkflowState = {
   obsLocForm: boolean
   // Where the Observations tab opens after capture (CP-16): the location
   // capture was opened at or last saved in, and the observations saved
-  // there this visit, marked New. ids: those the gateway saved; local: how
-  // many were kept in this browser, the newest local-<n> rows. Kept only
+  // there this visit, marked New, by id. Kept only
   // while capture or the Observations tab shows.
-  obsReturn: { locationId: string; ids: string[]; local: number } | null
+  obsReturn: { locationId: string; ids: string[] } | null
   // The observation being changed on the Observations tab, by row key: a
   // recording's transcript, its deletion, adding recordings, photos and pages,
   // or removing one of them (CP-08); a page's text, or transcribing a

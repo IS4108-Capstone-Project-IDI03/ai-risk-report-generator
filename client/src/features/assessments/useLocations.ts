@@ -8,26 +8,11 @@ import {
   type SiteLocation,
 } from './api'
 
-// A location kept in this browser, from the details given.
-const localLocation = (id: string, details: LocationDetails): SiteLocation => ({
-  id,
-  building: details.building?.trim() || null,
-  floor: details.floor?.trim() || null,
-  name: details.name.trim(),
-  ...(details.coordinates && { coordinates: details.coordinates }),
-})
-
-// The assessment's locations. With a capture session live they come from the
-// gateway and new ones are saved there; otherwise they stay in this browser,
-// starting from `demo` (the sample assessment's places).
-export function useLocations(
-  reference: string,
-  open: boolean,
-  live: boolean,
-  demo: SiteLocation[],
-) {
+// The assessment's locations, listed from the gateway once `live` (a capture
+// session running, or the observations listed). Adding, changing and removing
+// always go to the gateway, so a location is never kept only in this browser.
+export function useLocations(reference: string, open: boolean, live: boolean) {
   const [server, setServer] = useState<{ reference: string; list: SiteLocation[] } | null>(null)
-  const [local, setLocal] = useState<Record<string, SiteLocation[]>>({})
   // Bumped to list them again, e.g. after a site walk created some (CP-22).
   const [version, setVersion] = useState(0)
 
@@ -41,20 +26,13 @@ export function useLocations(
     return () => controller.abort()
   }, [reference, open, live, version])
 
-  const locations = live
-    ? server?.reference === reference
-      ? server.list
-      : []
-    : (local[reference] ?? demo)
-  // Changes the list for this reference, on the gateway's copy or this browser's.
-  const change = (update: (list: SiteLocation[]) => SiteLocation[]) => {
-    if (live)
-      setServer((current) => ({
-        reference,
-        list: update(current?.reference === reference ? current.list : []),
-      }))
-    else setLocal((current) => ({ ...current, [reference]: update(current[reference] ?? demo) }))
-  }
+  const locations = live && server?.reference === reference ? server.list : []
+  // Changes the gateway's copy held here, after the gateway accepted the change.
+  const change = (update: (list: SiteLocation[]) => SiteLocation[]) =>
+    setServer((current) => ({
+      reference,
+      list: update(current?.reference === reference ? current.list : []),
+    }))
   return {
     locations,
     reload: () => setVersion((n) => n + 1),
@@ -62,24 +40,20 @@ export function useLocations(
     live,
     // Resolves with the new location, or rejects with the gateway's reason.
     add: async (details: LocationDetails) => {
-      const location = live
-        ? await addLocation(reference, details)
-        : localLocation('local-' + Date.now(), details)
+      const location = await addLocation(reference, details)
       change((list) => [...list, location])
       return location
     },
     // Changes a location in place (CP-16). Rejects with the gateway's reason,
     // e.g. when another location already has those details.
     edit: async (id: string, details: LocationDetails) => {
-      const location = live
-        ? await editLocation(reference, id, details)
-        : localLocation(id, details)
+      const location = await editLocation(reference, id, details)
       change((list) => list.map((l) => (l.id === id ? location : l)))
       return location
     },
     // Rejects with the gateway's reason, e.g. while the location has observations.
     remove: async (id: string) => {
-      if (live) await removeLocation(reference, id)
+      await removeLocation(reference, id)
       change((list) => list.filter((l) => l.id !== id))
     },
   }

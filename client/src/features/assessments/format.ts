@@ -24,8 +24,8 @@ export const STAGE_LABEL: Record<Stage, string> = {
   exported: 'Exported',
 }
 
-/** Returns the word a row shows for where it stands: Archived, else its stage, else (a sample row
-    with no stage) its status. The Stage filter matches on it too. */
+/** Returns the word a row shows for where it stands: Archived, else its stage, else (a row with no
+    stage) its status. The Stage filter matches on it too. */
 export function rowStage(r: { status: string; stage?: Stage }) {
   return r.status === STATUS_LABEL.archived ? r.status : r.stage ? STAGE_LABEL[r.stage] : r.status
 }

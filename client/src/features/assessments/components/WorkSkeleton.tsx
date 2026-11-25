@@ -1,11 +1,12 @@
-// The Assessments list while the first read is under way: five grey rows that pulse, so no
-// made-up sample assessment shows for a moment before the real ones. Used by screens/Dashboard.
+// The Assessments list while the first read is under way: five grey rows that pulse, so the
+// list never shows anything but real assessments. Used by screens/Dashboard
+// and, while an assessment opened by URL waits for the list, components/WorkspaceState.
 // Styled in ../assessment-list.css (.at-skel).
 
-/** Returns the placeholder rows, announced to a screen reader as one "Loading assessments". */
-export function WorkSkeleton() {
+/** Returns the placeholder rows, announced to a screen reader as one `label`. */
+export function WorkSkeleton({ label = 'Loading assessments' }: { label?: string }) {
   return (
-    <div className="at-skel" role="status" aria-label="Loading assessments">
+    <div className="at-skel" role="status" aria-label={label}>
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="at-skel-row" aria-hidden="true">
           <span className="at-skel-tile" />

@@ -3,7 +3,7 @@
 // are the Clients and Assessments lists' (FilterMenu), so a filter reads the same everywhere.
 // Used by screens/KnowledgeDocuments.tsx; filters live in documentFilters.ts.
 import { Button, SearchField } from '../../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { Tip } from '../../help/Tip'
 import { FilterMenu } from '../../clients/components/FilterMenu'
 import { STATUS_LOOK } from '../documentStatusLook'

@@ -59,7 +59,7 @@ export function useAddDocuments(
     }
   }, [])
   const run = async (files: File[]) => {
-    // A record with no client (a sample) has nowhere to keep a document.
+    // A record with no client has nowhere to keep a document.
     if (!record.clientId) return
     setBusy(true)
     try {

@@ -3,7 +3,7 @@
 // number and title; a report's is source type and title. Used by the Edit details dialog (KB-01), where a
 // detail auto-labelling could not confirm opens empty and marked (IN-05).
 import { Input, Select } from '../../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { TIER_IDS, TIER_LABELS, type TierId } from '../../settings/tiers'
 import type { DocumentDetails, SourceType, UnconfirmedDetail } from '../api'
 import { editionProblem, FACILITY_UNSET, isStandard } from '../details'

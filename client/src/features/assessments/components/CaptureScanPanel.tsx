@@ -41,9 +41,15 @@ export function CaptureScanPanel({
           />
           <Tip id="new-observation.scan" align="right" />
         </div>
-        <span className="cap-hint">{v.pageHint}</span>
-        {/* Pages go to the AI as photographed (PV-04, CP-19). */}
-        {!!v.pagePrivacyHint && <span className="cap-hint">{v.pagePrivacyHint}</span>}
+        <span className="cap-hint">
+          {'JPG or PNG, one photo per page. Each page is transcribed once you save.'}
+        </span>
+        {/* Pages go to the AI as photographed: client details in them can't be masked (PV-04). */}
+        <span className="cap-hint">
+          {
+            'Leave names, phone numbers and ID numbers off the page: an external AI service reads it.'
+          }
+        </span>
         {!!v.fPageError && (
           <div role="alert">
             <Callout tone="warning" title="Not added">

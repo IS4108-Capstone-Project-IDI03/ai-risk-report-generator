@@ -1,5 +1,5 @@
 import type { CheckResult, ChecklistItem, ReportSection } from './api'
-import { JURISDICTIONS } from './demo-data'
+import { JURISDICTIONS } from './options'
 
 // How an item was answered on site (CP-31), as the checklist names it.
 export const CHECK_LABEL: Record<CheckResult, string> = {

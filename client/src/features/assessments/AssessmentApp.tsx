@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import {
   Button,
   Dialog,
-  EmptyState,
   IconRegistry,
   NavDrawer,
   PhoneBar,
@@ -36,16 +35,14 @@ import { SiteObservation } from './screens/SiteObservation'
 import { Overview } from './screens/Overview'
 import { Checklist } from './screens/Checklist'
 import { Observations } from './screens/Observations'
-import { Generation } from './screens/Generation'
 import { DraftingSteps } from './screens/DraftingSteps'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
-import { Review } from './screens/Review'
 import { ReportExport } from './screens/ReportExport'
-import { ValidationExport } from './screens/ValidationExport'
 import { ComparisonTab } from './comparison/ComparisonTab'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { Recordings } from './screens/Recordings'
+import { WorkspaceState } from './components/WorkspaceState'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { Settings } from '../settings/Settings'
 import { ClientList } from '../clients/ClientList'
@@ -78,7 +75,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
         : item,
     ),
   }))
-  const captureOnPhone = v.isField && v.phone && !v.routeBlocked
+  // The open assessment's reference once it is on the work list. Until then the workspace and
+  // capture show WorkspaceState (loading, failed or not on the list) instead of their screens.
+  const reference = v.workspaceGate ? null : v.liveReference
+  const captureOnPhone = v.isField && v.phone && !v.routeBlocked && !!reference
   // The assessment's Details panel (AS-06 board 06), from the header or MarshBot's client card.
   const [detailsOpen, setDetailsOpen] = useState(false)
   const openDetails = v.liveRecord ? () => setDetailsOpen(true) : undefined
@@ -153,7 +153,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
       v.isUsage ||
       v.isUsers ||
       v.isCreate)
-  const inWorkspace = (!!v.isAssessment || !!v.isField) && !v.routeBlocked
+  const inWorkspace = (!!v.isAssessment || !!v.isField) && !v.routeBlocked && !!reference
   return (
     <>
       <ScreenMotion screenKey={screenKey} depth={depth} main={scroller} />
@@ -232,7 +232,13 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       : undefined
                   }
                   eyebrow={v.phone ? undefined : v.eyebrow}
-                  title={v.routeBlocked ? 'Access restricted' : v.title}
+                  title={
+                    v.routeBlocked
+                      ? 'Access restricted'
+                      : v.workspaceGate === 'missing'
+                        ? 'Assessment not found'
+                        : v.title
+                  }
                   helper={v.routeBlocked ? undefined : v.meta || undefined}
                   action={
                     inWorkspace ? (
@@ -323,7 +329,9 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       />
                     )}
 
-                    {v.isField && <SiteObservation v={v} />}
+                    {v.isField && !!reference && <SiteObservation v={v} />}
+
+                    {(v.isAssessment || v.isField) && !!v.workspaceGate && <WorkspaceState v={v} />}
 
                     {v.isUsers && (
                       <UserAccounts
@@ -373,142 +381,104 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isOverview && (
-                      <Overview v={v} openDetails={() => setDetailsOpen(true)} goTo={setGoTo} />
+                    {v.isOverview && reference && (
+                      <Overview
+                        v={v}
+                        reference={reference}
+                        openDetails={() => setDetailsOpen(true)}
+                        goTo={setGoTo}
+                      />
                     )}
 
-                    {v.isChecklist &&
-                      (v.liveReference ? (
-                        <Checklist
-                          reference={v.liveReference}
-                          canGenerate={v.canDraftSections}
-                          answering={v.checklistTabAnswering}
-                          onViewObservation={v.showObservation}
-                          area={goTo?.params?.area}
-                          item={goTo?.params?.item}
-                          archived={v.archivedOpen}
-                        />
-                      ) : (
-                        <div style={{ padding: '24px' }}>
-                          <EmptyState
-                            icon="list-checks"
-                            title="No checklist for the sample assessment"
-                            description="Checklists are generated for saved assessments. Open one from Assessments to generate its checklist."
-                          />
-                        </div>
-                      ))}
+                    {v.isChecklist && reference && (
+                      <Checklist
+                        reference={reference}
+                        canGenerate={v.canDraftSections}
+                        answering={v.checklistTabAnswering}
+                        onViewObservation={v.showObservation}
+                        area={goTo?.params?.area}
+                        item={goTo?.params?.item}
+                        archived={v.archivedOpen}
+                      />
+                    )}
 
-                    {v.isObservations && <Observations v={v} media={goTo?.params?.media} />}
+                    {v.isObservations && reference && (
+                      <Observations v={v} media={goTo?.params?.media} />
+                    )}
 
-                    {v.isPhotos && <Photos v={v} />}
+                    {v.isPhotos && reference && <Photos v={v} />}
 
-                    {v.isScans && <Scans v={v} />}
+                    {v.isScans && reference && <Scans v={v} />}
 
-                    {v.isRecordings && <Recordings v={v} />}
+                    {v.isRecordings && reference && <Recordings v={v} />}
 
-                    {v.isGenerate &&
-                      (v.liveReference ? (
-                        <DraftingSteps
-                          reference={v.liveReference}
-                          onReview={v.goReview}
-                          // A step 2 task opens its section in Review, as a MarshBot link does.
-                          onOpenSection={(section) => {
+                    {v.isGenerate && reference && (
+                      <DraftingSteps
+                        reference={reference}
+                        onReview={v.goReview}
+                        // A step 2 task opens its section in Review, as a MarshBot link does.
+                        onOpenSection={(section) => {
+                          v.setTab('review')
+                          setGoTo({ tab: 'review', params: { section } })
+                        }}
+                        onObservations={v.goObservations}
+                        archived={v.archivedOpen}
+                      />
+                    )}
+
+                    {v.isReview && reference && (
+                      <ReviewWorkspace
+                        reference={reference}
+                        assessment={v.liveRecord}
+                        canReview={v.canDraftSections}
+                        canComment={v.canComment}
+                        me={{ id: session.user.id, name: session.user.name }}
+                        wrapStyle={v.reviewWrapStyle}
+                        railStyle={v.reviewRailStyle}
+                        panelStyle={v.reviewEvidenceStyle}
+                        onGenerate={() => v.setTab('generate')}
+                        historyRequest={v.reviewHistory}
+                        openSection={goTo?.params?.section}
+                        canAsk={v.canAsk}
+                        archived={v.archivedOpen}
+                        // Writing guidance's Go to observation (AS-08), past an
+                        // unsaved document's leave guard as the tabs are.
+                        onViewObservation={(id) =>
+                          guardLeave(() => (id ? v.showObservation(id) : v.setTab('observations')))
+                        }
+                      />
+                    )}
+
+                    {v.isComparison && reference && (
+                      <ComparisonTab
+                        reference={reference}
+                        // An observation or a section opens past an unsaved document's leave
+                        // guard, as the tabs do.
+                        onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
+                        onOpenSection={(section) =>
+                          guardLeave(() => {
                             v.setTab('review')
                             setGoTo({ tab: 'review', params: { section } })
-                          }}
-                          onObservations={v.goObservations}
-                          archived={v.archivedOpen}
-                        />
-                      ) : (
-                        <Generation v={v} />
-                      ))}
+                          })
+                        }
+                      />
+                    )}
 
-                    {v.isReview &&
-                      (v.liveReference ? (
-                        <ReviewWorkspace
-                          reference={v.liveReference}
-                          assessment={v.liveRecord}
-                          canReview={v.canDraftSections}
-                          canComment={v.canComment}
-                          me={{ id: session.user.id, name: session.user.name }}
-                          wrapStyle={v.reviewWrapStyle}
-                          railStyle={v.reviewRailStyle}
-                          panelStyle={v.reviewEvidenceStyle}
-                          onGenerate={() => v.setTab('generate')}
-                          historyRequest={v.reviewHistory}
-                          openSection={goTo?.params?.section}
-                          canAsk={v.canAsk}
-                          archived={v.archivedOpen}
-                          // Writing guidance's Go to observation (AS-08), past an
-                          // unsaved document's leave guard as the tabs are.
-                          onViewObservation={(id) =>
-                            guardLeave(() =>
-                              id ? v.showObservation(id) : v.setTab('observations'),
-                            )
-                          }
-                        />
-                      ) : (
-                        <Review v={v} />
-                      ))}
-
-                    {v.isComparison &&
-                      (v.liveReference ? (
-                        <ComparisonTab
-                          reference={v.liveReference}
-                          // An observation or a section opens past an unsaved document's leave
-                          // guard, as the tabs do.
-                          onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
-                          onOpenSection={(section) =>
-                            guardLeave(() => {
-                              v.setTab('review')
-                              setGoTo({ tab: 'review', params: { section } })
-                            })
-                          }
-                        />
-                      ) : (
-                        <div style={{ padding: '24px' }}>
-                          <EmptyState
-                            icon="git-compare"
-                            title="Comparison is unavailable with sample data"
-                            description="This sample assessment isn't saved. Open one from Assessments to compare it with the previous report for its site."
-                          />
-                        </div>
-                      ))}
-
-                    {v.isExport &&
-                      (v.liveReference ? (
-                        <ReportExport
-                          reference={v.liveReference}
-                          assessment={v.liveRecord}
-                          canExport={v.canExportReport}
-                          onReview={() => v.setTab('review')}
-                          onGenerate={() => v.setTab('generate')}
-                        />
-                      ) : (
-                        <ValidationExport v={v} />
-                      ))}
+                    {v.isExport && reference && (
+                      <ReportExport
+                        reference={reference}
+                        assessment={v.liveRecord}
+                        canExport={v.canExportReport}
+                        onReview={() => v.setTab('review')}
+                        onGenerate={() => v.setTab('generate')}
+                      />
+                    )}
                   </>
                 )}
               </main>
             </div>
           </div>
 
-          <Dialog
-            open={v.stopOpen}
-            title="Stop generation?"
-            description={v.stopDescription}
-            footer={v.stopFooter}
-            onClose={v.closeStop}
-            width={480}
-          ></Dialog>
-          <Dialog
-            open={v.exportOpen}
-            title={v.exportDialogTitle}
-            description={v.exportDialogBody}
-            footer={v.exportFooter}
-            onClose={v.closeExport}
-            width={520}
-          ></Dialog>
           <Dialog
             open={v.archiveOpen}
             title="Archive this assessment?"
@@ -532,7 +502,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             onClose={v.closeArchive}
             width={440}
           ></Dialog>
-          {v.isAssessment && (
+          {v.isAssessment && !!reference && (
             <DetailsPanel v={v} open={detailsOpen} onClose={() => setDetailsOpen(false)} />
           )}
           {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}

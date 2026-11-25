@@ -192,7 +192,7 @@ async function seedAndVerify(): Promise<void> {
     },
     { upsert: true },
   )
-  // The places the client's demo lists (DEMO_LOCATIONS).
+  // Tilbury's places on site, for capture and the Observations tab (CP-16).
   await locate('RPT-2026-0411', [
     { building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
     { building: 'Warehouse', floor: 'Ground', name: 'Bay 1 — despatch' },

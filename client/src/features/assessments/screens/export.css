@@ -1,5 +1,5 @@
-/* The Export tab (EX-01, screens/ReportExport.tsx) and its sample-data twin
-   (ValidationExport.tsx): what blocks the export beside the export's choices.
+/* The Export tab (EX-01, screens/ReportExport.tsx): what blocks the export
+   beside the export's choices.
    Design-system v2 tokens only. */
 .ex-wrap {
   padding: 24px var(--page-gutter) 40px;

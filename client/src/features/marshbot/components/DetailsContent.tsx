@@ -49,7 +49,7 @@ export function DetailsContent({
   // Why the site can't be edited (someone else's assessment uses it): the pencil stays, greyed,
   // and says so (design system v2: grey out and explain).
   siteReason?: string | null
-  // Swaps the panel to the site map (SiteMapPanel); absent for a sample assessment with no map.
+  // Swaps the panel to the site map (SiteMapPanel); absent when the assessment has no map.
   onOpenMap?: () => void
   // The toaster that shows what adding a document did (the panel's own on a computer).
   toasterId?: string

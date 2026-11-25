@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { signIn } from './test/session'
+import { created, gateway, json } from './features/new-assessment/testKit'
 
 beforeAll(() => {
   // jsdom has no native modal implementation; browser supplies focus trapping.
@@ -13,20 +14,32 @@ beforeAll(() => {
     this.removeAttribute('open')
   }
 })
+// Four assessments on the engineer's list, as the gateway sends them.
+const row = (reference: string, site: string) => created(reference, site)
+const LIST = [
+  row('RPT-2026-0411', 'Tilbury Distribution Centre'),
+  row('RPT-2026-0408', 'Leeds Cold Store'),
+  row('RPT-2026-0402', 'Rotterdam Plant 2'),
+  row('RPT-2026-0331', 'Bilbao Terminal'),
+]
+const unreachable = () => Promise.reject(new TypeError('Failed to fetch'))
 beforeEach(() => {
-  // The capture screen calls the gateway; these demo tests run without one.
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
-  )
+  gateway({
+    'GET /api/assessments': () => json(200, LIST),
+    'GET /api/notifications/count': () =>
+      json(200, { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null }),
+    'POST /api/assessments': unreachable,
+  })
 })
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
-function openAssessment() {
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+async function openAssessment() {
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
 }
 function tab(name: RegExp) {
   fireEvent.click(screen.getByRole('tab', { name }))
@@ -48,21 +61,12 @@ describe('Marsh prototype integration', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
-  it('keeps SSO and access requests explicitly simulated, and opens the real reset flow', () => {
+  it('opens the real reset flow from sign-in', () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /single sign-on/ }))
-    expect(screen.getByRole('status')).toHaveTextContent('not connected')
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-    tab(/Request access/)
-    fireEvent.change(screen.getByLabelText(/Full name/), { target: { value: 'Demo Engineer' } })
-    fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
-    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'DemoPassword1!' } })
-    fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: 'Request access' }))
-    expect(screen.getByRole('status')).toHaveTextContent('No request was sent')
   })
   it('filters the dashboard, and creates nothing without the gateway', async () => {
     render(<App />)
@@ -89,7 +93,7 @@ describe('Marsh prototype integration', () => {
     // CP-23 dropped the demo-only assessment: without the gateway nothing is created.
     expect(await screen.findByText('Nothing created')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    expect(screen.getByText('6 assessments')).toBeInTheDocument()
+    expect(await screen.findByText('4 assessments')).toBeInTheDocument()
   })
   it('lists the last three assessments opened under Recent, newest first', async () => {
     render(<App />)
@@ -123,7 +127,7 @@ describe('Marsh prototype integration', () => {
     render(<App />)
     await signIn()
     const nav = () => screen.getAllByRole('navigation')[0]
-    openAssessment()
+    await openAssessment()
     // Recent folds away under its heading.
     const recent = () => within(nav()).getByRole('group', { name: 'Recent' })
     expect(within(recent()).getAllByRole('button')).toHaveLength(1)
@@ -146,11 +150,62 @@ describe('Marsh prototype integration', () => {
     expect(within(nav()).getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument()
   })
   it('saves observations and displays them in the assessment', async () => {
+    const REF = 'RPT-2026-0411'
+    const base = `/api/assessments/${REF}`
+    // The gateway keeps what is saved and lists it back, as the real one does.
+    let saved: unknown[] = []
+    const listSaved = () => json(200, saved)
+    gateway({
+      'GET /api/assessments': () => json(200, LIST),
+      'GET /api/notifications/count': () =>
+        json(200, { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null }),
+      [`POST ${base}/capture-session`]: () =>
+        json(201, {
+          session: { id: 's1', status: 'active', startedAt: '2026-09-29T08:00:00.000Z' },
+          assessment: {
+            id: 'a1',
+            reference: REF,
+            client: 'Harbourline Properties',
+            site: { code: 'SITE-9', name: 'Tilbury Distribution Centre' },
+          },
+        }),
+      [`GET ${base}/locations`]: () =>
+        json(200, [
+          { id: 'l0', building: 'Warehouse', floor: 'Ground', name: 'Bay 3 — north aisle' },
+          { id: 'l1', building: null, floor: null, name: 'Pump house' },
+          { id: 'l2', building: null, floor: null, name: 'External yard' },
+        ]),
+      [`GET ${base}/observations`]: listSaved,
+      [`GET ${base}/observations?include=deleted`]: listSaved,
+      [`POST ${base}/observations`]: () => {
+        const item = {
+          id: 'o1',
+          engineer: 'Alex Rowe',
+          copeDimensions: null,
+          standard: null,
+          severity: 'moderate',
+          location: { id: 'l1', building: null, floor: null, name: 'Pump house' },
+          note: 'Demo sprinkler observation',
+          recordings: [],
+          photos: [],
+          removedRecordings: [],
+          removedPhotos: [],
+          interpretation: null,
+          recordedAt: '2026-09-29T08:10:00.000Z',
+          edited: null,
+          deleted: null,
+        }
+        saved = [item]
+        return json(201, item)
+      },
+    })
     render(<App />)
     await signIn()
     // Open the assessment from the work list; Add manually is on its Observations tab.
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
+    fireEvent.click(await screen.findByRole('tab', { name: /Observations/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
     fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
     // Capture starts by choosing where the engineer is: by building, or
@@ -167,61 +222,10 @@ describe('Marsh prototype integration', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
     // The back button above the form goes to the assessment's Observations tab.
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
-    expect(screen.getByText('Demo sprinkler observation')).toBeInTheDocument()
+    expect(await screen.findByText('Demo sprinkler observation')).toBeInTheDocument()
   })
-  it('stops and resumes simulated generation', async () => {
-    // Only the generation interval is faked, so signing in can still settle.
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    render(<App />)
-    await signIn()
-    openAssessment()
-    tab(/Generation/)
-    fireEvent.click(screen.getByRole('button', { name: 'Stop generation' }))
-    const dialog = screen.getByRole('dialog', { name: 'Stop generation?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Stop generation' }))
-    expect(screen.getByRole('button', { name: 'Resume generation' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Resume generation' }))
-    act(() => vi.advanceTimersByTime(15000))
-    expect(screen.getByText(/5 of 7 sections drafted · 2 need attention/)).toBeInTheDocument()
-  })
-  it('requires review and evidence resolution, then says sample data cannot be exported (EX-01 AC11)', async () => {
-    render(<App />)
-    await signIn()
-    openAssessment()
-    tab(/Export/)
-    expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeDisabled()
-    tab(/^Review/)
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    expect(await screen.findByText(/Resolve the open review item/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove the sentence' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Not available — record as a finding' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'Engineer-reviewed water supply finding.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save edit' }))
-    expect(screen.getByText('Engineer-reviewed water supply finding.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Use 8 weeks — 2023 report' }))
-    expect(screen.getByText('Source chosen — 2023 report')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
-    tab(/Export/)
-    expect(screen.getByRole('button', { name: 'Export as DOCX' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('radio', { name: /PDF/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Export as PDF' }))
-    // Nothing is produced or simulated: the cause is shown instead.
-    const dialog = screen.getByRole('dialog', { name: 'Sample data cannot be exported' })
-    expect(dialog).toHaveTextContent('No file was produced.')
-    expect(screen.queryByRole('button', { name: 'Simulate export' })).toBeNull()
-    // Closed from the header's ✕ or the footer's Close.
-    expect(within(dialog).getAllByRole('button', { name: 'Close' })).toHaveLength(2)
-  }, 10000)
   it.each([390, 900])('provides usable navigation at %ipx', async (width) => {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -241,10 +245,12 @@ describe('Marsh prototype integration', () => {
       fireEvent.click(within(reopened).getByRole('button', { name: /^Assessments/ }))
       expect(screen.queryByRole('dialog', { name: 'Navigation' })).not.toBeInTheDocument()
     }
-    openAssessment()
-    expect(screen.getByRole('heading', { name: 'Tilbury Distribution Centre' })).toBeInTheDocument()
+    await openAssessment()
+    expect(
+      await screen.findByRole('heading', { name: 'Tilbury Distribution Centre' }),
+    ).toBeInTheDocument()
     tab(/^Review/)
-    expect(screen.getByRole('button', { name: 'Remove the sentence' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Review/ })).toHaveAttribute('aria-selected', 'true')
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous })
   })
 })

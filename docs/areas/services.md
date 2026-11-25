@@ -1888,8 +1888,7 @@ in a minute` (Ask again in a minute) or `today's question limit was reached`
 (Ask again tomorrow). An engineer who leaves while it is written stops it;
 it is saved as `stopped`.
 
-Without the gateway the tab says it is unavailable: on the sample assessment
-always, and on a saved one when the gateway cannot be reached.
+Without the gateway the tab says it is unavailable.
 
 ### Asking about a selected passage (AS-02)
 
@@ -2197,7 +2196,7 @@ filter, filters by outcome, COPE category, severity and location with the count
 shown, and the list beside the open item; below 1080 px they stack, below
 760 px an item opens in a bottom sheet. An observation source opens the
 observation; a draft finding or OFI opens its section in Review. Without the
-gateway the tab says it is unavailable with sample data. Comparisons and
+gateway the tab says it is unavailable. Comparisons and
 decisions don't queue MarshBot's re-check (`assistant-recheck.middleware.ts`).
 
 ## Report export (S2, EX-01)

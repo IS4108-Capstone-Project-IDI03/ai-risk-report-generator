@@ -1,6 +1,6 @@
 // The Details panel's blocks and its site map (AS-06, boards D1, D2, D3). jsdom lays nothing
-// out, so the panel's height is faked to test the budgets; Google Maps is faked as in
-// assessments/components/SiteMapCard.test.tsx.
+// out, so the panel's height is faked to test the budgets; Google Maps is faked
+// (its script never loads in jsdom).
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'

@@ -5,6 +5,7 @@ import App from '../../App'
 import { GatewayError, SESSION_ENDED_EVENT } from '../assessments/api'
 import { signIn as requestSignIn } from './api'
 import { signIn } from '../../test/session'
+import { created, gateway, json as reply } from '../new-assessment/testKit'
 
 const unreachable = vi.fn<(url: string) => Promise<Response>>(() =>
   Promise.reject(new TypeError('Failed to fetch')),
@@ -29,8 +30,29 @@ beforeAll(() => {
     this.removeAttribute('open')
   }
 })
+// An assessment on the work list, as the gateway sends it.
+const TILBURY = created('RPT-2026-0411', 'Tilbury Distribution Centre')
+const withWorkList = (list: unknown[]) =>
+  gateway({
+    'GET /api/assessments': () => reply(200, list),
+    'GET /api/notifications/count': () =>
+      reply(200, { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null }),
+    // Capture opens a session and reads the places on site.
+    'POST /api/assessments/RPT-2026-0411/capture-session': () =>
+      reply(201, {
+        session: { id: 's1', status: 'active', startedAt: '2026-09-29T08:00:00.000Z' },
+        assessment: {
+          id: 'a1',
+          reference: 'RPT-2026-0411',
+          client: 'Harbourline Properties',
+          site: { code: 'SITE-9', name: 'Tilbury Distribution Centre' },
+        },
+      }),
+    'GET /api/assessments/RPT-2026-0411/locations': () => reply(200, []),
+  })
+
 beforeEach(() => {
-  // No gateway: screens fall back to their sample data.
+  // No gateway unless a test serves one.
   vi.stubGlobal('fetch', unreachable)
 })
 afterEach(() => {
@@ -123,16 +145,18 @@ describe('Route guard (F-05)', () => {
   // engineer's screens and abilities, and is read-only only on other people's assessments.
   it.each([
     ['/assessments/new', 'New Assessment'],
-    ['/site-observation', 'New Observation'],
+    ['/site-observation?ref=RPT-2026-0411', 'New Observation'],
   ])('lets a knowledge admin open %s', async (path, heading) => {
+    withWorkList([TILBURY])
     openAt(path)
     await signIn('knowledge_admin')
 
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
   })
 
   it('gives a knowledge admin the engineer’s Assessments screen, Clients and the report tabs', async () => {
+    withWorkList([TILBURY])
     openAt('/assessments')
     await signIn('knowledge_admin')
 

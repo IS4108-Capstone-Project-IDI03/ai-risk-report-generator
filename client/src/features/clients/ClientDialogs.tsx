@@ -3,7 +3,7 @@
 // follows the same rules, warning and wording wherever it is made.
 import { useState, type ChangeEvent } from 'react'
 import { Button, Callout, Dialog, Input, Select } from '../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/options'
 import {
   correctSite,
   removeClient,

@@ -384,7 +384,7 @@ def test_a_passage_found_by_several_searches_is_offered_under_the_nearest_only(m
 
 
 def test_the_hazard_list_covers_exactly_the_facility_types_the_forms_offer():
-    # Keep in step with FACILITY_TYPES in client/src/features/assessments/demo-data.ts and
+    # Keep in step with FACILITY_TYPES in client/src/features/assessments/options.ts and
     # server/src/services/knowledge-document.service.ts: a type missing here gets no hazards.
     assert set(CHECKLIST["hazards"]) == {
         "Distribution warehouse",

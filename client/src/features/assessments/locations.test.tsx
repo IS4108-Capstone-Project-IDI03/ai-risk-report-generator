@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import type { Assessment, SiteLocation } from './api'
 import {
   BUILDING_WORDS,
@@ -47,7 +48,15 @@ const place = (
 // the same name, level and building is refused whatever the case, as it does.
 let stored: SiteLocation[] = []
 let observations: unknown[] = []
-let workList: Assessment[] | null = null
+// The work list the gateway answers: the assessment these tests open, assigned to the signed-in
+// engineer, unless a test is about someone else's.
+const record = (): Assessment =>
+  ({
+    ...created(REF, 'Tilbury Distribution Centre'),
+    client: 'Northgate Logistics',
+    status: 'capturing',
+  }) as Assessment
+let workList: Assessment[] = []
 let captureStarts = 0
 let removeReply: () => Promise<Response> = () =>
   Promise.resolve(new Response(null, { status: 204 }))
@@ -62,7 +71,7 @@ const duplicate = () => {
 }
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-    if (url === '/api/assessments' && workList) return json(200, workList)
+    if (url === '/api/assessments') return json(200, workList)
     if (url === `/api/assessments/${REF}/capture-session`) {
       captureStarts++
       return json(201, CAPTURE)
@@ -215,7 +224,7 @@ beforeEach(() => {
   scrolled = []
   stored = []
   observations = []
-  workList = null
+  workList = [record()]
   captureStarts = 0
   removeReply = () => Promise.resolve(new Response(null, { status: 204 }))
   added.length = 0
@@ -959,9 +968,8 @@ describe('The Observations tab by location (CP-16)', () => {
       'Level 2',
       'Staircase',
     ])
-    // The sample assessment's own sample observation is listed where it was
-    // saved, though that location is not on the gateway's list.
-    expect(navRows().slice(-3)).toEqual(['Elsewhere on site', 'Guardhouse', 'Pump house'])
+    // Locations with no building come last, under Elsewhere on site.
+    expect(navRows().slice(-2)).toEqual(['Elsewhere on site', 'Guardhouse'])
     expect(
       within(screen.getByRole('region', { name: 'Block A › Level 2 › Staircase' })).getByText(
         'Pump test certificate missing.',

@@ -1,50 +1,37 @@
 import { Button, Callout } from '../../../design-system'
 import type { CaptureSessionState } from '../useCaptureSession'
 
-// Why no capture session started, and what to do, in plain words (no codes or service names).
-function unavailableCause(
-  httpStatus: number | null,
-  reference: string,
-): { cause: string; next: string } {
-  if (httpStatus === null)
-    return { cause: "the server can't be reached", next: 'Check your connection, then try again.' }
+// What to do when no capture session started, in one plain line (no codes or service names).
+function fixFor(httpStatus: number | null): string {
+  if (httpStatus === null) return 'Can’t reach the server. Check your connection, then try again.'
   if (httpStatus === 404)
-    return {
-      cause: `${reference} isn't saved on the server`,
-      next: 'Open a saved assessment or create one, then try again.',
-    }
-  return { cause: 'the server had a problem', next: 'Try again in a moment.' }
+    return 'This assessment isn’t on the server any more. Go back to Assessments and open it again.'
+  return 'The server had a problem. Try again in a moment.'
 }
 
-// Says so only when no capture session could be started, as saves then stay
-// on this device. A session starting or running needs no notice: the header
-// names the assessment, the navigation's live light marks the session, and
-// Save waits while it starts.
+// Shown only when no capture session could be started: nothing can be saved or recorded until
+// one is, and nothing is kept on this device instead. Try again starts the session again. A
+// session starting or running needs no notice: Save waits while it starts.
 export function CaptureSessionNotice({
   capture,
-  reference,
   onRetry,
 }: {
   capture: CaptureSessionState | null
-  reference: string
   onRetry: () => void
 }) {
   if (capture?.status !== 'unavailable') return null
-  const { cause, next } = unavailableCause(capture.httpStatus, reference)
   return (
-    <div role="status">
+    <div role="alert">
       <Callout
-        tone="warning"
-        title="Showing sample data"
+        tone="danger"
+        title="Can’t save right now"
         actions={
           <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={onRetry}>
             {'Try again'}
           </Button>
         }
       >
-        {'No capture session was started: '}
-        {cause}
-        {`. Observations saved now stay on this device. ${next}`}
+        {fixFor(capture.httpStatus)}
       </Callout>
     </div>
   )

@@ -1,11 +1,19 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import { checkReady } from './generation/fixtures'
 
-// Deliberately differs from the demo data, so passing tests prove the capture
+// Tilbury on the engineer's work list, as the gateway sends it.
+const TILBURY = {
+  ...created('RPT-2026-0411', 'Tilbury Distribution Centre'),
+  client: 'Northgate Logistics',
+  status: 'capturing',
+}
+
+// Deliberately differs from the work list's Tilbury, so passing tests prove the capture
 // screen names the assessment from the server response.
 const CAPTURE = {
   session: {
@@ -42,7 +50,9 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
     url.startsWith('/api/background-work')
       ? unreachable()
       : init?.method === 'GET'
-        ? listReply()
+        ? url === '/api/assessments' || !/\/(locations|observations)/.test(url)
+          ? listReply()
+          : respond(200, [])
         : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
           url === '/api/settings/me'
           ? Promise.resolve(new Response(null, { status: 204 }))
@@ -86,6 +96,10 @@ afterEach(() => {
 })
 
 describe('Capture session (CP-01)', () => {
+  beforeEach(() => {
+    listReply = () => respond(200, [TILBURY])
+  })
+
   it('starts a session only when capture opens', async () => {
     const fetchMock = mockGateway(() => respond(201))
     await openApp()
@@ -148,7 +162,7 @@ describe('Capture session (CP-01)', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   }, 10000)
 
-  it('keeps sample data usable when the gateway cannot be reached, then retries', async () => {
+  it('says why nothing can be saved when the gateway cannot be reached, then retries', async () => {
     const fetchMock = mockGateway(
       () => Promise.reject(new TypeError('Failed to fetch')),
       () => respond(201),
@@ -156,49 +170,45 @@ describe('Capture session (CP-01)', () => {
     await openApp()
     await openCapture()
 
-    const notice = await screen.findByRole('status')
-    await screen.findByText('Showing sample data')
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Can’t save right now')
+    expect(notice).toHaveTextContent(
+      'Can’t reach the server. Check your connection, then try again.',
+    )
     expect(screen.queryByRole('img', { name: 'live' })).not.toBeInTheDocument()
-    expect(notice).toHaveTextContent("No capture session was started: the server can't be reached.")
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Tilbury Distribution Centre',
     )
-    // The Observations tab, still on show, counts what is saved.
-    expect(screen.getByRole('tab', { name: 'Observations 3' })).toBeInTheDocument()
-    // Without the gateway, the sample assessment offers its sample locations,
-    // by building, then elsewhere on site (CP-16).
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site/, expanded: false }))
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site › Pump house/ }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
-      target: { value: 'Offline sprinkler observation' },
-    })
-    fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(await screen.findByText('Observation saved on this device only.')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-
-    // Once the session starts, the warning goes.
-    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    // Nothing is kept on this device instead: Save waits for a session.
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
     expect(screen.queryByText('Showing sample data')).not.toBeInTheDocument()
+
+    fireEvent.click(within(notice).getByRole('button', { name: 'Try again' }))
+
+    // Once the session starts, the notice goes and Save is back.
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    expect(screen.queryByText('Can’t save right now')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeEnabled()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it.each([
-    [502, "the server can't be reached", 'Check your connection'],
-    [404, "RPT-2026-0411 isn't saved on the server", 'Open a saved assessment or create one'],
-    [500, 'the server had a problem', 'Try again in a moment'],
-  ])('explains an HTTP %i from the gateway', async (status, cause, next) => {
+    [502, 'Can’t reach the server. Check your connection, then try again.'],
+    [
+      404,
+      'This assessment isn’t on the server any more. Go back to Assessments and open it again.',
+    ],
+    [500, 'The server had a problem. Try again in a moment.'],
+  ])('explains an HTTP %i from the gateway', async (status, line) => {
     mockGateway(() => respond(status, { error: 'unused' }))
     await openApp()
 
     await openCapture()
 
-    await screen.findByText('Showing sample data')
-    const notice = screen.getByRole('status')
-    expect(notice).toHaveTextContent(`No capture session was started: ${cause}.`)
-    expect(notice).toHaveTextContent(next)
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Can’t save right now')
+    expect(notice).toHaveTextContent(line)
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
   })
 })
 
@@ -777,12 +787,14 @@ describe('Work list (RV-10)', () => {
     expect(results()).toHaveTextContent('1 assessment')
   })
 
-  it('shows the sample assessments when the gateway cannot be reached', async () => {
+  it('shows no rows, only that the list can’t load, when the gateway cannot be reached', async () => {
     mockGateway()
     await openApp()
 
-    expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
-    expect(results()).toHaveTextContent('6 assessments')
+    expect(await screen.findByText('Can’t load assessments')).toBeInTheDocument()
+    expect(screen.queryByText('Showing sample assessments')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tilbury Distribution Centre')).not.toBeInTheDocument()
+    expect(document.querySelector('.at-row')).toBeNull()
   })
 
   // CP-23: one date format on every screen ("5 Sep 2026", never "05 Sept"),
@@ -1354,7 +1366,7 @@ it('archives from a list row with the same confirm, and Undo restores it (CP-23 
   ])
 })
 
-it('offers Archive on the demo assessment too, from its saved record', async () => {
+it('offers Archive on a saved assessment, from its saved record', async () => {
   const tilburyRecord = {
     ...CREATED,
     reference: 'RPT-2026-0411',
@@ -1365,7 +1377,7 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
     respond(200, url === '/api/assessments' ? [tilburyRecord] : []),
   )
   await openApp()
-  // Grouped by client, the sample rows give way to the saved record's group.
+  // Grouped by client, the saved record has its own group.
   const tilbury = within(
     await screen.findByRole('region', { name: /^Straits Logistics/ }),
   ).getByRole('button', { name: /^Tilbury Distribution Centre/ })

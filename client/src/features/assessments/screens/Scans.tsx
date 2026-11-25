@@ -21,10 +21,8 @@ import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import '../observations.css'
 
-// Whether a page has finished text to show: transcribed, or written by hand
-// in the demo.
-const finished = (p: PageView) =>
-  p.status === 'transcribed' || (p.status === null && !!p.correction)
+// Whether a page has finished text to show.
+const finished = (p: PageView) => p.status === 'transcribed'
 
 // A finished page's text as the observation's page shows it: the engineer's
 // correction plainly, else the model's reading behind the AI rule with its

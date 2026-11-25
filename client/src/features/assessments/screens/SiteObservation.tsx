@@ -89,13 +89,9 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may
             be recording at their desk. */}
         <SiteWeatherPanel reference={v.liveReference} layout="card" />
-        {v.capture?.status === 'unavailable' && (
+        {v.captureFailed && (
           <div className="cap-top">
-            <CaptureSessionNotice
-              capture={v.capture}
-              reference={v.captureRef}
-              onRetry={v.retryCapture}
-            />
+            <CaptureSessionNotice capture={v.capture} onRetry={v.retryCapture} />
           </div>
         )}
         <div className="cap-with-pane" data-pane={pane ? '' : undefined}>

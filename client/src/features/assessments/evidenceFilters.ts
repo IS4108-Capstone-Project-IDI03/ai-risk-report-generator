@@ -37,9 +37,7 @@ const UNDESCRIBED = 'Not described'
 
 const byStatus = { transcribed: TRANSCRIBED, transcribing: TRANSCRIBING, failed: FAILED }
 export const recordingStates = (status: keyof typeof byStatus) => [byStatus[status]]
-// A demo page written by hand has no status, only the engineer's text.
 export const pageStates = (p: ObservationPage) => {
-  if (p.status === null) return p.correction ? [TRANSCRIBED, CORRECTED] : []
   const states = [byStatus[p.status]]
   if (p.status === 'transcribed' && p.correction) states.push(CORRECTED)
   if (p.status === 'transcribed' && !p.correction && p.uncertain.length) states.push(UNSURE)

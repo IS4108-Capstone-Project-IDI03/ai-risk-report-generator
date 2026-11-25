@@ -1,16 +1,33 @@
 // Tests that a page refresh reopens where the engineer was (CP-22 round 3):
-// the same assessment, tab and observation, never the demo default (Tilbury).
+// the same assessment, tab and observation, never a default one.
 // Covers the URL sync in useAssessmentWorkflow.tsx.
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import { openProposalCapture } from '../site-walk/proposalCapture'
+import type { SavedObservation } from './api'
+
+const REF = 'RPT-2026-0411'
+// The engineer's work list: two assessments, as the gateway lists them.
+const WORK_LIST = [
+  { ...created(REF, 'Tilbury Distribution Centre'), client: 'Northgate Logistics' },
+  created('RPT-2026-0398', 'Leeds Cold Store'),
+]
+// A stand-in gateway: the work list, then whatever routes a test adds; the rest is offline.
+function gateway(routes: Record<string, unknown> = {}) {
+  vi.stubGlobal('fetch', (url: string) => {
+    const body = url === '/api/assessments' ? WORK_LIST : routes[url]
+    return body === undefined
+      ? Promise.reject(new TypeError('Failed to fetch'))
+      : Promise.resolve(Response.json(body))
+  })
+}
 
 beforeEach(() => {
-  // An unreachable gateway: the work list shows the demo assessments.
-  vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+  gateway()
   window.history.pushState({}, '', '/assessments')
 })
 afterEach(() => {
@@ -43,14 +60,36 @@ it('reopens the same assessment and tab after a refresh', async () => {
 })
 
 it('reopens the observation that was open', async () => {
+  const saved: SavedObservation = {
+    id: 'o1',
+    engineer: 'Alex Rowe',
+    copeDimensions: ['Protection'],
+    standard: null,
+    severity: 'high',
+    location: null,
+    note: 'Racking is new.',
+    recordings: [],
+    photos: [],
+    removedRecordings: [],
+    removedPhotos: [],
+    interpretation: null,
+    recordedAt: '2026-09-29T08:10:00.000Z',
+    edited: null,
+    deleted: null,
+  }
+  // Two, so the open one has a neighbour to step to.
+  const both = [saved, { ...saved, id: 'o2', note: 'Racking is old.' }]
+  gateway({
+    [`/api/assessments/${REF}/observations`]: both,
+    [`/api/assessments/${REF}/observations?include=deleted`]: both,
+  })
   render(<App />)
   await signIn()
   fireEvent.click(
     (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
   )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  // The first observation in the list.
-  fireEvent.click(document.querySelector<HTMLButtonElement>('button.ob-row')!)
+  fireEvent.click(await screen.findByRole('button', { name: /Racking is new/ }))
   const opened = await screen.findByRole('button', { name: 'Previous observation' })
   expect(opened).toBeInTheDocument()
   const where = window.location.search
@@ -62,7 +101,7 @@ it('reopens the observation that was open', async () => {
 })
 
 it('reopens the Site Walk Proposals list after a refresh', async () => {
-  // One walk on Tilbury, so the tab offers its proposals; the rest is offline.
+  // One walk on Tilbury, so the tab offers its proposals.
   const walk = {
     id: 'w1',
     status: 'recording',
@@ -74,11 +113,7 @@ it('reopens the Site Walk Proposals list after a refresh', async () => {
     proposal: null,
     error: null,
   }
-  vi.stubGlobal('fetch', (url: string) =>
-    url === '/api/assessments/RPT-2026-0411/site-walks'
-      ? Promise.resolve(Response.json([walk]))
-      : Promise.reject(new TypeError('Failed to fetch')),
-  )
+  gateway({ [`/api/assessments/${REF}/site-walks`]: [walk] })
   render(<App />)
   await signIn()
   fireEvent.click(
@@ -94,7 +129,7 @@ it('reopens the Site Walk Proposals list after a refresh', async () => {
 })
 
 it('reopens the proposal review, not a direct save, when its Add observation is refreshed', async () => {
-  // A ready walk with an empty proposal; the rest is offline.
+  // A ready walk with an empty proposal.
   const walk = {
     id: 'w1',
     status: 'ready',
@@ -106,13 +141,10 @@ it('reopens the proposal review, not a direct save, when its Add observation is 
     proposal: { locations: [], observations: [] },
     error: null,
   }
-  vi.stubGlobal('fetch', (url: string) =>
-    url === '/api/assessments/RPT-2026-0411/site-walks'
-      ? Promise.resolve(Response.json([walk]))
-      : url === '/api/assessments/RPT-2026-0411/site-walks/w1'
-        ? Promise.resolve(Response.json(walk))
-        : Promise.reject(new TypeError('Failed to fetch')),
-  )
+  gateway({
+    [`/api/assessments/${REF}/site-walks`]: [walk],
+    [`/api/assessments/${REF}/site-walks/w1`]: walk,
+  })
   window.history.pushState({}, '', '/assessment?ref=RPT-2026-0411&tab=observations&walk=w1')
   render(<App />)
   await signIn()
@@ -154,7 +186,7 @@ it('reopens the Record site walk screen after a refresh', async () => {
 })
 
 it('reopens the proposed observation that was open in a review', async () => {
-  // A ready walk whose proposal has one observation; the rest is offline.
+  // A ready walk whose proposal has one observation.
   const walk = {
     id: 'w1',
     status: 'ready',
@@ -182,15 +214,11 @@ it('reopens the proposed observation that was open in a review', async () => {
     },
     error: null,
   }
-  vi.stubGlobal('fetch', (url: string) =>
-    url === '/api/assessments/RPT-2026-0411/site-walks'
-      ? Promise.resolve(Response.json([walk]))
-      : url === '/api/assessments/RPT-2026-0411/site-walks/w1'
-        ? Promise.resolve(Response.json(walk))
-        : url === '/api/assessments/RPT-2026-0411/locations'
-          ? Promise.resolve(Response.json([]))
-          : Promise.reject(new TypeError('Failed to fetch')),
-  )
+  gateway({
+    [`/api/assessments/${REF}/site-walks`]: [walk],
+    [`/api/assessments/${REF}/site-walks/w1`]: walk,
+    [`/api/assessments/${REF}/locations`]: [],
+  })
   window.history.pushState({}, '', '/assessment?ref=RPT-2026-0411&tab=observations&walk=w1')
   render(<App />)
   await signIn()

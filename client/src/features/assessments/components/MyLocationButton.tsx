@@ -1,5 +1,5 @@
-// The Use my current location button (CP-26). Used by LocationForm.tsx,
-// SiteMapCard.tsx and the New Assessment form's SiteCard.tsx. Calls myLocation.ts.
+// The Use my current location button (CP-26). Used by LocationForm.tsx
+// and the New Assessment form's SiteCard.tsx. Calls myLocation.ts.
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system'
 import type { Coordinates } from '../googleMaps'

@@ -53,7 +53,7 @@ export type PhotoRow = {
   item?: RowItem
 }
 export type RowItem = {
-  // A recording's or page's transcription; null for a photo, or a demo page.
+  // A recording's or page's transcription; null for a photo.
   status?: TranscriptionStatus | null
   // Starts a new transcription attempt; offered only when it failed.
   retry?: (() => void) | null

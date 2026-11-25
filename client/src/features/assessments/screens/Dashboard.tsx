@@ -6,7 +6,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
-  Callout,
   EmptyState,
   Icon,
   TableFooter,
@@ -40,8 +39,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
-  // Before the first answer the workflow holds made-up sample rows: show grey ones instead.
+  // Grey rows until the gateway's first answer.
   const loading = v.calendar.loading
+  // The list could not be read: the rows give way to the error and its Try again.
+  const failed = v.listOffline
   const compact = useCompact()
   const phone = useIsPhone()
   // F-12: the list has loaded once the gateway has answered (or failed). Nothing is offered
@@ -105,15 +106,6 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         }
       />
       <div className="at-content">
-        {v.listOffline && (
-          <div role="status">
-            <Callout tone="warning" title="Showing sample assessments">
-              {
-                'Can’t reach the server, so saved assessments aren’t listed. Check your connection, then reload this page.'
-              }
-            </Callout>
-          </div>
-        )}
         <div className="at-card">
           <WorkToolbar v={v} compact={compact} />
           <div
@@ -144,6 +136,20 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               <span />
             </div>
             {loading && <WorkSkeleton />}
+            {failed && (
+              <div className="at-empty" role="alert">
+                <EmptyState
+                  icon="cloud-off"
+                  title="Can’t load assessments"
+                  description="Check your connection, then try again."
+                  action={
+                    <Button variant="secondary" pill iconLeft="refresh-cw" onClick={v.retryList}>
+                      {'Try again'}
+                    </Button>
+                  }
+                />
+              </div>
+            )}
             {!loading &&
               pinned &&
               (grouped ? (
@@ -201,7 +207,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                       walkOther={r.id === otherRow}
                     />
                   )))}
-            {!loading && !!v.noResults && (
+            {!loading && !failed && !!v.noResults && (
               <div className="at-empty">
                 {v.noAssessments ? (
                   <EmptyState
@@ -234,7 +240,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </div>
             )}
           </div>
-          {!loading && (
+          {!loading && !failed && (
             <TableFooter
               late={v.lateCount ? plural(v.lateCount, 'report') + ' late' : undefined}
               onLateClick={() => v.setDateFilter('overdue')}

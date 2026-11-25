@@ -1,7 +1,7 @@
 // Shared options and wording for the User accounts screens (F-03, F-05, F-08).
 // Used by UserAccounts.tsx, the screens/ and the components/. No React in here.
 import { GatewayError } from '../assessments/api'
-import { JURISDICTIONS } from '../assessments/demo-data'
+import { JURISDICTIONS } from '../assessments/options'
 import {
   ROLE_LABELS,
   type NewUserAccount,

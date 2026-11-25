@@ -128,15 +128,14 @@ const json = (status: number, body: unknown) =>
     }),
   )
 
-// A small stand-in for the gateway. The work list is unreachable unless given,
-// so the dashboard shows its sample rows, which the engineer may change.
+// A small stand-in for the gateway. The work list holds the assessment, the
+// engineer's own unless a test gives another.
 let listed: SavedObservation[] = []
-let workList: Assessment[] | null = null
+let workList: Assessment[] = []
 const retries: string[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-    if (url === '/api/assessments')
-      return workList ? json(200, workList) : Promise.reject(new TypeError('Failed to fetch'))
+    if (url === '/api/assessments') return json(200, workList)
     if (url === OBS_URL)
       return json(
         200,
@@ -165,8 +164,7 @@ async function openObservations() {
   window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  if (workList) await screen.findByText('1 assessment')
-  else await screen.findByText('Showing sample assessments')
+  await screen.findByText('1 assessment')
   fireEvent.click(
     (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
   )
@@ -212,7 +210,7 @@ beforeAll(() => {
 })
 beforeEach(() => {
   listed = []
-  workList = null
+  workList = [assessment(ME)]
   retries.length = 0
   mockGateway()
   play = vi.fn(function (this: HTMLMediaElement) {

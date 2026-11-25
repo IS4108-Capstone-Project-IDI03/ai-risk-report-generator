@@ -975,8 +975,8 @@ function scopeLine(ask: AskWorkflow) {
 // their cited answers, newest last, then the question box. Questions are kept
 // in conversations (AS-03): the tab opens on the latest, the picker above
 // opens another, starts a new one or deletes one after confirming; on an
-// archived assessment they are only read. Without the gateway (`ask` null,
-// e.g. the sample assessment) it says it is unavailable and why (AC7). A
+// archived assessment they are only read. Without the gateway (`ask` null)
+// it says it is unavailable and why (AC7). A
 // question about a passage selected in the draft (AS-02) quotes it, in the
 // question box and above the question once asked; `locate` says whether its
 // text is still there and `onShowPassage` goes back to it. With `drafting`

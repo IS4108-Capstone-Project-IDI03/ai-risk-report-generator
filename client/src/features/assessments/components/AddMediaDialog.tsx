@@ -134,13 +134,7 @@ export function AddMediaDialog({ v, dialog }: Props) {
       <Dialog
         className="ds-dialog-sheet"
         title="Add to observation"
-        description={
-          dialog.where +
-          '. ' +
-          (dialog.saved
-            ? 'Kept as captured, with your name and the time.'
-            : 'A sample assessment, so these stay on this device and are not uploaded.')
-        }
+        description={dialog.where + '. Kept as captured, with your name and the time.'}
         width={560}
         onClose={busy ? undefined : cancel}
         footer={

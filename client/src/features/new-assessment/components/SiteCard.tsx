@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { AddRow, Icon, IconButton, NewBadge, toast } from '../../../design-system'
 import { plural } from '../../clients/formatClient'
-import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { MyLocationButton } from '../../assessments/components/MyLocationButton'
 import { SiteMapView } from '../../assessments/components/SiteMapView'
 import { formatCoordinates, parseCoordinates } from '../../assessments/googleMaps'

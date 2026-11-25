@@ -28,7 +28,7 @@ FIXED_LIST = ("source_type", "jurisdiction", "facility_type")
 STANDARDS = ("fm_standard", "nfpa_standard", "local_standard")
 
 # Allowed values. Must match server/src/services/knowledge-document.service.ts
-# (SOURCE_TYPES, FACILITY_TYPES) and client/src/features/assessments/demo-data.ts
+# (SOURCE_TYPES, FACILITY_TYPES) and client/src/features/assessments/options.ts
 # (JURISDICTIONS, FACILITY_TYPES). "all" is valid for a standard only, and for a
 # jurisdiction not for a local standard (it belongs to one country).
 SOURCE_TYPES = {

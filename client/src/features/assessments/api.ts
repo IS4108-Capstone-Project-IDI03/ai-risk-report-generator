@@ -33,7 +33,7 @@ export type Assessment = {
   engineer: { id: string; name: string } | null
   status: AssessmentStatus
   // Where it stands in the work (AS-06) and why it is urgent, if it is. Absent from a
-  // sample (offline) row, which then shows its status.
+  // gateway older than AS-06, whose row then shows its status.
   stage?: Stage
   priority?: Priority | null
   // The owner's practice assessment (F-12): the gateway sends it first in their list only.

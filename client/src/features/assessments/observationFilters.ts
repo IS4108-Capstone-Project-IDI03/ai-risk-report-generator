@@ -92,13 +92,11 @@ export const OBSERVATION_STATUSES = [
   'Complete',
 ]
 
-// What an observation holds. A sample one, kept in the browser, has a note and
-// may carry a sample voice clip, sample photos, recordings added in the demo
-// (CP-08), and pages kept in the demo (CP-19).
+// What an observation holds, worked out when the gateway's row did not list it.
 export const typesOf = (o: Observation) =>
   o.types ?? [
     'Note',
-    ...(o.audio || o.recordings?.length ? ['Voice'] : []),
+    ...(o.recordings?.length ? ['Voice'] : []),
     ...(o.media.length ? ['Photo'] : []),
     ...(o.pages?.length ? ['Scan'] : []),
   ]
@@ -110,7 +108,7 @@ export const typeLabel = (o: Observation) => {
     ? [first, ...others.slice(0, -1)].join(', ') + ' and ' + others[others.length - 1]
     : first
 }
-// A sample observation has nothing to transcribe, read or check.
+// Worked out by observationRowState.ts; Complete when nothing is left to transcribe, read or check.
 export const statusOf = (o: Observation) => o.status ?? 'Complete'
 
 // What a search looks in on an observation (CP-13), each named for "Matched

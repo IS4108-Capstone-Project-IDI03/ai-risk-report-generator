@@ -1,7 +1,7 @@
 // How knowledge documents' details read on screen (IN-01, KB-01). Used by the
 // recent uploads list (KnowledgeBase.tsx) and the documents list
 // (KnowledgeDocuments.tsx).
-import { JURISDICTIONS } from '../assessments/demo-data'
+import { JURISDICTIONS } from '../assessments/options'
 import type { DocumentMatch, KnowledgeDocument, MatchKind, SourceType } from './api'
 
 // What an Unconfirmed detail (null, IN-05) reads as; components/DetailText.tsx

@@ -179,29 +179,6 @@ main.om-scroll {
   width: 100%;
   border-right: 0;
 }
-/* Overview boxes and section rows that open the tab they summarise. */
-.om-overview-box:hover {
-  background: var(--surface-hover);
-}
-.om-overview-box:focus-visible {
-  outline-offset: -2px;
-}
-/* The four boxes of the Overview and of the Observations tab: two to a row,
-   four once the content area is wide enough. Sized by the content area, not
-   the window, since the side navigation takes part of it. */
-.om-overview-wrap {
-  container-type: inline-size;
-}
-.om-overview-boxes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-@container (min-width: 760px) {
-  .om-overview-boxes {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 /* Capture's location picker on wider screens: a dropdown as wide as the
    location bar it hangs from, scrolling within itself when the list is long.
    The shared popover sets its trigger wrapper and sizes inline, hence

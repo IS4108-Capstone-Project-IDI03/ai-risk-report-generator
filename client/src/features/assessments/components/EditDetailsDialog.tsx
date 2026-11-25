@@ -8,7 +8,7 @@ import { Problem } from '../../clients/ClientDialogs'
 import { useDialogSave } from '../../clients/useDialogSave'
 import { beforeStartLine, INVALID_DATE } from '../../new-assessment/validate'
 import { updateAssessment, type Assessment } from '../api'
-import { SURVEY_TYPES } from '../demo-data'
+import { SURVEY_TYPES } from '../options'
 import './edit-details.css'
 
 type DateKey = 'siteVisitDate' | 'siteVisitEndDate' | 'reportDueDate'
