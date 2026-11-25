@@ -14,7 +14,7 @@ from app import extract_text, manual, matching, usage, worker
 from app.labelling import label_pdf
 from app.matching import comparison_rows, find_match
 from app.pipeline.chunking_helper import ocr_model
-from app.pipeline.indexer import index_chunks, relabel
+from app.pipeline.indexer import index_chunks, index_status, relabel
 
 router = APIRouter()
 
@@ -173,6 +173,15 @@ def read_screenshot(png: bytes, kind: str, context: str, doc_id: str) -> tuple[s
     with usage.collecting(doc_id) as used:
         text = ocr_model.recognise(png, kind, context)
     return text, used
+
+
+@router.get("/index/status")
+def embeddings_status(doc_id: str | None = None) -> dict:
+    """What the vector store holds: passages in total and per document, by status (QD-01)."""
+    try:
+        return index_status(doc_id)
+    except Exception as error:  # any store failure: say so, never answer a fake 0
+        raise HTTPException(503, f"The vector store could not be read: {error}") from error
 
 
 @router.post("/recognise")

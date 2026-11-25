@@ -8,6 +8,7 @@ a question that used those words.
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from app import retrieval_config
 from app.pipeline import embedder, indexer
 
 TRAIL = ["NFPA 13", "Chapter 20 Installation Requirements", "20.15 Water Supply"]
@@ -36,7 +37,7 @@ def test_the_vector_sees_the_trail_but_the_stored_document_is_the_plain_text(mon
         embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
     )
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     chunk = {"id": "nfpa13:table:5", "text": "Extra hazard | 500", "metadata": {"headings": TRAIL}}
 
     indexer.index_chunks([chunk])

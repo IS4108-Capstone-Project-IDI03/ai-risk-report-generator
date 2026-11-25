@@ -1,11 +1,9 @@
 """Stage 4: upsert anonymised chunks with stable IDs and citation metadata."""
 
-import os
-
 from chromadb.errors import NotFoundError
 
 from app.pipeline.embedder import embed
-from app.retrieval_config import COLLECTION, chroma_client
+from app.retrieval_config import COLLECTION, vector_collection, vector_store
 
 """
 Chunk (as produced by chunker.chunk and consumed here):
@@ -150,12 +148,7 @@ def index_chunks(chunks: list[dict], reporter=None, page_total: int | None = Non
             reporter.update_pages(page_reached[embedded], page_total)
 
     vectors = embed([embedding_text(chunk) for chunk in chunks], on_batch=on_batch)
-    index_type = "spann" if os.getenv("CHROMA_MODE", "local").strip().lower() == "cloud" else "hnsw"
-    collection = chroma_client().get_or_create_collection(
-        name=COLLECTION,
-        embedding_function=None,
-        configuration={index_type: {"space": "cosine"}},
-    )
+    collection = vector_collection(create=True)
     columns = (
         [chunk["id"] for chunk in chunks],
         texts,
@@ -180,7 +173,7 @@ def relabel(doc_id: str, labels: dict) -> int:
     update semantics, so headings, pages and bbox are always kept.
     """
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:  # nothing indexed yet
         return 0
     found = get_all(collection, where={"doc_id": doc_id}, include=["metadatas"])
@@ -195,10 +188,36 @@ def relabel(doc_id: str, labels: dict) -> int:
 def delete_passages(doc_id: str) -> int:
     """Delete all indexed passages for a document; return the number removed."""
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:
         return 0
     ids = get_all(collection, where={"doc_id": doc_id}, include=[])["ids"]
     for (batch,) in _batched(ids):
         collection.delete(ids=batch)
     return len(ids)
+
+
+def index_status(doc_id: str | None = None) -> dict:
+    """The store, its collection and the passages in it, per document with a count per status.
+
+    One paged read of every passage's metadata. An absent Chroma collection is a true zero;
+    an unreachable store raises, so a caller never mistakes it for an empty one.
+    """
+    try:
+        found = get_all(
+            vector_collection(), where={"doc_id": doc_id} if doc_id else None, include=["metadatas"]
+        )
+    except NotFoundError:  # nothing indexed yet
+        found = {"ids": [], "metadatas": []}
+    documents: dict[str, dict] = {}
+    for metadata in found["metadatas"]:
+        entry = documents.setdefault(metadata.get("doc_id", ""), {"passages": 0, "statuses": {}})
+        status = metadata.get("status", "unset")
+        entry["passages"] += 1
+        entry["statuses"][status] = entry["statuses"].get(status, 0) + 1
+    return {
+        "store": vector_store(),
+        "collection": COLLECTION,
+        "passages": len(found["ids"]),
+        "documents": [{"doc_id": key, **documents[key]} for key in sorted(documents)],
+    }

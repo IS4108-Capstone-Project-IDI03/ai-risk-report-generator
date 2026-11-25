@@ -6,9 +6,9 @@ import pytest
 from fakes import FakeDocuments, FakePassages, stored_doc
 from fastapi.testclient import TestClient
 
-from app import manual, matching, worker
+from app import manual, matching, retrieval_config, worker
 from app.main import app
-from app.pipeline import embedder, indexer
+from app.pipeline import embedder
 
 client = TestClient(app)
 
@@ -41,7 +41,7 @@ def store(monkeypatch):
     cohere = SimpleNamespace(embed=embed)
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
     chroma = SimpleNamespace(get_or_create_collection=lambda **_: passages)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     monkeypatch.setattr(matching, "passages_collection", lambda: passages)
     monkeypatch.setattr(worker, "documents", lambda: documents)
     # One token a word, so the tests can say where a clause splits.

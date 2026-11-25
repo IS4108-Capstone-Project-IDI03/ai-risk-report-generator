@@ -13,8 +13,8 @@ from unittest.mock import Mock
 import pytest
 from test_file_option import get_fixture
 
-from app import pipeline
-from app.pipeline import embedder, indexer
+from app import pipeline, retrieval_config
+from app.pipeline import embedder
 
 FIXTURE = get_fixture()
 TEST_PAGE_RANGE = (1, 5)
@@ -29,7 +29,7 @@ def mocked_index(monkeypatch):
     )
     chroma = Mock()
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     return SimpleNamespace(cohere=cohere, chroma=chroma)
 
 

@@ -8,6 +8,7 @@ import pytest
 from cohere.errors import TooManyRequestsError
 from starlette.testclient import TestClient as TestClient
 
+from app import retrieval_config
 from app.main import app
 from app.pipeline import embedder, indexer
 from app.retrieval_config import cohere_client
@@ -21,7 +22,7 @@ def test_index_preserves_ids_and_metadata_and_rejects_invalid_input(monkeypatch,
     cohere, chroma = Mock(), Mock()
     cohere.embed.return_value = SimpleNamespace(embeddings=SimpleNamespace(float_=[[0.1]]))
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     chunk = {
         "id": "synthetic:1",
         "text": "Flood barriers protect the warehouse.",
@@ -159,7 +160,7 @@ def _stored(monkeypatch):
         embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
     )
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     return chroma.get_or_create_collection.return_value.upsert
 
 
@@ -257,7 +258,7 @@ def test_index_reports_the_page_reached_after_each_embedding_batch(monkeypatch):
         embeddings=SimpleNamespace(float_=[[0.1]] * len(kw["texts"]))
     )
     monkeypatch.setattr(embedder, "cohere_client", lambda: cohere)
-    monkeypatch.setattr(indexer, "chroma_client", lambda: Mock())
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: Mock())
     reporter = PageRecorder()
 
     indexer.index_chunks(

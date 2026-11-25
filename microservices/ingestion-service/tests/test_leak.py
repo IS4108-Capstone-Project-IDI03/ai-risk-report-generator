@@ -19,10 +19,10 @@ import pytest
 from rapidocr import RapidOCR
 from starlette.testclient import TestClient
 
-from app import pipeline
+from app import pipeline, retrieval_config
 from app.labelling import models
 from app.main import app
-from app.pipeline import embedder, indexer
+from app.pipeline import embedder
 from app.pipeline import sections as report
 from app.pipeline.chunking_helper import picture_parser
 from app.pipeline.parser import ParsedDocument
@@ -75,7 +75,7 @@ def external(monkeypatch):
     collection = SimpleNamespace(upsert=upsert)
     monkeypatch.setattr(embedder, "cohere_client", lambda: SimpleNamespace(embed=embed))
     monkeypatch.setattr(
-        indexer,
+        retrieval_config,
         "chroma_client",
         lambda: SimpleNamespace(get_or_create_collection=lambda **_: collection),
     )

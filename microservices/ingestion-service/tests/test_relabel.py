@@ -5,6 +5,7 @@ from unittest.mock import Mock
 from chromadb.errors import NotFoundError
 from starlette.testclient import TestClient
 
+from app import retrieval_config
 from app.main import app
 from app.pipeline import indexer
 
@@ -41,7 +42,7 @@ class FakeCollection:
 def install(monkeypatch, collection):
     chroma = Mock()
     chroma.get_collection.return_value = collection
-    monkeypatch.setattr(indexer, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retrieval_config, "chroma_client", lambda: chroma)
     return chroma
 
 

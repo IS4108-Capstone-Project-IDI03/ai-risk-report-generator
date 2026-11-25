@@ -16,7 +16,7 @@ from app import outline
 from app.labelling.config import STANDARDS
 from app.labelling.decide import normalise
 from app.pipeline.indexer import get_all
-from app.retrieval_config import COLLECTION, chroma_client
+from app.retrieval_config import vector_collection
 
 TOP_N = 5  # nearest stored passages looked at for each new passage
 MAX_QUERY_EMBEDDINGS = 20  # Chroma Cloud's per-request query quota
@@ -34,9 +34,9 @@ def min_share() -> float:
 
 
 def passages_collection():
-    """Return the Chroma collection of passages, or None if nothing was ever indexed."""
+    """Return the passage collection (Chroma or Qdrant), or None if nothing was indexed."""
     try:
-        return chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        return vector_collection()
     except NotFoundError:
         return None
 
