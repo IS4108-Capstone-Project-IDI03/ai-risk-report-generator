@@ -210,7 +210,7 @@ describe('Inbox screen', () => {
       })
     gateway([doc('1', 'failed', null), doc('2', 'needs_review', 'Unconfirmed details')])
     await openInbox('knowledge_admin')
-    expect(await screen.findByText('Failed to ingest')).toHaveAttribute('data-tone', 'red')
+    expect(await screen.findByText("Couldn't be read")).toHaveAttribute('data-tone', 'red')
     expect(screen.getByText('Unconfirmed details')).toHaveAttribute('data-tone', 'amber')
   })
 
@@ -865,7 +865,7 @@ describe('Inbox screen: already handled', () => {
         match: null,
       })
     await openInbox('knowledge_admin')
-    fireEvent.click(await screen.findByText('Failed to ingest'))
+    fireEvent.click(await screen.findByText("Couldn't be read"))
     expect(await dialog('Document already retried')).toHaveTextContent('Omar Khan')
   })
 

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Button, Icon, ProgressBar, RowMark, SegmentBar, toast } from '../../../design-system'
 import { retryWork, type BackgroundWorkRow } from '../api'
 import { openWork } from '../openWork'
-import { countWords, stageWords, timedWords } from '../words'
+import { countWords, plainReason, stageWords, timedWords } from '../words'
 
 export function BackgroundWorkItem({
   row,
@@ -24,7 +24,7 @@ export function BackgroundWorkItem({
     retryWork(retry)
       .then(onRetried)
       .catch(() =>
-        toast.error('Could not try again', {
+        toast.error("Couldn't try again", {
           description: 'Open it to see what happened, or try again in a minute.',
         }),
       )
@@ -45,11 +45,11 @@ export function BackgroundWorkItem({
       </button>
       {row.state === 'failed' && (
         <div className="bgw-row__failed">
-          {/* One line, so several failures don't flood the popover; the whole
-              reason is its tooltip, and on the job's own page. */}
-          <p className="bgw-row__error" title={row.error}>
+          {/* A few plain words, never the gateway's own sentence; the whole reason is on the
+              job's own page, which the row opens. */}
+          <p className="bgw-row__error">
             <Icon name="circle-alert" size={14} />
-            <span className="bgw-row__reason">{row.error}</span>
+            <span className="bgw-row__reason">{plainReason(row.error)}</span>
           </p>
           {row.retry && (
             <Button
@@ -59,7 +59,7 @@ export function BackgroundWorkItem({
               loading={retrying}
               onClick={() => tryAgain(row.retry!)}
             >
-              {'Try again'}
+              Try again
             </Button>
           )}
         </div>

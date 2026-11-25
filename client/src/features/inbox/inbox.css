@@ -15,7 +15,7 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  padding: 20px var(--page-gutter) 24px;
+  padding: 24px var(--page-gutter) 24px;
 }
 .inbox-tabs {
   display: flex;
@@ -397,6 +397,42 @@
   .inbox-bin-slot {
     --inbox-bin: 44px;
   }
+}
+
+/* ---- Loading: three grey rows that breathe until the first page arrives ---- */
+.inbox-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 61px;
+  padding: 0 20px;
+  border-top: 1px solid var(--graphite-100);
+  animation: dsPulse 1.6s ease-in-out infinite;
+}
+.inbox-skeleton:first-of-type {
+  border-top: 0;
+}
+.inbox-skeleton__dot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--graphite-100);
+}
+.inbox-skeleton__bars {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+.inbox-skeleton__bars span {
+  height: 10px;
+  max-width: 320px;
+  border-radius: 5px;
+  background: var(--graphite-100);
+}
+.inbox-skeleton__bars span:last-child {
+  width: 40%;
 }
 
 /* ---- Empty ---- */

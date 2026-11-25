@@ -37,16 +37,28 @@ export function InboxList({
             </Button>
           }
         >
-          The gateway could not be reached. Check your connection, then try again.
+          Can't reach the server. Check your connection, then try again.
         </Callout>
       </div>
     )
   // Nothing to show while the first page is on its way: not "All done", which would be wrong.
+  // A card of grey bars the height of the empty state, so the page doesn't jump when rows arrive.
   if (!loaded)
     return (
-      <p role="status" className="ds-sr-only">
-        Loading Inbox
-      </p>
+      <section className="inbox-card inbox-card--loading" aria-busy="true" aria-label="Inbox">
+        <p role="status" className="ds-sr-only">
+          Loading Inbox
+        </p>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="inbox-skeleton" aria-hidden="true">
+            <span className="inbox-skeleton__dot" />
+            <span className="inbox-skeleton__bars">
+              <span />
+              <span />
+            </span>
+          </div>
+        ))}
+      </section>
     )
   return (
     <>

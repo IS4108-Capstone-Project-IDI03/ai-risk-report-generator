@@ -415,13 +415,11 @@ describe('a failed job', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Background work/ }))
     const popover = await screen.findByRole('dialog', { name: 'Background work' })
 
-    expect(within(popover).getByText('A recording could not be transcribed.')).toBeInTheDocument()
+    expect(within(popover).getByText("Couldn't transcribe")).toBeInTheDocument()
     fireEvent.click(within(popover).getByRole('button', { name: 'Try again' }))
 
     // The list read again shows the walk working, no longer failed.
-    await waitFor(() =>
-      expect(within(popover).queryByText('A recording could not be transcribed.')).toBeNull(),
-    )
+    await waitFor(() => expect(within(popover).queryByText("Couldn't transcribe")).toBeNull())
     expect(posted).toEqual(['/api/assessments/RPT-2026-0913/site-walks/w1/retry'])
     expect(opened).toEqual([])
   })
@@ -430,25 +428,31 @@ describe('a failed job', () => {
     const opened = heardOnce(siteWalkReview.event)
     const popover = await openWith([failed])
 
-    fireEvent.click(within(popover).getByText('A recording could not be transcribed.'))
+    fireEvent.click(within(popover).getByText("Couldn't transcribe"))
 
     expect(opened).toEqual([{ reference: 'RPT-2026-0913', walkId: 'w1' }])
   })
 
-  it('keeps a long reason to one line, with the whole of it as its tooltip', async () => {
+  it("shows a few plain words, never the gateway's own long sentence", async () => {
     const reason =
       "Client details couldn't be protected because the privacy service didn't respond in time, so nothing was sent to the AI model. Try again in a moment."
     const popover = await openWith([{ ...failed, error: reason }])
 
-    const shown = within(popover).getByText(reason)
-    expect(shown.closest('.bgw-row__error')).toHaveAttribute('title', reason)
+    const shown = within(popover).getByText("Couldn't protect details")
     expect(shown).toHaveClass('bgw-row__reason')
+    expect(within(popover).queryByText(reason)).not.toBeInTheDocument()
+  })
+
+  it('says it did not finish when the reason is not one it knows', async () => {
+    const popover = await openWith([{ ...failed, error: 'ECONNRESET at 10.0.0.4:8012' }])
+
+    expect(within(popover).getByText("Didn't finish")).toBeInTheDocument()
   })
 
   it('offers no Try again where the user may not start it again', async () => {
     const popover = await openWith([{ ...failed, retry: undefined }])
 
-    expect(within(popover).getByText('A recording could not be transcribed.')).toBeInTheDocument()
+    expect(within(popover).getByText("Couldn't transcribe")).toBeInTheDocument()
     expect(within(popover).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
   })
 })

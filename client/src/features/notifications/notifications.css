@@ -157,6 +157,17 @@
 .notif-row:last-child {
   border-bottom: 0;
 }
+/* Opened to read more: the tile and actions sit by the first line, not floating mid-way
+   down a tall row. */
+.notif-row--open {
+  align-items: flex-start;
+}
+@media (hover: hover) {
+  .notif-row--open .notif-row__actions {
+    top: 10px;
+    translate: none;
+  }
+}
 .notif-row-unread .notif-icon::after {
   content: '';
   position: absolute;
@@ -397,7 +408,7 @@
 }
 
 /* A knowledge request's parts (CB-07, KnowledgeRequestDetails.tsx): each under an 11px
-   structural label, quotes behind the design system's 2px rule, documents with mono times. */
+   small label (v2 Label style), quotes behind the design system's 2px rule, documents with their times. */
 .notif-request {
   display: grid;
   /* One 12px step between every block, and the same 12px above the first and below the
@@ -415,12 +426,10 @@
 }
 .notif-request h4 {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--graphite-700);
 }
 .notif-request-question {
   margin: 0;
@@ -458,7 +467,7 @@
   overflow-wrap: anywhere;
 }
 .notif-request li time {
-  font-family: var(--font-mono);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }

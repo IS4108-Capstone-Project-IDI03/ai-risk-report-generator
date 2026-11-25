@@ -20,7 +20,7 @@ export function AlreadyHandledDialog({
   const { by, at } = handled
   return (
     <Dialog
-      className="ds-dialog--v2 inbox-handled"
+      className="inbox-handled"
       width={380}
       title={handled.title}
       description={

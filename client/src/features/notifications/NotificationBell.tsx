@@ -50,7 +50,7 @@ export function NotificationBell({
   }
 
   const label = n.unread > 0 ? `Notifications, ${n.unread} unread` : 'Notifications'
-  const color = tone === 'dark' ? '#fff' : 'var(--text-primary)'
+  const color = tone === 'dark' ? 'var(--text-inverse)' : 'var(--text-primary)'
 
   return (
     <Popover

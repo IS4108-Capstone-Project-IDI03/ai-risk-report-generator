@@ -56,7 +56,9 @@ export function NotificationRow({
   }
 
   return (
-    <li className={`notif-row${notification.read ? '' : ' notif-row-unread'}`}>
+    <li
+      className={`notif-row${notification.read ? '' : ' notif-row-unread'}${hasMore && expanded ? ' notif-row--open' : ''}`}
+    >
       <NotificationIcon notification={notification} />
       <div className="notif-row__body">
         {/* Read state is also spoken, so it is not carried by weight and the accent alone. */}

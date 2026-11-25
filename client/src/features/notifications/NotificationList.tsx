@@ -48,7 +48,7 @@ export function NotificationList({
                 </Button>
               }
             >
-              The gateway could not be reached. Check your connection, then try again.
+              Can't reach the server. Check your connection, then try again.
             </Callout>
           </div>
         ) : empty ? (
