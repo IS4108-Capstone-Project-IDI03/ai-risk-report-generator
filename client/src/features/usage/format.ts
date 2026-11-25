@@ -44,7 +44,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   'openai-whisper': 'OpenAI Whisper',
   'openai-label': 'OpenAI labelling',
   openai: 'OpenAI chat',
-  'typesafe-jev': 'Typesafe JEV',
+  'typesafe-jev': 'Jev classifier (Typesafe)',
   'gemini-vision': 'Gemini photo reading',
   'gemini-ocr': 'Gemini OCR',
   'self-hosted-ocr': 'Self-hosted OCR',

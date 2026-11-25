@@ -443,6 +443,11 @@
   min-width: 0;
   overflow-x: auto;
 }
+/* Axis ticks are SVG text: set the app font and aligned digits here. */
+.uc-chart-plot .recharts-cartesian-axis-tick-value {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
 .uc-chart-plot .recharts-surface:focus-visible,
 .uc-chart-plot .recharts-wrapper:focus-visible {
   outline: none;
