@@ -29,6 +29,32 @@ Streaming flows (`/chat`, `/assessments/ask`) follow the same shape but send ser
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+rag-service/
+├── app/
+│   ├── main.py                       # FastAPI app
+│   ├── api/routes.py                 # all endpoints
+│   ├── orchestrator/orchestrator.py  # drafts, OFIs, Ask flow
+│   ├── chat/                         # knowledge-base chat
+│   ├── retrieval/                    # embed, search, rerank
+│   ├── generation/                   # LLM calls, prompts, templates
+│   ├── guardrails/checker.py         # citation check
+│   ├── privacy.py                    # masking session
+│   ├── past_reports.py               # past-report words from Mongo
+│   ├── site_walk/                    # site walk proposals
+│   ├── client_intake/read.py         # reads client documents
+│   ├── client_insights/summary.py    # client insight summary
+│   ├── assistant/                    # MarshBot coverage and wording
+│   ├── config.py                     # settings from env
+│   ├── retrieval_config.py           # Cohere and Chroma clients
+│   └── usage.py                      # paid-call usage
+├── tests/                            # pytest suite
+│   └── conftest.py                   # blocks real network calls
+└── eval/                             # scoring scripts (can spend money)
+```
+
 | Path | Job |
 |---|---|
 | `app/main.py` | Creates the FastAPI app, mounts the router, runs `read_model_header` on every request. |

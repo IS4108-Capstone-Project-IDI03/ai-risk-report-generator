@@ -25,6 +25,30 @@ Hard rule (CLAUDE.md): route files must not import from `models/`. Today `routes
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+server/
+└── src/
+    ├── index.ts                             # builds the app, listens
+    ├── config.ts                            # reads env once
+    ├── routes/                              # one thin router per area
+    ├── middleware/                          # session, service key, re-check
+    │   ├── auth.middleware.ts               # session and permission
+    │   ├── service-auth.middleware.ts       # shared key
+    │   └── assistant-recheck.middleware.ts  # MarshBot re-check
+    ├── services/                            # business logic
+    │   ├── assistant/                       # MarshBot
+    │   ├── generation/                      # background drafting runs
+    │   ├── job-queue.service.ts             # BullMQ wrapper
+    │   ├── permissions.service.ts           # role permission matrix
+    │   └── storage.service.ts               # S3 put, get, copy, delete
+    ├── models/                              # Mongoose models
+    │   └── db.ts                            # connect, index setup
+    ├── scripts/                             # seeds, one-off migrations
+    └── test/                                # Vitest files
+```
+
 | Path                                  | Job                                                                                                                                                          |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `src/index.ts`                        | Builds the app, mounts routers, sets body limits, runs startup recovery, `listen`                                                                            |

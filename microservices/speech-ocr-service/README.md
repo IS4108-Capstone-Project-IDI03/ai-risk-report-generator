@@ -23,6 +23,28 @@ A stateless FastAPI service (port `8003`) that turns recordings, handwriting pho
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+speech-ocr-service/
+├── app/
+│   ├── main.py             # FastAPI app
+│   ├── api/routes.py       # all endpoints
+│   ├── config.py           # reads env vars
+│   ├── model_override.py   # X-Model header
+│   ├── privacy.py          # privacy-service client
+│   └── processors/
+│       ├── stt.py          # Whisper transcription
+│       ├── vision.py       # reads observations, photos
+│       ├── handwriting.py  # handwritten page to text
+│       ├── chat_pdf.py     # text of each PDF page
+│       ├── chat_photo.py   # faces counted, blurred copy
+│       └── images.py       # upright, crop, shrink, JPEG
+├── eval/                   # paid-API eval scripts
+└── tests/                  # pytest suite
+    └── conftest.py         # fakes privacy-service
+```
+
 | Path | Job |
 |---|---|
 | `app/main.py` | Creates the FastAPI app, runs `read_model_header` on every request. |

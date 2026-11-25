@@ -23,6 +23,46 @@ The browser app (React 19, Vite, TypeScript, port 3000) where engineers and know
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+src/
+├── main.tsx                   # starts React
+├── App.tsx                    # session check, sign in or workspace
+├── features/                  # one folder per screen area
+│   ├── assessments/           # the core
+│   │   ├── AssessmentApp.tsx  # shell
+│   │   ├── api.ts             # API calls
+│   │   ├── screens/           # Dashboard, Overview, Review, ...
+│   │   ├── ask/               # ask about a passage
+│   │   ├── comments/          # comment threads
+│   │   ├── document/          # editor and export
+│   │   └── generation/        # drafting runs
+│   ├── auth/                  # sign-in, idle timeout
+│   │   └── access.ts          # screen paths and role permissions
+│   ├── new-assessment/        # create-assessment form
+│   ├── site-walk/             # record a site walk
+│   ├── knowledge-base/        # admin documents, review
+│   ├── sources/               # shows a cited passage
+│   ├── chat/                  # Ask screen, PDF viewer
+│   ├── marshbot/              # threads, cards, details
+│   ├── clients/               # client list and page
+│   ├── inbox/                 # items to do
+│   ├── notifications/         # bell, list, counts
+│   ├── calendar/              # surveys and due dates
+│   ├── assignment/            # choose the engineer
+│   ├── accounts/              # user accounts (admin)
+│   ├── settings/              # settings screens
+│   └── usage/                 # usage and cost screen
+├── design-system/             # shared look and controls
+│   ├── components/            # ai, core, display, feedback, ...
+│   ├── tokens/                # colours, spacing, type, motion
+│   └── index.ts               # the one import point
+└── test/                      # test setup
+    ├── setup.ts               # mocks sign-in
+    └── session.ts             # test sessions
+```
+
 All paths are under `client/src/`.
 
 | Path                        | Job                                                                                                                                                                                                                                   |
