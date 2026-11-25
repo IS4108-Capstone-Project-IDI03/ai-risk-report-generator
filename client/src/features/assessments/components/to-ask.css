@@ -80,6 +80,12 @@
   font-size: 14px;
   color: var(--graphite-900);
 }
+/* The Checkbox's label wrapper is a flex item, so without this it grows to the note's full
+   width and a long note runs under the location beside it. */
+.ta-item label > span:has(.ta-text) {
+  min-width: 0;
+  overflow: hidden;
+}
 .ta-item[data-asked] .ta-text {
   color: var(--graphite-600);
   text-decoration: line-through;
