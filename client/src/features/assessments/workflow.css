@@ -166,7 +166,7 @@ main.om-scroll {
   background: var(--surface-nav);
 }
 .navigation-drawer .ds-dialog-close {
-  color: #fff;
+  color: var(--text-inverse);
   position: absolute;
   top: var(--space-6);
   right: var(--space-5);
@@ -334,10 +334,25 @@ main.om-scroll {
 /* ---- The assessment's tab bar (CP-22 round 1): the tabs are the emphasis ----
    Overrides the design system's Tabs, whose spacing and weights are inline, for
    this bar only; other screens keep the standard tabs. */
+/* The tabs run the full width of the TopBar, past its side padding (kit.css .ds-topbar). */
 .ws-tabs {
-  display: block !important;
-  margin: 0 calc(-1 * clamp(16px, 2vw, 28px));
-  padding: 0 clamp(16px, 2vw, 28px);
+  margin: 0 calc(-1 * var(--page-gutter));
+  padding: 0 var(--page-gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+@media (max-width: 767px) {
+  .ws-tabs {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
+/* Restore beside History, Details and Archive in the workspace's top bar. */
+.ws-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .ws-tabs .ds-tabs {
   width: 100%;

@@ -215,7 +215,9 @@ async function openApp() {
 }
 async function openCapture() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   addManually()
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
@@ -224,7 +226,9 @@ async function openCapture() {
 }
 async function openObservations() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
@@ -369,7 +373,9 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
@@ -378,21 +384,19 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
     )
     scanMode()
     expect(
-      screen.getByText(
-        'No capture session, so pages stay in this browser and are not transcribed.',
-      ),
+      screen.getByText('A sample assessment, so pages stay on this device and aren’t transcribed.'),
     ).toBeInTheDocument()
     choosePages(photo())
     grade('Low')
     save()
-    expect(await screen.findByText(/saved in this demo only/)).toBeInTheDocument()
+    expect(await screen.findByText(/saved on this device only/)).toBeInTheDocument()
 
     // The toast's View button opens the saved observation.
     click('View')
     const entry = unfold(pageRow('IMG_0710.jpg'))
     expect(
       within(entry).getByText(
-        'No capture session, so this page stays in this browser and is not transcribed.',
+        'A sample assessment, so this page stays on this device and isn’t transcribed.',
       ),
     ).toBeInTheDocument()
     // Only the attempt to start a capture session; the page went nowhere.
@@ -691,7 +695,9 @@ describe('Managing saved pages (CP-20)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
@@ -702,7 +708,7 @@ describe('Managing saved pages (CP-20)', () => {
     choosePages(photo())
     grade('Low')
     save()
-    await screen.findByText(/saved in this demo only/)
+    await screen.findByText(/saved on this device only/)
     click('View')
 
     // A demo page is never transcribed, so its text can be written by hand.
@@ -712,7 +718,7 @@ describe('Managing saved pages (CP-20)', () => {
       target: { value: 'Hydrant H2 blocked' },
     })
     fireEvent.click(within(write).getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Page text saved in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Page text saved on this device only.')).toBeInTheDocument()
     expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
@@ -721,18 +727,18 @@ describe('Managing saved pages (CP-20)', () => {
       target: { files: [photo('IMG_0811.jpg')] },
     })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
-    expect(await screen.findByText('Added 1 page in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Added 1 page on this device only.')).toBeInTheDocument()
 
     // With a second page, the first can go, and comes back with its text.
     click('Remove IMG_0710.jpg')
     const confirm = await screen.findByRole('dialog', { name: 'Remove this page?' })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Remove page' }))
     expect(
-      await screen.findByText('Page removed in this demo only. Restore it under Removed media.'),
+      await screen.findByText('Page removed on this device only. Restore it under Removed media.'),
     ).toBeInTheDocument()
     fireEvent.click(screen.getByText('Removed media (1)'))
     click('Restore IMG_0710.jpg')
-    expect(await screen.findByText('Page restored in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Page restored on this device only.')).toBeInTheDocument()
     expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
     // Only the attempt to start a capture session; nothing went anywhere.
     expect(sent).toEqual([CAPTURE_URL])

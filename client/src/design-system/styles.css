@@ -115,7 +115,11 @@
     max-height: 85svh;
     margin: auto 0 0;
     border-bottom: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  /* The v2 card's 18 px corners on top only, square where the sheet meets the bottom edge;
+     .ds-dialog. matches kit.css's .ds-dialog.ds-dialog--v2, which this file loads after. */
+  .ds-dialog.ds-dialog-sheet {
+    border-radius: 18px 18px 0 0;
   }
   .ds-dialog-sheet .ds-dialog-footer {
     padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));

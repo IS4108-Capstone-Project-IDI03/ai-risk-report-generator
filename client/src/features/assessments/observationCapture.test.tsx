@@ -238,7 +238,9 @@ async function openApp() {
 async function openCapture() {
   await openApp()
   // Open the assessment from the work list; Add manually is on its Observations tab.
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   addManually()
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
@@ -388,7 +390,9 @@ describe('Reading an observation only when asked (CP-05, CP-21)', () => {
       return Promise.reject(new TypeError('Failed to fetch'))
     })
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByText('Showing sample data')
     // The sample site has several buildings; each opens to list its locations (CP-16).
@@ -400,7 +404,7 @@ describe('Reading an observation only when asked (CP-05, CP-21)', () => {
     addPhotos(photo('IMG_0470.jpg'))
     grade('Low')
     save()
-    expect(await screen.findByText(/saved in this demo only/)).toBeInTheDocument()
+    expect(await screen.findByText(/saved on this device only/)).toBeInTheDocument()
 
     // The toast's View button opens the saved observation.
     click('View')
@@ -585,7 +589,9 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
   it('does not save without a location: Location turns red, and a second Save shakes it (AC4)', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByRole('img', { name: 'live' })
     write('Exit sign E4 unlit.')
@@ -613,7 +619,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     save()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Observation not saved' + 'The gateway could not be reached.',
+      'Observation not saved' + 'Can’t reach the server.',
     )
     expect(rows()).toHaveLength(1)
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
@@ -751,7 +757,9 @@ describe('Leaving capture', () => {
     // No gateway: the observations stay in the demo, beside its samples.
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
@@ -803,7 +811,9 @@ describe('Leaving capture', () => {
 
     // Left by the navigation rather than the back button.
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
 
     expect(await screen.findByRole('radio', { name: 'Voice, 1' })).toBeInTheDocument()
@@ -962,7 +972,9 @@ describe('Capture layout', () => {
   it('only picks a location in capture: no edit or remove, and Add a location is last', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByText('Showing sample data')
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
@@ -993,7 +1005,9 @@ describe('Capture layout', () => {
   it('leaves a phone screen to the form, with the top bar as the way back', () =>
     atWidth(390, async () => {
       await openApp()
-      fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+      fireEvent.click(
+        (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+      )
       addManually()
 
       // The location picker is a bottom sheet here, which can be closed.
@@ -1069,7 +1083,9 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 describe('Observations tab (CP-03)', () => {
   async function openObservations() {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   }
 
@@ -1178,7 +1194,9 @@ describe('Adding to a site walk proposal', () => {
 
   it('opens on the proposal’s locations and adds the observation to the proposal', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     act(() =>
       openProposalCapture({
@@ -1224,7 +1242,9 @@ describe('Adding to a site walk proposal', () => {
 
   it('leads Back from Add manually to the site walk review it was opened from', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     act(() =>
       openProposalCapture({

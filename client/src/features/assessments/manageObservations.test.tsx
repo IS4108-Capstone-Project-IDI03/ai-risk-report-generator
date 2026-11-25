@@ -343,7 +343,9 @@ async function openObservations() {
   if (workList)
     await screen.findByText(`${workList.length} assessment${workList.length === 1 ? '' : 's'}`)
   else await screen.findByText('Showing sample assessments')
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (!offline && listed.length)
@@ -840,7 +842,7 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
     expect(
       await screen.findByText(
-        'Observation deleted in this demo only. Choose Deleted to restore it.',
+        'Observation deleted on this device only. Choose Deleted to restore it.',
       ),
     ).toBeInTheDocument()
     expect(shown(RACKING, PUMP_TEST)).toEqual([RACKING, PUMP_TEST])
@@ -848,7 +850,7 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
     showDeleted()
     fireEvent.click(screen.getByRole('button', { name: /^Sortation controller has no standby/ }))
     click('Restore')
-    expect(await screen.findByText('Observation restored in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation restored on this device only.')).toBeInTheDocument()
     expect(calls).toEqual([])
   })
 }, 15000)
@@ -1084,21 +1086,21 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     fireEvent.click(row(SORTATION))
     addMedia()
     const dialog = await addDialog()
-    expect(dialog).toHaveTextContent('No capture session, so these stay in this browser')
+    expect(dialog).toHaveTextContent('A sample assessment, so these stay on this device')
     choose(dialog, photo('IMG_0520.jpg'))
 
     click('Add to observation')
-    expect(await screen.findByText('Added 1 photo in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Added 1 photo on this device only.')).toBeInTheDocument()
 
     click('Remove IMG_0520.jpg')
     const confirm = await screen.findByRole('dialog', { name: 'Remove this photo?' })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Remove photo' }))
     expect(
-      await screen.findByText('Photo removed in this demo only. Restore it under Removed media.'),
+      await screen.findByText('Photo removed on this device only. Restore it under Removed media.'),
     ).toBeInTheDocument()
     fireEvent.click(screen.getByText('Removed media (1)'))
     click('Restore IMG_0520.jpg')
-    expect(await screen.findByText('Photo restored in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Photo restored on this device only.')).toBeInTheDocument()
     expect(calls).toEqual([])
   })
 }, 15000)

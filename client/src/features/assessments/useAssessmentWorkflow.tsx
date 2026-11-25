@@ -268,7 +268,7 @@ const PAGE_TEXT = {
   transcribing: 'Transcribing the page…',
   failed: 'The page could not be transcribed.',
   blank: 'No handwriting was found on this page.',
-  demo: 'No capture session, so this page stays in this browser and is not transcribed.',
+  demo: 'A sample assessment, so this page stays on this device and isn’t transcribed.',
 }
 // What a recording, photo or page is called in what the page says (CP-08, CP-20).
 const MEDIA_NOUN = { recordings: 'Recording', photos: 'Photo', pages: 'Page' } as const
@@ -380,7 +380,7 @@ const demoRecording = (id: string, name: string, url: string, added: Stamp | nul
   id,
   name,
   status: 'transcribed' as const,
-  text: 'No capture session, so this recording stays in this browser and is not transcribed.',
+  text: 'A sample assessment, so this recording stays on this device and isn’t transcribed.',
   original: null,
   correction: null,
   error: null,
@@ -1341,7 +1341,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               message:
                 (error instanceof GatewayError && error.status !== null
                   ? error.message
-                  : 'The gateway could not be reached.') + ' Record or upload it again.',
+                  : 'Can’t reach the server.') + ' Record or upload it again.',
             },
           }))
         }
@@ -1425,8 +1425,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             message:
               (error instanceof GatewayError && error.status !== null
                 ? error.message
-                : 'The gateway could not be reached.') +
-              ' Everything is still listed; press Save observation to try again.',
+                : 'Can’t reach the server.') +
+              ' Everything is still listed, so press Save observation to try again.',
           },
         })
         return
@@ -1484,12 +1484,12 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? problems.join(' ')
           : error instanceof GatewayError && error.status !== null
             ? error.message
-            : 'The gateway could not be reached.'
+            : 'Can’t reach the server.'
         setState({
           fSaving: false,
           fSaveError: {
             title: 'Observation not saved',
-            message: cause + ' Everything is still listed; press Save observation to try again.',
+            message: cause + ' Everything is still listed, so press Save observation to try again.',
           },
         })
         return
@@ -1559,7 +1559,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ? problems.join(' ')
         : error instanceof GatewayError && error.status !== null
           ? error.message
-          : 'The gateway could not be reached.'
+          : 'Can’t reach the server.'
     }
     // The signed-in engineer, now, for a change kept in this browser (CP-08).
     const stampNow = (): Stamp => ({
@@ -1673,7 +1673,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })),
           obsDialog: null,
         })
-        return toast('Page text saved in this demo only.')
+        return toast('Page text saved on this device only.')
       }
       let saved
       try {
@@ -1713,7 +1713,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           obsDialog: null,
           obsOpen: null,
         })
-        return toast('Observation deleted in this demo only. Choose Deleted to restore it.')
+        return toast('Observation deleted on this device only. Choose Deleted to restore it.')
       }
       let saved
       try {
@@ -1729,7 +1729,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     async function restoreRow(key: string, o: Observation) {
       if (!o.id) {
         setState({ ...changeLocal(key, (x) => ({ ...x, deleted: null })), obsOpen: null })
-        return toast('Observation restored in this demo only.')
+        return toast('Observation restored on this device only.')
       }
       let saved
       try {
@@ -1784,7 +1784,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           })),
           obsDialog: null,
         })
-        return toast('Added ' + what + ' in this demo only.')
+        return toast('Added ' + what + ' on this device only.')
       }
       let saved
       try {
@@ -1866,7 +1866,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const noun = MEDIA_NOUN[item.kind]
       if (!o.id) {
         setState({ ...changeLocal(key, (x) => moveLocal(x, item)), obsDialog: null })
-        return toast(noun + ' removed in this demo only. Restore it under Removed media.')
+        return toast(noun + ' removed on this device only. Restore it under Removed media.')
       }
       let saved
       try {
@@ -1909,7 +1909,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       const noun = MEDIA_NOUN[item.kind]
       if (!o.id) {
         setState(changeLocal(key, (x) => moveLocal(x, item)))
-        return toast(noun + ' restored in this demo only.')
+        return toast(noun + ' restored on this device only.')
       }
       let saved
       try {
@@ -2773,7 +2773,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       icon: c.ok ? 'circle-check' : 'triangle-alert',
       color: c.ok ? 'var(--status-low-fg)' : 'var(--status-moderate-fg)',
       valueStyle: {
-        fontFamily: 'var(--font-mono)',
+        fontVariantNumeric: 'tabular-nums',
         fontSize: '13px',
         whiteSpace: 'nowrap',
         color: c.ok ? 'var(--status-low-fg)' : 'var(--status-moderate-fg)',
@@ -3842,7 +3842,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                     ? 'Knowledge'
                     : sc === 'client'
                       ? 'Client'
-                      : 'Assessment workspace',
+                      : 'Assessment',
       title:
         sc === 'dashboard'
           ? 'Assessments'
@@ -3863,7 +3863,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
                         : sc === 'settings'
                           ? 'Settings'
                           : sc === 'chat'
-                            ? 'Ask the knowledge base'
+                            ? 'MarshBot'
                             : sc === 'client'
                               ? 'Client'
                               : s.captureTarget.site,
@@ -3951,8 +3951,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // Lets a screen outside this hook confirm an action, e.g. KB-01's saves.
       notify: (message: string, tone?: 'danger') => toast(message, tone),
       openEvidenceSource: () =>
-        toast('Source files are not connected in this demo. Excerpts are sample evidence.', 'info'),
-      playSampleAudio: () => toast('Audio playback is not connected in this demo.', 'info'),
+        toast(
+          'Source files don’t open for a sample assessment, so these excerpts are samples.',
+          'info',
+        ),
+      playSampleAudio: () => toast('Audio doesn’t play for a sample assessment.', 'info'),
       // The ⋯ menu's Version history (RV-06): a saved assessment's opens in its
       // Review tab; the sample assessment has none.
       reviewHistory: s.reviewHistory,
@@ -3960,7 +3963,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // would be lost ('history' is that leave's destination, see discardAndLeave).
       showVersionHistory: () =>
         !openRow?.persisted
-          ? toast('Version history is not connected in this demo.', 'info')
+          ? toast('A sample assessment has no version history.', 'info')
           : sc === 'field'
             ? setState(unsaved.length ? { fLeaveOpen: true, fLeaveTo: 'history' } : historyTab())
             : setState({ tab: 'review', reviewHistory: s.reviewHistory + 1 }),
@@ -4139,7 +4142,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           ? 'Simulating recording; your microphone is not accessed.'
           : s.fTransBusy
             ? 'Loading the sample transcript.'
-            : 'No capture session, so recording is simulated and produces a sample transcript.',
+            : 'A sample assessment, so recording is simulated and gives a sample transcript.',
       fVoiceError: s.fVoiceError,
       recBusy: s.fRec || s.fTransBusy || s.fSaving || s.fSending > 0,
       uploadRecording: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -4182,7 +4185,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       fPhotoError: s.fPhotoError,
       photoHint: liveCapture
         ? 'JPG or PNG, stored exactly as taken.'
-        : 'No capture session, so photographs stay in this browser and are not uploaded.',
+        : 'A sample assessment, so photos stay on this device and aren’t uploaded.',
       // Photos taken on the device or chosen from it (CP-04 AC6). Anything
       // but a JPG or PNG is refused here with the gateway's reason (AC4); the
       // gateway checks the image itself too, as a browser can report no type.
@@ -4224,7 +4227,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       fPageError: s.fPageError,
       pageHint: liveCapture
         ? 'JPG or PNG, one photo per page. Each page is transcribed once you save.'
-        : 'No capture session, so pages stay in this browser and are not transcribed.',
+        : 'A sample assessment, so pages stay on this device and aren’t transcribed.',
       // A page goes to the AI service as photographed: client details in it
       // can't be masked, so the engineer is asked to leave them off (PV-04).
       pagePrivacyHint: liveCapture
@@ -4591,7 +4594,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           fSev: '',
         })
         // Listed first, so it is local-0 (see obsReturn above).
-        toast('Observation saved in this demo only.', 'success', 'local-0')
+        toast('Observation saved on this device only.', 'success', 'local-0')
       },
       /* generation */
       gsecs,
@@ -4619,52 +4622,24 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       stopDescription:
         doneCount +
         ' of 7 sections are already drafted and will be kept. Sections still drafting or queued will stop where they are, and you can resume from there.',
+      // Pill buttons, as every v2 dialog's footer (Dialog).
       stopFooter: (
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-          }}
-        >
-          <button
-            type={'button'}
+        <>
+          <Button
+            pill
+            variant="secondary"
             onClick={() =>
               setState({
                 stopOpen: false,
               })
             }
-            style={{
-              height: 40,
-              padding: '0 16px',
-              borderRadius: 5,
-              border: '1px solid var(--border-default)',
-              background: 'var(--surface-card)',
-              color: 'var(--text-body)',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 16,
-              cursor: 'pointer',
-            }}
           >
             {'Keep drafting'}
-          </button>
-          <button
-            type={'button'}
-            onClick={() => stopGen()}
-            style={{
-              height: 40,
-              padding: '0 16px',
-              borderRadius: 5,
-              border: '1px solid var(--action-danger)',
-              background: 'var(--action-danger)',
-              color: '#fff',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 16,
-              cursor: 'pointer',
-            }}
-          >
+          </Button>
+          <Button pill variant="danger" onClick={() => stopGen()}>
             {'Stop generation'}
-          </button>
-        </div>
+          </Button>
+        </>
       ),
       resumeGen: () => {
         const g = s.gsecs.map((x) => ({
@@ -4981,9 +4956,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           optIdx: v,
         }),
       exportLabel: 'Export as ' + s.fmt,
-      exportHint: blocked
-        ? 'Enabled once the checklist passes.'
-        : 'Sample data shown without the gateway cannot be exported.',
+      exportHint: blocked ? 'Enabled once the checklist passes.' : 'Sample data can’t be exported.',
       askExport: () => {
         if (!isBlocked())
           setState({
@@ -4999,26 +4972,19 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       // the cause is shown, and nothing is produced or simulated.
       exportDialogTitle: 'Sample data cannot be exported',
       exportDialogBody:
-        'This assessment is sample data shown without the gateway, so there is no saved report to make a file from. No file was produced. Open a saved assessment from the dashboard to export its report.',
+        'This assessment is sample data, so there is no saved report to make a file from. No file was produced. Open a saved assessment from Assessments to export its report.',
       exportFooter: (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 8,
-          }}
+        <Button
+          pill
+          variant="secondary"
+          onClick={() =>
+            setState({
+              exportOpen: false,
+            })
+          }
         >
-          <Button
-            variant="secondary"
-            onClick={() =>
-              setState({
-                exportOpen: false,
-              })
-            }
-          >
-            {'Close'}
-          </Button>
-        </div>
+          {'Close'}
+        </Button>
       ),
       wordCount: '7 sections · 4,180 words · 28 photographs',
     }

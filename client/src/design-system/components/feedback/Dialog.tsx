@@ -93,7 +93,8 @@ export function Dialog({
   return (
     <dialog
       ref={dialog}
-      className={`ds-dialog ${className}`}
+      // Every dialog wears the v2 Apple look (kit.css .ds-dialog--v2); a caller's class adds to it.
+      className={`ds-dialog ds-dialog--v2 ${className}`}
       aria-label={ariaLabel}
       aria-labelledby={title ? titleId : undefined}
       aria-describedby={description ? descriptionId : undefined}

@@ -567,7 +567,6 @@
   color: var(--graphite-600);
 }
 .ds-pagination-place b {
-  font-family: var(--font-mono);
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
@@ -692,6 +691,14 @@
   color: var(--graphite-600);
   font: 400 14px/1.4 var(--font-sans);
 }
+/* One rule for every phone top bar: no eyebrow, and a list page (no Back) drops its helper line,
+   which wraps to two or three lines beside the action. A record page keeps its helper (its facts). */
+@media (max-width: 767px) {
+  .ds-topbar-eyebrow,
+  .ds-topbar:not(:has(.ds-backbtn)) .ds-topbar-helper {
+    display: none;
+  }
+}
 /* With tabs (client page): the tabs take a full row under the title and sit on the bar's edge. */
 .ds-topbar[data-tabs] {
   flex-wrap: wrap;
@@ -708,6 +715,13 @@
   }
   .ds-topbar-title h1 {
     font-size: 22px;
+  }
+  /* stack: the title takes the row, less Back's 48 px, so the action wraps under it. */
+  .ds-topbar[data-stack] {
+    flex-wrap: wrap;
+  }
+  .ds-topbar[data-stack] .ds-topbar-main {
+    flex: 1 0 calc(100% - 48px);
   }
 }
 /* Buttons: press feedback is a CSS scale on :active (not JS, so a touch tap gets it too);
@@ -878,7 +892,7 @@
 
 /* Dialog, v2 (round 14): the chat's Apple sheet look (chat.css .chat-dialog) in the app's
    font: rounder card, no border, soft shadow, round grey close, no footer band, pill
-   buttons. Pass className="ds-dialog--v2" to Dialog. */
+   buttons. Dialog adds the class to every dialog. */
 .ds-dialog.ds-dialog--v2 {
   border: 0;
   border-radius: 18px;

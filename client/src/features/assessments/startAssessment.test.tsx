@@ -59,9 +59,12 @@ function choose(pill: string | RegExp, choice: string) {
   fireEvent.click(screen.getByRole('button', { name: pill }))
   fireEvent.click(screen.getByRole('menuitemradio', { name: choice }))
 }
-function openCapture() {
-  // Open the assessment from the work list; capture starts from its Observations tab.
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+async function openCapture() {
+  // Open the assessment from the work list (its grey placeholder rows go once the list has
+  // answered); capture starts from its Observations tab.
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
   fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
@@ -88,7 +91,7 @@ describe('Capture session (CP-01)', () => {
     await openApp()
     expect(fetchMock).not.toHaveBeenCalled()
 
-    openCapture()
+    await openCapture()
 
     // The live light sits beside the assessment in the navigation's Recent list.
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
@@ -102,7 +105,7 @@ describe('Capture session (CP-01)', () => {
     mockGateway(() => respond(201))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
     await screen.findByRole('img', { name: 'live' })
     // The workspace header names the assessment the session is for.
@@ -115,7 +118,7 @@ describe('Capture session (CP-01)', () => {
     mockGateway(() => new Promise<Response>((resolve) => (start = resolve)))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
     const save = screen.getByRole('button', { name: 'Save observation' })
     // While the session starts, Save is busy and does nothing (the phone's bar is not a native
@@ -132,12 +135,12 @@ describe('Capture session (CP-01)', () => {
       () => respond(200),
     )
     await openApp()
-    openCapture()
+    await openCapture()
     await screen.findByRole('img', { name: 'live' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
-    openCapture()
+    await openCapture()
 
     // The same session carries on, with no notice either way.
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -151,14 +154,12 @@ describe('Capture session (CP-01)', () => {
       () => respond(201),
     )
     await openApp()
-    openCapture()
+    await openCapture()
 
     const notice = await screen.findByRole('status')
     await screen.findByText('Showing sample data')
     expect(screen.queryByRole('img', { name: 'live' })).not.toBeInTheDocument()
-    expect(notice).toHaveTextContent(
-      'No capture session was started: the gateway could not be reached.',
-    )
+    expect(notice).toHaveTextContent("No capture session was started: the server can't be reached.")
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Tilbury Distribution Centre',
     )
@@ -173,7 +174,7 @@ describe('Capture session (CP-01)', () => {
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(await screen.findByText('Observation saved in this demo only.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved on this device only.')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
@@ -185,14 +186,14 @@ describe('Capture session (CP-01)', () => {
   })
 
   it.each([
-    [502, 'the gateway could not be reached', 'Start the gateway'],
-    [404, 'RPT-2026-0411 is not on the server', 'Seed the sample assessment or create a new one'],
-    [500, 'the gateway returned HTTP 500', 'Check the gateway logs'],
+    [502, "the server can't be reached", 'Check your connection'],
+    [404, "RPT-2026-0411 isn't saved on the server", 'Open a saved assessment or create one'],
+    [500, 'the server had a problem', 'Try again in a moment'],
   ])('explains an HTTP %i from the gateway', async (status, cause, next) => {
     mockGateway(() => respond(status, { error: 'unused' }))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
     await screen.findByText('Showing sample data')
     const notice = screen.getByRole('status')
@@ -474,9 +475,7 @@ describe('Create assessment (CP-01)', () => {
     createFromForm()
 
     expect(await screen.findByText('Nothing created')).toBeInTheDocument()
-    expect(
-      await screen.findByText(/The gateway could not be reached\. Try again\./),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/Can't reach the server\. Try again\./)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
   })
 })
@@ -1499,7 +1498,7 @@ it('corrects the site from Details for every assessment at it, asking first abou
   })
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
   // A new scope changes what drafting retrieves, so it asks first.
-  expect(within(dialog).getByText(/changes the 2 assessments/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/standards used for the 2 assessments/)).toBeInTheDocument()
   expect(corrections).toHaveLength(0)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Change scope' }))
 
