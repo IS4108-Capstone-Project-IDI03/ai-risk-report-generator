@@ -1,9 +1,9 @@
 // F-13 test seam 2: the tips' data. Every tip has a label, roles and (if new) text, and every
-// Show me names one of the 36 walkthroughs.
+// Show me names one of the 35 walkthroughs.
 import { describe, expect, it } from 'vitest'
 import { TIPS, type TipDef } from './tips'
 
-// The 36 ids of F-12's walkthroughs.json, copied here because that file is not in the repo.
+// The 35 ids of F-12's walkthroughs.json, copied here because that file is not in the repo.
 const WALKTHROUGH_IDS = [
   'welcome',
   'assessments',
@@ -14,7 +14,6 @@ const WALKTHROUGH_IDS = [
   'checklist',
   'observations',
   'new-observation',
-  'split-note',
   'site-walk',
   'proposal',
   'proposals-list',
@@ -55,8 +54,8 @@ const EXISTING = [
 const tips = Object.entries(TIPS) as [string, TipDef][]
 
 describe('help tips data', () => {
-  it('has the 54 tips, 7 of them existing', () => {
-    expect(tips).toHaveLength(54)
+  it('has the 53 tips, 7 of them existing', () => {
+    expect(tips).toHaveLength(53)
     expect(tips.filter(([, t]) => t.text === undefined).map(([id]) => id)).toEqual(EXISTING)
   })
 

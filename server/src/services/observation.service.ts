@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
 import type { SessionUser } from './auth.service'
@@ -22,8 +21,8 @@ import {
   type IChecklistLink,
   type ISuggestion,
   type Severity,
-  PART_KINDS,
-  type IPart,
+  OBSERVATION_KINDS,
+  type ObservationKind,
 } from '../models/observation.model'
 import type { ISite } from '../models/site.model'
 import { NotAssignedError, opensAssessment } from './assessment.service'
@@ -158,6 +157,25 @@ const locationIdField = z
   .refine(isValidObjectId, 'Choose one of the locations listed for this assessment.')
 const standardField = z.string().trim().max(100, 'Standard must be 100 characters or fewer.')
 
+// One to three tags, in a fixed order with repeats dropped; an empty list or an unknown tag is refused.
+const kindsField = z
+  .array(
+    z.enum(OBSERVATION_KINDS, 'An observation is a fact, an info request or a recommendation.'),
+  )
+  .min(1, 'Choose at least one tag.')
+  .transform((list) => OBSERVATION_KINDS.filter((k) => list.includes(k)))
+
+// Up to 8 labels of 1 to 30 characters, trimmed, repeats (ignoring case) dropped. They only sort
+// the list (CP-36).
+const labelsField = z
+  .array(
+    z.string().trim().min(1, 'A label needs a word.').max(30, 'A label is 30 characters or fewer.'),
+  )
+  .max(8, 'An observation can have at most 8 labels.')
+  .transform((list) =>
+    list.filter((l, n) => list.findIndex((x) => x.toLowerCase() === l.toLowerCase()) === n),
+  )
+
 // The fields of POST /api/assessments/:reference/observations, sent as the
 // form's `details` part alongside any recordings.
 // Attribution comes from the authenticated session, never from these fields.
@@ -169,35 +187,9 @@ export const newObservationSchema = z.object({
     .optional()
     .transform((note) => (note?.trim() ? note : undefined)),
 
-  // The engineer's confirmed parts of a shorthand note (CP-35); the note stays as typed.
-  parts: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        kind: z.enum(PART_KINDS, 'A part is a fact, an info request or a recommendation.'),
-        text: z
-          .string()
-          .trim()
-          .min(1, 'A part needs text.')
-          .max(1000, 'A part is 1,000 characters or fewer.'),
-        shorthand: z.string().max(5000).default(''),
-        inferred: z.boolean().default(false),
-        flags: z
-          .array(
-            z.object({
-              type: z.enum(['unknown_term', 'number_changed']),
-              detail: z.string().max(500),
-            }),
-          )
-          .max(10)
-          .optional(),
-      }),
-    )
-    .max(50, 'A note can have at most 50 parts.')
-    .optional()
-    // A part without an id gets one here, so the client can always key on it.
-    // Always a fresh id: a client-sent id could repeat, and two parts would then share one.
-    .transform((parts) => parts?.map((p) => ({ ...p, id: randomUUID() }))),
+  // The engineer's tags (CP-36); absent means Fact. The note stays as typed.
+  kinds: kindsField.optional(),
+  labels: labelsField.optional(),
 
   // null, [] or absent leaves it uncategorised (CP-02 AC4), for the AI to
   // suggest (CP-24); a severity left null or absent likewise.
@@ -229,6 +221,12 @@ export type ObservationDetails = z.infer<typeof newObservationSchema>
 // suggestion's not-sure mark clears, even for the same value. `confirm` keeps
 // the values named as they are and clears their marks. null empties severity.
 export const observationChangesSchema = z.object({
+  // null clears the tags (back to Fact).
+  kinds: kindsField.nullable().optional(),
+  // null or [] clears the labels.
+  labels: labelsField.nullable().optional(),
+  // true marks the info request asked; false clears the mark.
+  asked: z.boolean().optional(),
   copeDimensions: copeDimensionsField.optional(),
   severity: severityField.nullable().optional(),
   confirm: z
@@ -354,8 +352,11 @@ export type ObservationDto = {
   // null only if the location is no longer listed, or on a draft observation.
   location: LocationDto | null
   note: string | null
-  // The confirmed parts of a shorthand note (CP-35); empty when it was not split.
-  parts: IPart[]
+  // The engineer's tags (CP-36); null when untagged, which reads as Fact.
+  kinds: ObservationKind[] | null
+  // Sort-only labels (CP-36), and whether the client has been asked for it.
+  labels: string[]
+  asked: boolean
   // Its evidence: the recordings and photos not removed. Everything that
   // reads these, drafting included, leaves removed ones out (CP-08).
   recordings: RecordingDto[]
@@ -549,7 +550,9 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
     severity: o.severity ?? null,
     location: location ? toLocationDto(location) : null,
     note: o.note ?? null,
-    parts: o.parts ?? [],
+    kinds: o.kinds ?? null,
+    labels: o.labels ?? [],
+    asked: !!o.asked,
     recordings: kept(o.recordings).map(recording),
     photos: keptPhotos.map(photo),
     pages: kept(pages).map(page),
@@ -641,7 +644,8 @@ export async function saveObservation(
     engineer: user.name,
     engineerId: user.id,
     note: details.note,
-    ...(details.parts?.length && { parts: details.parts }),
+    ...(details.kinds && { kinds: details.kinds }),
+    ...(details.labels?.length && { labels: details.labels }),
     standard: details.standard,
     severity: details.severity,
     location: details.locationId,
@@ -945,6 +949,16 @@ export async function updateObservation(
     set.location = changes.locationId
   change('standard', o.standard, changes.standard)
   change('note', o.note, changes.note)
+  if (changes.kinds === null) unset.kinds = 1
+  else if (changes.kinds) set.kinds = changes.kinds
+  if (changes.labels !== undefined) {
+    if (changes.labels === null || !changes.labels.length) unset.labels = 1
+    else set.labels = changes.labels
+  }
+  if (changes.asked !== undefined) {
+    if (changes.asked) set.asked = stamp(user)
+    else unset.asked = 1
+  }
   // A failed suggestion with nothing left to suggest is over: both fields filled and the engineer's.
   const filled = (field: 'category' | 'severity', value: unknown, now: unknown) =>
     !!(value === undefined ? now : value) && (owned.has(field) || !s?.[field])
@@ -960,6 +974,7 @@ export async function updateObservation(
 
   // Removing the note matches only while a recording, photo or page stays, so
   // a removal at the same moment can't leave nothing captured.
+  const onlyAsked = [...Object.keys(set), ...Object.keys(unset)].every((k) => k === 'asked')
   const updated = await ObservationModel.findOneAndUpdate(
     {
       _id: id,
@@ -967,9 +982,8 @@ export async function updateObservation(
       ...(unset.note && { $or: [KEEPS_RECORDING, KEEPS_PHOTO, KEEPS_PAGE] }),
     },
     {
-      // Confirmed parts describe the note as it was split; a changed or removed note clears
-      // them, or drafting would cite text the engineer replaced.
-      $set: { ...set, ...(('note' in set || unset.note) && { parts: [] }), edited: stamp(user) },
+      // Ticking an info request asked is not an edit of the observation.
+      $set: { ...set, ...(!onlyAsked && { edited: stamp(user) }) },
       ...(Object.keys(unset).length && { $unset: unset }),
     },
     { returnDocument: 'after' },
@@ -1327,26 +1341,37 @@ export type ToAskItem = {
   text: string
   location: string | null
   severity: string
+  // True once the engineer ticked it as asked.
+  asked: boolean
+}
+
+// What to ask, in the engineer's words: the note, else a transcription, else the photo description.
+function askText(o: ObservationDto): string {
+  const spoken = [...o.recordings, ...o.pages].map(
+    (m) => m.transcription.correction?.text ?? m.transcription.transcript,
+  )
+  return (
+    [o.note, ...spoken, o.interpretation?.photos?.description].find((t) => t?.trim())?.trim() ?? ''
+  )
 }
 
 /**
- * Returns the info requests (CP-35 parts of kind info_request) of an assessment's split notes,
- * oldest observation first, each with where it was seen and how serious: what to ask the client.
- * Read only. Throws AssessmentNotFoundError.
+ * Returns the observations tagged Information request (CP-36), oldest first, each with its text
+ * (note, else transcription or description), where it was seen and how serious: what to ask the
+ * client. Read only. Throws AssessmentNotFoundError.
  */
 export async function toAskFor(reference: string): Promise<ToAskItem[]> {
   const observations = (await listObservations(reference)).reverse()
-  return observations.flatMap((o) =>
-    o.parts
-      .filter((p) => p.kind === 'info_request')
-      .map((p) => ({
-        observationId: o.id,
-        text: p.text,
-        location: o.location ? locationText(o.location) : null,
-        // Empty while the severity is still to be suggested or chosen (CP-24).
-        severity: o.severity ?? '',
-      })),
-  )
+  return observations
+    .filter((o) => o.kinds?.includes('info_request'))
+    .map((o) => ({
+      observationId: o.id,
+      text: askText(o),
+      location: o.location ? locationText(o.location) : null,
+      // Empty while the severity is still to be suggested or chosen (CP-24).
+      severity: o.severity ?? '',
+      asked: o.asked,
+    }))
 }
 
 // The observations not deleted of several assessments at once, by assessment

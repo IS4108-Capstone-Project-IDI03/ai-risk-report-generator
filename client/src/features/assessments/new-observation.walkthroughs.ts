@@ -1,6 +1,6 @@
-// The "Add an observation" and "Use note codes and Split note" walkthroughs (F-12): try-its on the New
+// The "Add an observation" walkthrough (F-12): try-its on the New
 // Observation form. Tags are data-walk attributes in screens/SiteObservation.tsx and components/Capture*,
-// LocationSheet, SplitNotePanel; the Observations list's tags are in components/ObservationRow.tsx.
+// LocationSheet; the Observations list's tags are in components/ObservationRow.tsx.
 // Read by features/walkthrough/registry.ts. Plays on the practice assessment (screen newObservationWalk.ts drives).
 import type { WalkthroughDef } from '../walkthrough/types'
 
@@ -95,50 +95,6 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // Reworded from the approved line ("If you agree with them, open the row and press Confirm"):
         // Confirm only shows on a value I was not sure of, and a clear sentence comes back Complete.
         say: "And here it is! This is **what you said**, written out, with a category and severity suggested. If one is marked amber, I wasn't sure about it: open the row and press **Confirm category** or **Confirm severity** if you agree.",
-      },
-    ],
-  },
-  {
-    // Starts when: never offered by itself; from Settings and the (?) beside Split note. The form types the sample note.
-    id: 'split-note',
-    name: 'Use note codes and Split note',
-    group: 'Capturing on site',
-    roles: ['risk_engineer', 'knowledge_admin'],
-    kind: 'ai',
-    screen: 'new-observation',
-    place: { path: '/site-observation?ref={practice}' },
-    fail: {
-      replay:
-        "I'm sorry, I can't split notes right now. Please try this walkthrough again a little later.",
-    },
-    steps: [
-      {
-        target: 'new-observation.note',
-        say: "You can write your notes in your own way. If you start a line with one of your **codes**, I'll know exactly what it is:\n- **F** for a fact.\n- **IR** for something to ask the client.\n- **REC** for a recommendation.",
-      },
-      {
-        // After the press the button shows it is working; the step lands when the three groups show.
-        target: 'new-observation.split',
-        say: "I've typed in a sample note for you. Go ahead and press **Split note**.",
-        do: [{ press: 'new-observation.split' }],
-        until: 'note-split-opened',
-      },
-      {
-        // The three group headings, one by one: the groups themselves are taller than the window.
-        target: [
-          'new-observation.split-facts',
-          'new-observation.split-info-requests',
-          'new-observation.split-recommendations',
-        ],
-        apart: true,
-        mood: 'pleased',
-        say: 'I\'ve sorted your note into 3 groups:\n- **Facts** go into the report.\n- **Info requests** go to "To ask the client".\n- **Recommendations** become Opportunities for Improvement.',
-      },
-      {
-        // The whole panel: the parts to correct, and Confirm all parts (at its end, so `show: 'end'`).
-        target: 'new-observation.split-panel',
-        show: 'end',
-        say: "If I've got anything wrong, you can correct it here, and then press **Confirm all parts**. You can also change your codes any time in **Settings → Note-Taking**.",
       },
     ],
   },

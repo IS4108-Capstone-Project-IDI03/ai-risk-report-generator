@@ -248,20 +248,10 @@ export interface IChecklistLink {
   text: string
 }
 
-// One piece of a shorthand note the engineer confirmed (CP-35): a fact, an info request
-// or a recommendation. Only facts are drafting evidence. Kept outside `metadata`.
-export const PART_KINDS = ['fact', 'info_request', 'recommendation'] as const
-export type PartKind = (typeof PART_KINDS)[number]
-export interface IPart {
-  id: string
-  kind: PartKind
-  text: string
-  // The note's own line it came from, word for word.
-  shorthand: string
-  // True when the model chose the kind; false when the engineer's code did.
-  inferred: boolean
-  flags?: { type: 'unknown_term' | 'number_changed'; detail: string }[]
-}
+// What an observation is, as the engineer tagged it (CP-36). It can be more than one, e.g. a
+// finding with advice is a fact and a recommendation. No tag means Fact. Kept outside `metadata`.
+export const OBSERVATION_KINDS = ['fact', 'info_request', 'recommendation'] as const
+export type ObservationKind = (typeof OBSERVATION_KINDS)[number]
 
 // One thing the engineer saw on site, with everything captured about it: a
 // note (CP-02), any number of recordings (CP-03), photographs (CP-04) and
@@ -274,8 +264,12 @@ export interface IObservation {
   engineerId?: Types.ObjectId
   // Exactly as the engineer wrote it, never trimmed or reworded.
   note?: string
-  // The confirmed parts of a shorthand note (CP-35); absent when the note was not split.
-  parts?: IPart[]
+  // The engineer's tags (CP-36); absent means Fact. Never empty when present.
+  kinds?: ObservationKind[]
+  // Sort-only labels the engineer typed (CP-36): they change nothing about drafting.
+  labels?: string[]
+  // Set when the engineer has asked the client for what this info request needs (CP-36).
+  asked?: IStamp
   recordings: IRecording[]
   // Absent on observations saved before CP-04.
   photos?: IPhoto[]
@@ -518,38 +512,9 @@ const observationSchema = new Schema<IObservation>(
     engineer: { type: String, required: true, trim: true },
     engineerId: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String, maxlength: 5000 },
-    parts: {
-      type: [
-        new Schema<IPart>(
-          {
-            id: { type: String, required: true },
-            kind: { type: String, enum: PART_KINDS, required: true },
-            text: { type: String, required: true, maxlength: 1000 },
-            // Empty for a part the engineer added by hand; Mongoose rejects '' on a required String.
-            shorthand: { type: String, default: '' },
-            inferred: { type: Boolean, required: true },
-            flags: {
-              type: [
-                new Schema(
-                  {
-                    type: {
-                      type: String,
-                      enum: ['unknown_term', 'number_changed'],
-                      required: true,
-                    },
-                    detail: { type: String, required: true },
-                  },
-                  { _id: false },
-                ),
-              ],
-              default: undefined,
-            },
-          },
-          { _id: false },
-        ),
-      ],
-      default: undefined,
-    },
+    kinds: { type: [{ type: String, enum: OBSERVATION_KINDS }], default: undefined },
+    labels: { type: [{ type: String, maxlength: 30 }], default: undefined },
+    asked: { type: Schema.Types.Mixed },
     recordings: [recordingSchema],
     photos: [photoSchema],
     pages: [pageSchema],

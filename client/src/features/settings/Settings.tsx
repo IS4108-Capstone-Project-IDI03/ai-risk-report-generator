@@ -9,7 +9,6 @@ import { getSettings, type Settings as SettingsData } from './api'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
-import { NoteTakingSection } from './screens/NoteTakingSection'
 import { PasswordSection } from './screens/PasswordSection'
 import { PrivacyWordsSection } from './screens/PrivacyWordsSection'
 import { SourcePrioritySection } from './screens/SourcePrioritySection'
@@ -61,13 +60,6 @@ const MINE: Section[] = [
     label: 'Chat and Voice',
     walk: 'settings.menu.chat',
     render: needs((s, f) => <ChatVoiceSection settings={s} onSaved={f} />),
-  },
-  {
-    id: 'note-taking',
-    icon: 'notebook-pen',
-    label: 'Note-Taking',
-    walk: 'settings.menu.note-taking',
-    render: needs((s, f) => <NoteTakingSection settings={s} onSaved={f} />),
   },
   {
     id: 'walkthroughs',

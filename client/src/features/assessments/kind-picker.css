@@ -1,0 +1,178 @@
+/* Tags (CP-36): one neutral tag shape for every kind and label. Selected = stronger border, bolder
+   text and a check, never another colour. Suggested = dashed border and a sparkle. */
+.kp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.kp-legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.kp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* The tag shape, shared by pickable chips, read-only badges and label tags. */
+.kp-chip,
+.kp-badge,
+.kp-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--graphite-300);
+  border-radius: 999px;
+  background: var(--graphite-100);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+.kp-chip {
+  min-height: 44px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.kp-chip[aria-pressed='true'] {
+  border-color: var(--graphite-700);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.kp-chip[data-suggested] {
+  border-style: dashed;
+}
+.kp-chip:focus-visible,
+.kp-x:focus-visible,
+.kp-add:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.kp-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.kp-x:hover {
+  background: var(--graphite-200);
+}
+.kp-label {
+  min-height: 32px;
+  padding: 0 6px 0 10px;
+}
+.kp-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px dashed var(--graphite-400);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.kp-input {
+  min-height: 44px;
+  width: 160px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-card);
+  font: inherit;
+  font-size: 14px;
+}
+.kp-also {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.kp-also input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+}
+.kp-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.kp-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.kp-suggest-add {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--graphite-400);
+  border-radius: 999px;
+  background: var(--surface-card);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kp-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kp-badge {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.kp-seg {
+  padding-left: 6px;
+  border-left: 1px solid var(--graphite-300);
+  color: var(--text-muted);
+}
+/* The Observations tab's filter row: the same tags, pressable, with counts. */
+.kp-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* The same 14 px gutter as the toolbar and the table. */
+  margin: 12px 0;
+  padding: 0 14px;
+}
+.kp-filter .kp-chip {
+  min-height: 32px;
+  padding: 0 12px;
+}
+.kp-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.kp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

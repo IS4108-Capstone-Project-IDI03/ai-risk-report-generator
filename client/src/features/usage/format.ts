@@ -25,6 +25,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   'knowledge-search': 'Knowledge base search',
   // Sorting a shorthand note into facts, requests and recommendations (CP-35).
   'split-note': 'Shorthand note split',
+  'suggest-kinds': 'Tag suggestion',
   // Calls made while a walkthrough's try-it runs (F-12); costed to no assessment.
   walkthrough: 'Walkthrough',
   // Comparing an assessment with the previous report for the same site (RV-13).

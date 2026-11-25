@@ -1,34 +1,131 @@
-/* The To ask the client panel (CP-35), above the observation list. */
+/* The To ask the client checklist (CP-36), above the observation list: a soft ink block, so the
+   requests stand out from the observations, laid out as the Inbox's checklist rows
+   (design-system-v2 section 6). Its 14 px side gutter matches the toolbar and the table. */
 .ta {
-  margin: 0 0 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--border-default);
-  border-left: 3px solid var(--action-primary);
-  border-radius: 10px;
+  margin: 12px 14px 4px;
+  padding: 12px 16px 8px;
+  border: 1px solid var(--ink-100);
+  border-radius: 12px;
+  background: var(--ink-50);
+}
+.ta-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 4px;
+}
+/* A 28 px tile, as row icons are; white on the ink block. */
+.ta-tile {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: var(--surface-card);
 }
 .ta-title {
-  display: flex;
+  margin: 0;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+/* The count pill (design-system-v2: counts on --ink-100). */
+.ta-count {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-semibold);
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ink-100);
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ta-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* One request: tick and words on the left, where and how serious on the right, centred to the row. */
 .ta-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border-radius: 8px;
+}
+.ta-item + .ta-item {
+  box-shadow: inset 0 1px 0 var(--ink-100);
+}
+@media (hover: hover) {
+  .ta-item:hover {
+    background: rgb(255 255 255 / 0.6);
+  }
+}
+.ta-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--graphite-900);
+}
+.ta-item[data-asked] .ta-text {
+  color: var(--graphite-600);
+  text-decoration: line-through;
+  text-decoration-color: var(--graphite-400);
 }
 .ta-meta {
-  color: var(--text-muted);
-  font-size: var(--text-small-size);
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--graphite-600);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ta-more {
+  margin: 4px 0 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--marsh-navy);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ta-more:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+/* Phone: 44 px rows, the place on its own line under the words. */
+@media (max-width: 600px) {
+  .ta-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    min-height: 44px;
+    padding: 6px 8px;
+  }
+  .ta-text {
+    white-space: normal;
+  }
+  .ta-meta {
+    max-width: none;
+    padding-left: 30px;
+    white-space: normal;
+  }
 }

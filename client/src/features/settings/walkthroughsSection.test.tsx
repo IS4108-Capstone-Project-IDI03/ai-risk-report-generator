@@ -50,7 +50,6 @@ vi.mock('../walkthrough/registry', () => ({
 
 const settings: SettingsData = {
   canEditGlobal: false,
-  noteTaking: { codes: { fact: 'F', info_request: 'IR', recommendation: 'REC' }, glossary: [] },
   models: [],
   qaStrictness: 'standard',
   sourcePriority: { order: [...TIER_IDS], history: [] },
@@ -97,7 +96,7 @@ describe('Settings > Walkthroughs', () => {
       const personal = within(menu.firstElementChild as HTMLElement)
         .getAllByRole('button')
         .map((b) => b.textContent)
-      expect(personal).toEqual(['Password', 'Chat and Voice', 'Note-Taking', 'Walkthroughs'])
+      expect(personal).toEqual(['Password', 'Chat and Voice', 'Walkthroughs'])
       cleanup()
     }
   })

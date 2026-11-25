@@ -108,13 +108,6 @@ export const TIPS = {
     roles: ['risk_engineer'],
     text: "You can leave either one empty, and it will be suggested after you save. An observation with no category is still kept, but it isn't used in the report until you choose one.",
   },
-  // 17. New Observation: Split note
-  'new-observation.split-note': {
-    label: 'About Split note',
-    roles: ['risk_engineer'],
-    walkthrough: 'split-note',
-    text: 'This sorts your note into facts, info requests and recommendations. If a line starts with one of your codes (F, IR or REC), it goes straight to the right group. You can change your codes in **Settings → Note-Taking**.',
-  },
   // 18. New Observation: Scan
   'new-observation.scan': {
     label: 'About scanning a page',

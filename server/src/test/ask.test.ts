@@ -670,7 +670,7 @@ describe('asking about a selected passage (AS-02)', () => {
     )
   })
 
-  it('sends only the confirmed facts of a split note (CP-35)', async () => {
+  it('sends an observation as fact only when it is tagged Fact or untagged (CP-36)', async () => {
     const { valve } = await draftedNine()
     const sent = vi.fn()
     vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
@@ -686,18 +686,10 @@ describe('asking about a selected passage (AS-02)', () => {
       return o ? o.note : 'left out'
     }
     expect(await noteSent()).toBe('B1 sprinkler control valve found shut.')
-    const parts = (kinds: string[]) =>
-      kinds.map((kind) => ({
-        id: kind,
-        kind,
-        text: `${kind} text`,
-        shorthand: '',
-        inferred: false,
-      }))
-    await ObservationModel.updateOne({ _id: valve._id }, { parts: parts(['info_request']) })
+    await ObservationModel.updateOne({ _id: valve._id }, { kinds: ['info_request'] })
     expect(await noteSent()).toBe('left out')
-    await ObservationModel.updateOne({ _id: valve._id }, { parts: parts(['info_request', 'fact']) })
-    expect(await noteSent()).toBe('fact text')
+    await ObservationModel.updateOne({ _id: valve._id }, { kinds: ['info_request', 'fact'] })
+    expect(await noteSent()).toBe('B1 sprinkler control valve found shut.')
   })
 
   it('passes on a line naming where the sources disagree, and saves it', async () => {

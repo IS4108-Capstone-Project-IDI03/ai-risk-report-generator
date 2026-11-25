@@ -36,8 +36,8 @@ export const AI_FEATURES = [
   // rag-service reports as `retrieval`, relabelled by the gateway so the cost report keeps
   // them apart from drafting's searches. No assessment: they belong to the user who searched.
   'knowledge-search',
-  // Sorting a shorthand note's uncoded lines into facts, info requests and recommendations (CP-35).
-  'split-note',
+  // Suggesting which tags a note fits: fact, info request, recommendation (CP-36).
+  'suggest-kinds',
   // Any call made on a practice assessment or while a walkthrough's try-it runs (F-12): stored
   // with no reportId, so assessment totals stay clean. Set by ai-usage.service.ts recordAiCalls.
   'walkthrough',

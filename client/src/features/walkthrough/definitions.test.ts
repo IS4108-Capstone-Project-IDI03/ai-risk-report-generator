@@ -41,9 +41,9 @@ function wordsOf(def: WalkthroughDef): string[] {
 }
 
 describe('the walkthrough definitions', () => {
-  it('holds all 36, each with a name, a known group and a role', () => {
-    expect(DEFINITIONS).toHaveLength(36)
-    expect(new Set(DEFINITIONS.map((d) => d.id)).size).toBe(36)
+  it('holds all 35, each with a name, a known group and a role', () => {
+    expect(DEFINITIONS).toHaveLength(35)
+    expect(new Set(DEFINITIONS.map((d) => d.id)).size).toBe(35)
     for (const def of DEFINITIONS) {
       expect(def.name, def.id).toBeTruthy()
       expect(GROUPS, def.id).toContain(def.group)

@@ -49,7 +49,7 @@ DRAFTING_GUIDE = re.sub(
 
 # Section 3 Opportunities for Improvement (GN-05): Marsh's value lists and matrix, and
 # the OFI drafting guide. Bump OFI_PROMPT_VERSION whenever the prompt or guide changes.
-OFI_PROMPT_VERSION = "gn05-v7"  # v7: base the fix on the engineer's recommendation (CP-35)
+OFI_PROMPT_VERSION = "gn05-v8"  # v8: a recommendation with no fact still gets an OFI (CP-36)
 OFI_CONFIG = json.loads((HERE / "ofi.json").read_text())
 OFI_GUIDE = re.sub(r"\A---\n.*?\n---\n", "", (HERE / "ofi-skill.md").read_text(), flags=re.S)
 

@@ -20,7 +20,6 @@ export const SIGNALS = [
   'observation-saved-by-hand', // the same, on a real assessment only: counts toward the site walk offer
   'observation-category-confirmed', // an observation's Category Confirm was saved (assessments/components/ObservationDetails.tsx)
   'observation-reading-finished', // the observation just saved is amber, its suggestion in (assessments/components/ObservationRow.tsx)
-  'note-split-opened', // Split note's parts are showing (assessments/components/SplitNotePanel.tsx)
   'site-walk-recording-started', // the recorder's microphone is open (site-walk/useRecordingWalk.ts)
   'site-walk-recording-saved', // Save recording kept the recording (site-walk/screens/Recording.tsx)
   'site-walk-note-added', // a typed note was added to the walk (site-walk/screens/Recording.tsx); the no-microphone path waits on it

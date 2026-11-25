@@ -114,19 +114,21 @@ describe('Appendix A site photos (GN-07)', () => {
     ])
   })
 
-  it('shows only the confirmed facts of a split note as the photo note (CP-35)', async () => {
+  it('shows a note as the photo note only when the observation is a fact (CP-36)', async () => {
     const ids = await assessment()
-    const part = (kind: string) => ({ id: kind, kind, text: `${kind} text`, inferred: false })
     await observation(ids, [photo('a.jpg')], {
-      note: 'IR: ask for roof plan',
-      parts: [part('info_request')],
+      note: 'Ask for roof plan',
+      kinds: ['info_request'],
     })
-    await observation(ids, [photo('b.jpg')], { parts: [part('info_request'), part('fact')] })
+    await observation(ids, [photo('b.jpg')], {
+      note: 'Fact and advice',
+      kinds: ['fact', 'recommendation'],
+    })
     await observation(ids, [photo('c.jpg')])
 
     const notes = (await api.get(url)).body.available.map((p: { note: string | null }) => p.note)
 
-    expect(notes.sort()).toEqual([null, 'Fire pump controller in auto.', 'fact text'].sort())
+    expect(notes.sort()).toEqual([null, 'Fire pump controller in auto.', 'Fact and advice'].sort())
   })
 
   it('saves the chosen photos in order with their captions, and deselects', async () => {

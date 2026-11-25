@@ -107,7 +107,7 @@ describe('GET /api/usage/summary (EV-04)', () => {
       // Searching a knowledge document by meaning (IN-17).
       'knowledge-search',
       // Sorting a shorthand note (CP-35).
-      'split-note',
+      'suggest-kinds',
       // Calls made for a walkthrough or on a practice assessment (F-12).
       'walkthrough',
       // Comparing with the previous report (RV-13).

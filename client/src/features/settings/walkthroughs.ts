@@ -17,14 +17,9 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       "Hi, I see it's your first time in the Settings tab.\n\nWould you like me to show you around?",
     steps: [
       {
-        // At: Menu: Password, Chat and voice, Note-taking   (selector hint from the old code: settings menu (first group))
-        target: ['settings.menu.password', 'settings.menu.chat', 'settings.menu.note-taking'],
-        say: 'These first 3 settings are **yours**:\n- **Password** is where you change your password.\n- **Chat and Voice** sets how my answers are read aloud.\n- **Note-Taking** holds your note codes and your glossary.',
-      },
-      {
-        // At: Note-taking   (selector hint from the old code: menu item "Note-taking")
-        target: 'settings.menu.note-taking',
-        say: "**Note-Taking** is worth a visit. It's where you set the codes you start a line with, and where you can teach me the words you use on site.",
+        // At: Menu: Password, Chat and voice   (selector hint from the old code: settings menu (first group))
+        target: ['settings.menu.password', 'settings.menu.chat'],
+        say: 'These first 2 settings are **yours**:\n- **Password** is where you change your password.\n- **Chat and Voice** sets how my answers are read aloud.',
       },
       {
         // At: Menu: Models and Source priority   (selector hint from the old code: settings menu "Set by admin")

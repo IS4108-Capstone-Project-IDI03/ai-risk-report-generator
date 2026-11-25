@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import app from '../index'
 import { AssessmentModel } from '../models/assessment.model'
 import { CaptureSessionModel } from '../models/capture-session.model'
-import { ObservationModel } from '../models/observation.model'
+import { ObservationModel, type ObservationKind } from '../models/observation.model'
 import { SiteModel } from '../models/site.model'
 import { signedInAs } from './auth-test-helpers'
 import { useMemoryMongo } from './memory-mongo'
@@ -48,26 +48,20 @@ async function setup() {
   })
   return { assessment: a._id, session: session._id }
 }
-const part = (kind: string, text: string) => ({
-  id: text,
-  kind,
-  text,
-  shorthand: '',
-  inferred: false,
-})
 const obs = (
   ids: { assessment: Types.ObjectId; session: Types.ObjectId },
-  parts: object[],
+  kinds: ObservationKind[] | undefined,
+  note = 'a note',
   extra = {},
 ) =>
   ObservationModel.create({
     ...ids,
     engineer: alex.name,
-    note: 'a note',
+    note,
     recordings: [],
     severity: 'high',
     location: BAY,
-    parts,
+    ...(kinds && { kinds }),
     metadata: {
       source_type: 'observation',
       jurisdiction: 'SG',
@@ -78,26 +72,22 @@ const obs = (
     ...extra,
   })
 
-describe('GET /api/assessments/:reference/to-ask (CP-35)', () => {
-  it('lists only the info requests, each with its observation, place and severity', async () => {
+describe('GET /api/assessments/:reference/to-ask (CP-36)', () => {
+  it('lists the observations tagged Information request, each with its place and severity', async () => {
     const ids = await setup()
-    const a = await obs(ids, [
-      part('fact', 'Valve shut.'),
-      part('info_request', 'Ask for the valve schedule.'),
-    ])
-    await obs(
-      ids,
-      [part('recommendation', 'Lock it open.'), part('info_request', 'Ask who tests the pump.')],
-      { severity: 'critical' },
-    )
-    await obs(ids, [part('fact', 'Only a fact.')])
+    const a = await obs(ids, ['info_request'], 'Ask for the valve schedule.')
+    await obs(ids, ['fact', 'info_request'], 'Valve shut; ask who tests the pump.', {
+      severity: 'critical',
+    })
+    await obs(ids, ['recommendation'], 'Lock it open.')
+    await obs(ids, undefined, 'Only a fact.')
 
     const res = await api.get(URL)
 
     expect(res.status).toBe(200)
     expect(res.body.items.map((i: { text: string }) => i.text)).toEqual([
       'Ask for the valve schedule.',
-      'Ask who tests the pump.',
+      'Valve shut; ask who tests the pump.',
     ])
     expect(res.body.items[0]).toMatchObject({
       observationId: String(a._id),
@@ -107,13 +97,25 @@ describe('GET /api/assessments/:reference/to-ask (CP-35)', () => {
     expect(res.body.items[1].severity).toBe('critical')
   })
 
-  it('is empty when no note has an info request, and skips a deleted observation', async () => {
+  it('says which requests are asked, and ticking one does not change the others', async () => {
+    const ids = await setup()
+    const a = await obs(ids, ['info_request'], 'Ask for the valve schedule.')
+    await obs(ids, ['info_request'], 'Ask who tests the pump.')
+    expect((await api.patch(`/api/observations/${a._id}`).send({ asked: true })).status).toBe(200)
+    const items = (await api.get(URL)).body.items
+    expect(
+      items.find((i: { observationId: string }) => i.observationId === String(a._id)).asked,
+    ).toBe(true)
+    expect(items.filter((i: { asked: boolean }) => i.asked)).toHaveLength(1)
+  })
+
+  it('is empty when none is tagged, and skips a deleted observation', async () => {
     const ids = await setup()
     expect((await api.get(URL)).body.items).toEqual([])
-    await obs(ids, [part('info_request', 'Ask about the roof.')], {
+    await obs(ids, ['info_request'], 'Ask about the roof.', {
       deleted: { at: new Date(), by: { id: String(alex._id), name: alex.name } },
     })
-    await obs(ids, [])
+    await obs(ids, undefined)
     expect((await api.get(URL)).body.items).toEqual([])
   })
 

@@ -19,7 +19,7 @@ import { CategoryPicker } from '../components/CategoryPicker'
 import { ChecklistSheet } from '../components/ChecklistSheet'
 import { Tip } from '../../help/Tip'
 import { LocationPicker } from '../components/LocationSheet'
-import { SplitNotePanel } from '../components/SplitNotePanel'
+import { KindPicker } from '../components/KindPicker'
 import { SiteWeatherPanel } from '../weather/SiteWeatherPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
 import { type AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -37,6 +37,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
   const grid = useCaptureFit<HTMLDivElement>()
   const split = v.captureSplit
+  // The note as it was when the engineer last left its box: the tag picker's cue to suggest.
+  const [blurred, setBlurred] = useState('')
   // Closing the tab asks first while something is unsaved: the same test as the Leave dialog's
   // "Not saved: ..." line. Without this, closing the tab would lose the draft silently.
   const unsaved = v.unsavedLabel !== ''
@@ -110,6 +112,18 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                 {...(v.proposalCapture && { legend: 'Category' })}
               />
               <CaptureSeverity value={v.fSev} onChange={v.setFSev} />
+              {/* Tags (CP-36): in every mode, since a photo or voice observation is tagged too.
+                  A site walk proposal saves locally, so it asks for no suggestion. */}
+              <KindPicker
+                value={v.fKinds}
+                onChange={v.setFKinds}
+                labels={v.fLabels}
+                onLabels={v.proposalCapture ? undefined : v.setFLabels}
+                reference={v.proposalCapture ? null : v.liveVoice ? v.captureRef : null}
+                text={v.fNote}
+                blurred={blurred}
+                disabled={v.fSaving}
+              />
               {split && <CaptureActions v={v} pinned={false} />}
             </section>
           </div>
@@ -124,18 +138,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                     onChange={v.setFNote}
                     phone={!!v.phone}
                     reference={v.liveVoice ? v.captureRef : null}
+                    onBlur={setBlurred}
                   />
-                  {/* Sorting the note into facts, requests and recommendations (CP-35).
-                      A site walk proposal saves locally, so it has no split. */}
-                  {!v.proposalCapture && (
-                    <SplitNotePanel
-                      reference={v.captureRef}
-                      note={v.fNote}
-                      saving={v.fSaving}
-                      parts={v.fParts}
-                      setParts={v.setFParts}
-                    />
-                  )}
                 </>
               )}
               {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}

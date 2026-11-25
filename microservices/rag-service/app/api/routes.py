@@ -39,7 +39,7 @@ from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
 from app.retrieval_config import EMBEDDING_MODEL, chroma_client, cohere_client
-from app.site_walk.note_split import split_note
+from app.site_walk.kind_suggest import suggest_kinds
 from app.site_walk.observation_rate import rate_observation
 from app.site_walk.propose import propose_site_walk
 
@@ -963,24 +963,17 @@ def assistant_wording(request: AssistantWordingRequest) -> dict:
         raise HTTPException(502, str(error)) from error
 
 
-class GlossaryTerm(BaseModel):
+class SuggestKindsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    term: Annotated[str, Field(min_length=1)]
-    meaning: str
-
-
-class SplitNoteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    lines: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
-    glossary: list[GlossaryTerm] = []
+    text: Annotated[str, Field(min_length=1, max_length=5000)]
     privacy: Privacy | None = None
 
 
-@router.post("/split-note")
-def split_note_route(request: SplitNoteRequest) -> dict:
-    """Split a shorthand note's lines into typed, expanded parts (CP-35)."""
+@router.post("/suggest-kinds")
+def suggest_kinds_route(request: SuggestKindsRequest) -> dict:
+    """Suggest the kinds an observation's text holds (CP-36)."""
     try:
-        return split_note(request.lines, request.glossary, _privacy(request))
+        return suggest_kinds(request.text, _privacy(request))
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error
     except GenerationFailed as error:

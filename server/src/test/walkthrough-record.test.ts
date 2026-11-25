@@ -110,7 +110,7 @@ describe('saving with PATCH /api/settings/me', () => {
   it('welcome stamps the time', async () => {
     const res = await save({ welcome: true })
     expect(res.status).toBe(200)
-    expect(res.body.noteTaking).toBeDefined()
+    expect(res.body.canEditGlobal).toBeDefined()
     expect(Date.parse((await record()).welcomeAt)).toBeGreaterThan(Date.now() - 5000)
   })
 
@@ -145,14 +145,15 @@ describe('saving with PATCH /api/settings/me', () => {
     expect((await record()).counts).toEqual({ 'manual-observation': 2, other: 1 })
   })
 
-  it('takes several keys together, and together with the personal settings', async () => {
+  it('takes several walkthrough keys together, and refuses the removed note codes and glossary (CP-36)', async () => {
     const res = await asAlex.patch('/api/settings/me').send({
-      glossary: [{ term: 'TIV', meaning: 'total insured value' }],
-      walkthroughs: { welcome: true },
+      walkthroughs: { welcome: true, offers: false },
     })
     expect(res.status).toBe(200)
-    expect(res.body.noteTaking.glossary).toHaveLength(1)
     expect((await record()).welcomeAt).not.toBeNull()
+    expect((await record()).offers).toBe(false)
+    const gone = await asAlex.patch('/api/settings/me').send({ glossary: [], noteCodes: null })
+    expect(gone.status).toBe(400)
   })
 
   it('clear empties the four fields and keeps offers and the practice assessment', async () => {

@@ -94,6 +94,16 @@ describe('site walk proposal edits', () => {
     expect(observationsAt(p, 'loc-1').map((o) => o.ref)).toEqual(['obs-1', 'obs-2', 'obs-4'])
   })
 
+  // CP-36: tags are set by an edit, and clearing them leaves no tags at all.
+  it('sets and clears the tags of an observation', () => {
+    const tagged = updateObservation(proposal(), 'obs-1', { kinds: ['fact', 'recommendation'] })
+    expect(tagged.observations[0].kinds).toEqual(['fact', 'recommendation'])
+    const kept = updateObservation(tagged, 'obs-1', { note: 'New words' })
+    expect(kept.observations[0].kinds).toEqual(['fact', 'recommendation'])
+    const cleared = updateObservation(tagged, 'obs-1', { kinds: null })
+    expect(cleared.observations[0].kinds).toBeUndefined()
+  })
+
   // CP-24 AC17, AC8: a value the engineer chose or confirmed is theirs, so its flag clears.
   it('clears a not-sure flag when its value is changed or confirmed, and only that flag', () => {
     const changed = updateObservation(proposal(), 'obs-1', { severity: 'low' })

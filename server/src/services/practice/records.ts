@@ -95,21 +95,10 @@ export async function fillPractice(
       session: session._id,
       engineer: user.name,
       engineerId: createdBy,
-      // One note carries a question for the client: the same two parts Split note would save,
-      // so "To ask the client" has a row and drafting reads the fact alone.
-      note: o.ask ? `${o.note}\nIR ${o.ask}` : o.note,
-      ...(o.ask && {
-        parts: [
-          { id: 'p1', kind: 'fact' as const, text: o.note, shorthand: o.note, inferred: true },
-          {
-            id: 'p2',
-            kind: 'info_request' as const,
-            text: o.ask,
-            shorthand: `IR ${o.ask}`,
-            inferred: false,
-          },
-        ],
-      }),
+      // One note carries a question for the client: it is tagged a fact and an info request (CP-36),
+      // so "To ask the client" has a row and drafting still reads the fact.
+      note: o.ask ? `${o.note} ${o.ask}` : o.note,
+      ...(o.ask && { kinds: ['fact' as const, 'info_request' as const] }),
       recordings: [],
       photos: [],
       pages: [],

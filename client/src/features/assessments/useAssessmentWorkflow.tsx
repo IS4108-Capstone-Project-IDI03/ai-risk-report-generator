@@ -9,7 +9,7 @@ import {
   restoreAssessment as requestRestore,
   GatewayError,
   listAssessments,
-  type Part,
+  type Kind,
   retranscribePage,
   retryPageTranscription,
   retrySuggestion,
@@ -124,6 +124,7 @@ import { formatCoordinates, parseCoordinates, type Coordinates } from './googleM
 import { useLocations } from './useLocations'
 import { useObservations } from './useObservations'
 import { useAssessmentEvents } from './useAssessmentEvents'
+import { hasTag, tagFilterChips } from './noteKinds'
 import { draftItem, type CaptureRecording } from './captureRecordings'
 import {
   initialState,
@@ -163,6 +164,10 @@ export type ObservationChange = {
   sev?: string
   locationId?: string
   note?: string
+  // The tags; null clears them (CP-36).
+  kinds?: Kind[] | null
+  // The sort-only labels; null clears them (CP-36).
+  labels?: string[] | null
   // Keeps these not-sure values as they are (CP-24): they become the engineer's.
   confirm?: ('category' | 'severity')[]
 }
@@ -307,7 +312,8 @@ const BLANK_DRAFT = {
   fSending: 0,
   fLengths: {},
   fLocRefused: 0,
-  fParts: null,
+  fKinds: [],
+  fLabels: [],
   fClips: [],
   fPhotos: [],
   fPages: [],
@@ -474,6 +480,8 @@ function toEntry(o: SavedObservation): Observation {
           ? 'var(--text-secondary)'
           : '#4f9aee',
     cats: o.copeDimensions ?? [],
+    kinds: o.kinds,
+    labels: o.labels,
     time: formatDayYearTime(new Date(o.recordedAt)),
     text,
     locationName: o.location?.name ?? '',
@@ -1233,7 +1241,13 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }))
       })
     const obsRows = allRows.filter(({ o }) => !!o.deleted === s.obsShowDeleted)
-    const shownRows = obsRows.filter(({ o }) => matchesFilters(o, s.of))
+    // The tag filter row (CP-36): its chips with counts, over the listed observations. A chosen
+    // label nothing carries any more falls back to All, so the list never goes blank without a chip.
+    const tagChips = tagFilterChips(obsRows.map((r) => r.o))
+    const obsTag = tagChips.some((c) => c.value === s.obsTag) ? s.obsTag : ''
+    const shownRows = obsRows
+      .filter(({ o }) => matchesFilters(o, s.of))
+      .filter(({ o }) => hasTag(o, obsTag))
     // The Location filter offers where the listed observations are, and the
     // place chosen even when only the other list (deleted or not) holds it.
     const placeOptions = placeFilter(
@@ -1398,6 +1412,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           note: note ?? '',
           copeDimension: (s.fCats[0] as Cope | undefined) ?? null,
           severity: (s.fSev || null) as Severity | null,
+          ...(s.fKinds.length > 0 && { kinds: s.fKinds }),
           clips: clips.map((c) => c.audio),
           photos: photos.map((p) => p.image),
           pages: pages.map((p) => p.image),
@@ -1442,7 +1457,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
             locationId: location.id,
             // The hidden draft becomes this observation; its recordings are not sent again.
             ...(media.draftId && { draftId: media.draftId }),
-            ...(s.fParts && note && { parts: s.fParts }),
+            ...(s.fKinds.length > 0 && { kinds: s.fKinds }),
+            ...(s.fLabels.length > 0 && { labels: s.fLabels }),
             ...(item && { checklistItem: { itemId: item.id, result: 'differs' as const } }),
           },
           clips.map((c) => ({ name: c.name, audio: c.audio })),
@@ -1500,7 +1516,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         obsFolded: { ...previous.obsFolded, [groupKey(location)]: false },
         fSaving: false,
         fNote: previous.fNote === note ? '' : previous.fNote,
-        fParts: previous.fNote === note ? null : previous.fParts,
+        fKinds: previous.fNote === note ? [] : previous.fKinds,
+        fLabels: previous.fNote === note ? [] : previous.fLabels,
         fClips: previous.fClips.filter((c) => !clips.includes(c)),
         fPhotos: previous.fPhotos.filter((p) => !photos.includes(p)),
         fPages: previous.fPages.filter((p) => !pages.includes(p)),
@@ -1581,6 +1598,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
               ...x,
               cats: change.cats ?? x.cats,
               sev: change.sev ?? x.sev,
+              ...(change.kinds !== undefined && { kinds: change.kinds ?? undefined }),
+              ...(change.labels !== undefined && { labels: change.labels ?? undefined }),
               ...(location && {
                 locationName: location.name,
                 building: location.building,
@@ -1602,6 +1621,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         ...(change.sev && { severity: sev }),
         ...(location && { locationId: location.id }),
         ...(change.note !== undefined && { note: note.trim() ? note : null }),
+        ...(change.kinds !== undefined && { kinds: change.kinds }),
+        ...(change.labels !== undefined && { labels: change.labels }),
         ...(change.confirm && { confirm: change.confirm }),
       }
       if (!Object.keys(changes).length) return
@@ -3061,7 +3082,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         levels: g.levels
           .map((level) => ({
             ...level,
-            locations: level.locations.filter((l) => !filtersActive(s.of) || l.items.length),
+            locations: level.locations.filter(
+              (l) => !(filtersActive(s.of) || obsTag) || l.items.length,
+            ),
           }))
           .filter((level) => level.locations.length),
       }))
@@ -3690,7 +3713,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       obsViaOverview,
       obsFrom: s.obsFrom ?? null,
       obsCountLabel: obsRows.length
-        ? filtersActive(s.of)
+        ? filtersActive(s.of) || obsTag
           ? 'Showing ' + shownRows.length + ' of ' + plural(obsRows.length, obsNoun)
           : 'Showing 1–' + obsRows.length + ' of ' + plural(obsRows.length, obsNoun)
         : plural(0, obsNoun),
@@ -3704,14 +3727,17 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
       /* observation filters (CP-06 AC2, CP-08 AC3): any one label returns what carries it */
       obsFilters: s.of,
       obsSearchWords,
-      obsFiltering: filtersActive(s.of),
-      obsNoMatch: filtersActive(s.of) && obsRows.length > 0 && shownRows.length === 0,
+      obsFiltering: filtersActive(s.of) || !!obsTag,
+      obsNoMatch: (filtersActive(s.of) || !!obsTag) && obsRows.length > 0 && shownRows.length === 0,
       // Nothing captured yet, and no locations to list by: the list offers
       // Add observation instead.
       obsNone: !s.obsShowDeleted && obsRows.length === 0 && !(obsByLocation && obsGroups.length),
       setObsFilter: (key: keyof ObservationFilters, value: string) =>
         setState({ of: { ...s.of, [key]: value } }),
-      clearObsFilters: () => setState({ of: NO_FILTERS }),
+      clearObsFilters: () => setState({ of: NO_FILTERS, obsTag: '' }),
+      obsTagChips: tagChips,
+      obsTag,
+      setObsTag: (obsTag: string) => setState({ obsTag }),
       obsTypeFilterOptions: [{ value: '', label: 'All types' }, ...OBSERVATION_TYPES],
       obsCatFilterOptions: [{ value: '', label: 'All categories' }, ...CATEGORY_OPTIONS],
       obsSevFilterOptions: [{ value: '', label: 'All severities' }, ...SEVERITY_OPTIONS],
@@ -4087,9 +4113,11 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       // One note per observation, saved exactly as typed in the box.
       fNote: s.fNote,
-      // The confirmed split of the note, sent with Save observation (CP-35).
-      fParts: s.fParts,
-      setFParts: (fParts: Part[] | null) => setState({ fParts }),
+      // The tags chosen for the observation being captured, sent with Save (CP-36).
+      fKinds: s.fKinds,
+      setFKinds: (fKinds: Kind[]) => setState({ fKinds }),
+      fLabels: s.fLabels,
+      setFLabels: (fLabels: string[]) => setState({ fLabels }),
       fSaving: s.fSaving,
       fSaveError: s.fSaveError,
       setFNote: (fNote: string) => setState({ fNote }),
@@ -4553,7 +4581,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           },
           obsFolded: { ...s.obsFolded, [groupKey(currentLocation)]: false },
           fNote: '',
-          fParts: null,
+          fKinds: [],
+          fLabels: [],
           fPhotos: [],
           fPages: [],
           fTrans: false,
