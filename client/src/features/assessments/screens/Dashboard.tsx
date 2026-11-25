@@ -12,6 +12,7 @@ import {
   TableFooter,
   TopBar,
   toast,
+  useIsPhone,
 } from '../../../design-system'
 import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
@@ -21,6 +22,7 @@ import { useReloadOnOutsideChange } from '../../notifications/useNotificationCou
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { ClientGroup } from '../components/ClientGroup'
 import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
+import { WorkSkeleton } from '../components/WorkSkeleton'
 import { WorkToolbar } from '../components/WorkToolbar'
 import { useCompact } from '../useCompact'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -38,7 +40,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
+  // Before the first answer the workflow holds made-up sample rows: show grey ones instead.
+  const loading = v.calendar.loading
   const compact = useCompact()
+  const phone = useIsPhone()
   // F-12: the list has loaded once the gateway has answered (or failed). Nothing is offered
   // while there is no row to point at: no practice assessment and nothing matching.
   useWalkthroughScreen('assessments', !v.calendar.loading, !v.practiceRow && v.noResults)
@@ -76,10 +81,14 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
       <TopBar
         eyebrow="RISK ENGINEERING"
         title="Assessments"
+        // A phone's title shares its row with Focus and New assessment, so the line would wrap to
+        // three: the groups say it already.
         helper={
-          v.canAssign
-            ? 'Every assessment across the team, grouped by client and site.'
-            : 'Every assessment you are working on, grouped by client and site.'
+          phone
+            ? undefined
+            : v.canAssign
+              ? 'Every assessment across the team, grouped by client and site.'
+              : 'Every assessment you are working on, grouped by client and site.'
         }
         bell={bell}
         action={
@@ -100,7 +109,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
           <div role="status">
             <Callout tone="warning" title="Showing sample assessments">
               {
-                'The gateway could not be reached, so saved assessments are not listed. Start the gateway, then return to the dashboard.'
+                'Can’t reach the server, so saved assessments aren’t listed. Check your connection, then reload this page.'
               }
             </Callout>
           </div>
@@ -134,7 +143,9 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </span>
               <span />
             </div>
-            {pinned &&
+            {loading && <WorkSkeleton />}
+            {!loading &&
+              pinned &&
               (grouped ? (
                 <ClientGroup
                   key={'practice-' + pinned.id}
@@ -160,36 +171,37 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                   first
                 />
               ))}
-            {grouped
-              ? v.workGroups.flatMap((client, i) =>
-                  client.sites.map((site, j) => (
-                    <ClientGroup
-                      key={client.key + site.key}
-                      client={client}
-                      site={site}
+            {!loading &&
+              (grouped
+                ? v.workGroups.flatMap((client, i) =>
+                    client.sites.map((site, j) => (
+                      <ClientGroup
+                        key={client.key + site.key}
+                        client={client}
+                        site={site}
+                        onOpen={v.onRow}
+                        onArchive={archiveOf}
+                        assign={assign}
+                        first={!pinned && i === 0 && j === 0}
+                        walkRow={walkRow}
+                        walkOther={otherRow}
+                      />
+                    )),
+                  )
+                : v.filteredRows.map((r, i) => (
+                    <WorkRow
+                      key={r.id}
+                      r={r}
+                      grouped={false}
                       onOpen={v.onRow}
-                      onArchive={archiveOf}
+                      onArchive={archiveOf(r)}
                       assign={assign}
-                      first={!pinned && i === 0 && j === 0}
-                      walkRow={walkRow}
-                      walkOther={otherRow}
+                      first={!pinned && i === 0}
+                      walkAction={r.id === walkRow}
+                      walkOther={r.id === otherRow}
                     />
-                  )),
-                )
-              : v.filteredRows.map((r, i) => (
-                  <WorkRow
-                    key={r.id}
-                    r={r}
-                    grouped={false}
-                    onOpen={v.onRow}
-                    onArchive={archiveOf(r)}
-                    assign={assign}
-                    first={!pinned && i === 0}
-                    walkAction={r.id === walkRow}
-                    walkOther={r.id === otherRow}
-                  />
-                ))}
-            {!!v.noResults && (
+                  )))}
+            {!loading && !!v.noResults && (
               <div className="at-empty">
                 {v.noAssessments ? (
                   <EmptyState
@@ -222,12 +234,14 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </div>
             )}
           </div>
-          <TableFooter
-            late={v.lateCount ? plural(v.lateCount, 'report') + ' late' : undefined}
-            onLateClick={() => v.setDateFilter('overdue')}
-          >
-            {plural(v.filteredRows.length, 'assessment')}
-          </TableFooter>
+          {!loading && (
+            <TableFooter
+              late={v.lateCount ? plural(v.lateCount, 'report') + ' late' : undefined}
+              onLateClick={() => v.setDateFilter('overdue')}
+            >
+              {plural(v.filteredRows.length, 'assessment')}
+            </TableFooter>
+          )}
         </div>
       </div>
       {held && (

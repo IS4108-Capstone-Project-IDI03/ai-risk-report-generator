@@ -3,7 +3,7 @@
 // "Add contact" cell opens a cell to type into. A cell is edited in place and
 // shows as text once focus leaves it. Used by AssessmentBlock.tsx.
 import { useState, type FocusEvent } from 'react'
-import { Icon, IconButton } from '../../../design-system'
+import { AddRow, IconButton, Input } from '../../../design-system'
 import { initials } from '../../clients/components/ClientAvatar'
 import type { Contact } from '../form'
 
@@ -30,8 +30,7 @@ export function ContactsEditor({
         {contacts.map((c, k) =>
           editing === k ? (
             <div key={k} className="na-contact is-editing" onBlur={leave(k)}>
-              <input
-                className="na-contact-input"
+              <Input
                 aria-label={'Contact ' + (k + 1) + ' name'}
                 placeholder="Name"
                 autoComplete="off"
@@ -39,8 +38,7 @@ export function ContactsEditor({
                 value={c.name}
                 onChange={(e) => set(k, { name: e.target.value })}
               />
-              <input
-                className="na-contact-input"
+              <Input
                 aria-label={'Contact ' + (k + 1) + ' role'}
                 placeholder="Role"
                 autoComplete="off"
@@ -73,17 +71,14 @@ export function ContactsEditor({
             </div>
           ),
         )}
-        <button
-          type="button"
-          className="na-contact-add"
+        <AddRow
           onClick={() => {
             onChange([...contacts, { name: '', role: '' }])
             setEditing(contacts.length)
           }}
         >
-          <Icon name="plus" size={16} />
           {'Add contact'}
-        </button>
+        </AddRow>
       </div>
     </fieldset>
   )

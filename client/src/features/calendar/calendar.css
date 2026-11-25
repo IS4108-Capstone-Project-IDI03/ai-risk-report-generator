@@ -442,11 +442,12 @@ button.cal-date {
   background: var(--red-50);
   color: var(--red-600);
 }
-.cal-side-none {
-  margin: 0;
-  padding: 4px 8px 12px;
-  color: var(--graphite-600);
-  font: 400 14px/1.4 var(--font-sans);
+/* A list with nothing in it is just its heading and a 0: no caption to read. */
+.cal-side-card[data-empty] {
+  padding-bottom: 16px;
+}
+.cal-side-card[data-empty] h2 {
+  padding-bottom: 0;
 }
 .cal-side-row {
   display: flex;
@@ -500,8 +501,17 @@ button.cal-date {
   .cal-layout {
     gap: 0;
   }
+  /* The period steps on the first row with Today at its end, then the filters scroll below. */
+  .cal-stepper {
+    flex: 1 1 0;
+    min-width: 0;
+  }
   .cal-period {
-    min-width: 184px;
+    flex: 1;
+    min-width: 0;
+  }
+  .cal-period > strong {
+    min-width: 0;
   }
   .cal-toolbar .cal-pills {
     margin-left: 0;

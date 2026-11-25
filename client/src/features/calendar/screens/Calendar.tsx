@@ -148,16 +148,18 @@ export function Calendar({
       setRescheduling(item)
     },
   }
-  const filtered = !!state.show || !!state.type || !!engineer
   return (
     <div className="cl-page cal-page">
       <TopBar
         eyebrow="Risk engineering"
         title="Calendar"
+        // A phone's title shares its row with the New assessment button, so the line would wrap to three.
         helper={
-          team
-            ? 'Surveys and report due dates for every assessment across the team.'
-            : 'Surveys and report due dates for every assessment you are working on.'
+          phone
+            ? undefined
+            : team
+              ? 'Surveys and report due dates for every assessment across the team.'
+              : 'Surveys and report due dates for every assessment you are working on.'
         }
         bell={bell}
         // Beside the bell at every width: the toolbar is full with the period and filters.
@@ -264,7 +266,7 @@ export function Calendar({
               <EmptyState
                 icon="calendar"
                 title="Your calendar could not be loaded"
-                description="The gateway could not be reached. Check your connection and try again."
+                description="Can’t reach the server. Check your connection, then reload this page."
               />
             ) : phone ? (
               <DayList
@@ -297,65 +299,63 @@ export function Calendar({
           </section>
           {!loading && !failed && (
             <aside className="cal-side" aria-label="Needs planning" data-walk="calendar.side">
-              <section className="cl-card cal-side-card" aria-labelledby="cal-late">
+              <section
+                className="cl-card cal-side-card"
+                aria-labelledby="cal-late"
+                data-empty={late.length ? undefined : ''}
+              >
                 <h2 id="cal-late">
                   {'Late reports'}
                   <span className="cal-count" data-late={late.length ? '' : undefined}>
                     {late.length}
                   </span>
                 </h2>
-                {late.length ? (
-                  late.map((item) => (
-                    <EntryRow
-                      key={item.reference}
-                      entryKey={`due:${item.reference}`}
-                      item={item}
-                      kind="due"
-                      ctx={ctx}
-                      where="late"
-                      align="right"
-                      showDate
-                    />
-                  ))
-                ) : (
-                  <p className="cal-side-none">
-                    {filtered ? 'No late reports match.' : 'No reports are late.'}
-                  </p>
-                )}
+                {late.length
+                  ? late.map((item) => (
+                      <EntryRow
+                        key={item.reference}
+                        entryKey={`due:${item.reference}`}
+                        item={item}
+                        kind="due"
+                        ctx={ctx}
+                        where="late"
+                        align="right"
+                        showDate
+                      />
+                    ))
+                  : null}
               </section>
-              <section className="cl-card cal-side-card" aria-labelledby="cal-unscheduled">
+              <section
+                className="cl-card cal-side-card"
+                aria-labelledby="cal-unscheduled"
+                data-empty={unscheduled.length ? undefined : ''}
+              >
                 <h2 id="cal-unscheduled">
                   {'No survey date'}
                   <span className="cal-count">{unscheduled.length}</span>
                 </h2>
-                {unscheduled.length ? (
-                  unscheduled.map((item) => (
-                    <div key={item.reference} className="cal-side-row">
-                      <EntryRow
-                        entryKey={`survey:${item.reference}`}
-                        item={item}
-                        kind="survey"
-                        ctx={ctx}
-                        where="unscheduled"
-                        align="right"
-                      />
-                      {canReschedule(item, me.id) && (
-                        <IconButton
-                          icon="calendar-plus"
-                          label={`Set dates for ${item.site}`}
-                          tooltip="Set dates"
-                          onClick={() => ctx.onReschedule(item)}
+                {unscheduled.length
+                  ? unscheduled.map((item) => (
+                      <div key={item.reference} className="cal-side-row">
+                        <EntryRow
+                          entryKey={`survey:${item.reference}`}
+                          item={item}
+                          kind="survey"
+                          ctx={ctx}
+                          where="unscheduled"
+                          align="right"
                         />
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="cal-side-none">
-                    {filtered
-                      ? 'None without a survey date match.'
-                      : 'Every assessment has a survey date.'}
-                  </p>
-                )}
+                        {canReschedule(item, me.id) && (
+                          <IconButton
+                            icon="calendar-plus"
+                            label={`Set dates for ${item.site}`}
+                            tooltip="Set dates"
+                            onClick={() => ctx.onReschedule(item)}
+                          />
+                        )}
+                      </div>
+                    ))
+                  : null}
               </section>
             </aside>
           )}

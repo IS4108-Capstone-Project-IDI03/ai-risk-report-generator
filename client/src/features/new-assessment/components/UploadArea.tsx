@@ -50,7 +50,13 @@ export function UploadArea({
   }
   const actions = (
     <span className="na-drop-actions">
-      <Button variant="pill" iconLeft="upload" onClick={() => picker.current?.click()}>
+      {/* The one main action on the large start is navy; the slim row above a reading keeps grey pills. */}
+      <Button
+        variant={slim ? 'pill' : 'primary'}
+        pill
+        iconLeft="upload"
+        onClick={() => picker.current?.click()}
+      >
         {'Upload files'}
       </Button>
       <Button

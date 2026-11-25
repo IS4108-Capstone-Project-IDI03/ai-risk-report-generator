@@ -59,7 +59,7 @@ export function ReassignDialog({
   }
   return (
     <Dialog
-      className="ds-dialog--v2 ap-reassign"
+      className="ap-reassign"
       title={'Reassign ' + reference}
       // Nobody to tell when it had no engineer: without this it read "and Unassigned is told it moved".
       description={`Observations and drafts stay with the assessment. The new engineer gets it in their Inbox${engineer.id ? `, and ${engineer.name} is told it moved` : ''}.`}

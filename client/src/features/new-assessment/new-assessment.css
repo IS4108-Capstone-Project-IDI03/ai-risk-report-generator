@@ -444,7 +444,7 @@
   box-sizing: border-box;
   border: 1.5px solid var(--graphite-400);
   border-radius: 5px;
-  color: #fff;
+  color: var(--text-inverse);
 }
 .is-checked .na-pick-box {
   border-color: var(--marsh-navy);
@@ -573,7 +573,7 @@
   gap: 8px;
 }
 .na-contact,
-.na-contact-add {
+.na-contact-grid > .ds-add-row {
   min-width: 0;
   min-height: 52px;
   box-sizing: border-box;
@@ -625,38 +625,17 @@
   height: 28px;
   border-radius: 50%;
   background: var(--report-navy);
-  color: #fff;
+  color: var(--text-inverse);
   font: 700 11px/1 var(--font-sans);
 }
 .na-contact.is-editing {
   gap: 6px;
   padding: 6px;
-  border-color: var(--border-focus);
 }
-.na-contact-input {
+/* The two DS inputs share the cell's width. */
+.na-contact.is-editing > label {
   flex: 1;
   min-width: 0;
-  height: 38px;
-  padding: 0 10px;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-field);
-  color: var(--graphite-900);
-  font: 400 14px/1 var(--font-sans);
-}
-.na-contact-input:focus {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -1px;
-}
-.na-contact-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1.5px dashed var(--graphite-300);
-  background: transparent;
-  color: var(--marsh-navy);
-  font: 600 14px/1 var(--font-sans);
-  cursor: pointer;
 }
 
 /* ---- Adding documents: the large start and the slim row ---- */
@@ -1049,7 +1028,7 @@
 }
 .na-done-tick {
   fill: none;
-  stroke: #fff;
+  stroke: var(--text-inverse);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1120,9 +1099,6 @@
   }
   .na-pick:hover:not(.is-checked) {
     border-color: var(--graphite-400);
-  }
-  .na-contact-add:hover {
-    background: var(--graphite-50);
   }
   .na-suggest button:hover {
     text-decoration: underline;
@@ -1260,10 +1236,6 @@
   .na-drop:not(.na-drop--slim) .na-drop-actions > * {
     width: 100%;
     min-height: 48px;
-  }
-  .na-drop:not(.na-drop--slim) .na-drop-actions > :first-child {
-    background: var(--marsh-navy) !important;
-    color: #fff !important;
   }
   /* Reading fits one screen: no drop row, one line per found group (board 24 B). */
   .na-reading-page > .na-drop--slim,

@@ -16,7 +16,7 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  padding: 20px var(--page-gutter) 24px;
+  padding: 24px var(--page-gutter) 24px;
 }
 /* A phone's list runs edge to edge, like the Clients list (board 21): rows with dividers,
    no bordered card. */
@@ -906,4 +906,38 @@
 }
 .at-focus-walk:empty {
   display: none;
+}
+
+/* ---- Loading: five grey rows, as the Passages table's first load (v2 section 6) ---- */
+.at-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 16px;
+  border-top: 1px solid var(--graphite-100);
+  /* The design system's pulse, as the Inbox's grey rows use (kit.css). */
+  animation: dsPulse 1.6s ease-in-out infinite;
+}
+.at-skel-tile {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile);
+  background: var(--graphite-100);
+}
+.at-skel-bar {
+  height: 12px;
+  max-width: 40%;
+  border-radius: 6px;
+  background: var(--graphite-100);
+}
+.at-skel-end {
+  width: 96px;
+  margin-left: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .at-skel-row {
+    animation: none;
+  }
 }

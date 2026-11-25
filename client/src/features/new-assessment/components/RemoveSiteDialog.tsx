@@ -16,7 +16,6 @@ export function RemoveSiteDialog({
 }) {
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={`Remove ${name}?`}
       description={
         documents

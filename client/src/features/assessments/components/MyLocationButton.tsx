@@ -45,6 +45,7 @@ export function MyLocationButton({
     <div className="sm-locate">
       <Button
         variant="secondary"
+        pill
         size="sm"
         iconLeft="locate-fixed"
         disabled={finding || disabled}
