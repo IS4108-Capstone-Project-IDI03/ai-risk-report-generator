@@ -122,3 +122,34 @@ def test_update_skips_a_passage_deleted_meanwhile(store):
     assert store.get(ids=["a:1", "a:2"])["metadatas"] == [
         {"doc_id": "a", "status": "withdrawn", "page_start": 3}
     ]
+
+
+def test_a_strict_cluster_missing_an_index_gets_it_and_the_read_is_retried(store):
+    # Qdrant Cloud in strict mode refuses a filter on a field with no index (QD-01 click-through:
+    # "Index required but not found for \"section_id\""). The adapter adds it once and retries.
+    from qdrant_client.http.exceptions import UnexpectedResponse
+
+    refused = UnexpectedResponse(
+        400,
+        "Bad Request",
+        b'{"status":{"error":"Bad request: Index required but not found for \\"shelf\\" of one'
+        b' of the following types: [keyword]."}}',
+        None,
+    )
+    real_scroll, made = store.client.scroll, []
+    calls = iter([refused])
+
+    def strict_scroll(*args, **kwargs):
+        error = next(calls, None)
+        if error:
+            raise error
+        return real_scroll(*args, **kwargs)
+
+    store.client.scroll = strict_scroll
+    real_index = store.client.create_payload_index
+    store.client.create_payload_index = lambda name, field, schema: (
+        made.append(field),
+        real_index(name, field, schema),
+    )
+    assert sorted(store.get(where={"doc_id": "a"})["ids"]) == ["a:1", "a:2"]
+    assert made == ["shelf"]

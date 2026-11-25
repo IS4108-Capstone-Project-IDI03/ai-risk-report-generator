@@ -6,10 +6,12 @@ update, delete, count). Must stay identical to the copy in the other service: ra
 ingestion-service each ship this file (tests/test_qdrant_collection.py checks they match).
 """
 
+import re
 import uuid
 import weakref
 
 from qdrant_client import QdrantClient, models
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 # A Qdrant point id must be an integer or a UUID; Chroma's are free text ("<doc>:<n>"). uuid5 is
 # a fixed fingerprint of the text, so the same passage always lands on the same point.
@@ -61,7 +63,18 @@ def to_filter(where: dict | None) -> models.Filter | None:
 
 # The labels every search filters on. Indexed so filters stay fast, and because a Qdrant Cloud
 # cluster in strict mode refuses a filter on a field with no index.
-_INDEXED = ("doc_id", "status", "source_type", "jurisdiction", "facility_type", "section")
+_INDEXED = (
+    "doc_id",
+    "status",
+    "source_type",
+    "jurisdiction",
+    "facility_type",
+    "section",
+    "section_id",
+    "table_id",
+)
+# A strict cluster's refusal names the field it wants indexed.
+_MISSING_INDEX = re.compile(r'Index required but not found for \\?"([^"\\]+)')
 # Collections already checked, per client. Weak, so a closed client's entry goes with it (an
 # id() could be reused by a new client and skip its check).
 _ready: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
@@ -155,6 +168,23 @@ class QdrantCollection:
             points = self._page(to_filter(where), limit, offset or 0, vectors)
         return self._shape(points, include)
 
+    def _indexed(self, call):
+        """Runs a filtered read; if a strict cluster wants a field indexed, indexes it and retries.
+
+        Chat builds some filters at run time, so a fixed index list could miss a key; without
+        this the cloud cluster would refuse that search outright.
+        """
+        try:
+            return call()
+        except UnexpectedResponse as error:
+            found = _MISSING_INDEX.search((error.content or b"").decode(errors="replace"))
+            if not found:
+                raise
+            self.client.create_payload_index(
+                self.name, found.group(1), models.PayloadSchemaType.KEYWORD
+            )
+            return call()
+
     def _page(self, flt, limit, offset, vectors):
         key = repr(flt)
         start = self._next.get((key, offset)) if offset else None
@@ -162,13 +192,15 @@ class QdrantCollection:
         points, after = [], start
         want = (limit or 10_000_000) + skip
         while len(points) < want:
-            batch, after = self.client.scroll(
-                self.name,
-                scroll_filter=flt,
-                limit=min(want - len(points), 1000),
-                offset=after,
-                with_payload=True,
-                with_vectors=vectors,
+            batch, after = self._indexed(
+                lambda: self.client.scroll(
+                    self.name,
+                    scroll_filter=flt,
+                    limit=min(want - len(points), 1000),
+                    offset=after,
+                    with_payload=True,
+                    with_vectors=vectors,
+                )
             )
             points += batch
             if after is None:
@@ -186,12 +218,16 @@ class QdrantCollection:
         """
         include = include or ("metadatas", "documents", "distances")
         flt = to_filter(where)
-        answers = self.client.query_batch_points(
-            self.name,
-            [
-                models.QueryRequest(query=list(v), filter=flt, limit=n_results, with_payload=True)
-                for v in query_embeddings
-            ],
+        answers = self._indexed(
+            lambda: self.client.query_batch_points(
+                self.name,
+                [
+                    models.QueryRequest(
+                        query=list(v), filter=flt, limit=n_results, with_payload=True
+                    )
+                    for v in query_embeddings
+                ],
+            )
         )
         shaped = [self._shape(a.points, include) for a in answers]
         out = {k: [s[k] for s in shaped] for k in ("ids", "documents", "metadatas")}
