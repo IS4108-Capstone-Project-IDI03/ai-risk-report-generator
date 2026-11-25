@@ -249,7 +249,9 @@ export function PdfViewer({ fileUrl, passage, quote, shown, expanded, onToggleEx
             onClick={() => setPage(page - 1)}
           />
           <span className="chat-pdf-count">
-            Page {ready ? page : '–'}
+            {/* Dropped on a phone so the bar keeps to one row; the arrows still say "page". */}
+            <span className="chat-pdf-word">Page </span>
+            {ready ? page : '–'}
             {pageCount ? ` of ${pageCount}` : ''}
           </span>
           <IconButton

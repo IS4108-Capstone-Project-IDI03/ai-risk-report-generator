@@ -7,7 +7,7 @@ import { Button, IconButton, Tabs } from '../../../design-system'
 import { pages } from '../../assessments/reviewDisplay'
 import type { SelectedCitation } from './citationSelection'
 import { screenshotUrl } from '../../knowledge-base/api'
-import { useDocument } from './documents'
+import { useDocument, useDocumentGone } from './documents'
 import { PassageDetails } from './PassageDetails'
 import { PdfErrorBoundary } from './PdfErrorBoundary'
 import { loadPdfViewer } from './pdfViewerLoader'
@@ -40,9 +40,12 @@ export function CitationPanel({ selected, onClose }: Props) {
   // A page of the engineer's own attached PDF (CB-09): the gateway keeps its text, not the file, so
   // there is no PDF tab, and the file's name is the title.
   const attached = Boolean(source?.passageId?.startsWith('att:'))
+  // An older answer can cite a document an admin has since deleted; without this its panel
+  // read "Document details loading" for good and offered a PDF that can't load.
+  const gone = useDocumentGone(attached ? undefined : source?.documentId)
   // A manually entered clause (IN-18) has no file either: its screenshots show in the Passage tab.
   const manual = Boolean(ready?.manual || doc?.manual)
-  const noPdf = attached || manual
+  const noPdf = attached || manual || gone
   const images =
     source?.documentId && ready?.images
       ? ready.images.map((key) => screenshotUrl(source.documentId!, key))
@@ -51,9 +54,14 @@ export function CitationPanel({ selected, onClose }: Props) {
   const status =
     loaded.status === 'loading' ? (
       <p className="rv-viewer-note">Loading the passage…</p>
+    ) : loaded.status === 'error' && gone ? (
+      <p className="rv-viewer-note" role="alert">
+        This document has been removed from the knowledge base, so its passage can't be shown. The
+        answer quoted: “{quote}”
+      </p>
     ) : loaded.status === 'error' ? (
       <p className="rv-viewer-note" role="alert">
-        The passage couldn't be loaded, so the quoted words can't be highlighted: “{quote}”.
+        The passage couldn't be loaded, so the quoted words can't be highlighted: “{quote}”
         {doc?.fileUrl && (
           <>
             {' '}
@@ -168,7 +176,13 @@ export function CitationPanel({ selected, onClose }: Props) {
           manual={manual}
           images={images}
           status={status}
-          title={attached ? (ready?.headings[0] ?? 'Attached PDF') : undefined}
+          title={
+            gone
+              ? 'Removed from the knowledge base'
+              : attached
+                ? (ready?.headings[0] ?? 'Attached PDF')
+                : undefined
+          }
         />
       </div>
       <div

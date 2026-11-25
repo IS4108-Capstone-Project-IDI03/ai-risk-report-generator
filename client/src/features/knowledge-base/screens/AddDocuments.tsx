@@ -69,10 +69,10 @@ export function AddDocuments({
           </span>
           <div className="kb-drop-text">
             <p className="kb-drop-title">Drop files here, or choose them</p>
-            <p className="kb-drop-sub">
+            <div className="kb-drop-sub">
               PDF, Word, PowerPoint, RTF or ODT, up to 100 MB each.
               <Tip id="knowledge-add.upload" />
-            </p>
+            </div>
           </div>
           <input
             ref={picker}

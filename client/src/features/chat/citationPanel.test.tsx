@@ -390,6 +390,18 @@ describe('Passage tab', () => {
     expect(await screen.findByText(/passage couldn't be loaded/)).toBeInTheDocument()
     expect(screen.getByText('FM Data Sheet 2-81')).toBeInTheDocument()
   })
+
+  it('says the document was removed when an older answer cites one deleted since', async () => {
+    vi.mocked(fetchPassage).mockRejectedValue(new Error('Passage not found.'))
+    const source = { ...cited().source!, documentId: 'deleted' }
+    renderPanel(cited({ source }))
+    expect(
+      await screen.findByText(/document has been removed from the knowledge base/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Removed from the knowledge base' })).toBeVisible()
+    expect(screen.queryByText('Document details loading')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'PDF' })).not.toBeInTheDocument()
+  })
 })
 
 // KB-02: the part of the original page a table, formula or picture passage was read from.
@@ -813,7 +825,12 @@ describe('PDF tab', () => {
 
   it('steps through pages, highlighting only the cited one, and returns to it', async () => {
     const page = await openPdf()
-    expect(await screen.findByText('Page 51 of 60')).toBeInTheDocument()
+    // "Page " is its own span, hidden on a phone, so match the whole count.
+    expect(
+      await screen.findByText(
+        (_, el) => el?.className === 'chat-pdf-count' && el.textContent === 'Page 51 of 60',
+      ),
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
     expect(page).toHaveAttribute('data-page', '50')
     expect(screen.queryByTestId('quote-mark')).not.toBeInTheDocument()

@@ -9,12 +9,16 @@ import {
   type KnowledgeDocument,
   type KnowledgeGapRequest,
 } from '../api'
-import { calendarDate, needsReview } from '../display'
+import { needsReview } from '../display'
 import { RequestQuote } from './RequestQuote'
 
-// e.g. "21 Oct 2026 10:18": the design system's literal date with its year, then the time.
-const uploadedWhen = (iso: string) =>
-  `${calendarDate(iso)} ${new Date(iso).toTimeString().slice(0, 5)}`
+// e.g. "21 Oct 2026 10:18": the design system's literal date with its year, then the time, both
+// in the admin's own time zone (calendarDate is UTC, which put a just-after-midnight upload on
+// the day before).
+const uploadedWhen = (iso: string) => {
+  const date = new Date(iso)
+  return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${date.getFullYear()} ${date.toTimeString().slice(0, 5)}`
+}
 
 /** Returns the mark-as-filled dialog for one request. */
 export function FillRequestDialog({

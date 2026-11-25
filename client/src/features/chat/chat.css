@@ -872,6 +872,9 @@
     padding-left: 0;
     border-left: 0;
   }
+  .chat-pdf-word {
+    display: none;
+  }
 }
 /* A link styled as the bar's icon buttons (it opens a new tab, so it stays an <a>). */
 .chat-pdf-open {
@@ -888,6 +891,13 @@
 .chat-pdf-open:hover {
   background: var(--chat-hover);
   color: var(--text-primary);
+}
+/* Fingers need 44px, as the bar's icon buttons get. */
+@media (pointer: coarse), (max-width: 767px) {
+  .chat-pdf-open {
+    width: 44px;
+    height: 44px;
+  }
 }
 .chat-pdf-note {
   flex: none;

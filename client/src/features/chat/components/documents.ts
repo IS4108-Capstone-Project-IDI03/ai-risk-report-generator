@@ -59,3 +59,10 @@ export function useDocumentMap(): Map<string, DocSummary> {
 export function useDocument(documentId?: string): DocSummary | undefined {
   return useContext(DocumentsContext).get(documentId ?? '')
 }
+
+/** Returns true once the list has loaded without this id: the document was deleted since. */
+export function useDocumentGone(documentId?: string): boolean {
+  const docs = useContext(DocumentsContext)
+  // shortcut: an empty list reads as "not loaded yet"; fine while the knowledge base has documents.
+  return Boolean(documentId) && docs.size > 0 && !docs.has(documentId ?? '')
+}

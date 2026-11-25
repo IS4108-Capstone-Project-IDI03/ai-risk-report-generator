@@ -9,6 +9,13 @@ import { chatLLM, chatStorage, setChatSearch } from './api'
 import { ChatSearch } from './components/ChatSearch'
 import { ChatThreadList } from './components/ChatThreadList'
 
+// Rename and delete report their outcome as a toast; the tests watch the calls.
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('../../design-system', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../design-system')>()),
+  toast: toasts,
+}))
+
 // jsdom does not implement <dialog>; the shared Dialog opens it with showModal.
 HTMLDialogElement.prototype.showModal = function () {
   this.setAttribute('open', '')
@@ -19,6 +26,7 @@ HTMLDialogElement.prototype.close = function () {
 
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
   vi.unstubAllGlobals()
   setChatSearch('')
 })
@@ -55,6 +63,21 @@ describe('chat storage (CB-03)', () => {
       'POST /api/chat/conversations',
       'DELETE /api/chat/conversations/c1',
     ])
+    expect(toasts.success.mock.calls.map(([m]) => m)).toEqual(['Chat renamed', 'Chat deleted'])
+  })
+
+  it('says when a rename or delete fails, and still fails so the list is left as it was', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(Response.json({ error: 'The gateway is restarting.' }, { status: 503 })),
+    )
+    const { thread } = chatStorage
+    await expect(thread.updateThread({ id: 'c1', title: 'New', createdAt: 't' })).rejects.toThrow()
+    await expect(thread.deleteThread('c1')).rejects.toThrow()
+    expect(toasts.error.mock.calls.map(([m]) => m)).toEqual([
+      "Couldn't rename the chat",
+      "Couldn't delete the chat",
+    ])
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 })
 

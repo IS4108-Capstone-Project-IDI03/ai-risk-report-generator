@@ -10,19 +10,11 @@ import { HelpTip, Icon, IconButton, Switch } from '../../../design-system'
 import { useRecorder } from '../../assessments/dictation/useRecorder'
 import { transcribeQuestion } from '../api'
 import { answerSpoken, handsFreeTurn, isStopWord, useVoiceSettings } from '../speech'
-import { COMPOSER_BOX, useComposerHosts } from './useComposerHosts'
+import { fillBox } from './fillBox'
+import { useComposerHosts } from './useComposerHosts'
 
 // With no level meter, a hands-free question is cut off after this long.
 const UNMETERED_MS = 15_000
-
-// Puts text in the chat box the way typing would, so OpenUI's own state sees it.
-function fillBox(text: string) {
-  const box = document.querySelector<HTMLTextAreaElement>(COMPOSER_BOX)
-  if (!box) return
-  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(box, text)
-  box.dispatchEvent(new Event('input', { bubbles: true }))
-  box.focus()
-}
 
 /** Mic button drawn in the chat box; shows its problem (blocked mic, no speech) under it. */
 export function VoiceInput() {
@@ -39,7 +31,7 @@ export function VoiceInput() {
   }, [settings.handsFree])
   const deliver = useCallback(
     (text: string) => {
-      if (!handsFree.current) return fillBox(text)
+      if (!handsFree.current) return void fillBox(text)
       // Saying "stop" leaves hands-free mode without asking anything.
       if (isStopWord(text)) return change({ handsFree: false })
       handsFreeTurn.waiting = true
@@ -67,7 +59,8 @@ export function VoiceInput() {
       setAfter(null)
       if (settings.handsFree && state === 'idle') void start()
     }
-    const speaking = () => setAfter('speaking')
+    // Only a hands-free answer reopens the mic; a plain "Read answer aloud" must not say it will.
+    const speaking = () => settings.handsFree && setAfter('speaking')
     answerSpoken.addEventListener('done', again)
     answerSpoken.addEventListener('start', speaking)
     return () => {
@@ -107,7 +100,7 @@ export function VoiceInput() {
       ? 'Waiting for the microphone…'
       : state === 'recording'
         ? metered
-          ? 'Listening… stop talking to send'
+          ? `Listening… stop talking to ${settings.handsFree ? 'send' : 'finish'}`
           : 'Listening… press Stop when you finish'
         : state === 'paused'
           ? 'Paused'

@@ -100,6 +100,23 @@ describe('Knowledge base Requests tab (CB-07)', () => {
     expect(screen.getByRole('tab', { name: 'Requests, 2 open' })).toBeInTheDocument()
   })
 
+  it('dates each upload in the admin’s own time zone, not UTC', async () => {
+    const zone = process.env.TZ
+    process.env.TZ = 'Asia/Singapore'
+    // 00:28 on 26 Nov in Singapore is still 25 Nov in UTC.
+    DOCS.push(doc('d4', 'Just after midnight', '2026-11-25T16:28:00.000Z'))
+    try {
+      await openRequests()
+      await screen.findByText('Second question')
+      fireEvent.click(screen.getAllByRole('button', { name: 'Mark filled' })[0])
+      const dialog = await screen.findByRole('dialog')
+      expect(await within(dialog).findByText('26 Nov 2026 00:28')).toBeInTheDocument()
+    } finally {
+      DOCS.pop()
+      process.env.TZ = zone
+    }
+  })
+
   it('marks a request filled with the picked documents, newest first', async () => {
     const closed = await openRequests()
     await screen.findByText('Second question')
