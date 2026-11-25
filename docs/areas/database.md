@@ -51,6 +51,38 @@ See [team setup](../devguides/COHERE_CHROMA.md#shared-chroma-cloud-for-the-team)
 `chroma-data:/data`; `docker compose down` keeps it, `down -v` deletes it.
 The Chroma server and Python HTTP clients are pinned to 1.5.5.
 
+### Choosing the vector store: Chroma or Qdrant (QD-01)
+
+`VECTOR_STORE` picks the store for both services: `chroma` (the default) or `qdrant`. Any
+other value stops the service at its first search or write; it never falls back to the other
+store. Qdrant reads `QDRANT_URL` (a local server, `http://localhost:6333`, or a Qdrant Cloud
+cluster) and `QDRANT_API_KEY` (blank for a local server). Compose sets `QDRANT_URL` to
+`http://qdrant:6333` for its containers.
+
+- **Same calls, no caller changes.** `vector_collection()` in each service's
+  `retrieval_config.py` returns Chroma's collection or a `QdrantCollection`
+  (`app/qdrant_collection.py`, the same file in both services), which answers Chroma's
+  `get`, `query`, `upsert`, `update`, `delete` and `count` with Chroma's result shapes.
+- **Passages.** One Qdrant point per passage: its id is a uuid5 of the Chroma id (Qdrant ids
+  must be numbers or UUIDs), its vector the same 1,024-dimension Cohere vector, and its payload
+  the passage's metadata plus `_id` (the Chroma id) and `_document` (the text). The collection
+  has the same name as in Chroma, cosine distance, and a keyword index on `doc_id`.
+- **Filters.** Chroma `where` filters are translated (`$and`, `$or`, `$eq`, `$ne`, `$in`,
+  `$nin`, `$gt`, `$gte`, `$lt`, `$lte`). As in Chroma, `$ne` and `$nin` never match a passage
+  that lacks the key, so a passage whose labels are Unconfirmed stays out of search. An
+  operator it can't translate raises an error rather than being skipped.
+- **Distances.** Qdrant's score is the cosine similarity; the adapter returns 1 − score,
+  which is Chroma's cosine distance, so `MAX_STANDARD_DISTANCE` and `RANK_BAND` keep their values.
+- **Status.** `GET /index/status` on the ingestion service lists the store, the collection,
+  the passage count and each document's passages by status.
+- **Moving the passages.** `scripts/migrate-chroma-to-qdrant.py` copies every passage with its
+  vector (no re-embedding), 300 per read, and prints both counts. It only reads Chroma and is
+  safe to run twice. `rag-service/eval/vector_parity.py` compares both stores' top 5 passages
+  on a 20-question golden set.
+- **Switching back** is `VECTOR_STORE=chroma`; nothing is deleted from either store. The
+  Qdrant free tier (1 GB RAM, 4 GB disk, one node) holds our 7.5k passages (about 31 MB of
+  vectors). See DECISIONS 2026-11-25.
+
 Both services read the root `.env` locally and process environment in Docker:
 `COHERE_API_KEY`, `EMBEDDING_MODEL=embed-v4.0`, `CHROMA_HOST`, `CHROMA_PORT`,
 and `CHROMA_COLLECTION`. RAG also uses `RERANK_MODEL=rerank-v3.5`.

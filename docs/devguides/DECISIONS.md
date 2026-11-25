@@ -2891,3 +2891,21 @@ Rejected:
 Known limits: a job whose worker died still shows as running; an ingestion that failed before `failedStage` was recorded shows no stages; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
 
 Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.
+
+## 2026-11-25 — Qdrant can replace Chroma behind one switch, with Chroma kept as the default until the team agrees
+
+- (QD-01) Chroma Cloud's quotas slowed the team down: a 300-row read limit per call, 20 query vectors per call, and one database per key. Qdrant has no per-call quotas, a free cloud tier, and a light local server.
+- **One switch, `VECTOR_STORE=chroma|qdrant`,** read by both services, like `LLM_PROVIDER`. An unknown value stops the service; it never quietly uses the other store.
+- **The adapter copies Chroma's calls, not a new interface.** Every caller already used six Chroma collection calls (`get`, `query`, `upsert`, `update`, `delete`, `count`). `QdrantCollection` answers those same calls with Chroma's result shapes, so retrieval, indexing, relabelling and deletion changed one line each, and the Chroma path is untouched.
+- **Same vectors, same distances.** The migration copies Cohere's 1,024-dimension vectors as they are, so nothing is re-embedded. Both stores use cosine, and the adapter returns 1 − Qdrant's score, which is Chroma's distance, so the ranking thresholds keep their values.
+- **Filters behave as in Chroma, missing keys included.** `$ne` and `$nin` skip a passage without the key, so passages whose labels are Unconfirmed (IN-05) stay out of search on both stores. An operator the adapter can't translate raises an error: ignoring a filter could let a withdrawn document into search.
+- **One adapter file in each service.** The two services are deployed separately and already each keep a `retrieval_config.py`; a test checks the two copies are identical.
+
+Rejected:
+- A new `VectorStore` interface with two adapters: every caller would change for no behaviour gain, and Chroma's calls already are the interface.
+- Re-embedding into Qdrant: costs Cohere calls and could change rankings.
+- Removing Chroma now: the default flips, and the Chroma code goes, only after the team signs off.
+
+Known limits: Chroma's numbered pages are emulated (the next page's point is remembered per filter; a page asked for out of order is found by reading from the start). The free tier has one node and no high availability; production is a separate decision.
+
+Stories: QD-01, IN-05, IN-18, RT-04.
