@@ -178,8 +178,8 @@
 - Database schema & vector index → docs/areas/database.md
 - UI conventions → docs/areas/ui.md
 - Design system (how every screen looks: colours, components, tables, statuses,
-  toasts, motion; one look across the whole app) → docs/design-system-v2.md
+  toasts, motion; one look across the whole app) → docs/areas/design-system-v2.md
 - AWS / deployment → docs/areas/cloud.md
 - Service internals (ingestion, RAG, speech) → docs/areas/services.md
 - PII protection (masking before external AI calls) → docs/areas/privacy.md
-- Architecture decisions → docs/DECISIONS.md
+- Architecture decisions → docs/devguides/DECISIONS.md

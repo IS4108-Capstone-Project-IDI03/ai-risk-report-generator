@@ -1,5 +1,19 @@
 # Running the stack — local vs Docker
 
+<!-- at-a-glance -->
+> **In 30 seconds:** Two ways to run the whole app on your machine: Mode A (plain processes, light) and Mode B (Docker, the full stack, heavy on memory).
+>
+> **Read this when:** you set up a new machine or something will not start.
+>
+> **Deeper:** `docs/devguides/COHERE_CHROMA.md` for the search keys and the vector database.
+
+**Contents**
+
+- [Before either mode: check iCloud isn't syncing the project](#before-either-mode-check-icloud-isnt-syncing-the-project)
+- [Mode A — Local (bare processes)](#mode-a--local-bare-processes)
+- [Mode B — Docker (full stack)](#mode-b--docker-full-stack)
+<!-- /at-a-glance -->
+
 Two ways to run the 5 services (`client`, `server`, `ingestion-service`,
 `rag-service`, `speech-ocr-service`) + `mongo` + `chroma`. Same `.env.example` drives
 both — see `CLAUDE.md` "Known pitfalls" for why `*_SERVICE_URL` differs

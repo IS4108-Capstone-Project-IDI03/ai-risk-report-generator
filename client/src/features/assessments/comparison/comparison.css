@@ -1,5 +1,5 @@
 /* The Comparison tab (RV-13). Used by ComparisonTab, ComparisonDetail and
-   DecisionDialogs. Design-system tokens only (docs/design-system-v2.md): white
+   DecisionDialogs. Design-system tokens only (docs/areas/design-system-v2.md): white
    cards on the pale page, navy titles, colour only where it means something.
    The list and the open item sit side by side from 1080 px, stack below it,
    and below 760 px an item opens in a bottom sheet (ComparisonTab). */

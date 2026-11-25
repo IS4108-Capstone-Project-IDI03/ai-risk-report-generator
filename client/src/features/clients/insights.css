@@ -1,6 +1,6 @@
 /* The client page's Insights tab (CP-29). Used by screens/InsightsTab and the
    components it calls. Cards, tables and the screen-reader class are
-   clients.css's. Design-system tokens only (docs/design-system-v2.md): the
+   clients.css's. Design-system tokens only (docs/areas/design-system-v2.md): the
    grid's shades are the ink ramp, one blue from light to dark. */
 
 .ci {

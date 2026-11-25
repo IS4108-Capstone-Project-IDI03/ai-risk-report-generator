@@ -2,6 +2,20 @@ AWS resources, deployment steps, environment variable ownership, and cost taggin
 
 # App on one EC2 instance (IN-12)
 
+<!-- at-a-glance -->
+> **In 30 seconds:** How the app runs on one AWS server (EC2) with S3 for files and nginx in front, and how to set it up, update it and watch its cost.
+>
+> **Read this when:** you deploy, update the server, or check what it costs.
+
+**Contents**
+
+- [One-time setup](#one-time-setup)
+- [Updating by hand](#updating-by-hand)
+- [Automatic updates](#automatic-updates)
+- [Checks](#checks)
+- [Cost](#cost)
+<!-- /at-a-glance -->
+
 The backend runs in Docker Compose on one **m7i-flex.large** (2 vCPU, 8 GiB,
 free-tier eligible) and the client is served from the same box. Compose runs server,
 rag-service, speech-ocr-service, privacy-service, ingestion-service, ingestion-worker,

@@ -1,6 +1,6 @@
 /* The Clients list and what its tables share (CP-23, boards 05-07): one white card
    with a toolbar, a table and a footer. Used by ClientList, ClientTable,
-   AssessmentTable, DocumentsTab. v2 tokens only (docs/design-system-v2.md). */
+   AssessmentTable, DocumentsTab. v2 tokens only (docs/areas/design-system-v2.md). */
 
 .cl-page {
   min-height: 100%;
