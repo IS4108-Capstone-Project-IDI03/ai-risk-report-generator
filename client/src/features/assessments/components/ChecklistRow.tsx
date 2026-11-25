@@ -149,7 +149,8 @@ export function ChecklistRow({
               color="var(--text-secondary)"
             />
           )}
-          {title}
+          {/* An important question reads bold, so it stands out at the top of its section. */}
+          {item.important ? <strong className="cl-strong">{title}</strong> : title}
           {item.fixed && <span className="cl-suffix">Fixed</span>}
           {observation && (
             <button

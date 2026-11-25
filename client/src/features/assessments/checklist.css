@@ -108,6 +108,9 @@
   margin-right: var(--space-3);
   vertical-align: -2px;
 }
+.cl-strong {
+  font-weight: var(--weight-semibold);
+}
 /* "from <standard or past report>": one muted line, ellipsis on wide screens (full title on hover),
    free to wrap on a phone. */
 .cl-source {

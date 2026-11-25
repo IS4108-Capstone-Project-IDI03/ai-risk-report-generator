@@ -314,6 +314,9 @@ it('puts important items on top, oldest mark first, and marks one with a rollbac
   expect(order()).toEqual(['Delta', 'Bravo', 'Alpha', 'Charlie'])
   expect(within(rowOf('Delta')).getByRole('img', { name: 'Important' })).toBeInTheDocument()
   expect(within(rowOf('Alpha')).queryByRole('img', { name: 'Important' })).toBeNull()
+  // An important question is bold; the others are not.
+  expect(within(rowOf('Delta')).getByText('Delta').tagName).toBe('STRONG')
+  expect(within(rowOf('Alpha')).getByText('Alpha').tagName).not.toBe('STRONG')
 
   // The newest important item goes under the earlier ones.
   fireEvent.click(screen.getByRole('button', { name: 'More actions for Charlie' }))
