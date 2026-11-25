@@ -71,7 +71,7 @@ def test_a_past_report_item_whose_quote_is_not_in_its_passage_is_dropped(monkeyp
 
 def test_the_prompt_version_is_reported(monkeypatch):
     response, _, _ = generate(monkeypatch, [], past=[REPORT])
-    assert response.json()["provenance"]["prompt_version"] == "cp37-v2"
+    assert response.json()["provenance"]["prompt_version"] == "cp37-v3"
 
 
 def _past_filters(searches):

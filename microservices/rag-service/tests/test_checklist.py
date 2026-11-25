@@ -155,7 +155,7 @@ def test_a_warehouse_checklist_covers_its_hazards_with_cited_items(monkeypatch):
     # AC9: provenance names the model, prompt and hazard list.
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"] == "cp37-v2"
+    assert provenance["prompt_version"] == "cp37-v3"
     assert provenance["checklist_version"] == CHECKLIST["version"]
     assert provenance["effort"] == prompts[0][2] == "medium"
     assert isinstance(body["usage"], list)
@@ -538,5 +538,21 @@ def test_a_noun_phrase_item_gets_a_verb_and_a_long_one_is_shortened(monkeypatch)
 def test_the_prompt_asks_for_short_verb_led_items():
     from app.generation.checklist import CHECKLIST_PROMPT_VERSION, SYSTEM_PROMPT
 
-    assert CHECKLIST_PROMPT_VERSION == "cp37-v2"
+    assert CHECKLIST_PROMPT_VERSION == "cp37-v3"
     assert "at most 20 words" in SYSTEM_PROMPT and "starts with a verb" in SYSTEM_PROMPT
+    # Past-report items are checks too, never questions (v3).
+    assert '"Check whether ..."' in SYSTEM_PROMPT
+
+
+def test_a_past_report_item_always_starts_with_check():
+    from app.generation.checklist import check_led
+
+    assert check_led("Check whether fire doors are kept shut.") == (
+        "Check whether fire doors are kept shut."
+    )
+    # A question the model still wrote becomes a check, keeping its acronyms.
+    assert check_led("Are the fire doors kept shut?") == "Check: are the fire doors kept shut?"
+    assert check_led("Is CCTV recorded?") == "Check: is CCTV recorded?"
+    # Another verb is led by Check too, and a long one is still cut to about 20 words.
+    assert check_led("Confirm the pump is tested weekly.") == "Check: confirm the pump is tested weekly."
+    assert len(check_led("Is " + "the sprinkler and pump " * 10 + "tested?").split()) <= 20

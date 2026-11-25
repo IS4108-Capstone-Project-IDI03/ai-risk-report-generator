@@ -16,7 +16,7 @@ from app.generation.generator import TEMPLATE, _block, _chunk_block
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved checklist names the prompt it came from.
-CHECKLIST_PROMPT_VERSION = "cp37-v2"  # v2: short verb-led items; v1: past-report questions
+CHECKLIST_PROMPT_VERSION = "cp37-v3"  # v3: past-report items start with Check; v2: verb-led items
 CHECKLIST = json.loads((Path(__file__).parent / "checklist.json").read_text())
 
 # "NFPA 13" -> ("nfpa_standard", "13"), as standards are labelled in the knowledge base.
@@ -68,6 +68,19 @@ def verb_led(text: str) -> str:
             text = " ".join(words)
         text = text.rstrip(".,;: ") + "."
     return text
+
+
+def check_led(text: str) -> str:
+    """A past-report item as a check that starts with "Check", in about 20 words or fewer.
+
+    The model sometimes still writes a question ("Are ...?") or another verb; "Check:" leads
+    those, so every past-report row reads like the rest of the checklist (CP-37).
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    if text.split(" ", 1)[0].lower() != "check":
+        keep = sum(c.isupper() for c in text.split(" ", 1)[0]) > 1
+        text = "Check: " + (text if keep else text[:1].lower() + text[1:])
+    return verb_led(text)
 
 
 def named_standard(name: str) -> tuple[str, str]:
@@ -213,9 +226,10 @@ about the site itself.
 write the same check twice in different words.
 - Past Marsh reports (<past_reports>) are separate from the standards. For a finding or \
 recommendation in one that an engineer could check on this kind of site, write a \
-`past_report_items` entry: a QUESTION to check ("Is ...?", "Are ...?"), with `area` and \
+`past_report_items` entry: a check of at most 20 words that starts with "Check whether ..." \
+or "Check that ...", never a question, with `area` and \
 `subsection` as for an item, at most one per past report passage, and `citation` its \
-label (R1, R2) and `quote`, copied exactly, at most 30 words. Make the question general: \
+label (R1, R2) and `quote`, copied exactly, at most 30 words. Make the check general: \
 never copy a name, place, quantity, date or tag such as [PERSON_1] from the past report. \
 Write none for a passage with nothing to check. Never cite a past report in `items`, \
 or a standard in `past_report_items`.
@@ -355,7 +369,7 @@ def draft_items(
                 "subsection": item.subsection if item.subsection in headings else None,
                 "origin": "past_report",
                 "hazard": None,
-                "text": re.sub(r"\s+", " ", item.text).strip(),
+                "text": check_led(item.text),
                 "fields": [],
                 "COPE_dimension": section["cope_dimensions"],
                 "citations": [{"ref": ref, "quote": item.citation.quote}],
