@@ -98,3 +98,20 @@ def test_privacy_asks_the_privacy_service_health(monkeypatch, status, ok):
 
 def test_an_unknown_need_is_422():
     assert client.get("/health/providers", params={"need": "x"}).status_code == 422
+
+
+def test_search_pings_qdrant_when_it_is_the_store(monkeypatch):
+    # QD-01: the check asks the store VECTOR_STORE names, never Chroma by default.
+    qdrant, chroma, cohere = Mock(), Mock(), Mock()
+    cohere.embed.return_value = SimpleNamespace(
+        meta=SimpleNamespace(billed_units=SimpleNamespace(input_tokens=1))
+    )
+    monkeypatch.setenv("VECTOR_STORE", "qdrant")
+    monkeypatch.setattr(routes, "qdrant_client", lambda: qdrant)
+    monkeypatch.setattr(routes, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(routes, "cohere_client", lambda: cohere)
+    assert get("search")["ok"] is True
+    qdrant.get_collections.assert_called_once()
+    chroma.heartbeat.assert_not_called()
+    qdrant.get_collections.side_effect = ConnectionError("down")
+    assert get("search")["ok"] is False

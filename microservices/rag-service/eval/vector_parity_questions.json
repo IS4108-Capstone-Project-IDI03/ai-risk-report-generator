@@ -1,0 +1,102 @@
+[
+  {
+    "question": "What sprinkler design density is required for a Singapore warehouse storing Group A plastics?",
+    "kind": "chat"
+  },
+  {
+    "question": "How often must fire pumps be tested under SS 575?",
+    "kind": "chat"
+  },
+  {
+    "question": "Describe the hot work permit controls expected for a Singapore warehouse.",
+    "kind": "chat"
+  },
+  {
+    "question": "Maximum rack storage height before in-rack sprinklers are needed",
+    "kind": "chat"
+  },
+  {
+    "question": "What are the electrical thermography inspection requirements for switchboards in an office building?",
+    "kind": "chat"
+  },
+  {
+    "question": "Housekeeping expectations for combustible waste in a warehouse",
+    "kind": "chat"
+  },
+  {
+    "question": "Fire pump room arrangement and diesel fuel supply requirements",
+    "kind": "chat"
+  },
+  {
+    "question": "Sprinkler system impairment procedure and notification",
+    "kind": "chat"
+  },
+  {
+    "question": "Storage of flammable liquids in a Singapore warehouse",
+    "kind": "chat"
+  },
+  {
+    "question": "Emergency lighting and exit sign inspection frequency in offices",
+    "kind": "chat"
+  },
+  {
+    "question": "Fire compartmentation and fire-rated doors in warehouses",
+    "kind": "chat"
+  },
+  {
+    "question": "Lithium-ion battery charging and storage precautions",
+    "kind": "chat"
+  },
+  {
+    "question": "Flood risk and drainage controls for ground-floor warehouse storage",
+    "kind": "chat"
+  },
+  {
+    "question": "Smoking policy and ignition source control",
+    "kind": "chat"
+  },
+  {
+    "question": "Fire alarm panel testing and false alarm management",
+    "kind": "chat"
+  },
+  {
+    "question": "Lightning protection system inspection for industrial buildings",
+    "kind": "chat"
+  },
+  {
+    "question": "Contractor management and permit-to-work for maintenance activities",
+    "kind": "chat"
+  },
+  {
+    "question": "Clearance between stored goods and sprinkler heads (storage clearance)",
+    "kind": "chat"
+  },
+  {
+    "question": "Water supply adequacy and tank capacity for sprinkler systems",
+    "kind": "chat"
+  },
+  {
+    "question": "Portable fire extinguisher selection, placement and servicing",
+    "kind": "chat"
+  },
+  {
+    "question": "Draft the sprinkler protection section: warehouse with 9 m racks and ESFR heads.",
+    "kind": "section"
+  },
+  {
+    "question": "Draft the electrical hazards section: overloaded sockets and exposed wiring in a server room.",
+    "kind": "section"
+  },
+  {
+    "question": "Draft the housekeeping section: cardboard stacked in aisles and blocked exits.",
+    "kind": "section"
+  },
+  {
+    "question": "Draft the hot work section: welding near stored pallets without a fire watch.",
+    "kind": "section"
+  },
+  {
+    "question": "Draft the fire pump section: pump failed its weekly churn test.",
+    "kind": "section"
+  }
+]

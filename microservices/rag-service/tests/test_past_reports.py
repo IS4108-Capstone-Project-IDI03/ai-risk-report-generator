@@ -36,9 +36,7 @@ def stored(monkeypatch, rows):
             embeddings=SimpleNamespace(float_=[[0.1] for _ in texts])
         )
     )
-    monkeypatch.setattr(
-        retriever, "chroma_client", lambda: SimpleNamespace(get_collection=lambda **_: Collection())
-    )
+    monkeypatch.setattr(retriever, "vector_collection", lambda: Collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
 
 
@@ -85,7 +83,7 @@ def test_chat_search_restores_before_the_reranker_and_widening(monkeypatch, stor
     cohere.rerank.return_value = SimpleNamespace(
         results=[SimpleNamespace(index=0, relevance_score=0.9)]
     )
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
 
     [hit] = retriever.retrieve("who inspected the pump", expand=True)

@@ -15,7 +15,7 @@ from collections import Counter
 
 from chromadb.errors import NotFoundError
 
-from app.retrieval_config import COLLECTION, chroma_client
+from app.retrieval_config import vector_collection
 
 # Chroma Cloud returns at most 300 results per get, so a document is read in pages.
 PAGE = 300
@@ -111,7 +111,7 @@ def search_passages(query: str, document_ids: list[str], limit: int = 10) -> lis
     if not terms or not document_ids:
         return []
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:
         return []
     passages = [p for d in dict.fromkeys(document_ids) for p in _document_passages(collection, d)]

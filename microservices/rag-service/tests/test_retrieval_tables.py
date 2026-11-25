@@ -31,7 +31,7 @@ def _search_with(monkeypatch, documents, metadatas):
     cohere.rerank.return_value = SimpleNamespace(
         results=[SimpleNamespace(index=0, relevance_score=0.9)]
     )
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
     return collection, cohere
 

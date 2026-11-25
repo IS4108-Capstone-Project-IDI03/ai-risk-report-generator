@@ -22,7 +22,7 @@ def fake_chroma(monkeypatch, ids=None, documents=None, metadatas=None):
         "documents": documents or [],
         "metadatas": metadatas or [],
     }
-    monkeypatch.setattr(passages, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(passages, "vector_collection", lambda: chroma.get_collection())
     return chroma
 
 

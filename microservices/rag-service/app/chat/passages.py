@@ -7,13 +7,13 @@ from MongoDB (PV-05); no paid call.
 from chromadb.errors import NotFoundError
 
 from app.past_reports import with_real_words
-from app.retrieval_config import COLLECTION, chroma_client
+from app.retrieval_config import vector_collection
 
 
 def get_passage(passage_id: str) -> dict | None:
     """Return the passage as the citation panel shows it, or None when the id is unknown."""
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:
         return None
     # No status filter: a withdrawn edition's passage must still open (CB-01 AC14).

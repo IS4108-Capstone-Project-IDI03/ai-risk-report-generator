@@ -62,7 +62,7 @@ class Collection:
 def search(monkeypatch):
     cohere, collection = Cohere(), Collection()
     chroma = SimpleNamespace(get_collection=lambda **_: collection)
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
     return SimpleNamespace(cohere=cohere, collection=collection)
 

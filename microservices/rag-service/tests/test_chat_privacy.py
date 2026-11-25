@@ -305,7 +305,7 @@ def test_past_reports_reach_the_reranker_masked(fake, fake_privacy, monkeypatch)
     # past reports name John Tan of Acme Holdings.
     recorder = test_leak.Recorder(parsed=None)
     chroma = SimpleNamespace(get_collection=lambda **_: test_leak.Collection())
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
     monkeypatch.setattr(answer, "retrieve", retriever.retrieve)
     fake["plan"] = answer.Plan(

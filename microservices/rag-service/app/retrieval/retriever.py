@@ -16,11 +16,10 @@ from app.past_reports import with_real_words
 from app.retrieval.glossary import expand_query
 from app.retrieval_config import (
     CHROMA_MAX_QUERY_EMBEDDINGS,
-    COLLECTION,
     EMBEDDING_DIMENSION,
     EMBEDDING_MODEL,
-    chroma_client,
     cohere_client,
+    vector_collection,
 )
 
 log = logging.getLogger("uvicorn.error")
@@ -126,7 +125,7 @@ def retrieve(
         raise ValueError("Query must not be blank")
     query = expand_query(query)
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:
         return []
     count = collection.count()
@@ -328,7 +327,7 @@ def search(
     if not requests:
         return empty
     try:
-        collection = chroma_client().get_collection(name=COLLECTION, embedding_function=None)
+        collection = vector_collection()
     except NotFoundError:
         return empty
     count = collection.count()

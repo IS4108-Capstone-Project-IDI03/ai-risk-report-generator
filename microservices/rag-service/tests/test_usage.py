@@ -46,7 +46,7 @@ def mock_everything(monkeypatch, anthropic_usage, billed):
         "metadatas": [[STANDARD["metadata"]]],
         "distances": [[0.1]],
     }
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere_with(billed))
     client_mock = Mock()
     client_mock.beta.messages.parse.return_value = anthropic_response(anthropic_usage)

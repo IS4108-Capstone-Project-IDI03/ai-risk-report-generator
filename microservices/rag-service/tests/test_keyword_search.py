@@ -52,7 +52,7 @@ def fake_chroma(monkeypatch, passages, page=300):
 
     chroma = Mock()
     chroma.get_collection.return_value.get.side_effect = get
-    monkeypatch.setattr(keyword_search, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(keyword_search, "vector_collection", lambda: chroma.get_collection())
     return chroma.get_collection.return_value.get
 
 

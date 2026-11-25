@@ -449,7 +449,7 @@ def test_search_embeds_once_and_groups_queries_by_filter(monkeypatch):
     cohere.embed.return_value = SimpleNamespace(
         embeddings=SimpleNamespace(float_=[[1.0], [2.0], [3.0]])
     )
-    monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+    monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
     monkeypatch.setattr(retriever, "cohere_client", lambda: cohere)
 
     standards = {"source_type": ["fm_standard", "nfpa_standard"]}

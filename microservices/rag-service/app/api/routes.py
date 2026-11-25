@@ -38,7 +38,13 @@ from app.privacy import PrivacyUnavailable
 from app.privacy import session as privacy_session
 from app.retrieval.keyword_search import search_passages
 from app.retrieval.retriever import retrieve
-from app.retrieval_config import EMBEDDING_MODEL, chroma_client, cohere_client
+from app.retrieval_config import (
+    EMBEDDING_MODEL,
+    chroma_client,
+    cohere_client,
+    qdrant_client,
+    vector_store,
+)
 from app.site_walk.kind_suggest import suggest_kinds
 from app.site_walk.observation_rate import rate_observation
 from app.site_walk.propose import propose_site_walk
@@ -210,9 +216,12 @@ def _ping_chat() -> None:
 
 
 def _ping_search() -> None:
-    # Chat's and Ask's search: Chroma must answer and Cohere must embed. One fixed word, no
-    # reranking (that is the costly call), nothing from any user.
-    chroma_client().heartbeat()
+    # Chat's and Ask's search: the vector store VECTOR_STORE names (QD-01) must answer and Cohere
+    # must embed. One fixed word, no reranking (that is the costly call), nothing from any user.
+    if vector_store() == "qdrant":
+        qdrant_client().get_collections()
+    else:
+        chroma_client().heartbeat()
     started = time.perf_counter()
     response = cohere_client().embed(
         model=EMBEDDING_MODEL,

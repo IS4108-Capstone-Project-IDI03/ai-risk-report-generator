@@ -120,7 +120,7 @@ def external(monkeypatch, fake_privacy):
     def with_reply(parsed, passages=PASSAGES):
         recorder = Recorder(parsed)
         chroma = SimpleNamespace(get_collection=lambda **_: Collection(passages))
-        monkeypatch.setattr(retriever, "chroma_client", lambda: chroma)
+        monkeypatch.setattr(retriever, "vector_collection", lambda: chroma.get_collection())
         monkeypatch.setattr(retriever, "cohere_client", lambda: recorder)
         monkeypatch.setattr(llm, "_anthropic_client", lambda: recorder)
         return recorder
