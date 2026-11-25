@@ -635,6 +635,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Space before the filters or, on a short list without them, the table. */
+  margin-bottom: var(--space-6);
 }
 .st-pw-fields {
   display: grid;
