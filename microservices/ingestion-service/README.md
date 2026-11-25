@@ -26,6 +26,41 @@ Code order in `app/worker.py` and `app/pipeline/__init__.py` (`run`):
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+ingestion-service/
+├── app/
+│   ├── main.py               # FastAPI app
+│   ├── api/routes.py         # all endpoints
+│   ├── worker.py             # BullMQ worker
+│   ├── pipeline/             # chained stages
+│   │   ├── __init__.py       # run() chains the stages
+│   │   ├── redactor.py       # redact PDF before parsing
+│   │   ├── anonymiser.py     # mask chunk text after
+│   │   ├── parser.py         # Docling parse
+│   │   ├── ocr_config.py     # OCR engine choice
+│   │   ├── columns.py        # column order
+│   │   ├── chunker.py        # passages from the parse
+│   │   ├── chunking_helper/  # table, formula, picture readers
+│   │   ├── embedder.py       # Cohere embedding
+│   │   ├── indexer.py        # Chroma upsert, relabel, delete
+│   │   ├── sections.py       # report sections from fonts
+│   │   ├── progress.py       # stage progress
+│   │   └── errors.py         # error types
+│   ├── labelling/            # type, title, edition, date
+│   ├── matching.py           # copy and edition matching
+│   ├── outline.py            # outline counts
+│   ├── manual.py             # manual standard clauses
+│   ├── extract_text.py       # text from PDF, Word, email
+│   ├── privacy.py            # privacy-service client
+│   ├── usage.py              # AI-call usage
+│   ├── notifications.py      # gateway notifications
+│   └── retrieval_config.py   # Cohere and Chroma clients
+├── eval/                     # evaluation scripts
+└── tests/                    # pytest suite
+```
+
 | Path | Job |
 |---|---|
 | `app/main.py` | FastAPI app; warms the OCR converter in a background thread unless `PRELOAD_OCR=0` |

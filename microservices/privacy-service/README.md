@@ -27,6 +27,24 @@ Unmasking is not an endpoint. Callers put the real text back themselves with the
 
 ## Folders and key files
 
+The tree below shows where the main folders and files sit; the table explains each.
+
+```text
+privacy-service/
+├── app/
+│   ├── main.py          # creates the app
+│   ├── api/routes.py    # /health, /mask, /redact-image
+│   ├── masker.py        # the masking engine
+│   ├── faces.py         # face detection and blur
+│   ├── detectors.py     # which kinds are on
+│   ├── allow_list.py    # names never masked
+│   ├── placeholders.py  # unmask for a mapping
+│   └── models/          # YuNet .onnx file
+├── detectors.json       # on/off switch per kind
+├── allow_list.json      # words never masked
+└── tests/               # pytest tests
+```
+
 | Path | Job |
 |---|---|
 | `app/main.py` | Creates the app. Reads `detectors.json` and `allow_list.json` at start, so a typo stops the service. |
