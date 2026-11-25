@@ -44,20 +44,11 @@ export const WORDS_MESSAGE = 'Keep it to about 20 words.'
 /** Returns how many words the text has. */
 export const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
-// The checklist's shared look, on the tab and on site.
-export const card = {
-  background: 'var(--surface-card)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 'var(--radius-lg)',
-  boxShadow: 'var(--shadow-sm)',
-  overflow: 'hidden',
-} as const
-export const muted = {
+// The checklist sheet's small grey caption.
+export const caption = {
   margin: 0,
-  fontSize: 'var(--text-small-size)',
+  fontSize: 'var(--text-caption-size)',
   color: 'var(--text-secondary)',
 } as const
-export const caption = { ...muted, fontSize: 'var(--text-caption-size)' } as const
-export const heading = { margin: 0, fontSize: '17px', fontWeight: 600 } as const
 
 export const country = (code: string) => JURISDICTIONS.find((j) => j.value === code)?.label ?? code

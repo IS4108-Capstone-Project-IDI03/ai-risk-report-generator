@@ -18,7 +18,7 @@ export type ButtonProps = Omit<
   // Also: `create` (navy pill with the v2 shadow), `pill` (grey secondary pill) and `link-navy`
   // (the quiet link in Marsh navy, for links inside a navy-titled panel).
   variant?: string
-  // Rounds any variant to a pill (radius 999).
+  // Every button is a pill (radius 999); this also rounds a wrapping link.
   pill?: boolean
   // `xs` is a 28 px compact row link; `title` is a link set as a 16 px bold title that wraps.
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'title'
@@ -255,10 +255,9 @@ function Button({
             textAlign: s.wrap ? 'left' : undefined,
             overflowWrap: s.wrap ? 'anywhere' : undefined,
             letterSpacing: '0.005em',
-            borderRadius:
-              pill || variant === 'create' || variant.startsWith('pill')
-                ? 'var(--radius-pill)'
-                : 'var(--radius-md)',
+            // Every button is a pill (v2 section 5); only a link that wraps over lines keeps a soft
+            // corner, so its hover fill doesn't turn into a lozenge.
+            borderRadius: s.wrap && !pill ? 'var(--radius-md)' : 'var(--radius-pill)',
             cursor: blocked || loading ? 'not-allowed' : 'pointer',
             opacity: blocked ? 0.45 : 1,
             // Only Create floats (v2 section 5); every other button sits flat.

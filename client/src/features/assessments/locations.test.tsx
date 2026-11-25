@@ -122,7 +122,9 @@ async function openCapture() {
   await signIn()
   // Open the assessment from the work list; capture starts from the
   // Observations tab's Add manually.
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
   fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
@@ -146,7 +148,9 @@ const editDialog = () => screen.getByRole('dialog', { name: 'Edit location' })
 async function openNavigator() {
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
   await within(await screen.findByRole('navigation', { name: 'Locations' })).findByRole('button', {
     name: 'All locations',
@@ -912,7 +916,9 @@ describe('The Observations tab by location (CP-16)', () => {
   async function openTab() {
     render(<App />)
     await signIn()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
     return screen.findByRole('button', { name: /Pump test certificate missing/ })
   }

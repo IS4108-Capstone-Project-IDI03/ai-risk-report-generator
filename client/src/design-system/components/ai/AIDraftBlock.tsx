@@ -78,7 +78,7 @@ function AIDraftBlock({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 'var(--radius-card)',
         border: '1px solid ' + (isAI ? 'var(--ai-border)' : 'var(--border-default)'),
         background: 'var(--surface-card)',
         fontFamily: 'var(--font-sans)',
@@ -100,11 +100,9 @@ function AIDraftBlock({
         {heading ? (
           <span
             style={{
-              fontSize: 'var(--text-label-size)',
-              letterSpacing: 'var(--text-label-ls)',
-              textTransform: 'uppercase',
-              fontWeight: 'var(--text-label-weight)',
-              color: 'var(--text-secondary)',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--graphite-700)',
             }}
           >
             {heading}

@@ -481,7 +481,7 @@ it('opens the answer box from "Create new observation"', async () => {
   await screen.findByRole('listitem', { name: 'Alpha' })
   fireEvent.click(within(rowOf('Alpha')).getByRole('button', { name: 'Link an observation' }))
   fireEvent.click(screen.getByRole('button', { name: 'Create new observation' }))
-  expect(await screen.findByRole('dialog', { name: 'Confirm' })).toBeInTheDocument()
+  expect(await screen.findByRole('dialog', { name: 'Confirm what you saw' })).toBeInTheDocument()
 })
 
 it('offers View and Unlink on a linked row, and unlinks with a null checklistItem', async () => {

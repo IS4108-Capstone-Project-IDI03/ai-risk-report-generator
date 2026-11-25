@@ -84,7 +84,7 @@ function EvidenceCitation({
         padding: 'var(--space-5) var(--space-6)',
         background: hover ? 'var(--surface-hover)' : 'var(--surface-card)',
         border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: 'var(--radius-field)',
         cursor: onOpen ? 'pointer' : 'default',
         fontFamily: 'var(--font-sans)',
         transition: 'var(--transition-control)',
@@ -101,12 +101,12 @@ function EvidenceCitation({
             height: 18,
             flex: '0 0 auto',
             marginTop: 1,
-            borderRadius: 'var(--radius-xs)',
+            borderRadius: 'var(--radius-pill)',
             background: 'var(--ai-bg)',
             color: 'var(--ai-fg)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            fontWeight: 'var(--weight-medium)',
+            fontSize: 12,
+            fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
           }}
         >
           {index}
@@ -142,7 +142,7 @@ function EvidenceCitation({
               gap: 4,
               height: 18,
               padding: '0 6px',
-              borderRadius: 'var(--radius-xs)',
+              borderRadius: 'var(--radius-pill)',
               background: (KIND[kind] || KIND.report).bg,
               color: (KIND[kind] || KIND.report).fg,
               fontSize: 'var(--text-label-size)',
@@ -175,8 +175,8 @@ function EvidenceCitation({
           {locator ? (
             <span
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-mono-size)',
+                fontSize: 'var(--text-caption-size)',
+                fontVariantNumeric: 'tabular-nums',
                 color: 'var(--text-muted)',
               }}
             >

@@ -63,7 +63,7 @@ function refusal(error: GatewayError): [cause: string, next: string] {
   // The gateway's own words, as part of a sentence: no capital, no full stop.
   const said = error.message.trim().replace(/[.!]+$/, '')
   return [
-    said ? said.charAt(0).toLowerCase() + said.slice(1) : 'the gateway refused the question',
+    said ? said.charAt(0).toLowerCase() + said.slice(1) : 'the server refused the question',
     NEXT,
   ]
 }
@@ -91,7 +91,7 @@ function shown(answer: AskAnswer, key = answer.id): AskItem {
 // Why a conversation could not be opened or deleted, with the next step.
 function problemOf(error: unknown, doing: 'opened' | 'deleted'): string {
   if (error instanceof GatewayError && error.status === null)
-    return `The conversation could not be ${doing}: the gateway could not be reached. Try again.`
+    return `The conversation could not be ${doing}: the server can't be reached. Try again.`
   if (error instanceof GatewayError && error.status === 404)
     return `The conversation could not be ${doing}: it was deleted. Reload the page.`
   if (error instanceof GatewayError && error.status === 409)
@@ -168,7 +168,7 @@ export function useAsk(reference: string, enabled: boolean) {
         setState('unavailable')
         setReason(
           error instanceof GatewayError && error.status === null
-            ? 'The gateway could not be reached, so nothing can be searched.'
+            ? "Can't reach the server, so nothing can be searched."
             : error instanceof Error
               ? error.message
               : 'Earlier questions could not be loaded.',
@@ -355,7 +355,7 @@ export function useAsk(reference: string, enabled: boolean) {
         if (controller.signal.aborted) fail('the answer was stopped before it finished')
         else if (error instanceof AskRefusedError) fail(error.reason, error.next, error.at)
         else if (error instanceof GatewayError && error.status === null)
-          fail('the gateway could not be reached')
+          fail("the server can't be reached")
         else if (error instanceof GatewayError) fail(...refusal(error))
         else fail('the question could not be sent')
       }
@@ -413,7 +413,7 @@ export function useAsk(reference: string, enabled: boolean) {
                 }
               : error instanceof GatewayError && error.status === null
                 ? {
-                    cause: 'the gateway could not be reached',
+                    cause: "the server can't be reached",
                     next: 'Try again.',
                     at,
                     stale: false,
@@ -426,7 +426,7 @@ export function useAsk(reference: string, enabled: boolean) {
                       stale: false,
                     }
                   : {
-                      cause: 'the gateway refused it',
+                      cause: 'the server refused it',
                       next: 'Reload the page and try again.',
                       at,
                       stale: false,

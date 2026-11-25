@@ -86,7 +86,7 @@ export function Observations({
 }) {
   const view = useObservationsView(v)
   const phone = useIsPhone()
-  const { walks, reload } = useSiteWalks(v.captureRef)
+  const { walks, loaded: walksLoaded, reload } = useSiteWalks(v.captureRef)
   const [walk, setWalk] = useState<WalkScreen>(walkFromUrl)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
@@ -214,6 +214,7 @@ export function Observations({
     return (
       <SiteWalks
         walks={walks}
+        loaded={walksLoaded}
         waiting={waiting}
         archived={v.archivedOpen}
         onBack={() => setWalk(null)}

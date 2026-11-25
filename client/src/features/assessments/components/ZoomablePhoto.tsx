@@ -206,7 +206,7 @@ export function ZoomablePhoto({
           style={{
             minWidth: '48px',
             textAlign: 'center',
-            fontFamily: 'var(--font-mono)',
+            fontVariantNumeric: 'tabular-nums',
             fontSize: '13px',
             color: 'var(--text-secondary)',
           }}

@@ -47,7 +47,7 @@ function ProgressBar({
           {showValue ? (
             <span
               style={{
-                fontFamily: 'var(--font-mono)',
+                fontVariantNumeric: 'tabular-nums',
                 color: 'var(--text-muted)',
               }}
             >

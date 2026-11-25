@@ -223,7 +223,9 @@ async function openChecklist(wide = false) {
     }))
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   // Capture starts from the Observations tab's Add manually button (CP-22).
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))

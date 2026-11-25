@@ -15,7 +15,7 @@ export function FocusAllDialog({
 }) {
   return (
     <Dialog
-      className="ds-dialog--v2 mb-focus-dialog"
+      className="mb-focus-dialog"
       title="Focus list"
       description={`${items.length} ${items.length === 1 ? 'assessment' : 'assessments'}, most urgent first.`}
       width={760}

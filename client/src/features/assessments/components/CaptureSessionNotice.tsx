@@ -1,38 +1,23 @@
-import type * as React from 'react'
 import { Button, Callout } from '../../../design-system'
 import type { CaptureSessionState } from '../useCaptureSession'
 
-const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' }
-
+// Why no capture session started, and what to do, in plain words (no codes or service names).
 function unavailableCause(
   httpStatus: number | null,
   reference: string,
-): { cause: React.ReactNode; next: string } {
+): { cause: string; next: string } {
   if (httpStatus === null)
-    return { cause: 'the gateway could not be reached', next: 'Start the gateway, then try again.' }
+    return { cause: "the server can't be reached", next: 'Check your connection, then try again.' }
   if (httpStatus === 404)
     return {
-      cause: (
-        <>
-          <span style={mono}>{reference}</span>
-          {' is not on the server'}
-        </>
-      ),
-      next: 'Seed the sample assessment or create a new one, then try again.',
+      cause: `${reference} isn't saved on the server`,
+      next: 'Open a saved assessment or create one, then try again.',
     }
-  return {
-    cause: (
-      <>
-        {'the gateway returned '}
-        <span style={mono}>{`HTTP ${httpStatus}`}</span>
-      </>
-    ),
-    next: 'Check the gateway logs, then try again.',
-  }
+  return { cause: 'the server had a problem', next: 'Try again in a moment.' }
 }
 
 // Says so only when no capture session could be started, as saves then stay
-// in this demo. A session starting or running needs no notice: the header
+// on this device. A session starting or running needs no notice: the header
 // names the assessment, the navigation's live light marks the session, and
 // Save waits while it starts.
 export function CaptureSessionNotice({
@@ -59,7 +44,7 @@ export function CaptureSessionNotice({
       >
         {'No capture session was started: '}
         {cause}
-        {`. Observations saved here stay in this demo. ${next}`}
+        {`. Observations saved now stay on this device. ${next}`}
       </Callout>
     </div>
   )

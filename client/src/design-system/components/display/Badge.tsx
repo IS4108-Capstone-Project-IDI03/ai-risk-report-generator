@@ -55,7 +55,7 @@ function Badge({ tone = 'neutral', icon, dot = false, children, style = {}, ...r
         flex: '0 0 auto',
         padding: '0 9px',
         boxSizing: 'border-box',
-        borderRadius: 'var(--radius-sm)',
+        borderRadius: 'var(--radius-pill)',
         background: t.bg,
         color: t.fg,
         fontFamily: 'var(--font-sans)',

@@ -17,7 +17,7 @@ export function useSectionHistory(reference: string, sectionId: string) {
         if (Array.isArray(read?.entries)) {
           setHistory(read)
           setLoadError(null)
-        } else setLoadError('The gateway sent no version history for this section.')
+        } else setLoadError('The server sent no version history for this section.')
       },
       (error: unknown) => {
         if (!controller.signal.aborted)

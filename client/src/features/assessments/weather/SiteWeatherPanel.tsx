@@ -206,7 +206,7 @@ function NoReading({
         <p className="wx-lead">
           <b>{'Weather unavailable'}</b>
         </p>
-        <p className="wx-meta">{'No weather service is set up on the server.'}</p>
+        <p className="wx-meta">{"Weather isn't available for this site."}</p>
       </>
     )
   return (
@@ -215,7 +215,7 @@ function NoReading({
         <b>{'Weather unavailable'}</b>
       </p>
       <p className="wx-meta">
-        {`${weather.source ? weather.source.name : 'The gateway'} can't be reached right now, and ` +
+        {`${weather.source ? weather.source.name : 'The weather service'} can't be reached right now, and ` +
           (weather.lastReadingAt
             ? `the last reading was taken at ${siteTime(weather.lastReadingAt, weather.timeZone, now)} site time.`
             : 'no reading has been taken yet.')}

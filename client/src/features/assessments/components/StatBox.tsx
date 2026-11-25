@@ -4,8 +4,7 @@ import { Icon } from '../../../design-system'
 const card: React.CSSProperties = {
   background: 'var(--surface-card)',
   border: '1px solid var(--border-default)',
-  borderRadius: '8px',
-  boxShadow: 'var(--shadow-sm)',
+  borderRadius: 'var(--radius-card)',
 }
 
 // What one box says: a short figure, the unit it counts, and a note that
@@ -25,9 +24,9 @@ const TONE_ICON: Record<Tone, string> = {
 }
 
 // A summary box, all built alike: an icon and label, a short figure with its
-// unit, and a note. One that summarises a view opens it, the whole card being
-// the button; one given `pressed` instead filters a list on and off, ticked
-// while on. Used by the Overview, the Observations tab and the Dashboard.
+// unit, and a note, drawn as v2's figure tiles (label 12 / 600, figure 28 / 700 navy). One that
+// summarises a view opens it, the whole card being the button; one given `pressed` instead
+// filters a list on and off, ticked while on. Used by the sample Overview.
 export function StatBox({
   icon,
   label,
@@ -56,10 +55,10 @@ export function StatBox({
             alignItems: 'center',
             justifyContent: 'center',
             flex: '0 0 auto',
-            width: '26px',
-            height: '26px',
-            borderRadius: '6px',
-            background: 'var(--surface-sunken)',
+            width: '28px',
+            height: '28px',
+            borderRadius: 'var(--radius-tile)',
+            background: 'var(--graphite-100)',
             color: 'var(--text-secondary)',
           }}
         >
@@ -70,14 +69,12 @@ export function StatBox({
           style={{
             flex: '1',
             minWidth: 0,
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: '600',
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            color: 'var(--text-muted)',
+            color: 'var(--graphite-700)',
           }}
         >
           {label}
@@ -96,7 +93,7 @@ export function StatBox({
             fontWeight: '700',
             letterSpacing: '-0.02em',
             fontVariantNumeric: 'tabular-nums',
-            color: tone === 'danger' ? TONE_COLOUR.danger : 'var(--text-primary)',
+            color: tone === 'danger' ? TONE_COLOUR.danger : 'var(--marsh-navy)',
           }}
         >
           {value}
@@ -109,13 +106,13 @@ export function StatBox({
             display: 'flex',
             alignItems: 'flex-start',
             gap: '6px',
-            fontSize: '13px',
-            lineHeight: '18px',
+            fontSize: '12px',
+            lineHeight: '16px',
             fontWeight: tone ? '500' : '400',
             color: tone ? TONE_COLOUR[tone] : 'var(--text-muted)',
           }}
         >
-          {tone && <Icon name={TONE_ICON[tone]} size={14} style={{ marginTop: '2px' }} />}
+          {tone && <Icon name={TONE_ICON[tone]} size={14} style={{ marginTop: '1px' }} />}
           {note}
         </span>
       )}
@@ -136,7 +133,7 @@ export function StatBox({
     // A report past its due date is marked on the card's edge too.
     // An inset edge, so the card's content lines up with the others.
     ...(tone === 'danger' && {
-      boxShadow: 'inset 0 3px 0 ' + TONE_COLOUR.danger + ', var(--shadow-sm)',
+      boxShadow: 'inset 0 3px 0 ' + TONE_COLOUR.danger,
     }),
     ...(pressed && {
       border: '1px solid var(--border-focus)',

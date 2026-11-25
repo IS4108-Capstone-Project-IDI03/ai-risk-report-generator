@@ -141,7 +141,9 @@ describe('Route guard (F-05)', () => {
     expect(within(nav()).getByRole('button', { name: 'Clients' })).toBeInTheDocument()
     expect(within(nav()).getByRole('button', { name: 'User accounts' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent)
     for (const name of ['Overview', 'Observations', 'Generation', 'Review', 'Export'])
       expect(tabs.some((tab) => tab?.startsWith(name))).toBe(true)

@@ -195,7 +195,7 @@ export async function openConversation(
     signal,
   )
   if (!isConversation(data?.conversation))
-    throw new GatewayError(200, 'The gateway sent no conversation.')
+    throw new GatewayError(200, 'The server sent no conversation.')
   return {
     conversation: data.conversation,
     questions: Array.isArray(data.questions) ? (data.questions as AskAnswer[]) : [],

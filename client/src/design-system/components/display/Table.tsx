@@ -30,7 +30,7 @@ function Table({
     <div
       style={{
         border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 'var(--radius-card)',
         overflow: 'hidden',
         background: 'var(--surface-card)',
         ...style,
@@ -58,11 +58,9 @@ function Table({
                   textAlign: c.align || 'left',
                   padding: pad,
                   width: c.width,
-                  fontSize: 'var(--text-label-size)',
-                  letterSpacing: 'var(--text-label-ls)',
-                  textTransform: 'uppercase',
-                  fontWeight: 'var(--text-label-weight)',
-                  color: 'var(--text-muted)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--graphite-700)',
                   borderBottom: '1px solid var(--border-default)',
                   whiteSpace: 'nowrap',
                 }}

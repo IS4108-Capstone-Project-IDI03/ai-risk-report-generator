@@ -167,7 +167,9 @@ async function openObservations() {
   await signIn()
   if (workList) await screen.findByText('1 assessment')
   else await screen.findByText('Showing sample assessments')
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   if (listed.length)
     await screen.findByRole('button', { name: new RegExp(listed[0].note!.slice(0, 20)) })

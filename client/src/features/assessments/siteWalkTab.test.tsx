@@ -116,7 +116,9 @@ async function openApp() {
 }
 async function openObservations() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
 }
 
@@ -274,7 +276,9 @@ describe('Version history (and Archive, for the owner) on the Observations tab',
 
   it('is in the header on the other tabs too', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     const group = screen.getByRole('group', { name: 'Assessment' })
     expect(within(group).getByRole('button', { name: 'History' })).toBeInTheDocument()
   })

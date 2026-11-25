@@ -113,7 +113,9 @@ async function openObservations() {
   window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   // The sample observations show straight away; wait for the gateway's.
   if (reachable && listed.length) {

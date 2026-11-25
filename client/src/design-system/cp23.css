@@ -617,7 +617,8 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  /* The buttons end on the page gutter, in line with the cards above. */
+  padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom));
   background: var(--surface-card);
   border-top: 1px solid var(--border-subtle);
 }
@@ -683,6 +684,9 @@
   .ds-pill > span:not(.ds-pill-lines) {
     width: 12px !important;
     height: 12px !important;
+  }
+  .ds-action-bar {
+    padding-inline: 16px;
   }
   .ds-action-bar > * {
     flex: 1;

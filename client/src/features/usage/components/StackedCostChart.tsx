@@ -128,7 +128,7 @@ export function StackedCostChart({
                 tickLine={false}
                 axisLine={false}
                 width={64}
-                tick={{ fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
                 tickFormatter={(v: number) => formatAxisMoney(v)}
               />
               <Tooltip

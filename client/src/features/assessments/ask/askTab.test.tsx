@@ -454,7 +454,7 @@ describe('failures (AC7, AC8)', () => {
     const panel = await openAsk()
     expect(await within(panel).findByText('Ask is unavailable')).toBeInTheDocument()
     expect(
-      within(panel).getByText('The gateway could not be reached, so nothing can be searched.'),
+      within(panel).getByText("Can't reach the server, so nothing can be searched."),
     ).toBeInTheDocument()
     await waitFor(() => expect(within(panel).queryByRole('textbox')).toBeNull())
   })

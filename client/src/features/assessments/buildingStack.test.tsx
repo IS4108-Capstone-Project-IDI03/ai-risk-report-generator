@@ -232,7 +232,9 @@ describe('The Observations tab as buildings (CP-61)', () => {
   async function openStack() {
     render(<App />)
     await signIn()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
     fireEvent.click(await screen.findByRole('radio', { name: 'Buildings' }))
     await cell(/^Block A › Ground › Loading bay: 2 observations/)

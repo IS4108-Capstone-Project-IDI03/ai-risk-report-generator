@@ -260,7 +260,7 @@ describe('Delete (AC2)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Delete this conversation?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete conversation' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'The conversation could not be deleted: the gateway could not be reached. Try again.',
+      "The conversation could not be deleted: the server can't be reached. Try again.",
     )
     expect(screen.getByText('The answer to Which bay?')).toBeInTheDocument()
   })

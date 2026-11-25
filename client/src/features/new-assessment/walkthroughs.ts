@@ -101,7 +101,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
     },
     offer:
       "I see it's your first time starting from client documents.\n\nWould you like to try it with a sample email first?",
-    // Failure lines, in the plan's words (take the quoted sentences exactly): If the check fails on a first-time offer, no offer is shown, and MarshBot says in the corner: "I'm sorry, I can't read documents right now, so I'll skip this walkthrough for now. You can still fill in the form yourself." From Settings: "I'm sorry, I can't read documents right now. Please try this walkthrough again a little later." If the read fails part-way, the screen's own "Not read" message shows and MarshBot adds: "I'm sorry, that didn't work this time. You can replay this walkthrough from **Settings** whenever you like."
+    // Failure lines, in the plan's words (take the quoted sentences exactly): If the check fails on a first-time offer, no offer is shown, and MarshBot says in the corner: "I'm sorry, I can't read documents right now, so I'll skip this walkthrough for now. You can still fill in the form yourself." From Settings: "I'm sorry, I can't read documents right now. Please try this walkthrough again a little later." If the read fails part-way, the screen's own "not read" heading and message show and MarshBot adds: "I'm sorry, that didn't work this time. You can replay this walkthrough from **Settings** whenever you like."
     fail: {
       offer:
         "I'm sorry, I can't read documents right now, so I'll skip this walkthrough for now. You can still fill in the form yourself.",

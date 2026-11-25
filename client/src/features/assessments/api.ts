@@ -269,12 +269,7 @@ export class GatewayError extends Error {
     fields: Record<string, string> = {},
     detail: Record<string, unknown> = {},
   ) {
-    super(
-      message ??
-        (status === null
-          ? 'The gateway could not be reached.'
-          : `The gateway returned HTTP ${status}.`),
-    )
+    super(message ?? (status === null ? "Can't reach the server." : 'The server had a problem.'))
     this.name = 'GatewayError'
     this.status = status
     this.fields = fields
