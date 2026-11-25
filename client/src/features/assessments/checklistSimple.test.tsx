@@ -343,7 +343,7 @@ it("a failed star undoes only its own row, not another row's tick saved meanwhil
   const ticked = base(
     checklist([item({ id: 'a', text: 'Alpha' }), marked('b', 'Bravo', 'confirmed')]),
   )
-  vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+  vi.stubGlobal('fetch', (_url: string, init: RequestInit = {}) => {
     if (init.method === 'PATCH')
       return new Promise((done) => (failStar = () => done(json({ message: 'no' }, 500))))
     if (init.method === 'PUT') return json(ticked)
