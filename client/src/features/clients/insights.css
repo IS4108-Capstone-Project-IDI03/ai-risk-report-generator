@@ -34,17 +34,7 @@
 }
 .ci-link {
   align-self: flex-start;
-  padding: 6px 0;
-  border: 0;
-  background: none;
-  color: var(--ink-600);
-  font: 600 13px/1.3 var(--font-sans);
-  cursor: pointer;
 }
-.ci-link:hover {
-  color: var(--marsh-navy);
-}
-.ci-link:focus-visible,
 .ci-cite:focus-visible,
 .ci-cell:focus-visible,
 .ci-rank-site:focus-visible {
@@ -141,7 +131,7 @@
 /* ---- What stands out ---- */
 .ci-findings {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -370,7 +360,7 @@
 }
 .ci-skeleton span {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
 }
 .ci-skeleton span:nth-child(2) {
@@ -403,7 +393,7 @@
   align-items: center;
   gap: 2px;
   padding-right: 4px;
-  border-radius: 12px;
+  border-radius: var(--radius-field);
   transition:
     background-color var(--duration-fast) var(--ease-out),
     opacity var(--duration-base) var(--ease-out);
@@ -419,7 +409,7 @@
   min-width: 0;
   padding: 12px 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-field);
   background: none;
   color: inherit;
   font: inherit;
@@ -479,7 +469,7 @@
 .ci-grid thead th:first-child,
 .ci-grid tbody th,
 .ci-grid tfoot th {
-  width: 26%;
+  width: 22%;
   text-align: left;
 }
 .ci-grid thead th[data-on] {
@@ -488,11 +478,8 @@
 }
 .ci-grid tbody th {
   padding-right: 10px;
-  overflow: hidden;
   color: var(--graphite-900);
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ci-grid tbody tr {
   transition: opacity var(--duration-base) var(--ease-out);
@@ -515,7 +502,7 @@
   width: 100%;
   height: 44px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: var(--graphite-50);
   color: var(--graphite-600);
   font: 600 13px/1 var(--font-sans);
@@ -571,7 +558,7 @@
 .ci-scale .ci-cell {
   width: 18px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   cursor: default;
 }
 .ci-readout {
@@ -624,7 +611,7 @@
   width: 34%;
 }
 .ci-change-figures {
-  width: 104px;
+  width: 124px;
 }
 .ci-change tbody th {
   padding-right: 12px;
@@ -635,6 +622,14 @@
 }
 .ci-change tbody tr {
   transition: opacity var(--duration-base) var(--ease-out);
+}
+/* A long chip ("No observations yet") wraps inside the figures column rather than past it. */
+.ci-change .ci-reason {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-inline: 8px;
+  text-align: center;
+  white-space: normal;
 }
 .ci-change-name {
   display: block;
@@ -673,7 +668,7 @@
   position: absolute;
   top: 11px;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--ink-200);
   transition:
     left var(--duration-base) var(--ease-out),
@@ -735,10 +730,10 @@
     padding: 14px 16px;
   }
   .ci-change-site {
-    width: 38%;
+    width: 34%;
   }
   .ci-change-figures {
-    width: 92px;
+    width: 112px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -757,5 +752,22 @@
 @media (max-width: 767px) {
   .ci-card[data-walk-on] > :not(.ci-card-head, .ci-h, .ci-sub) {
     display: none;
+  }
+}
+
+/* A text link on a phone is a 44 px target (the Button's own height is inline, so min-height wins). */
+@media (max-width: 767px) {
+  .ci .ci-link {
+    min-height: 44px;
+  }
+}
+
+/* Two figures to a row on a phone; an odd one out takes the whole row. */
+@media (max-width: 767px) {
+  .ci-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ci-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }

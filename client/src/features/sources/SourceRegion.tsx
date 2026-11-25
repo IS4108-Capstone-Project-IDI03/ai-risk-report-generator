@@ -25,9 +25,10 @@ const MAX_PAGE = 1600
 // Docling's boxes sit tight on a table's top rule or a formula's ink, so the frame shows this many
 // points more on each side, kept inside the page.
 const MARGIN = 8
-// The quoted words' wash: the chat's highlighter (--chat-highlight), multiplied into the page so
-// the black text stays crisp under it, as on the PDF tab.
-const HIGHLIGHT = '#fde68a'
+// The quoted words' wash, the design system's amber, multiplied into the page so the black text
+// stays crisp under it. A canvas can't read a CSS variable, so it is resolved once it is drawn.
+const highlight = () =>
+  getComputedStyle(document.documentElement).getPropertyValue('--amber-100').trim() || 'gold'
 
 type Size = { width: number; height: number }
 
@@ -235,7 +236,7 @@ function markQuote(crop: HTMLCanvasElement, rects: Rect[], box: PageBox): boolea
   // Pixels per point, as the crop was copied: its width over the box's.
   const scale = crop.width / (box.r - box.l)
   context.globalCompositeOperation = 'multiply'
-  context.fillStyle = HIGHLIGHT
+  context.fillStyle = highlight()
   for (const r of rects) {
     // PDF points run up from the page's bottom-left; the crop's pixels down from the box's top-left.
     context.fillRect(

@@ -360,7 +360,7 @@ describe('The written summary (CP-29)', () => {
     expect(calls).toContain('POST /api/clients/c1/insights/summary')
     expect(
       screen.getByText(
-        /^Drafted by the model on .*from 22 observations, 9 accepted OFIs and 1 rating\. Not added to any report\.$/,
+        /^Written by AI .*from 22 observations, 9 accepted OFIs and 1 rating\. It isn't added to any report\.$/,
       ),
     ).toBeVisible()
     expect(screen.getByTitle('Medium confidence')).toBeVisible()

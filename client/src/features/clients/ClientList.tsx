@@ -206,7 +206,7 @@ export function ClientList({
               }
               description={
                 failed
-                  ? 'The gateway could not be reached. Check your connection and try again.'
+                  ? "Can't reach the server. Check your connection and try again."
                   : filtered
                     ? 'Change the search or the filters to see more.'
                     : showRemoved

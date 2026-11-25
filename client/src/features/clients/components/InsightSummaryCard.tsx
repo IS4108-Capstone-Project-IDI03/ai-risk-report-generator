@@ -2,7 +2,7 @@
 // drafted from the engineer's observations and the figures counted from them,
 // each citing the sources listed under it. The gateway returns it only once
 // every statement was checked, so nothing here is streamed. It is the tab's one
-// model-written block and says so; it is never part of a report. Called by
+// AI-written block and says so; it is never part of a report. Called by
 // screens/InsightsTab.
 import { useState } from 'react'
 import { Button, Callout, ConfidenceIndicator, IconButton } from '../../../design-system'
@@ -97,7 +97,7 @@ export function InsightSummaryCard({
         <div className="ci-unwritten">
           <p>
             {canSummarise
-              ? 'No summary yet. It is drafted by the model from your observations, accepted OFIs and ratings for this client, with client details masked before anything is sent. It is not added to any report.'
+              ? "No summary yet. AI can write one from your observations, accepted OFIs and ratings. It isn't added to any report."
               : 'A summary can be written once a site has an observation with a note or a transcript.'}
           </p>
           {canSummarise && (
@@ -111,10 +111,10 @@ export function InsightSummaryCard({
       {written && (
         <div className="ci-written">
           <p className="ci-sub">
-            {`Drafted by the model on ${formatDayYearTime(new Date(summary.writtenAt))}, from ` +
+            {`Written by AI on ${formatDayYearTime(new Date(summary.writtenAt))} from ` +
               `${plural(summary.basis.observations, 'observation')}, ` +
               `${plural(summary.basis.ofis, 'accepted OFI')} and ` +
-              `${plural(summary.basis.ratings, 'rating')}. Not added to any report.`}
+              `${plural(summary.basis.ratings, 'rating')}. It isn't added to any report.`}
           </p>
           {summary.outOfDate && (
             <Callout
@@ -182,9 +182,14 @@ export function InsightSummaryCard({
               ))}
             </ol>
             {listed.length < sources.length && (
-              <button type="button" className="ci-link" onClick={() => setAllSources(true)}>
+              <Button
+                variant="link"
+                size="sm"
+                className="ds-press ci-link"
+                onClick={() => setAllSources(true)}
+              >
                 {`Show all ${sources.length} sources`}
-              </button>
+              </Button>
             )}
           </div>
         </div>

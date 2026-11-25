@@ -59,8 +59,10 @@ export function FindingsGrid({
           <tbody>
             {sites.map((s) => (
               <tr key={s.id} data-dim={(focus && focus !== s.id) || undefined}>
-                <th scope="row" dir="auto" title={s.name}>
-                  {s.name}
+                <th scope="row" title={s.name}>
+                  <span className="cl-clamp" dir="auto">
+                    {s.name}
+                  </span>
                 </th>
                 {s.cells.map((cell, column) => {
                   const here = { site: s.id, column }

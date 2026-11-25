@@ -5,7 +5,7 @@
 // summary, which the model drafts on request. Called by ClientRecord; data from
 // ../useClientInsights.ts.
 import { useRef, useState } from 'react'
-import { EmptyState, Icon } from '../../../design-system'
+import { Button, EmptyState, Icon } from '../../../design-system'
 import { CAT_ICON } from '../../assessments/categories'
 import type { ClientInsights, InsightFinding } from '../api'
 import { AttentionList } from '../components/AttentionList'
@@ -107,7 +107,7 @@ export function InsightsTab({
     )
   if (!insights)
     return (
-      <p role="status" style={{ margin: 0 }}>
+      <p role="status" className="cl-empty-title">
         {'Loading insights…'}
       </p>
     )
@@ -139,7 +139,7 @@ export function InsightsTab({
     <div className="ci">
       <p className="ci-basis">
         {
-          'Figures use your latest assessment with observations at each site. Archived assessments and removed sites are left out.'
+          "Counted from each site's latest assessment with observations. Archived assessments and removed sites are left out."
         }
       </p>
 
@@ -199,13 +199,18 @@ export function InsightsTab({
                     )}
                   </span>
                 )}
-                <button type="button" className="ci-link" onClick={() => show(finding)}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="ds-press ci-link"
+                  onClick={() => show(finding)}
+                >
                   {finding.kind === 'category'
                     ? 'Show in the grid'
                     : finding.kind === 'severe'
                       ? 'Show its findings'
                       : 'Show the change'}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -232,9 +237,14 @@ export function InsightsTab({
               {'Sites needing attention'}
             </h2>
             {focus && (
-              <button type="button" className="ci-link" onClick={() => focusSite(null)}>
+              <Button
+                variant="link"
+                size="sm"
+                className="ds-press ci-link"
+                onClick={() => focusSite(null)}
+              >
                 {'Show all sites'}
-              </button>
+              </Button>
             )}
           </div>
           <p className="ci-sub">

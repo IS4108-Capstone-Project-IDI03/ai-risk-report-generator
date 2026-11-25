@@ -4,7 +4,6 @@
 // Calls the documents hook passed in and the toast helper for every action.
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
-  AddRow,
   Button,
   EmptyState,
   SearchField,
@@ -83,11 +82,16 @@ export function DocumentsTab({
         <EmptyState
           icon="file-warning"
           title="Documents could not be loaded"
-          description="The gateway could not be reached. Check your connection and try again."
+          description="Check your connection and try again."
         />
       </div>
     )
-  if (!documents) return <p role="status">{'Loading documents…'}</p>
+  if (!documents)
+    return (
+      <p role="status" className="cl-empty-title">
+        {'Loading documents…'}
+      </p>
+    )
 
   const search = q.trim().toLowerCase()
   const shown = documents.filter(
@@ -138,14 +142,27 @@ export function DocumentsTab({
         onChange={upload}
       />
       {/* On a phone the search, Tag and Upload sit on the page, above the card (board 22 F). */}
-      {phone && toolbar}
+      {phone && documents.length > 0 && toolbar}
       <div className="cl-card">
-        {!phone && toolbar}
+        {!phone && documents.length > 0 && toolbar}
         {documents.length === 0 ? (
-          <div className="cl-empty">
-            <p className="cl-empty-title">{'No documents yet'}</p>
-            <AddRow onClick={pickFiles}>{'Add documents'}</AddRow>
-          </div>
+          // Nothing to search or filter yet, so the one action is the empty state's own.
+          <EmptyState
+            icon="file-text"
+            title="No documents yet"
+            description="Upload this client's files, such as past reports or emails."
+            action={
+              <Button
+                variant="primary"
+                pill
+                iconLeft="upload"
+                loading={uploading}
+                onClick={pickFiles}
+              >
+                {'Add documents'}
+              </Button>
+            }
+          />
         ) : (
           <>
             <table className="cl-table cl-docs" aria-label="Documents">
@@ -192,9 +209,6 @@ export function DocumentsTab({
                 {'No documents match'}
               </p>
             )}
-            <div className="cl-add">
-              <AddRow onClick={pickFiles}>{'Add documents'}</AddRow>
-            </div>
             <TableFooter>{plural(documents.length, 'document')}</TableFooter>
           </>
         )}

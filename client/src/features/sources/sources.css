@@ -20,7 +20,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   /* Paper, in either theme: the region is a picture of the printed page. */
-  background: #fff;
+  background: var(--graphite-0);
 }
 /* The page is drawn here out of sight, only for its pixels. */
 .src-region-draw {

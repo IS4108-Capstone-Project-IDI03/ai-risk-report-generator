@@ -66,12 +66,16 @@ export function ClientPage({ page, error, onClients, bell, ...record }: Props) {
                     : 'The client could not be loaded'
               }
               description={
-                error.status === 403 ? 'A client opens from your own assessments.' : error.message
+                error.status === 403
+                  ? 'A client opens from your own assessments.'
+                  : error.status === 404
+                    ? 'It may have been removed. Choose another from the Clients list.'
+                    : error.message
               }
             />
           </div>
         ) : (
-          <p role="status" style={{ margin: 0 }}>
+          <p role="status" className="cl-empty-title">
             {'Loading the client…'}
           </p>
         )}

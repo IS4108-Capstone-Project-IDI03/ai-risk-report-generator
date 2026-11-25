@@ -79,7 +79,7 @@ export function changeRows(sites: InsightSite[], measure: Measure, max: number):
     const repeat = visits.length > 1
 
     let chip: ChangeRow['chip'] = { text: 'First visit', tone: 'neutral' }
-    if (!site.visits.length) chip = { text: 'No observations yet', tone: 'neutral' }
+    if (!site.visits.length) chip = { text: 'None yet', tone: 'neutral' }
     else if (b === null) chip = { text: 'Not entered', tone: 'neutral' }
     else if (repeat && a === b) chip = { text: 'No change', tone: 'neutral' }
     else if (repeat && measure === 'ofis')

@@ -93,7 +93,11 @@ export function ClientHeader({
                   label="New assessment"
                   size="lg"
                   onClick={onNewAssessment}
-                  style={{ background: 'var(--marsh-navy)', color: '#fff', borderRadius: 999 }}
+                  style={{
+                    background: 'var(--marsh-navy)',
+                    color: 'var(--text-inverse)',
+                    borderRadius: 999,
+                  }}
                 />
               )}
               <IconButton

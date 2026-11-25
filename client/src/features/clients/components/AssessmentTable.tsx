@@ -1,7 +1,7 @@
-// A client's assessments as a table (CP-23, boards 06 and 08): type tile and
-// reference (with its priority mark, AS-07), Type, Survey date, Stage, Report due and a chevron that opens the
-// assessment. Called by SiteCard (one site) and screens/OpenWorkTab (all sites,
-// with a Site column). Rows open the assessment through onOpen.
+// A client's assessments as a table (CP-23, boards 06 and 08): type tile, reference (with its
+// priority mark, AS-07) over a grey second line, Type, Survey date, Stage, Report due and a chevron
+// that opens the assessment. Called by SiteCard (one site) and screens/OpenWorkTab (all sites: the
+// second line names the site). Rows open the assessment through onOpen.
 import { AssessmentTypeTile, ReportDue, StatusPill } from '../../../design-system'
 import { PriorityMark } from '../../marshbot/PriorityMark'
 import { visitStage } from '../../assessments/format'
@@ -27,7 +27,6 @@ export function AssessmentTable({
     <table className="cl-table cl-assess" aria-label={label} data-site={showSite || undefined}>
       <colgroup>
         <col />
-        {showSite && <col className="cl-col-site" />}
         <col className="cl-col-type" />
         <col className="cl-col-date" />
         <col className="cl-col-status" />
@@ -37,7 +36,6 @@ export function AssessmentTable({
       <thead>
         <tr>
           <th scope="col">{'Assessment'}</th>
-          {showSite && <th scope="col">{'Site'}</th>}
           <th scope="col">{'Type'}</th>
           <th scope="col">{'Survey date'}</th>
           <th scope="col">{'Stage'}</th>
@@ -60,18 +58,25 @@ export function AssessmentTable({
               <td className="cl-cell-main">
                 <div className="cl-flex">
                   <AssessmentTypeTile type={type} size={32} />
-                  <span className="cl-line-1">{visit.reference}</span>
-                  {/* Hover names the reason; the row's Open button says it to a screen reader. */}
-                  {!!visit.priority && <PriorityMark priorities={[visit.priority]} inside />}
+                  <span className="cl-lines">
+                    <span className="cl-line-1">
+                      <span className="cl-ellip" title={visit.reference}>
+                        {visit.reference}
+                      </span>
+                      {/* Hover names the reason; the row's Open button says it to a screen reader. */}
+                      {!!visit.priority && <PriorityMark priorities={[visit.priority]} inside />}
+                    </span>
+                    {/* The site in Open work; a site's own table shows the type here when its column is hidden. */}
+                    <span
+                      className="cl-line-2 cl-ellip"
+                      dir="auto"
+                      title={showSite ? site : undefined}
+                    >
+                      {showSite ? site : type}
+                    </span>
+                  </span>
                 </div>
               </td>
-              {showSite && (
-                <td data-label="Site">
-                  <span className="cl-clamp" dir="auto" title={site}>
-                    {site}
-                  </span>
-                </td>
-              )}
               <td data-label="Type">{type}</td>
               <td data-label="Survey date" className="cl-num-text">
                 {day(visit.siteVisitDate)}
