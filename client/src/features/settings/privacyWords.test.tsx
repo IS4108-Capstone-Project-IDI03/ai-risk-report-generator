@@ -334,6 +334,77 @@ describe('Privacy words (PV-09)', () => {
     expect(within(panel).getByText('Nothing matches.')).toBeInTheDocument()
   })
 
+  it('gives each list its own search, so a Never masked search does not hide Always masked names', async () => {
+    mock(
+      true,
+      lists({
+        never: Array.from({ length: 9 }, (_, i) => word({ id: `d${i}`, word: `Default${i}` })),
+        always: [word({ id: 'a1', list: 'always', word: 'Crest Tower', kind: 'SITE' })],
+      }),
+    )
+    render(<Settings />)
+    const panel = await openPrivacyWords()
+    await within(panel).findByText('Default0')
+
+    fireEvent.change(within(panel).getByLabelText(/^Find on/), { target: { value: 'Default3' } })
+    fireEvent.click(within(panel).getByRole('radio', { name: /Always masked/ }))
+    expect(within(panel).getByText('Crest Tower')).toBeInTheDocument()
+
+    fireEvent.click(within(panel).getByRole('radio', { name: /Never masked/ }))
+    expect(within(panel).getByLabelText(/^Find on/)).toHaveValue('')
+  })
+
+  it('keeps the search box while a search is on, even once the list is down to 8 words', async () => {
+    let current = lists({
+      never: Array.from({ length: 9 }, (_, i) => word({ id: `d${i}`, word: `Default${i}` })),
+    })
+    mock(true, current, (url, init) => {
+      if (init?.method === 'DELETE') {
+        current = lists({ never: current.never.filter((w) => !url.endsWith(`/${w.id}`)) })
+        return reply(200, {})
+      }
+      if (url === '/api/settings/privacy-words') return reply(200, current)
+      return null
+    })
+    render(<Settings />)
+    const panel = await openPrivacyWords()
+    await within(panel).findByText('Default0')
+
+    fireEvent.change(within(panel).getByLabelText(/^Find on/), { target: { value: 'Default3' } })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Remove Default3' }))
+    await waitFor(() => expect(within(panel).queryByText('Default3')).not.toBeInTheDocument())
+
+    expect(within(panel).getByLabelText(/^Find on/)).toHaveValue('Default3')
+    expect(within(panel).getByText('Nothing matches.')).toBeInTheDocument()
+  })
+
+  it('keeps the Added by filter while one is chosen, even once one place is left', async () => {
+    let current = lists({
+      never: [
+        word({}),
+        word({ id: 'w2', word: 'Hosereel', source: 'admin', addedBy: { id: 'u2', name: 'Lee' } }),
+      ],
+    })
+    mock(true, current, (url, init) => {
+      if (init?.method === 'DELETE') {
+        current = lists({ never: [word({})] })
+        return reply(200, {})
+      }
+      if (url === '/api/settings/privacy-words') return reply(200, current)
+      return null
+    })
+    render(<Settings />)
+    const panel = await openPrivacyWords()
+    await within(panel).findByText('Hosereel')
+
+    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: 'u2' } })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Remove Hosereel' }))
+    await waitFor(() => expect(within(panel).queryByText('Hosereel')).not.toBeInTheDocument())
+
+    expect(within(panel).getByLabelText(/^Added by/)).toBeInTheDocument()
+    expect(within(panel).getByText('Nothing matches.')).toBeInTheDocument()
+  })
+
   it('offers no Added by filter when every word came from one place', async () => {
     mock(true)
     render(<Settings />)

@@ -656,6 +656,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
   align-items: start;
   gap: 12px;
+  margin-bottom: var(--space-6);
 }
 .st-pw-filters > :only-child {
   grid-column: 1 / -1;

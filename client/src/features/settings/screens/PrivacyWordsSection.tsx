@@ -135,7 +135,9 @@ export function PrivacyWordsSection() {
       {view === 'masked' ? (
         <MaskedInReports onNeverMask={neverMask} />
       ) : (
+        // Keyed by list: each list has its own search and Added by filter.
         <WordList
+          key={view}
           list={view}
           words={lists[view]}
           prefill={view === 'never' ? prefill : undefined}
@@ -182,6 +184,9 @@ function WordList({
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label)),
   ]
+  // A filter in use stays on screen, so it can be cleared once the list shrinks.
+  const showSearch = words.length > 8 || filter !== ''
+  const showAddedBy = origins.length > 1 || addedBy !== ''
   const shown = words.filter(
     (w) =>
       (!addedBy || origin(w) === addedBy) &&
@@ -200,9 +205,9 @@ function WordList({
         initialWord={prefill?.word ?? ''}
         onAdded={onAdded}
       />
-      {(words.length > 8 || origins.length > 1) && (
+      {(showSearch || showAddedBy) && (
         <div className="st-pw-filters">
-          {words.length > 8 && (
+          {showSearch && (
             <Input
               label={`Find on ${list === 'never' ? 'Never' : 'Always'} masked`}
               iconLeft="search"
@@ -210,7 +215,7 @@ function WordList({
               onChange={(e) => setFilter(e.target.value)}
             />
           )}
-          {origins.length > 1 && (
+          {showAddedBy && (
             <Select
               label="Added by"
               value={addedBy}
