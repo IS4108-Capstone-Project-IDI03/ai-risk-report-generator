@@ -17,6 +17,9 @@
 .ci-sub {
   font-size: 12px;
 }
+.ci-part {
+  white-space: nowrap;
+}
 .ci-h {
   margin: 0;
   color: var(--marsh-navy);

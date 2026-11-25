@@ -17,6 +17,19 @@ import {
 import { OutcomeDialog, PairDialog, PairNewDialog } from './DecisionDialogs'
 import type { DecisionRefusal } from './useComparison'
 
+/** Returns a pair's severities as "High → Critical", or just "Low" when both reports agree. */
+export function SeverityShift({ severity }: { severity: NonNullable<ComparisonItem['severity']> }) {
+  if (severity.direction === 0) return <span>{severity.current}</span>
+  return (
+    <span>
+      {severity.previous}
+      <span aria-hidden="true">{' → '}</span>
+      <span className="ds-sr-only">{' to '}</span>
+      {severity.current}
+    </span>
+  )
+}
+
 export type Decide = (item: string, decision: Decision) => Promise<DecisionRefusal | null>
 
 // The decision dialog open, if any.
@@ -95,23 +108,26 @@ export function ComparisonDetail({
             </Button>
           ) : (
             <>
-              <Button
-                variant="primary"
-                pill
-                iconLeft="check"
-                disabled={deciding}
-                disabledReason={
-                  item.outcome
-                    ? undefined
-                    : {
-                        title: 'Choose an outcome first',
-                        text: 'Its sources disagree, so the outcome is yours to choose.',
-                      }
-                }
-                onClick={() => void decide({ action: 'accept' })}
-              >
-                {'Accept'}
-              </Button>
+              {/* Once decided there is nothing left to accept: a second press would only repeat it. */}
+              {!item.decided && (
+                <Button
+                  variant="primary"
+                  pill
+                  iconLeft="check"
+                  disabled={deciding}
+                  disabledReason={
+                    item.outcome
+                      ? undefined
+                      : {
+                          title: 'Choose an outcome first',
+                          text: 'Its sources disagree, so the outcome is yours to choose.',
+                        }
+                  }
+                  onClick={() => void decide({ action: 'accept' })}
+                >
+                  {'Accept'}
+                </Button>
+              )}
               {item.kind === 'previous' ? (
                 <>
                   <IconButton
@@ -188,10 +204,8 @@ export function ComparisonDetail({
           <h3 className="cmp-label">{'What changed'}</h3>
           {item.severity && (
             <p className="cmp-severity">
-              <span>{item.severity.previous}</span>
-              <span aria-hidden="true">{' → '}</span>
-              <span className="ds-sr-only">{' to '}</span>
-              <span>{item.severity.current}</span>
+              <SeverityShift severity={item.severity} />
+              {item.severity.direction === 0 && ', as before'}
             </p>
           )}
           {item.figures.length > 0 && (

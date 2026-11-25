@@ -94,6 +94,12 @@ export const kinds =
 /** Returns the text when it fits the rail's status pill (18 characters; longer is cut off in the 272px rail), else the shorter one. */
 export const pill = (text: string, short: string) => (text.length <= 18 ? text : short)
 
+/**
+ * Returns a site walk named inside a phrase: "the site walk “Tower A basements”". A walk's name
+ * is the engineer's own words, so it is never lower-cased ("the tower A basements") and never
+ * the subject of a verb ("Tower A basements is in").
+ */
+export const walkNamed = (title: string) => `the site walk “${title}”`
 /** Returns the text with its first letter in lower case ("Morning walk" -> "morning walk"). */
 export const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 /** Returns the text with its first letter in upper case. */

@@ -226,7 +226,7 @@ describe('tasks', () => {
     expect(topics(after.added)).toEqual(['ack', 'checklist'])
     expect(after.added[0].says).toEqual([
       {
-        text: 'Nice work, Alex! The morning walk is in with 7 new observations, and Loading Bay 2 came through.',
+        text: 'Nice work, Alex! The site walk “Morning walk” is in with 7 new observations, and Loading Bay 2 came through.',
         tone: 'good',
       },
     ])
@@ -308,7 +308,7 @@ describe('tasks', () => {
     })
     const after = run(first, b, { type: 'changed' }, LATER)
     expect(after.added[0].says[0].text).toBe(
-      'Nice work, Alex! The morning walk is in with 7 new observations, and the failed recording from Loading Bay 2 has been removed.',
+      'Nice work, Alex! The site walk “Morning walk” is in with 7 new observations, and the failed recording from Loading Bay 2 has been removed.',
     )
     const row = (x: ThreadBrief) => rowsOf(view(first, x, LATER).session.turns[1].cards[0])[1]
     expect(row(b).detail).toBe('Recording removed')
@@ -396,7 +396,7 @@ describe('reacting to a fix (round 9, C)', () => {
     expect(topics(after.added)).toEqual(['noticed'])
     expect(after.added[0].says).toEqual([
       {
-        text: 'Thanks, Alex! I can see the morning walk is in with 7 new observations.',
+        text: 'Thanks, Alex! I can see the site walk “Morning walk” is in with 7 new observations.',
         tone: 'good',
       },
       { text: '1 thing is still left in To Do.', tone: 'normal' },
@@ -406,7 +406,7 @@ describe('reacting to a fix (round 9, C)', () => {
     expect(run(after, one, { type: 'changed' }, LATER).added).toEqual([])
     // The next day's catch-up doesn't claim it again.
     const next = run(after, one, { type: 'open' }, new Date('2026-11-16T01:05:00Z'))
-    expect(next.added[0].says[0].text).not.toMatch(/morning walk/)
+    expect(next.added[0].says[0].text).not.toMatch(/morning walk/i)
   })
 
   describe('in Review (round 9 Check, items 9 to 11)', () => {
@@ -442,6 +442,27 @@ describe('reacting to a fix (round 9, C)', () => {
       const first = run(EMPTY, review(false), { type: 'open' })
       expect(first.added[1].says[1].text).toBe(
         "Fire Protection has 3 findings to decide and 2 open comments, so the report stays in Review until they're all dealt with.",
+      )
+    })
+
+    it('keeps findings in several sections apart from another section’s comments', () => {
+      const spread = brief({
+        stage: 'review',
+        items: [{ ...pending, facts: { count: 37, sections: '2,12' } }],
+        sections: [
+          ...sections(1),
+          {
+            sectionId: '12',
+            title: 'Business Interruption',
+            state: 'decisions',
+            date: null,
+            openComments: 0,
+          },
+        ],
+      })
+      const first = run(EMPTY, spread, { type: 'open' })
+      expect(first.added[1].says[1].text).toBe(
+        "37 findings to decide are in Executive Summary and Business Interruption; Fire Protection has 1 open comment, so the report stays in Review until they're all dealt with.",
       )
     })
 
@@ -508,7 +529,7 @@ describe('reacting to a fix (round 9, C)', () => {
     const after = run(fresh, fixed, { type: 'changed' }, LATER)
     expect(topics(after.added).slice(0, 2)).toEqual(['noticed', 'ack'])
     expect(after.added[0].says[0].text).toBe(
-      'Thanks, Alex! I can see the proposed observations from the morning walk are complete.',
+      'Thanks, Alex! I can see the proposed observations from the site walk “Morning walk” are complete.',
     )
   })
 })
@@ -917,7 +938,7 @@ describe('sessions', () => {
     // Two changes: a lead-in, one tick for each change, then where that leaves the count.
     expect(next.added[0].says).toEqual([
       { text: "Good morning, Alex! Here's what has changed since Saturday.", tone: 'normal' },
-      { text: 'The morning walk is sorted', tone: 'tick' },
+      { text: 'The site walk “Morning walk” is sorted', tone: 'tick' },
       { text: 'The Loading Bay 2 recording is sorted', tone: 'tick' },
       { text: 'You added 13 more observations', tone: 'tick' },
       { text: 'That brings you to 31.', tone: 'normal' },
@@ -1432,7 +1453,7 @@ describe('round 6 and the review ledger', () => {
     const another = { ...walk(), id: 'walk.ready:w2' }
     const later = brief({ items: [walk('2026-11-15T03:00:00.000Z'), another, recording('failed')] })
     const text = run(first, later, { type: 'open' }, MONDAY).added[0].says[0].text
-    expect(text).not.toMatch(/morning walk/)
+    expect(text).not.toMatch(/morning walk/i)
   })
 
   it('keeps a catch-up of one change as a sentence, with the overdue alert after it', () => {
@@ -1444,7 +1465,7 @@ describe('round 6 and the review ledger', () => {
     })
     const says = run(first, later, { type: 'open' }, new Date('2026-11-16T01:05:00Z')).added[0].says
     expect(says.map((x) => [x.text, x.tone])).toEqual([
-      ['Good morning, Alex! Since Saturday, the morning walk is sorted.', 'normal'],
+      ['Good morning, Alex! Since Saturday, the site walk “Morning walk” is sorted.', 'normal'],
       ["The report is 2 days overdue, so let's keep it moving.", 'alert'],
     ])
   })

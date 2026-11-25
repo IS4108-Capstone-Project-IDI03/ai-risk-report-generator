@@ -19,7 +19,7 @@ export function walkFields(ctx: CheckContext): RaisedItem[] {
         weight: 'gap',
         title: w.name ?? 'Site walk',
         detail: `${plural(n, 'proposed observation')} to complete`,
-        fact: `${w.name ?? 'Site walk'} has ${plural(n, 'proposed observation')} to complete.`,
+        fact: `${w.name ? `The site walk “${w.name}”` : 'A site walk'} has ${plural(n, 'proposed observation')} to complete.`,
         icon: 'pencil',
         link: { tab: 'observations', params: { walk: w.id } },
         facts: { toComplete: n },

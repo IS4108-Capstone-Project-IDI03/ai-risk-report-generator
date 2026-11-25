@@ -1367,7 +1367,10 @@ Nothing is saved here; the response is the proposal plus `usage`. Shapes:
 5. **Photos:** each photo with a time is matched among the 3 observations
    spoken nearest it (same recording first); the classifier picks one from the
    photo's description and their notes. With one candidate it is attached
-   directly. A typed walk's photos are not matched.
+   directly. A photo with no time (a typed walk, one added before the first
+   recording, or one whose recording was removed) has every observation as a
+   candidate and is matched by its description alone; one with neither a time
+   nor a description is left out.
 6. **Check flags:** a classifier pick below `SITE_WALK_CHECK_BELOW` (0.70, the
    IN-05 labelling cutoff) sets that observation's `check.location`,
    `check.severity` or `check.category`. No pick is hidden.
@@ -1853,7 +1856,12 @@ assessment's own evidence, with citations.
      citation counts only if it names a label the model was given, and its
      quote is looked for in that passage or observation (`verified`). A line
      with no citation is not shown, nor one in the first person, one that
-     recommends, or one that gives a percentage; emoji are removed. If no
+     recommends, or one that gives a percentage; emoji are removed. A label
+     named in the words ("O1 records ...") becomes plain words ("The
+     observation records ..."): the engineer sees citations as numbers, never
+     labels (`ask.plain_labels`, also in drafting and writing guidance). An
+     empty evidence block reads "none of this kind relates to the request",
+     never "(none)", so the model doesn't claim nothing was recorded. If no
      line survives, the answer says no statement could be supported.
 6. S4's `result` holds the statements, missing lines, the cited sources (a
    passage's text and Chroma labels, or the observation as sent), the
@@ -1929,7 +1937,7 @@ rule, until the next question is asked or it is taken off.
 3. S4 masks the passage and the findings in the same `/mask` call as the
    question, searches with the question and the passage's words, and always
    keeps what the passage cites as evidence, labelled first and marked "cited
-   by the passage" (not reranked). The prompt (`as02-v1`) shows `<passage>` and
+   by the passage" (not reranked). The prompt (`as02-v2`) shows `<passage>` and
    `<section_findings>` (each with its decision and the labels it cites); the
    findings are the draft under review, never citable.
 4. Where the sources behind the passage disagree, the model writes a
@@ -2015,7 +2023,10 @@ S4 may cite and what happens to the answer.
 - **What S4 is told** (`text-proposal.service.ts` `proposalContext`): the
   section's text now, built as the editors build it (`section-document.ts`
   `currentDocument`, the same as the client's `documentContent.ts`). A draft
-  sends the subsections it can go in (not tables, not Section 6's programmes);
+  sends the subsections it can go in (not tables, not Section 6's programmes)
+  and the section's words now as `section_text` (masked with the question;
+  the prompt's `<section_text>`), so it adds to the section instead of
+  repeating it;
   a rewrite checks the passage is still at its offsets (409 `moved` otherwise),
   widens it to the paragraphs it is in (plain paragraphs of one subsection, or
   items of one list; a sub-heading refuses with 400) and sends their words as
@@ -2024,7 +2035,7 @@ S4 may cite and what happens to the answer.
   standards selected on the assessment, `drafting-set.service.ts`); no past
   report is named.
 - **S4** (`orchestrator.ask` with `propose`, prompt and checks in
-  `app/generation/propose.py`, `as04-v1`, `PROPOSE_EFFORT` on `ASK_MODEL`):
+  `app/generation/propose.py`, `as04-v2`, `PROPOSE_EFFORT` on `ASK_MODEL`):
   searches the drafting set only, keeps up to 12 observations and 8 standard
   passages, and writes in the drafting guide's voice: a draft's first line
   `Subsection: <heading>` (streamed as `target`), then one sentence per line,
@@ -2085,7 +2096,7 @@ archived assessment the buttons are not shown and the gateway answers 409.
   section_id, section_title }` with the standards selected on the assessment
   (as AS-01 reads them) and no observations or past reports. S4
   (`orchestrator.cover`, prompt and template in `app/generation/guide.py`,
-  `as08-v1`, `ASK_EFFORT` on `ASK_MODEL`) runs retrieve → assemble → generate
+  `as08-v2`, `ASK_EFFORT` on `ASK_MODEL`) runs retrieve → assemble → generate
   → guardrail as an answer does:
   - **retrieve**: one `/mask` call for the question and the documents'
     names; the template's definition of the section from `sections.json` as
@@ -2164,7 +2175,7 @@ Storage and routes: docs/areas/database.md, "Report comparisons".
    accepted OFIs), and sends both, labelled P1… and O1…, F1…, R1…, to `POST
    /comparison/compare` with `privacy` from `privacyFor`. Template section names
    come from S4's `GET /sections`.
-3. rag-service (`app/comparison/compare.py`, prompt `rv13-v1`, `COMPARISON_MODEL`
+3. rag-service (`app/comparison/compare.py`, prompt `rv13-v2`, `COMPARISON_MODEL`
    and `COMPARISON_EFFORT` on `LLM_PROVIDER`) masks everything in one `/mask`
    call (fail closed: 503, nothing sent), asks the model 40 previous items at a
    time with all the current evidence, and returns one entry per previous item:
@@ -2172,15 +2183,17 @@ Storage and routes: docs/areas/database.md, "Report comparisons".
    sources, possible matches, a reason or the missing evidence, and figures
    copied as written. It drops labels it never gave, answers an item the model
    left out as Not checked (`omitted`), and leaves out a reason or missing line
-   that gives advice, speaks in the first person or holds a placeholder it
-   can't restore. Usage is recorded as `report-comparison`.
+   that gives advice, speaks in the first person, names a label (O8) or holds a
+   placeholder it can't restore. Usage is recorded as `report-comparison`.
 4. The gateway settles each item (`settleItem`): no current source means Not
    checked; differing severities (or OFI priorities) mean Worse or Improved;
    two or more disagreeing sources leave the outcome to the engineer and cap
    confidence at Medium; a figure is kept only when both values are in their
    texts as copied, and its difference is worked out on the written digits
    (`figureDifference`). Confidence is worked out from these checks.
-5. On every read, `foldComparison` applies the engineer's decisions, adds New
+5. On every read, `foldComparison` applies the engineer's decisions (an item
+   re-paired with other evidence drops the comparison's reason and missing
+   line, which spoke of what it no longer cites), adds New
    items (current findings no previous item is compared with; a draft finding
    stands for the observations it cites), counts and orders them (Worse, New at
    Critical or High, sources disagree, Not checked, other New, Unchanged,

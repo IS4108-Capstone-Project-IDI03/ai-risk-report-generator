@@ -311,6 +311,8 @@ describe('Reading a comparison', () => {
       outcome: 'worse',
       sources: ['O:O2'],
       severity: { previous: 'High', current: 'Critical', direction: 1 },
+      // The model's "evidence missing" line was about it having no source.
+      missing: null,
     })
     expect(items.some((i) => i.key === 'N:O:O2')).toBe(false)
   })

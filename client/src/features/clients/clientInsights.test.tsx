@@ -366,7 +366,10 @@ describe('The written summary (CP-29)', () => {
     expect(screen.getByTitle('Medium confidence')).toBeVisible()
     expect(screen.getByText('Tuas Logistics Hub has no rating yet.')).toBeVisible()
     expect(screen.getByText('In-rack sprinkler valve found closed and untagged.')).toBeVisible()
-    expect(screen.getByText('Observation · Critical · 18 Sep 2026 · RPT-2026-0411')).toBeVisible()
+    // One line of parts, each kept whole so the reference never splits at a hyphen.
+    const meta = screen.getByText('RPT-2026-0411').parentElement!
+    expect(meta).toHaveTextContent('Observation · Critical · 18 Sep 2026 · RPT-2026-0411')
+    expect(meta).toBeVisible()
   })
 
   it('marks the source a citation number names', async () => {

@@ -16,7 +16,7 @@ import {
 import { PARTS, partTitle } from '../progress'
 import { STAGE_LABELS } from '../stage'
 import type { BriefItem, Reply, Say, Stage } from '../types'
-import { andList, count, lowerFirst, upperFirst } from './cards'
+import { andList, count, upperFirst, walkNamed } from './cards'
 import { droppedByStageMove } from './session'
 import { doneClause } from './tasks'
 import { draftingLine } from './topics-drafting'
@@ -79,7 +79,7 @@ const NAMED_KINDS = ['failed-recording', 'failed-page', 'site-walks']
 function named(item: BriefItem): string {
   if (item.kind === 'failed-recording') return `the ${item.title} recording`
   if (item.kind === 'failed-page') return `the ${item.title} page`
-  if (item.kind === 'site-walks') return `the ${lowerFirst(item.title)}`
+  if (item.kind === 'site-walks') return walkNamed(item.title)
   return item.title
 }
 
@@ -200,7 +200,7 @@ const CLAUSES: Record<string, (ctx: TopicCtx, i: BriefItem) => string> = {
   uncategorised: () => 'every observation has a category now',
   'uncited-items': () => 'every checklist item cites a standard now',
   'unsure-words': (_, i) => `the unsure words from ${i.title} are checked`,
-  'walk-fields': (_, i) => `the proposed observations from the ${lowerFirst(i.title)} are complete`,
+  'walk-fields': (_, i) => `the proposed observations from ${walkNamed(i.title)} are complete`,
 }
 
 // How one sorted item is said, with its real value where it has one (round 9, item C).

@@ -22,7 +22,7 @@ import { PillFilter } from '../components/ObservationFilters'
 import { formatDayYearTime } from '../format'
 import { useCompact } from '../useCompact'
 import type { ComparisonItem, CurrentSource } from './api'
-import { ComparisonDetail } from './ComparisonDetail'
+import { ComparisonDetail, SeverityShift } from './ComparisonDetail'
 import {
   ALL,
   countTiles,
@@ -92,6 +92,14 @@ export function ComparisonTab({
     setFilters(NO_FILTERS)
     setOpenKey(null)
   }
+  // A chip whose count fell to 0 (the last dismissed item restored) disappears, so its
+  // filter lapses too: without this the list stays empty with no chip left to clear it.
+  if (
+    comparison &&
+    filters.outcome !== ALL &&
+    !countTiles(comparison.counts).some((t) => t.key === filters.outcome)
+  )
+    setFilters((f) => ({ ...f, outcome: ALL }))
 
   // Stacked, the item opens under the list: bring it into view.
   const panel = useRef<HTMLDivElement>(null)
@@ -425,14 +433,7 @@ function Row({
         </span>
         <span className="cmp-row-meta">
           {item.previous && <span>{item.previous.section}</span>}
-          {item.severity && (
-            <span>
-              {item.severity.previous}
-              <span aria-hidden="true">{' → '}</span>
-              <span className="ds-sr-only">{' to '}</span>
-              {item.severity.current}
-            </span>
-          )}
+          {item.severity && <SeverityShift severity={item.severity} />}
           {level && <span>{level}</span>}
         </span>
       </button>

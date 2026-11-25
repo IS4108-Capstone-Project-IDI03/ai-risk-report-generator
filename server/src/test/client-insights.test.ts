@@ -509,11 +509,16 @@ describe('The written summary (CP-29)', () => {
       severity: 'critical',
       text: 'In-rack sprinkler valve found closed.',
     })
+    // A day as the app writes it, not ISO, so the summary never copies "2026-03-01".
+    expect((sent.observations[0] as unknown as { date: string }).date).toMatch(
+      /^\d{1,2} \w{3} \d{4}$/,
+    )
     expect(sent.privacy.enabled).toBe(false)
 
     expect(body.statements).toEqual([
       { text: 'Protection findings dominate across both sites.', citations: [1] },
-      { text: 'Tilbury has a closed in-rack sprinkler valve.', citations: [2, 1] },
+      // Cited as O1 then F1, shown in ascending order.
+      { text: 'Tilbury has a closed in-rack sprinkler valve.', citations: [1, 2] },
     ])
     expect(body.sources).toMatchObject([
       { n: 1, kind: 'figure', observationId: null, reference: null },

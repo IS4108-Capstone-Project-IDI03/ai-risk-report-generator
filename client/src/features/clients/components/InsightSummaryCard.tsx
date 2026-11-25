@@ -4,7 +4,7 @@
 // every statement was checked, so nothing here is streamed. It is the tab's one
 // AI-written block and says so; it is never part of a report. Called by
 // screens/InsightsTab.
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Button, Callout, ConfidenceIndicator, IconButton } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { formatDayYearTime } from '../../assessments/format'
@@ -172,7 +172,14 @@ export function InsightSummaryCard({
                         source.reference,
                       ]
                         .filter(Boolean)
-                        .join(' · ')}
+                        .map((part, i) => (
+                          // Each part stays whole ("RPT-2026-0005" never splits at its
+                          // hyphen); the line may break between parts.
+                          <Fragment key={i}>
+                            {i > 0 && ' · '}
+                            <span className="ci-part">{part}</span>
+                          </Fragment>
+                        ))}
                     </span>
                     <span className="ci-source-quote" dir="auto">
                       {source.quote}

@@ -409,6 +409,12 @@
 .cmp-figures tbody th {
   font-weight: 500;
 }
+/* Headings and values stay whole ("Previous", "7.5 bar"); only the figure's name wraps. */
+.cmp-figures thead th,
+.cmp-figures td {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
 .cmp-sources {
   display: flex;
   flex-direction: column;
