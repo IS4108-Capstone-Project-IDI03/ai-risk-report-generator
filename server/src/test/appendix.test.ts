@@ -120,7 +120,10 @@ describe('Appendix A site photos (GN-07)', () => {
       note: 'Ask for roof plan',
       kinds: ['info_request'],
     })
-    await observation(ids, [photo('b.jpg')], { note: 'Fact and advice', kinds: ['fact', 'recommendation'] })
+    await observation(ids, [photo('b.jpg')], {
+      note: 'Fact and advice',
+      kinds: ['fact', 'recommendation'],
+    })
     await observation(ids, [photo('c.jpg')])
 
     const notes = (await api.get(url)).body.available.map((p: { note: string | null }) => p.note)
