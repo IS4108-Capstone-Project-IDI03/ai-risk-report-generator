@@ -1,356 +1,137 @@
-import { Fragment } from 'react'
-import { Button, Callout, Checkbox, EmptyState, Icon, Radio } from '../../../design-system'
+// The Export tab for a sample assessment (no gateway): the same layout as ReportExport.tsx, with
+// the sample checklist and outstanding items from useAssessmentWorkflow. Nothing is exported.
+// Called by AssessmentApp when there is no saved report. Styles in export.css.
+import { Button, Callout, Checkbox, Icon, Radio } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
+import './export.css'
 
 export function ValidationExport({ v }: { v: AssessmentWorkflow }) {
   return (
-    <>
-      <div style={{ padding: '24px 28px 40px', animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0,1fr) 380px',
-            gap: '20px',
-            alignItems: 'start',
-            maxWidth: '1080px',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {!!v.blocked && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <div style={{ flex: '1', minWidth: '0' }}>
-                    <Callout tone="danger" title={v.blockTitle}>
-                      {v.blockBody}
-                    </Callout>
-                  </div>
-                </div>
-              </>
-            )}
-            {!!v.notBlocked && (
-              <>
-                <Callout tone="success" title="Ready to export">
-                  {
-                    'All included sections are reviewed and no review items remain open. This is sample data shown without the gateway, so it cannot be exported.'
-                  }
-                </Callout>
-              </>
-            )}
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-sm)',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  padding: '14px 20px',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--surface-sunken)',
-                  fontSize: '19px',
-                  lineHeight: '28px',
-                  fontWeight: '600',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {'Completeness checklist'}
-              </div>
+    <div className="ex-wrap">
+      <div className="ex-grid">
+        <div className="ex-main">
+          {!!v.blocked && (
+            <Callout tone="danger" title={v.blockTitle}>
+              {v.blockBody}
+            </Callout>
+          )}
+          {!!v.notBlocked && (
+            <Callout tone="success" title="Ready to export">
+              {"Everything is reviewed. Sample data can't be exported."}
+            </Callout>
+          )}
+
+          <section className="ex-card" aria-labelledby="ex-check-title">
+            <h2 className="ex-card-title" id="ex-check-title">
+              Completeness checklist
+            </h2>
+            <ul className="ex-items">
               {v.checklist.map((c, index) => (
-                <Fragment key={index}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '12px 20px',
-                      borderBottom: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    <Icon name={c.icon} size={16} color={c.color}></Icon>
-                    <span
-                      style={{
-                        flex: '1',
-                        minWidth: '0',
-                        fontSize: '16px',
-                        color: 'var(--text-body)',
-                      }}
+                <li key={index} className="ex-item ex-item--static">
+                  <Icon name={c.icon} size={16} color={c.color} />
+                  <span className="ex-item-body">
+                    <span className="ex-item-title">{c.label}</span>
+                  </span>
+                  <span style={c.valueStyle}>{c.value}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="ex-card" aria-labelledby="ex-open-title">
+            <h2 className="ex-card-title" id="ex-open-title">
+              Outstanding review items
+              <span className="ex-muted">{v.outstandingLabel}</span>
+            </h2>
+            {v.outstanding.length > 0 && (
+              <ul className="ex-items">
+                {v.outstanding.map((o, index) => (
+                  <li key={index}>
+                    <button
+                      type="button"
+                      className="ex-item"
+                      data-sec={o.section}
+                      aria-label={`Go to section: ${o.label}`}
+                      onClick={v.jumpToSection}
                     >
-                      {c.label}
-                    </span>
-                    <span style={c.valueStyle}>{c.value}</span>
-                  </div>
-                </Fragment>
-              ))}
-            </div>
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-sm)',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '14px 20px',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--surface-sunken)',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '19px',
-                    lineHeight: '28px',
-                    fontWeight: '600',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {'Outstanding review items'}
-                </span>
-                <span style={{ flex: '1' }}></span>
-                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                  {v.outstandingLabel}
-                </span>
-              </div>
-              {v.outstanding.map((o, index) => (
-                <Fragment key={index}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '14px',
-                      padding: '12px 20px',
-                      borderBottom: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    <Icon name={o.icon} size={15} color="var(--status-moderate-fg)"></Icon>
-                    <div style={{ flex: '1', minWidth: '0' }}>
-                      <div style={{ fontSize: '16px', color: 'var(--text-body)' }}>{o.label}</div>
-                      <div
-                        style={{
-                          marginTop: '2px',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '13px',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        {o.where}
-                      </div>
-                    </div>
-                    <span style={{ flex: '0 0 auto' }}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        iconRight="chevron-right"
-                        data-sec={o.section}
-                        onClick={v.jumpToSection}
-                      >
-                        {'Go to section'}
-                      </Button>
-                    </span>
-                  </div>
-                </Fragment>
-              ))}
-              {!!v.noOutstanding && (
-                <>
-                  <div style={{ padding: '20px' }}>
-                    <EmptyState
-                      icon="circle-check"
-                      title="No review items outstanding"
-                      description="Every uncertainty raised during drafting has been resolved and recorded."
-                    ></EmptyState>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              position: 'sticky',
-              top: '0',
-            }}
-          >
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                boxShadow: 'var(--shadow-sm)',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '14px 18px',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--surface-sunken)',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '19px',
-                    lineHeight: '28px',
-                    fontWeight: '600',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {'Export'}
-                </span>
-              </div>
-              <div
-                style={{
-                  padding: '16px 18px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                }}
-              >
-                <div>
-                  <span
-                    style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {'Format'}
-                  </span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <Radio
-                      name="export-format"
-                      label="Word document (.docx)"
-                      description="Editable \u2014 for client review cycles"
-                      checked={v.isDocx}
-                      onChange={v.pickDocx}
-                    ></Radio>
-                    <Radio
-                      name="export-format"
-                      label="PDF (.pdf)"
-                      description="Fixed \u2014 for issue and filing"
-                      checked={v.isPdf}
-                      onChange={v.pickPdf}
-                    ></Radio>
-                  </div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
-                  <span
-                    style={{
-                      display: 'block',
-                      marginBottom: '8px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {'Include'}
-                  </span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <Checkbox
-                      label="Citations"
-                      description="Numbered markers, with the sources they cite listed in References after the report"
-                      checked={v.optCite}
-                      onChange={v.setOptCite}
-                    ></Checkbox>
-                    <Checkbox
-                      label="Photograph appendix"
-                      description="28 captioned site photographs"
-                      checked={v.optPhotos}
-                      onChange={v.setOptPhotos}
-                    ></Checkbox>
-                  </div>
-                </div>
-              </div>
-              <div
-                style={{
-                  padding: '14px 18px',
-                  borderTop: '1px solid var(--border-default)',
-                  background: 'var(--surface-sunken)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                }}
-              >
-                <Button
-                  variant="primary"
-                  iconLeft="download"
-                  fullWidth={true}
-                  disabled={v.blocked}
-                  onClick={v.askExport}
-                >
-                  {v.exportLabel}
-                </Button>
-                <span style={{ fontSize: '14px', lineHeight: '20px', color: 'var(--text-muted)' }}>
-                  {v.exportHint}
-                </span>
-              </div>
-            </div>
-            <div
-              style={{
-                background: 'var(--surface-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-                padding: '16px 18px',
-              }}
-            >
-              <span
-                style={{
-                  display: 'block',
-                  marginBottom: '10px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                {'Report'}
-              </span>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  fontSize: '15px',
-                  lineHeight: '22px',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '13px',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  {'RPT-2026-0411'}
-                </span>
-                <span>{'Tilbury Distribution Centre \u00b7 Northgate Logistics'}</span>
-                <span>{'Assessed 11 Apr 2026 \u00b7 Lead engineer A. Rowe'}</span>
-                <span>{v.wordCount}</span>
-              </div>
-            </div>
-          </div>
+                      <Icon name={o.icon} size={16} color="var(--status-moderate-fg)" />
+                      <span className="ex-item-body">
+                        <span className="ex-item-title">{o.label}</span>
+                        <span className="ex-item-reason">{o.where}</span>
+                      </span>
+                      <Icon name="chevron-right" size={16} color="var(--graphite-500)" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!!v.noOutstanding && (
+              <p className="ex-empty">
+                <Icon name="circle-check" size={16} color="var(--green-600)" />
+                {'No review items outstanding'}
+              </p>
+            )}
+          </section>
         </div>
+
+        <aside className="ex-side">
+          <section className="ex-card" aria-labelledby="ex-export-title">
+            <div className="ex-card-head">
+              <h2 className="ex-card-title" id="ex-export-title">
+                Export
+              </h2>
+              <p className="ex-muted ex-mono">{v.wordCount}</p>
+            </div>
+            <div className="ex-body">
+              <fieldset className="ex-fieldset">
+                <legend className="ex-label">Format</legend>
+                <Radio
+                  name="export-format"
+                  label="Word document (.docx)"
+                  description="Editable, for client review cycles"
+                  checked={v.isDocx}
+                  onChange={v.pickDocx}
+                />
+                <Radio
+                  name="export-format"
+                  label="PDF (.pdf)"
+                  description="Fixed, for issue and filing"
+                  checked={v.isPdf}
+                  onChange={v.pickPdf}
+                />
+              </fieldset>
+              <fieldset className="ex-fieldset">
+                <legend className="ex-label">Include</legend>
+                <Checkbox
+                  label="Citations"
+                  description="Numbered markers, with their sources listed after the report"
+                  checked={v.optCite}
+                  onChange={v.setOptCite}
+                />
+                <Checkbox
+                  label="Photo appendix"
+                  description="28 captioned site photographs"
+                  checked={v.optPhotos}
+                  onChange={v.setOptPhotos}
+                />
+              </fieldset>
+            </div>
+            <div className="ex-foot">
+              <Button
+                variant="primary"
+                pill
+                iconLeft="download"
+                fullWidth
+                disabled={v.blocked}
+                onClick={v.askExport}
+              >
+                {v.exportLabel}
+              </Button>
+              <p className="ex-muted ex-status">{v.exportHint}</p>
+            </div>
+          </section>
+        </aside>
       </div>
-    </>
+    </div>
   )
 }

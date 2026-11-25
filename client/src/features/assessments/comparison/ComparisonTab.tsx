@@ -2,7 +2,8 @@
 // with the previous finalised report for the same site. It names the report
 // compared against (reference, site visit date, lead engineer) and lets the
 // engineer pick another; Compare with previous report drafts an outcome for
-// every previous finding and recommendation, with New items and exact counts;
+// every previous finding and recommendation, with New items; outcome chips with
+// exact counts filter the list;
 // each item opens beside the list (under it below 1080 px, in a bottom sheet
 // below 760 px). Nothing here changes the report or its export. Called by
 // AssessmentApp; data from useComparison.
@@ -12,15 +13,18 @@ import {
   Button,
   Callout,
   EmptyState,
+  HelpTip,
   Select,
   Sheet,
   ViewOnlyChip,
 } from '../../../design-system'
+import { PillFilter } from '../components/ObservationFilters'
 import { formatDayYearTime } from '../format'
 import { useCompact } from '../useCompact'
 import type { ComparisonItem, CurrentSource } from './api'
 import { ComparisonDetail } from './ComparisonDetail'
 import {
+  ALL,
   countTiles,
   filterChoices,
   filterItems,
@@ -122,41 +126,58 @@ export function ComparisonTab({
   const running = c.running || page.running
   const noObservation = page.observations === 0
 
+  // Filters hold "all" when unset; the pills hold '' (PillFilter clears to '').
+  const choices = comparison ? filterChoices(comparison.items) : null
+  const pill = (name: string, key: 'category' | 'severity' | 'location') => (
+    <PillFilter
+      name={name}
+      choices={choices?.[key] ?? []}
+      value={filters[key] === ALL ? '' : filters[key]}
+      onChoose={(value) => setFilters((f) => ({ ...f, [key]: value || ALL }))}
+    />
+  )
+
   return (
     <div className="cmp">
       {page.previous && (
-        <section className="cmp-card cmp-head" aria-labelledby="cmp-title">
+        <section className="cmp-head" aria-label="Report compared with">
           <div className="cmp-head-text">
-            <h2 id="cmp-title" className="cmp-h">
-              {'Compare with the previous report'}
-            </h2>
-            {page.previous ? (
-              <>
-                {page.previousReports.length > 1 ? (
-                  <Select
-                    label="Compared with"
-                    size="sm"
-                    value={page.previous.reference}
-                    disabled={running}
-                    options={page.previousReports.map((r) => ({
-                      value: r.reference,
-                      label: reportLine(r),
-                    }))}
-                    onChange={(e) => c.pick(e.target.value)}
-                  />
-                ) : (
-                  <p className="cmp-facts">
-                    <span className="cmp-label">{'Compared with '}</span>
-                    {reportLine(page.previous)}
-                  </p>
-                )}
-                <p className="cmp-sub">
+            <span className="cmp-label-row">
+              <span className="cmp-label">{'Compared with'}</span>
+              <HelpTip label="About this comparison">
+                <p>
                   {
-                    'The latest earlier finalised report of this site, unless you pick another. Drafted by the model from that report and this assessment’s observations and draft findings, for you to confirm. Nothing here changes the report or its export.'
+                    'Each finding and recommendation in the earlier report is checked against this assessment’s observations and draft findings. Every outcome is a suggestion for you to confirm.'
                   }
                 </p>
-              </>
-            ) : null}
+                <p>
+                  {'Nothing here changes the report or its export.'}
+                  {comparison?.privacy?.enabled
+                    ? ' Client details were masked before anything was sent.'
+                    : ''}
+                </p>
+              </HelpTip>
+            </span>
+            {page.previousReports.length > 1 ? (
+              <Select
+                aria-label="Compared with"
+                size="sm"
+                value={page.previous.reference}
+                disabled={running}
+                options={page.previousReports.map((r) => ({
+                  value: r.reference,
+                  label: reportLine(r),
+                }))}
+                onChange={(e) => c.pick(e.target.value)}
+              />
+            ) : (
+              <p className="cmp-facts">{reportLine(page.previous)}</p>
+            )}
+            {comparison && (
+              <p className="cmp-sub">
+                {`Compared ${formatDayYearTime(new Date(comparison.ranAt))} by ${comparison.ranBy.name}`}
+              </p>
+            )}
           </div>
           <div className="cmp-head-actions">
             {!page.canChange && (
@@ -164,7 +185,7 @@ export function ComparisonTab({
                 {page.readOnly === 'archived' ? 'Archived · view only' : 'View only'}
               </ViewOnlyChip>
             )}
-            {page.canChange && page.previous && (
+            {page.canChange && (
               <Button
                 variant="primary"
                 pill
@@ -193,7 +214,7 @@ export function ComparisonTab({
           <EmptyState
             icon="file-check"
             title="No earlier finalised report for this site"
-            description="A comparison becomes available once an earlier assessment of this site has its report finalised. Assessments started from a site already on your list are linked to it."
+            description="A comparison becomes available once an earlier assessment of this site has its report finalised."
           />
         </section>
       )}
@@ -218,7 +239,7 @@ export function ComparisonTab({
         <div className="cmp-card cmp-running" role="status">
           <span className="cmp-running-line">
             <span className="cmp-pulse" aria-hidden="true" />
-            {'Comparing each finding and recommendation with this assessment…'}
+            {'Comparing with the previous report…'}
           </span>
         </div>
       )}
@@ -232,7 +253,7 @@ export function ComparisonTab({
               noObservation
                 ? 'Save at least one observation, then you can compare with the previous report.'
                 : page.canChange
-                  ? 'Compare with previous report to see what was fixed, what got worse and what is new since that survey.'
+                  ? 'Compare with the previous report to see what was fixed, what got worse and what is new.'
                   : 'The assigned engineer has not compared this assessment with that report yet.'
             }
           />
@@ -242,114 +263,77 @@ export function ComparisonTab({
       {comparison && (
         <>
           {comparison.outOfDate && (
-            <Callout
-              tone="warning"
-              title="Out of date"
-              actions={
-                page.canChange ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={running}
-                    onClick={() => void c.run()}
-                  >
-                    {'Compare again'}
-                  </Button>
-                ) : undefined
-              }
-            >
+            <Callout tone="warning" title="Out of date">
               <p className="cmp-callout-line">
                 {`${comparison.outOfDate.summary} since this comparison ran.`}
                 {page.canChange &&
                   ' Compare again keeps your decisions on items whose evidence is unchanged and flags the rest for another look.'}
               </p>
-              <ul className="cmp-changes">
-                {comparison.outOfDate.changes.slice(0, NAMED_CHANGES).map((ch, n) => (
-                  <li key={n}>{`${CHANGE_WORD[ch.change]}: ${ch.label}`}</li>
-                ))}
-                {comparison.outOfDate.changes.length > NAMED_CHANGES && (
-                  <li>{`and ${comparison.outOfDate.changes.length - NAMED_CHANGES} more`}</li>
-                )}
-              </ul>
+              <details className="cmp-changes">
+                <summary>{'What changed'}</summary>
+                <ul>
+                  {comparison.outOfDate.changes.slice(0, NAMED_CHANGES).map((ch, n) => (
+                    <li key={n}>{`${CHANGE_WORD[ch.change]}: ${ch.label}`}</li>
+                  ))}
+                  {comparison.outOfDate.changes.length > NAMED_CHANGES && (
+                    <li>{`and ${comparison.outOfDate.changes.length - NAMED_CHANGES} more`}</li>
+                  )}
+                </ul>
+              </details>
             </Callout>
           )}
 
-          <section className="cmp-card cmp-summary" aria-label="Summary">
-            <p className="cmp-summary-line">{comparison.summary}</p>
-            <ul className="cmp-tiles">
-              {countTiles(comparison.counts).map((t) => (
-                <li key={t.key}>
-                  <button
-                    type="button"
-                    className="cmp-tile"
-                    aria-pressed={filters.outcome === t.key}
-                    disabled={!t.n}
-                    onClick={() =>
-                      setFilters((f) => ({
-                        ...f,
-                        outcome: f.outcome === t.key ? NO_FILTERS.outcome : t.key,
-                      }))
-                    }
-                  >
-                    <span className="cmp-tile-n">{t.n}</span>
-                    <span className="cmp-tile-label">{t.label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <p className="cmp-sub">
-              {`Compared on ${formatDayYearTime(new Date(comparison.ranAt))} by ${comparison.ranBy.name}.`}
-              {comparison.privacy?.enabled
-                ? ' Client details were masked before anything was sent.'
-                : ''}
-            </p>
-          </section>
-
-          <div className="cmp-toolbar" role="group" aria-label="Filter the items">
-            <Filter
-              label="Outcome"
-              value={filters.outcome}
-              options={filterChoices(comparison.items, comparison.counts).outcome}
-              onChange={(outcome) => setFilters((f) => ({ ...f, outcome }))}
-            />
-            <Filter
-              label="COPE category"
-              value={filters.category}
-              options={filterChoices(comparison.items, comparison.counts).category}
-              onChange={(category) => setFilters((f) => ({ ...f, category }))}
-            />
-            <Filter
-              label="Severity"
-              value={filters.severity}
-              options={filterChoices(comparison.items, comparison.counts).severity}
-              onChange={(severity) => setFilters((f) => ({ ...f, severity }))}
-            />
-            <Filter
-              label="Location"
-              value={filters.location}
-              options={filterChoices(comparison.items, comparison.counts).location}
-              onChange={(location) => setFilters((f) => ({ ...f, location }))}
-            />
-            <p className="cmp-count" aria-live="polite">
-              {shownLine(shown.length, filters.outcome === 'dismissed' ? shown.length : total)}
-            </p>
-          </div>
-
           <div className="cmp-body" data-stacked={stacked || undefined}>
-            <ol className="cmp-card cmp-list" aria-label="Comparison items">
-              {shown.length === 0 && (
-                <li className="cmp-none">{'No item matches these filters.'}</li>
-              )}
-              {shown.map((item) => (
-                <Row
-                  key={item.key}
-                  item={item}
-                  sources={sources}
-                  open={open?.key === item.key}
-                  onOpen={() => setOpenKey(item.key)}
-                />
-              ))}
-            </ol>
+            <section className="cmp-card cmp-listcard" aria-label="Comparison items">
+              <div className="cmp-toolbar" role="group" aria-label="Filter the items">
+                <ul className="cmp-chips">
+                  {countTiles(comparison.counts).map((t) => (
+                    <li key={t.key}>
+                      <button
+                        type="button"
+                        className="cmp-chip"
+                        aria-label={`${t.n} ${t.label}`}
+                        aria-pressed={filters.outcome === t.key}
+                        onClick={() =>
+                          setFilters((f) => ({
+                            ...f,
+                            outcome: f.outcome === t.key ? NO_FILTERS.outcome : t.key,
+                          }))
+                        }
+                      >
+                        <span className="cmp-chip-n">{t.n}</span>
+                        {t.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="cmp-pills">
+                  {pill('Category', 'category')}
+                  {pill('Severity', 'severity')}
+                  {pill('Location', 'location')}
+                </div>
+              </div>
+              <ol className="cmp-list" aria-label="Comparison items">
+                {shown.length === 0 && (
+                  <li className="cmp-none">{'No item matches these filters.'}</li>
+                )}
+                {shown.map((item) => (
+                  <Row
+                    key={item.key}
+                    item={item}
+                    sources={sources}
+                    open={open?.key === item.key}
+                    onOpen={() => setOpenKey(item.key)}
+                  />
+                ))}
+              </ol>
+              <p className="cmp-foot" aria-live="polite">
+                <span>
+                  {shownLine(shown.length, filters.outcome === 'dismissed' ? shown.length : total)}
+                </span>
+                <span>{comparison.summary}</span>
+              </p>
+            </section>
             {open && !phone && (
               <div className="cmp-card cmp-panel" ref={panel}>
                 <ComparisonDetail
@@ -401,30 +385,6 @@ const CHANGE_WORD = {
   changed: 'Draft finding changed',
 } as const
 
-function Filter({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string
-  options: { value: string; label: string }[]
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className="cmp-filter">
-      <Select
-        size="sm"
-        aria-label={label}
-        value={value}
-        options={options}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  )
-}
-
 function Row({
   item,
   sources,
@@ -447,30 +407,34 @@ function Row({
         data-dismissed={item.dismissed || undefined}
         onClick={onOpen}
       >
-        <span className="cmp-row-top">
-          <Badge tone={pill.tone} icon={pill.icon}>
-            {pill.label}
-          </Badge>
-          {item.recheck && (
-            <Badge tone="moderate" icon="rotate-ccw">
-              {'Look again'}
+        <span className="cmp-row-head">
+          <span className="cmp-row-title">{itemTitle(item, sources)}</span>
+          <span className="cmp-row-badges">
+            {item.recheck && (
+              <Badge tone="moderate" icon="rotate-ccw">
+                {'Look again'}
+              </Badge>
+            )}
+            <Badge tone={pill.tone} icon={pill.icon}>
+              {pill.label}
             </Badge>
-          )}
+          </span>
+        </span>
+        <span className="cmp-row-text" dir="auto">
+          {itemText(item, sources)}
+        </span>
+        <span className="cmp-row-meta">
+          {item.previous && <span>{item.previous.section}</span>}
           {item.severity && (
-            <span className="cmp-row-level">
+            <span>
               {item.severity.previous}
               <span aria-hidden="true">{' → '}</span>
               <span className="ds-sr-only">{' to '}</span>
               {item.severity.current}
             </span>
           )}
-          {level && <span className="cmp-row-level">{level}</span>}
+          {level && <span>{level}</span>}
         </span>
-        <span className="cmp-row-title">{itemTitle(item, sources)}</span>
-        <span className="cmp-row-text" dir="auto">
-          {itemText(item, sources)}
-        </span>
-        {item.previous && <span className="cmp-row-where">{item.previous.section}</span>}
       </button>
     </li>
   )

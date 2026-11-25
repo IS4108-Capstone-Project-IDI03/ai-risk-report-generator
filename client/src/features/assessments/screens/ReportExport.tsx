@@ -18,17 +18,7 @@
 // - Ask conversations (AS-03) never reach the file either: nothing here or in
 //   document/export/ reads them (AS-03 AC4).
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Button,
-  Callout,
-  Card,
-  Checkbox,
-  EmptyState,
-  Icon,
-  IconButton,
-  Radio,
-  toast,
-} from '../../../design-system'
+import { Button, Callout, Checkbox, Icon, Radio, toast } from '../../../design-system'
 import {
   ExportBlockedError,
   exportReport,
@@ -51,7 +41,7 @@ import {
   type Summary,
 } from '../api'
 import { ExportPages } from '../document/export/ExportPages'
-import { marshDay } from '../document/page/frontMatter'
+import { formatDay } from '../format'
 import { savePendingEdits } from '../pendingSaves'
 import { Tip } from '../../help/Tip'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
@@ -225,7 +215,6 @@ export function ReportExport({
   )
   const onFail = useCallback((message: string) => setStep({ kind: 'failed', message }), [])
 
-  const details = [assessment?.site.name, assessment?.client].filter(Boolean)
   // Why the export is not offered yet, for its reason box; null once it is.
   const left = blockers?.length ?? 0
   const notYet = !canExport
@@ -241,8 +230,11 @@ export function ReportExport({
             text: `The report is not complete: ${left} item${left === 1 ? ' is' : 's are'} left to finish. Finish them, then export.`,
           }
         : null
-  const visited = marshDay(assessment?.siteVisitDate)
+  const visited = assessment?.siteVisitDate
+    ? `Assessed ${formatDay(new Date(assessment.siteVisitDate))}`
+    : null
   const label = FORMAT_LABEL[format]
+  const optionsOff = busy || !canExport
 
   return (
     <div className="ex-wrap">
@@ -277,14 +269,10 @@ export function ReportExport({
               <Callout
                 tone="danger"
                 title={`Export blocked: ${left} item${left === 1 ? '' : 's'} left`}
-              >
-                Only a complete report is exported: Sections 2 to 12 written, Sections 4 and 5's
-                figures entered, at least one OFI accepted, and every finding decided, with none
-                unsupported, out of date or citing a withdrawn source.
-              </Callout>
+              />
             ) : (
               <Callout tone="success" title="Ready to export">
-                The report is complete: every section is written and every finding reviewed.
+                Every section is written and every finding reviewed.
               </Callout>
             )}
           </div>
@@ -299,170 +287,140 @@ export function ReportExport({
                 </Button>
               }
             >
-              A reminder only: open threads don't stop the export, and no comments or highlights
-              appear in the file. Resolve them in the document editor once they are settled.
+              A reminder only: they don't stop the export, and no comments appear in the file.
             </Callout>
           )}
 
-          <Card
-            title={
-              <span className="ex-card-title">
-                Left to finish <Tip id="export.left-to-finish" />
-              </span>
-            }
-            padding="0"
-            data-walk="export.left"
-          >
+          <section className="ex-card" data-walk="export.left" aria-labelledby="ex-left-title">
+            <h2 className="ex-card-title" id="ex-left-title">
+              Left to finish <Tip id="export.left-to-finish" />
+            </h2>
             {blockers?.length ? (
               <ul className="ex-items">
                 {blockers.map((b, i) => (
-                  <li key={`${b.sectionId}-${i}`} className="ex-item">
-                    <Icon name="triangle-alert" size={15} color="var(--status-moderate-fg)" />
-                    <div className="ex-item-body">
-                      <span className="ex-item-title">{b.title}</span>
-                      <span className="ex-item-reason">{b.reason}</span>
-                    </div>
-                    {b.where === 'generation' ? (
-                      <IconButton
-                        icon="chevron-right"
-                        label={`Open Generation for ${b.title}`}
-                        tooltip="Open Generation"
-                        onClick={onGenerate}
-                      />
-                    ) : (
-                      <IconButton
-                        icon="chevron-right"
-                        label={`Open review for ${b.title}`}
-                        tooltip="Open review"
-                        onClick={onReview}
-                      />
-                    )}
+                  <li key={`${b.sectionId}-${i}`}>
+                    <button
+                      type="button"
+                      className="ex-item"
+                      aria-label={
+                        b.where === 'generation'
+                          ? `Open Generation for ${b.title}`
+                          : `Open review for ${b.title}`
+                      }
+                      onClick={b.where === 'generation' ? onGenerate : onReview}
+                    >
+                      <Icon name="triangle-alert" size={16} color="var(--status-moderate-fg)" />
+                      <span className="ex-item-body">
+                        <span className="ex-item-title">{b.title}</span>
+                        <span className="ex-item-reason">{b.reason}</span>
+                      </span>
+                      <Icon name="chevron-right" size={16} color="var(--graphite-500)" />
+                    </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div style={{ padding: '20px' }}>
-                <EmptyState
-                  icon="circle-check"
-                  title={blockers ? 'Nothing left to finish' : 'Not checked yet'}
-                  description={
-                    blockers
-                      ? 'Every section is written and every finding reviewed.'
-                      : 'What is left to finish shows here once the report is checked.'
-                  }
+              <p className="ex-empty">
+                <Icon
+                  name={blockers ? 'circle-check' : 'circle-dashed'}
+                  size={16}
+                  color={blockers ? 'var(--green-600)' : 'var(--graphite-500)'}
                 />
-              </div>
+                {blockers ? 'Nothing left to finish' : 'Not checked yet'}
+              </p>
             )}
-          </Card>
+          </section>
         </div>
 
         <aside className="ex-side">
-          <Card title="Export" padding="0">
-            <>
-              <div className="ex-body" data-walk="export.options">
-                <fieldset className="ex-fieldset" disabled={busy || !canExport}>
-                  <legend className="ex-label">Format</legend>
-                  <Radio
-                    name="export-format"
-                    label="PDF (.pdf)"
-                    description="Fixed, laid out as the page layout: to issue to the client"
-                    checked={format === 'pdf'}
-                    disabled={busy || !canExport}
-                    onChange={() => setFormat('pdf')}
-                  />
-                  <Radio
-                    name="export-format"
-                    label="Word document (.docx)"
-                    description="Editable: for review rounds"
-                    checked={format === 'docx'}
-                    disabled={busy || !canExport}
-                    onChange={() => setFormat('docx')}
-                  />
-                </fieldset>
-                <fieldset className="ex-fieldset ex-include" disabled={busy || !canExport}>
-                  <legend className="ex-label">Include</legend>
-                  <Checkbox
-                    label="Citations"
-                    description="Numbered markers, with the sources they cite listed in References after the report"
-                    checked={citations}
-                    disabled={busy || !canExport}
-                    onChange={setCitations}
-                  />
-                  <Checkbox
-                    label="Photo appendix"
-                    description={
-                      appendixPhotos === null
-                        ? 'Appendix A: Site Photos'
-                        : appendixPhotos
-                          ? `Appendix A: ${appendixPhotos} photo${appendixPhotos === 1 ? '' : 's'}, as chosen and ordered there`
-                          : 'No photos are chosen for Appendix A, so it is left out'
+          <section className="ex-card" aria-labelledby="ex-export-title">
+            <div className="ex-card-head">
+              <h2 className="ex-card-title" id="ex-export-title">
+                Export
+              </h2>
+              <p className="ex-muted ex-mono">
+                {[reference, visited, assessment?.engineer?.name].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <div className="ex-body" data-walk="export.options">
+              <fieldset className="ex-fieldset" disabled={optionsOff}>
+                <legend className="ex-label">Format</legend>
+                <Radio
+                  name="export-format"
+                  label="PDF (.pdf)"
+                  description="Fixed layout, to issue to the client"
+                  checked={format === 'pdf'}
+                  disabled={optionsOff}
+                  onChange={() => setFormat('pdf')}
+                />
+                <Radio
+                  name="export-format"
+                  label="Word document (.docx)"
+                  description="Editable, for review rounds"
+                  checked={format === 'docx'}
+                  disabled={optionsOff}
+                  onChange={() => setFormat('docx')}
+                />
+              </fieldset>
+              <fieldset className="ex-fieldset" disabled={optionsOff}>
+                <legend className="ex-label">Include</legend>
+                <Checkbox
+                  label="Citations"
+                  description="Numbered markers, with their sources listed after the report"
+                  checked={citations}
+                  disabled={optionsOff}
+                  onChange={setCitations}
+                />
+                <Checkbox
+                  label="Photo appendix"
+                  description={
+                    appendixPhotos === null
+                      ? 'Appendix A: Site Photos'
+                      : appendixPhotos
+                        ? `Appendix A: ${appendixPhotos} photo${appendixPhotos === 1 ? '' : 's'}, as chosen and ordered there`
+                        : 'No photos are chosen for Appendix A'
+                  }
+                  checked={photos && appendixPhotos !== 0}
+                  disabled={optionsOff || appendixPhotos === 0}
+                  onChange={setPhotos}
+                />
+              </fieldset>
+            </div>
+            <div className="ex-foot">
+              <Button
+                variant="primary"
+                pill
+                iconLeft="download"
+                fullWidth
+                // Not offered yet: greyed out, with a reason box saying why (design system v2).
+                disabledReason={notYet ?? undefined}
+                disabled={busy}
+                loading={busy}
+                data-walk="export.button"
+                onClick={() => void start()}
+              >
+                {`Export as ${label}`}
+              </Button>
+              <p className="ex-muted ex-status" role="status">
+                {STATUS[step.kind] ?? (step.kind === 'done' ? `Downloaded ${step.fileName}.` : '')}
+              </p>
+              {step.kind === 'failed' && (
+                <div role="alert">
+                  <Callout
+                    tone="danger"
+                    title="Nothing was exported"
+                    actions={
+                      <Button variant="secondary" size="sm" onClick={() => void start()}>
+                        Retry
+                      </Button>
                     }
-                    checked={photos && appendixPhotos !== 0}
-                    disabled={busy || !canExport || appendixPhotos === 0}
-                    onChange={setPhotos}
-                  />
-                </fieldset>
-              </div>
-              <div className="ex-foot">
-                <Button
-                  variant="primary"
-                  pill
-                  iconLeft="download"
-                  fullWidth
-                  // Not offered yet: greyed out, with a reason box saying why (design system v2).
-                  disabledReason={notYet ?? undefined}
-                  disabled={busy}
-                  loading={busy}
-                  data-walk="export.button"
-                  onClick={() => void start()}
-                >
-                  {`Export as ${label}`}
-                </Button>
-                <p className="ex-muted" role="status">
-                  {STATUS[step.kind] ??
-                    (step.kind === 'done'
-                      ? `Downloaded ${step.fileName}.`
-                      : notYet
-                        ? ''
-                        : `Unsaved changes are saved first. The file is named with the report reference and today's date.`)}
-                </p>
-                {step.kind === 'failed' && (
-                  <div role="alert">
-                    <Callout
-                      tone="danger"
-                      title="Nothing was exported"
-                      actions={
-                        <Button variant="secondary" size="sm" onClick={() => void start()}>
-                          Retry
-                        </Button>
-                      }
-                    >
-                      {step.message}
-                    </Callout>
-                  </div>
-                )}
-              </div>
-            </>
-          </Card>
-
-          <Card title="Report" padding="16px 18px">
-            <dl className="ex-report">
-              <dt>Reference</dt>
-              <dd className="ex-mono">{reference}</dd>
-              {details.length > 0 && (
-                <>
-                  <dt>Site</dt>
-                  <dd>{details.join(' · ')}</dd>
-                </>
+                  >
+                    {step.message}
+                  </Callout>
+                </div>
               )}
-              <dt>Assessed</dt>
-              <dd>
-                {[visited ?? 'Date not entered', assessment?.engineer?.name]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </dd>
-            </dl>
-          </Card>
+            </div>
+          </section>
         </aside>
       </div>
       {step.kind === 'laying-out' && (

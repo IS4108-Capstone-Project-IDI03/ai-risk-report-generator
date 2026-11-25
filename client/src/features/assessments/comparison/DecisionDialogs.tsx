@@ -107,8 +107,8 @@ export function OutcomeDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Change outcome"
+      description="Your choice replaces the suggested outcome."
       width={480}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} />}
@@ -184,9 +184,8 @@ export function PairDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Re-pair with current evidence"
-      description="Choose what in this assessment this previous item is compared with."
+      description="Choose what in this assessment the previous item is compared with."
       width={560}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} />}
@@ -270,9 +269,8 @@ export function PairNewDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Pair with a previous item"
-      description={`${sourceLabel(source)}: choose the previous report's item it matches.`}
+      description={`Which item in the previous report does ${sourceLabel(source)} match?`}
       width={560}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} label="Pair" />}

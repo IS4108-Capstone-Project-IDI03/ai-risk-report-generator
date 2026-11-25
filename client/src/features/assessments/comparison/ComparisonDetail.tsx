@@ -5,14 +5,7 @@
 // bottom sheet below 760 px (ComparisonTab decides). Calls the dialogs in
 // DecisionDialogs.tsx; decisions go up through `onDecide`.
 import { useState } from 'react'
-import {
-  Badge,
-  Button,
-  Callout,
-  ConfidenceIndicator,
-  IconButton,
-  ViewOnlyChip,
-} from '../../../design-system'
+import { Badge, Button, Callout, ConfidenceIndicator, IconButton } from '../../../design-system'
 import type { ComparisonItem, CurrentSource, Decision } from './api'
 import {
   decidedLine,
@@ -60,6 +53,7 @@ export function ComparisonDetail({
   const fresh = item.kind === 'new' ? sources.get(item.source ?? '') : undefined
   const decide = (decision: Decision) => onDecide(item.key, decision)
 
+  const disagrees = disagreeing.length > 1
   return (
     <article className="cmp-detail" aria-label={inSheet ? undefined : 'Comparison item'}>
       <header className="cmp-detail-head">
@@ -68,17 +62,18 @@ export function ComparisonDetail({
         </Badge>
         <ConfidenceIndicator level={item.confidence} />
         {item.dismissed && <Badge tone="neutral">{'Dismissed'}</Badge>}
-        {!canChange && <ViewOnlyChip />}
       </header>
-      <p className="cmp-sub">
-        {item.decided
-          ? decidedLine(item.decided)
-          : !canChange
-            ? 'Suggested by the comparison; the assigned engineer has not decided it yet.'
-            : item.outcome
-              ? 'Suggested by the comparison. Accept it or change it.'
-              : 'The current evidence disagrees, so the outcome is yours to choose.'}
-      </p>
+      {!disagrees && (
+        <p className="cmp-sub">
+          {item.decided
+            ? decidedLine(item.decided)
+            : !canChange
+              ? 'Suggested by the comparison. The assigned engineer has not decided it yet.'
+              : item.outcome
+                ? 'Suggested by the comparison. Accept it or change it.'
+                : 'The sources disagree, so the outcome is yours to choose.'}
+        </p>
+      )}
       {item.decided?.note && (
         <p className="cmp-note">
           <strong>{'Note: '}</strong>
@@ -86,14 +81,83 @@ export function ComparisonDetail({
         </p>
       )}
 
+      {canChange && (
+        <div className="cmp-actions">
+          {item.dismissed ? (
+            <Button
+              variant="secondary"
+              pill
+              iconLeft="archive-restore"
+              disabled={deciding}
+              onClick={() => void decide({ action: 'restore' })}
+            >
+              {'Restore'}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="primary"
+                pill
+                iconLeft="check"
+                disabled={deciding}
+                disabledReason={
+                  item.outcome
+                    ? undefined
+                    : {
+                        title: 'Choose an outcome first',
+                        text: 'Its sources disagree, so the outcome is yours to choose.',
+                      }
+                }
+                onClick={() => void decide({ action: 'accept' })}
+              >
+                {'Accept'}
+              </Button>
+              {item.kind === 'previous' ? (
+                <>
+                  <IconButton
+                    icon="pencil"
+                    label="Change outcome"
+                    tooltip="Change outcome"
+                    disabled={deciding}
+                    onClick={() => setDialog('outcome')}
+                  />
+                  <IconButton
+                    icon="link"
+                    label="Re-pair"
+                    tooltip="Re-pair"
+                    disabled={deciding}
+                    onClick={() => setDialog('pair')}
+                  />
+                </>
+              ) : (
+                <IconButton
+                  icon="link"
+                  label="Pair with previous item"
+                  tooltip="Pair with previous item"
+                  disabled={deciding || !previousItems.length}
+                  onClick={() => setDialog('pairNew')}
+                />
+              )}
+              <IconButton
+                icon="archive"
+                label="Dismiss this item"
+                tooltip="Dismiss"
+                disabled={deciding}
+                onClick={() => void decide({ action: 'dismiss' })}
+              />
+            </>
+          )}
+        </div>
+      )}
+
       {item.recheck && (
         <Callout tone="warning" title="Look again">
           {item.recheck}
         </Callout>
       )}
-      {disagreeing.length > 1 && (
+      {disagrees && (
         <Callout tone="warning" title="Sources disagree">
-          {`${disagreeing.map(sourceName).join(' and ')} say different things about this item, so confidence is at most medium and the outcome is left to ${canChange ? 'you' : 'the assigned engineer'}.`}
+          {`${disagreeing.map(sourceName).join(' and ')} say different things about this item, so the outcome is left to ${canChange ? 'you' : 'the assigned engineer'}.`}
         </Callout>
       )}
 
@@ -115,9 +179,7 @@ export function ComparisonDetail({
             )}
           </>
         ) : (
-          <p className="cmp-empty">
-            {'Not in the previous report: this is new since that survey.'}
-          </p>
+          <p className="cmp-empty">{'Not in the previous report: new since that survey.'}</p>
         )}
       </section>
 
@@ -133,26 +195,28 @@ export function ComparisonDetail({
             </p>
           )}
           {item.figures.length > 0 && (
-            <table className="cmp-figures">
-              <thead>
-                <tr>
-                  <th scope="col">{'Figure'}</th>
-                  <th scope="col">{'Previous'}</th>
-                  <th scope="col">{'Now'}</th>
-                  <th scope="col">{'Difference'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {item.figures.map((f) => (
-                  <tr key={`${f.name}|${f.source}`}>
-                    <th scope="row">{f.name}</th>
-                    <td>{f.previous}</td>
-                    <td>{f.current}</td>
-                    <td>{f.difference ?? f.note}</td>
+            <div className="cmp-figures-wrap">
+              <table className="cmp-figures">
+                <thead>
+                  <tr>
+                    <th scope="col">{'Figure'}</th>
+                    <th scope="col">{'Previous'}</th>
+                    <th scope="col">{'Now'}</th>
+                    <th scope="col">{'Difference'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {item.figures.map((f) => (
+                    <tr key={`${f.name}|${f.source}`}>
+                      <th scope="row">{f.name}</th>
+                      <td>{f.previous}</td>
+                      <td>{f.current}</td>
+                      <td>{f.difference ?? f.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}
@@ -192,90 +256,13 @@ export function ComparisonDetail({
       {possible.length > 0 && (
         <section className="cmp-side" aria-label="Possible matches">
           <h3 className="cmp-label">{'May concern the same thing'}</h3>
-          <p className="cmp-sub">
-            {'Not a clear match, so listed apart rather than paired on a guess.'}
-          </p>
+          <p className="cmp-sub">{'Not a clear match, so not paired.'}</p>
           <ul className="cmp-sources">
             {possible.map((s) => (
               <SourceRow key={s.key} source={s} onOpen={() => onOpenSource(s)} busy={deciding} />
             ))}
           </ul>
         </section>
-      )}
-
-      {canChange && (
-        <div className="cmp-actions">
-          {item.dismissed ? (
-            <Button
-              variant="secondary"
-              pill
-              iconLeft="archive-restore"
-              disabled={deciding}
-              onClick={() => void decide({ action: 'restore' })}
-            >
-              {'Restore'}
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="primary"
-                pill
-                iconLeft="check"
-                disabled={deciding}
-                disabledReason={
-                  item.outcome
-                    ? undefined
-                    : {
-                        title: 'Choose an outcome first',
-                        text: 'Its sources disagree, so the outcome is yours to choose.',
-                      }
-                }
-                onClick={() => void decide({ action: 'accept' })}
-              >
-                {'Accept'}
-              </Button>
-              {item.kind === 'previous' ? (
-                <>
-                  <Button
-                    variant="secondary"
-                    pill
-                    iconLeft="pencil"
-                    disabled={deciding}
-                    onClick={() => setDialog('outcome')}
-                  >
-                    {'Change outcome'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    pill
-                    iconLeft="link"
-                    disabled={deciding}
-                    onClick={() => setDialog('pair')}
-                  >
-                    {'Re-pair'}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="secondary"
-                  pill
-                  iconLeft="link"
-                  disabled={deciding || !previousItems.length}
-                  onClick={() => setDialog('pairNew')}
-                >
-                  {'Pair with previous item'}
-                </Button>
-              )}
-              <IconButton
-                icon="archive"
-                label="Dismiss this item"
-                tooltip="Dismiss"
-                disabled={deciding}
-                onClick={() => void decide({ action: 'dismiss' })}
-              />
-            </>
-          )}
-        </div>
       )}
 
       {dialog === 'outcome' && (

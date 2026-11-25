@@ -304,7 +304,7 @@ describe('The Comparison tab (RV-13)', () => {
     gateway(() => ({ body: page() }))
     show()
 
-    fireEvent.change(await screen.findByLabelText('Outcome'), { target: { value: 'new' } })
+    fireEvent.click(await screen.findByRole('button', { name: '1 New' }))
 
     expect(screen.getByText('Showing 1 of 3 items')).toBeInTheDocument()
     expect(

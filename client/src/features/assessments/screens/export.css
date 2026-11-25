@@ -1,15 +1,16 @@
-/* The Export tab (EX-01, screens/ReportExport.tsx): what blocks the export
-   beside the export's choices and the report's details. */
+/* The Export tab (EX-01, screens/ReportExport.tsx) and its sample-data twin
+   (ValidationExport.tsx): what blocks the export beside the export's choices.
+   Design-system v2 tokens only. */
 .ex-wrap {
-  padding: 24px 28px 40px;
+  padding: 24px var(--page-gutter) 40px;
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+  font-family: var(--font-sans);
 }
 .ex-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
-  max-width: 1080px;
 }
 .ex-main,
 .ex-side {
@@ -20,22 +21,65 @@
 }
 .ex-side {
   position: sticky;
-  top: 0;
+  top: 16px;
 }
+.ex-card {
+  overflow: hidden;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.ex-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 20px 0;
+}
+.ex-card-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/24px var(--font-sans);
+}
+.ex-card > .ex-card-title {
+  padding: 16px 20px 8px;
+}
+/* One row per thing left to finish; the whole row opens where it is finished. */
 .ex-items {
   margin: 0;
   padding: 0;
   list-style: none;
 }
+.ex-items > li + li {
+  border-top: 1px solid var(--graphite-100);
+}
 .ex-item {
   display: flex;
   align-items: center;
   gap: 14px;
+  width: 100%;
+  min-height: 56px;
   padding: 12px 20px;
-  border-bottom: 1px solid var(--border-subtle);
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.ex-item:last-child {
-  border-bottom: 0;
+@media (hover: hover) {
+  .ex-item:hover {
+    background: var(--hover-bg);
+  }
+}
+.ex-item:focus-visible {
+  outline: 2px solid var(--marsh-navy);
+  outline-offset: -2px;
+}
+.ex-item > .ds-icon {
+  flex: 0 0 auto;
 }
 .ex-item-body {
   display: flex;
@@ -45,38 +89,49 @@
   gap: 2px;
 }
 .ex-item-title {
-  color: var(--text-body);
-  font-size: 16px;
+  color: var(--graphite-900);
+  font: 600 14px/1.35 var(--font-sans);
 }
-.ex-item-reason,
+.ex-item-reason {
+  max-width: 72ch;
+  color: var(--graphite-600);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ex-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 20px 20px;
+  color: var(--graphite-700);
+  font: 500 14px/1.4 var(--font-sans);
+}
 .ex-muted {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 20px;
+  color: var(--graphite-600);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ex-status:empty {
+  display: none;
 }
 .ex-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 18px;
+  gap: 20px;
+  padding: 16px 20px 20px;
 }
 .ex-fieldset {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
-.ex-include {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-}
 /* A label, as design system v2 sets one: 12 / 600. */
 .ex-label {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   padding: 0;
   color: var(--graphite-700);
   font-size: 12px;
@@ -85,31 +140,13 @@
 .ex-foot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px;
-  border-top: 1px solid var(--border-default);
-  background: var(--surface-sunken);
-}
-.ex-report {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 12px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 15px;
-  line-height: 22px;
-}
-.ex-report dt {
-  color: var(--text-muted);
-}
-.ex-report dd {
-  margin: 0;
-  overflow-wrap: anywhere;
+  gap: 10px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--graphite-100);
 }
 .ex-mono {
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* Stacked below 1080px, as every workspace tab is. */
@@ -121,18 +158,30 @@
     position: static;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 759px) {
   .ex-wrap {
-    padding: 16px;
+    padding: 16px 16px 32px;
   }
   .ex-item {
-    flex-wrap: wrap;
+    min-height: 64px;
+    padding: 12px 16px;
+  }
+  .ex-card > .ex-card-title,
+  .ex-card-head {
+    padding-inline: 16px;
+  }
+  .ex-body,
+  .ex-foot {
+    padding-inline: 16px;
   }
 }
 
-/* The "Left to finish" title with its help (?) beside it (F-13). */
-.ex-card-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* A checklist row that only reports (the sample twin): no button, no hover. */
+.ex-item--static {
+  cursor: default;
+  font: 400 14px/1.4 var(--font-sans);
+}
+.ex-card-title .ex-muted {
+  margin-left: auto;
+  font-weight: 400;
 }
