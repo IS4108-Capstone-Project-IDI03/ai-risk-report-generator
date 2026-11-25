@@ -48,7 +48,8 @@ rag-service/
 │   ├── client_insights/summary.py    # client insight summary
 │   ├── assistant/                    # MarshBot coverage and wording
 │   ├── config.py                     # settings from env
-│   ├── retrieval_config.py           # Cohere and Chroma clients
+│   ├── qdrant_collection.py          # Qdrant as a Chroma collection
+│   ├── retrieval_config.py           # VECTOR_STORE switch, clients
 │   └── usage.py                      # paid-call usage
 ├── tests/                            # pytest suite
 │   └── conftest.py                   # blocks real network calls
@@ -71,7 +72,8 @@ rag-service/
 | `app/client_intake/read.py` | Reads client documents (CP-23). |
 | `app/client_insights/summary.py` | Client insight summary (CP-29). |
 | `app/assistant/` | MarshBot coverage check and wording (AS-06). |
-| `app/config.py`, `app/retrieval_config.py` | Settings from env vars; Cohere and Chroma clients. |
+| `app/config.py`, `app/retrieval_config.py` | Settings from env vars; Cohere, Chroma and Qdrant clients; the `VECTOR_STORE` switch. |
+| `app/qdrant_collection.py` | Qdrant answering Chroma's collection calls (QD-01); identical copy in ingestion-service. |
 | `app/usage.py` | Collects paid-call usage per request. |
 | `tests/` | 49 test files. `tests/conftest.py` blocks real network calls. |
 | `eval/` | Scoring scripts and cases (chat, site walk, intake, OFIs). These can spend money. |

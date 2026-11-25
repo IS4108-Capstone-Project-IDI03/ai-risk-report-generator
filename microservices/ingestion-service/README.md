@@ -56,7 +56,8 @@ ingestion-service/
 │   ├── privacy.py            # privacy-service client
 │   ├── usage.py              # AI-call usage
 │   ├── notifications.py      # gateway notifications
-│   └── retrieval_config.py   # Cohere and Chroma clients
+│   ├── qdrant_collection.py  # Qdrant as a Chroma collection
+│   └── retrieval_config.py   # VECTOR_STORE switch, clients
 ├── eval/                     # evaluation scripts
 └── tests/                    # pytest suite
 ```
@@ -78,7 +79,8 @@ ingestion-service/
 | `app/manual.py` | Clauses of a manually entered standard (IN-18) |
 | `app/extract_text.py` | Plain text from PDF, Word, email (CP-23) |
 | `app/privacy.py`, `app/usage.py`, `app/notifications.py` | privacy-service client; AI-call usage; gateway notifications |
-| `app/retrieval_config.py` | Cohere and Chroma clients, collection name (shared contract with rag-service) |
+| `app/retrieval_config.py` | Cohere, Chroma and Qdrant clients, the `VECTOR_STORE` switch (`vector_collection()`), collection name (shared contract with rag-service) |
+| `app/qdrant_collection.py` | Qdrant answering Chroma's collection calls (QD-01); identical copy in rag-service |
 | `eval/`, `tests/` | Evaluation scripts; pytest suite |
 
 ## Endpoints
@@ -103,7 +105,7 @@ ingestion-service/
 ## Data it reads and writes
 
 - MongoDB: reads and updates `knowledge_documents` (status, `match`, `result`, `privacyMapping`); writes `ingestion_jobs` (stage log, progress, privacy counts). Schema: docs/areas/database.md.
-- Chroma: one collection, named from `CHROMA_COLLECTION`, `EMBEDDING_MODEL` and 1024 dimensions (`app/retrieval_config.py`). Writes passages and vectors, relabels, deletes.
+- Chroma or Qdrant (`VECTOR_STORE`): one collection, named from `CHROMA_COLLECTION`, `EMBEDDING_MODEL` and 1024 dimensions (`app/retrieval_config.py`). Writes passages and vectors, relabels, deletes.
 - S3: reads the original PDF. Never writes it.
 - Redis: only the BullMQ `ingestion` queue (worker).
 - Gateway: posts notifications and AI-call usage; reads each document's privacy settings.
