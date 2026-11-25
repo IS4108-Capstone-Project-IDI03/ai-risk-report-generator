@@ -1,10 +1,10 @@
 // What reading each knowledge document cost (EV-04): labelling, OCR and
-// embedding per document, split by billed service or stage, with the full
+// indexing per document, split by billed service or stage, with the full
 // table below. Knowledge admins only (the gateway enforces it): documents are
 // shared, so this is the knowledge base's cost, not any one person's.
 // Shown by screens/UsageCosts.tsx; calls GET /api/usage/ingestion.
 import { useState } from 'react'
-import { Callout, EmptyState, Input, Select } from '../../../design-system'
+import { EmptyState, SearchField, Select } from '../../../design-system'
 import {
   getIngestionUsage,
   ingestionExportUrl,
@@ -14,6 +14,8 @@ import {
   type UsageView,
 } from '../api'
 import { CostSummary } from '../components/CostSummary'
+import { ExportLink } from '../components/ExportLink'
+import { LOAD_FAILED, LoadError } from '../components/LoadError'
 import { DocumentTable } from '../components/DocumentTable'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
@@ -32,6 +34,7 @@ export function IngestionUsageTab({ onOpen }: { onOpen: (document: DocumentUsage
     getIngestionUsage(query, signal),
   )
   const shown = error ? null : data
+  const rows = (shown?.documents ?? []).filter((d) => matches(d, search))
   // The chart names each bar by its document's title.
   const bars = (shown?.documents ?? []).map((d) => ({ ...d, label: d.title }))
 
@@ -53,32 +56,22 @@ export function IngestionUsageTab({ onOpen }: { onOpen: (document: DocumentUsage
           />
         </div>
         {shown && shown.totals.calls > 0 && (
-          <a className="uc-export" href={ingestionExportUrl(query)} download>
-            Export CSV
-          </a>
+          <ExportLink href={ingestionExportUrl(query)}>Export CSV</ExportLink>
         )}
       </div>
 
-      {loading && !shown && <p role="status">Loading usage…</p>}
-      {error !== null && (
-        <Callout
-          tone="danger"
-          title="Usage not shown"
-          actions={
-            <button type="button" className="uc-link" onClick={retry}>
-              Try again
-            </button>
-          }
-        >
-          <span role="alert">Usage could not be loaded. Check your connection and try again.</span>
-        </Callout>
+      {loading && !shown && (
+        <p role="status" className="uc-status">
+          Loading usage…
+        </p>
       )}
+      {error !== null && <LoadError retry={retry} message={LOAD_FAILED} />}
 
       {shown && shown.totals.calls === 0 && (
         <EmptyState
           icon="inbox"
           title="No documents read in this period"
-          description="Costs appear here once a knowledge document has been labelled, read or indexed. Try a longer period."
+          description="Costs show here once a knowledge document has been labelled, read or indexed. Try a longer period."
         />
       )}
 
@@ -91,18 +84,18 @@ export function IngestionUsageTab({ onOpen }: { onOpen: (document: DocumentUsage
           </section>
           <section className="uc-section" aria-labelledby="uc-doc-table">
             <h2 id="uc-doc-table">Documents</h2>
-            <div className="uc-filters">
-              <Input
-                label="Find a document"
-                iconLeft="search"
-                value={search}
-                placeholder="Title or file name"
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
             <DocumentTable
-              documents={shown.documents.filter((d) => matches(d, search))}
+              documents={rows}
               onOpen={onOpen}
+              footer={`${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? 'document' : 'documents'}`}
+              toolbar={
+                <SearchField
+                  label="Find a document"
+                  placeholder="Title or file name"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              }
             />
           </section>
         </>

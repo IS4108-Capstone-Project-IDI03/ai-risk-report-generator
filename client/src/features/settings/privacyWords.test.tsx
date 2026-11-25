@@ -417,7 +417,9 @@ describe('Privacy words (PV-09)', () => {
     mock(true, lists({ protectionOn: false }))
     render(<Settings />)
     const panel = await openPrivacyWords()
-    expect(await within(panel).findByText(/take effect only when/)).toBeInTheDocument()
+    expect(
+      await within(panel).findByText(/take effect once client details are protected/),
+    ).toBeInTheDocument()
   })
 
   it('shows who added or removed what and why, newest first (AC7)', async () => {

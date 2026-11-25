@@ -4,7 +4,7 @@
 // engineer sees only their own assessments (the gateway enforces it).
 // Shown by screens/UsageCosts.tsx; calls GET /api/usage/overview.
 import { useState } from 'react'
-import { Button, Callout, EmptyState, Input, Select } from '../../../design-system'
+import { Button, EmptyState, SearchField, Select } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import {
   getUsageOverview,
@@ -16,6 +16,8 @@ import {
   type UsageView,
 } from '../api'
 import { CostSummary } from '../components/CostSummary'
+import { ExportLink } from '../components/ExportLink'
+import { LOAD_FAILED, LoadError } from '../components/LoadError'
 import { OverviewTable } from '../components/OverviewTable'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
@@ -64,6 +66,8 @@ export function ReportUsageOverview({
     setGroupBy('assessment')
   }
   const shown = error ? null : data
+  // The table's rows: an engineer view lists everyone, the assessment view what the search finds.
+  const rows = (shown?.groups ?? []).filter((g) => groupBy === 'engineer' || matches(g, search))
   const noun = groupBy === 'engineer' ? 'engineers' : 'assessments'
   // F-12: ready once the figures have loaded; held back (no offer) when there is nothing to point at.
   useWalkthroughScreen('usage', !loading, !shown || shown.totals.calls === 0)
@@ -100,9 +104,7 @@ export function ReportUsageOverview({
           />
         </div>
         {shown && shown.totals.calls > 0 && (
-          <a className="uc-export" href={overviewExportUrl(query)} download>
-            Export CSV
-          </a>
+          <ExportLink href={overviewExportUrl(query)}>Export CSV</ExportLink>
         )}
       </div>
 
@@ -115,30 +117,27 @@ export function ReportUsageOverview({
         </div>
       )}
 
-      {loading && !shown && <p role="status">Loading usage…</p>}
+      {loading && !shown && (
+        <p role="status" className="uc-status">
+          Loading usage…
+        </p>
+      )}
       {error !== null && (
-        <Callout
-          tone="danger"
-          title="Usage not shown"
-          actions={
-            <button type="button" className="uc-link" onClick={retry}>
-              Try again
-            </button>
-          }
-        >
-          <span role="alert">
-            {error instanceof GatewayError && error.status === 403
+        <LoadError
+          retry={retry}
+          message={
+            error instanceof GatewayError && error.status === 403
               ? 'You do not have access to that usage.'
-              : 'Usage could not be loaded. Check your connection and try again.'}
-          </span>
-        </Callout>
+              : LOAD_FAILED
+          }
+        />
       )}
 
       {shown && shown.totals.calls === 0 && (
         <EmptyState
           icon="inbox"
           title="No AI calls in this period"
-          description="Costs appear here once the app has drafted, searched, transcribed, read a photo or answered a chat question. Try a longer period."
+          description="Costs show here once the app has drafted, searched, transcribed, read a photo or answered a chat question. Try a longer period."
         />
       )}
 
@@ -164,35 +163,37 @@ export function ReportUsageOverview({
           </section>
           <section className="uc-section" aria-labelledby="uc-table-heading">
             <h2 id="uc-table-heading">{groupBy === 'engineer' ? 'Engineers' : 'Assessments'}</h2>
-            {groupBy === 'assessment' && (
-              <div className="uc-filters">
-                <Input
-                  label="Find an assessment"
-                  iconLeft="search"
-                  value={search}
-                  placeholder="Reference, client or site"
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {isAdmin && (
-                  <Select
-                    label="Engineer"
-                    value={engineer}
-                    onChange={(e) => setEngineer(e.target.value)}
-                    options={[
-                      { value: '', label: 'All engineers' },
-                      ...[...engineers].map(([id, name]) => ({ value: id, label: name })),
-                    ]}
-                  />
-                )}
-              </div>
-            )}
             <OverviewTable
               groupBy={groupBy}
-              groups={shown.groups.filter((g) => groupBy === 'engineer' || matches(g, search))}
+              groups={rows}
               showEngineer={isAdmin}
               onOpen={onOpen}
               onOpenChat={onOpenChat}
               onChooseEngineer={(g) => g.engineerId && chooseEngineer(g.engineerId)}
+              footer={`${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? noun.slice(0, -1) : noun}`}
+              toolbar={
+                groupBy === 'assessment' ? (
+                  <>
+                    <SearchField
+                      label="Find an assessment"
+                      placeholder="Reference, client or site"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {isAdmin && (
+                      <Select
+                        label="Engineer"
+                        value={engineer}
+                        onChange={(e) => setEngineer(e.target.value)}
+                        options={[
+                          { value: '', label: 'All engineers' },
+                          ...[...engineers].map(([id, name]) => ({ value: id, label: name })),
+                        ]}
+                      />
+                    )}
+                  </>
+                ) : undefined
+              }
             />
           </section>
         </>

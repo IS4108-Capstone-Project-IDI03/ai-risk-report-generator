@@ -1,55 +1,148 @@
-/* Usage and costs screen (EV-04). Tokens only; see docs/areas/design-system-v2.md. */
+/* Usage and costs screen (EV-04). Tokens only; see docs/areas/design-system-v2.md.
+   The page sits under a TopBar (screens/UsageTop.tsx); every table is the standard
+   table of the Clients list: one white card, 12/600 heads, first column left, the rest centred. */
 .uc {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px clamp(16px, 2vw, 28px) 40px;
+  gap: 16px;
+  padding: 24px var(--page-gutter) 40px;
+  font-family: var(--font-sans);
 }
+.uc > *,
+.uc-section > *,
+.uc-chart > * {
+  min-width: 0;
+}
+.uc p {
+  margin: 0;
+}
+/* Dims the old numbers while a new report loads, so they are not mistaken for the new ones. */
+.uc[aria-busy='true'] > :not(.uc-toolbar) {
+  opacity: 0.55;
+}
+.uc-status {
+  padding: 32px 16px;
+  color: var(--graphite-600);
+  text-align: center;
+}
+
+/* ---- Filters and the export, one row ---- */
 .uc-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
 }
-.uc-toolbar select {
-  min-width: 240px;
-}
-/* The tip beside the "Total estimated cost" label (F-13). */
-.uc-metrics .ds-help {
-  display: inline-grid;
-  vertical-align: middle;
-  margin-left: 4px;
-}
-.uc-metrics {
+.uc-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 48px;
+  align-items: flex-end;
+  gap: 12px 16px;
 }
-.uc-export,
-.uc-link {
+.uc-filters > * {
+  min-width: 180px;
+}
+/* The export is a grey pill, like every secondary action. */
+.uc-export {
   display: inline-flex;
   align-items: center;
-  height: var(--control-height-md);
-  padding: 0 14px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  font: inherit;
-  font-weight: var(--weight-semibold);
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  /* The app's link underline (base.css) is not wanted on a pill. */
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-900);
+  font: 600 14px/1 var(--font-sans);
   text-decoration: none;
-  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out);
 }
-.uc-export:hover,
-.uc-link:hover {
-  background: var(--surface-header);
-}
-.uc-export:focus-visible,
-.uc-link:focus-visible {
+.uc-export:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+@media (hover: hover) and (pointer: fine) {
+  .uc-export:hover {
+    background: var(--graphite-200);
+  }
+}
+.uc-export:active {
+  transform: scale(0.97);
+}
+/* "Assessments of <engineer>", with the way back to everyone. */
+.uc-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-field);
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+.uc-scope p {
+  font-weight: 600;
+}
+
+/* ---- Totals: one card of figures ---- */
+.uc-card {
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+.uc-totals-card {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 56px;
+  padding: 20px 24px;
+}
+.uc-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.uc-fig-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
+}
+.uc-fig-label .ds-help {
+  display: inline-grid;
+}
+.uc-fig-value {
+  color: var(--marsh-navy);
+  font: 700 28px/1.2 var(--font-sans);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.uc-fig-note {
+  color: var(--graphite-600);
+  font: 500 12px/1.3 var(--font-sans);
+}
+.uc-estimated {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+.uc-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* A finished period beside the one before, under the totals. */
+.uc-compare {
+  padding-inline: 4px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- A section: a 16/700 navy title over its card ---- */
 .uc-section {
   display: flex;
   flex-direction: column;
@@ -57,21 +150,84 @@
 }
 .uc-section h2 {
   margin: 0;
-  font-size: var(--text-h3-size);
-  line-height: var(--text-h3-lh);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
 }
+.uc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.uc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.uc-section-title .ds-help {
+  display: inline-grid;
+}
+.uc-help p + p {
+  margin-top: 8px;
+}
+/* The chatbot's period: Month / Year, then ‹ October 2026 ›. */
+.uc-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 24px;
+}
+.uc-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Level with the Month / Year labels beside it. */
+@media (min-width: 768px) {
+  .uc-stepper {
+    margin-top: -3px;
+  }
+}
+.uc-stepper-label {
+  min-width: 10rem;
+  text-align: center;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The standard table (v2 section 2): a card, its toolbar, the table, its footer ---- */
 .uc-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
+}
+.uc-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.uc-table-toolbar .ds-search {
+  flex: 0 1 300px;
+  min-width: 200px;
+}
+.uc-table-toolbar > label:not(.ds-search) {
+  min-width: 200px;
+}
+.uc-scroll {
+  overflow-x: auto;
 }
 .uc-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-body-size);
+  color: var(--graphite-900);
+  font: 400 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .uc-table caption {
   /* Names the table for screen readers without repeating the section heading. */
@@ -83,118 +239,178 @@
 }
 .uc-table th,
 .uc-table td {
-  padding: 10px 12px;
+  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+.uc-table :is(th, td):first-child {
+  padding-left: 16px;
   text-align: left;
-  white-space: nowrap;
+}
+.uc-table :is(th, td):last-child {
+  padding-right: 16px;
 }
 .uc-table thead th {
-  background: var(--surface-header);
-  color: var(--text-muted);
-  font-size: var(--text-label-size);
-  letter-spacing: var(--text-label-ls);
-  font-weight: var(--text-label-weight);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border-default);
+  height: 44px;
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font: 600 12px/1.2 var(--font-sans);
 }
-.uc-table tbody tr + tr > * {
-  border-top: 1px solid var(--border-subtle);
+.uc-table tbody td,
+.uc-table tbody th {
+  height: 52px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.uc-table tbody tr:last-child > * {
+  border-bottom: 0;
 }
 .uc-table tbody th {
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  /* A row's name can be a long document title: it wraps, the figures do not. */
-  white-space: normal;
-  min-width: 12rem;
+  /* A row's name can be a long document title: it wraps (two lines at most), the figures do not. */
+  min-width: 10rem;
+  color: var(--graphite-900);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
-.uc-table [data-numeric] {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.uc-table td {
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .uc-table tbody tr:hover {
+    background: var(--graphite-50);
+  }
+}
+/* A row's link: the reference or the name, in Marsh navy. */
+.uc-table .ds-btn-link,
+.uc-table button[data-variant='link'] {
+  padding: 0;
 }
 /* Why a rate is $0, or why a row has no rates: under the figure, quieter. */
 .uc-note {
   display: block;
-  font-family: var(--font-sans);
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font: 400 12px/1.3 var(--font-sans);
   white-space: normal;
 }
-/* A detail page's usage and rates (components/RateTables.tsx): each quantity
-   with the rate it was charged at beneath it, in figures, quieter. */
-.uc-rates td[data-numeric] {
-  font-family: var(--font-mono);
+/* A detail page's usage and rates: each quantity with the rate it was charged at beneath it. */
+.uc-rates td {
   vertical-align: top;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 .uc-rate {
   display: block;
-  font-size: var(--text-caption-size);
-  color: var(--text-muted);
-}
-.uc-rates .uc-note {
-  font-size: var(--text-caption-size);
+  color: var(--graphite-600);
+  font: 400 12px/1.3 var(--font-sans);
 }
 .uc-rates tfoot > tr > * {
-  border-top: 1px solid var(--border-default);
+  height: 48px;
+  border-top: 1px solid var(--graphite-200);
+  color: var(--marsh-navy);
+  font-weight: 700;
   text-align: right;
-  color: var(--text-primary);
-  font-weight: var(--weight-semibold);
 }
-/* A section heading with its own action (the rates export) on the right. */
-.uc-section-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-5);
-}
-/* The chatbot's period: Month / Year, then ‹ October 2026 ›. */
-.uc-period {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-6);
-}
-.uc-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.uc-stepper-label {
-  min-width: 10rem;
+.uc-rates tfoot > tr > td {
   text-align: center;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
 }
-/* A finished period beside the one before, under the totals. */
-.uc-totals {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.ds-table-footer + .uc-scroll,
+.uc-scroll + .ds-table-footer {
+  border-top: 1px solid var(--graphite-100);
 }
-.uc-compare {
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-.uc-section-note {
-  color: var(--text-secondary);
-}
-/* A wide table or chart scrolls in its own frame; no column grows past the page. */
-.uc > *,
-.uc-section > *,
-.uc-chart > * {
-  min-width: 0;
-}
-.uc p {
-  margin: 0 0 4px;
-}
+
+/* On a phone every row is a short card: its name, then each figure beside its heading. */
 @media (max-width: 767px) {
-  .uc-toolbar select {
-    min-width: 0;
-    width: 100%;
+  .uc {
+    padding: 16px 16px 32px;
   }
-}
-/* Dims the old numbers while a new report loads, so they are not mistaken for the new ones. */
-.uc[aria-busy='true'] > :not(.uc-toolbar) {
-  opacity: 0.55;
+  .uc-filters > * {
+    min-width: 0;
+    flex: 1 1 calc(50% - 8px);
+  }
+  .uc-table-toolbar > * {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+  .uc-toolbar .uc-export {
+    flex: 1 1 100%;
+    justify-content: center;
+    height: 44px;
+  }
+  .uc-totals-card {
+    padding: 16px;
+    gap: 16px 32px;
+  }
+  .uc-estimated {
+    position: static;
+    order: 9;
+  }
+  .uc-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .uc-table,
+  .uc-table tbody,
+  .uc-table tfoot,
+  .uc-table tr,
+  .uc-table tbody :is(th, td),
+  .uc-table tfoot :is(th, td) {
+    display: block;
+  }
+  .uc-table tbody tr {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--graphite-100);
+  }
+  .uc-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .uc-table tbody tr > :is(th, td, :first-child, :last-child) {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .uc-table tbody th {
+    margin-bottom: 6px;
+    min-width: 0;
+  }
+  .uc-table tbody td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+    text-align: right;
+    white-space: normal;
+  }
+  .uc-table tbody td::before {
+    content: attr(data-label);
+    color: var(--graphite-600);
+    font: 500 13px/1.3 var(--font-sans);
+    text-align: left;
+  }
+  .uc-table tbody td:empty {
+    display: none;
+  }
+  .uc-table tfoot tr {
+    padding: 12px 16px;
+    text-align: right;
+  }
+  .uc-table tfoot :is(th, td) {
+    display: inline;
+    padding: 0;
+    border: 0;
+    height: auto;
+  }
+  .uc-table tfoot th::after {
+    content: ' ';
+  }
+  .uc-table tfoot th[colspan] {
+    display: inline;
+  }
+  .uc-stepper-label {
+    min-width: 8rem;
+  }
 }
 
 /* Stacked cost chart (components/StackedCostChart.tsx). Series colours are the
@@ -204,9 +420,9 @@
   flex-direction: column;
   gap: var(--space-5);
   margin: 0;
-  padding: var(--space-6);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
+  padding: 20px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
 }
 .uc-chart-controls {
@@ -298,7 +514,6 @@
 }
 .uc-tooltip strong,
 .uc-tooltip-share {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .uc-tooltip strong {
@@ -332,55 +547,14 @@
   }
 }
 
-/* Overview filters: one row above what they scope, wrapping on narrow screens. */
-.uc-filters {
+/* One table per way of billing, each under its name (components/RateTables.tsx). */
+.uc-rate-group {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-5) var(--space-6);
+  flex-direction: column;
+  gap: 8px;
 }
-.uc-filters > * {
-  min-width: 180px;
-}
-/* "Assessments of <engineer>", with the way back to everyone. */
-.uc-scope {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-6);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-selected);
-  color: var(--text-primary);
-}
-.uc-scope p {
+.uc-rate-title {
   margin: 0;
-  font-weight: var(--weight-semibold);
-}
-.uc-detail-head h2 {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-h3-size);
-  line-height: var(--text-h3-lh);
-  color: var(--text-primary);
-}
-/* A document's title is prose, not an identifier like a report reference. */
-.uc-document-head h2 {
-  font-family: var(--font-sans);
-}
-.uc-detail-head p {
-  margin: var(--space-2) 0 0;
-  color: var(--text-secondary);
-}
-@media (max-width: 767px) {
-  .uc-filters > * {
-    min-width: 0;
-    flex: 1 1 100%;
-  }
-}
-
-/* The admin's Report generation / Ingestion tabs, aligned with the page's own padding. */
-.uc-tabs > .ds-tabs {
-  margin: var(--space-6) clamp(16px, 2vw, 28px) 0;
+  color: var(--graphite-700);
+  font: 600 13px/1.3 var(--font-sans);
 }

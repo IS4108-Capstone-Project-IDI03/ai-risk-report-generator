@@ -1,23 +1,28 @@
-// One knowledge document's ingestion cost (EV-04), all time: its details,
+// One knowledge document's cost to read in (EV-04), all time: its details,
 // totals, cost per stage split by the service that billed it, and its usage
-// at the rates charged, with the time per call. Opened from the Ingestion tab;
+// at the rates charged, with the time per call. Opened from the Documents tab;
 // shown by screens/UsageCosts.tsx. Calls GET /api/usage/ingestion/:key.
-import { Button, Callout } from '../../../design-system'
+import type { ReactNode } from 'react'
 import { formatDay } from '../../assessments/format'
 import { documentExportUrl, getDocumentUsage, type DocumentUsage } from '../api'
 import type { CostGroup } from '../chart'
 import { CostSummary } from '../components/CostSummary'
-import { RateTables } from '../components/RateTables'
+import { ExportLink } from '../components/ExportLink'
+import { LOAD_FAILED, LoadError } from '../components/LoadError'
+import { RateTables, RatesTip } from '../components/RateTables'
 import { StackedCostChart } from '../components/StackedCostChart'
+import { UsageHeader } from '../components/UsageHeader'
 import { FEATURE_LABELS, statusLabel } from '../format'
 import { useLoad } from '../useLoad'
 
 export function DocumentUsageDetail({
   document,
   onBack,
+  bell,
 }: {
   document: DocumentUsage
   onBack: () => void
+  bell?: ReactNode
 }) {
   const { data, error, loading, retry } = useLoad(document.key, (signal) =>
     getDocumentUsage(document.key, signal),
@@ -39,59 +44,49 @@ export function DocumentUsageDetail({
   ].filter(Boolean)
 
   return (
-    <div className="uc" aria-busy={loading}>
-      <div className="uc-toolbar">
-        <Button variant="ghost" iconLeft="arrow-left" onClick={onBack}>
-          All documents
-        </Button>
+    <>
+      <UsageHeader
+        title={document.title}
+        helper={about.join(' · ')}
+        eyebrow="Usage and Costs"
+        back={{ label: 'All documents', onClick: onBack }}
+        bell={bell}
+        action={
+          shown ? (
+            <ExportLink href={documentExportUrl(document.key)}>Export CSV</ExportLink>
+          ) : undefined
+        }
+      />
+      <div className="uc" aria-busy={loading}>
+        {loading && !shown && (
+          <p role="status" className="uc-status">
+            Loading usage…
+          </p>
+        )}
+        {error !== null && <LoadError retry={retry} message={LOAD_FAILED} />}
+
         {shown && (
-          <a className="uc-export" href={documentExportUrl(document.key)} download>
-            Export CSV
-          </a>
+          <>
+            <CostSummary totals={shown.totals} />
+            <section className="uc-section" aria-labelledby="uc-stages">
+              <h2 id="uc-stages">Cost by stage</h2>
+              <StackedCostChart
+                title="Cost by stage, split by service"
+                noun="stages"
+                groups={stages}
+                controls={false}
+              />
+            </section>
+            <section className="uc-section" aria-labelledby="uc-doc-usage">
+              <div className="uc-section-title">
+                <h2 id="uc-doc-usage">Usage and rates</h2>
+                <RatesTip extra="Time per call is an average, because these calls are recorded as totals per stage." />
+              </div>
+              <RateTables rows={shown.rateRows} showTime />
+            </section>
+          </>
         )}
       </div>
-      <header className="uc-detail-head uc-document-head">
-        <h2>{document.title}</h2>
-        <p>{about.join(' · ')}</p>
-      </header>
-
-      {loading && !shown && <p role="status">Loading usage…</p>}
-      {error !== null && (
-        <Callout
-          tone="danger"
-          title="Usage not shown"
-          actions={
-            <button type="button" className="uc-link" onClick={retry}>
-              Try again
-            </button>
-          }
-        >
-          <span role="alert">Usage could not be loaded. Check your connection and try again.</span>
-        </Callout>
-      )}
-
-      {shown && (
-        <>
-          <CostSummary totals={shown.totals} />
-          <section className="uc-section" aria-labelledby="uc-stages">
-            <h2 id="uc-stages">Cost by stage</h2>
-            <StackedCostChart
-              title="Cost by stage, split by service"
-              noun="stages"
-              groups={stages}
-              controls={false}
-            />
-          </section>
-          <section className="uc-section" aria-labelledby="uc-doc-usage">
-            <h2 id="uc-doc-usage">Usage and rates</h2>
-            <p className="uc-section-note">
-              Each quantity is shown at the rate it was charged when the call was made. Time per
-              call is an average: these calls are recorded as totals per stage.
-            </p>
-            <RateTables rows={shown.rateRows} showTime />
-          </section>
-        </>
-      )}
-    </div>
+    </>
   )
 }

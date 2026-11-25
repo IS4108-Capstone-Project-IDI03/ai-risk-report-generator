@@ -75,8 +75,8 @@ export function SetPassword({
       } else {
         setError(
           failure instanceof GatewayError && failure.status === null
-            ? 'The gateway could not be reached, so your password was not set. Try again.'
-            : 'Something went wrong, so your password was not set. Try again.',
+            ? "Can't reach the server, so your password wasn't set. Try again."
+            : "Something went wrong, so your password wasn't set. Try again.",
         )
       }
       setBusy(false)
@@ -95,7 +95,7 @@ export function SetPassword({
           <p>
             {link.state === 'open'
               ? `Welcome, ${link.name}. Choose the password you will sign in with.`
-              : 'Your invitation lets you choose the password you will sign in with.'}
+              : 'Choose the password you will sign in with.'}
           </p>
         </header>
         {link.state === 'checking' && (
@@ -120,6 +120,7 @@ export function SetPassword({
                 <Button
                   variant="secondary"
                   size="sm"
+                  pill
                   onClick={() => {
                     setLink({ state: 'checking' })
                     setAttempt((a) => a + 1)
@@ -129,7 +130,7 @@ export function SetPassword({
                 </Button>
               }
             >
-              The gateway could not be reached. Check your connection, then try again.
+              Can't reach the server. Check your connection, then try again.
             </Callout>
           </div>
         )}
@@ -167,7 +168,7 @@ export function SetPassword({
                 autoComplete="new-password"
                 onChange={(e) => setConfirm(e.target.value)}
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+              <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Setting password…' : 'Set password'}
               </Button>
             </form>

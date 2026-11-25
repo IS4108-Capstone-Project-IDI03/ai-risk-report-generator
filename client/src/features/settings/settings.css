@@ -142,6 +142,15 @@
   color: var(--graphite-900);
   font: 600 14px/20px var(--font-sans);
 }
+.st-block-titlerow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.st-block-titlerow .ds-help,
+.st-unused-head .ds-help {
+  display: inline-grid;
+}
 .st-help {
   color: var(--graphite-600);
   font: 400 13px/18px var(--font-sans);
@@ -352,6 +361,14 @@
   font: 400 12px/16px var(--font-sans);
   white-space: nowrap;
 }
+/* A closed box whose key is set shows the dot alone; the open list keeps the words. */
+.st-select-button .st-keyinfo--on .st-keytext {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .st-light {
   width: 8px;
   height: 8px;
@@ -372,8 +389,8 @@
 .st-unused-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
+  align-items: center;
+  gap: 4px;
   margin: 0 -24px;
   padding: 12px 24px;
   border-top: 1px solid var(--graphite-100);
@@ -580,6 +597,21 @@
   .st-titlebar {
     padding: 8px 16px;
   }
+  /* A list switch with three options is wider than a phone: it scrolls inside its own track. */
+  .st-content .ds-segmented {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .st-content .ds-segmented button {
+    flex: none;
+    height: 44px;
+  }
+  /* A one-line note keeps its (?) beside it. */
+  .st-row-head:has(> .st-note) {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
   .st-content {
     padding: 0 16px;
   }
@@ -747,13 +779,21 @@
   padding: 0;
   list-style: none;
 }
+.st-cl-row:not(.st-cl-row--edit) {
+  flex-wrap: nowrap;
+}
 .st-cl-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border-subtle);
+  padding: 10px 0;
+}
+.st-cl-row + .st-cl-row {
+  border-top: 1px solid var(--graphite-100);
+}
+.st-cl-row .ds-icon-button {
+  flex: none;
 }
 .st-cl-row--edit {
   flex-direction: column;
@@ -761,11 +801,101 @@
 }
 .st-cl-text {
   display: flex;
-  flex: 1 1 240px;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.st-cl-row button {
-  min-height: 44px;
+@media (max-width: 767px) {
+  .st-cl-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+/* ---- A section that is not a setting block (Checklist, Privacy words): a padded column ---- */
+.st-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 0;
+}
+.st-stack:not(.st-stack--blocks) > .st-block {
+  padding: 0;
+}
+/* Checklist: the blocks sit as in every other section, a hairline between them. */
+.st-stack--blocks {
+  gap: 0;
+  padding: 0;
+}
+.st-stack--blocks > * + * {
+  border-top: 1px solid var(--graphite-100);
+}
+.st-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.st-row-label {
+  color: var(--graphite-700);
+  font: 600 13px/1.3 var(--font-sans);
+  cursor: pointer;
+}
+
+/* The standard table (v2 section 2) for the Privacy words lists: first column left, the rest
+   centred, 12 / 600 heads, 52 px rows (components/SettingsTable.tsx). */
+.st-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+}
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--graphite-900);
+  font: 400 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.st-table th,
+.st-table td {
+  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.st-table :is(th, td):first-child {
+  padding-left: 16px;
+  text-align: left;
+}
+.st-table :is(th, td):last-child {
+  padding-right: 8px;
+}
+.st-table thead th {
+  height: 44px;
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font: 600 12px/1.2 var(--font-sans);
+  white-space: nowrap;
+}
+.st-table tbody td {
+  height: 52px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.st-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.st-table td[data-end],
+.st-table th[data-end] {
+  text-align: right;
+}
+.st-table-empty {
+  padding: 32px 16px !important;
+  color: var(--graphite-600);
+  text-align: center !important;
+}
+@media (hover: hover) and (pointer: fine) {
+  .st-table tbody tr:hover {
+    background: var(--graphite-50);
+  }
 }

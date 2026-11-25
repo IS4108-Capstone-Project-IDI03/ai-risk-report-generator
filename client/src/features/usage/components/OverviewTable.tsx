@@ -28,6 +28,8 @@ export function OverviewTable({
   onOpen,
   onOpenChat,
   onChooseEngineer,
+  toolbar,
+  footer,
 }: {
   groupBy: GroupBy
   groups: OverviewGroup[]
@@ -36,12 +38,18 @@ export function OverviewTable({
   onOpen: (group: OverviewGroup) => void
   onOpenChat: () => void
   onChooseEngineer: (group: OverviewGroup) => void
+  // The search and filters, and the count line, drawn in the table's own card.
+  toolbar?: React.ReactNode
+  footer?: string
 }) {
   if (groupBy === 'engineer')
     return (
       <DataTable
         caption="Engineers and their cost"
         rows={groups}
+        toolbar={toolbar}
+        footer={footer}
+        empty="No engineers in this period"
         columns={[
           {
             header: 'Engineer',
@@ -64,6 +72,9 @@ export function OverviewTable({
     <DataTable
       caption="Assessments and their cost"
       rows={groups}
+      toolbar={toolbar}
+      footer={footer}
+      empty="No assessments match your search"
       walk={{ head: 'usage.table.head', row: 'usage.table.row-1', isRow: (g) => !!g.reference }}
       columns={[
         {

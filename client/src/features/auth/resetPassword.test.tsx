@@ -39,7 +39,7 @@ describe('Reset password (F-06)', () => {
       expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument(),
     )
     // Both reset screens share that heading, so wait for the field the second one adds.
-    expect(await screen.findByLabelText(/Reset token/)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/Reset code/)).toBeInTheDocument()
   })
 
   it('sets a new password and returns to sign-in', async () => {
@@ -51,9 +51,9 @@ describe('Reset password (F-06)', () => {
     )
     fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
-    await waitFor(() => screen.getByLabelText(/Reset token/))
+    await waitFor(() => screen.getByLabelText(/Reset code/))
 
-    fireEvent.change(screen.getByLabelText(/Reset token/), { target: { value: 'abc123' } })
+    fireEvent.change(screen.getByLabelText(/Reset code/), { target: { value: 'abc123' } })
     fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set new password' }))
 
@@ -72,9 +72,9 @@ describe('Reset password (F-06)', () => {
     )
     fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
-    await waitFor(() => screen.getByLabelText(/Reset token/))
+    await waitFor(() => screen.getByLabelText(/Reset code/))
 
-    fireEvent.change(screen.getByLabelText(/Reset token/), { target: { value: 'stale-token' } })
+    fireEvent.change(screen.getByLabelText(/Reset code/), { target: { value: 'stale-token' } })
     fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set new password' }))
 
@@ -87,7 +87,7 @@ describe('Reset password (F-06)', () => {
     window.history.replaceState(null, '', '/?reset=abc123')
     render(<App />)
     expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
-    expect(screen.getByLabelText(/Reset token/)).toHaveValue('abc123')
+    expect(screen.getByLabelText(/Reset code/)).toHaveValue('abc123')
     // The code is a secret: it is removed from the address bar once read.
     expect(window.location.search).toBe('')
   })

@@ -91,7 +91,7 @@ describe('Settings > Checklist (CP-37)', () => {
     fireEvent.change(within(panel).getByLabelText('New question'), {
       target: { value: 'Are dock doors sealed?' },
     })
-    fireEvent.change(within(panel).getByLabelText('Report section (optional)'), {
+    fireEvent.change(within(panel).getByLabelText('Report section'), {
       target: { value: '7' },
     })
     fireEvent.click(within(panel).getByRole('button', { name: 'Add item' }))

@@ -1,7 +1,7 @@
 // The Settings screen (S-01): a menu of sections, each in its own file under screens/.
 // Shown by features/assessments/AssessmentApp.tsx for every signed-in user. Calls api.ts.
 import { useEffect, useRef, useState } from 'react'
-import { Icon, TopBar } from '../../design-system'
+import { Icon, TopBar, useIsPhone } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { Tip } from '../help/Tip'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
@@ -125,6 +125,7 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
   // The right end of the title line, for the section that draws its main button there.
   const [titleEnd, setTitleEnd] = useState<HTMLElement | null>(null)
   const menu = useRef<HTMLElement>(null)
+  const phone = useIsPhone()
   useWalkthroughScreen('settings', settings !== null)
 
   useEffect(() => {
@@ -145,9 +146,9 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
   return (
     <div className="st-page">
       <TopBar
-        eyebrow="ACCOUNT"
+        eyebrow={phone ? undefined : 'ACCOUNT'}
         title="Settings"
-        helper="Your password and preferences, and how the system is set."
+        helper={phone ? undefined : 'Your password and preferences, and how the system is set.'}
         bell={bell}
       />
       <div className="st">

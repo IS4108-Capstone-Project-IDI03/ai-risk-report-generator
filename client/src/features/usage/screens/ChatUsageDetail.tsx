@@ -4,8 +4,8 @@
 // person who asked, and the usage at the rates charged. A risk engineer sees
 // only their own chat (the gateway scopes it). Opens on this month from the
 // overview's Chatbot row; shown by screens/UsageCosts.tsx. Calls GET /api/usage/chat.
-import { useState } from 'react'
-import { Button, Callout, EmptyState, Tabs } from '../../../design-system'
+import { useState, type ReactNode } from 'react'
+import { EmptyState, Tabs } from '../../../design-system'
 import { formatDay } from '../../assessments/format'
 import {
   chatExportUrl,
@@ -16,10 +16,13 @@ import {
 } from '../api'
 import type { CostGroup } from '../chart'
 import { CostSummary } from '../components/CostSummary'
+import { ExportLink } from '../components/ExportLink'
+import { LOAD_FAILED, LoadError } from '../components/LoadError'
 import { DataTable } from '../components/DataTable'
 import { PeriodStepper } from '../components/PeriodStepper'
-import { RateTables } from '../components/RateTables'
+import { RateTables, RatesTip } from '../components/RateTables'
 import { StackedCostChart } from '../components/StackedCostChart'
+import { UsageHeader } from '../components/UsageHeader'
 import {
   DASH,
   formatCount,
@@ -71,7 +74,7 @@ function Comparison({ usage }: { usage: ChatUsage }) {
   )
 }
 
-export function ChatUsageDetail({ onBack }: { onBack: () => void }) {
+export function ChatUsageDetail({ onBack, bell }: { onBack: () => void; bell?: ReactNode }) {
   const [chosen, setChosen] = useState<ChatPeriod>(() => ({ period: 'month', at: thisMonth() }))
   const current: ChatPeriod =
     chosen.period === 'year'
@@ -102,115 +105,107 @@ export function ChatUsageDetail({ onBack }: { onBack: () => void }) {
     )
 
   return (
-    <div className="uc" aria-busy={loading}>
-      <div className="uc-toolbar">
-        <Button variant="ghost" iconLeft="arrow-left" onClick={onBack}>
-          All assessments
-        </Button>
+    <>
+      <UsageHeader
+        title="Chatbot"
+        helper="What the knowledge assistant cost, by month or year (Singapore time)."
+        eyebrow="Usage and Costs"
+        back={{ label: 'All assessments', onClick: onBack }}
+        bell={bell}
+        action={
+          shown && shown.totals.calls > 0 ? (
+            <ExportLink href={chatExportUrl(chosen)}>Export rates CSV</ExportLink>
+          ) : undefined
+        }
+      />
+      <div className="uc" aria-busy={loading}>
+        <div className="uc-period">
+          <Tabs
+            value={chosen.period}
+            onChange={switchTo}
+            items={[
+              { value: 'month', label: 'Month' },
+              { value: 'year', label: 'Year' },
+            ]}
+          />
+          <PeriodStepper
+            unit={chosen.period}
+            label={formatPeriod(chosen.period, chosen.at)}
+            isCurrent={chosen.at >= current.at}
+            onPrevious={() => setChosen(stepped(chosen, -1))}
+            onNext={() => setChosen(stepped(chosen, 1))}
+            onCurrent={() => setChosen(current)}
+          />
+        </div>
+
+        {loading && !shown && (
+          <p role="status" className="uc-status">
+            Loading usage…
+          </p>
+        )}
+        {error !== null && <LoadError retry={retry} message={LOAD_FAILED} />}
+
+        {shown && shown.totals.calls === 0 && (
+          <EmptyState
+            icon="inbox"
+            title={`No chat in ${formatPeriod(chosen.period, chosen.at)}`}
+            description="Costs appear here once someone asks the knowledge assistant a question. Try an earlier period."
+          />
+        )}
+
         {shown && shown.totals.calls > 0 && (
-          <a className="uc-export" href={chatExportUrl(chosen)} download>
-            Export rates CSV
-          </a>
+          <>
+            <div className="uc-totals">
+              <CostSummary totals={shown.totals} />
+              <Comparison usage={shown} />
+            </div>
+            <section className="uc-section" aria-labelledby="uc-chat-time">
+              <h2 id="uc-chat-time">{byMonth ? 'Cost per month' : 'Cost per day'}</h2>
+              <StackedCostChart
+                title={
+                  byMonth ? 'Cost per month, split by service' : 'Cost per day, split by service'
+                }
+                noun={byMonth ? 'months' : 'days'}
+                groups={bars}
+                inOrder
+              />
+              <DataTable
+                caption={byMonth ? 'Chat cost per month' : 'Chat cost per day'}
+                rows={shown.buckets}
+                columns={[
+                  {
+                    header: byMonth ? 'Month' : 'Day',
+                    cell: (b) => (byMonth ? formatMonthKey(b.key) : formatDayKey(b.key)),
+                  },
+                  ...counts,
+                ]}
+              />
+            </section>
+            <section className="uc-section" aria-labelledby="uc-chat-people">
+              <h2 id="uc-chat-people">Cost per person</h2>
+              <DataTable
+                caption="Chat cost per person"
+                rows={shown.byUser}
+                columns={[
+                  { header: 'Person', cell: (u) => u.name },
+                  {
+                    header: 'Last used',
+                    cell: (u) => (u.lastActivityAt ? formatDay(new Date(u.lastActivityAt)) : DASH),
+                  },
+                  ...counts,
+                ]}
+              />
+            </section>
+            <section className="uc-section" aria-labelledby="uc-chat-usage">
+              <div className="uc-section-title">
+                <h2 id="uc-chat-usage">Usage and rates</h2>
+                <RatesTip />
+              </div>
+              <RateTables rows={shown.rateRows} />
+            </section>
+          </>
         )}
       </div>
-      <header className="uc-detail-head uc-document-head">
-        <h2>Chatbot</h2>
-        <p>The knowledge assistant&rsquo;s cost by calendar month or year, Singapore time.</p>
-      </header>
-      <div className="uc-period">
-        <Tabs
-          value={chosen.period}
-          onChange={switchTo}
-          items={[
-            { value: 'month', label: 'Month' },
-            { value: 'year', label: 'Year' },
-          ]}
-        />
-        <PeriodStepper
-          unit={chosen.period}
-          label={formatPeriod(chosen.period, chosen.at)}
-          isCurrent={chosen.at >= current.at}
-          onPrevious={() => setChosen(stepped(chosen, -1))}
-          onNext={() => setChosen(stepped(chosen, 1))}
-          onCurrent={() => setChosen(current)}
-        />
-      </div>
-
-      {loading && !shown && <p role="status">Loading usage…</p>}
-      {error !== null && (
-        <Callout
-          tone="danger"
-          title="Usage not shown"
-          actions={
-            <button type="button" className="uc-link" onClick={retry}>
-              Try again
-            </button>
-          }
-        >
-          <span role="alert">Usage could not be loaded. Check your connection and try again.</span>
-        </Callout>
-      )}
-
-      {shown && shown.totals.calls === 0 && (
-        <EmptyState
-          icon="inbox"
-          title={`No chat in ${formatPeriod(chosen.period, chosen.at)}`}
-          description="Costs appear here once someone asks the knowledge assistant a question. Try an earlier period."
-        />
-      )}
-
-      {shown && shown.totals.calls > 0 && (
-        <>
-          <div className="uc-totals">
-            <CostSummary totals={shown.totals} />
-            <Comparison usage={shown} />
-          </div>
-          <section className="uc-section" aria-labelledby="uc-chat-time">
-            <h2 id="uc-chat-time">{byMonth ? 'Cost per month' : 'Cost per day'}</h2>
-            <StackedCostChart
-              title={
-                byMonth ? 'Cost per month, split by service' : 'Cost per day, split by service'
-              }
-              noun={byMonth ? 'months' : 'days'}
-              groups={bars}
-              inOrder
-            />
-            <DataTable
-              caption={byMonth ? 'Chat cost per month' : 'Chat cost per day'}
-              rows={shown.buckets}
-              columns={[
-                {
-                  header: byMonth ? 'Month' : 'Day',
-                  cell: (b) => (byMonth ? formatMonthKey(b.key) : formatDayKey(b.key)),
-                },
-                ...counts,
-              ]}
-            />
-          </section>
-          <section className="uc-section" aria-labelledby="uc-chat-people">
-            <h2 id="uc-chat-people">Cost per person</h2>
-            <DataTable
-              caption="Chat cost per person"
-              rows={shown.byUser}
-              columns={[
-                { header: 'Person', cell: (u) => u.name },
-                {
-                  header: 'Last used',
-                  cell: (u) => (u.lastActivityAt ? formatDay(new Date(u.lastActivityAt)) : DASH),
-                },
-                ...counts,
-              ]}
-            />
-          </section>
-          <section className="uc-section" aria-labelledby="uc-chat-usage">
-            <h2 id="uc-chat-usage">Usage and rates</h2>
-            <p className="uc-section-note">
-              Each quantity is shown at the rate it was charged when the call was made.
-            </p>
-            <RateTables rows={shown.rateRows} />
-          </section>
-        </>
-      )}
-    </div>
+    </>
   )
 }

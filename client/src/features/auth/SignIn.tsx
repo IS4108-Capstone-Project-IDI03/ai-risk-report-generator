@@ -13,8 +13,8 @@ function signInProblem(error: unknown) {
   if (error instanceof GatewayError && error.status === 401) return 'Incorrect email or password.'
   if (error instanceof GatewayError && error.status === 429) return error.message
   if (error instanceof GatewayError && error.status === null)
-    return 'The gateway could not be reached, so you were not signed in. Check that the server is running, then try again.'
-  return 'Something went wrong, so you were not signed in. Try again.'
+    return "Can't reach the server, so you weren't signed in. Check your connection, then try again."
+  return "Something went wrong, so you weren't signed in. Try again."
 }
 
 // The reset code in an emailed link (F-06): /?reset=<code>.
@@ -74,7 +74,9 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     setError('')
     setPassword('')
     if (requestAccess) {
-      setNotice('Demo access request complete. No request was sent and no account was created.')
+      setNotice(
+        "No request was sent. Access requests aren't open yet, so ask your regional risk engineering lead to add you.",
+      )
       return
     }
     setBusy(true)
@@ -180,15 +182,15 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
                 required
                 autoComplete="username"
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+              <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Sending…' : 'Send reset link'}
               </Button>
             </form>
           ) : (
             <form noValidate onSubmit={submitResetConfirm} className="sign-in-form">
               <Input
-                label="Reset token"
-                placeholder="Filled in when you open the emailed link"
+                label="Reset code"
+                placeholder="From your reset email"
                 value={resetToken}
                 onChange={(e) => setResetToken(e.target.value)}
                 required
@@ -202,7 +204,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
                 required
                 autoComplete="new-password"
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+              <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Updating…' : 'Set new password'}
               </Button>
             </form>
@@ -236,8 +238,8 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
           <h1 id="sign-in-title">{requestAccess ? 'Request access' : 'Sign in'}</h1>
           <p>
             {requestAccess
-              ? 'Accounts are issued to Marsh risk engineers. Your request goes to your regional lead for approval.'
-              : 'Use your Marsh work account to reach your assessments.'}
+              ? 'Accounts are issued to Marsh risk engineers, and your regional lead approves each one.'
+              : 'Use your Marsh work account.'}
           </p>
         </header>
         <div className="sign-in-tabs">
@@ -258,16 +260,17 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
         <form noValidate onSubmit={submit} className="sign-in-form">
           <Button
             variant="secondary"
+            pill
             size="lg"
             fullWidth
             iconLeft="building-2"
             onClick={() =>
               unavailable(
-                'Single sign-on is not connected in this demo. Use the form to explore the sample workflow.',
+                'Single sign-on is not connected yet. Sign in with your email and password.',
               )
             }
           >
-            Continue with Marsh single sign-on
+            Continue with single sign-on
           </Button>
           <div className="sign-in-divider">
             <span />
@@ -336,20 +339,10 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
               </button>
             )}
           </div>
-          <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+          <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
             {requestAccess ? 'Request access' : busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-        <p className="sign-in-switch">
-          {requestAccess ? 'Already have an account?' : 'No account yet?'}{' '}
-          <button
-            className="text-link"
-            type="button"
-            onClick={() => changeMode(requestAccess ? 'signin' : 'signup')}
-          >
-            {requestAccess ? 'Sign in' : 'Request access'}
-          </button>
-        </p>
         {notice && (
           <div role="status">
             <Callout tone="info" title={notice} />
@@ -357,7 +350,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
         )}
       </section>
       <p className="sign-in-footer">
-        Internal use only. Access is granted by your regional risk engineering lead.
+        Internal use only. Your regional risk engineering lead grants access.
       </p>
     </main>
   )

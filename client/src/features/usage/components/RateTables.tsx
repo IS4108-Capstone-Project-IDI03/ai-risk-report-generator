@@ -2,6 +2,7 @@
 // billing, so every column applies to every row in it. Each quantity carries
 // the rate stored with its calls when they were made, never today's price.
 // Used by screens/AssessmentUsageDetail.tsx and screens/DocumentUsageDetail.tsx.
+import { HelpTip } from '../../../design-system'
 import type { RatePart, RateCell, RateRow } from '../api'
 import { DASH, FEATURE_LABELS, formatDuration, formatMoney, formatRate } from '../format'
 
@@ -61,58 +62,70 @@ function RateTable({
   const width = 4 + billing.parts.length + (showTime ? 1 : 0)
   return (
     <div className="uc-table-wrap">
-      <table className="uc-table uc-rates">
-        <caption>{`${billing.title}: usage and rates`}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Feature</th>
-            <th scope="col">Model</th>
-            <th scope="col" data-numeric>
-              Calls
-            </th>
-            {billing.parts.map(([part, header]) => (
-              <th key={part} scope="col" data-numeric>
-                {header}
-              </th>
-            ))}
-            {showTime && (
+      <div className="uc-scroll">
+        <table className="uc-table uc-rates">
+          <caption>{`${billing.title}: usage and rates`}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Feature</th>
+              <th scope="col">Model</th>
               <th scope="col" data-numeric>
-                Time per call
+                Calls
               </th>
-            )}
-            <th scope="col" data-numeric>
-              Cost
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i}>
-              <th scope="row">{FEATURE_LABELS[r.feature] ?? r.feature}</th>
-              <td>
-                {r.model}
-                {r.note && <span className="uc-note">{r.note}</span>}
-              </td>
-              <td data-numeric>{r.calls.toLocaleString('en-US')}</td>
-              {billing.parts.map(([part]) => (
-                <td key={part} data-numeric>
-                  <Quantity cell={r.cells[part]} />
-                </td>
+              {billing.parts.map(([part, header]) => (
+                <th key={part} scope="col" data-numeric>
+                  {header}
+                </th>
               ))}
-              {showTime && <td data-numeric>{formatDuration(r.avgMsPerCall)}</td>}
-              <td data-numeric>{r.costUsd === null ? DASH : formatMoney(r.costUsd)}</td>
+              {showTime && (
+                <th scope="col" data-numeric>
+                  Time per call
+                </th>
+              )}
+              <th scope="col" data-numeric>
+                Cost
+              </th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row" colSpan={width - 1}>
-              Subtotal
-            </th>
-            <td data-numeric>{formatMoney(subtotal)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <th scope="row">{FEATURE_LABELS[r.feature] ?? r.feature}</th>
+                <td data-label="Model">
+                  {r.model}
+                  {r.note && <span className="uc-note">{r.note}</span>}
+                </td>
+                <td data-label="Calls" data-numeric>
+                  {r.calls.toLocaleString('en-US')}
+                </td>
+                {billing.parts.map(([part, header]) => (
+                  <td key={part} data-label={header} data-numeric>
+                    <Quantity cell={r.cells[part]} />
+                  </td>
+                ))}
+                {showTime && (
+                  <td data-label="Time per call" data-numeric>
+                    {formatDuration(r.avgMsPerCall)}
+                  </td>
+                )}
+                <td data-label="Cost" data-numeric>
+                  {r.costUsd === null ? DASH : formatMoney(r.costUsd)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" colSpan={width - 1}>
+                Subtotal
+              </th>
+              <td data-label="Subtotal" data-numeric>
+                {formatMoney(subtotal)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   )
 }
@@ -123,9 +136,24 @@ export function RateTables({ rows, showTime = false }: { rows: RateRow[]; showTi
       {BILLINGS.map((billing) => {
         const own = rows.filter((r) => billingOf(r.service) === billing)
         return own.length ? (
-          <RateTable key={billing.title} billing={billing} rows={own} showTime={showTime} />
+          <div key={billing.title} className="uc-rate-group">
+            <h3 className="uc-rate-title">{billing.title}</h3>
+            <RateTable billing={billing} rows={own} showTime={showTime} />
+          </div>
         ) : null
       })}
     </>
+  )
+}
+
+/** Returns the (?) beside "Usage and rates": what the rate under each quantity means. */
+export function RatesTip({ extra }: { extra?: string }) {
+  return (
+    <HelpTip label="About these rates">
+      <div className="uc-help">
+        <p>Each quantity is shown at the rate it was charged when the call was made.</p>
+        {extra && <p>{extra}</p>}
+      </div>
+    </HelpTip>
   )
 }

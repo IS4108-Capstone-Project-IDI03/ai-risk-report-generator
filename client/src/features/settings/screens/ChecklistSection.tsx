@@ -3,7 +3,15 @@
 // ones. Anyone else sees that an admin sets them. Called by Settings.tsx. Calls the fixed item
 // functions in api.ts through useFixedItems.
 import { useState } from 'react'
-import { Button, EmptyState, Input, Select, toast } from '../../../design-system'
+import {
+  Button,
+  EmptyState,
+  HelpTip,
+  IconAction,
+  Input,
+  Select,
+  toast,
+} from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import {
   addFixedItem,
@@ -14,6 +22,7 @@ import {
 } from '../api'
 import { FixedItemRow } from '../components/FixedItemRow'
 import { SetByAdmin } from '../components/SetByAdmin'
+import { SettingBlock } from '../components/SettingBlock'
 import { useFixedItems } from '../useFixedItems'
 
 const message = (error: unknown, fallback: string) =>
@@ -86,75 +95,88 @@ function Editor() {
   }
 
   return (
-    <div className="st-stack">
-      <p className="st-note">
-        Fixed questions appear on every checklist for the site type, whatever past reports say.
-      </p>
-      <Select
-        label="Site type"
-        value={facilityType}
-        options={data.facilityTypes}
-        onChange={(e) => setType(e.target.value)}
-      />
-      {active.length === 0 ? (
-        <EmptyState icon="list-checks" title={`No fixed items for ${facilityType} yet`} />
-      ) : (
-        <ul className="st-cl-list" aria-label={`Fixed items for ${facilityType}`}>
-          {active.map((item) => (
-            <FixedItemRow
-              key={item.id + item.text + item.area}
-              item={item}
-              onSave={(id, t, a) =>
-                run(() => editFixedItem(id, { text: t, area: a }), 'The change was not saved.')
-              }
-              onRemove={(i) => void remove(i)}
-            />
-          ))}
-        </ul>
-      )}
+    <div className="st-stack st-stack--blocks">
+      <SettingBlock
+        title="Fixed questions"
+        wide
+        tip={
+          <HelpTip label="About fixed questions">
+            <p>
+              Fixed questions appear on every checklist for the site type, whatever past reports
+              say.
+            </p>
+          </HelpTip>
+        }
+      >
+        <Select
+          label="Site type"
+          value={facilityType}
+          options={data.facilityTypes}
+          onChange={(e) => setType(e.target.value)}
+        />
+        {active.length === 0 ? (
+          <EmptyState icon="list-checks" title={`No fixed items for ${facilityType} yet`} />
+        ) : (
+          <ul className="st-cl-list" aria-label={`Fixed items for ${facilityType}`}>
+            {active.map((item) => (
+              <FixedItemRow
+                key={item.id + item.text + item.area}
+                item={item}
+                onSave={(id, t, a) =>
+                  run(() => editFixedItem(id, { text: t, area: a }), 'The change was not saved.')
+                }
+                onRemove={(i) => void remove(i)}
+              />
+            ))}
+          </ul>
+        )}
+      </SettingBlock>
       <form
-        className="st-stack"
         aria-label="Add a fixed item"
         onSubmit={(e) => {
           e.preventDefault()
           void add()
         }}
       >
-        <Input label="New question" value={text} onChange={(e) => setText(e.target.value)} />
-        <Input
-          label="Report section (optional)"
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-        />
-        {addError && (
-          <p className="st-err" role="alert">
-            {addError}
-          </p>
-        )}
-        <div className="st-row-head">
-          <Button type="submit" variant="primary" size="lg">
-            Add item
-          </Button>
-        </div>
+        <SettingBlock title="Add a question" wide>
+          <Input label="New question" value={text} onChange={(e) => setText(e.target.value)} />
+          <Input
+            label="Report section"
+            placeholder="Optional"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+          />
+          {addError && (
+            <p className="st-err" role="alert">
+              {addError}
+            </p>
+          )}
+          <div className="st-row-head">
+            <Button type="submit" variant="primary" pill>
+              Add item
+            </Button>
+          </div>
+        </SettingBlock>
       </form>
       {removed.length > 0 && (
-        <details>
-          <summary className="st-row-label">Removed ({removed.length})</summary>
-          <ul className="st-cl-list">
-            {removed.map((item) => (
-              <li key={item.id} className="st-cl-row">
-                <div className="st-cl-text">{item.text}</div>
-                <Button
-                  variant="pill"
-                  aria-label={`Restore ${item.text}`}
-                  onClick={() => void restore(item)}
-                >
-                  Restore
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <SettingBlock wide>
+          <details>
+            <summary className="st-row-label">Removed ({removed.length})</summary>
+            <ul className="st-cl-list">
+              {removed.map((item) => (
+                <li key={item.id} className="st-cl-row">
+                  <div className="st-cl-text">{item.text}</div>
+                  <IconAction
+                    icon="rotate-ccw"
+                    label={`Restore ${item.text}`}
+                    tooltip="Restore question"
+                    onClick={() => void restore(item)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </details>
+        </SettingBlock>
       )}
     </div>
   )

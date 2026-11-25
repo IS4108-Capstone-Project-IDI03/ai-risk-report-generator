@@ -92,7 +92,7 @@ describe('User accounts (F-03)', () => {
     expect(fetchMock).toHaveBeenLastCalledWith(`/api/users/${JIDE.id}`, expect.anything())
     expect(within(profile).getByText('jide.okafor@example.com')).toBeInTheDocument()
     expect(within(profile).getByText('Singapore')).toBeInTheDocument()
-    expect(within(profile).getByRole('button', { name: 'Edit profile' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit profile' })).toBeInTheDocument()
   }, 10000)
 
   it('saves the edited fields and shows them when the profile is reopened', async () => {
@@ -168,7 +168,7 @@ describe('User accounts (F-03)', () => {
     await openAccounts()
 
     expect(
-      await screen.findByText(/The gateway could not be reached, so the accounts could not be/),
+      await screen.findByText(/Can't reach the server, so the accounts could not be/),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   })

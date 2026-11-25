@@ -1,31 +1,119 @@
+/* User accounts (F-03, F-08): under a TopBar, one white card per list, profile or form.
+   The table is the standard one of the Clients list (v2 section 2). Tokens only. */
 .accounts {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px clamp(16px, 2vw, 28px) 40px;
+  padding: 24px var(--page-gutter) 40px;
+  font-family: var(--font-sans);
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
 }
-.accounts-loading,
-.accounts-intro {
+.accounts-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+/* A form page: the card fills the page, so the action bar sits on the bottom edge. */
+.accounts-page > .accounts {
+  flex: 1;
+}
+.accounts-loading {
   margin: 0;
-  color: var(--text-muted);
+  padding: 32px 16px;
+  color: var(--graphite-600);
+  text-align: center;
 }
 .accounts-mono {
-  font-family: var(--font-mono);
-  font-size: 0.93em;
+  font-variant-numeric: tabular-nums;
+}
+.accounts-muted {
+  color: var(--graphite-600);
+}
+@media (max-width: 767px) {
+  .accounts {
+    padding: 16px 16px 32px;
+  }
+}
+
+/* ---- One card: the list, a profile, a form ---- */
+.accounts-card,
+.accounts-list {
+  overflow: hidden;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+/* ---- The table: first column left, the rest centred ---- */
+.accounts-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: var(--graphite-900);
+  font: 400 14px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.accounts-table th,
+.accounts-table td {
+  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.accounts-table :is(th, td):first-child {
+  padding-left: 16px;
+  text-align: left;
+}
+.accounts-table thead th {
+  height: 44px;
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font: 600 12px/1 var(--font-sans);
+}
+.accounts-table tbody :is(th, td) {
+  height: 60px;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.accounts-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.accounts-table tbody th {
+  font-weight: 400;
+}
+@media (hover: hover) and (pointer: fine) {
+  .accounts-table tbody tr:hover {
+    background: var(--graphite-50);
+  }
+}
+.accounts-col-id {
+  width: 120px;
+}
+.accounts-col-role {
+  width: 160px;
+}
+.accounts-col-office {
+  width: 168px;
+}
+.accounts-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 .accounts-link {
   padding: 0;
   border: none;
   background: none;
   font: inherit;
-  font-weight: var(--weight-medium);
-  color: var(--text-link);
+  font-weight: 600;
+  color: var(--marsh-navy);
   text-align: left;
   cursor: pointer;
 }
-.accounts-link:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .accounts-link:hover {
+    text-decoration: underline;
+  }
 }
 .accounts-link:focus-visible,
 .accounts-stack-item:focus-visible {
@@ -38,48 +126,57 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-pill);
   background: var(--ink-50);
-  color: var(--ink-700);
-  font-size: 13px;
-  font-weight: var(--weight-semibold);
+  color: var(--report-navy);
+  font-size: 12px;
+  font-weight: 700;
 }
 .accounts-avatar-lg {
-  width: 48px;
-  height: 48px;
-  font-size: 17px;
+  width: 44px;
+  height: 44px;
+  font-size: 15px;
 }
+/* The Role heading and its help tip (F-13) sit on one line, so nothing moves. */
+.accounts-th-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.accounts-table .ds-help-menu {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* ---- Phone: a stack of rows ---- */
 .accounts-stack {
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 .accounts-stack li + li {
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--graphite-100);
 }
 .accounts-stack-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 14px;
+  min-height: 60px;
+  padding: 10px 16px;
   border: none;
   background: transparent;
   font: inherit;
   text-align: left;
-  color: var(--text-body);
+  color: var(--graphite-900);
   cursor: pointer;
 }
-.accounts-stack-item:hover {
-  background: var(--surface-hover);
+.accounts-stack-item:active {
+  background: var(--graphite-50);
 }
 .accounts-stack-text {
   flex: 1;
@@ -93,102 +190,55 @@
   white-space: nowrap;
 }
 .accounts-stack-text strong {
-  color: var(--text-primary);
-  font-weight: var(--weight-medium);
+  color: var(--graphite-900);
+  font-weight: 600;
 }
 .accounts-stack-text small {
-  color: var(--text-muted);
-  font-size: var(--text-small-size);
+  color: var(--graphite-600);
+  font-size: 13px;
 }
-.accounts-card {
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-}
-.accounts-profile-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 14px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-sunken);
-  border-radius: 8px 8px 0 0;
-}
-.accounts-profile-title {
-  flex: 1;
-  min-width: 0;
-}
-.accounts-profile-title h2 {
-  margin: 0;
-  font-size: 19px;
-  line-height: 28px;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-.accounts-profile-title > span {
-  font-size: var(--text-small-size);
-  color: var(--text-secondary);
-}
+
+/* ---- A profile and the forms ---- */
 .accounts-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 16px 20px;
+  gap: 20px 24px;
   margin: 0;
-  padding: 20px;
+  padding: 20px 24px;
 }
 .accounts-details dt {
   margin-bottom: 4px;
-  font-size: var(--text-small-size);
-  font-weight: var(--weight-medium);
-  color: var(--text-muted);
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
 }
 .accounts-details dd {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--graphite-900);
   overflow-wrap: anywhere;
 }
 .accounts-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 16px 20px;
-  padding: 20px 20px 0;
+  gap: 16px 24px;
+  padding: 20px 24px;
 }
 .accounts-body-note {
-  padding: 16px 20px 0;
+  padding: 16px 24px 0;
+}
+.accounts-body-note:last-child {
+  padding-bottom: 20px;
 }
 .accounts-field-error {
   margin: 6px 0 0;
   font-size: var(--text-caption-size);
-  color: var(--action-danger);
+  color: var(--red-600);
 }
-.accounts-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 20px;
-}
-.accounts-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-}
-.accounts-toolbar .accounts-intro {
-  flex: 1 1 320px;
-}
-
-/* The Role heading and its help tip (F-13) sit on one line, so nothing moves. */
-.accounts-th-tip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-/* The heading row is upper-case; the tip's words must not inherit that. */
-.accounts th .ds-help-menu {
-  letter-spacing: normal;
-  text-transform: none;
+@media (max-width: 767px) {
+  .accounts-details,
+  .accounts-form {
+    padding: 16px;
+  }
+  .accounts-body-note {
+    padding: 16px 16px 0;
+  }
 }
