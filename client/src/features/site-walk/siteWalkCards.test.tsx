@@ -300,6 +300,13 @@ describe('the Site Walk Proposals list', () => {
     )
   })
 
+  it('names a walk with no proposal yet a site walk, not a proposal', () => {
+    show([walk({ name: 'Dock walk', status: 'recording' })])
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Dock walk' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete this site walk?' }))
+    expect(dialog.getByRole('button', { name: 'Delete site walk' })).toBeInTheDocument()
+  })
+
   // RV-11 AC2: someone else's walks can be read, with nothing to record, retry or delete.
   it("reads someone else's walks with no record, retry or delete", () => {
     const onOpen = vi.fn()

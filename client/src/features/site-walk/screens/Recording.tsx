@@ -180,6 +180,13 @@ export function SiteWalkRecording({
           <EmptyState
             icon={w.problem ? 'circle-alert' : 'loader'}
             title={w.problem ?? 'Starting the site walk…'}
+            action={
+              w.problem && (
+                <Button variant="create" iconLeft="rotate-ccw" onClick={w.restart}>
+                  Retry
+                </Button>
+              )
+            }
           />
         </div>
       </div>

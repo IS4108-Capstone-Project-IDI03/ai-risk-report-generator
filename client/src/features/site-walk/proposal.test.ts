@@ -17,6 +17,7 @@ import {
   NEEDS_LOCATION,
   NO_PROPOSAL_FILTERS,
   observationsAt,
+  placeAtExisting,
   proposalTypes,
   removeLocation,
   removeObservation,
@@ -133,9 +134,42 @@ describe('site walk proposal edits', () => {
     expect(notSureReason(o)).toBe('Check category and severity')
     expect(notSureReason({ ...o, check: { ...o.check, category: false } })).toBe('Check severity')
     expect(notSureReason({ ...o, check: { ...o.check, severity: false } })).toBe('Check category')
-    expect(isNotSure({ ...o, check: { severity: false, category: false, location: true } })).toBe(
-      false,
+    // The AI's doubt about the place shows too (services.md step 6: no pick is hidden).
+    const place = { ...o, check: { severity: false, category: false, location: true } }
+    expect(isNotSure(place)).toBe(true)
+    expect(notSureReason(place)).toBe('Check location')
+    expect(notSureReason({ ...o, check: { ...o.check, location: true } })).toBe(
+      'Check location, category and severity',
     )
+  })
+
+  it('places an observation at an assessment location, linking it once', () => {
+    const cold = existing[1]
+    const once = placeAtExisting(proposal(), 'obs-3', cold)
+    const twice = placeAtExisting(once, 'obs-1', cold)
+    expect(twice.locations.filter((l) => l.existingId === 'e2')).toHaveLength(1)
+    const ref = once.locations.find((l) => l.existingId === 'e2')!.ref
+    expect(twice.observations.filter((o) => o.locationRef === ref).map((o) => o.ref)).toEqual([
+      'obs-1',
+      'obs-3',
+    ])
+    // One already linked is reused, not added again.
+    expect(placeAtExisting(proposal(), 'obs-3', existing[0]).locations).toHaveLength(3)
+  })
+
+  it('clears the location doubt when the engineer confirms, moves or links the place', () => {
+    const p = proposal()
+    const o = p.observations[0]
+    const flagged: Proposal = {
+      ...p,
+      observations: [{ ...o, check: { ...o.check, location: true } }, ...p.observations.slice(1)],
+    }
+    const check = (next: Proposal) => next.observations.find((x) => x.ref === o.ref)!.check.location
+    expect(check(updateObservation(flagged, o.ref, { note: 'Edited.' }))).toBe(true)
+    expect(check(updateObservation(flagged, o.ref, { confirm: ['location'] }))).toBe(false)
+    expect(check(updateObservation(flagged, o.ref, { locationRef: o.locationRef }))).toBe(false)
+    const yard = { id: 'e9', building: null, floor: null, name: 'Yard' }
+    expect(check(sameAs(flagged, o.locationRef!, yard).proposal)).toBe(false)
   })
 
   it('never holds Create all back for a not-sure value, only for an empty field', () => {

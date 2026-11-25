@@ -34,6 +34,8 @@ export function useWalk(reference: string, store?: UploadStore) {
   const [unsent, setUnsent] = useState<PendingUpload[]>([])
   const [problem, setProblem] = useState<string | null>(null)
   const [finished, setFinished] = useState(false)
+  // Bumped by restart, so a walk that failed to start can be tried again.
+  const [attempt, setAttempt] = useState(0)
   // How many sends are running, so a recording on the device can read "Sending".
   const [sendingCount, setSendingCount] = useState(0)
   // Counts changes made here; a slow poll started before one is ignored.
@@ -96,7 +98,11 @@ export function useWalk(reference: string, store?: UploadStore) {
     return () => {
       live = false
     }
-  }, [reference, queue, flush, apply])
+  }, [reference, queue, flush, apply, attempt])
+  const restart = useCallback(() => {
+    setProblem(null)
+    setAttempt((n) => n + 1)
+  }, [])
 
   // b. The connection is back: send what waited (AC4).
   useEffect(() => {
@@ -296,6 +302,7 @@ export function useWalk(reference: string, store?: UploadStore) {
     lastSeq,
     problem,
     setProblem,
+    restart,
     finished,
     reread,
     addRecording,

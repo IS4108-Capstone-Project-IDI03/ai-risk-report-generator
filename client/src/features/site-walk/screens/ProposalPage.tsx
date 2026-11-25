@@ -12,7 +12,8 @@ import { ObservationNote } from '../../assessments/components/ObservationNote'
 import type { ViewedPhoto } from '../../assessments/components/PhotoReferences'
 import { locationLabel } from '../../assessments/locations'
 import type { ObservationChange } from '../../assessments/useAssessmentWorkflow'
-import type { Proposal, ProposedObservation, SiteWalk } from '../api'
+import type { SiteLocation } from '../../assessments/api'
+import type { Proposal, ProposedLocation, ProposedObservation, SiteWalk } from '../api'
 import { pathOf, placeOptions } from '../options'
 import { ProposalDetails } from '../components/ProposalDetails'
 import { ProposalEvidence } from '../components/ProposalEvidence'
@@ -20,6 +21,9 @@ import { ProposalPageHeader } from '../components/ProposalPageHeader'
 import { ALL, sectionsAt, type ObservationPatch } from '../proposal'
 import type { SaveState } from '../useProposal'
 import '../../assessments/observation-page.css'
+
+// Marks a picker value as one of the assessment's own locations, not a proposal ref.
+const EXISTING = 'existing:'
 
 // As on the tab's page: nothing until an edit here, then how its save went.
 const SAVE_TEXT: Record<SaveState, string> = {
@@ -44,6 +48,8 @@ export function ProposalPage({
   onView,
   readOnly = false,
   reference,
+  others = [],
+  onPlace,
 }: {
   proposal: Proposal
   observation: ProposedObservation
@@ -62,15 +68,23 @@ export function ProposalPage({
   readOnly?: boolean
   // The walk's assessment, so the note can be dictated into (CP-27).
   reference?: string
+  // The assessment's locations the proposal doesn't use yet, offered beside its own.
+  others?: SiteLocation[]
+  // Puts the observation at one of `others`.
+  onPlace?: (location: SiteLocation) => void
 }) {
   const [edited, setEdited] = useState(false)
   // The note as last left (the tag picker suggests from it once).
   const [blurred, setBlurred] = useState('')
   // a. Its list's order (No location yet first, then each location; the
   // deleted list newest first): the arrows step through all of them.
-  const order = deleted
+  const listed = deleted
     ? (proposal.removed ?? [])
     : sectionsAt(proposal, ALL).flatMap((section) => section.items)
+  // Kept as it was when the page opened: choosing a place moves the observation in the list,
+  // and without this Next would then step on from its new spot, skipping the rest still to place.
+  const [opened] = useState(() => listed.map((x) => x.ref))
+  const order = opened.flatMap((ref) => listed.filter((x) => x.ref === ref))
   const at = order.findIndex((x) => x.ref === o.ref)
   const previous = at > 0 ? order[at - 1] : undefined
   const next = order[at + 1]
@@ -80,7 +94,9 @@ export function ProposalPage({
   // b. Every edit goes straight to the proposal; the note's save is one of them.
   const edit = (patch: ObservationPatch) => {
     setEdited(true)
-    onChange(patch)
+    const other = others.find((l) => EXISTING + l.id === patch.locationRef)
+    if (other && onPlace) onPlace(other)
+    else onChange(patch)
   }
   const save = async (change: ObservationChange) => {
     if (change.note !== undefined) edit({ note: change.note })
@@ -179,7 +195,10 @@ export function ProposalPage({
         </div>
         <ProposalDetails
           o={o}
-          locations={placeOptions(proposal.locations, (l) => l.ref)}
+          locations={placeOptions<ProposedLocation | SiteLocation>(
+            [...proposal.locations, ...others],
+            (l) => ('ref' in l ? l.ref : EXISTING + l.id),
+          )}
           where={place ? where : null}
           canChange={canChange}
           onChange={edit}

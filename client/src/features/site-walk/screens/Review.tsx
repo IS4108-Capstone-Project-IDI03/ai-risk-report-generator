@@ -175,7 +175,7 @@ export function SiteWalkReview({
     const at = p!.observations.findIndex((x) => x.ref === o.ref)
     r.change((cur) => edit.removeObservation(cur, o.ref))
     setOpenRef(null)
-    undoToast.current = toast.success('Observation deleted.', {
+    undoToast.current = toast.success('Observation deleted', {
       action: {
         label: 'Undo',
         onClick: () => r.change((cur) => edit.restoreObservation(cur, o.ref, at)),
@@ -276,6 +276,10 @@ export function SiteWalkReview({
               onStep={setOpenRef}
               onView={setViewing}
               readOnly={readOnly}
+              others={r.existing.filter((l) => !p.locations.some((x) => x.existingId === l.id))}
+              onPlace={(existing) =>
+                r.change((cur) => edit.placeAtExisting(cur, page.ref, existing))
+              }
             />
           ) : screen === 'photos' || screen === 'pages' ? (
             <ProposalMedia

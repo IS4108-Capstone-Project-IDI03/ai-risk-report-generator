@@ -1,4 +1,4 @@
-// Confirms deleting a site walk proposal (CP-22 AC14, round 3; wording round 4):
+// Confirms deleting a site walk or its proposal (CP-22 AC14, round 3; wording round 4):
 // says exactly what goes, with counts, and that it cannot be undone, the key
 // words in bold. The assessment does not change. Used by
 // assessments/screens/SiteWalks.tsx; deleted through api.ts discardWalk.
@@ -36,9 +36,11 @@ export function DeleteWalkDialog({
   onClose: () => void
 }) {
   const held = holdings(walk)
+  // A walk still recording, being read or that failed has no proposal yet, so it is named a site walk.
+  const what = walk.status === 'ready' || walk.proposal ? 'proposal' : 'site walk'
   return (
     <Dialog
-      title="Delete this proposal?"
+      title={`Delete this ${what}?`}
       description={
         <>
           <strong>“{walkName(walk)}”</strong> will be deleted for good
@@ -58,12 +60,15 @@ export function DeleteWalkDialog({
             Cancel
           </Button>
           <Button pill variant="danger" loading={busy} onClick={onConfirm}>
-            Delete proposal
+            Delete {what}
           </Button>
         </>
       }
     >
-      <DialogProblem title="Proposal not deleted" problem={problem} />
+      <DialogProblem
+        title={what === 'proposal' ? 'Proposal not deleted' : 'Site walk not deleted'}
+        problem={problem}
+      />
     </Dialog>
   )
 }

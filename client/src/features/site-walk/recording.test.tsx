@@ -43,6 +43,16 @@ installWalkTest()
 afterEach(() => cleanup())
 
 describe('site walk recording', () => {
+  it('offers Retry when the walk could not be started, and starts it on a second try', async () => {
+    gw.offline = true
+    render(<SiteWalkRecording reference={REF} onClose={() => {}} />)
+    expect(await screen.findByText('The site walk could not be started.')).toBeInTheDocument()
+
+    gw.offline = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('button', { name: 'Start recording' })).toBeInTheDocument()
+  })
+
   it('warns at 19:00 with a tone and a line, then stops at 20:00 with a tone and a toast', async () => {
     await openAndStart()
     await tick(19 * 60 * 1000)

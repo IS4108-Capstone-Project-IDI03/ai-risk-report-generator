@@ -1,7 +1,7 @@
 // The Details card on a proposed observation's own page (CP-22 round 5; not-sure marks in CP-24
 // AC17): Location, Category and Severity as picker fields, stacked as the saved observation's
-// Details are (assessments/components/ObservationDetails.tsx). A category or severity the AI was
-// not sure of shows amber with Confirm and Change; either clears its flag in the proposal
+// Details are (assessments/components/ObservationDetails.tsx). A location, category or severity the
+// AI was not sure of shows amber with Confirm and Change; either clears its flag in the proposal
 // (proposal.ts updateObservation), saved with the autosave. Used by screens/ProposalPage.tsx.
 // Calls ChoicePickerField, RecordCard.
 import { Icon } from '../../../design-system'
@@ -57,6 +57,8 @@ export function ProposalDetails({
           }
           valueLabel={where ?? undefined}
           placeholder="Choose a location"
+          notSure={o.check.location}
+          onConfirm={() => onChange({ confirm: ['location'] })}
           disabled={!canChange}
         />
       </div>
