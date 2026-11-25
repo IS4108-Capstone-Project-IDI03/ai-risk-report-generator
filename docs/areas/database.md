@@ -66,11 +66,17 @@ cluster) and `QDRANT_API_KEY` (blank for a local server). Compose sets `QDRANT_U
 - **Passages.** One Qdrant point per passage: its id is a uuid5 of the Chroma id (Qdrant ids
   must be numbers or UUIDs), its vector the same 1,024-dimension Cohere vector, and its payload
   the passage's metadata plus `_id` (the Chroma id) and `_document` (the text). The collection
-  has the same name as in Chroma, cosine distance, and a keyword index on `doc_id`.
+  has the same name as in Chroma and cosine distance; it is checked (and made if missing)
+  once per process. Keyword search sorts a document's passages by `position`, since Qdrant
+  returns them in id-hash order rather than the order they were indexed.
 - **Filters.** Chroma `where` filters are translated (`$and`, `$or`, `$eq`, `$ne`, `$in`,
-  `$nin`, `$gt`, `$gte`, `$lt`, `$lte`). As in Chroma, `$ne` and `$nin` never match a passage
-  that lacks the key, so a passage whose labels are Unconfirmed stays out of search. An
-  operator it can't translate raises an error rather than being skipped.
+  `$nin`, `$gt`, `$gte`, `$lt`, `$lte`). As in Chroma 1.5.5, `$ne` and `$nin` also match a
+  passage that lacks the key, so passages indexed before the `status` label existed stay
+  searchable; a document with Unconfirmed details is still hidden by its `needs_review`
+  status. An operator it can't translate raises an error rather than being skipped. The label
+  fields search filters on (`doc_id`, `status`, `source_type`, `jurisdiction`,
+  `facility_type`, `section`, `position`) are indexed, since a Qdrant Cloud cluster in strict
+  mode refuses a filter on a field with no index.
 - **Distances.** Qdrant's score is the cosine similarity; the adapter returns 1 − score,
   which is Chroma's cosine distance, so `MAX_STANDARD_DISTANCE` and `RANK_BAND` keep their values.
 - **Status.** `GET /index/status` on the ingestion service lists the store, the collection,
@@ -78,7 +84,17 @@ cluster) and `QDRANT_API_KEY` (blank for a local server). Compose sets `QDRANT_U
 - **Moving the passages.** `scripts/migrate-chroma-to-qdrant.py` copies every passage with its
   vector (no re-embedding), 300 per read, and prints both counts. It only reads Chroma and is
   safe to run twice. `rag-service/eval/vector_parity.py` compares both stores' top 5 passages
-  on a 20-question golden set.
+  on a 25-question golden set (20 chat questions, 5 section drafts).
+- **Parity, 25 Nov 2026** (7,513 passages copied in 25 s; a second run changed nothing): mean
+  top-5 overlap 91.2% (pass is 90%). 22 questions matched 4 or 5 of 5; three matched 2 of 5
+  (lithium-ion batteries, smoking policy, the hot work draft). For those three an exact
+  (brute-force) search agreed with Qdrant 5 of 5 and with Chroma Cloud 2 of 5: the gap is
+  Chroma Cloud's approximate index (SPANN), not the copy. `MAX_STANDARD_DISTANCE` and
+  `RANK_BAND` keep their values, as both stores measure the same cosine distance.
+- **Compose and Qdrant Cloud.** Containers use `QDRANT_DOCKER_URL` (default
+  `http://qdrant:6333`); set it to the cluster's URL to reach Qdrant Cloud from Docker.
+- **Re-running the migration after deletes in Chroma** leaves the deleted passages in Qdrant,
+  so the counts differ and the script exits 1. Delete the Qdrant collection and run it again.
 - **Switching back** is `VECTOR_STORE=chroma`; nothing is deleted from either store. The
   Qdrant free tier (1 GB RAM, 4 GB disk, one node) holds our 7.5k passages (about 31 MB of
   vectors). See DECISIONS 2026-11-25.

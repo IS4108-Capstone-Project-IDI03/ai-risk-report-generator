@@ -2898,7 +2898,8 @@ Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.
 - **One switch, `VECTOR_STORE=chroma|qdrant`,** read by both services, like `LLM_PROVIDER`. An unknown value stops the service; it never quietly uses the other store.
 - **The adapter copies Chroma's calls, not a new interface.** Every caller already used six Chroma collection calls (`get`, `query`, `upsert`, `update`, `delete`, `count`). `QdrantCollection` answers those same calls with Chroma's result shapes, so retrieval, indexing, relabelling and deletion changed one line each, and the Chroma path is untouched.
 - **Same vectors, same distances.** The migration copies Cohere's 1,024-dimension vectors as they are, so nothing is re-embedded. Both stores use cosine, and the adapter returns 1 − Qdrant's score, which is Chroma's distance, so the ranking thresholds keep their values.
-- **Filters behave as in Chroma, missing keys included.** `$ne` and `$nin` skip a passage without the key, so passages whose labels are Unconfirmed (IN-05) stay out of search on both stores. An operator the adapter can't translate raises an error: ignoring a filter could let a withdrawn document into search.
+- **Filters behave as in Chroma, missing keys included.** As in Chroma 1.5.5, `$ne` and `$nin` match a passage without the key, so passages indexed before the `status` label existed stay searchable on both stores; Unconfirmed documents stay hidden by their `needs_review` status. An operator the adapter can't translate raises an error: ignoring a filter could let a withdrawn document into search.
+- **Parity measured.** On 25 questions the top 5 overlapped 91.2% (pass 90%). Where they differed, an exact search sided with Qdrant every time: Chroma Cloud's index is approximate.
 - **One adapter file in each service.** The two services are deployed separately and already each keep a `retrieval_config.py`; a test checks the two copies are identical.
 
 Rejected:
