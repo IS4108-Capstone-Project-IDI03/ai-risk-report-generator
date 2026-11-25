@@ -114,7 +114,7 @@ From `server/` (scripts in `package.json`):
 - `npm run build` then `npm start`: compile with `tsc`, run `dist/index.js`
 - `npm test`: `vitest run` (one file at a time, in-memory Mongo, no real AI calls)
 - `npm run lint` / `npm run format`: ESLint / Prettier
-- `npm run seed`, `seed:all`, `seed:cp23`, `seed:cp29`, `seed:gn01`, `seed:case`: demo data
+- `npm run seed` (`-- --reset` to empty everything but the knowledge base first), `seed:all` (same), `seed:cp23`, `seed:cp29`, `seed:gn01`, `seed:case`: demo data
 - `npm run migrate:*`: one-off data migrations
 
 ## Gotchas
