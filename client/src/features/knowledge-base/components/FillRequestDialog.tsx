@@ -44,7 +44,7 @@ export function FillRequestDialog({
             .filter((d) => !d.withdrawn && !needsReview(d))
             .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
         ),
-      () => !controller.signal.aborted && setProblem('The documents could not be loaded.'),
+      () => !controller.signal.aborted && setProblem("Couldn't load the documents."),
     )
     return () => controller.abort()
   }, [])
@@ -74,10 +74,10 @@ export function FillRequestDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} disabled={!picked.length} onClick={confirm}>
+          <Button pill variant="primary" loading={busy} disabled={!picked.length} onClick={confirm}>
             Mark as filled
           </Button>
         </>

@@ -275,7 +275,7 @@ describe('the clauses page', () => {
   it('opens from a draft’s Continue editing and a published entry’s Edit clauses, not a PDF’s', async () => {
     mockGateway({ sections: [clause(1)] })
     await openClauses(PUBLISHED.title, 'Edit clauses')
-    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
 
     fireEvent.click(await screen.findByRole('button', { name: /^NFPA 25/ }))
     const details = screen.getByRole('region', { name: `Details of ${UPLOADED.title}` })
@@ -311,14 +311,14 @@ describe('the clauses page', () => {
     expect(within(editor()).getByLabelText(field('Clause number'))).toHaveValue('')
   })
 
-  it('shows a clause that failed to embed, and Re-embed clears it', async () => {
+  it('shows a clause that is not searchable, and Try again clears it', async () => {
     const { sent } = mockGateway({
       sections: [clause(1, { indexed: false, indexError: "Search couldn't be updated." })],
     })
     const list = await openClauses(DRAFT.title)
 
-    expect(await within(list).findByText('Failed to embed')).toBeInTheDocument()
-    fireEvent.click(within(list).getByRole('button', { name: 'Re-embed 8.1' }))
+    expect(await within(list).findByText('Not searchable')).toBeInTheDocument()
+    fireEvent.click(within(list).getByRole('button', { name: 'Try 8.1 again' }))
 
     expect(await within(list).findByText('Ready')).toBeInTheDocument()
     expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/sections/s1/reembed')
@@ -435,9 +435,9 @@ describe('the clauses page', () => {
     mockGateway()
     await openClauses(DRAFT.title)
 
-    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
 
-    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+    expect(await screen.findByRole('table', { name: 'Documents' })).toBeVisible()
   })
 })
 
@@ -604,23 +604,27 @@ describe('working through the clauses', () => {
     clause(3, { indexed: false, indexError: 'down' }),
   ]
 
-  it('filters the list to the clauses left to check or that failed to embed', async () => {
+  it('filters the list to the clauses left to check or that are not searchable', async () => {
     mockGateway({ sections: MIXED() })
     const list = await openClauses(DRAFT.title)
-    const show = await within(list).findByLabelText('Show')
+    const choose = (option: string) => {
+      fireEvent.click(within(list).getByRole('button', { name: /^Clauses/ }))
+      fireEvent.click(screen.getByRole('option', { name: option }))
+    }
 
+    fireEvent.click(await within(list).findByRole('button', { name: 'Clauses' }))
     expect(
-      within(show)
+      within(screen.getByRole('listbox', { name: 'Clauses' }))
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['All clauses (3)', 'To check (1)', 'Failed to embed (1)'])
-    fireEvent.change(show, { target: { value: 'unchecked' } })
+    ).toEqual(['All clauses (3)', 'To check (1)', 'Not searchable (1)'])
+    fireEvent.click(screen.getByRole('option', { name: 'To check (1)' }))
     expect(
       within(list)
         .getAllByRole('button', { name: /^8\./ })
         .map((b) => b.textContent),
     ).toEqual([expect.stringMatching(/^8\.2/)])
-    fireEvent.change(show, { target: { value: 'failed' } })
+    choose('Not searchable (1)')
     expect(within(list).getByRole('button', { name: /^8\.3/ })).toBeInTheDocument()
     expect(within(list).queryByRole('button', { name: /^8\.1/ })).not.toBeInTheDocument()
   })
@@ -632,7 +636,9 @@ describe('working through the clauses', () => {
     const publish = await screen.findByRole('button', { name: 'Publish' })
 
     expect(publish).toHaveAttribute('aria-disabled', 'true')
-    expect(publish).toHaveAccessibleDescription(/1 clause is left to check and 1 failed to embed/)
+    expect(publish).toHaveAccessibleDescription(
+      /1 clause is left to check and 1 not searchable yet/,
+    )
   })
 
   it('says a draft with no clauses has nothing to publish yet', async () => {

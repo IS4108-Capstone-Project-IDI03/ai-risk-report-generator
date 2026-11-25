@@ -37,7 +37,7 @@ export function DeleteDocumentDialog({
     } catch (error: unknown) {
       setProblem(
         error instanceof GatewayError && error.status === null
-          ? 'The gateway could not be reached, so nothing was deleted. Try again.'
+          ? "Can't reach the server, so nothing was deleted. Try again."
           : error instanceof Error
             ? error.message
             : 'Nothing was deleted. Try again.',
@@ -53,10 +53,11 @@ export function DeleteDocumentDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="danger"
             loading={busy}
             disabled={typed.trim() !== d.title.trim()}

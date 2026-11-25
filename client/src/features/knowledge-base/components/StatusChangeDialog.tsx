@@ -46,7 +46,7 @@ export function StatusChangeDialog({
       // The server's reason says why; a missing gateway has no reason to give.
       setProblem(
         error instanceof GatewayError && error.status === null
-          ? 'The gateway could not be reached, so nothing changed. Try again.'
+          ? "Can't reach the server, so nothing changed. Try again."
           : error instanceof Error
             ? error.message
             : 'Nothing changed. Try again.',
@@ -62,10 +62,10 @@ export function StatusChangeDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant={action.variant} loading={busy} onClick={confirm}>
+          <Button pill variant={action.variant} loading={busy} onClick={confirm}>
             {action.verb}
           </Button>
         </>

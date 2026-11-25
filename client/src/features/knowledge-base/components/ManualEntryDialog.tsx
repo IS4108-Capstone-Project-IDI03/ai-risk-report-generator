@@ -101,7 +101,7 @@ export function ManualEntryDialog({
       setExisting(typeof other === 'string' ? other : null)
       setProblem(
         error instanceof GatewayError && error.status === null
-          ? 'The gateway could not be reached, so nothing was created. Try again.'
+          ? "Can't reach the server, so nothing was created. Try again."
           : Object.keys(fields).length > 0
             ? null
             : error instanceof Error
@@ -121,10 +121,10 @@ export function ManualEntryDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} onClick={start}>
+          <Button pill variant="primary" loading={busy} onClick={start}>
             Start entering
           </Button>
         </>
@@ -138,7 +138,7 @@ export function ManualEntryDialog({
               title={existing ? 'Already being entered' : 'Not created'}
               actions={
                 existing ? (
-                  <Button variant="secondary" size="sm" onClick={() => onOpen(existing)}>
+                  <Button pill variant="secondary" size="sm" onClick={() => onOpen(existing)}>
                     Continue editing
                   </Button>
                 ) : undefined

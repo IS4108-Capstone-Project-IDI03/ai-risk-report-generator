@@ -23,6 +23,7 @@ import {
 import { TIER_LABELS } from '../../settings/tiers'
 import { Tip } from '../../help/Tip'
 import { DetailText } from './DetailText'
+import { RowIconButton } from './RowIconButton'
 
 /** Returns one document's details and actions. */
 export function DocumentDetails({
@@ -94,7 +95,7 @@ export function DocumentDetails({
             <DetailText text={d.edition} />
           </Fact>
         )}
-        <Fact label={standard ? 'Effective date' : 'Report date'} mono>
+        <Fact label={standard ? 'Effective date' : 'Report date'}>
           <DetailText text={calendarDate(d.effectiveDate)} />
         </Fact>
         <Fact label="Country">
@@ -108,141 +109,122 @@ export function DocumentDetails({
         )}
         {d.withdrawn && (
           <>
-            <Fact label="Withdrawn" mono>
-              {dateTime(d.withdrawn.at)}
-            </Fact>
+            <Fact label="Withdrawn">{dateTime(d.withdrawn.at)}</Fact>
             <Fact label="Withdrawn by">{d.withdrawn.by.name}</Fact>
           </>
         )}
       </dl>
       <div className="kb-details-actions">
-        {/* A manual entry's clauses: still being entered, or amended once published (IN-18).
-            Not once withdrawn: its PDF replaced it. */}
-        {canManage && d.entryMethod === 'manual' && !d.withdrawn && (
-          <Button
-            variant={draft ? 'secondary' : 'tonal'}
-            size="sm"
-            iconLeft={IconRegistry.action.edit}
-            onClick={onClauses}
-          >
-            {draft ? 'Continue editing' : 'Edit clauses'}
-          </Button>
-        )}
-        {canManage && draft && (
-          <Button variant="tonal" size="sm" iconLeft="check" loading={publishing} onClick={publish}>
-            Publish
-          </Button>
-        )}
-        {canManage && d.withdrawn && (
-          <Button
-            variant="tonal"
-            size="sm"
-            iconLeft={IconRegistry.action.reinstate}
-            // Off while another edition is active: two are never active at once.
-            disabled={!!d.reinstateBlockedBy}
-            onClick={onChangeStatus}
-          >
-            Reinstate
-          </Button>
-        )}
-        {canManage && !draft && !d.withdrawn && !needsReview(d) && (
-          <Button
-            variant="tonal"
-            size="sm"
-            iconLeft={IconRegistry.action.edit}
-            data-walk="knowledge.edit"
-            onClick={onEdit}
-          >
-            Edit details
-          </Button>
-        )}
-        {!draft && (
-          <>
+        {/* The file's facts, quiet, at the start; its name stays in the tooltip of View
+            original's row, so a long name never pushes the actions around (IN-12). */}
+        <span className="kb-file-line">
+          {d.entryMethod === 'manual' ? (
+            // No file to size: a manual entry was started, then published (IN-18).
+            <>
+              {draft ? 'Started' : 'Entered'} {dateTime(d.uploadedAt)}
+            </>
+          ) : (
+            <>
+              {d.size !== null && <span className="kb-file-size">{fileSize(d.size)} · </span>}
+              Uploaded {dateTime(d.uploadedAt)}
+            </>
+          )}
+        </span>
+        <span className="kb-details-buttons">
+          {/* A manual entry's clauses: still being entered, or amended once published (IN-18).
+              Not once withdrawn: its PDF replaced it. These are the draft's main actions, so
+              they keep their words. */}
+          {canManage && d.entryMethod === 'manual' && !d.withdrawn && (
             <Button
-              variant="ghost"
+              variant={draft ? 'secondary' : 'tonal'}
               size="sm"
-              iconLeft={IconRegistry.object.history}
-              data-walk="knowledge.history"
-              onClick={onHistory}
+              pill
+              iconLeft={IconRegistry.action.edit}
+              onClick={onClauses}
             >
-              Edit history
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft="list"
-              data-walk="knowledge.passages"
-              onClick={onPassages}
-            >
-              View passages
-            </Button>
-          </>
-        )}
-        {canManage && !draft && !d.withdrawn && (
-          <Button
-            variant="danger-tonal"
-            size="sm"
-            iconLeft={IconRegistry.action.withdraw}
-            data-walk="knowledge.withdraw"
-            onClick={onChangeStatus}
-          >
-            Withdraw
-          </Button>
-        )}
-        {/* The file's facts, then Delete, end the row together; in the list layout
-            they share a second line, so Delete is never left on a line alone. */}
-        <div className="kb-details-end">
-          {/* The file's size and upload time are secondary, so they share the actions'
-              row. Its name is left out: the title and View original stand for the file,
-              and a long name pushed Delete onto a second line (IN-12). */}
-          <span className="kb-file-line">
-            {d.entryMethod === 'manual' ? (
-              // No file to size: a manual entry was started, then published (IN-18).
-              <>
-                {draft ? 'Started' : 'Entered'} {dateTime(d.uploadedAt)}
-              </>
-            ) : (
-              <>
-                {/* Hidden on a phone, so the upload time and Delete still fit one line. */}
-                {d.size !== null && <span className="kb-file-size">{fileSize(d.size)} · </span>}
-                Uploaded {dateTime(d.uploadedAt)}
-              </>
-            )}
-          </span>
-          {/* Last in the row, set apart from Withdraw by the file's facts. Not while it
-              is being ingested: Cancel covers that. A cited document gets a muted,
-              locked Delete that explains instead (IN-12). */}
-          {canManage && d.status !== 'queued' && d.status !== 'processing' && (
-            <Button
-              className="kb-delete"
-              variant={d.cited ? 'secondary' : 'danger-outline'}
-              size="sm"
-              iconLeft={d.cited ? 'lock' : IconRegistry.action.discard}
-              aria-label={d.cited ? 'Delete (cited by a report)' : undefined}
-              style={d.cited ? { color: 'var(--text-muted)' } : undefined}
-              onClick={onDelete}
-            >
-              {draft ? 'Delete draft' : 'Delete'}
+              {draft ? 'Continue editing' : 'Edit clauses'}
             </Button>
           )}
-        </div>
+          {canManage && draft && (
+            <Button
+              variant="primary"
+              size="sm"
+              pill
+              iconLeft="check"
+              loading={publishing}
+              onClick={publish}
+            >
+              Publish
+            </Button>
+          )}
+          {canManage && !draft && !d.withdrawn && !needsReview(d) && (
+            <RowIconButton
+              icon={IconRegistry.action.edit}
+              label="Edit details"
+              data-walk="knowledge.edit"
+              onClick={onEdit}
+            />
+          )}
+          {!draft && (
+            <>
+              <RowIconButton
+                icon={IconRegistry.object.history}
+                label="Edit history"
+                data-walk="knowledge.history"
+                onClick={onHistory}
+              />
+              <RowIconButton
+                icon="list"
+                label="View passages"
+                data-walk="knowledge.passages"
+                onClick={onPassages}
+              />
+            </>
+          )}
+          {canManage && d.withdrawn && (
+            <RowIconButton
+              icon={IconRegistry.action.reinstate}
+              label="Reinstate"
+              // Off while another edition is active: two are never active at once.
+              disabledReason={
+                d.reinstateBlockedBy
+                  ? {
+                      title: "Can't reinstate yet",
+                      text: 'Another edition of this document is active. Withdraw it first.',
+                    }
+                  : undefined
+              }
+              onClick={onChangeStatus}
+            />
+          )}
+          {canManage && !draft && !d.withdrawn && (
+            <RowIconButton
+              icon={IconRegistry.action.withdraw}
+              label="Withdraw"
+              data-walk="knowledge.withdraw"
+              onClick={onChangeStatus}
+            />
+          )}
+          {/* Last, set apart: Delete. Not while it is being read: Stop covers that. A cited
+              document gets a locked Delete that explains instead (IN-12). */}
+          {canManage && d.status !== 'queued' && d.status !== 'processing' && (
+            <RowIconButton
+              className="kb-delete"
+              icon={d.cited ? 'lock' : IconRegistry.action.discard}
+              label={d.cited ? 'Delete (cited by a report)' : draft ? 'Delete draft' : 'Delete'}
+              tooltip={d.cited ? 'Delete (cited by a report)' : draft ? 'Delete draft' : 'Delete'}
+              danger={!d.cited}
+              onClick={onDelete}
+            />
+          )}
+        </span>
       </div>
     </section>
   )
 }
 
 // `help` is a help tip (F-13) shown beside the label.
-function Fact({
-  label,
-  mono,
-  help,
-  children,
-}: {
-  label: string
-  mono?: boolean
-  help?: ReactNode
-  children: ReactNode
-}) {
+function Fact({ label, help, children }: { label: string; help?: ReactNode; children: ReactNode }) {
   return (
     <div>
       <dt className="kb-label">
@@ -255,7 +237,7 @@ function Fact({
           label
         )}
       </dt>
-      <dd className={mono ? 'kb-mono' : undefined}>{children}</dd>
+      <dd>{children}</dd>
     </div>
   )
 }

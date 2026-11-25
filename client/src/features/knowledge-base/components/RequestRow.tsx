@@ -5,6 +5,7 @@ import { useRef } from 'react'
 import { Button } from '../../../design-system'
 import { formatWhen } from '../../notifications/formatWhen'
 import type { KnowledgeGapRequest } from '../api'
+import { RowIconButton } from './RowIconButton'
 
 /** Returns the list item for one open request; `focused` marks the one a notification opened. */
 export function RequestRow({
@@ -34,9 +35,7 @@ export function RequestRow({
       <div className="kb-request-body">
         <p className="kb-request-meta">
           <span>{r.askedBy.name}</span>
-          <time className="kb-mono" dateTime={r.createdAt}>
-            {formatWhen(r.createdAt)}
-          </time>
+          <time dateTime={r.createdAt}>{formatWhen(r.createdAt)}</time>
         </p>
         <h3 className="kb-request-question">{r.question}</h3>
         {r.message && (
@@ -48,8 +47,9 @@ export function RequestRow({
       </div>
       <div className="kb-request-actions">
         <Button
-          variant="tonal"
+          variant="primary"
           size="sm"
+          pill
           iconLeft="check"
           data-walk={first ? 'knowledge-requests.row-1.fill' : undefined}
           onClick={onFill}
@@ -59,20 +59,19 @@ export function RequestRow({
         <Button
           variant="secondary"
           size="sm"
+          pill
           iconLeft="x"
           data-walk={first ? 'knowledge-requests.row-1.dismiss' : undefined}
           onClick={onDismiss}
         >
           Dismiss
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft="upload"
+        <RowIconButton
+          icon="upload"
+          label="Upload a document"
+          tooltip="Upload a document"
           onClick={() => picker.current?.click()}
-        >
-          Upload for it
-        </Button>
+        />
         <input
           ref={picker}
           type="file"

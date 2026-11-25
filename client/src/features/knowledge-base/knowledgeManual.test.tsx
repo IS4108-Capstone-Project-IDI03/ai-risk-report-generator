@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { choose } from './filterTestHelpers'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { KnowledgeDocument } from './api'
@@ -135,11 +136,11 @@ describe('a manual draft in the Documents list (IN-18)', () => {
     await openKnowledgeBase()
     await row(DRAFT.title)
 
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'draft' } })
+    choose('Status', 'Draft')
     expect(screen.queryByRole('button', { name: /^NFPA 20/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^NFPA 13/ })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'active' } })
+    choose('Status', 'Active')
     expect(screen.queryByRole('button', { name: /^NFPA 13/ })).not.toBeInTheDocument()
   })
 
@@ -260,11 +261,11 @@ describe('manual entries in the IN-17 browser (IN-18)', () => {
     expect(within(await row(DRAFT.title)).getByText('Manual entry')).toBeInTheDocument()
     expect(within(await row(UPLOADED.title)).queryByText('Manual entry')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Entry'), { target: { value: 'manual' } })
+    choose('Entry', 'Manual entry')
     expect(screen.queryByRole('button', { name: /^NFPA 20/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^NFPA 13/ })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Entry'), { target: { value: 'upload' } })
+    choose('Entry', 'Uploaded')
     expect(screen.queryByRole('button', { name: /^NFPA 13/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^NFPA 20/ })).toBeInTheDocument()
   })

@@ -2,64 +2,37 @@
 // reading order, narrowed by chapter and section (from the document's outline) and pages.
 // Each row shows the passage's place in the document, its nearest heading, an excerpt,
 // what it was read from and its pages; opening it shows the passage in full. Read-only for
-// everyone. Opened by screens/KnowledgeDocuments.tsx from a document's details.
+// everyone. Opened by screens/KnowledgeDocuments.tsx from a document's details. Calls
+// PassageFilters and PassageRow; their words and labels are in passageText.ts.
 import { useEffect, useRef, useState } from 'react'
 import {
-  Badge,
   Button,
   Callout,
   Dialog,
   EmptyState,
-  Icon,
-  IconRegistry,
-  Input,
   Pagination,
-  SearchField,
-  SegmentedControl,
-  Select,
   TableFooter,
 } from '../../../design-system'
 import {
   listDocumentPassages,
-  screenshotUrl,
-  type DocumentPassage,
   type KnowledgeDocument,
-  type OutlineEntry,
   type PassageListing,
   type PassageQuery,
   type SearchMode,
 } from '../api'
 import { needsReview } from '../display'
-import { Tip } from '../../help/Tip'
-import { CitedImage } from '../../sources/CitedImage'
-import { CitedRegion } from '../../sources/CitedRegion'
-import { PassageBody } from '../../sources/PassageBody'
-import { useFoldedText } from '../../sources/useFoldedText'
-import { usePassage } from '../../sources/usePassage'
-
-const PAGE_SIZE = 25
-
-const KINDS: Record<DocumentPassage['kind'], string> = {
-  text: 'Text',
-  table: 'Table',
-  formula: 'Formula',
-  picture: 'Picture',
-}
-
-// What the table is narrowed to: words to search for, the outline's chapter and section
-// (undefined is all of them), and the page range as typed (a blank or unusable page
-// leaves that end open).
-type Filters = { words: string; chapter?: string; section?: string; from: string; to: string }
-const NO_FILTERS: Filters = { words: '', from: '', to: '' }
-// Whether anything narrows the table: a typed page, words, or a chapter or section.
-const narrowed = (f: Filters) =>
-  f.chapter !== undefined || f.section !== undefined || !!(f.words.trim() || f.from || f.to)
-// How long typing must pause before the words are searched.
-const SEARCH_PAUSE_MS = 300
-const SEARCH_MODES: { value: SearchMode; label: string }[] = [
-  { value: 'words', label: 'Words' },
-  { value: 'meaning', label: 'Meaning' },
-]
+import {
+  narrowed,
+  NO_FILTERS,
+  PAGE_SIZE,
+  pageNumber,
+  SEARCH_PAUSE_MS,
+  shown,
+  type Filters,
+} from '../passageText'
+import { PassageFilters } from './PassageFilters'
+import { PassageRow } from './PassageRow'
+import '../passages.css'
 
 /** Returns the Passages dialog for one document. */
 export function PassagesDialog({
@@ -152,13 +125,13 @@ export function PassagesDialog({
 
   return (
     <Dialog
-      className="ds-dialog--v2 ds-dialog-sheet"
+      className="ds-dialog-sheet"
       title="Passages"
       description={d.edition ? `${d.title} · ${d.edition}` : d.title}
       width={1040}
       onClose={onClose}
       footer={
-        <Button variant="secondary" onClick={onClose}>
+        <Button pill variant="secondary" onClick={onClose}>
           Close
         </Button>
       }
@@ -169,6 +142,7 @@ export function PassagesDialog({
           title="Passages not loaded"
           actions={
             <Button
+              pill
               variant="secondary"
               size="sm"
               onClick={() => {
@@ -180,7 +154,7 @@ export function PassagesDialog({
             </Button>
           }
         >
-          The knowledge base could not be reached. Try again shortly.
+          Can't reach the server. Try again shortly.
         </Callout>
       ) : !listing ? (
         <LoadingRows />
@@ -188,7 +162,7 @@ export function PassagesDialog({
         <EmptyState
           icon="library"
           title="No passages in search"
-          description="This document has no passages yet, for example while it is still being ingested."
+          description="This document has no passages yet, for example while it is still being read."
         />
       ) : (
         <div ref={body} className="kb-pbody">
@@ -220,7 +194,7 @@ export function PassagesDialog({
               title="No passages match"
               description="Try other words, another chapter or a wider page range."
               action={
-                <Button variant="secondary" size="sm" onClick={() => narrow(NO_FILTERS)}>
+                <Button pill variant="secondary" size="sm" onClick={() => narrow(NO_FILTERS)}>
                   Clear filters
                 </Button>
               }
@@ -270,126 +244,6 @@ export function PassagesDialog({
   )
 }
 
-/** The search field with its Words | Meaning switch (only for an active document: both
-    searches skip the rest), the Chapter and Section dropdowns (one Section dropdown for a
-    past report), the page range, and Clear filters once anything is narrowed. */
-function PassageFilters({
-  outline,
-  filters,
-  reversed,
-  searchable,
-  mode,
-  waiting,
-  onChange,
-  onMode,
-  onSearch,
-}: {
-  outline: PassageListing['outline']
-  filters: Filters
-  reversed: boolean
-  searchable: boolean
-  mode: SearchMode
-  waiting: boolean
-  onChange: (filters: Filters) => void
-  onMode: (mode: SearchMode) => void
-  onSearch: () => void
-}) {
-  const byClause = outline.by !== 'section'
-  const { chapter, section } = filters
-  return (
-    <div className="kb-ptoolbar">
-      <div className="kb-psearch">
-        <div className="kb-psearch-row">
-          <SearchField
-            label="Search this document"
-            placeholder={
-              mode === 'meaning'
-                ? 'Describe what you’re looking for, then press Enter'
-                : 'Search this document'
-            }
-            enterKeyHint="search"
-            disabled={!searchable}
-            title={searchable ? undefined : 'Search works once this document is active.'}
-            value={filters.words}
-            onChange={(e) => onChange({ ...filters, words: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSearch()
-            }}
-            end={
-              <SegmentedControl
-                ariaLabel="Search by"
-                options={SEARCH_MODES.map((o) => ({ ...o, disabled: !searchable }))}
-                value={mode}
-                onChange={onMode}
-              />
-            }
-          />
-          {/* The Words | Meaning tip (F-13) sits beside the field, not inside it. */}
-          <Tip id="knowledge-passages.search" align="right" />
-        </div>
-        {waiting && <p className="kb-psearch-hint">Press Enter to search</p>}
-      </div>
-      <Select
-        aria-label={byClause ? 'Chapter' : 'Section'}
-        options={[
-          { value: '', label: byClause ? 'All chapters' : 'All sections' },
-          ...outline.chapters.map((c) => ({
-            value: `c:${c.name}`,
-            label: `${named(chapterName(c.name, byClause), c.title)} (${c.count.toLocaleString('en')})`,
-          })),
-        ]}
-        value={chapter === undefined ? '' : `c:${chapter}`}
-        onChange={(e) =>
-          onChange({
-            ...filters,
-            chapter: e.target.value ? e.target.value.slice(2) : undefined,
-            section: undefined,
-          })
-        }
-      />
-      {byClause && (
-        <Select
-          aria-label="Section"
-          title={chapter === undefined ? 'Choose a chapter first' : undefined}
-          disabled={chapter === undefined}
-          options={[{ value: '', label: 'All sections' }, ...sectionOptions(outline.sections)]}
-          value={section === undefined ? '' : `s:${section}`}
-          onChange={(e) =>
-            onChange({ ...filters, section: e.target.value ? e.target.value.slice(2) : undefined })
-          }
-        />
-      )}
-      <div className="kb-prange">
-        <Input
-          type="number"
-          min={1}
-          inputMode="numeric"
-          aria-label="From page"
-          placeholder="From page"
-          value={filters.from}
-          onChange={(e) => onChange({ ...filters, from: e.target.value })}
-        />
-        <span aria-hidden="true">–</span>
-        <Input
-          type="number"
-          min={1}
-          inputMode="numeric"
-          aria-label="To page"
-          placeholder="To page"
-          value={filters.to}
-          error={reversed ? 'The range ends before it starts.' : undefined}
-          onChange={(e) => onChange({ ...filters, to: e.target.value })}
-        />
-      </div>
-      {narrowed(filters) && (
-        <Button variant="ghost" onClick={() => onChange(NO_FILTERS)}>
-          Clear filters
-        </Button>
-      )}
-    </div>
-  )
-}
-
 /** Five placeholder rows while the first page loads. */
 function LoadingRows() {
   return (
@@ -406,159 +260,4 @@ function LoadingRows() {
       ))}
     </div>
   )
-}
-
-/** One passage's row, and beneath it when open, the passage in full. */
-function PassageRow({
-  passage: p,
-  documentId,
-  fileUrl,
-  open,
-  onToggle,
-}: {
-  passage: DocumentPassage
-  documentId: string
-  // Null for a manual document, which has no file (IN-18).
-  fileUrl: string | null
-  open: boolean
-  onToggle: () => void
-}) {
-  const panel = `kb-passage-${p.id}`
-  const heading = p.headings.at(-1)
-  return (
-    <>
-      <tr
-        className={open ? 'kb-prow is-open' : 'kb-prow'}
-        onClick={(e) => {
-          if (!(e.target as HTMLElement).closest('button')) onToggle()
-        }}
-      >
-        <td className="kb-pcol-pos">{p.position}</td>
-        <td className="kb-pcol-section">
-          <button
-            type="button"
-            className="kb-ptoggle"
-            aria-expanded={open}
-            aria-controls={panel}
-            onClick={onToggle}
-          >
-            <Icon
-              name={open ? IconRegistry.action.expand : IconRegistry.action.forward}
-              size={14}
-            />
-            <span className={heading ? undefined : 'is-none'}>{heading ?? 'No heading'}</span>
-          </button>
-        </td>
-        <td className="kb-pcol-text">
-          <span className="kb-pexcerpt">{p.text}</span>
-        </td>
-        <td className="kb-pcol-kind">
-          <span className="kb-pkind">
-            {KINDS[p.kind]}
-            {p.generated && <Badge tone="ai">Generated</Badge>}
-          </span>
-        </td>
-        <td className="kb-pcol-pages">{pages(p)}</td>
-      </tr>
-      {open && (
-        <tr className="kb-pdetail-row">
-          <td colSpan={5}>
-            <PassageDetail id={panel} passage={p} documentId={documentId} fileUrl={fileUrl} />
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-/** The opened passage: the region of the page a table, formula or picture was read
-    from (loaded only for those), or a manual clause's screenshots (IN-18), then its
-    full text, and its id. */
-function PassageDetail({
-  id,
-  passage: p,
-  documentId,
-  fileUrl,
-}: {
-  id: string
-  passage: DocumentPassage
-  documentId: string
-  // Null for a manual document: there is no page to draw a region from (IN-18).
-  fileUrl: string | null
-}) {
-  // A manual document has no file, so no region to load for it.
-  const loaded = usePassage(p.kind === 'text' || !fileUrl ? undefined : p.id)
-  const fold = useFoldedText(
-    loaded.status === 'ready' ? loaded.passage.region : null,
-    (p.images ?? []).length > 0,
-  )
-  return (
-    <section id={id} className="kb-pdetail" aria-label={`Passage ${p.position}`}>
-      {/* The original first, as in chat (KB-02): a picture's description can run long. */}
-      {loaded.status === 'ready' && fileUrl && (
-        <CitedRegion fileUrl={fileUrl} region={loaded.passage.region} onDrawn={fold.onDrawn} />
-      )}
-      <CitedImage
-        urls={(p.images ?? []).map((key) => screenshotUrl(documentId, key))}
-        alt={KINDS[p.kind]}
-      />
-      {p.generated && (
-        <p className="kb-pgenerated">
-          A model described this picture; these aren’t the document’s words.
-        </p>
-      )}
-      <PassageBody text={p.text} quote="" className="kb-passage-body" folded={fold.folded} />
-      <p className="kb-pid">
-        <span>Passage ID</span> {p.id}
-      </p>
-    </section>
-  )
-}
-
-// "14", "12–13", or "—" when the passage has no page.
-function pages(p: DocumentPassage): string {
-  if (p.pageStart == null) return '—'
-  if (p.pageEnd == null || p.pageEnd === p.pageStart) return String(p.pageStart)
-  return `${p.pageStart}–${p.pageEnd}`
-}
-
-// "Passages 26–50 of 1,214": which of the matching passages this page shows. A search by
-// meaning names its question, as the rows answer it rather than contain its words.
-function shown(offset: number, listing: PassageListing, query: PassageQuery): string {
-  const last = offset + listing.passages.length
-  const of = listing.total.toLocaleString('en')
-  const range = `Passages ${(offset + 1).toLocaleString('en')}–${last.toLocaleString('en')} of ${of}`
-  return query.mode === 'meaning' ? `${range} matching “${query.q}”` : range
-}
-
-// A chapter as the filter names it: "Chapter 8", "Annex A", "Front matter". A past
-// report's chapters are its template sections, named as they are.
-function chapterName(name: string, byClause: boolean): string {
-  if (!byClause) return name || 'No section'
-  if (!name) return 'Front matter'
-  return /^\d+$/.test(name) ? `Chapter ${name}` : `Annex ${name}`
-}
-
-// "Chapter 8 Installation": a chapter or section with its title, ending at a whole word
-// within LABEL_CHARS so a dropdown doesn't grow to a paragraph.
-const LABEL_CHARS = 60
-function named(name: string, title: string | null): string {
-  const full = title ? `${name} ${title}` : name
-  if (full.length <= LABEL_CHARS) return full
-  const cut = full.slice(0, LABEL_CHARS)
-  return `${cut.slice(0, cut.lastIndexOf(' ')).trimEnd()}…`
-}
-
-// The chosen chapter's sections; "" is its start, before the first numbered section.
-function sectionOptions(sections: OutlineEntry[]) {
-  return sections.map((s) => ({
-    value: `s:${s.name}`,
-    label: `${named(s.name || 'Chapter start', s.title)} (${s.count.toLocaleString('en')})`,
-  }))
-}
-
-// A typed page number, or undefined when blank or not a page (0, -2, 1.5).
-function pageNumber(text: string): number | undefined {
-  const page = Number(text)
-  return text.trim() && Number.isInteger(page) && page >= 1 ? page : undefined
 }

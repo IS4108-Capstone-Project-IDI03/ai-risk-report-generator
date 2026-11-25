@@ -1,43 +1,12 @@
-/* The Review page (IN-07): header, a main column (Confirm details, the
-   passages) and a 344px side panel with the decision, the design system's
-   right inspector. Colours and spacing are the design system's tokens. */
+/* The Review page (IN-07), under the top bar: a main column (Confirm details, the passages)
+   and a 344px side panel with the decision. Frame, spacing and colours are v2's tokens;
+   the page's own padding is .kb-content (knowledge-base.css). */
 .kb-review {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.kb-review-head {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-.kb-review-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
+  min-height: 100%;
 }
 /* Focused on open only so screen readers announce it; it isn't interactive, so no ring. */
-.kb-review-title h2:focus {
+.kb-review h1:focus {
   outline: none;
-}
-.kb-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-/* What the document is, under its title. */
-.kb-review-meta {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-caption-size);
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
 }
 
 /* Main column and side panel. The panel sticks while the passages scroll, so
@@ -51,7 +20,7 @@
 .kb-review-main {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 .kb-review-panel {
@@ -64,45 +33,40 @@
   overflow-y: auto;
   padding: 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 .kb-panel-block {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-/* The match sits on an amber band across the panel's top, the Needs review
-   colour, so the eye lands here first: what this is, then what to do. The band
-   bleeds to the panel's edges (its 20px padding). */
+/* The match sits on an amber band across the panel's top, the Needs review colour, so the eye
+   lands here first: what this is, then what to do. The band bleeds to the panel's edges. */
 .kb-panel-band {
   margin: -20px -20px 0;
   padding: 16px 20px;
-  background: var(--status-moderate-bg);
-  border-bottom: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--amber-50);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
 }
 .kb-panel-title {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin: 0;
-  font-size: var(--text-body-size);
-  line-height: var(--text-body-lh);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  color: var(--graphite-900);
+  font: 600 14px/1.4 var(--font-sans);
 }
 .kb-panel-title > span:first-child {
   flex: none;
-  margin-top: 4px;
-  color: var(--status-moderate-fg);
+  margin-top: 3px;
+  color: var(--amber-600);
 }
 .kb-panel-note {
   margin: 0;
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
-  color: var(--text-secondary);
+  color: var(--graphite-600);
+  font-size: 13px;
+  line-height: 1.4;
 }
 /* Exact counts, label left and figure right, like a ledger. */
 .kb-panel-counts {
@@ -110,8 +74,8 @@
   flex-direction: column;
   gap: 4px;
   margin: 0;
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
+  font-size: 13px;
+  line-height: 1.4;
 }
 .kb-panel-counts div {
   display: flex;
@@ -120,22 +84,18 @@
 }
 .kb-panel-counts-head {
   margin-bottom: 2px;
-  font-size: var(--text-label-size);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--status-moderate-fg);
+  color: var(--amber-600);
+  font-weight: 600;
 }
-/* On the amber band, secondary text takes the band's own hue, not grey. */
 .kb-panel-counts dt {
   white-space: nowrap;
-  color: var(--status-moderate-fg);
+  color: var(--graphite-700);
 }
 .kb-panel-counts dd {
   margin: 0;
   white-space: nowrap;
-  font-family: var(--font-mono);
-  color: var(--text-primary);
+  color: var(--graphite-900);
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 1079px) {
   .kb-review-body {
@@ -149,32 +109,31 @@
     overflow: visible;
   }
 }
+@media (max-width: 767px) {
+  .kb-review-panel {
+    padding: 16px;
+  }
+  .kb-panel-band {
+    margin: -16px -16px 0;
+    padding: 16px;
+  }
+}
 
 /* Each step is one card, like the Documents list. */
 .kb-step-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   container-type: inline-size;
 }
 .kb-step-panel h3 {
   margin: 0;
-  font-size: var(--text-h3-size);
-  line-height: var(--text-h3-lh);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-}
-.kb-step-note {
-  margin: 0;
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
-  color: var(--text-secondary);
-  max-width: 68ch;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
 }
 .kb-review-form {
   display: flex;
@@ -197,22 +156,15 @@
 }
 .kb-summary p {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--graphite-700);
 }
 .kb-summary b {
-  font-weight: var(--weight-semibold);
-  color: var(--status-low-fg);
+  color: var(--green-600);
+  font-weight: 600;
 }
 
-/* A reason under a row's title in the Documents list. */
-.kb-why {
-  color: var(--status-moderate-fg);
-}
-.kb-why-quiet {
-  color: var(--text-muted);
-}
-/* The comparison: two aligned columns. A differing passage has a 2px rule on
-   its left and the moderate tone; matching passages stay quiet. */
+/* The comparison: two aligned columns. A differing passage has a 2px rule on its left and the
+   amber tint; matching passages stay quiet. */
 .kb-cmp-head {
   display: flex;
   flex-wrap: wrap;
@@ -237,31 +189,29 @@
 }
 .kb-cmp-same {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--graphite-600);
 }
 .kb-cmp-table {
   width: 100%;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0 6px;
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .kb-cmp-table thead th {
-  padding: 6px 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--graphite-50);
+  color: var(--graphite-700);
+  font: 600 12px/1.2 var(--font-sans);
   text-align: left;
-  font-size: var(--text-label-size);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  background: var(--surface-header);
 }
 .kb-cmp-cell {
   padding: 8px 12px;
   vertical-align: top;
   overflow-wrap: anywhere;
-  color: var(--text-secondary);
+  color: var(--graphite-700);
   border-left: 2px solid transparent;
 }
 .kb-cmp-cell p {
@@ -270,18 +220,18 @@
 .kb-cmp-cell small {
   display: block;
   margin-top: 4px;
-  font-family: var(--font-mono);
-  font-size: var(--text-label-size);
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .kb-cmp-cell.is-diff {
-  border-left-color: var(--status-moderate-fg);
-  background: var(--status-moderate-bg);
-  color: var(--text-primary);
+  border-left-color: var(--amber-600);
+  background: var(--amber-50);
+  color: var(--graphite-900);
 }
 .kb-cmp-empty {
+  color: var(--graphite-600);
   font-style: italic;
-  color: var(--text-muted);
 }
 .kb-cmp-fold-cell {
   padding: 0;
@@ -293,22 +243,24 @@
   min-height: 36px;
   padding: 6px 8px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: none;
+  color: var(--ink-600);
   font: inherit;
-  color: var(--text-link);
   cursor: pointer;
 }
-.kb-cmp-fold:hover {
-  background: var(--surface-hover);
+@media (hover: hover) and (pointer: fine) {
+  .kb-cmp-fold:hover {
+    background: var(--graphite-100);
+  }
 }
 .kb-cmp-fold:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
-/* When the passages card is narrower than 760px (a laptop beside the panel,
-   or a phone), one column shows at a time, chosen by the Stored / New tabs:
-   two columns that narrow make every passage a tall strip. */
+/* When the passages card is narrower than 760px (a laptop beside the panel, or a phone), one
+   column shows at a time, chosen by the Stored / New tabs: two columns that narrow make every
+   passage a tall strip. */
 @container (max-width: 759px) {
   .kb-cmp-tabs {
     display: block;
@@ -336,7 +288,7 @@
   }
 }
 
-/* The choices in the side panel: radios, then one full-width button. */
+/* The choices in the side panel: cards, then one full-width button. */
 .kb-decide {
   display: flex;
   flex-direction: column;
@@ -354,31 +306,33 @@
 .kb-decide-choices legend {
   margin-bottom: 12px;
   padding: 0;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
 }
 .kb-choice {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
   background: var(--surface-card);
   transition: var(--transition-control);
 }
-.kb-choice:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
+@media (hover: hover) and (pointer: fine) {
+  .kb-choice:hover {
+    background: var(--graphite-50);
+  }
 }
-/* The chosen card: the design system's selected fill, with an ink border. */
+/* The chosen card: the selected fill, with a navy border. */
 .kb-choice[data-checked] {
-  border-color: var(--action-primary);
-  background: var(--surface-selected);
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
 }
 .kb-choice:has(input:focus-visible) {
-  box-shadow: var(--focus-ring);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 .kb-choice-label {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  font-weight: var(--weight-medium);
+  font-weight: 600;
 }

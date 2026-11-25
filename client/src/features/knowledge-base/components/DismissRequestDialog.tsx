@@ -44,10 +44,10 @@ export function DismissRequestDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} disabled={!reason.trim()} onClick={confirm}>
+          <Button pill variant="primary" loading={busy} disabled={!reason.trim()} onClick={confirm}>
             Dismiss request
           </Button>
         </>

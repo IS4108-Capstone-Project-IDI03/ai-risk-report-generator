@@ -1,6 +1,6 @@
 // The source type picker for an upload whose type labelling couldn't read
-// (IN-19): the document isn't ingested until a type is chosen here. Used by
-// UploadedDocuments.tsx, in its Action column.
+// (IN-19): the document isn't read until a type is chosen here. Used by
+// UploadedDocuments.tsx, in its Status column.
 import { useState } from 'react'
 import { Button, Select } from '../../../design-system'
 import { chooseSourceType, type KnowledgeDocument, type SourceType } from '../api'
@@ -11,7 +11,7 @@ const OPTIONS = [
   ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label })),
 ]
 
-/** Returns the type select and Start ingestion button for one document. */
+/** Returns the type select and Start reading button for one document. */
 export function ChooseSourceType({
   document,
   onStarted,
@@ -40,7 +40,7 @@ export function ChooseSourceType({
       onError(
         error instanceof Error && error.message
           ? error.message
-          : 'Ingestion could not be started. Check the connection, then try again.',
+          : "Couldn't start reading this document. Check your connection, then try again.",
       )
     } finally {
       setStarting(false)
@@ -57,8 +57,8 @@ export function ChooseSourceType({
         disabled={starting}
         onChange={(e) => setSourceType(e.target.value as SourceType | '')}
       />
-      <Button size="sm" disabled={!sourceType || starting} onClick={start}>
-        {starting ? 'Starting…' : 'Start ingestion'}
+      <Button size="sm" pill disabled={!sourceType || starting} onClick={start}>
+        {starting ? 'Starting…' : 'Start reading'}
       </Button>
     </span>
   )

@@ -62,7 +62,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         open: ['knowledge.row-1.open'],
         target: ['knowledge.edit', 'knowledge.history', 'knowledge.passages', 'knowledge.withdraw'],
         optional: true,
-        say: 'When you open a row, you can do 4 things with the document:\n- **Edit details** to correct them.\n- **Edit history** to see what has changed.\n- **View passages** to read its text.\n- **Withdraw** it, which keeps the file but stops new reports from using it.',
+        say: 'When you open a row, the icons at the bottom let you:\n- **Edit details** to correct them.\n- **Edit history** to see what has changed.\n- **View passages** to read its text.\n- **Withdraw** it, which keeps the file but stops new reports from using it.',
       },
       {
         target: [
@@ -103,7 +103,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       {
         target: ['knowledge-add.type-needed.status', 'knowledge-add.type-needed.action'],
         optional: true,
-        say: "If you see **Type needed**, it means I couldn't tell what kind of document it is. Just choose its type in that row, and then press **Start ingestion**.",
+        say: "If you see **Type needed**, it means I couldn't tell what kind of document it is. Just choose its type in that row, and then press **Start reading**.",
       },
       {
         target: 'knowledge-add.manual',

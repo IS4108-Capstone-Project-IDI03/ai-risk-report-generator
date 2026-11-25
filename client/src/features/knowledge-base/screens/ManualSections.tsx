@@ -4,19 +4,15 @@
 // never a dialog, so a stray click can't lose typed text; choosing another clause
 // or leaving with unsaved changes asks first. Shown by KnowledgeBase.tsx at
 // /admin/knowledge-base/manual/<id>; talks to the gateway through api.ts.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
-  Badge,
   Button,
   Callout,
-  ChipInput,
   Dialog,
-  IconButton,
-  Input,
-  Select,
   StatusPill,
-  Textarea,
   toast,
+  TopBar,
+  useIsPhone,
 } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import {
@@ -27,90 +23,41 @@ import {
   listManualSections,
   publishManualDocument,
   reembedManualSection,
-  type ClauseInput,
   type KnowledgeDocument,
   type ManualSection,
 } from '../api'
-import { ClauseScreenshots } from '../components/ClauseScreenshots'
+import { ClauseEditor } from '../components/ClauseEditor'
+import { ClauseList } from '../components/ClauseList'
 import { isDraft } from '../display'
+import {
+  BLANK,
+  byOrder,
+  formOf,
+  inputOf,
+  publishWait,
+  type Form,
+  type Show,
+} from '../manualClauses'
 import { Tip } from '../../help/Tip'
+import { useFocusHeading } from '../useFocusHeading'
 import '../review-document.css'
 import '../manual-sections.css'
-
-// What the editor holds: the heading trail as bubbles, one per level, and the
-// screenshots with their corrected text.
-type Form = { clause: string; headings: string[]; text: string; images: ClauseInput['images'] }
-const BLANK: Form = { clause: '', headings: [], text: '', images: [] }
-
-const formOf = (s: ManualSection): Form => ({
-  clause: s.clause,
-  headings: s.headings,
-  text: s.text,
-  images: s.images,
-})
-const inputOf = (form: Form): ClauseInput => ({
-  clause: form.clause.trim(),
-  headings: form.headings,
-  text: form.text,
-  images: form.images,
-})
-
-// The headings the other clauses use at `level` under the same parent headings
-// (`before`), in clause order: what the trail's dropdown offers (IN-18).
-function headingsAt(sections: ManualSection[], level: number, before: string[]): string[] {
-  const found = new Set<string>()
-  for (const s of sections) {
-    const parent = s.headings.slice(0, level)
-    if (
-      s.headings.length > level &&
-      parent.length === before.length &&
-      parent.every((h, i) => h === before[i])
-    )
-      found.add(s.headings[level])
-  }
-  return [...found]
-}
-const byOrder = (a: ManualSection, b: ManualSection) => a.order - b.order || a.seq - b.seq
-const clauses = (n: number) => `${n} clause${n === 1 ? '' : 's'}`
-
-// The list's filter, to work through what Publish waits for (IN-18).
-type Show = 'all' | 'unchecked' | 'failed'
-const SHOWN: Record<Show, (s: ManualSection) => boolean> = {
-  all: () => true,
-  unchecked: (s) => !s.checked,
-  failed: (s) => !s.indexed,
-}
-
-// Why Publish waits, or null when every clause is ready (the gateway's own rule).
-function publishWait(sections: ManualSection[]) {
-  if (sections.length === 0) return 'Add at least one clause first.'
-  const unchecked = sections.filter(SHOWN.unchecked).length
-  const failed = sections.filter(SHOWN.failed).length
-  if (!unchecked && !failed) return null
-  const left = unchecked
-    ? `${clauses(unchecked)} ${unchecked === 1 ? 'is' : 'are'} left to check`
-    : ''
-  const broken = failed ? `${left ? failed : clauses(failed)} failed to embed` : ''
-  return `${[left, broken].filter(Boolean).join(' and ')}. Finish them, then publish.`
-}
-
-// Where a clause stands: in search as saved, copied and not yet checked, or not embedded.
-function ClauseState({ section: s }: { section: ManualSection }) {
-  if (!s.indexed) return <Badge tone="critical">Failed to embed</Badge>
-  if (!s.checked) return <Badge tone="moderate">To check</Badge>
-  return <Badge tone="low">Ready</Badge>
-}
 
 /** Returns the clauses page of one manual document. */
 export function ManualSections({
   id,
   onBack,
   notify,
+  bell,
 }: {
   id: string
   onBack: () => void
   notify: (message: string) => void
+  // The activity and notification icons, drawn in the top bar on desktop.
+  bell?: ReactNode
 }) {
+  const phone = useIsPhone()
+  const page = useFocusHeading<HTMLElement>()
   const [doc, setDoc] = useState<KnowledgeDocument | null>(null)
   const [sections, setSections] = useState<ManualSection[] | null>(null)
   const [loadProblem, setLoadProblem] = useState<string | null>(null)
@@ -125,7 +72,6 @@ export function ManualSections({
   const [deleting, setDeleting] = useState(false)
   const [show, setShow] = useState<Show>('all')
   const [publishing, setPublishing] = useState(false)
-  const heading = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -139,14 +85,11 @@ export function ManualSections({
       },
       (error: unknown) => {
         if (!controller.signal.aborted)
-          setLoadProblem(
-            error instanceof Error ? error.message : 'The clauses could not be loaded.',
-          )
+          setLoadProblem(error instanceof Error ? error.message : "Couldn't load the clauses.")
       },
     )
     return () => controller.abort()
   }, [id])
-  useEffect(() => heading.current?.focus(), [])
 
   const baseline = selected ? formOf(selected) : BLANK
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline)
@@ -184,7 +127,7 @@ export function ManualSections({
       if (saved.indexed) notify(`Clause ${saved.clause} saved.`)
       else
         toast.error(`Clause ${saved.clause} saved, not searchable`, {
-          description: 'Search couldn’t be updated. Use Re-embed to try again.',
+          description: "Search couldn't be updated. Try it again from the list.",
         })
       // A new clause clears the editor for the next one; a change stays open.
       edit(selected ? saved : null)
@@ -194,7 +137,7 @@ export function ManualSections({
       else
         setProblem(
           error instanceof GatewayError && error.status === null
-            ? 'The gateway could not be reached, so the clause was not saved. Try again.'
+            ? "Can't reach the server, so the clause wasn't saved. Try again."
             : error instanceof Error
               ? error.message
               : 'The clause was not saved. Try again.',
@@ -211,10 +154,10 @@ export function ManualSections({
       if (selected?.id === saved.id) setSelected(saved)
       if (!saved.indexed)
         toast.error(`Clause ${saved.clause} still not searchable`, {
-          description: 'Search couldn’t be updated. Try again shortly.',
+          description: "Search couldn't be updated. Try again shortly.",
         })
     } catch (error: unknown) {
-      toast.error('Not re-embedded', {
+      toast.error("Couldn't try again", {
         description: error instanceof Error ? error.message : 'Try again shortly.',
       })
     }
@@ -254,24 +197,31 @@ export function ManualSections({
     }
   }
   const wait = sections ? publishWait(sections) : null
-  const shown = (sections ?? []).filter(SHOWN[show])
 
-  const label = selected ? `Clause ${selected.clause}` : 'New clause'
+  const meta = doc
+    ? [
+        [doc.issuingBody, doc.standardNumber].filter(Boolean).join(' ') || null,
+        doc.edition ? `${doc.edition} edition` : null,
+        'Entered manually',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined
   return (
-    <section className="kb-review kb-manual" aria-labelledby="kb-manual-title">
-      <header className="kb-review-head">
-        <Button variant="ghost" size="sm" iconLeft="arrow-left" onClick={() => guard(onBack)}>
-          All documents
-        </Button>
-        <div className="kb-review-title">
-          <h2 id="kb-manual-title" ref={heading} tabIndex={-1}>
-            {doc?.title ?? 'Clauses'}
-          </h2>
-          {doc && isDraft(doc) && <StatusPill status="manual_draft" />}
-          {doc && isDraft(doc) && sections && (
+    <section ref={page} className="kb-review kb-manual" aria-label="Manual standard">
+      <TopBar
+        eyebrow={phone ? undefined : 'Knowledge base'}
+        title={doc?.title ?? 'Clauses'}
+        helper={meta}
+        titleItems={doc && isDraft(doc) ? <StatusPill status="manual_draft" /> : undefined}
+        back={{ label: 'Back to Knowledge base', onClick: () => guard(onBack) }}
+        // On a phone the title takes its own row and Publish wraps under it.
+        stack
+        action={
+          doc && isDraft(doc) && sections ? (
             <span className="kb-manual-publish">
               <Button
-                variant="primary"
+                variant="create"
                 iconLeft="check"
                 loading={publishing}
                 disabledReason={wait ? { title: "Can't publish yet", text: wait } : undefined}
@@ -281,177 +231,48 @@ export function ManualSections({
               </Button>
               <Tip id="knowledge-manual.publish" align="right" />
             </span>
-          )}
-        </div>
-        {doc && (
-          <p className="kb-review-meta">
-            {[doc.issuingBody, doc.standardNumber].filter(Boolean).join(' ')}
-            {doc.edition && ` · ${doc.edition} edition`} · Entered manually
-          </p>
+          ) : undefined
+        }
+        bell={bell}
+      />
+      <div className="kb-content">
+        {loadProblem && (
+          <div role="alert">
+            <Callout tone="danger" title="Couldn't load the clauses">
+              {loadProblem}
+            </Callout>
+          </div>
         )}
-      </header>
 
-      {loadProblem && (
-        <div role="alert">
-          <Callout tone="danger" title="Clauses not loaded">
-            {loadProblem}
-          </Callout>
-        </div>
-      )}
-
-      {sections && (
-        <div className="kb-manual-body">
-          <section className="kb-manual-list" aria-label="Clauses">
-            <div className="kb-manual-list-head">
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft="plus"
-                disabled={!selected && !dirty}
-                onClick={() => guard(() => edit(null))}
-              >
-                New clause
-              </Button>
-              {sections.length > 0 && (
-                <Select
-                  size="sm"
-                  label="Show"
-                  options={[
-                    { value: 'all', label: `All clauses (${sections.length})` },
-                    {
-                      value: 'unchecked',
-                      label: `To check (${sections.filter(SHOWN.unchecked).length})`,
-                    },
-                    {
-                      value: 'failed',
-                      label: `Failed to embed (${sections.filter(SHOWN.failed).length})`,
-                    },
-                  ]}
-                  value={show}
-                  onChange={(e) => setShow(e.target.value as Show)}
-                />
-              )}
-            </div>
-            {sections.length === 0 ? (
-              <p className="kb-list-note">No clauses yet. Add the first one in the editor.</p>
-            ) : shown.length === 0 ? (
-              <p className="kb-list-note">None left. Choose All clauses to see the rest.</p>
-            ) : (
-              <ol className="kb-manual-rows">
-                {shown.map((s) => (
-                  <li key={s.id} data-selected={selected?.id === s.id || undefined}>
-                    <button
-                      type="button"
-                      className="kb-manual-row"
-                      aria-current={selected?.id === s.id || undefined}
-                      onClick={() => selected?.id !== s.id && guard(() => edit(s))}
-                    >
-                      <strong>{s.clause}</strong>
-                      <span>{s.headings.at(-1) ?? s.text.slice(0, 80)}</span>
-                    </button>
-                    <span className="kb-manual-state">
-                      <ClauseState section={s} />
-                      {!s.indexed && (
-                        <IconButton
-                          icon="rotate-ccw"
-                          size="sm"
-                          label={`Re-embed ${s.clause}`}
-                          tooltip="Re-embed"
-                          onClick={() => reembed(s)}
-                        />
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <form
-            className="kb-manual-editor"
-            aria-label={label}
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              void save()
-            }}
-          >
-            <h3>{label}</h3>
-            {selected?.copiedFrom && (
-              <p className="kb-edit-note">
-                Copied from an earlier edition. Check it against this edition, then save.
-              </p>
-            )}
-            {problem && (
-              <div role="alert">
-                <Callout tone="warning" title="Clause not saved">
-                  {problem}
-                </Callout>
-              </div>
-            )}
-            <Input
-              label="Clause number"
-              required
-              placeholder="e.g. 8.6.1"
-              hint="This clause's own number, e.g. 8.6.1. Put its title, if it has one, as the last heading in the trail."
-              value={form.clause}
-              error={errors.clause}
-              onChange={(e) => setForm({ ...form, clause: e.target.value })}
+        {sections && (
+          <div className="kb-manual-body">
+            <ClauseList
+              sections={sections}
+              selected={selected}
+              dirty={dirty}
+              show={show}
+              onShow={setShow}
+              onNew={() => guard(() => edit(null))}
+              onOpen={(section) => selected?.id !== section.id && guard(() => edit(section))}
+              onRetry={reembed}
             />
-            <ChipInput
-              label="Heading trail"
-              itemName="heading"
-              placeholder="Type a heading and press Enter"
-              hint="Press Enter after each heading to add it. One per level, outermost first, e.g. Chapter 8 Installation, then 8.6 Hangers."
-              value={form.headings}
-              onChange={(headings) => setForm((current) => ({ ...current, headings }))}
-              // The other clauses' headings; the clause being edited doesn't suggest its own.
-              suggest={(level, before) =>
-                headingsAt(
-                  (sections ?? []).filter((s) => s.id !== selected?.id),
-                  level,
-                  before,
-                )
-              }
-            />
-            <Textarea
-              label="Text"
-              required
-              rows={10}
-              value={form.text}
-              error={errors.text}
-              onChange={(e) => setForm({ ...form, text: e.target.value })}
-            />
-            <ClauseScreenshots
+            <ClauseEditor
               documentId={id}
-              images={form.images}
-              context={form.headings.join(' > ')}
-              onChange={(change) =>
-                setForm((current) => ({ ...current, images: change(current.images) }))
-              }
+              sections={sections}
+              selected={selected}
+              form={form}
+              errors={errors}
+              problem={problem}
+              busy={busy}
+              dirty={dirty}
+              onChange={(change) => setForm(change)}
+              onSave={() => void save()}
+              onUndo={() => edit(selected)}
+              onDelete={() => setDeleting(true)}
             />
-            <div className="kb-manual-actions">
-              {selected && (
-                <IconButton
-                  icon="trash-2"
-                  label="Delete clause"
-                  tooltip="Delete clause"
-                  variant="outline"
-                  style={{ color: 'var(--red-600)' }}
-                  disabled={busy}
-                  onClick={() => setDeleting(true)}
-                />
-              )}
-              <Button variant="secondary" disabled={busy || !dirty} onClick={() => edit(selected)}>
-                Undo changes
-              </Button>
-              <Button type="submit" variant="primary" loading={busy}>
-                Save clause
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {pending && (
         <Dialog
@@ -460,11 +281,12 @@ export function ManualSections({
           onClose={() => setPending(null)}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setPending(null)}>
+              <Button variant="secondary" pill onClick={() => setPending(null)}>
                 Keep editing
               </Button>
               <Button
                 variant="danger"
+                pill
                 onClick={() => {
                   const action = pending
                   setPending(null)
@@ -487,10 +309,10 @@ export function ManualSections({
           onClose={busy ? undefined : () => setDeleting(false)}
           footer={
             <>
-              <Button variant="secondary" disabled={busy} onClick={() => setDeleting(false)}>
+              <Button variant="secondary" pill disabled={busy} onClick={() => setDeleting(false)}>
                 Cancel
               </Button>
-              <Button variant="danger" loading={busy} onClick={remove}>
+              <Button variant="danger" pill loading={busy} onClick={remove}>
                 Delete
               </Button>
             </>

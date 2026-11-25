@@ -2,14 +2,14 @@
 // (IN-05, IN-07): one is named in the title with a button to review it; several are
 // listed (at most three by name) with a button that filters the list to them.
 // Shown by screens/KnowledgeDocuments.tsx, a placeholder for app-wide notifications.
-import { Button, Callout } from '../../../design-system'
+import { Button, Icon, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { reviewReasons } from '../display'
 
 // Names beyond this become "and N more", so 20 documents don't fill the page.
 const MAX_NAMED = 3
 
-/** Returns the warning banner for documents that need review. */
+/** Returns the amber banner for documents that need review. */
 export function ReviewBanner({
   documents,
   onReview,
@@ -19,28 +19,7 @@ export function ReviewBanner({
   onReview: (document: KnowledgeDocument) => void
   onShow: () => void
 }) {
-  if (documents.length === 1) {
-    const [only] = documents
-    return (
-      <Callout
-        tone="warning"
-        title={`${only.title} needs review`}
-        actions={
-          <Button variant="secondary" size="sm" onClick={() => onReview(only)}>
-            Review
-          </Button>
-        }
-      >
-        {only.match && <p className="kb-review-line">{reviewReasons(only).join(' · ')}</p>}
-        <p className="kb-review-line">
-          {only.match
-            ? 'Compare it with the stored document and choose what to do. Until then, new reports cannot use it.'
-            : 'Fill in its unconfirmed details, so new reports can refer to it.'}
-        </p>
-      </Callout>
-    )
-  }
-
+  const [only] = documents
   const named = documents.slice(0, MAX_NAMED)
   const rest = documents.length - named.length
   // "A and B", "A, B and C", or "A, B, C and 2 more"; names in bold so long
@@ -52,24 +31,34 @@ export function ReviewBanner({
     </span>
   ))
   return (
-    <Callout
-      tone="warning"
-      title={`${documents.length} documents need review`}
-      actions={
-        <Button variant="secondary" size="sm" onClick={onShow}>
+    <div className="kb-banner">
+      <Icon name={IconRegistry.status.flagged.icon} size={18} />
+      <div className="kb-banner-text">
+        <p className="kb-banner-title">
+          {documents.length === 1
+            ? `${only.title} needs review`
+            : `${documents.length} documents need review`}
+        </p>
+        <p className="kb-banner-line">
+          {documents.length === 1 ? (
+            reviewReasons(only).join(' · ')
+          ) : (
+            <>
+              {names}
+              {rest ? ` and ${rest} more` : ''}
+            </>
+          )}
+        </p>
+      </div>
+      {documents.length === 1 ? (
+        <Button variant="secondary" size="sm" pill onClick={() => onReview(only)}>
+          Review
+        </Button>
+      ) : (
+        <Button variant="secondary" size="sm" pill onClick={onShow}>
           Show them
         </Button>
-      }
-    >
-      <p className="kb-review-line">
-        {names}
-        {rest ? ` and ${rest} more` : ''}
-      </p>
-      <p className="kb-review-line">
-        {documents.some((d) => d.match)
-          ? 'Review them, so new reports can refer to them.'
-          : 'Fill in their unconfirmed details, so new reports can refer to them.'}
-      </p>
-    </Callout>
+      )}
+    </div>
   )
 }

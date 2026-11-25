@@ -37,11 +37,11 @@ function Form({
         onChange={change}
       />
       <div className="kb-review-form-actions">
-        <Button variant="primary" loading={busy} onClick={() => save(onSaved)}>
+        <Button pill variant="primary" loading={busy} onClick={() => save(onSaved)}>
           Save details
         </Button>
         {onCancel && (
-          <Button variant="secondary" disabled={busy} onClick={onCancel}>
+          <Button pill variant="secondary" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
         )}
@@ -72,18 +72,11 @@ export function ConfirmDetailsStep({
     >
       <h3 id="kb-step-confirm">Confirm details</h3>
       {open ? (
-        <>
-          {d.unconfirmed.length > 0 && (
-            <p className="kb-step-note">
-              Some details could not be read from the file. Fill in the marked fields, then save.
-            </p>
-          )}
-          <Form
-            document={d}
-            onSaved={saved}
-            onCancel={d.unconfirmed.length === 0 ? () => setEditing(false) : undefined}
-          />
-        </>
+        <Form
+          document={d}
+          onSaved={saved}
+          onCancel={d.unconfirmed.length === 0 ? () => setEditing(false) : undefined}
+        />
       ) : (
         <div className="kb-summary">
           <p>
@@ -99,6 +92,7 @@ export function ConfirmDetailsStep({
               .join(' · ')}
           </p>
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft={IconRegistry.action.edit}

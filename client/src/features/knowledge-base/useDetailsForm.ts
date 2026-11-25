@@ -67,7 +67,7 @@ export function useDetailsForm(document: KnowledgeDocument, version?: DocumentVe
       setErrors(refused ? error.fields : {})
       setProblem(
         error instanceof GatewayError && error.status === null
-          ? 'The gateway could not be reached, so the details were not saved. Try again.'
+          ? "Can't reach the server, so the details weren't saved. Try again."
           : refused && Object.keys(error.fields).length > 0
             ? null
             : error instanceof Error

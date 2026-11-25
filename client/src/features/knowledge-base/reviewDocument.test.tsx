@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { choose } from './filterTestHelpers'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { reviewIdForPath } from '../auth/access'
@@ -168,7 +169,7 @@ describe('Needs review reasons (IN-07)', () => {
       await screen.findByRole('tab', { name: 'Documents, 1 needs review' }),
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'active' } })
+    choose('Status', 'Active')
     expect(screen.queryByRole('button', { name: 'Needs review: NFPA 13' })).not.toBeInTheDocument()
   }, 10000)
 
@@ -187,15 +188,16 @@ describe('Needs review reasons (IN-07)', () => {
   it('opens the Review page from the row and the banner, and Back keeps the filters', async () => {
     mockGateway([STORED, NEWER])
     await openList()
-    fireEvent.change(await screen.findByLabelText('Status'), { target: { value: 'needs_review' } })
+    await screen.findByRole('button', { name: 'Status' })
+    choose('Status', 'Needs review')
 
     fireEvent.click(screen.getByRole('button', { name: 'Needs review: NFPA 13' }))
     expect(window.location.pathname).toBe('/admin/knowledge-base/review/new')
-    expect(await screen.findByRole('heading', { level: 2, name: 'NFPA 13' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'NFPA 13' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
     await waitFor(() => expect(window.location.pathname).toBe('/admin/knowledge-base'))
-    expect(await screen.findByLabelText('Status')).toHaveValue('needs_review')
+    expect(await screen.findByRole('button', { name: 'Status: Needs review' })).toBeVisible()
   })
 
   it("shows a withdrawn edition the family's newest edition", async () => {
@@ -216,7 +218,7 @@ describe('Review page (IN-07)', () => {
     mockGateway([STORED, NEWER])
     await openReviewPage()
 
-    const heading = await screen.findByRole('heading', { level: 2, name: 'NFPA 13' })
+    const heading = await screen.findByRole('heading', { level: 1, name: 'NFPA 13' })
     expect(heading).toHaveFocus()
     // No step strip and no Confirm details section: nothing was Unconfirmed.
     expect(screen.queryByRole('list', { name: 'Review steps' })).not.toBeInTheDocument()
@@ -512,7 +514,7 @@ describe('Review page (IN-07)', () => {
     fireEvent.change(screen.getByLabelText(/^Facility type/), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
 
-    await screen.findByText('Could not load the passages')
+    await screen.findByText("Couldn't load the passages")
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await choice(/^Keep both/)).toBeInTheDocument()
     expect(screen.getByText('Saved.')).toBeInTheDocument()

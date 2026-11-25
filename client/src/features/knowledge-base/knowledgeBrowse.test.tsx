@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { choose } from './filterTestHelpers'
 import App from '../../App'
 import { signIn } from '../../test/session'
 
@@ -220,11 +221,11 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
     await openAsEngineer()
     expect(await screen.findByRole('button', { name: /^FM 2-0 Installation/ })).toBeVisible()
 
-    fireEvent.change(screen.getByLabelText('Source type'), { target: { value: 'nfpa_standard' } })
+    choose('Source type', 'NFPA standards')
 
     expect(screen.getByRole('button', { name: /^NFPA 13 sprinkler standard/ })).toBeVisible()
     expect(screen.queryByRole('button', { name: /^FM 2-0 Installation/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Showing 1 of 2 documents')
+    expect(screen.getByText('1 of 2 documents')).toBeVisible()
   })
 
   it('shows the list, not the Review page, when an engineer opens a Review link', async () => {
@@ -233,7 +234,7 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
     render(<App />)
     await signIn('risk_engineer')
 
-    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+    expect(await screen.findByRole('table', { name: 'Documents' })).toBeVisible()
     expect(window.location.pathname).toBe('/admin/knowledge-base')
     expect(requested.some((url) => url.endsWith('/comparison'))).toBe(false)
   })
@@ -401,7 +402,7 @@ describe("A document's passages (IN-17)", () => {
     expect(first).toHaveAttribute('aria-expanded', 'true')
     const opened = within(dialog).getByRole('region', { name: 'Passage 1' })
     expect(within(opened).getByText(LONG_TEXT)).toBeVisible()
-    expect(opened).toHaveTextContent('Passage ID nfpa:0')
+    expect(opened).not.toHaveTextContent('Passage ID')
     // Plain text has no region of the page to fetch.
     expect(requested.some((url) => url.startsWith('/api/chat/passages/'))).toBe(false)
 

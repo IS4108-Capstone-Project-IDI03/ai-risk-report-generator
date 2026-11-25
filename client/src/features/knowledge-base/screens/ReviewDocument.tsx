@@ -4,8 +4,8 @@
 // matches and applies the admin's choice. Opened at
 // /admin/knowledge-base/review/<id> from a Needs review row or the review
 // banner; shown by KnowledgeBase.tsx. Calls api.ts.
-import { useEffect, useRef, useState } from 'react'
-import { Badge, Button, Callout, IconRegistry } from '../../../design-system'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button, Callout, TopBar, useIsPhone } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import {
   decide,
@@ -16,10 +16,12 @@ import {
   type KnowledgeDocument,
 } from '../api'
 import { ComparisonTable } from '../components/ComparisonTable'
+import { DocumentStatus } from '../components/DocumentStatus'
 import { ConfirmDetailsStep } from '../components/ConfirmDetailsStep'
 import { ReviewPanel } from '../components/ReviewPanel'
 import { named, outcomeMessage } from '../decisions'
 import { needsReview } from '../display'
+import { useFocusHeading } from '../useFocusHeading'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../review-document.css'
 
@@ -28,10 +30,13 @@ export function ReviewDocument({
   id,
   onBack,
   onDecided,
+  bell,
 }: {
   id: string
   // Back to the list.
   onBack: () => void
+  // The activity and notification icons, drawn in the top bar on desktop.
+  bell?: ReactNode
   // The decision was applied: back to the list with this sentence as a toast.
   onDecided: (message: string) => void
 }) {
@@ -47,10 +52,8 @@ export function ReviewDocument({
   const loadedKey = useRef<string | null>(null)
   const [comparison, setComparison] = useState<Comparison | null>(null)
   const [comparisonProblem, setComparisonProblem] = useState<string | null>(null)
-  const heading = useRef<HTMLHeadingElement>(null)
-
-  // Focus lands on the page heading, so a screen reader starts at the title.
-  useEffect(() => heading.current?.focus(), [])
+  const phone = useIsPhone()
+  const page = useFocusHeading<HTMLElement>()
 
   // Loads the document. The comparison carries the document and its match, so
   // it is asked first. 404 means the document is gone. 409 means it has no
@@ -108,9 +111,7 @@ export function ReviewDocument({
       (error: unknown) => {
         if (!controller.signal.aborted)
           setComparisonProblem(
-            error instanceof Error
-              ? error.message
-              : 'The comparison could not be loaded. Try again.',
+            error instanceof Error ? error.message : "Couldn't load the comparison. Try again.",
           )
       },
     )
@@ -130,110 +131,105 @@ export function ReviewDocument({
   useWalkthroughScreen('knowledge-review', !!doc && shown, !doc || !needsReview(doc))
 
   return (
-    <section className="kb-review" aria-labelledby="kb-review-title">
-      <header className="kb-review-head">
-        <Button variant="ghost" size="sm" iconLeft="arrow-left" onClick={onBack}>
-          All documents
-        </Button>
-        <div className="kb-review-title">
-          <h2 id="kb-review-title" ref={heading} tabIndex={-1}>
-            {doc?.title ?? 'Review document'}
-          </h2>
-          {doc && needsReview(doc) && (
-            <Badge tone="moderate" icon={IconRegistry.status.flagged.icon}>
-              Needs review
-            </Badge>
-          )}
-        </div>
-        {doc && <p className="kb-review-meta">{identity(doc)}</p>}
-      </header>
-
-      {!doc && loadState === 'loading' && (
-        <p className="kb-list-note" role="status">
-          Loading the document…
-        </p>
-      )}
-      {loadState === 'gone' && !doc && (
-        <Callout tone="info" title="This document is no longer in the knowledge base">
-          It was discarded or removed. Go back to the list to see what is left.
-        </Callout>
-      )}
-      {loadState === 'unreachable' && !doc && (
-        <Callout
-          tone="danger"
-          title="Could not load this document"
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setLoadState('loading')
-                setAttempt((n) => n + 1)
-              }}
-            >
-              Try again
-            </Button>
-          }
-        >
-          The server could not be reached. Check your connection, then try again.
-        </Callout>
-      )}
-
-      {doc && (
-        <div className="kb-review-body">
-          <div className="kb-review-main">
-            {hadUnconfirmed && (
-              <ConfirmDetailsStep
-                document={doc}
-                onSaved={(updated) => {
-                  // Nothing left to decide: back to the list, with a toast,
-                  // as every other outcome on this page ends.
-                  if (!updated.match && updated.unconfirmed.length === 0) {
-                    onDecided(
-                      `Details saved. ${named(updated.title, updated.edition)} is now active.`,
-                    )
-                    return
-                  }
-                  // Only a changed match needs new passages; clearing them for
-                  // the same match would leave "Loading" up for good, since the
-                  // load runs when the match changes.
-                  if (keyOf(updated) !== matchKey) setComparison(null)
-                  setDoc(updated)
+    <section ref={page} className="kb-review" aria-label="Review document">
+      <TopBar
+        eyebrow={phone ? undefined : 'Knowledge base'}
+        title={doc?.title ?? 'Review document'}
+        helper={doc ? identity(doc) : undefined}
+        titleItems={doc && needsReview(doc) ? <DocumentStatus status="needs_review" /> : undefined}
+        back={{ label: 'Back to Knowledge base', onClick: onBack }}
+        bell={bell}
+      />
+      <div className="kb-content">
+        {!doc && loadState === 'loading' && (
+          <p className="cl-empty-title" role="status">
+            Loading the document…
+          </p>
+        )}
+        {loadState === 'gone' && !doc && (
+          <Callout tone="info" title="This document is no longer in the knowledge base">
+            It was discarded or removed. Go back to the list to see what is left.
+          </Callout>
+        )}
+        {loadState === 'unreachable' && !doc && (
+          <Callout
+            tone="danger"
+            title="Couldn't load this document"
+            actions={
+              <Button
+                pill
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setLoadState('loading')
+                  setAttempt((n) => n + 1)
                 }}
-              />
-            )}
-            {doc.match && !locked && comparison && <ComparisonTable rows={comparison.rows} />}
-            {doc.match && !locked && !comparison && (
-              <section className="kb-step-panel" aria-label="Passages">
-                {comparisonProblem ? (
-                  <Callout
-                    tone="warning"
-                    title="Could not load the passages"
-                    actions={
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setComparisonAttempt((n) => n + 1)}
-                      >
-                        Try again
-                      </Button>
+              >
+                Try again
+              </Button>
+            }
+          >
+            Can&apos;t reach the server. Check your connection, then try again.
+          </Callout>
+        )}
+
+        {doc && (
+          <div className="kb-review-body">
+            <div className="kb-review-main">
+              {hadUnconfirmed && (
+                <ConfirmDetailsStep
+                  document={doc}
+                  onSaved={(updated) => {
+                    // Nothing left to decide: back to the list, with a toast,
+                    // as every other outcome on this page ends.
+                    if (!updated.match && updated.unconfirmed.length === 0) {
+                      onDecided(
+                        `Details saved. ${named(updated.title, updated.edition)} is now active.`,
+                      )
+                      return
                     }
-                  >
-                    {comparisonProblem}
-                  </Callout>
-                ) : (
-                  <p className="kb-list-note" role="status">
-                    Loading the passages…
-                  </p>
-                )}
-              </section>
-            )}
+                    // Only a changed match needs new passages; clearing them for
+                    // the same match would leave "Loading" up for good, since the
+                    // load runs when the match changes.
+                    if (keyOf(updated) !== matchKey) setComparison(null)
+                    setDoc(updated)
+                  }}
+                />
+              )}
+              {doc.match && !locked && comparison && <ComparisonTable rows={comparison.rows} />}
+              {doc.match && !locked && !comparison && (
+                <section className="kb-step-panel" aria-label="Passages">
+                  {comparisonProblem ? (
+                    <Callout
+                      tone="warning"
+                      title="Couldn't load the passages"
+                      actions={
+                        <Button
+                          pill
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setComparisonAttempt((n) => n + 1)}
+                        >
+                          Try again
+                        </Button>
+                      }
+                    >
+                      {comparisonProblem}
+                    </Callout>
+                  ) : (
+                    <p className="cl-empty-title" role="status">
+                      Loading the passages…
+                    </p>
+                  )}
+                </section>
+              )}
+            </div>
+            <aside className="kb-review-panel" aria-label="Decision">
+              <ReviewPanel document={doc} onDecide={submit} onBack={onBack} />
+            </aside>
           </div>
-          <aside className="kb-review-panel" aria-label="Decision">
-            <ReviewPanel document={doc} onDecide={submit} onBack={onBack} />
-          </aside>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   )
 }

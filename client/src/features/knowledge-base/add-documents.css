@@ -1,0 +1,270 @@
+/* The Add documents tab (IN-01, IN-05): the upload panel with its drop area and file rows, the
+   slim "Enter a standard manually" row, then Recent uploads in a list card (clients.css). */
+.kb-panel {
+  background: var(--surface-card);
+  border: 1.5px dashed var(--graphite-300);
+  border-radius: var(--radius-card);
+  transition: var(--transition-control);
+}
+.kb-panel[data-dragging] {
+  border-style: solid;
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
+}
+/* The drop area: icon, what to do, and the one main button. */
+.kb-drop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+.kb-drop-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.kb-drop-text {
+  flex: 1;
+  min-width: 0;
+}
+.kb-drop-title {
+  margin: 0;
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.kb-drop-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 2px;
+  margin: 2px 0 0;
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+
+/* The files chosen in this visit, one row each. */
+.kb-rows {
+  border-top: 1px solid var(--graphite-200);
+}
+.kb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 20px;
+  border: none;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.kb-row:last-child {
+  border-bottom: 0;
+}
+.kb-row[data-state='uploading'] {
+  background: var(--graphite-50);
+}
+.kb-row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kb-file {
+  overflow: hidden;
+  color: var(--graphite-900);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+/* "Reading document details…" beside a file that is uploading. */
+.kb-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.kb-reason {
+  margin: 2px 0 0;
+  color: var(--red-600);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.kb-reason.is-quiet {
+  color: var(--graphite-600);
+}
+.kb-row-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+.kb-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  border-top: 1px solid var(--graphite-200);
+  color: var(--graphite-600);
+  font-size: 13px;
+}
+
+/* Recent uploads: a heading with its help tip, then the list card. */
+.kb-uploaded {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.kb-uploaded-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.kb-uploaded-head h2 {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+}
+.kb-uploads .kb-col-when {
+  width: 128px;
+}
+.kb-uploads .kb-col-state {
+  width: 300px;
+}
+.kb-uploads :is(th, td):nth-child(2),
+.kb-uploads :is(th, td):nth-child(3) {
+  text-align: left;
+}
+.kb-uploads td {
+  height: auto;
+  padding-block: 12px;
+}
+.kb-uploads .cl-cell-actions {
+  text-align: right;
+}
+.kb-cell-when {
+  color: var(--graphite-700);
+  font-variant-numeric: tabular-nums;
+}
+.kb-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kb-doc strong {
+  overflow-wrap: anywhere;
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.kb-doc small {
+  color: var(--graphite-600);
+  font: 400 13px/1.3 var(--font-sans);
+}
+/* Why an upload needs review keeps the review tone (IN-07). */
+.kb-doc small.kb-why {
+  color: var(--amber-600);
+}
+.kb-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.kb-status-reason {
+  color: var(--red-600);
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* Live reading detail stays subordinate to the pill (E2). */
+.kb-stage-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  color: var(--graphite-600);
+  font-size: 13px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+/* The type picker for an upload awaiting one (IN-19): select, then its button. */
+.kb-choose-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* A phone: the panel's button drops under its words, and each upload is a card row. */
+@media (max-width: 767px) {
+  .kb-drop {
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+  .kb-drop-text {
+    flex-basis: calc(100% - 56px);
+  }
+  .kb-drop .ds-press {
+    width: 100%;
+  }
+  .kb-row {
+    padding-inline: 16px;
+  }
+  .kb-uploads.cl-table,
+  .kb-uploads.cl-table tbody,
+  .kb-uploads.cl-table tr,
+  .kb-uploads.cl-table td {
+    display: block;
+  }
+  .kb-uploads colgroup,
+  .kb-uploads thead {
+    display: none;
+  }
+  .kb-uploads.cl-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'doc actions'
+      'state state'
+      'when when';
+    gap: 8px 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--graphite-100);
+  }
+  .kb-uploads tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .kb-uploads.cl-table tbody td {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .kb-uploads .kb-cell-doc {
+    grid-area: doc;
+  }
+  .kb-uploads .kb-cell-state {
+    grid-area: state;
+  }
+  .kb-uploads .kb-cell-when {
+    grid-area: when;
+    color: var(--graphite-600);
+    font-size: 13px;
+  }
+  .kb-uploads .cl-cell-actions {
+    grid-area: actions;
+    padding: 0 !important;
+  }
+}

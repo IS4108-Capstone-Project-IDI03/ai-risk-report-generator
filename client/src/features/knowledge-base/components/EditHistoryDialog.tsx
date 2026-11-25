@@ -24,7 +24,7 @@ export function EditHistoryDialog({
       width={560}
       onClose={onClose}
       footer={
-        <Button variant="secondary" onClick={onClose}>
+        <Button pill variant="secondary" onClick={onClose}>
           Close
         </Button>
       }
@@ -55,6 +55,7 @@ export function EditHistoryDialog({
               {/* Restore opens Edit details, which a withdrawn document can't use (KB-01 AC15). */}
               {!d.withdrawn && (
                 <Button
+                  pill
                   variant="secondary"
                   size="sm"
                   aria-label={`Restore the version from ${dateTime(version.replacedAt)}`}

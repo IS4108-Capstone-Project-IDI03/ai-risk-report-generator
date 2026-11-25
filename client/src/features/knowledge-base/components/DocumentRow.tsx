@@ -1,13 +1,15 @@
 // One document's row in the Documents table (KB-01) and, when open, its
-// details row below: title, one status badge (Needs review is the button into
-// the Review page), then View original. Country and facility type show in the
+// details row below: title, one status pill (Needs review is the button into
+// the Review page), then the original's icon. Country and facility type show in the
 // details. The title is the disclosure button; the rest of the row also opens
 // it, as an observation's row does, while its actions keep their job. Used by
 // components/DocumentGroup.tsx.
-import { Badge, Icon, IconRegistry, StatusPill } from '../../../design-system'
+import { Chip, Icon, IconRegistry, StatusPill } from '../../../design-system'
+import { RowAction } from '../../clients/components/RowAction'
 import type { KnowledgeDocument } from '../api'
 import { calendarDate, isDraft, needsReview, reviewReasons } from '../display'
 import { DocumentDetails } from './DocumentDetails'
+import { DocumentStatus } from './DocumentStatus'
 import { ReviewBadge } from './ReviewBadge'
 
 // Which of this row's parts the walkthroughs point at (F-12): the table's first row, the row whose
@@ -62,10 +64,10 @@ export function DocumentRow({
           if (!(e.target as HTMLElement).closest('a, button')) onToggle()
         }}
       >
-        <td className="kb-col-toggle">
-          <Icon name={open ? IconRegistry.action.expand : IconRegistry.action.forward} size={15} />
+        <td className="kb-cell-toggle">
+          <Icon name={open ? IconRegistry.action.expand : IconRegistry.action.forward} size={16} />
         </td>
-        <td className="kb-col-doc">
+        <td className="kb-cell-doc">
           <button
             type="button"
             className="kb-toggle"
@@ -76,7 +78,11 @@ export function DocumentRow({
             // and Next would press again and close it, and the step would lose its target.
             onClick={walk?.open ? (e) => (open && !e.isTrusted ? undefined : onToggle()) : onToggle}
           >
-            <strong title={d.title}>{d.title}</strong>
+            <span className="kb-title-line">
+              <strong title={d.title}>{d.title}</strong>
+              {/* Typed in clause by clause, not uploaded (IN-18). */}
+              {d.entryMethod === 'manual' && <Chip kind="code">Manual entry</Chip>}
+            </span>
             <small>
               {d.edition
                 ? [standardName(d), `${d.edition} Edition`].filter(Boolean).join(' · ')
@@ -84,12 +90,6 @@ export function DocumentRow({
                   ? `Report date ${calendarDate(d.effectiveDate)}`
                   : 'Edition unconfirmed'}
             </small>
-            {/* Typed in clause by clause, not uploaded (IN-18). */}
-            {d.entryMethod === 'manual' && (
-              <span className="kb-entry">
-                <Badge tone="neutral">Manual entry</Badge>
-              </span>
-            )}
             {/* Why it needs review, or which edition replaced it (IN-07). */}
             {needsReview(d) && <small className="kb-why">{reviewReasons(d).join(' · ')}</small>}
             {d.withdrawn && d.newerEdition && (
@@ -102,11 +102,11 @@ export function DocumentRow({
             )}
           </button>
         </td>
-        <td className="kb-col-status" data-walk={walk?.row ? 'knowledge.status.row-1' : undefined}>
-          {/* One badge. A document with any Unconfirmed detail is not
+        <td className="kb-cell-status" data-walk={walk?.row ? 'knowledge.status.row-1' : undefined}>
+          {/* One pill. A document with any Unconfirmed detail is not
               searchable, so it is never shown as Active (IN-05). */}
           {d.withdrawn ? (
-            <Badge tone="danger">Withdrawn</Badge>
+            <DocumentStatus status="withdrawn" />
           ) : isDraft(d) ? (
             // A manual entry still being typed in (IN-18): Draft without the AI sparkles.
             <StatusPill status="manual_draft" />
@@ -118,27 +118,22 @@ export function DocumentRow({
                 walk={walk?.review ? 'knowledge.review-open' : undefined}
               />
             ) : (
-              <Badge tone="moderate">Needs review</Badge>
+              <DocumentStatus status="needs_review" />
             )
           ) : (
-            <Badge tone="low">Active</Badge>
+            <DocumentStatus status="active" />
           )}
         </td>
-        <td className="kb-col-actions">
-          <span className="kb-row-actions">
+        <td className="cl-cell-actions">
+          <span className="cl-row-actions cl-row-actions--always">
             {/* A manual document has no file to open (IN-18). */}
             {d.fileUrl && (
-              <a
-                className="kb-link"
+              <RowAction
+                icon={IconRegistry.action.openExternal}
+                label={`View original of ${d.title}`}
+                tooltip="View original"
                 href={d.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`View original of ${d.title}`}
-                // The file's name, on hover: the details panel leaves it out.
-                title={d.fileName ?? undefined}
-              >
-                View original
-              </a>
+              />
             )}
           </span>
         </td>

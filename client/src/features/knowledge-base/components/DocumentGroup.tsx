@@ -1,13 +1,10 @@
 // One source type's documents in the Documents table (KB-01): a band with
 // its name and count, then its rows. Used by screens/KnowledgeDocuments.tsx;
 // renders components/DocumentRow.tsx.
-import { Badge, Icon } from '../../../design-system'
-import type { KnowledgeDocument, SourceType } from '../api'
+import { CountPill, Icon } from '../../../design-system'
+import type { KnowledgeDocument } from '../api'
+import type { Group } from '../documentGroups'
 import { DocumentRow } from './DocumentRow'
-
-// One of the table's headings (AC1); a null source type is the Unconfirmed
-// group (IN-05).
-export type Group = { sourceType: SourceType | null; title: string; icon: string }
 
 /** Returns one group's rows as a table body. */
 export function DocumentGroup({
@@ -53,9 +50,9 @@ export function DocumentGroup({
       <tr className="kb-band">
         <th colSpan={4} scope="colgroup">
           <span className="kb-band-inner">
-            <Icon name={group.icon} size={15} />
+            <Icon name={group.icon} size={16} />
             <span id={id}>{group.title}</span>
-            <Badge tone="info">{documents.length}</Badge>
+            <CountPill>{documents.length}</CountPill>
           </span>
         </th>
       </tr>

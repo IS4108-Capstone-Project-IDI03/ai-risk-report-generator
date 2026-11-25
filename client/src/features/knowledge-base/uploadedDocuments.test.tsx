@@ -103,12 +103,7 @@ describe('UploadedDocuments retry', () => {
   it('shows a Retry button on a failed document', async () => {
     stubGateway([FAILED])
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
     expect(await screen.findByText('NFPA 13 sprinkler standard')).toBeInTheDocument()
@@ -118,12 +113,7 @@ describe('UploadedDocuments retry', () => {
   it('shows no Retry button on a complete document', async () => {
     stubGateway([COMPLETE])
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
     expect(await screen.findByText('FM Global 2-0')).toBeInTheDocument()
@@ -133,12 +123,7 @@ describe('UploadedDocuments retry', () => {
   it('posts the retry and refreshes, so the row returns as queued', async () => {
     const state = stubGateway([FAILED])
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
     await screen.findByText('NFPA 13 sprinkler standard')
 
@@ -164,12 +149,7 @@ describe('UploadedDocuments retry', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
     await screen.findByText('NFPA 13 sprinkler standard')
 
@@ -180,19 +160,14 @@ describe('UploadedDocuments retry', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument())
   })
 
-  it('offers Retry in the stacked (narrow) layout too', async () => {
+  it('offers Retry in the one table, which reflows to cards on a phone', async () => {
     stubGateway([FAILED])
     render(
-      <UploadedDocuments
-        narrow={true}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
-    const list = await screen.findByRole('list', { name: 'Recent uploads' })
-    expect(within(list).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'Recent uploads' })
+    expect(within(table).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 })
 
@@ -212,12 +187,7 @@ describe('UploadedDocuments cancellation', () => {
       CANCELLED,
     ])
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
@@ -230,12 +200,7 @@ describe('UploadedDocuments cancellation', () => {
       { ...FAILED, id: 'queued', title: 'Queued standard', status: 'queued', error: null },
     ])
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
 
@@ -258,12 +223,7 @@ describe('UploadedDocuments cancellation', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     render(
-      <UploadedDocuments
-        narrow={false}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
     const table = await screen.findByRole('region', { name: 'Recent uploads' })
@@ -288,17 +248,12 @@ describe('UploadedDocuments awaiting a type', () => {
     error: null,
     unconfirmed: ['sourceType'],
   }
-  const renderList = (narrow = false) =>
+  const renderList = () =>
     render(
-      <UploadedDocuments
-        narrow={narrow}
-        refreshKey={0}
-        onCompleted={onCompleted}
-        onReview={() => undefined}
-      />,
+      <UploadedDocuments refreshKey={0} onCompleted={onCompleted} onReview={() => undefined} />,
     )
 
-  it('asks for a type, with Start ingestion disabled until one is chosen, and no Stop or Retry', async () => {
+  it('asks for a type, with Start reading disabled until one is chosen, and no Stop or Retry', async () => {
     stubGateway([AWAITING])
     renderList()
 
@@ -307,7 +262,7 @@ describe('UploadedDocuments awaiting a type', () => {
       screen.getByText("Its source type couldn't be read. Choose one to start."),
     ).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Source type for Scan.pdf' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start ingestion' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Start reading' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
@@ -318,11 +273,11 @@ describe('UploadedDocuments awaiting a type', () => {
     const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
 
     fireEvent.change(select, { target: { value: 'nfpa_standard' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Start ingestion' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start reading' }))
 
     await waitFor(() => expect(state.chosen).toEqual([['awaiting', 'nfpa_standard']]))
     expect(await screen.findByText('Queued')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start ingestion' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start reading' })).not.toBeInTheDocument()
   })
 
   it("shows the gateway's reason and keeps the choice when ingestion can't start", async () => {
@@ -332,16 +287,16 @@ describe('UploadedDocuments awaiting a type', () => {
     const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
 
     fireEvent.change(select, { target: { value: 'fm_standard' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Start ingestion' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start reading' }))
 
-    expect(await screen.findByText('Ingestion not started')).toBeInTheDocument()
+    expect(await screen.findByText('Reading not started')).toBeInTheDocument()
     expect(screen.getByText('Ingestion could not be queued.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start ingestion' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Start reading' })).toBeEnabled()
   })
 
-  it('offers the choice in the stacked (narrow) layout too', async () => {
+  it('offers the type choice in the same table a phone reflows into cards', async () => {
     stubGateway([AWAITING])
-    renderList(true)
+    renderList()
 
     expect(
       await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' }),

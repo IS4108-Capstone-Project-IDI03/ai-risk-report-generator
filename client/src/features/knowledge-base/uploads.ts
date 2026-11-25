@@ -99,7 +99,7 @@ async function send(upload: Upload) {
         state: 'failed',
         error:
           error.status === null
-            ? 'The gateway could not be reached, so the file was not uploaded. Try again.'
+            ? "Can't reach the server, so the file wasn't uploaded. Try again."
             : error.message,
       })
       return

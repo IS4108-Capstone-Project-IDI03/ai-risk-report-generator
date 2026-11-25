@@ -2,13 +2,15 @@
 // question the chatbot could not answer. Mark filled and Dismiss each open a dialog and, on
 // success, the request leaves the list. Shown by KnowledgeBase.tsx; talks to api.ts.
 import { useCallback, useEffect, useState } from 'react'
-import { Callout, EmptyState, toast } from '../../../design-system'
+import { Callout, EmptyState, TableFooter, toast } from '../../../design-system'
+import { plural } from '../../clients/formatClient'
 import { listKnowledgeRequests, uploadKnowledgeDocument, type KnowledgeGapRequest } from '../api'
 import { DismissRequestDialog } from '../components/DismissRequestDialog'
 import { FillRequestDialog } from '../components/FillRequestDialog'
 import { RequestRow } from '../components/RequestRow'
 import { knowledgeTab } from '../openTab'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
+import '../requests.css'
 
 /** Returns the Requests tab: the open requests, newest first. */
 export function Requests({
@@ -73,40 +75,46 @@ export function Requests({
   }
 
   return (
-    <section className="kb-requests kb-docs" aria-labelledby="kb-requests-title">
-      <header className="kb-docs-head">
-        <h2 id="kb-requests-title">Open requests</h2>
-        <p>
-          Questions the chatbot couldn&apos;t answer. Add the document, then mark the request
-          filled.
-        </p>
-      </header>
+    <div className="kb-content">
       {unreachable && (
         <div role="alert">
-          <Callout tone="warning" title="Requests could not be loaded">
-            The gateway could not be reached. Reopen the tab to try again.
+          <Callout tone="warning" title="Couldn't load the requests">
+            Can&apos;t reach the server. Reopen the tab to try again.
           </Callout>
         </div>
       )}
-      {requests?.length === 0 && (
-        <EmptyState
-          title="No open requests"
-          description="When an engineer asks for a document, it appears here."
-        />
-      )}
-      <ul className="kb-request-list">
-        {requests?.map((r, i) => (
-          <RequestRow
-            key={r.id}
-            first={i === 0}
-            request={r}
-            focused={r.id === focused}
-            onFill={() => setFilling(r)}
-            onDismiss={() => setDismissing(r)}
-            onUpload={(file) => upload(r, file)}
+      <section aria-label="Open requests" className="cl-card kb-card">
+        {requests === null ? (
+          !unreachable && (
+            <p className="cl-empty-title" role="status">
+              Loading requests…
+            </p>
+          )
+        ) : requests.length === 0 ? (
+          <EmptyState
+            icon="inbox"
+            title="No open requests"
+            description="When an engineer asks for a document, it appears here."
           />
-        ))}
-      </ul>
+        ) : (
+          <>
+            <ul className="kb-request-list">
+              {requests.map((r, i) => (
+                <RequestRow
+                  key={r.id}
+                  first={i === 0}
+                  request={r}
+                  focused={r.id === focused}
+                  onFill={() => setFilling(r)}
+                  onDismiss={() => setDismissing(r)}
+                  onUpload={(file) => upload(r, file)}
+                />
+              ))}
+            </ul>
+            <TableFooter>{plural(requests.length, 'open request')}</TableFooter>
+          </>
+        )}
+      </section>
       {filling && (
         <FillRequestDialog
           request={filling}
@@ -123,6 +131,6 @@ export function Requests({
           onStale={load}
         />
       )}
-    </section>
+    </div>
   )
 }
