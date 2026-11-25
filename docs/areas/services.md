@@ -1,4 +1,57 @@
+# Service internals, feature by feature
+
 Per-service internals: ingestion pipeline stages, RAG orchestrator flow, speech/OCR processor notes go here.
+
+<!-- at-a-glance -->
+> **In 30 seconds:** How each feature works inside the services: what the gateway, the Python services and the screens each do for it, step by step, with the rules they follow.
+>
+> **Read this when:** you work on one feature and need to know which service does what, or why it behaves the way it does.
+>
+> **Deeper:** each service's own `README.md` (shorter, per service) and the beginner pages in `.local-docs/repo-guide/` (local only).
+
+**Contents**
+
+- **Voice, photos and handwriting (speech-ocr-service)**
+  - [Speech (S5) and voice transcription (CP-03)](#speech-s5-and-voice-transcription-cp-03)
+  - [Reading an observation (S5, CP-05, CP-21)](#reading-an-observation-s5-cp-05-cp-21)
+  - [Handwritten pages (S5, CP-19)](#handwritten-pages-s5-cp-19)
+- **Knowledge base and ingestion (ingestion-service)**
+  - [Knowledge document ingestion (IN-01)](#knowledge-document-ingestion-in-01)
+  - [Automatic labelling (IN-05)](#automatic-labelling-in-05)
+  - [Matching: duplicates and newer editions (IN-07)](#matching-duplicates-and-newer-editions-in-07)
+  - [Correcting a knowledge document (KB-01)](#correcting-a-knowledge-document-kb-01)
+  - [Withdrawing and reinstating a knowledge document (KB-01)](#withdrawing-and-reinstating-a-knowledge-document-kb-01)
+  - [Browsing a knowledge document's passages (IN-17)](#browsing-a-knowledge-documents-passages-in-17)
+  - [Entering a standard by hand (IN-18)](#entering-a-standard-by-hand-in-18)
+- **Writing the report (rag-service and gateway)**
+  - [Report section drafting (S4, GN-01)](#report-section-drafting-s4-gn-01)
+  - [Opportunities for Improvement (S4, GN-05)](#opportunities-for-improvement-s4-gn-05)
+  - [Pre-survey checklist (S4, CP-30)](#pre-survey-checklist-s4-cp-30)
+  - [Site walk proposal (S4, CP-22)](#site-walk-proposal-s4-cp-22)
+  - [Client intake (ingestion, S4, gateway, CP-23)](#client-intake-ingestion-s4-gateway-cp-23)
+  - [Client insights summary (S4, gateway, CP-29)](#client-insights-summary-s4-gateway-cp-29)
+  - [Background drafting (GN-13)](#background-drafting-gn-13)
+- **Reviewing and exporting**
+  - [Report review workspace (RV-01)](#report-review-workspace-rv-01)
+  - [Reviewing findings and regenerating sections (RV-02)](#reviewing-findings-and-regenerating-sections-rv-02)
+  - [Asking about an assessment (S4, AS-01)](#asking-about-an-assessment-s4-as-01)
+  - [Report export (S2, EX-01)](#report-export-s2-ex-01)
+- **Chat**
+  - [Knowledge chat: cost and speed (S4, CB-01)](#knowledge-chat-cost-and-speed-s4-cb-01)
+  - [Chat retrieval ranking by source tier (RT-04)](#chat-retrieval-ranking-by-source-tier-rt-04)
+  - [Chat usage (CB-01, EV-03)](#chat-usage-cb-01-ev-03)
+- **Accounts, email and notices**
+  - [Password reset email (F-06)](#password-reset-email-f-06)
+  - [Invitation email (F-08)](#invitation-email-f-08)
+  - [Idle sign-out (F-07)](#idle-sign-out-f-07)
+  - [Who is told what (F-10, RV-11)](#who-is-told-what-f-10-rv-11)
+- **Calendar and reports on use**
+  - [Calendar (client, CP-60)](#calendar-client-cp-60)
+  - [Usage and Costs report (EV-04)](#usage-and-costs-report-ev-04)
+- **More**
+  - [Assessment assistant (MarshBot, AS-06)](#assessment-assistant-marshbot-as-06)
+  - [Splitting a shorthand note (CP-35)](#splitting-a-shorthand-note-cp-35)
+<!-- /at-a-glance -->
 
 ## Speech (S5) and voice transcription (CP-03)
 
@@ -669,7 +722,7 @@ run writes a summary to `eval/handwriting/<date>-<model>.md`.
   first. LaTeX KaTeX rejects, and a formula holding the quoted words, show as written.
   A formula ingestion didn't recognise is stored as plain text and stays so.
 
-See the Redis/BullMQ decision in [DECISIONS](../DECISIONS.md).
+See the Redis/BullMQ decision in [DECISIONS](../devguides/DECISIONS.md).
 
 ## Automatic labelling (IN-05)
 
@@ -713,7 +766,7 @@ through Edit details (KB-01).
 
 The model choice and `LABEL_MIN_CONFIDENCE` come from the evaluation in
 `microservices/ingestion-service/eval/labelling/` (run by hand: it calls paid
-APIs). See [DECISIONS](../DECISIONS.md).
+APIs). See [DECISIONS](../devguides/DECISIONS.md).
 
 ## Matching: duplicates and newer editions (IN-07)
 
@@ -761,7 +814,7 @@ never gets this far: the gateway rejects it at upload.
 Both numbers are env settings (`.env.example`), set by
 `microservices/ingestion-service/eval/matching/results/2026-10-08.md`: at 0.90
 every copy shares at least 83% of its passages and no non-copy more than 33%,
-so 0.58 sits in the middle of a 50-point gap. See [DECISIONS](../DECISIONS.md).
+so 0.58 sits in the middle of a 50-point gap. See [DECISIONS](../devguides/DECISIONS.md).
 
 Ingestion service endpoints for IN-07, all behind the gateway (the gateway never
 reads Chroma):
@@ -1463,7 +1516,7 @@ tuned on the tuning packs only. rag 502 for any other AI failure.
 
 **Evaluation** (`eval/client_intake/`): synthetic client packs built from the
 sample reports, scored against their answer keys in code, with a tuning set and a
-held-out set. See the CP-23 entry in [DECISIONS](../DECISIONS.md) for the results.
+held-out set. See the CP-23 entry in [DECISIONS](../devguides/DECISIONS.md) for the results.
 It is paid, so run it by hand from `microservices/rag-service`; the scoring is
 unit-tested in `tests/test_client_intake_eval.py`.
 
@@ -2314,7 +2367,7 @@ A knowledge admin also has an **Ingestion** tab (from `GET /api/usage/ingestion`
   - **Period:** `7d` and `30d` count back from now; `month` starts at 00:00 on the 1st in Singapore (UTC+8, no daylight saving); `all` has no limit.
   - **`engineer`:** only the calls attributed to that engineer, for when their bar is chosen.
   - **Scope:** as for the summary: a risk engineer sees only their assigned assessments and their own chat.
-- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../RUNNING.md) §5.
+- **Demo data:** `npm --prefix server run seed:usage` (after `seed`) writes fake rows tagged "DEMO data" for the sample assessments and the sample engineers' chat, and replaces them on every run. It writes no ingestion rows. How to discard them is in [RUNNING](../devguides/RUNNING.md) §5.
 
 
 ## Who is told what (F-10, RV-11)
