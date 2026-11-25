@@ -117,7 +117,7 @@ export function PassageView({
         ) : (
           <>
             <dt>Document</dt>
-            <dd className="rv-mono">{passage.documentId ?? 'Not recorded'}</dd>
+            <dd>Not found in the knowledge base</dd>
           </>
         )}
         {passage.headings.length > 0 && (
@@ -342,7 +342,7 @@ export function SourcePanel({
               {!section.draft
                 ? 'This section has no draft, so nothing is cited yet.'
                 : numbers.size
-                  ? 'Select a citation number in the draft to open its source here.'
+                  ? 'Select a citation number in the draft to see its source here.'
                   : 'This draft cites nothing.'}
             </p>
           </div>
@@ -358,7 +358,7 @@ export function SourcePanel({
                 <PassageView passage={passage} number={numbers.get(open)} onClose={close} />
                 {!section.sources[open] && (
                   <p className="rv-viewer-note">
-                    Cited in an answer on the Ask tab. This draft does not cite it.
+                    Cited in an answer on the Ask tab, not in this draft.
                   </p>
                 )}
               </>
@@ -367,11 +367,7 @@ export function SourcePanel({
                 observation={observation}
                 number={numbers.get(open)}
                 onClose={close}
-                note={
-                  drafted
-                    ? undefined
-                    : 'As sent with the question on the Ask tab. This draft does not cite it.'
-                }
+                note={drafted ? undefined : 'Cited in an answer on the Ask tab, not in this draft.'}
               />
             ) : (
               <>
@@ -382,8 +378,8 @@ export function SourcePanel({
                 </ViewerHead>
                 <h3>This citation could not be found</h3>
                 <p className="rv-viewer-note">
-                  The draft cites <span className="rv-mono">{open}</span>, which is not among the
-                  evidence saved with it. The statement citing it is marked Unsupported.
+                  It isn't among the evidence saved with the draft, so the statement citing it is
+                  marked Unsupported.
                 </p>
               </>
             )}
@@ -398,7 +394,7 @@ export function SourcePanel({
             <h3 className="rv-label">Reference sources</h3>
             <Tip id="review.evidence" />
           </span>
-          <span className="rv-mono">{passages.length}</span>
+          <span className="rv-count">{passages.length}</span>
         </div>
         {passages.length ? (
           <ul className="rv-panel-list">
@@ -435,7 +431,7 @@ export function SourcePanel({
       <section className="rv-panel-section" aria-label="Original observations">
         <div className="rv-panel-head">
           <h3 className="rv-label">Original observations</h3>
-          <span className="rv-mono">{observations.length}</span>
+          <span className="rv-count">{observations.length}</span>
         </div>
         {observations.length ? (
           <ul className="rv-panel-list">
@@ -486,7 +482,7 @@ export function SourcePanel({
       <section className="rv-panel-section" aria-label="Claims">
         <div className="rv-panel-head">
           <h3 className="rv-label">Claims</h3>
-          <span className="rv-mono">
+          <span className="rv-count">
             {claims.length}
             {unsupported ? ` · ${unsupported} unsupported` : ''}
           </span>

@@ -81,7 +81,7 @@ export function ExecutiveSummary({
         <p style={{ margin: '0 0 12px' }}>
           Every section is ready. Draft it on the Generation tab.
         </p>
-        <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
+        <Button pill variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
           Go to Generation
         </Button>
       </Callout>
@@ -110,8 +110,7 @@ export function ExecutiveSummary({
   return (
     <>
       <p className="rv-provenance">
-        Drafted {formatDayTime(new Date(draft.provenance.generated_at))} · {draft.provenance.model}{' '}
-        ({draft.provenance.effort} effort) · prompt {draft.provenance.prompt_version}
+        Drafted {formatDayTime(new Date(draft.provenance.generated_at))}
       </p>
       {saved}
       {staleSections.length > 0 && (

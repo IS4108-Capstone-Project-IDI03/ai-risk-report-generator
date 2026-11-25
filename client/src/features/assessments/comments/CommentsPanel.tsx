@@ -17,10 +17,11 @@ const FILTERS: { value: CommentFilter; label: string }[] = [
   { value: 'all', label: 'All' },
 ]
 
-const EMPTY: Record<CommentFilter, string> = {
-  open: 'No open threads. Select text in the report and choose Comment to start one.',
-  resolved: 'No resolved threads.',
-  all: 'No comments yet. Select text in the report and choose Comment to start one.',
+// Each filter's empty state: a title naming what is missing, and how to start a thread.
+const EMPTY: Record<CommentFilter, { title: string; line?: string }> = {
+  open: { title: 'No open comments', line: 'Select text in the report, then choose Comment.' },
+  resolved: { title: 'No resolved comments' },
+  all: { title: 'No comments yet', line: 'Select text in the report, then choose Comment.' },
 }
 
 const shows = (filter: CommentFilter) => (e: ThreadEntry) =>
@@ -62,6 +63,7 @@ export function CommentsPanel({
       <aside className={className} aria-label="Comments">
         <div className="cm-panel-head">
           <Button
+            pill
             variant="ghost"
             size="sm"
             iconLeft="chevron-left"
@@ -129,7 +131,7 @@ export function CommentsPanel({
         {comments.loadError ? (
           <div className="cm-problem" role="alert">
             <p>{comments.loadError}</p>
-            <Button variant="secondary" size="sm" onClick={comments.reload}>
+            <Button pill variant="secondary" size="sm" onClick={comments.reload}>
               Try again
             </Button>
           </div>
@@ -138,8 +140,8 @@ export function CommentsPanel({
         ) : !listed.length ? (
           <EmptyState
             icon="messages-square"
-            title="Nothing here"
-            description={EMPTY[comments.filter]}
+            title={EMPTY[comments.filter].title}
+            description={EMPTY[comments.filter].line}
           />
         ) : (
           <ul className="cm-list" aria-label="Comment threads">

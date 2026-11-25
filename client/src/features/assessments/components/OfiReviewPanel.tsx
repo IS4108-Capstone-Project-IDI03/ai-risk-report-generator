@@ -83,6 +83,7 @@ export function OfiReviewPanel({
             </p>
             {canAccept && suggestions.length > 1 && (
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft="check-check"

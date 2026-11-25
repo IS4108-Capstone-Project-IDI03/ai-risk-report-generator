@@ -298,7 +298,8 @@ it('lists the section’s versions oldest first, each with who made it and when 
   // Each says who made it and when (AC2), and how it came about.
   const [drafted, first, second] = rows()
   expect(within(drafted).getByText('Alex Rowe · 03 Oct 2026 14:00')).toBeInTheDocument()
-  expect(within(drafted).getByText('Drafted by claude-opus-5-5')).toBeInTheDocument()
+  // An AI draft names no model: its name already says it was drafted.
+  expect(within(drafted).queryByText(/claude-opus/)).toBeNull()
   expect(within(first).getByText('Alex Rowe · 11 Oct 2026 14:02')).toBeInTheDocument()
   expect(within(first).getByText('Saved in the document')).toBeInTheDocument()
   expect(within(second).getByText('Alex Rowe · 12 Oct 2026 09:30')).toBeInTheDocument()
@@ -330,7 +331,7 @@ it('compares an earlier version with the current text, marking added, deleted an
   expect(within(comparison()).getByText(ROOF).closest('ins, del')).toBeNull()
 
   // Compared with the version before it, the AI draft, version 1 only adds.
-  fireEvent.click(within(view()).getByRole('button', { name: 'Version before' }))
+  fireEvent.click(within(view()).getByRole('radio', { name: 'Version before' }))
   expect(
     within(comparison()).getByText('From the AI draft of 03 Oct 14:00 to version 1'),
   ).toBeInTheDocument()
@@ -339,7 +340,7 @@ it('compares an earlier version with the current text, marking added, deleted an
 
   // The latest version is the current text.
   fireEvent.click(rows()[2])
-  fireEvent.click(within(view()).getByRole('button', { name: 'Current text' }))
+  fireEvent.click(within(view()).getByRole('radio', { name: 'Current text' }))
   expect(within(comparison()).getByText(/No differences/)).toBeInTheDocument()
   expect(within(view()).getByRole('button', { name: 'Restore this version' })).toBeDisabled()
 })

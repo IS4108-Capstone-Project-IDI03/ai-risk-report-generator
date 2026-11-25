@@ -115,7 +115,13 @@ function CommentItem({
               : 'Delete this comment?'}
           </p>
           <div className="cm-composer-actions">
-            <Button variant="ghost" size="sm" disabled={deleting} onClick={() => setMode('read')}>
+            <Button
+              pill
+              variant="ghost"
+              size="sm"
+              disabled={deleting}
+              onClick={() => setMode('read')}
+            >
               Cancel
             </Button>
             <Button

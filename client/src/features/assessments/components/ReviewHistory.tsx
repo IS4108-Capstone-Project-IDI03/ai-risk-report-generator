@@ -36,13 +36,10 @@ export function ReviewHistory({
     <section className="rv-panel-section" aria-label="Review history">
       <div className="rv-panel-head">
         <h3 className="rv-label">Review history</h3>
-        <span className="rv-mono">{entries.length}</span>
+        <span className="rv-count">{entries.length}</span>
       </div>
       {!entries.length ? (
-        <p className="rv-muted">
-          No decisions yet. Accepting, editing, rejecting and regenerating are recorded here, with
-          who did it and when.
-        </p>
+        <p className="rv-muted">No decisions yet.</p>
       ) : (
         <ol className="rv-panel-list">
           {entries.map((e) => {
@@ -102,6 +99,7 @@ export function ReviewHistory({
                 {restorable && (
                   <div className="rv-history-actions">
                     <Button
+                      pill
                       variant="secondary"
                       size="sm"
                       iconLeft={IconRegistry.action.reinstate}

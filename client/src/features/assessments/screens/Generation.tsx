@@ -15,8 +15,7 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
             style={{
               background: 'var(--surface-card)',
               border: '1px solid var(--border-default)',
-              borderRadius: '8px',
-              boxShadow: 'var(--shadow-sm)',
+              borderRadius: 'var(--radius-card)',
               overflow: 'hidden',
             }}
           >
@@ -65,8 +64,6 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                 borderBottom: '1px solid var(--border-default)',
                 fontSize: '11px',
                 fontWeight: '600',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
                 color: 'var(--text-muted)',
               }}
             >
@@ -89,7 +86,7 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                   >
                     <span
                       style={{
-                        fontFamily: 'var(--font-mono)',
+                        fontVariantNumeric: 'tabular-nums',
                         fontSize: '13px',
                         color: 'var(--text-muted)',
                       }}
@@ -152,7 +149,7 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                           padding: '12px 14px',
                           background: 'var(--status-moderate-bg)',
                           borderLeft: '2px solid var(--status-moderate-fg)',
-                          borderRadius: '0 5px 5px 0',
+                          borderRadius: '0 8px 8px 0',
                         }}
                       >
                         <div
@@ -217,7 +214,7 @@ export function Generation({ v }: { v: AssessmentWorkflow }) {
                           padding: '12px 14px',
                           background: 'var(--status-critical-bg)',
                           borderLeft: '2px solid var(--status-critical-fg)',
-                          borderRadius: '0 5px 5px 0',
+                          borderRadius: '0 8px 8px 0',
                         }}
                       >
                         <div

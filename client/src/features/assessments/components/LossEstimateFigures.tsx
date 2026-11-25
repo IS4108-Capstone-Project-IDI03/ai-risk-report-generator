@@ -173,7 +173,6 @@ export function LossEstimateFigures({
     <div className="rv-maturity">
       {figures.proposal && stillProposed && (
         <ProposalNote
-          proposal={figures.proposal}
           reasons={Object.entries(why).flatMap(([level, marks]) =>
             [...marks.values()].map(({ label, why: w }): [string, ProposedWhy] => [
               `Level ${level}, ${label}`,
@@ -256,6 +255,7 @@ export function LossEstimateFigures({
           {!entered && !figures.proposal && (
             <>
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft="sparkles"
@@ -268,6 +268,7 @@ export function LossEstimateFigures({
             </>
           )}
           <Button
+            pill
             variant="primary"
             size="sm"
             disabled={saving}

@@ -1,5 +1,13 @@
 import { Fragment, useState } from 'react'
-import { Badge, Button, Callout, EmptyState, IconRegistry } from '../../../design-system'
+import {
+  BackButton,
+  Badge,
+  Button,
+  Callout,
+  EmptyState,
+  IconRegistry,
+  SegmentedControl,
+} from '../../../design-system'
 import {
   GatewayError,
   restoreSectionVersion,
@@ -208,6 +216,11 @@ function Comparison({
 const attribution = (e: SectionHistoryEntry) =>
   [e.by?.name, formatDayYearTime(new Date(e.at))].filter(Boolean).join(' · ')
 
+// How an entry came to be, in plain words: an AI draft's own name already says so, so it has
+// no second line.
+const origin = (e: SectionHistoryEntry, entries: SectionHistoryEntry[]) =>
+  e.origin === 'drafted' ? null : versionOrigin(e, entries)
+
 // A section's version history (RV-06), in place of its draft in the review
 // workspace: its AI drafts and the versions saved in the document editor,
 // oldest first (AC1), each with who made it and when (AC2), down the side;
@@ -218,7 +231,6 @@ export function VersionHistory({
   reference,
   sectionId,
   title,
-  position,
   current,
   describe,
   findings,
@@ -232,8 +244,6 @@ export function VersionHistory({
   sectionId: string
   // e.g. "7. Construction"
   title: string
-  // e.g. "9 of 15"
-  position: string
   // The section's text as the review workspace shows it; null until loaded.
   current: SectionDocument | null
   describe?: (citation: string) => string
@@ -280,6 +290,7 @@ export function VersionHistory({
           title="The version history could not be loaded"
           actions={
             <Button
+              pill
               variant="secondary"
               size="sm"
               iconLeft={IconRegistry.action.regenerate}
@@ -309,12 +320,15 @@ export function VersionHistory({
           <div className="rv-version-title">
             <h3>{versionLabel(selected)}</h3>
             <p className="rv-history-by">{attribution(selected)}</p>
-            <p className="rv-version-origin">{versionOrigin(selected, entries)}</p>
+            {origin(selected, entries) && (
+              <p className="rv-version-origin">{origin(selected, entries)}</p>
+            )}
           </div>
           {canRestore && (
             <div className="rv-version-restore">
               <Tip id="versions.restore" align="right" />
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.reinstate}
@@ -334,25 +348,15 @@ export function VersionHistory({
             the current draft as findings, and restores the rest of its text as your own.
           </Callout>
         )}
-        <div className="rv-segmented" role="group" aria-label="Compare with">
-          <Button
-            variant={showing === 'current' ? 'tonal' : 'ghost'}
-            size="sm"
-            aria-pressed={showing === 'current'}
-            onClick={() => setCompare('current')}
-          >
-            Current text
-          </Button>
-          <Button
-            variant={showing === 'previous' ? 'tonal' : 'ghost'}
-            size="sm"
-            aria-pressed={showing === 'previous'}
-            disabled={!before}
-            onClick={() => setCompare('previous')}
-          >
-            Version before
-          </Button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Compare with"
+          value={showing}
+          onChange={setCompare}
+          options={[
+            { value: 'current', label: 'Current text' },
+            { value: 'previous', label: 'Version before', disabled: !before },
+          ]}
+        />
         {showing === 'previous' && before ? (
           <Comparison
             older={before.document}
@@ -377,13 +381,13 @@ export function VersionHistory({
     <>
       <section aria-label="Version history" className="om-scroll rv-editor">
         <div className="rv-editor-inner">
-          <div className="rv-editor-bar">
-            <p className="rv-label">Version history · {position}</p>
-            <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={onClose}>
-              Back to the draft
-            </Button>
+          <div className="rv-version-top">
+            <BackButton label="Back to the draft" onClick={onClose} />
+            <div>
+              <p className="rv-version-eyebrow">Version history</p>
+              <h2>{title}</h2>
+            </div>
           </div>
-          <h2>{title}</h2>
           {body}
         </div>
       </section>
@@ -395,15 +399,12 @@ export function VersionHistory({
         >
           <div className="rv-panel-head">
             <h3 className="rv-label">Versions</h3>
-            <span className="rv-mono">{entries.length}</span>
+            {entries.length > 0 && <span className="rv-count">{entries.length}</span>}
           </div>
           {!history ? (
             <p className="rv-muted">{loadError ? 'Not loaded.' : 'Loading…'}</p>
           ) : !entries.length ? (
-            <p className="rv-muted">
-              None yet. Drafting the section, and saving it in the document editor, each keep a
-              version here, with who made it and when.
-            </p>
+            <p className="rv-muted">None yet.</p>
           ) : (
             <ol className="rv-panel-list rv-version-list">
               {entries.map((e) => (
@@ -420,7 +421,9 @@ export function VersionHistory({
                       {!e.onSavedDraft && <Badge tone="neutral">Earlier draft</Badge>}
                     </span>
                     <span className="rv-history-by">{attribution(e)}</span>
-                    <span className="rv-version-origin">{versionOrigin(e, entries)}</span>
+                    {origin(e, entries) && (
+                      <span className="rv-version-origin">{origin(e, entries)}</span>
+                    )}
                   </button>
                 </li>
               ))}

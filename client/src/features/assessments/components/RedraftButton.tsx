@@ -7,6 +7,7 @@ import { Button, IconRegistry } from '../../../design-system'
 export function RedraftButton({ working, onRedraft }: { working: boolean; onRedraft: () => void }) {
   return (
     <Button
+      pill
       variant="secondary"
       size="sm"
       iconLeft={IconRegistry.action.regenerate}

@@ -39,6 +39,7 @@ import { Tip } from '../../help/Tip'
 import { CitationMark } from './CitationMark'
 import { RichWords, WrittenBlocks } from './WrittenBlocks'
 import { MaturityTable } from './MaturityTable'
+import { PartBar } from './PartBar'
 
 type Citing = {
   sectionId: string
@@ -240,6 +241,7 @@ function Finding({
             data-walk={claim.number === 1 ? 'review.finding-1.decisions' : undefined}
           >
             <Button
+              pill
               variant="ghost"
               size="sm"
               iconLeft={IconRegistry.action.reject}
@@ -250,6 +252,7 @@ function Finding({
               Reject
             </Button>
             <Button
+              pill
               variant="ghost"
               size="sm"
               iconLeft={IconRegistry.action.edit}
@@ -261,6 +264,7 @@ function Finding({
             </Button>
             {(review.state === 'pending' || review.state === 'edited') && (
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.accept}
@@ -402,6 +406,7 @@ function AiParagraph({
           {actions && (
             <>
               <Button
+                pill
                 variant="ghost"
                 size="sm"
                 iconLeft={IconRegistry.action.discard}
@@ -412,6 +417,7 @@ function AiParagraph({
                 Delete
               </Button>
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.accept}
@@ -720,6 +726,7 @@ export function DraftEditor({
       actions={
         onHistory && (
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft={IconRegistry.object.history}
@@ -730,9 +737,9 @@ export function DraftEditor({
         )
       }
     >
-      Your text saved in the document {formatDayTime(new Date(saved.savedAt))} was written on an
-      earlier draft. Findings you edited were carried into this draft; text you wrote yourself is
-      kept in that saved version, not shown here. The version history shows it and can restore it.
+      You saved text in the document on {formatDayTime(new Date(saved.savedAt))}, on an earlier
+      draft. Findings you edited carried over to this one, and the rest of your text is kept in that
+      version, which you can restore from the version history.
     </Callout>
   )
   return (
@@ -749,41 +756,13 @@ export function DraftEditor({
             blocked={ask.blocked}
           />
         )}
-        <div className="rv-editor-bar">
-          <p className="rv-label">Draft editor · {position}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft="chevron-left"
-            disabled={!onPrevious}
-            onClick={onPrevious}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconRight="chevron-right"
-            disabled={!onNext}
-            onClick={onNext}
-          >
-            Next
-          </Button>
-          {onHistory && (
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft={IconRegistry.object.history}
-              data-walk="review.version-history"
-              onClick={onHistory}
-            >
-              Version history
-            </Button>
-          )}
-        </div>
-        <h2>
-          {section.id}. {section.title}
-        </h2>
+        <PartBar
+          title={`${section.id}. ${section.title}`}
+          position={position}
+          onPrevious={onPrevious}
+          onNext={onNext}
+          onHistory={onHistory}
+        />
         {notice}
         {placesFindings ? figures(drafted) : figures}
         {!draft && hasWritten(content.intro) ? (
@@ -792,8 +771,8 @@ export function DraftEditor({
             {documentLine}
             {aiNotice}
             <Callout tone="info" title="Written by you">
-              This section was not drafted: its text is yours, from the document editor. Draft it on
-              the Generation tab only to replace it with an AI draft to review.
+              You wrote this section in the document editor. Drafting it on the Generation tab would
+              replace your text with an AI draft to review.
             </Callout>
             <div className="rv-written-section">{blocksOf(content.intro)}</div>
           </>
@@ -803,7 +782,7 @@ export function DraftEditor({
             title="Not drafted yet"
             description="This section has no draft to review. Draft it on the Generation tab."
             action={
-              <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
+              <Button pill variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
                 Go to Generation
               </Button>
             }
@@ -811,9 +790,7 @@ export function DraftEditor({
         ) : (
           <>
             <p className="rv-provenance">
-              Drafted {formatDayTime(new Date(draft.provenance.generated_at))} ·{' '}
-              {draft.provenance.model} ({draft.provenance.effort} effort) · prompt{' '}
-              {draft.provenance.prompt_version} · template {draft.provenance.template_version}
+              Drafted {formatDayTime(new Date(draft.provenance.generated_at))}
             </p>
             {documentLine}
             {header}
@@ -842,10 +819,9 @@ export function DraftEditor({
               <Callout tone="warning" title="Some statements need review">
                 {plural(review.unsupportedStatements, 'statement')}{' '}
                 {review.unsupportedStatements === 1 ? 'rests' : 'rest'} on no evidence from this
-                assessment or its standards: no citation, a source that could not be found, only a
-                past report, or a citation deleted in the document.{' '}
-                {review.unsupportedStatements === 1 ? 'It is' : 'They are'} marked Unsupported, even
-                once accepted, until rejected.
+                assessment or its standards, so{' '}
+                {review.unsupportedStatements === 1 ? 'it stays' : 'they stay'} marked Unsupported,
+                even once accepted, until rejected or fixed in the document.
               </Callout>
             )}
             {draft.questions.length > 0 && (

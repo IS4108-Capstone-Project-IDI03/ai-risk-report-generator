@@ -20,6 +20,7 @@ import { RiskQualityFigures } from '../components/RiskQualityFigures'
 import { PartJobNotice } from '../components/PartJobNotice'
 import { PurposeScope } from '../components/PurposeScope'
 import { RedraftButton } from '../components/RedraftButton'
+import { PartBar } from '../components/PartBar'
 import { ReportPart } from '../components/ReportPart'
 import { RiskMatrix } from '../components/RiskMatrix'
 import { OfiReviewPanel } from '../components/OfiReviewPanel'
@@ -286,7 +287,7 @@ export function ReviewWorkspace({
   const sections = workspace?.sections
   if (loadError && !sections)
     return (
-      <div style={{ padding: '24px 28px' }}>
+      <div className="rv-state">
         <Callout tone="danger" title="The review workspace could not be loaded">
           {loadError}
         </Callout>
@@ -294,7 +295,7 @@ export function ReviewWorkspace({
     )
   // Waits for the drafting state too, so the hidden parts never show and then vanish.
   if (!sections || (!generation && !jobs.loadError))
-    return <p style={{ padding: '24px 28px', margin: 0 }}>Loading the report sections…</p>
+    return <p className="rv-state rv-muted">Loading the report sections…</p>
 
   if (documentAt) {
     // Reopened after a refused save: the document waits for the new read.
@@ -304,16 +305,16 @@ export function ReviewWorkspace({
     }
     if (reopening !== null)
       return loadError ? (
-        <div style={{ padding: '24px 28px' }}>
+        <div className="rv-state">
           <Callout tone="danger" title="The document could not be reloaded">
             {loadError}
           </Callout>
         </div>
       ) : (
-        <p style={{ padding: '24px 28px', margin: 0 }}>Reloading the document…</p>
+        <p className="rv-state rv-muted">Reloading the document…</p>
       )
     return (
-      <Suspense fallback={<p style={{ padding: '24px 28px', margin: 0 }}>Opening the document…</p>}>
+      <Suspense fallback={<p className="rv-state rv-muted">Opening the document…</p>}>
         <DocumentEdit
           key={documentKey}
           reference={reference}
@@ -475,7 +476,7 @@ export function ReviewWorkspace({
               observation={observation!}
               number={undefined}
               onClose={() => setAskedRef(null)}
-              note="As sent with the question on the Ask tab."
+              note="As sent with your question."
             />
           )}
         </article>
@@ -600,7 +601,6 @@ export function ReviewWorkspace({
           reference={reference}
           sectionId={id}
           title={PART_TITLES[id] ?? (listed ? `${listed.id}. ${listed.title}` : id)}
-          position={positionOf(id)}
           current={current}
           describe={listed ? (citation) => describeCitation(listed, citation) : undefined}
           findings={!!listed?.draft}
@@ -630,6 +630,7 @@ export function ReviewWorkspace({
           title={`Restored ${restored.name}`}
           actions={
             <Button
+              pill
               variant="secondary"
               size="sm"
               iconLeft={IconRegistry.object.history}
@@ -639,8 +640,8 @@ export function ReviewWorkspace({
             </Button>
           }
         >
-          Its text is the section's current draft, saved as version {restored.version}. The text it
-          replaced stays in the version history.
+          It's now the section's text, saved as version {restored.version}. The text it replaced
+          stays in the version history.
         </Callout>
       </div>
     )
@@ -711,7 +712,7 @@ export function ReviewWorkspace({
       '1',
       PART_TITLES['1'],
       <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
-      'Section 1 is filled in from the assessment and site details, with no AI drafting. It always matches them.',
+      'Filled in from the assessment and site details, so it always matches them.',
       { onNext: () => select('2') },
     )
   if (selected === '2')
@@ -727,7 +728,7 @@ export function ReviewWorkspace({
           document={workspace.parts?.['2'] ?? null}
         />
       </>,
-      'The Executive Summary is drafted only from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
+      'Drafted from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
       { onPrevious: () => select('1'), onNext: () => select('3') },
       redraftButton('2'),
     )
@@ -736,7 +737,7 @@ export function ReviewWorkspace({
       'A',
       PART_TITLES.A,
       <AppendixPhotos reference={reference} canEdit={canReview} />,
-      'The export (EX-01) shows only these photos, in this order, with their captions.',
+      'The report shows only these photos, in this order, with their captions.',
       { onPrevious: last && (() => select(last.id)) },
     )
 
@@ -752,7 +753,7 @@ export function ReviewWorkspace({
             title="No sections drafted yet"
             description="Drafted sections appear here for review. Draft them on the Generation tab."
             action={
-              <Button variant="primary" iconLeft="sparkles" onClick={onGenerate}>
+              <Button pill variant="primary" iconLeft="sparkles" onClick={onGenerate}>
                 Go to Generation
               </Button>
             }
@@ -771,40 +772,14 @@ export function ReviewWorkspace({
         {rail}
         <section aria-label="Draft editor" className="om-scroll rv-editor">
           <div className="rv-editor-inner">
-            <div className="rv-editor-bar">
-              <p className="rv-label">Draft editor · {positionOf('3')}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                iconLeft="chevron-left"
-                disabled={openingHidden}
-                onClick={() => select('2')}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                iconRight="chevron-right"
-                disabled={!sections.length}
-                onClick={() => select(sections[0].id)}
-              >
-                Next
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                iconLeft={IconRegistry.object.history}
-                data-walk="review.version-history"
-                onClick={openHistory}
-              >
-                Version history
-              </Button>
-            </div>
-            <div className="rv-heading-row">
-              <h2>{PART_TITLES['3']}</h2>
-              {redraftButton('3')}
-            </div>
+            <PartBar
+              title={PART_TITLES['3']}
+              position={positionOf('3')}
+              onPrevious={openingHidden ? undefined : () => select('2')}
+              onNext={sections.length ? () => select(sections[0].id) : undefined}
+              onHistory={openHistory}
+              action={redraftButton('3')}
+            />
             <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
             {restoredNotice('3')}
             {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
@@ -815,7 +790,7 @@ export function ReviewWorkspace({
                 title="No OFIs in the report yet"
                 description="Draft Opportunities for Improvement on the Generation tab, then accept them here."
                 action={
-                  <Button variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
+                  <Button pill variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
                     Go to Generation
                   </Button>
                 }
@@ -823,9 +798,7 @@ export function ReviewWorkspace({
             ) : (
               <>
                 <p className="rv-provenance">
-                  Drafted {formatDayTime(new Date(drafted.generated_at))} · {drafted.model} (
-                  {drafted.effort} effort) · prompt {drafted.prompt_version} · config{' '}
-                  {drafted.config_version}
+                  Drafted {formatDayTime(new Date(drafted.generated_at))}
                 </p>
                 <OfiReviewPanel
                   reference={reference}
@@ -850,19 +823,24 @@ export function ReviewWorkspace({
             <div className="rv-viewer is-empty">
               <p className="rv-muted">
                 {waiting
-                  ? `${waiting} suggested OFI${waiting === 1 ? ' is' : 's are'} waiting to be accepted.`
+                  ? `${waiting} suggested OFI${waiting === 1 ? ' is' : 's are'} waiting for you.`
                   : 'No suggested OFIs are waiting.'}{' '}
-                Each OFI's sources open below it.{' '}
                 {/* GN-13: once drafted, Section 3 is drafted again from here, not Generation. */}
                 {!jobs.drafted('3')
-                  ? 'Suggestions are drafted on Generation and accepted here.'
+                  ? "They're drafted on the Generation tab, then accepted here."
                   : canReview
-                    ? 'Suggestions are accepted here. Redraft, beside the heading, drafts them again and keeps the OFIs you accepted.'
-                    : 'Suggestions are accepted here.'}
+                    ? 'Redraft drafts them again and keeps the OFIs you accepted.'
+                    : ''}
               </p>
               {!jobs.drafted('3') && (
                 <div style={{ marginTop: '12px' }}>
-                  <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
+                  <Button
+                    pill
+                    variant="secondary"
+                    size="sm"
+                    iconLeft="sparkles"
+                    onClick={onGenerate}
+                  >
                     Go to Generation
                   </Button>
                 </div>
@@ -1019,6 +997,7 @@ export function ReviewWorkspace({
                   title="Your decision was not saved"
                   actions={
                     <Button
+                      pill
                       variant="secondary"
                       size="sm"
                       iconLeft={IconRegistry.action.regenerate}

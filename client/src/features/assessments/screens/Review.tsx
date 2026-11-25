@@ -20,8 +20,6 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
               style={{
                 fontSize: '11px',
                 fontWeight: '600',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
                 color: 'var(--text-muted)',
               }}
             >
@@ -48,7 +46,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
               >
                 <span
                   style={{
-                    fontFamily: 'var(--font-mono)',
+                    fontVariantNumeric: 'tabular-nums',
                     fontSize: '13px',
                     color: 'var(--text-muted)',
                     width: '30px',
@@ -121,8 +119,6 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                 style={{
                   fontSize: '13px',
                   fontWeight: '600',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
                   color: 'var(--text-muted)',
                 }}
               >
@@ -152,7 +148,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                     padding: '16px 18px',
                     background: 'var(--surface-card)',
                     border: '1px dashed var(--border-strong)',
-                    borderRadius: '8px',
+                    borderRadius: 'var(--radius-card)',
                   }}
                 >
                   <span style={{ flex: '1', fontSize: '16px', color: 'var(--text-secondary)' }}>
@@ -227,7 +223,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="1"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -242,7 +238,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -263,7 +259,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="1"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -276,7 +272,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -291,7 +287,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="3"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -312,7 +308,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="1"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -327,7 +323,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -348,7 +344,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="3"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -363,7 +359,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="3"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -378,7 +374,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="2"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -417,7 +413,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="1"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -439,7 +435,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -454,7 +450,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -469,7 +465,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="1"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -491,7 +487,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="1"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -528,7 +524,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                                 <sup
                                   data-cite="2"
                                   style={{
-                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
                                     fontSize: '11px',
                                     color: 'var(--ai-fg)',
                                     cursor: 'pointer',
@@ -550,7 +546,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="1"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -565,7 +561,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="2"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',
@@ -580,7 +576,7 @@ export function Review({ v }: { v: AssessmentWorkflow }) {
                               <sup
                                 data-cite="3"
                                 style={{
-                                  fontFamily: 'var(--font-mono)',
+                                  fontVariantNumeric: 'tabular-nums',
                                   fontSize: '11px',
                                   color: 'var(--ai-fg)',
                                   cursor: 'pointer',

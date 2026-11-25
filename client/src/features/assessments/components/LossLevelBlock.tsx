@@ -187,6 +187,7 @@ export function LossLevelBlock({
               <tr>
                 <td colSpan={4}>
                   <Button
+                    pill
                     variant="ghost"
                     size="sm"
                     iconLeft="plus"

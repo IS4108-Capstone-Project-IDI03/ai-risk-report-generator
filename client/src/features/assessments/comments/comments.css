@@ -38,7 +38,7 @@
 .dm-prose .dm-comment {
   background: var(--amber-50);
   border-bottom: 2px solid var(--amber-100);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
 }
 .dm-prose .dm-comment.is-active {
@@ -79,7 +79,7 @@
   padding: 10px 12px 12px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-sm);
   font-family: var(--font-sans);
   font-size: var(--text-small-size);
@@ -113,7 +113,7 @@
 .cm-card-summary:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
 }
 .cm-card-top {
   display: flex;
@@ -241,7 +241,7 @@
 .cm-confirm {
   margin-top: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--red-50);
 }
 .cm-confirm p {
@@ -327,7 +327,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border-default);
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   background: var(--surface-card);
   font: inherit;
   font-size: var(--text-small-size);
@@ -377,7 +377,7 @@
 }
 .cm-tag {
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
   color: var(--graphite-700);
 }

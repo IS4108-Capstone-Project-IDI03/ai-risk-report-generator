@@ -1,4 +1,4 @@
-import { Badge, Button, Icon, IconRegistry, ProgressBar } from '../../../design-system'
+import { Badge, Button, HelpTip, Icon, IconRegistry, ProgressBar } from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
@@ -15,7 +15,6 @@ const ROW_WALK: Record<string, string> = {
 function ReviewSummary({ summary }: { summary: FindingCounts }) {
   return (
     <section aria-label="Review summary" className="rv-summary">
-      <p className="rv-label">Review summary</p>
       <dl className="rv-summary-grid">
         {(
           [
@@ -139,7 +138,7 @@ export function ReviewSectionRail({
         <div className="rv-rail-edit">
           <Button
             variant="tonal"
-            size="sm"
+            pill
             iconLeft={IconRegistry.object.report}
             fullWidth
             disabled={editPending}
@@ -148,15 +147,23 @@ export function ReviewSectionRail({
           >
             {readOnly ? 'Open document' : 'Edit document'}
           </Button>
-          <p className="rv-muted">
-            {readOnly
-              ? 'Read the whole report as one document, and comment on any part of it.'
-              : 'Write and revise any section, drafted or not, in one document.'}
-          </p>
         </div>
       )}
       {summary && <ReviewSummary summary={summary} />}
-      <p className="rv-label rv-rail-head">Sections</p>
+      <div className="rv-rail-head">
+        <p className="rv-label">Sections</p>
+        {/* What the review states mean, behind the (?) rather than under the list. */}
+        <HelpTip label="What the section states mean">
+          <p>
+            A section <strong>needs review</strong> when a statement is unsupported, a source it
+            cites was withdrawn, or observations changed after it was drafted.
+          </p>
+          <p>
+            It's <strong>reviewed</strong> once every finding is accepted, edited or rejected, and{' '}
+            <strong>edited by you</strong> once you change or write it in the document.
+          </p>
+        </HelpTip>
+      </div>
       <div className="rv-rail-progress">
         <ProgressBar
           value={progress.percent}
@@ -281,12 +288,6 @@ export function ReviewSectionRail({
         {!hideOpening &&
           row('A', 'A', 'Site Photos', <span className="rv-rail-completion">Appendix A</span>)}
       </ul>
-      <p className="rv-rail-legend">
-        A section needs review when a statement is unsupported, a source it cites has been
-        withdrawn, or observations changed after it was drafted. It is reviewed once every finding
-        is accepted, edited or rejected, and edited by you once you change or write it in the
-        document.
-      </p>
     </nav>
   )
 }

@@ -180,6 +180,7 @@ export function OfiBlock({
         <div className="rv-figures-actions">
           <span className="rv-muted">Amounts in US$. Totals update when saved.</span>
           <Button
+            pill
             variant="primary"
             size="sm"
             disabled={busy}

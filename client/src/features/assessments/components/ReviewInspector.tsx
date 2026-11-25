@@ -76,6 +76,7 @@ export function ReviewInspector({
       <aside aria-label={label} className="om-scroll" style={style}>
         <div className="rv-inspector-ask">
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft="message-circle-question"

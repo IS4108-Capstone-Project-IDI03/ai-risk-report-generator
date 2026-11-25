@@ -97,6 +97,7 @@ export function AppendixPhotos({ reference, canEdit }: { reference: string; canE
                     ) : (
                       canEdit && (
                         <Button
+                          pill
                           variant="secondary"
                           size="sm"
                           iconLeft="plus"

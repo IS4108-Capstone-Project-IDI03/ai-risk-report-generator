@@ -5,8 +5,8 @@ import { ReviewInspector, type InspectorTab } from './ReviewInspector'
 
 // Why the sample assessment's Ask tab cannot answer (AS-01 AC7).
 const SAMPLE_UNAVAILABLE =
-  "Answers are searched through the gateway, from a saved assessment's observations, standards " +
-  'and past reports. This sample assessment runs without the gateway, so it cannot be asked about.'
+  "Answers come from a saved assessment's observations, standards and past reports, so this " +
+  "sample assessment can't be asked about."
 
 export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
   const [tab, setTab] = useState<InspectorTab>('evidence')
@@ -43,8 +43,6 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                 style={{
                   fontSize: '11px',
                   fontWeight: '600',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
                   color: 'var(--status-moderate-fg)',
                 }}
               >
@@ -57,7 +55,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                   style={{
                     background: 'var(--surface-card)',
                     border: '1px solid var(--border-default)',
-                    borderRadius: '5px',
+                    borderRadius: 'var(--radius-field)',
                     padding: '12px 14px',
                     marginBottom: '10px',
                   }}
@@ -103,7 +101,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                         padding: '8px 10px',
                         minHeight: '34px',
                         border: '1px solid var(--border-default)',
-                        borderRadius: '5px',
+                        borderRadius: 'var(--radius-field)',
                         background: 'var(--surface-card)',
                         color: 'var(--text-link)',
                         fontFamily: 'inherit',
@@ -124,7 +122,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                         padding: '8px 10px',
                         minHeight: '34px',
                         border: '1px solid var(--border-default)',
-                        borderRadius: '5px',
+                        borderRadius: 'var(--radius-field)',
                         background: 'var(--surface-card)',
                         color: 'var(--text-link)',
                         fontFamily: 'inherit',
@@ -149,8 +147,6 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
           style={{
             fontSize: '11px',
             fontWeight: '600',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
             color: 'var(--text-muted)',
           }}
         >
@@ -158,7 +154,11 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
         </span>
         <span style={{ flex: '1' }}></span>
         <span
-          style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}
+          style={{
+            fontVariantNumeric: 'tabular-nums',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+          }}
         >
           {v.selEvLabel}
         </span>
@@ -204,8 +204,6 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
           style={{
             fontSize: '11px',
             fontWeight: '600',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
             color: 'var(--text-muted)',
           }}
         >
@@ -218,7 +216,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
             <div
               style={{
                 border: '1px solid var(--border-default)',
-                borderRadius: '5px',
+                borderRadius: 'var(--radius-field)',
                 overflow: 'hidden',
               }}
             >
@@ -239,7 +237,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                     <Icon name="image" size={18} color="var(--graphite-500)"></Icon>
                     <span
                       style={{
-                        fontFamily: 'var(--font-mono)',
+                        fontVariantNumeric: 'tabular-nums',
                         fontSize: '12px',
                         color: 'var(--text-muted)',
                       }}
@@ -267,7 +265,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                   <span style={{ flex: '1' }}></span>
                   <span
                     style={{
-                      fontFamily: 'var(--font-mono)',
+                      fontVariantNumeric: 'tabular-nums',
                       fontSize: '12px',
                       color: 'var(--text-muted)',
                     }}
@@ -291,7 +289,7 @@ export function EvidencePanel({ v }: { v: AssessmentWorkflow }) {
                   style={{
                     display: 'block',
                     marginTop: '6px',
-                    fontFamily: 'var(--font-mono)',
+                    fontVariantNumeric: 'tabular-nums',
                     fontSize: '12px',
                     color: 'var(--text-muted)',
                   }}

@@ -1,15 +1,13 @@
 // The note above a figures form while it holds the model's proposed figures (GN-03
-// addendum, AC13): who proposed them, that nothing is computed until confirmed, and why
+// addendum, AC13): that they were proposed, that nothing is computed until confirmed, and why
 // each figure was proposed. Used by RiskQualityFigures and LossEstimateFigures.
 import { Badge } from '../../../design-system'
-import type { FigureProposal, ProposedWhy } from '../api'
+import type { ProposedWhy } from '../api'
 
 export function ProposalNote({
-  proposal,
   reasons,
   walk,
 }: {
-  proposal: FigureProposal<object>
   // Each still-proposed figure's label (e.g. "Fire Protection, current") and why.
   reasons: [string, ProposedWhy][]
   // The walkthrough tag (F-12), as data-walk.
@@ -21,10 +19,8 @@ export function ProposalNote({
         <Badge tone="ai" icon="sparkles">
           AI proposal
         </Badge>{' '}
-        Figures marked in violet were proposed by {proposal.provenance.model} from the observations
-        and drafted sections. Check each one: nothing is computed until you confirm.
-        {/* The eval found proposals run below Marsh's figures (docs/devguides/DECISIONS.md, 20 Oct). */}{' '}
-        Proposals tend to score low: compare each with your own judgement.
+        Figures in violet were proposed from the observations and drafted sections. Check each one,
+        as nothing is calculated until you confirm it.
       </p>
       {reasons.length > 0 && (
         <details>

@@ -3,15 +3,15 @@
    workflow's review styles (useAssessmentWorkflow). */
 .rv-label {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--graphite-700);
 }
+/* Dates, counts and editions that line up: the app font with even-width figures (v2 section 4). */
 .rv-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-mono-size);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .rv-muted {
   margin: 0;
@@ -20,33 +20,34 @@
   color: var(--text-secondary);
 }
 
-/* Section rail */
-/* Edit document (RV-08), above the review summary. */
+/* Section rail: Edit document, the review counts, then the parts of the report as rows of a
+   number tile, the name and one line of state (v2 section row look). */
 .rv-rail-edit {
+  padding: 16px 16px 4px;
+}
+.rv-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px 8px;
+}
+.rv-rail-progress {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.rv-rail-edit .rv-muted {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-}
-.rv-rail-head {
-  padding: 16px 18px 10px;
-}
-.rv-rail-progress {
-  padding: 0 18px 14px;
+  padding: 0 16px 12px;
 }
 .rv-rail-progress .rv-muted {
-  margin-top: 8px;
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
 }
 .rv-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
-  padding: 0;
+  padding: 0 8px 24px;
   list-style: none;
 }
 .rv-rail-row {
@@ -54,31 +55,44 @@
   align-items: flex-start;
   gap: 10px;
   width: 100%;
-  padding: 10px 18px 10px 16px;
+  min-height: 44px;
+  padding: 8px;
   border: none;
-  border-left: 2px solid transparent;
+  border-radius: var(--radius-field);
   background: transparent;
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  transition: background 120ms var(--ease-standard);
+  transition: background var(--duration-fast) var(--ease-standard);
 }
-.rv-rail-row:hover {
-  background: var(--surface-hover);
+@media (hover: hover) {
+  .rv-rail-row:hover {
+    background: var(--graphite-100);
+  }
 }
 .rv-rail-row[aria-current='true'] {
-  border-left-color: var(--action-primary);
-  background: var(--surface-selected);
+  background: var(--ink-50);
 }
 .rv-rail-row:focus-visible {
   outline-offset: -2px;
 }
+/* The part's number in a 28 px tile, as the Generation tab's section rows. */
 .rv-rail-number {
-  flex: 0 0 24px;
-  font-family: var(--font-mono);
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
   font-size: 13px;
-  line-height: 20px;
-  color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rv-rail-row[aria-current='true'] .rv-rail-number {
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
 }
 .rv-rail-body {
   flex: 1;
@@ -86,17 +100,23 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding-top: 4px;
 }
 .rv-rail-title {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 20px;
-  color: var(--text-body);
+  font-weight: 500;
+  color: var(--graphite-900);
+}
+.rv-rail-row[aria-current='true'] .rv-rail-title {
+  font-weight: 600;
+  color: var(--marsh-navy);
 }
 .rv-rail-states {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 4px 6px;
 }
 .rv-rail-regenerating {
   display: inline-flex;
@@ -105,17 +125,9 @@
   flex-basis: 100%;
 }
 .rv-rail-completion {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-  color: var(--text-secondary);
-}
-.rv-rail-legend {
-  margin: 10px 0 0;
-  padding: 16px 18px 24px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
 }
 
 /* Draft editor */
@@ -129,45 +141,55 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px clamp(16px, 2vw, 28px) 48px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 944px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 2.4vw, 32px) 56px;
 }
-.rv-editor-bar {
+/* A part's title with its tools at the right (PartBar): Redraft, Version history and the
+   "4 of 10" stepper. The tools wrap under a long title on a narrow column. */
+.rv-part-bar {
   display: flex;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.rv-part-tools {
+  display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
-}
-.rv-editor-bar .rv-label {
-  flex: 1;
-  font-size: 13px;
-}
-/* A heading with an action at its right, e.g. Redraft on Section 3 (GN-13). */
-.rv-heading-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
+  margin-left: auto;
 }
 .rv-heading-title {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  min-height: 36px;
+}
+/* On a phone the tools take their own row under the title, so it keeps the width. */
+@media (max-width: 759px) {
+  .rv-part-bar {
+    flex-wrap: wrap;
+  }
 }
 .rv-editor h2 {
   margin: 0;
-  font-size: var(--text-h2-size);
-  line-height: var(--text-h2-lh);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--marsh-navy);
 }
 .rv-provenance {
   margin: -8px 0 0;
-  font-family: var(--font-mono);
   font-size: 13px;
-  line-height: 19px;
-  color: var(--text-muted);
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 .rv-statement {
   margin: 0;
@@ -207,12 +229,13 @@
   padding: 0 3px;
   vertical-align: text-top;
   border: 1px solid transparent;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: pointer;
   transition: var(--transition-control);
@@ -226,11 +249,10 @@
   color: var(--text-inverse);
 }
 .rv-subsection-note {
-  padding: 14px 20px;
+  padding: 16px 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 .rv-subsection-note strong {
   display: block;
@@ -239,7 +261,7 @@
 
 /* Source panel */
 .rv-panel-section {
-  padding: 16px 18px;
+  padding: 16px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .rv-panel-section:last-child {
@@ -248,9 +270,25 @@
 }
 .rv-panel-head {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 8px;
+}
+/* A heading's count, as the app's count pills. */
+.rv-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .rv-panel-head .rv-label {
   flex: 1;
@@ -277,8 +315,7 @@
   padding: 14px 16px 16px;
   background: var(--surface-card);
   border: 1px solid var(--border-focus);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-card);
   scroll-margin: 16px;
 }
 .rv-viewer:focus {
@@ -287,10 +324,11 @@
 .rv-viewer:focus-visible {
   outline: 2px solid var(--border-focus);
 }
+/* Nothing open yet: one quiet line, no box. */
 .rv-viewer.is-empty {
-  border-style: dashed;
-  border-color: var(--border-strong);
-  box-shadow: none;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 .rv-viewer-head {
   display: flex;
@@ -308,13 +346,13 @@
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  padding: 0 4px;
-  border-radius: var(--radius-xs);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: var(--weight-medium);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 .rv-viewer h3 {
   margin: 0;
@@ -376,8 +414,8 @@
 }
 .rv-claim {
   padding: 10px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .rv-claim.is-active {
@@ -445,8 +483,8 @@
 }
 
 .rv-observation-card {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   overflow: hidden;
   background: var(--surface-card);
 }
@@ -476,7 +514,7 @@
   width: 96px;
   height: 72px;
   object-fit: cover;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-tile);
   background: var(--surface-sunken);
 }
 .rv-appendix-caption {
@@ -487,10 +525,10 @@
 }
 .rv-appendix-input {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
   color: var(--text-primary);
   font: inherit;
@@ -514,8 +552,8 @@
 .rv-appendix-photo {
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
 }
 .rv-appendix-photo img {
@@ -563,7 +601,7 @@
 .rv-ai-text {
   padding: 8px 12px;
   border-left: 2px solid var(--ai-border);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-radius: 0 8px 8px 0;
   background: var(--ai-bg);
 }
 .rv-ai-text + .rv-ai-text {
@@ -599,10 +637,10 @@ mark.rv-ai-unsupported {
   font-family: var(--font-sans);
 }
 .rv-finding-by {
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 .rv-finding-gap {
   flex: 1;
@@ -632,11 +670,10 @@ mark.rv-ai-unsupported {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 16px 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   font-family: var(--font-serif);
 }
 .rv-written {
@@ -758,46 +795,58 @@ mark.rv-ai-unsupported {
   overflow-wrap: anywhere;
 }
 
-/* The review summary at the top of the section rail. */
+/* The review summary at the top of the section rail: one white card of four counts side by
+   side (label over number), with how many findings are decided under it. */
 .rv-summary {
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 16px 0;
 }
 .rv-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 10px 0 8px;
-}
-.rv-summary-grid div {
-  padding: 6px 10px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 10px 4px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
+.rv-summary-grid div {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.rv-summary-grid div + div {
+  border-left: 1px solid var(--graphite-100);
+}
 .rv-summary-grid dt {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--graphite-600);
 }
 .rv-summary-grid dd {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 20px;
-  line-height: 26px;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--marsh-navy);
 }
 .rv-summary .rv-muted {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
 }
 
 /* The review history in the source panel. */
 .rv-history-item {
   padding: 10px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .rv-history-head {
@@ -817,10 +866,10 @@ mark.rv-ai-unsupported {
 }
 .rv-history-by {
   margin: 2px 0 0;
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 .rv-history-item .rv-passage {
   max-height: 30vh;
@@ -835,7 +884,7 @@ mark.rv-ai-unsupported {
 .rv-dialog-ai {
   padding: 12px 14px;
   border: 1px solid var(--ai-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-field);
   background: var(--ai-bg);
 }
 
@@ -894,9 +943,10 @@ mark.rv-ai-unsupported {
   width: 120px;
   font-weight: 600;
 }
-/* Marsh's own legend colours (sampled from the Global PRE template's maturity table).
-   The design system has no such bright set, so they are kept here. Marsh sets white text
-   on them; dark text is used instead, since white on these fills is below 4.5:1. */
+/* Marsh's own legend colours (sampled from the Global PRE template's maturity table), kept
+   exactly as the report prints them: the export draws this table with these rules, and the
+   --report-* tokens are close but not the same. Marsh sets white text on them; dark text is
+   used instead, since white on these fills is below 4.5:1. */
 .rv-maturity {
   --rank-undeveloped: #f25d4c;
   --rank-formalized: #ff9400;
@@ -933,7 +983,7 @@ mark.rv-ai-unsupported {
   gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--status-moderate-fg);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--status-moderate-bg);
 }
 
@@ -1078,13 +1128,13 @@ mark.rv-ai-unsupported {
 .rv-chart-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .rv-chart-empty {
   margin: var(--space-6) 0 0;
   padding: var(--space-6);
   border: 1px dashed var(--border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   color: var(--text-muted);
 }
 /* The chart's values for screen readers (AC5). */
@@ -1135,7 +1185,7 @@ mark.rv-ai-unsupported {
 }
 .rv-ram-table td[class^='rv-ram-p'] {
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--graphite-900);
 }
 .rv-ram-p1 {
   background: var(--report-priority-1);
@@ -1187,11 +1237,11 @@ mark.rv-ai-unsupported {
 }
 .rv-band-a {
   background: var(--report-blue);
-  color: #fff;
+  color: var(--text-inverse);
 }
 .rv-band-b {
   background: var(--report-green);
-  color: #fff;
+  color: var(--text-inverse);
 }
 .rv-band-c {
   background: var(--report-amber);
@@ -1201,7 +1251,7 @@ mark.rv-ai-unsupported {
 }
 .rv-band-e {
   background: var(--report-red);
-  color: #fff;
+  color: var(--text-inverse);
 }
 
 /* Beside the scores table: the legend, and under it the Benchmarking box with the
@@ -1232,7 +1282,7 @@ mark.rv-ai-unsupported {
 .rv-proposal-note {
   padding: var(--space-5) var(--space-6);
   border: 1px solid var(--ai-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--ai-bg);
 }
 .rv-proposal-note p {
@@ -1286,22 +1336,24 @@ mark.rv-ai-unsupported {
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-default);
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-md);
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  transition: background 120ms var(--ease-standard);
+  transition: background var(--duration-fast) var(--ease-standard);
 }
-.rv-version-row:hover {
-  background: var(--surface-hover);
+@media (hover: hover) {
+  .rv-version-row:hover {
+    background: var(--graphite-50);
+  }
 }
 .rv-version-row[aria-current='true'] {
-  border-left-color: var(--action-primary);
-  background: var(--surface-selected);
+  border-color: var(--ink-200);
+  background: var(--ink-50);
 }
 .rv-version-name {
   display: flex;
@@ -1322,11 +1374,10 @@ mark.rv-ai-unsupported {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 20px 18px;
+  padding: 16px 20px 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 .rv-diff-summary {
   margin: 0;
@@ -1342,10 +1393,10 @@ mark.rv-ai-unsupported {
   padding: 0 0 10px;
   list-style: none;
   border-bottom: 1px solid var(--border-subtle);
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite-600);
 }
 .rv-diff-legend li {
   display: inline-flex;
@@ -1401,12 +1452,10 @@ mark.rv-ai-unsupported {
 }
 .rv-diff-tag {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
   line-height: 16px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--graphite-600);
 }
 .rv-diff-text {
   margin: 0;
@@ -1430,7 +1479,7 @@ mark.rv-ai-unsupported {
 .rv-diff-block.is-ordered .rv-diff-text::before {
   content: counter(rv-diff-item) '.';
   margin-right: 8px;
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -1458,13 +1507,13 @@ mark.rv-ai-unsupported {
 }
 .rv-diff-cite {
   margin-left: 2px;
-  padding: 0 3px;
-  border-radius: var(--radius-xs);
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   vertical-align: text-top;
   line-height: 1;
 }
@@ -1474,4 +1523,90 @@ mark.rv-ai-unsupported {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Review's own tables (Sections 4, 5 and 6, the OFI tables) in the app's table look: one white
+   card, radius 16, a pale header row with 12 px labels and hairlines between rows. Scoped to the
+   review workspace (.rv-editor): the document editor and the export draw these tables as the
+   report prints them. */
+.rv-editor .rv-maturity-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+}
+/* Rounded by its corner cells, not overflow: hidden, which would clip a wide table that
+   should scroll sideways in its box instead. */
+.rv-editor .rv-maturity-table tr:first-child > :first-child {
+  border-top-left-radius: var(--radius-card);
+}
+.rv-editor .rv-maturity-table tr:first-child > :last-child {
+  border-top-right-radius: var(--radius-card);
+}
+.rv-editor .rv-maturity-table th,
+.rv-editor .rv-maturity-table td {
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.rv-editor .rv-maturity-table tr:last-child > th,
+.rv-editor .rv-maturity-table tr:last-child > td {
+  border-bottom: none;
+}
+.rv-editor .rv-maturity-table thead th {
+  background: var(--graphite-50);
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font-size: 12px;
+  line-height: 16px;
+}
+.rv-editor .rv-maturity-table tbody th {
+  color: var(--graphite-900);
+}
+.rv-editor .rv-figures-table td:has(input) {
+  padding: 6px 8px;
+}
+.rv-editor .rv-legend {
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.rv-editor .rv-legend h4 {
+  background: var(--graphite-50);
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font-size: 12px;
+}
+
+/* Version history's heading: Back beside "Version history" over the part's title. */
+.rv-version-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rv-version-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+/* A segmented control in the editor column hugs its options rather than filling the row. */
+.rv-editor-inner > .ds-segmented,
+.rv-review-row > .ds-segmented {
+  align-self: flex-start;
+}
+/* 44 px tap targets for the stepper and Version history on a phone; the buttons size themselves
+   inline, hence !important (as the record header's stepper does). */
+@media (max-width: 759px) {
+  .rv-part-tools .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+/* Loading and error states before the workspace is drawn, on the page's side gutter. */
+.rv-state {
+  margin: 0;
+  padding: 24px var(--page-gutter, 32px);
 }

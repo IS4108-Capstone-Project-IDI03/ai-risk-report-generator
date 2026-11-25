@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { Button, Callout, Dialog, IconRegistry, toast } from '../../../design-system'
+import { Button, Callout, Dialog, HelpTip, IconRegistry, toast } from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import type { AskDrafting } from '../ask/AskPanel'
@@ -542,7 +542,24 @@ function DocumentBody({
     <DocumentPartsContext.Provider value={located}>
       <div style={wrapStyle} className="dm-wrap">
         <nav aria-label="Document outline" className="om-scroll dm-outline" style={railStyle}>
-          <p className="rv-label rv-rail-head">Outline</p>
+          <div className="rv-rail-head">
+            <p className="rv-label">Outline</p>
+            {/* How the document behaves, behind the (?) rather than under the outline. */}
+            <HelpTip label="About this document">
+              {readOnly ? (
+                <p>
+                  You can read the whole report and comment on any part of it. Only its assigned
+                  engineer changes the text.
+                </p>
+              ) : (
+                <>
+                  <p>Headings and parts filled in elsewhere stay as they are.</p>
+                  <p>Violet text is still as the draft wrote it. Once you change it, it's yours.</p>
+                  <p>Changes save when you pause.</p>
+                </>
+              )}
+            </HelpTip>
+          </div>
           <ol className="dm-outline-list">
             {report.parts.map((part) => (
               <li key={part.id}>
@@ -560,11 +577,6 @@ function DocumentBody({
               </li>
             ))}
           </ol>
-          <p className="rv-rail-legend">
-            {readOnly
-              ? 'You can read the whole report and comment on any part of it. Only its assigned engineer changes the text.'
-              : 'Headings and parts filled in elsewhere stay as they are. Violet text is still as the draft wrote it; once you change it, it is yours. Changes save when you pause.'}
-          </p>
         </nav>
         <section
           aria-label="Document editor"
@@ -574,7 +586,13 @@ function DocumentBody({
         >
           <div className="dm-head" ref={header}>
             <div className="dm-bar">
-              <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={returnToReview}>
+              <Button
+                pill
+                variant="ghost"
+                size="sm"
+                iconLeft="chevron-left"
+                onClick={returnToReview}
+              >
                 Return to review
               </Button>
               <div className="dm-save-row">
@@ -596,6 +614,7 @@ function DocumentBody({
                 <Tip id="document.save-status" />
               </div>
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
@@ -606,6 +625,7 @@ function DocumentBody({
               </Button>
               {!readOnly && (
                 <Button
+                  pill
                   variant="primary"
                   size="sm"
                   iconLeft={IconRegistry.editor.save}
@@ -671,7 +691,7 @@ function DocumentBody({
                   tone="warning"
                   title="Your latest changes were not saved"
                   actions={
-                    <Button variant="secondary" size="sm" onClick={onReload}>
+                    <Button pill variant="secondary" size="sm" onClick={onReload}>
                       Reload the document
                     </Button>
                   }
@@ -779,10 +799,11 @@ function DocumentBody({
           <div
             style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}
           >
-            <Button variant="secondary" disabled={leaveBusy} onClick={() => setLeaving(null)}>
+            <Button pill variant="secondary" disabled={leaveBusy} onClick={() => setLeaving(null)}>
               Keep editing
             </Button>
             <Button
+              pill
               variant="danger"
               disabled={leaveBusy}
               onClick={() => {
@@ -796,6 +817,7 @@ function DocumentBody({
             </Button>
             {status !== 'conflict' && (
               <Button
+                pill
                 variant="primary"
                 loading={leaveBusy}
                 onClick={async () => {

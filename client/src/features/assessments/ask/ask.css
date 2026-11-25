@@ -58,7 +58,7 @@
   max-width: 92%;
   margin: 0;
   padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--surface-sunken);
   color: var(--text-primary);
   font-size: var(--text-small-size);
@@ -128,18 +128,18 @@
 .ask-link:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .ask-tag {
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
   color: var(--graphite-700);
 }
 .ask-composer .ask-passage {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--surface-sunken);
 }
 .ask-answer {
@@ -149,7 +149,7 @@
   padding: var(--space-5) var(--space-6);
   border: 1px solid var(--ai-border);
   border-left: 3px solid var(--ai-fg);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .ask-answer-head {
@@ -206,7 +206,7 @@
    chosen, so the line is marked but not coloured as a warning. */
 .ask-differs {
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--surface-sunken);
 }
 .ask-differs-label {
@@ -228,7 +228,7 @@
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--surface-sunken);
   color: var(--text-secondary);
   font-size: var(--text-small-size);
@@ -252,11 +252,9 @@
 }
 .ask-before-label {
   margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-caption-size);
+  color: var(--graphite-600);
+  font-size: 12px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .ask-before-text {
   margin: 0;
@@ -370,17 +368,19 @@
 .ask-composer[data-walk-on] .ask-composer-actions button[type='submit'] {
   pointer-events: auto;
 }
-/* The hint takes at least 8rem: where the buttons and Draft text's help (?) leave it less, it
-   moves to a line of its own above them instead of wrapping into a tall sliver (F-13). */
+/* The keyboard hint is one quiet line of its own under the box, so the buttons keep a row to
+   themselves instead of squeezing it into a tall sliver (F-13). */
 .ask-hint {
-  flex: 1 1 8rem;
-  margin-right: auto;
-  font-size: var(--text-caption-size);
+  flex: 1 0 100%;
+  order: -1;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
 }
 /* No keyboard hint where there is likely no keyboard. */
 @media (pointer: coarse) {
   .ask-hint {
-    visibility: hidden;
+    display: none;
   }
 }
 .ask-sr-only {
@@ -433,14 +433,14 @@
   gap: var(--space-2);
 }
 .rv-ask-offer-buttons > * {
-  box-shadow: 0 12px 32px rgb(0 15 71 / 0.16);
+  box-shadow: var(--shadow-popover);
 }
 .rv-ask-hint {
   margin: 0;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-popover);
   background: var(--surface-card);
-  box-shadow: 0 12px 32px rgb(0 15 71 / 0.16);
+  box-shadow: var(--shadow-popover);
   color: var(--text-secondary);
   font-size: var(--text-caption-size);
   line-height: var(--text-caption-lh);
@@ -451,7 +451,7 @@
   background-color: var(--ink-100);
 }
 [data-asked] {
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--ink-50);
 }
 @supports selector(::highlight(ask-passage)) {
@@ -476,7 +476,7 @@
   margin-bottom: var(--space-6);
 }
 .dm-asked {
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--ink-100);
 }
 .dm-asked.is-pending {
@@ -490,7 +490,7 @@
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--surface-sunken);
   color: var(--text-secondary);
   font-size: var(--text-small-size);
@@ -572,7 +572,7 @@
   padding: var(--space-5) var(--space-6);
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .ask-gaps-top {
@@ -617,7 +617,7 @@
 }
 .ask-gap-count {
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
   color: var(--graphite-700);
   font-weight: var(--weight-semibold);

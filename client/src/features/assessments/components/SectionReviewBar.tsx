@@ -1,4 +1,4 @@
-import { Button, Callout, IconRegistry } from '../../../design-system'
+import { Button, Callout, IconRegistry, SegmentedControl } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import type { ReviewSection } from '../api'
 import { formatDayTime } from '../format'
@@ -50,6 +50,7 @@ export function SectionReviewBar({
           {canReview && (
             <div className="rv-review-actions" data-walk="review.actions">
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.accept}
@@ -61,6 +62,7 @@ export function SectionReviewBar({
                 {`Bulk accept (${findings.pending})`}
               </Button>
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.regenerate}
@@ -100,27 +102,19 @@ export function SectionReviewBar({
             it leaves the saved draft as it is.
           </p>
           <div className="rv-review-row rv-replacement-row">
-            <div className="rv-segmented" role="group" aria-label="Draft shown">
-              <Button
-                variant={view === 'saved' ? 'tonal' : 'ghost'}
-                size="sm"
-                aria-pressed={view === 'saved'}
-                onClick={() => onView('saved')}
-              >
-                Saved draft
-              </Button>
-              <Button
-                variant={view === 'replacement' ? 'tonal' : 'ghost'}
-                size="sm"
-                aria-pressed={view === 'replacement'}
-                onClick={() => onView('replacement')}
-              >
-                Replacement
-              </Button>
-            </div>
+            <SegmentedControl
+              ariaLabel="Draft shown"
+              value={view}
+              onChange={onView}
+              options={[
+                { value: 'saved', label: 'Saved draft' },
+                { value: 'replacement', label: 'Replacement' },
+              ]}
+            />
             {canReview && (
               <div className="rv-review-actions">
                 <Button
+                  pill
                   variant="danger-tonal"
                   size="sm"
                   iconLeft={IconRegistry.action.discard}
@@ -131,6 +125,7 @@ export function SectionReviewBar({
                   Discard replacement
                 </Button>
                 <Button
+                  pill
                   variant="primary"
                   size="sm"
                   iconLeft={IconRegistry.action.accept}

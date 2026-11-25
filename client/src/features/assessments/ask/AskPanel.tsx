@@ -288,6 +288,7 @@ function Answer({
             actions={
               canAsk ? (
                 <Button
+                  pill
                   variant="secondary"
                   size="sm"
                   iconLeft="rotate-ccw"
@@ -396,7 +397,13 @@ function ProposalCard({
   }
   const redraft =
     drafting && !ask.busy && !ask.archived ? (
-      <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={() => ask.redraft(item)}>
+      <Button
+        pill
+        variant="secondary"
+        size="sm"
+        iconLeft="refresh-cw"
+        onClick={() => ask.redraft(item)}
+      >
         Draft again
       </Button>
     ) : undefined
@@ -516,6 +523,7 @@ function ProposalCard({
           )}
           <span className="ask-proposal-gap" />
           <Button
+            pill
             variant="primary"
             size="sm"
             iconLeft={kind === 'draft' ? 'text-cursor-input' : 'replace'}
@@ -537,6 +545,7 @@ function ProposalCard({
           <span>{settled}</span>
           {proposal?.canUndo && drafting && (
             <Button
+              pill
               variant="ghost"
               size="sm"
               iconLeft="undo-2"
@@ -767,7 +776,13 @@ function GapList({
             title="The check stopped"
             actions={
               canAsk ? (
-                <Button variant="secondary" size="sm" iconLeft="rotate-ccw" onClick={onAskAgain}>
+                <Button
+                  pill
+                  variant="secondary"
+                  size="sm"
+                  iconLeft="rotate-ccw"
+                  onClick={onAskAgain}
+                >
                   Check again
                 </Button>
               ) : undefined
@@ -910,10 +925,16 @@ function DeleteConversationDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <span ref={buttons} className="ask-delete-actions">
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="danger" iconLeft="trash-2" loading={busy} onClick={() => run(onDelete)}>
+          <Button
+            pill
+            variant="danger"
+            iconLeft="trash-2"
+            loading={busy}
+            onClick={() => run(onDelete)}
+          >
             Delete conversation
           </Button>
         </span>
@@ -1027,9 +1048,7 @@ export function AskPanel({
           icon="message-circle-question"
           title="Ask is unavailable"
           description={
-            unavailable ??
-            ask?.reason ??
-            'Answers are searched through the gateway, which this view cannot reach.'
+            unavailable ?? ask?.reason ?? "This assessment isn't saved, so it can't be asked about."
           }
         />
       </div>
@@ -1138,7 +1157,6 @@ export function AskPanel({
         </div>
       )}
       <div className="ask-intro">
-        <h3 className="rv-label">Ask about this assessment</h3>
         <div className="ask-scope">
           <p className="rv-muted" data-walk="ask.scope">
             {scopeLine(ask)}
@@ -1224,6 +1242,7 @@ export function AskPanel({
               </p>
               <div className="ask-guide-buttons">
                 <Button
+                  pill
                   variant="secondary"
                   size="sm"
                   iconLeft="list-checks"
@@ -1234,6 +1253,7 @@ export function AskPanel({
                   What should this section cover?
                 </Button>
                 <Button
+                  pill
                   variant="secondary"
                   size="sm"
                   iconLeft="list-x"
@@ -1313,6 +1333,7 @@ export function AskPanel({
               </span>
               {ask.busy ? (
                 <Button
+                  pill
                   type="button"
                   variant="secondary"
                   size="sm"
@@ -1323,6 +1344,7 @@ export function AskPanel({
                 </Button>
               ) : rewriting ? (
                 <Button
+                  pill
                   type="submit"
                   variant="primary"
                   size="sm"
@@ -1337,6 +1359,7 @@ export function AskPanel({
                     <>
                       <Tip id="ask.draft-text" align="right" />
                       <Button
+                        pill
                         type="button"
                         variant="secondary"
                         size="sm"
@@ -1351,6 +1374,7 @@ export function AskPanel({
                     </>
                   )}
                   <Button
+                    pill
                     type="submit"
                     variant="primary"
                     size="sm"

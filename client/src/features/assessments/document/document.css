@@ -32,9 +32,8 @@
   color: var(--text-secondary);
 }
 .dm-save-time {
-  font-family: var(--font-mono);
-  font-size: var(--text-mono-size);
-  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite-600);
 }
 .dm-tools {
   display: flex;
@@ -108,9 +107,8 @@
 .dm-section {
   padding: 24px clamp(16px, 3vw, 40px) 28px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   scroll-margin-top: 16px;
 }
 .dm-section + .dm-section {
@@ -280,7 +278,7 @@
 /* Find matches take the selection's ink, not a status colour. */
 .dm-match {
   background: var(--ink-100);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .dm-match.is-current {
   background: var(--ink-200);
@@ -344,35 +342,41 @@
   color: var(--text-muted);
 }
 .dm-outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
-  padding: 0;
+  padding: 0 8px 24px;
   list-style: none;
 }
 
 /* Below the stacked breakpoint the outline is a strip of sections above the
    page, which then scrolls with the workspace. */
 @media (max-width: 1080px) {
-  .dm-outline .rv-rail-head,
-  .dm-outline .rv-rail-legend {
+  .dm-outline .rv-rail-head {
     display: none;
   }
+  /* A strip of parts, each a pill with its number tile; the open one tinted ink. */
   .dm-outline-list {
-    display: flex;
-    gap: 2px;
+    flex-direction: row;
+    gap: 4px;
     overflow-x: auto;
-    padding: 4px 8px;
+    padding: 8px 12px;
   }
   .dm-outline-list li {
     flex: 0 0 auto;
     max-width: 240px;
   }
   .dm-outline-list .rv-rail-row {
-    padding: 8px 12px;
-    border-left: none;
-    border-bottom: 2px solid transparent;
+    align-items: center;
+    padding: 6px 14px 6px 6px;
+    border-radius: var(--radius-pill);
   }
-  .dm-outline-list .rv-rail-row[aria-current='true'] {
-    border-bottom-color: var(--action-primary);
+  .dm-outline-list .rv-rail-number {
+    border-radius: var(--radius-pill);
+  }
+  .dm-outline-list .rv-rail-body {
+    padding-top: 0;
   }
   .dm-scroll {
     overflow: visible;

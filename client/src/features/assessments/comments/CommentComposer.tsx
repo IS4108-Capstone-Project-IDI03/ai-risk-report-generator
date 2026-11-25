@@ -81,7 +81,7 @@ export function CommentComposer({
           />
         )}
         {onCancel && (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+          <Button pill variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
         )}

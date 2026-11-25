@@ -1,4 +1,4 @@
-import { Button, IconRegistry } from '../../../design-system'
+import { PartBar } from './PartBar'
 
 // The draft editor's frame for a part of the report that is not one of
 // sections 3-12 (GN-07): Sections 1 and 2, and Appendix A. Same bar and
@@ -29,53 +29,15 @@ export function ReportPart({
   return (
     <section aria-label="Draft editor" className="om-scroll rv-editor">
       <div className="rv-editor-inner">
-        <div className="rv-editor-bar">
-          <p className="rv-label">Draft editor · {position}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft="chevron-left"
-            disabled={!onPrevious}
-            onClick={onPrevious}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconRight="chevron-right"
-            disabled={!onNext}
-            onClick={onNext}
-          >
-            Next
-          </Button>
-          {onHistory && (
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft={IconRegistry.object.history}
-              data-walk="review.version-history"
-              onClick={onHistory}
-            >
-              Version history
-            </Button>
-          )}
-        </div>
-        {action || help ? (
-          <div className="rv-heading-row">
-            {help ? (
-              <span className="rv-heading-title">
-                <h2>{title}</h2>
-                {help}
-              </span>
-            ) : (
-              <h2>{title}</h2>
-            )}
-            {action}
-          </div>
-        ) : (
-          <h2>{title}</h2>
-        )}
+        <PartBar
+          title={title}
+          position={position}
+          onPrevious={onPrevious}
+          onNext={onNext}
+          onHistory={onHistory}
+          help={help}
+          action={action}
+        />
         {children}
       </div>
     </section>
