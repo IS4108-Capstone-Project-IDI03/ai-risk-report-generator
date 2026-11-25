@@ -118,8 +118,13 @@ const EXTENSIONS: Record<string, string> = {
   'audio/wave': 'wav',
   'audio/flac': 'flac',
 }
-export function audioExtension(contentType: string): string | undefined {
-  return EXTENSIONS[contentType.split(';')[0].trim().toLowerCase()]
+// An .m4a file the browser reports as audio/mp4 (Safari and Firefox do) has the M4A brand
+// in its first bytes; Whisper refuses that brand under an .mp4 name ("Invalid file format").
+const M4A_BRAND = Buffer.from('ftypM4A ')
+/** Returns the extension Whisper reads `audio` by, from its type and, for MP4, its brand; undefined if not audio it takes. */
+export function audioExtension(contentType: string, audio?: Buffer): string | undefined {
+  const extension = EXTENSIONS[contentType.split(';')[0].trim().toLowerCase()]
+  return extension === 'mp4' && audio?.subarray(4, 12).equals(M4A_BRAND) ? 'm4a' : extension
 }
 
 // A photo's format comes from its first bytes, not the type the browser
@@ -790,7 +795,7 @@ function storedMedia(
     return {
       _id: recordingId,
       name: r.name,
-      key: `audio/${reference}/${id}/${recordingId}.${audioExtension(r.contentType)}`,
+      key: `audio/${reference}/${id}/${recordingId}.${audioExtension(r.contentType, r.audio)}`,
       contentType: r.contentType,
       size: r.audio.length,
       transcription: { status: 'transcribing' as const, attempts: [{ startedAt: at }] },

@@ -3,14 +3,14 @@
 import { ChatError } from './chat-error'
 import { audioExtension } from './observation.service'
 import { chatPrivacy } from './privacy.service'
-import { SpeechServiceError, transcribeClip } from './speech.service'
+import { SpeechServiceError, transcribeClip, transcriptionFailureReason } from './speech.service'
 
 // About two minutes of speech; a question is a few seconds. Must match the raw-body limit in routes/chat.routes.ts.
 export const MAX_AUDIO_BYTES = 2 * 1024 * 1024
 
 /** Returns the words in a short recording. */
 export async function transcribeQuestion(audio: Buffer, contentType: string): Promise<string> {
-  const extension = audioExtension(contentType)
+  const extension = audioExtension(contentType, audio)
   if (!extension) throw new ChatError(415, 'That is not an audio recording.')
   if (!audio.length) throw new ChatError(400, 'The recording is empty.')
   if (audio.length > MAX_AUDIO_BYTES)
@@ -22,7 +22,12 @@ export async function transcribeQuestion(audio: Buffer, contentType: string): Pr
     if (!text) throw new ChatError(422, 'No speech was heard. Try again closer to the microphone.')
     return text
   } catch (error) {
-    if (error instanceof SpeechServiceError) throw new ChatError(503, error.message)
+    // The short reason, never Whisper's raw error text; a refused file is the clip's fault (422).
+    if (error instanceof SpeechServiceError)
+      throw new ChatError(
+        error.retryable ? 503 : 422,
+        transcriptionFailureReason(error.message) ?? error.message,
+      )
     throw error
   }
 }

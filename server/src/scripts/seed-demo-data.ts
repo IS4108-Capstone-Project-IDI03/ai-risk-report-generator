@@ -193,12 +193,14 @@ export const PANDAN_SEEN: Seen[] = [
     note: 'Timber pallets are stacked against the north boundary fence, about 4 m from the building.',
   },
   // Two to check (CP-24): no category and severity yet, so drafting leaves them out.
+  // `--with-ai` adds seed-media/fire-alarm-panel.jpg to it, so the reading job describes the photo
+  // and suggests both.
   {
     id: 'D9',
-    at: 'access',
+    at: 'office',
     cope: null,
     severity: null,
-    note: 'Photo of the fire access route taken for reference; the north gate looked narrow. To be described.',
+    note: 'Photo of the fire alarm panel by the office annexe entrance, taken for reference. To be described.',
   },
   {
     id: 'D10',
@@ -262,6 +264,56 @@ export const KESTREL_PREVIOUS_SEEN: Seen[] = [
     cope: ['Occupancy'],
     severity: 'moderate',
     note: 'Cold store holds palletised frozen food in plastic wrap, racked to 9 m.',
+  },
+  // A7-A13: what Sections 4, 5, 6, 11 and 12 of the previous report cite.
+  {
+    id: 'A7',
+    at: 'office',
+    cope: ['Occupancy'],
+    severity: 'low',
+    note: 'Hot work permits are issued by the facilities manager; the permit file was complete for the last quarter.',
+  },
+  {
+    id: 'A8',
+    at: 'plant',
+    cope: ['Occupancy'],
+    severity: 'moderate',
+    note: 'Ammonia refrigeration plant with two screw compressors. Ammonia detectors trip the plant and start the extraction fans; tested quarterly.',
+  },
+  {
+    id: 'A9',
+    at: 'office',
+    cope: ['Protection'],
+    severity: 'low',
+    note: 'One guard at the gatehouse around the clock. 24 CCTV cameras recorded for 14 days. Card access to Block A.',
+  },
+  {
+    id: 'A10',
+    at: 'plant',
+    cope: ['Occupancy'],
+    severity: 'moderate',
+    note: 'Power from a single 22 kV incomer. One 500 kVA diesel generator backs up the refrigeration plant for about 24 hours.',
+  },
+  {
+    id: 'A11',
+    at: 'office',
+    cope: ['Occupancy'],
+    severity: 'moderate',
+    note: 'No written business continuity plan. Site manager said stock would move to a sister cold store in Jurong if the plant failed.',
+  },
+  {
+    id: 'A12',
+    at: 'store',
+    cope: ['Construction'],
+    severity: 'moderate',
+    note: 'Cold store walls and ceiling are insulated sandwich panels with a PIR core.',
+  },
+  {
+    id: 'A13',
+    at: 'office',
+    cope: ['Protection'],
+    severity: 'low',
+    note: 'Fire protection systems serviced monthly by a contractor; the annual sprinkler flow test was done in March.',
   },
 ]
 export const KESTREL_CURRENT_SEEN: Seen[] = [
@@ -477,6 +529,12 @@ export type Findings = Record<string, Record<string, Finding[]>>
 
 export const KESTREL_FINDINGS: Findings = {
   '7': {
+    'Construction Narrative': [
+      {
+        text: 'The cold store walls and ceiling are insulated sandwich panels with a PIR core.',
+        cites: ['A12'],
+      },
+    ],
     'Compartmentalization and Fire Divisions': [
       {
         text: 'The roller shutter in the fire wall between the cold store and dispatch closed fully when tested.',
@@ -493,6 +551,18 @@ export const KESTREL_FINDINGS: Findings = {
       {
         text: 'The cold store holds palletised frozen food in plastic wrap, racked to 9 m.',
         cites: ['A6'],
+      },
+    ],
+    'Back-up Power': [
+      {
+        text: 'One 500 kVA diesel generator backs up the refrigeration plant for about 24 hours.',
+        cites: ['A10'],
+      },
+    ],
+    'Refrigeration / Chillers / Cooling towers': [
+      {
+        text: 'An ammonia refrigeration plant with two screw compressors serves the cold store; ammonia detectors trip the plant and start the extraction fans.',
+        cites: ['A8'],
       },
     ],
   },
@@ -667,6 +737,278 @@ export const KESTREL_OFIS = [
     effort: 'Minor Procedural',
     priority: 'Priority 2',
     cites: ['A3'],
+  },
+]
+
+// The rest of Tuas Cold Store's previous report (RPT-2026-0001), so it is complete and exports:
+// Sections 4, 5, 6, 11 and 12 with the headings Marina's report uses, its figures for Sections 4
+// and 5, and its Executive Summary.
+type Part = { heading: string; kind: 'narrative' | 'fields'; statements: Finding[] }
+const said = (text: string, ...cites: string[]): Finding => ({ text, cites })
+export const KESTREL_REST: Record<string, { title: string; subsections: Part[] }> = {
+  '4': {
+    title: 'Risk Quality Ratings and Comments',
+    subsections: [
+      {
+        heading: 'Risk Quality Rating Comments',
+        kind: 'narrative',
+        statements: [
+          said(
+            'Overall the risk can be considered average for a cold store of its class.',
+            'A6',
+            'A12',
+            'A1',
+          ),
+        ],
+      },
+      {
+        heading: 'Positive Points',
+        kind: 'narrative',
+        statements: [
+          said(
+            'The fire pump churned at 7.5 bar at the weekly test, and the diesel tank was kept full.',
+            'A1',
+          ),
+          said(
+            'The roller shutter in the fire wall between the cold store and dispatch closed fully when tested.',
+            'A5',
+          ),
+          said(
+            'Ammonia detectors in the plant room trip the refrigeration plant and start the extraction fans, and are tested quarterly.',
+            'A8',
+          ),
+        ],
+      },
+    ],
+  },
+  '5': {
+    title: 'Loss Estimates',
+    subsections: [
+      {
+        heading: 'Level I Scenario',
+        kind: 'narrative',
+        statements: [
+          said(
+            'A fire starts in the plant room from an electrical fault in a compressor motor and is controlled by the sprinklers.',
+            'A8',
+            'A1',
+          ),
+        ],
+      },
+      {
+        heading: 'Level I Assumptions',
+        kind: 'narrative',
+        statements: [
+          said(
+            'Damage is limited to the plant room; refrigeration is lost while a compressor is replaced, and stock moves to the sister cold store in Jurong.',
+            'A8',
+            'A11',
+          ),
+        ],
+      },
+      {
+        heading: 'Level II Scenario',
+        kind: 'narrative',
+        statements: [
+          said(
+            'A fire starts in the cold store racking; with sprinkler control valve V-2 shut, it spreads through the plastic-wrapped stock.',
+            'A2',
+            'A6',
+          ),
+        ],
+      },
+      {
+        heading: 'Level II Assumptions',
+        kind: 'narrative',
+        statements: [
+          said(
+            'The racked stock in the cold store is lost, with smoke damage across the chamber; the roller shutter keeps the fire out of dispatch.',
+            'A6',
+            'A5',
+          ),
+        ],
+      },
+      {
+        heading: 'Level III Scenario',
+        kind: 'narrative',
+        statements: [
+          said(
+            'With all fire protection impaired, the fire involves the insulated panel walls and ceiling and spreads through the whole cold store block.',
+            'A12',
+            'A6',
+          ),
+        ],
+      },
+      {
+        heading: 'Level III Assumptions',
+        kind: 'narrative',
+        statements: [
+          said(
+            'Block A and its stock are lost; the pallets stored by the north wall carry the fire into the yard.',
+            'A12',
+            'A3',
+          ),
+        ],
+      },
+    ],
+  },
+  '6': {
+    title: 'Management Programs',
+    subsections: [
+      {
+        heading: 'Management Programs',
+        kind: 'fields',
+        statements: [
+          said(
+            'Hot Work: Established. Hot work permits are issued by the facilities manager, and the permit file was complete for the last quarter.',
+            'A7',
+          ),
+          said(
+            'Fire Protection System Maintenance & Testing: Established. The systems are serviced monthly by a contractor, and the annual sprinkler flow test was done in March.',
+            'A13',
+          ),
+          said(
+            'Fire Protection Impairment Management: Formalized. Sprinkler control valve V-2 was chained but not locked.',
+            'A2',
+          ),
+          said(
+            'Housekeeping: Formalized. The fire door to the plant room was wedged open with an extinguisher, and pallets were stored within 5 m of the north wall.',
+            'A4',
+            'A3',
+          ),
+          said(
+            'Business Continuity Planning: Undeveloped. There is no written business continuity plan.',
+            'A11',
+          ),
+        ],
+      },
+      {
+        heading: 'Management Program Comments',
+        kind: 'narrative',
+        statements: [
+          said(
+            'Servicing and testing of the fire protection systems are well established, but valve supervision and housekeeping need tightening.',
+            'A13',
+            'A2',
+            'A4',
+          ),
+        ],
+      },
+    ],
+  },
+  '11': {
+    title: 'Security',
+    subsections: [
+      {
+        heading: 'Security Staff / Guards',
+        kind: 'fields',
+        statements: [said('Guards: One guard at the gatehouse, around the clock.', 'A9')],
+      },
+      {
+        heading: 'CCTV',
+        kind: 'narrative',
+        statements: [said('24 CCTV cameras are recorded for 14 days.', 'A9')],
+      },
+      {
+        heading: 'Access Monitored',
+        kind: 'fields',
+        statements: [said('Access: Card access to Block A.', 'A9')],
+      },
+    ],
+  },
+  '12': {
+    title: 'Business Interruption',
+    subsections: [
+      {
+        heading: 'Utilities, Infrastructure & Services',
+        kind: 'fields',
+        statements: [
+          said(
+            'Power: A single 22 kV incomer, with one 500 kVA diesel generator backing up the refrigeration plant for about 24 hours.',
+            'A10',
+          ),
+        ],
+      },
+      {
+        heading: 'Business Continuity / Disaster Recovery Planning',
+        kind: 'fields',
+        statements: [
+          said(
+            'Business Continuity Plans available?: No written plan; the site manager said stock would move to a sister cold store in Jurong if the plant failed.',
+            'A11',
+          ),
+        ],
+      },
+    ],
+  },
+}
+
+// Section 4's scores and Section 5's inputs (GN-03), as the engineer entered them.
+export const KESTREL_FIGURES = {
+  riskQuality: [
+    { category: 'External Exposure', current: 7.0, potential: 9 },
+    { category: 'Fire Protection', current: 7.2, potential: 9.5 },
+    { category: 'Occupancy Hazards', current: 7.0, potential: 9 },
+    { category: 'Construction', current: 6.8, potential: 8.5 },
+    { category: 'Water Supply', current: 8.0, potential: 9 },
+    { category: 'Surveillance', current: 8.0, potential: 9 },
+    { category: 'Management Programs', current: 7.5, potential: 9 },
+  ],
+  lossEstimates: {
+    currency: 'SGD',
+    dateOfValues: '2026-01-01',
+    indemnityMonths: 18,
+    pd: [
+      { key: 'pd-buildings', item: 'Buildings', value: 42_000_000 },
+      { key: 'pd-contents', item: 'Contents', value: 28_000_000 },
+    ],
+    te: [{ key: 'te-bi', item: 'Business Interruption (Gross Profit)', value: 15_000_000 }],
+    levels: [
+      {
+        level: 'I',
+        pd: [
+          { key: 'pd-buildings', percent: 1 },
+          { key: 'pd-contents', percent: 3 },
+        ],
+        te: [{ key: 'te-bi', months: 1, percent: 5 }],
+      },
+      {
+        level: 'II',
+        pd: [
+          { key: 'pd-buildings', percent: 15 },
+          { key: 'pd-contents', percent: 60 },
+        ],
+        te: [{ key: 'te-bi', months: 6, percent: 35 }],
+      },
+      {
+        level: 'III',
+        pd: [
+          { key: 'pd-buildings', percent: 100 },
+          { key: 'pd-contents', percent: 100 },
+        ],
+        te: [{ key: 'te-bi', months: 18, percent: 100 }],
+      },
+    ],
+  },
+}
+
+// Tuas Cold Store's previous Executive Summary (Section 2): "S:7" cites Section 7.
+export const KESTREL_SUMMARY = [
+  {
+    text: 'The site is a single-block cold store of insulated panel construction, holding palletised frozen food racked to 9 m.',
+    citations: ['S:7', 'S:8'],
+  },
+  {
+    text: 'The main points for attention are sprinkler control valve V-2, found chained but not locked, and combustible pallets stored within 5 m of the north wall.',
+    citations: ['S:3', 'S:9', 'S:10'],
+  },
+  {
+    text: 'Fire pump testing and fire protection servicing are well established.',
+    citations: ['S:6', 'S:9'],
+  },
+  {
+    text: 'Overall the risk is average for its class.',
+    citations: ['S:4'],
   },
 ]
 
