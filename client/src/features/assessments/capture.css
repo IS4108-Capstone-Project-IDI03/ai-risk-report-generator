@@ -704,6 +704,14 @@
   white-space: nowrap;
   overflow: hidden;
 }
+/* The place's own name gives way first, with an ellipsis: without it a long name was cut
+   mid-word under the chevron ("Racking aisl"). */
+.cap-loc-field .location-path-part:last-child {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* The checklist notice's tint and the way back, as v2 buttons. */
 .cap-checklist > button {
   align-self: flex-start;

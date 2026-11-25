@@ -130,7 +130,22 @@ describe('when nothing usable comes back (CP-27)', () => {
     const res = await dictate()
 
     expect(res.status).toBe(503)
-    expect(res.body.error).toBe('The speech service is busy.')
+    expect(res.body.error).toBe('The speech service is busy. Try again later.')
+  })
+
+  it("answers 422 with a short reason, never Whisper's raw text, when the clip is refused", async () => {
+    s5Says(
+      {
+        detail:
+          "Whisper could not transcribe the recording: Error code: 400 - {'error': {'message': 'Invalid file format.'}}",
+      },
+      422,
+    )
+
+    const res = await dictate()
+
+    expect(res.status).toBe(422)
+    expect(res.body.error).toBe('The recording format is not supported. Record it again.')
   })
 })
 

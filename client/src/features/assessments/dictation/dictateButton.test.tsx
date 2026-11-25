@@ -40,6 +40,21 @@ describe('dictating into a field (CP-27)', () => {
   })
 })
 
+describe('while the words are being written out (CP-27)', () => {
+  it('shows a busy spinner in place of the mic, then the mic again', async () => {
+    let answer: (r: Response) => void = () => {}
+    fakeMicrophone.reply = () => new Promise<Response>((done) => (answer = done)) as never
+    render(<Field />)
+
+    await dictate()
+
+    const busy = await screen.findByRole('button', { name: 'Writing out what you said' })
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    answer(Response.json({ text: 'Done.' }))
+    expect(await screen.findByRole('button', { name: 'Dictate' })).toBeInTheDocument()
+  })
+})
+
 describe('when dictating cannot work (CP-27)', () => {
   it('says the microphone is blocked, and how to allow it', async () => {
     vi.stubGlobal('navigator', {

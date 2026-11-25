@@ -115,13 +115,19 @@ def _privacy(privacy: Privacy | None) -> dict | None:
     return privacy.model_dump() if privacy else None
 
 
+def _status(error: TranscriptionError) -> int:
+    """422 when the file is the problem, so the gateway fails it at once instead of retrying a
+    file Whisper will never take (server/src/services/speech.service.ts retries 5xx)."""
+    return 422 if error.refused else 502
+
+
 @router.post("/transcribe")
 def transcribe_audio(request: TranscribeRequest) -> dict:
     # The gateway stores the result and shows `detail` to the engineer on failure.
     try:
         return transcribe(request.s3_key, _privacy(request.privacy))
     except TranscriptionError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise HTTPException(status_code=_status(error), detail=str(error)) from error
 
 
 class ClipRequest(BaseModel):
@@ -142,7 +148,7 @@ def transcribe_audio_clip(request: ClipRequest) -> dict:
     try:
         return transcribe_clip(audio, request.filename, _privacy(request.privacy))
     except TranscriptionError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise HTTPException(status_code=_status(error), detail=str(error)) from error
 
 
 @router.post("/interpret")

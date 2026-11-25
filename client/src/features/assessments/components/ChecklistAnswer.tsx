@@ -194,7 +194,16 @@ export function AnswerDialog({
             variant="link"
             size="sm"
             onClick={onFullCapture}
-            style={{ alignSelf: 'flex-start' }}
+            // Wraps on a phone: on one line it ran past the sheet's edge at 375 px.
+            style={{
+              alignSelf: 'flex-start',
+              whiteSpace: 'normal',
+              textAlign: 'left',
+              height: 'auto',
+              minHeight: 'var(--control-height-sm)',
+              lineHeight: 1.3,
+              borderRadius: 'var(--radius-md)',
+            }}
           >
             Use full capture instead, for a recording or handwritten notes
           </Button>

@@ -11,7 +11,16 @@ from app.processors import tidy
 
 
 class TranscriptionError(Exception):
-    """The reason a recording could not be transcribed, shown to the engineer."""
+    """The reason a recording could not be transcribed, shown to the engineer. `refused` when
+    Whisper refused the file itself (bad format, too large): trying again cannot help."""
+
+    def __init__(self, message: str, refused: bool = False):
+        super().__init__(message)
+        self.refused = refused
+
+
+# Whisper's answers that blame the file (400 invalid format, 413 too large, 415), not the service.
+REFUSED_STATUSES = {400, 413, 415}
 
 
 # The SDK gives objects, a plain dict gives keys; take either.
@@ -19,12 +28,13 @@ def _get(segment, key):
     return segment[key] if isinstance(segment, dict) else getattr(segment, key)
 
 
-def _segments(result) -> list[dict]:
+def _segments(result, only_speech: bool = False) -> list[dict]:
     """Whisper's timed pieces as {start, end, text}, each text tidied (CP-27); [] when it returns
-    none."""
+    none. With only_speech, the pieces Whisper says are not speech are left out, as in _spoken."""
     return [
         {"start": _get(s, "start"), "end": _get(s, "end"), "text": tidy.rules(_get(s, "text"))}
         for s in getattr(result, "segments", None) or []
+        if not only_speech or _is_speech(s)
     ]
 
 
@@ -33,14 +43,22 @@ def _segments(result) -> list[dict]:
 NO_SPEECH_ABOVE = 0.6
 
 
+def _is_speech(segment) -> bool:
+    """False for a piece Whisper scores as not speech; a piece with no score counts as speech."""
+    score = (
+        segment.get("no_speech_prob")
+        if isinstance(segment, dict)
+        else getattr(segment, "no_speech_prob", None)
+    )
+    return (score or 0) <= NO_SPEECH_ABOVE
+
+
 def _spoken(result) -> str:
     """The transcript without the pieces Whisper itself says are not speech."""
     pieces = getattr(result, "segments", None)
     if not pieces:
         return result.text.strip()
-    heard = [
-        _get(s, "text").strip() for s in pieces if _get(s, "no_speech_prob") <= NO_SPEECH_ABOVE
-    ]
+    heard = [_get(s, "text").strip() for s in pieces if _is_speech(s)]
     return " ".join(heard).strip()
 
 
@@ -83,7 +101,10 @@ def _whisper(
             **({"prompt": prompt} if prompt else {}),
         )
     except Exception as error:
-        raise TranscriptionError(f"Whisper could not transcribe the recording: {error}") from error
+        refused = getattr(error, "status_code", None) in REFUSED_STATUSES
+        raise TranscriptionError(
+            f"Whisper could not transcribe the recording: {error}", refused
+        ) from error
     duration_ms = round((time.perf_counter() - started) * 1000)
 
     # Whisper gives no tokens, so audio_seconds is the only billable number.
@@ -108,7 +129,7 @@ def _whisper(
     return {
         "transcript": transcript,
         "spoken": spoken,
-        "segments": _segments(result),
+        "segments": _segments(result, only_speech),
         "usage": [usage, *tidy_usage],
     }
 
@@ -123,7 +144,11 @@ def transcribe(s3_key: str, privacy: dict | None = None) -> dict:
         reason = f"The recording could not be read from storage: {error}"
         raise TranscriptionError(reason) from error
     # Whisper picks the decoder from the file name's extension, which the key carries.
-    return _whisper(os.path.basename(s3_key), audio, RECORDING_PROMPT, privacy=privacy)
+    # only_speech: a silent stretch (a muted mic, a phone in a pocket) must come back empty, not
+    # as an invented sentence such as "For more information, visit www.fema.gov.au".
+    return _whisper(
+        os.path.basename(s3_key), audio, RECORDING_PROMPT, only_speech=True, privacy=privacy
+    )
 
 
 def transcribe_clip(audio: bytes, filename: str, privacy: dict | None = None) -> dict:
