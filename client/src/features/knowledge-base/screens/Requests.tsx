@@ -2,12 +2,13 @@
 // question the chatbot could not answer. Mark filled and Dismiss each open a dialog and, on
 // success, the request leaves the list. Shown by KnowledgeBase.tsx; talks to api.ts.
 import { useCallback, useEffect, useState } from 'react'
-import { Callout, EmptyState } from '../../../design-system'
-import { listKnowledgeRequests, type KnowledgeGapRequest } from '../api'
+import { Callout, EmptyState, toast } from '../../../design-system'
+import { listKnowledgeRequests, uploadKnowledgeDocument, type KnowledgeGapRequest } from '../api'
 import { DismissRequestDialog } from '../components/DismissRequestDialog'
 import { FillRequestDialog } from '../components/FillRequestDialog'
 import { RequestRow } from '../components/RequestRow'
 import { knowledgeTab } from '../openTab'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 
 /** Returns the Requests tab: the open requests, newest first. */
 export function Requests({
@@ -22,6 +23,8 @@ export function Requests({
   const [unreachable, setUnreachable] = useState(false)
   const [filling, setFilling] = useState<KnowledgeGapRequest | null>(null)
   const [dismissing, setDismissing] = useState<KnowledgeGapRequest | null>(null)
+  // F-12: ready once the list has loaded; held while no request is open, since nothing is shown then.
+  useWalkthroughScreen('knowledge-requests', requests !== null, requests?.length === 0)
   // The request a notification pointed at; read once so a later visit isn't highlighted.
   const [focused] = useState(() => {
     const id = knowledgeTab.request
@@ -51,6 +54,16 @@ export function Requests({
     if (requests && focused)
       document.getElementById(`request-${focused}`)?.scrollIntoView({ block: 'center' })
   }, [requests, focused])
+
+  // A document uploaded for a request (F-11): the request stays open until it is marked filled.
+  const upload = (r: KnowledgeGapRequest, file: File) =>
+    uploadKnowledgeDocument(file, undefined, r.id).then(
+      () => notify(`${file.name} is uploading for this request. ${r.askedBy.name} can follow it.`),
+      (error: unknown) =>
+        toast.error(`${file.name} was not uploaded`, {
+          description: error instanceof Error && error.message ? error.message : undefined,
+        }),
+    )
 
   const done = (message: string) => {
     setFilling(null)
@@ -82,13 +95,15 @@ export function Requests({
         />
       )}
       <ul className="kb-request-list">
-        {requests?.map((r) => (
+        {requests?.map((r, i) => (
           <RequestRow
             key={r.id}
+            first={i === 0}
             request={r}
             focused={r.id === focused}
             onFill={() => setFilling(r)}
             onDismiss={() => setDismissing(r)}
+            onUpload={(file) => upload(r, file)}
           />
         ))}
       </ul>

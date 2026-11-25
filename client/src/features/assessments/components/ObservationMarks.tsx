@@ -1,7 +1,7 @@
 // The small marks an observation is read by on the Observations tab and its
 // page (CP-22): its category as a coloured icon, its severity as a symbol, and
-// where it stands as one icon. Used by ObservationRow.tsx and ObservationPage.tsx.
-import { Icon, IconRegistry } from '../../../design-system'
+// where it stands as one mark. Used by ObservationRow.tsx and ObservationPage.tsx.
+import { Icon, IconRegistry, RowMark } from '../../../design-system'
 import { CAT_ICON } from '../categories'
 
 // Each COPE category's colour, set in observations.css.
@@ -38,6 +38,13 @@ export function CategoryMark({ cats }: { cats: string[] }) {
 // The severity's own symbol and colour, with its name beside it where there is
 // room (always readable by a screen reader).
 export function SeverityMark({ sev }: { sev: string }) {
+  // No severity yet (CP-24): a dash, which a screen reader hears as "No severity".
+  if (!sev)
+    return (
+      <span className="ob-sev ob-none" role="img" aria-label="No severity">
+        {'–'}
+      </span>
+    )
   const mark = IconRegistry.severity[sev as keyof typeof IconRegistry.severity]
   const label = sev.charAt(0).toUpperCase() + sev.slice(1)
   return (
@@ -49,19 +56,20 @@ export function SeverityMark({ sev }: { sev: string }) {
   )
 }
 
-// Where its recordings and readings stand: a green tick when complete, a
-// turning ring while working, a red alert on a failure. The words are kept
-// for screen readers and the tooltip.
+// Where the observation stands, as the design system's one row mark (RowMark): a green tick
+// when complete, a spinner while transcribing or reading, an amber triangle when there is
+// something to check, a red alert on a failure. The words are kept for screen readers.
 export function StatusMark({ status }: { status: string }) {
-  const [icon, color, spin] = status.endsWith('failed')
-    ? ['circle-alert', 'var(--red-600)', false]
-    : status === 'Complete'
-      ? ['circle-check', 'var(--green-600)', false]
-      : ['loader', 'var(--ink-600)', true]
+  const kind = status.endsWith('failed')
+    ? 'failed'
+    : status === 'To check'
+      ? 'unsure'
+      : status === 'Complete'
+        ? 'done'
+        : 'working'
   return (
-    <span className="ob-status" title={status}>
-      <Icon name={icon} size={17} color={color} className={spin ? 'ob-spin' : undefined} />
-      <span className="ob-sr">{status}</span>
+    <span className="ob-status">
+      <RowMark kind={kind} label={status} />
     </span>
   )
 }

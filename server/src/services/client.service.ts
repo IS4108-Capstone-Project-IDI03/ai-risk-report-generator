@@ -8,6 +8,7 @@ import { SiteModel, type ICoordinates, type ISite } from '../models/site.model'
 import type { SessionUser } from './auth.service'
 import { FACILITY_TYPES } from './knowledge-document.service'
 import { isDuplicateKeyError } from './mongo-errors'
+import { NOT_PRACTICE } from './practice/filter'
 
 export class UnknownClientError extends Error {
   constructor() {
@@ -115,11 +116,12 @@ export type ClientDto = {
 // Every client, whoever added it (CP-17 AC3), in name order, with how many
 // sites each has. The create form filters them as the engineer types and
 // checks a new name against them for a likely typo. A client whose sites are
-// all removed is left out (CP-18); typing its name brings it back.
+// all removed is left out (CP-18); typing its name brings it back. Practice clients (F-12)
+// are left out, and with them their practice sites.
 // ponytail: search on the server once the list outgrows one response.
 export async function listClients(userId: string): Promise<ClientDto[]> {
   const [clients, counts, allSites] = await Promise.all([
-    ClientModel.find({}, 'name division')
+    ClientModel.find(NOT_PRACTICE, 'name division')
       .collation({ locale: 'en', strength: 2 })
       .sort({ name: 1 })
       .lean(),
@@ -664,7 +666,9 @@ export async function renameClient(id: string, name: string, user: SessionUser) 
   if (problem) throw problem
   const next = tidy(name)
   if (next === client.name) return
-  const key = clientKey(next)
+  // F-12: a practice client keeps its own key (practice/records.ts): without this, its new
+  // name's key would let anyone's new assessment be filed under it by name.
+  const key = client.practice ? client.key : clientKey(next)
   const taken = new ClientSiteFieldError('name', 'A client with this name already exists.')
   if (key !== client.key && (await ClientModel.exists({ key, _id: { $ne: client._id } })))
     throw taken

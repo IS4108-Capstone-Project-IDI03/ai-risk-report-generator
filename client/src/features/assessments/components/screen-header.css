@@ -10,7 +10,8 @@
   /* Back sits 8px under the tabs, where it sits on every other screen. */
   margin: -8px 0 12px;
 }
-.sh > .back-button {
+.sh > .back-button,
+.sh > .ds-backbtn {
   justify-self: start;
   margin-top: 0;
 }

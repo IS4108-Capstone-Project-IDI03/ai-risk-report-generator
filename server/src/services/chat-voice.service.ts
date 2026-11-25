@@ -2,6 +2,7 @@
 // Calls speech.service.ts (S5 Whisper). The clip is sent as bytes and stored nowhere.
 import { ChatError } from './chat-error'
 import { audioExtension } from './observation.service'
+import { chatPrivacy } from './privacy.service'
 import { SpeechServiceError, transcribeClip } from './speech.service'
 
 // About two minutes of speech; a question is a few seconds. Must match the raw-body limit in routes/chat.routes.ts.
@@ -16,7 +17,7 @@ export async function transcribeQuestion(audio: Buffer, contentType: string): Pr
     throw new ChatError(413, 'That recording is too long. Ask in a shorter clip.')
 
   try {
-    const text = (await transcribeClip(audio, extension)).trim()
+    const text = (await transcribeClip(audio, extension, await chatPrivacy())).trim()
     // Without this a silent clip would put an empty question in the box.
     if (!text) throw new ChatError(422, 'No speech was heard. Try again closer to the microphone.')
     return text

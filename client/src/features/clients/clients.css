@@ -226,7 +226,9 @@
     opacity: 0;
   }
   .cl-table tr:hover .cl-row-actions,
-  .cl-row-actions:focus-within {
+  .cl-row-actions:focus-within,
+  /* Kept visible while a walkthrough points at them (F-12; the engine sets data-walk-on). */
+  .cl-row-actions[data-walk-on] {
     opacity: 1;
   }
 }

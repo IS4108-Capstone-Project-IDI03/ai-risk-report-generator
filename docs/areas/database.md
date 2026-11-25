@@ -343,6 +343,15 @@ with the locations. They reach no report or AI call either. Sending them needs t
 assigned engineer; `coordinates: null` on `PATCH` clears them, and leaving it out
 keeps them.
 
+A site may also have `geocode: { address, found, lat, lng, at }` (CP-62): where its address was
+found on the map, for its weather. The gateway writes it the first time the site's weather is read,
+and only while the site still has that `address`; `found: false` (no `lat`, `lng`) when the
+geocoder knew no such place, or only its country or state, so the same words aren't looked up
+again. A corrected address no longer matches `geocode.address`, so it is looked up afresh. It is
+kept apart from `coordinates`, which only an engineer sets and which win over it. Neither reaches a
+report or an AI call. `GET /api/assessments/:reference/weather` (`assessments:view`) answers the
+site's weather; see docs/areas/services.md, "Site weather".
+
 Site routes go by the site's own id, so a site with no client yet can be
 corrected. A removed site's name doesn't stop a new site taking it (a
 colleague can't see the removed one); a restore then needs a new name.
@@ -437,6 +446,14 @@ model or its checks failed. It is never part of a report or its export. See
 `npm --prefix server run seed:cp29` adds a demo client, Harbourline Logistics,
 with five sites, repeat visits, observations, accepted OFIs and scores
 (`seed:cp29:remove` removes only it). Run `npm run seed` first.
+
+`npm --prefix server run seed:cp61` adds a demo client, Meridian Fulfilment, with
+one site and one assessment (`DEMO61-01`) for the building stack (CP-61): two
+buildings of several levels, a basement, a whole-building location and
+locations elsewhere on site, observations of every severity, and five
+locations with nothing recorded (`seed:cp61:remove` removes only it). It is its
+own client so the CP-29 demo's Insights figures stay as they are. Run
+`npm run seed` first.
 
 ## Client intakes and client documents (CP-23)
 
@@ -604,13 +621,13 @@ with the same list.
 
 | Permission | Routes | Risk engineer | Knowledge admin |
 | --- | --- | --- | --- |
-| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19) | yes | yes |
-| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and reading photos; tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
-| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only) | yes | yes |
+| `assessments:view` | `GET` assessments, their locations, observations, report sections and review workspace, recording audio, photos and handwritten pages (CP-19); `GET /api/assessments/:reference/comparison` (RV-13, its assigned engineer or a knowledge admin) | yes | yes |
+| `assessments:edit` | create assessments, capture sessions, locations, observations, transcription retry (a recording's or a page's) and trying a suggestion again (CP-24); tag and note edits, changing locations (CP-16), transcript corrections, deletes and restores, adding, removing and restoring recordings and photos, and transcribing a handwritten page again (the assessment’s assigned engineer only, CP-08, CP-20); the client page, and renaming, correcting, removing and restoring clients and sites (every assessment there the engineer's, CP-18, CP-28). A knowledge admin holds it too (RV-11), so every "assigned engineer" check is what keeps an admin read-only on someone else's assessment | yes | yes |
+| `reports:generate` | `POST /api/rag/generate`, and drafting, review decisions, summaries, figures, improvements and checklists (the assigned engineer only); asking for text from the Ask tab, and `/api/assessments/:reference/proposals` (AS-04: Insert, Replace, Undo, Accept, Delete; the assigned engineer only); running a comparison with the previous report and deciding its items (`POST /api/assessments/:reference/comparison…`, RV-13; the assigned engineer only, not archived) | yes | yes |
 | `assessments:assign` | `GET /api/assessments/assignable-engineers`, `POST /api/assessments/:reference/reassign`, and choosing `engineerId` on create (RV-11) | no | yes |
 | `reports:export` | `GET` and `POST /api/assessments/:reference/export` (the assigned engineer, EX-01). A knowledge admin holds it too (RV-11) | yes | yes |
 | `reports:comment` | `/api/assessments/:reference/comments` (RV-03), but moving anchors, which needs `reports:generate`; also opens the Review tab, read only for anyone but the assigned engineer | yes | yes |
-| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03): asking about an assessment in the review workspace's Ask tab, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
+| `reports:ask` | `/api/assessments/:reference/ask` (AS-01, AS-03, AS-08): asking about an assessment in the review workspace's Ask tab, writing guidance for a section included, and reading, opening and deleting one's own conversations; also needs an assessment the user can open (its assigned engineer, or a knowledge admin) | yes | yes |
 | `knowledge:view` | `GET` knowledge documents and their files | yes | yes |
 | `knowledge:manage` | `POST /api/knowledge-documents`, `PUT /api/knowledge-documents/:id` (KB-01 correction), `POST /api/knowledge-documents/:id/decision` (IN-07) | no | yes |
 | `users:manage` | `/api/users` | no | yes |
@@ -654,8 +671,9 @@ saves the same list. Observations saved before an observation could have
 several categories hold one string; `copeDimensionsOf` in
 `observation.model.ts` reads it as a list of one, and `npm --prefix server run
 migrate:cope` rewrites those (and drafts' `evidence`) as lists. `createdAt` is the capture timestamp. `severity`
-(`critical`, `high`, `moderate` or `low`) and `location` (the `_id` of one of
-the assessment's `locations`) are required; `standard` is optional. `standard` is the standard the engineer tied
+(`critical`, `high`, `moderate` or `low`; `null` while empty, CP-24) and
+`location` (the `_id` of one of the assessment's `locations`; required except
+on a draft observation, below) are the tags; `standard` is optional. `standard` is the standard the engineer tied
 the observation to (e.g. `NFPA 25 – 2026 Edition`); only the standard is
 stored, and the draft finds the clause. The category, severity, location and
 standard are stored once and cover the note and every recording. The location
@@ -673,12 +691,14 @@ the observation is drafted from. See "Checks on site (CP-31)".
 `note` is stored exactly as written, untrimmed, up to 5,000 characters; a blank
 note counts as none. An observation may be saved uncategorised: its
 `COPE_dimension` is then `null`, present but null rather than left out, and
-never `[]` (an empty list sent is saved as `null`).
+never `[]` (an empty list sent is saved as `null`). The AI then suggests a
+category (CP-24, below), still one, stored as a list of one.
 `listCategoryObservations` in `observation.service.ts`, the category-scoped
 drafting inputs for GN-01, matches on `COPE_dimension`, which MongoDB matches
 against any item of the list, so an observation filed under two categories is
-an input to both, and an uncategorised one stays out of drafting until it is
-categorised by editing its tags.
+an input to both. One that is still to check (an empty or not-sure category or
+severity, or a failed suggestion; see "to check" below) stays out of drafting
+until it is settled.
 
 The category, severity, location and standard are the observation's tags
 (CP-06). `PATCH /api/observations/:id` changes any of them, and the note
@@ -695,13 +715,19 @@ drafted from. There is no zone field: choosing a location tags its building,
 level and name (CP-16). The Observations tab filters by type (Note, Voice,
 Photo), category (an observation filed under several matches any of them),
 severity, building (Elsewhere on site among them), level, location and status
-(Transcribing, Interpreting, Transcription failed, Interpretation failed,
+(Transcribing, Reading, To check, Transcription failed, Reading failed,
 Complete) in the browser, like the dashboard.
 
+A recording's `transcription.transcript` is S5's tidy text (CP-27: fillers,
+stumbles and taken-back words deleted, nothing reworded), and everything that
+reads a transcript reads it. `transcription.spoken` keeps Whisper's text as it
+came, as evidence of what was said; it is not shown. A recording transcribed
+before CP-27 has no `spoken`, and its `transcript` is Whisper's own.
+
 A finished transcript can be corrected (CP-08): the recording's
-`transcription.correction` holds `{ text, at, by }`, and `transcript` stays as
-Whisper wrote it, as evidence of what was said. Drafting uses the correction.
-Writing Whisper's words back removes it. Only a `transcribed` recording can be
+`transcription.correction` holds `{ text, at, by }`, and `transcript` and
+`spoken` stay as S5 wrote them. Drafting uses the correction.
+Writing the transcript's words back removes it. Only a `transcribed` recording can be
 corrected; one still transcribing, or failed, is refused (409).
 
 Deleting is a soft delete (CP-08): `deleted: { at, by }` is set, present only
@@ -712,13 +738,14 @@ them; `?include=deleted` lists them too, for the tab's Show deleted. Restoring
 removes `deleted`. A deleted observation can't be changed until it is
 restored, and its location can't be removed while it is saved there, so a
 restored one keeps its location. A draft that was given an observation since
-deleted, or uncategorised, counts it in `changesSinceDraft`.
+deleted, or since left to check (CP-24), counts it in `changesSinceDraft`.
 
 Recordings, photos and handwritten pages can be added to a saved observation,
 and removed from it (CP-08, CP-20). `POST /api/observations/:id/media` takes
 them as capture does, stores each in S3 under the observation's folder, marks
-it `added: { at, by }`, and starts each recording's and page's transcription;
-no photo is read until an engineer asks. It needs no capture session.
+it `added: { at, by }`, and starts each recording's and page's transcription,
+and queues the reading job, which describes the photos and suggests again
+(CP-24). It needs no capture session.
 Removing is a soft removal, like deleting: the recording, photo or page gets
 `removed: { at, by }`, present only while removed, and nothing is deleted, in
 MongoDB or S3. Restoring removes `removed`. A removal must leave a note, a
@@ -739,7 +766,7 @@ Only the assessment's assigned engineer can change, delete or restore its
 observations, or add, remove and restore their recordings, photos and pages
 (403 otherwise), and not once the assessment is archived (409), as for its other
 details (RV-10). Capturing observations, retrying a failed transcription and
-reading photos are for the assigned engineer only too (RV-11).
+trying a failed suggestion again are for the assigned engineer only too (RV-11).
 
 The API gives each recording `type: "Voice"`; the note is text by being the
 `note` field. The observation's `engineerId` is set from the signed session;
@@ -794,30 +821,20 @@ before it is saved, at capture or in Add media: the mark goes with it as a
 `photoRegion` part (see the two upload routes below) and is stored with the new
 photo. Site walk photos (CP-22) are not marked.
 
-An observation gains an `interpretation` (CP-05, CP-21) once an engineer asks
-for it to be read: what the model proposes from everything captured in it, for
-the engineer to review. Saving never reads it, so a client's notes and site
-photos reach the model only by an engineer's choice. It has two parts, read
-together the first time and one at a time after: the categories, on the
-`interpretation` itself, and the photos' description, in
-`interpretation.photoReading`. Each part has its own `status` (`interpreting`,
-`interpreted` or `failed`, with `error`, S5's reason, which the API turns into
-a readable one), `attempts` and `provenance`. An interpreted one has `categories`, the
-proposed COPE categories, each with a `reason` and `evidence`: the `item` it
-rests on, by label, any `quote` from it, and `verified`, whether the gateway
-found the quote in that item (null for a photo, which has no words). Its
-`photoReading`, once photos are described, has a `description`, a
-`hazardType` and the `photoIds` it describes; it is absent for a reading
-without photos. Its `marks` (CP-10) are the marks on those photos when the
-latest attempt started, each `{ photo, region }`. Once a mark is moved, added
-or cleared, the description is out of date, as when photos are added or
-removed. A reading from before CP-10 has no `marks` and counts as having read
-every photo unmarked. A reading from before the parts were split kept `description`
-and `hazardType` on the `interpretation` itself, under the categories'
-status: the API returns them as its photos' part, and reading either part
-again moves them into `photoReading`. A reading from before CP-21 has one
-`copeDimension` instead of `categories`, which the API returns as a list of
-one with no reason.
+An observation gains an `interpretation` (CP-05, CP-21, CP-24) once its photos
+are first described: what the model says they show. Nobody asks for it: the
+reading job writes it after saving and again whenever the photos or their marks
+change (see [services](services.md#reading-an-observation-s5-rag-service-cp-05-cp-21-cp-24)).
+It holds one part now, `interpretation.photoReading`, with its own `status`
+(`interpreting`, `interpreted` or `failed`, with `error`, S5's reason, which the
+API turns into a readable one), `attempts` and `provenance`. Once photos are
+described it has a `description`, a `hazardType` and the `photoIds` it
+describes; it is absent for an observation without photos. Its `marks` (CP-10)
+are the marks on those photos when the latest attempt started, each `{ photo,
+region }`. Once a photo is added or removed, or a mark is moved, added or
+cleared, the description is out of date (the API returns `outOfDate: true`) and
+the next run describes again, replacing it. A reading from before CP-10 has no
+`marks` and counts as having read every photo unmarked.
 `attempts` records each run as for a recording, and `provenance` records the
 `provider`, `model`, `promptVersion`, token `usage` (`inputTokens`,
 `outputTokens`, `thoughtTokens`, or null when not reported, EV-03),
@@ -826,37 +843,101 @@ removedFromAnswer }`, whether client details were masked and faces blurred
 before the model saw the reading, and how many, and how many details the model
 added to its answer were taken out (`removedFromAnswer`, absent on readings
 from before the answer check). It never holds the details. Absent on readings
-from before PV-04. Asking creates it with one attempt on each part, or adds one
-to the part asked for, whenever the engineer asks, matched atomically on that
-part's status so two clicks start one reading;
-it is refused while a recording or page is still transcribing, or when there
-is nothing to read. Until then it has no `interpretation`, and the API returns
-`null`.
+from before PV-04. A description starts as one attempt, matched atomically on
+the part's status so two jobs start one. Without photos there is no
+`interpretation`, and the API returns `null`.
 
-Each attempt records what it reads in `items` (CP-21): each a `label` (the
-note's is `Note`; a recording, page or photo has its own name, a repeated one
-numbered), `kind` (`note`, `recording`, `page` or `photo`), `id` (absent for
-the note) and `text`: the note, or the transcript read (the engineer's
-correction where there is one), null for a recording or page left out for
-having no transcript, absent for a photo. It also records the photos in
-`photoIds` (CP-08). A finished reading whose items differ from what the
-observation holds now is out of date: the API returns `outOfDate: true`. A
-recording, page or photo added or removed, or a transcript changed, makes it
-out of date; so does a note edit, unless the only change is the proposal's
-`description` added as Use as note writes it (the note, a blank line, then the
-description). Nothing reads it again by itself; asking again reads what it
-holds then, clearing the old proposal while it runs. A reading from before
-CP-21 has no `items` and is judged by its photos, and is out of date once the
-observation has a recording or page transcript it never read; one from before photos
-could change has no `photoIds` either and counts as reading every photo the
-observation was saved with (those without `added`). The proposal is not
-drafting evidence: `toEvidence` never reads it, drafting does not wait for it,
-and it does not count towards `changesSinceDraft`. It becomes the engineer's
-only when they save it into the note or the categories through `PATCH`; on the
-Observations tab each Add adds one proposed category to those it has. The Photos tab lists every photo of
-the assessment's observations not deleted (CP-04 AC3), the collection the
-report's photo appendix (EX-01) is to draw on; like the Observations tab's
-filters, it is built in the browser from the observation list.
+Readings from before CP-24 also proposed categories, kept on the
+`interpretation` itself: `categories` (each with a `reason` and `evidence`),
+`items`, a `status` and `error` of their own, and, from before CP-21, one
+`copeDimension`. They stay in the document, since updates only touch the paths
+they name, and nothing reads them any more: the API returns only the photos'
+part, so no old observation shows as being read. A reading from before the
+parts were split kept `description` and `hazardType` on the `interpretation`
+itself: the API returns them as the photos' part until the photos are described
+again, which moves them into `photoReading`.
+
+The description is not drafting evidence: `toEvidence` never reads it, drafting
+does not wait for it, and it does not count towards `changesSinceDraft`. It
+reaches a draft only when the engineer copies it into the note (Copy into
+note). The category and severity suggestion does read it, as part of the text
+it rates. The Photos tab lists every photo of the assessment's observations not
+deleted (CP-04 AC3), the collection the report's photo appendix (EX-01) is to
+draw on; like the Observations tab's filters, it is built in the browser from
+the observation list.
+
+An observation has a `suggestion` (CP-24) once the reading job first ran on it,
+or when a site walk created it with a value the walk was not sure of:
+`{ status, error?, attempts, category, severity, run }`.
+- `status` is `reading` (the job is queued, running, or waiting for a
+  transcript or the photo description), `done`, or `failed` (two tries failed,
+  or masking was unavailable and nothing was sent).
+- `error` is the reason shown for a failure; `attempts` counts the rating calls
+  of the latest run.
+- `category` and `severity` are each `{ notSure }` or `null`. An entry is
+  present only while that field's value is an unconfirmed AI suggestion;
+  `notSure` is true when the classifier was under the cutoff (0.70). The value
+  itself is still stored where the engineer's would be: `metadata.COPE_dimension`
+  (a list of one) and `severity`. `null` means the value is the engineer's, or
+  the field is empty.
+- `run` is bumped by every trigger, and a job writes only while it still holds
+  its own number, so a trigger that arrives while a job runs is never lost and
+  an older run never writes last. The job id is `obs-reading-<id>-<run>`.
+- `rate` (boolean; missing means true; not in the API) turns rating off. An
+  observation created from a site walk is queued with `rate: false`: its photos
+  are described, but its category and severity are not rated again, so the
+  proposal's values and not-sure marks stay as the walk gave them (AC17). A
+  transcription finishing, restart recovery and a restore leave it as it is;
+  the engineer's own changes (media added, removed or restored, a photo
+  marking, a transcript or page correction, a note edit, Try again) set it to
+  true, and from then on the observation is read like any other.
+
+A field is the engineer's once they chose it at Save, changed it or confirmed
+it. `PATCH /api/observations/:id` is the one write path for category and
+severity: sending either, or naming it in `confirm`, sets its `suggestion`
+entry to `null`, even for the same value, and the reading job never replaces it
+again. The value sent (`null` included) is written in that same update, so a
+run landing between the read and the write cannot leave the AI's value stored
+as the engineer's. Only an empty field, or one still holding an unconfirmed suggestion, is
+suggested; the job's update checks that inside MongoDB, so a value the engineer
+chose while the call ran is kept. A failed suggestion whose two fields are both
+filled and the engineer's is set back to `done`. A site walk's observation
+starts with the walk's `check` flags as `suggestion` entries (status `done`)
+and `rate: false`, so its marks stay until the engineer first changes it. An observation with nothing to
+suggest has no `suggestion` in the API (`null`).
+
+An observation is **to check** (`toCheck` in the API) when its category or
+severity is empty or marked not sure, or its suggestion failed (`isToCheck`,
+`observation.service.ts`). This is the one rule drafting uses: `settled`
+(`section.service.ts`) leaves out every observation to check, in section
+drafting, OFI drafting, the evidence counts and `draftingEvidence`, and
+`usableOf` in the Generation counts does the same. The rule replaces the old
+test of having a category. Once its fields are filled in and confirmed, it
+enters drafting, and a draft written without it shows as out of date through
+`changesSinceDraft`, as when any observation is added. Ask, the Insights tab
+and the Observations tab's list still read it. Because an observation can have
+no severity, the Insights evidence puts it last and calls its severity "not
+rated".
+
+`severity` is `null` while empty (no longer required) and `location` is
+required, except on a draft observation. `draft: true` is present only on a
+hidden **draft observation** (CP-24): New Observation creates it with the first
+recording added before Save (`POST .../observations/draft`) so the recording has
+a place to transcribe. It has recordings and no location, and its
+`COPE_dimension` is `null`. It appears in no list, count, drafting input, Ask,
+appendix, MarshBot check or report: `listObservations` and `listObservationsOf`
+leave `draft: true` out, and they are what those read. Saving with its id as
+`details.draftId` clears `draft` in one update that matches on it (so a discard
+or a second Save cannot race it), sets the fields and `createdAt`, and keeps
+its recordings and transcripts. Leaving New Observation without saving deletes
+it and its recordings' files (`DELETE /api/observations/:id/draft`; a saved
+observation is refused). The files go first and the record only when every file
+went: on a storage error the draft is kept for the next hourly cleanup, and the
+discard still answers 204. That hourly job deletes drafts unchanged for 24
+hours (by `updatedAt`, not creation) with their files, the same way.
+Removing a draft's recording deletes it and its file for good, file first; on
+a storage error it answers 409. A Save that brings nothing of its own is
+refused (400) if the draft's only recording was removed meanwhile.
 
 Each page (CP-19) is a photo of a page of the engineer's handwritten notes,
 transcribed like a recording: its own `_id`, a `name` (the uploaded file's, or
@@ -882,7 +963,7 @@ corrected page again, as the correction goes.
 A finished page's text can be corrected (CP-20), as a recording's transcript
 is (CP-08): `transcription.correction` holds `{ text, at, by }`, and
 `transcript` and `uncertain` stay as the model wrote them, as evidence of what
-it read. Drafting (`handwritingOf`) and the AI proposal (`readingItems`) use
+it read. Drafting (`handwritingOf`) and the suggestion's text (`readableText`) use
 the correction. Writing the model's words back removes it. A page the model
 found no handwriting on (`transcript: ''`) can be corrected too, so the engineer
 can write what it missed. Only a `transcribed` page not removed can be
@@ -901,18 +982,22 @@ none.
 
 | Route | Does |
 | --- | --- |
-| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null` or `[]` to leave it uncategorised; it must be sent), `severity`, `locationId` (one of the assessment's locations), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. When a photo was marked before saving (CP-10), one `photoRegion` part per `photo` part, in the same order: the mark as JSON `{ x, y, w, h }`, or empty for a photo not marked; none at all when no photo is marked. A mark that is not an area inside its photo, or a count that doesn't match the photos, is a 400 and nothing is stored. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, or a location not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
-| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript` as Whisper wrote it, and any `correction`), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ status, photos, categories, error, attempts, model, photoIds, items, outOfDate }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }` or `null`, each category `{ category, reason, evidence: [{ item, quote, verified }] }` and each item `{ label, kind, id, leftOut }`, or `null` until it is read, CP-05, CP-21), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation. `?include=deleted` lists deleted ones too |
-| `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity`, `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it) and `note` (5,000 characters, stored as typed; `null` or blank removes it). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
+| `POST /api/assessments/:reference/observations` | Multipart form: a `details` part with the JSON fields `note` (optional), `copeDimensions` (a list of any of the four, or `null`, `[]` or left out to leave it uncategorised for the AI to suggest), `severity` (optional the same way), `locationId` (required: one of the assessment's locations), optional `draftId` (a draft observation made by the draft route below, whose recordings it keeps; CP-24), optional `standard` (100 characters), and optional `checklistItem: { itemId, result }` (an item of the latest checklist, `confirmed` or `differs`; CP-31), plus a `recording` part per audio file (up to 25 MB each), a `photo` part per JPG or PNG (up to 20 MB each) and a `page` part per photographed page of handwritten notes (JPG or PNG, up to 20 MB each, CP-19), 100 MB in all. When a photo was marked before saving (CP-10), one `photoRegion` part per `photo` part, in the same order: the mark as JSON `{ x, y, w, h }`, or empty for a photo not marked; none at all when no photo is marked. A mark that is not an area inside its photo, or a count that doesn't match the photos, is a 400 and nothing is stored. 201, or 400 `{ error, fields }` as for assessments (also for no note, recording, photo or page, an empty file, no location or one not on the assessment) / 403 (not the assigned engineer) / 404 / 409 (no active session, archived, or a checklist item not on the latest checklist or already checked) / 413 / 415 (an audio format Whisper can't read, or a photo or page that isn't JPG or PNG, named in `error`). One refused file saves nothing |
+| `GET /api/assessments/:reference/observations` | Every observation not deleted, newest first, with its `note`, `recordings` and `photos` (kept ones only), each recording with its `url` and `transcription` (`transcript`, tidied by S5 (CP-27), and any `correction`; `spoken` is not sent), each photo with its `url`, each with `added` (`{ at, by }` or `null`), then `removedRecordings` and `removedPhotos`, each also with `removed` (CP-08); its `pages` (kept ones only), each with its `url`, `transcription` (`transcript` and `uncertain` as the model wrote them, and any `correction`, CP-19, CP-20) and `added`, then `removedPages`, each also with `removed` (CP-20); its `interpretation` (`{ photos }`, `photos` being the photos' part `{ status, description, hazardType, error, attempts, model, photoIds, outOfDate }`, or `null` until they are described, CP-05, CP-21, CP-24), its `suggestion` (`{ status, error, category, severity }`, each field `{ notSure }` or `null`, or `null` when nothing is suggested and nothing is running; CP-24) and `toCheck` (true when a category or severity is empty or not sure, or the suggestion failed), plus `edited` and `deleted` (`{ at, by }` or `null`). `copeDimensions` is the list in C-O-P-E order, or `null` for an uncategorised observation, and `severity` is `null` while empty. A draft observation is never listed. `?include=deleted` lists deleted ones too |
+| `PATCH /api/observations/:id` | Changes the tags and note: JSON with any of `copeDimensions` (a list of any of the four, or `null` or `[]` to uncategorise; the same categories in another order change nothing), `severity` (`null` empties it), `locationId` (one of the assessment's locations), `standard` (100 characters; `null` or `''` removes it), `note` (5,000 characters, stored as typed; `null` or blank removes it) and `confirm` (`["category"]`, `["severity"]` or both: keeps a suggested value as it is, CP-24). Sending a category or severity, or confirming it, makes it the engineer's and clears its `suggestion` entry, even for the same value. A changed note queues the reading job again (CP-24). A field left out is unchanged. 200 with the observation, or 400 `{ error, fields }` as for capture (also when nothing is sent, or the note would leave nothing captured) / 403 not the assigned engineer / 404 / 409 archived or deleted |
 | `PUT /api/observations/:id/recordings/:recordingId/transcript` | Corrects a finished transcript: JSON `text` (20,000 characters, not blank). 200 with the observation, or 400 / 403 / 404 / 409 (not transcribed, removed, deleted or archived) |
 | `DELETE /api/observations/:id` | Soft-deletes the observation. 200 with it (`deleted` set), or 403 / 404 / 409 (already deleted, or archived) |
-| `POST /api/observations/:id/restore` | Restores a deleted observation. 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
-| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, and `photoRegion` parts for photos marked before adding (CP-10), checked as at capture, each recording and page transcribed, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
+| `POST /api/observations/:id/restore` | Restores a deleted observation and queues its reading (CP-24). 200 with it, or 403 / 404 / 409 (not deleted, or archived) |
+| `POST /api/observations/:id/media` | Adds recordings, photos and handwritten pages (CP-08, CP-20): multipart `recording`, `photo` and `page` parts, and `photoRegion` parts for photos marked before adding (CP-10), checked as at capture, each recording and page transcribed and the photos described, 100 MB in all; no capture session needed. 200 with the observation, or 400 (none sent, or an empty file) / 403 / 404 / 409 (deleted or archived) / 413 / 415. One refused file adds nothing |
 | `PUT /api/observations/:id/photos/:photoId/region`, `DELETE …/region` | Marks the area of a photo that matters (CP-10): JSON `{ x, y, w, h }`, fractions of the photo with a size above zero, inside it; DELETE clears the mark. The photo in S3 is not changed. 200 with the observation, or 400 / 403 / 404 / 409 (the photo removed, the observation deleted, or the assessment archived) |
-| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
+| `DELETE /api/observations/:id/recordings/:recordingId`, `DELETE /api/observations/:id/photos/:photoId`, `DELETE /api/observations/:id/pages/:pageId` | Removes one, a soft removal (CP-08, CP-20); on a draft observation a recording goes for good with its file, and a storage error answers 409 (CP-24). 200 with the observation, or 403 / 404 / 409 (already removed, deleted, archived, or it would leave nothing captured) |
 | `POST /api/observations/:id/recordings/:recordingId/restore`, `POST /api/observations/:id/photos/:photoId/restore`, `POST /api/observations/:id/pages/:pageId/restore` | Restores a removed one. 200 with the observation, or 403 / 404 / 409 (not removed, deleted or archived) |
 | `POST /api/observations/:id/recordings/:recordingId/transcription/retry` | New attempt for a failed recording: 202, or 404 / 409 (not failed, or removed) |
-| `POST /api/observations/:id/interpretation` | Reads the observation (CP-05, CP-21): its note, transcripts and kept photos, for proposed categories and, with photos, a description and hazard type. With no body, both parts in one call; with `{ "part": "categories" }` or `{ "part": "description" }`, that part again, replacing it, at any time. Saving never reads it. 202, or 400 (an unknown `part`) / 404 (unknown observation) / 409 (for the categories: a recording or page still transcribing, or nothing to read; for the description: no photos; or deleted, or the part already being read) |
+| `POST /api/observations/:id/suggestion/retry` | Tries again after a failed suggestion or a failed photo description (CP-24): queues the reading job. 202 with the observation, now reading, or 403 / 404 / 409 (neither has failed, or deleted or archived) |
+| `GET /api/observations/:id` | One observation (CP-24), so the open page can read it again when the `observations` event arrives. A saved one for anyone who can open its assessment; a draft only for the assigned engineer. 200, or 403 / 404 / 409 (a draft of an archived assessment) |
+| `POST /api/assessments/:reference/observations/draft` | Multipart `recording` parts and an optional `draftId` text part (CP-24 AC1): adds them to the draft observation, creating it when no `draftId` is sent. Each is stored and transcribed at once. 201 `{ draft }`, or 400 (no recording, an empty file) / 403 / 404 / 409 (no active session, archived) / 413 / 415. The assigned engineer, as for saving |
+| `DELETE /api/observations/:id/draft` | Discards a draft observation and its recordings' files (CP-24 AC3). 204 (also when a storage error keeps the draft for the hourly cleanup), or 403 / 404 (not a draft) |
+| `POST /api/observations/:id/interpretation` | Removed (CP-24). Answers 404 |
 | `GET /api/observations/:id/recordings/:recordingId/audio` | Streams the original recording from S3 |
 | `GET /api/observations/:id/photos/:photoId/image` | Streams the original photo from S3, cacheable since it never changes; 404 for an unknown observation or photo |
 | `POST /api/observations/:id/pages/:pageId/transcription/retry` | New attempt for a failed handwritten page (CP-19 AC11): 202, or 404 / 409 (not failed, or removed) |
@@ -938,10 +1023,7 @@ accepted, and from when it was accepted. Each document has:
 - `sources`: the cited passages by citation ID, with their text, `doc_id`,
   `headings` and `page_start`/`page_end`: every cited standard (`C:`), and any
   past-report passage (`P:`) a statement cites, kept so the review workspace
-  can open it (RV-01). Drafts saved before RV-01 hold standards only. A
-  passage may carry `broader: true` (GN-16): rag-service found that standard by
-  the jurisdiction-only fallback search, not the exact jurisdiction and facility.
-  The review workspace returns it as `broader` on the source.
+  can open it (RV-01). Drafts saved before RV-01 hold standards only.
 - `questions`: up to three questions for the engineer about gaps the evidence
   leaves. They are not part of the report.
 - `evidence`: the observations the draft was given, as they were then (`id`,
@@ -1285,16 +1367,18 @@ Each turn:
 | `_id` | the question's id (kept from `assessment_questions` by the migration) |
 | `question` | as asked, at most 1,000 characters |
 | `proposal` | a request for text for a section (AS-04): the `_id` of its [proposal](#proposed-text-as-04); `null` for a question |
+| `guidance` | writing guidance for a section (AS-08): `{ kind, sectionId, label }`, `kind` being `cover` ("What should this section cover?") or `missing` ("What is missing from this section?") and `label` the section as the report heads it ("9. Fire Protection"); `null` for a question. The `question` is then the gateway's own wording of it |
+| `gaps` | for `missing` only (AS-08 AC2): `[{ kind, fact, blocksExport, link }]` as the gateway listed them when asked, what blocks the export first. `kind` is the export check's (`pending_findings`, `out_of_date`, `figures`, …) or `no_text`, `table`, `category`, `observation`; `fact` names the section and gives no next step (AC4); `link` is `{ to: 'section', sectionId, subsection?, finding? }` or `{ to: 'observation', observationId }` (`null`: the Observations tab). Absent on other turns |
 | `passage` | the text selected in the draft that the question is about (AS-02), or rewritten (AS-04), or `null`: `{ anchor, label, citations, findings }`. `anchor` is a comment thread's (`{ sectionId, start, end, exact, prefix, suffix }`, see [Report comment threads](#report-comment-threads-rv-03)), never moved: the Ask tab finds the passage again from its words, or says "Text deleted". `label` heads its section ("9. Fire Protection"); `citations` are the refs the draft holds in the blocks it is in; `findings` the keys (`0.2`) of the findings it is in |
 | `status` | `answering` from the save until the answer ends; then `complete`, `stopped` (cut off part-way: the engineer left, or search or the model failed after some of it was shown) or `failed` (nothing answered) |
-| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report); `kind` is `observation`, `standard` or `report`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
+| `statements` | `{ text, citations: [{ ref, kind, quote, verified, described }], differs?, supported?, paragraph? }` (`supported` and `paragraph` on proposed text, AS-04): `ref` is `O:<observation id>`, `C:<chunk id>` (a standard), `P:<chunk id>` (a past report) or `T:<section>` / `T:<section>.<part>` (the report template's definition of a section or one of its parts, AS-08); `kind` is `observation`, `standard`, `report` or `template`; `verified` says whether the quoted words were found in the source; `described` is true when they are only in a picture's AI description (KB-02), absent on older answers; `differs: true` on a line naming where the sources behind a passage disagree (AS-02 AC4), absent otherwise |
 | `missing` | what evidence the answer says is missing (AS-01 AC4) |
 | `sources` | the cited sources as S4 returned them, by `ref` (AS-03 AC3): a passage's text and Chroma labels, or the observation as it was sent. Read with the documents' details now, as the review workspace reads a draft's |
 | `confidence` | `high`, `medium` or `low`, worked out from the checks (see [services](services.md#asking-about-an-assessment-s4-as-01)); `null` when nothing was answered |
 | `error` | `{ step, cause, at }` when it stopped, else `null` |
 | `provider`, `model`, `promptVersion` | what wrote the answer (AS-03 AC3), from its trace's `provider` (S4's `LLM_PROVIDER`), `model` and `prompt_version`; `null` while answering, or when S4 was never reached |
 | `askedAt`, `answeredAt` | when it was asked, and when its answer ended (`null` while answering) |
-| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02, `as08-v1` for what a section should cover, with a `guide` block: `kind`, `section_id`, `template_parts`, `template_parts_cited`), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
 
 - A question is saved (pushed onto its conversation, or as the first of a
   new one) before S4 is asked, so it is kept even if the answer fails; the
@@ -1304,6 +1388,10 @@ Each turn:
 - The evaluation harness can replay a turn from its `question`, `passage`
   and the trace's `scope`, and score it against its `statements`, `sources`
   and `guardrail` (AS-03 AC3).
+- A `missing` turn (AS-08) is saved complete at once, with no provider, model
+  or prompt version: its trace is `{ story: 'AS-08', guide: 'missing',
+  pipeline: ['check'], section_id, gaps, blocking, kinds, generated_at }`,
+  counts only, never the facts' words. It counts against no question limit.
 - Never part of the report (AS-03 AC4): the export reads nothing here, and
   asking, starting or deleting a conversation adds no version to
   `report_section_versions`, no entry to `review_audit_log`, and nothing to
@@ -1322,7 +1410,7 @@ Each turn:
 | `GET /api/assessments/:reference/ask` | `{ scope, archived, conversations, conversation, questions }`: the user's conversations, latest first (at most 100), each `{ id, title, startedAt, lastAskedAt, questions }` (a count); the latest, and its questions oldest first; whether the assessment is archived; and what a new question searches. |
 | `GET /api/assessments/:reference/ask/conversations/:id` | `{ conversation, questions }` for one of the user's conversations. |
 | `DELETE /api/assessments/:reference/ask/conversations/:id` | Deletes it for good. 204. |
-| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). Server-sent events, the first (`question`) naming the conversation it went into. |
+| `POST /api/assessments/:reference/ask` | `{ question, passage?, conversation?, propose? }`: asks into that conversation, or starts a new one without it; `propose` asks for text for a section instead (AS-04, [Proposed text](#proposed-text-as-04)). `{ guide: { kind, sectionId }, conversation? }`, with no question, asks for writing guidance instead (AS-08): `cover` for Sections 4 to 12, `missing` for Sections 2 to 12. Server-sent events, the first (`question`) naming the conversation it went into. |
 
 All need `reports:ask` and an assessment the caller can open (403
 otherwise); 404 for an unknown assessment, or a conversation that is not the
@@ -1393,6 +1481,81 @@ section changed since; AC6), `drafting-set` (a standard it cites is no longer
 selected; AC4), `unsupported` (Accept with a sentence unsupported; AC3),
 `state`, `target`, `moved` or `finalised`.
 
+## Report comparisons (RV-13)
+
+`report_comparisons` (`server/src/models/report-comparison.model.ts`) holds one
+document per run of Compare with previous report: an assessment compared with
+an earlier finalised report of the same site. It is kept apart from the report:
+nothing here writes a section, version, review log entry or finding, and the
+export never reads it (CLAUDE.md). Written by `report-comparison.service.ts`;
+the rules are `report-comparison-rules.ts` (`rv13-rules-v1`). Each document has:
+
+- `assessment`, and `previous`: the report compared with, `{ assessment,
+  reference, siteVisitDate, engineer: { id, name } }` (its lead engineer as they
+  were named then).
+- `status`: `done`, or `failed` with `error` (the reason shown with its time).
+  A failed run holds no items; the tab shows the latest `done` run and a
+  failure newer than it.
+- `previousItems`: the previous report's findings and recommendations as they
+  were compared, in report order: each paragraph and list item of Sections 4 to
+  12 as the report reads it (`currentDocument`), and each accepted OFI. Each has
+  a `key` (`P:<section>:<finding>`, `P:<section>:b<n>` for the engineer's own
+  text, `P:3:<OFI id>`), its `label` for S4 (`P1`…), `kind` (`finding` or
+  `recommendation`), `sectionId`, `section` ("9. Fire Protection"), `heading`
+  (subsection, or an OFI's number and title), `quote` (the report's words,
+  never the model's), `context` (an OFI's Observation column), `severity` (the
+  highest of the observations it cites, as its draft was given them),
+  `priority` (an OFI's), `categories` and `location`.
+- `sources`: the current evidence as it was compared: observations with words
+  (`O:<id>`), draft findings as reviewed (`F:<section>:<draft id>:<finding>`)
+  and accepted OFIs (`R:<id>`), each with `label` (`O1`, `F1`, `R1`), `kind`,
+  `section`, `title`, `text`, `severity` (the engineer's only: one still to
+  check is null), `priority`, `categories`, `location`, `observations` (the
+  observation it is, or those it cites), `finding`, and `textHash` and
+  `tagHash`: its words and its tags (category, severity, location, priority)
+  then. A source whose hashes differ now, or that is gone, makes the comparison
+  out of date.
+- `items`: the outcome for each previous item after the rules: `key`,
+  `outcome` (`fixed`, `improved`, `unchanged`, `worse`, `not_checked`, or null
+  while sources disagree), `suggested` (the model's), `sources`, `disagree`,
+  `possible` (source keys), `reason`, `missing`, `confidence`, `figures` (`name`,
+  `previous` and `current` as written, `source`, and `difference` worked out in
+  code, or a `note` saying why not) and `corrections` (what the rules changed:
+  `no_source`, `severity`, `omitted`, `figure`). New items are not stored: they
+  are worked out on read from the sources no item is compared with.
+- `decisions`: appended, never changed. Each records an item's whole state after
+  it (`item`, `action` (`accept`, `outcome`, `pair`, `unpair`, `dismiss`,
+  `restore`), `outcome`, `sources`, `note`, `dismissed`), `by` `{ id, name }`,
+  `at`, and `carriedFrom` (the comparison it was copied from by Compare again,
+  else null). An item reads its latest decision that chose an outcome or
+  sources; dismissing and restoring only hide and show it.
+- `recheck`: items Compare again flagged for another look, with the reason.
+- `dropped`, `provenance` (`provider`, `model`, `effort`, `prompt_version`,
+  `rules_version`, `generated_at`, `privacy: { enabled, masked_count }`; null
+  for a failed run), `createdBy` `{ id, name }`.
+- `metadata`: `source_type: 'report_comparison'`, `jurisdiction` and
+  `facility_type` from the site, `COPE_dimension: 'all'` (it covers the whole
+  report), `effective_date`.
+
+Index: `{ assessment, previous.reference, createdAt: -1 }`.
+
+`npm --prefix server run seed:comparison` adds a demo to try it on: Kestrel
+Frozen Foods' Tuas Cold Store (`SITE-9101`) with four of Alex's visits,
+`RPT-2026-9101` (finalised, one observation), `RPT-2026-9102` (finalised, with
+drafted Sections 7 to 10 and two accepted OFIs: the previous report),
+`RPT-2026-9103` (eight observations written to give each outcome) and
+`RPT-2026-9104` (no observations). It makes no AI call; pressing Compare does.
+It refuses to add anything when one of those references, the site code or the
+client name is already used by other data. `seed:comparison:remove` removes
+only what is at that site, its comparisons included and any assessment created
+there while trying it. Run `npm run seed` first.
+
+| Route (under `/api/assessments/:reference/comparison`) | Does |
+| --- | --- |
+| `GET /` | The tab: `{ previousReports, previous, canChange, readOnly, observations, comparison, failure, running }`. `?previous=<reference>` picks the report; the latest earlier finalised one otherwise. `comparison` is the latest run against it, with its items as decided (New ones included, in the tab's order), `counts`, `summary`, `sources` and `outOfDate` (`{ summary, changes }` naming what was added, deleted, retagged or edited since, or null). `assessments:view` and its engineer or a knowledge admin: 403 otherwise, 404 a report that is not an earlier finalised one. No S4 call. |
+| `POST /` | `{ previous }`: runs a comparison through S4. 201 with the tab; 400 no report named; 403 not the assigned engineer; 404; 409 archived, no saved observation, nothing to compare or a run under way; 503 `{ error, failedAt }` when S4 failed (kept as a failed run; the last comparison stays). `reports:generate`. |
+| `POST /:comparisonId/items/:item/decision` | `{ action, outcome?, sources?, note? }` (note up to 500 characters): one decision on one item of the latest comparison. 200 with the tab; 400 (`fields.note` for Fixed with no current source and no note, `fields.outcome` for sources that disagree with no outcome chosen or Not checked with a source); 403; 404 unknown comparison or item; 409 archived, or a newer comparison since. `reports:generate`. |
+
 ## Opportunities for Improvement (GN-05)
 
 `report_ofis` holds one document per drafted Opportunity for Improvement (OFI),
@@ -1462,8 +1625,9 @@ Create all. Each document has:
   when `failed`.
 - `recordings[]`: `seq` (one per (walk, seq); a repeat upload changes nothing),
   `key` (S3), `contentType`, `size`, `durationSec`, and `transcription`
-  (`status`: `queued`, `transcribing`, `transcribed` or `failed`; `text`;
-  `segments`: Whisper's `[start, end, text]`; `attempts`; `error`).
+  (`status`: `queued`, `transcribing`, `transcribed` or `failed`; `text`, tidied by
+  S5 (CP-27); `spoken`, Whisper's own text kept as evidence, absent before CP-27;
+  `segments`: Whisper's `[start, end, text]`, each text tidied by rules; `attempts`; `error`).
 - `photos[]`: `photoId` (the client's UUID, so a repeat is recognised), `key`,
   `contentType`, `size`, `recordingSeq` and `offsetSec` (seconds into that
   recording; null if none), and `description` (S5's reading, set while the
@@ -1475,7 +1639,7 @@ Create all. Each document has:
   the proposal by hand (Add observation on the review reuses the Add manually
   screen): `mediaId` (the client's UUID; a repeat changes nothing), `kind`
   (`photo`, `page` or `voice`), `key`, `contentType`, `size`, and for a voice
-  clip `transcription` (`status`, `text`, `error`), transcribed on the
+  clip `transcription` (`status`, `text` (tidied), `spoken` (Whisper's, CP-27), `error`), transcribed on the
   `transcription` queue like a recording. Only while `ready` and Create all has
   not started. Absent on older walks.
 - `typedText`: the whole-walk text of walks made before notes existed. Read
@@ -1492,7 +1656,9 @@ Create all. Each document has:
   (`severity`, `category`, `location`: Jev was unsure, under 0.70).
 - `created`: `observationIds` and `locationIds` (proposal `ref` -> `_id`). The
   observation ids are chosen before anything is created, so a repeated Create
-  all makes nothing twice.
+  all makes nothing twice. Each created observation carries a `suggestion`
+  entry (CP-24) for every value the proposal's `check` flagged, so that value
+  starts marked not sure.
 - `metadata` with the five required fields: `source_type: 'site_walk'`,
   `jurisdiction` and `facility_type` from the site, `COPE_dimension: null`
   (a walk has none; each proposed observation carries its own) and
@@ -1980,7 +2146,8 @@ regions finish out of page order; null until the pass starts, when nothing needs
 OCR, and at the start of every stage), `stageLog` (completed stages, each with
 `stage`, `startedAt`, `durationMs`), `failedStage` (the stage that was in
 progress when ingestion failed, written on failure so it need not be inferred
-from `stageLog`; absent otherwise — used by the ingestion notification, IN-10),
+from `stageLog`; absent otherwise — used by the ingestion notification, IN-10, and by background
+work to mark the stage a failed document stopped in, F-11),
 `privacy` (`{ enabled, masked_count }`: whether the document was redacted and
 how many details, never the mapping, PV-05; written when the run finishes),
 `currentStageStartedAt`, `startedAt`, and
@@ -2113,8 +2280,10 @@ a knowledge admin add a document the chatbot lacked
 
 Fields: `question` (≤ 4,000 chars, the chat's limit), `message` (optional, ≤ 1,000,
 absent when blank), `askedBy` (user id), `status` (`open`, `filled` or `dismissed`),
-`documentIds` (knowledge document ids, set when filled), `reason` (≤ 500, set when
-dismissed), `closedBy`, `closedAt`, and timestamps.
+`documentIds` (knowledge document ids, set when filled), `incomingDocumentIds`
+(F-11: documents an admin uploaded for it while open, added with `$addToSet` only
+while `status` is `open`; absent until the first, and filling does not need them),
+`reason` (≤ 500, set when dismissed), `closedBy`, `closedAt`, and timestamps.
 
 Closing is atomic: fill and dismiss update only where `status` is `open`, so two
 admins acting at once cannot both close it (the second gets 409). Filling and
@@ -2144,7 +2313,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 
 | Field | Meaning |
 |---|---|
-| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk`, `client-intake` or `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) |
+| `feature` | `draft-section`, `retrieval`, `transcribe`, `transcribe-handwriting`, `label-document`, `interpret-photo`, `ocr`, `embed-document`, `chat`, `checklist`, `describe-photo`, `site-walk` (also a manual observation's suggested category and severity, CP-24), `client-intake`, `ask` (AS-01: a question's model call; its Cohere calls are `retrieval`) or `walkthrough` (F-12: any call made on a practice assessment or during a walkthrough's try-it, whatever the task was) |
 | `billedService` | who bills us: `anthropic`, `cohere-embed`, `cohere-rerank`, `openai-whisper`, `openai-label`, `typesafe-jev`, `gemini-vision`, `gemini-ocr`, `self-hosted-ocr` |
 | `model` | the exact model the provider reported |
 | `reportId` | the assessment reference (absent for labelling, ingestion and chat, which have no report) |
@@ -2165,6 +2334,7 @@ Collection `ai_calls` (`server/src/models/ai-call.model.ts`). One document per p
 - A failure while saving is logged and ignored, so bookkeeping can never fail a draft or a transcription.
 - Rates are stored with each call (`costParts`) so the cost report can show how a cost was made up after prices change; a price-table edit never changes a saved row. `migrate:cost-parts` (one-off, safe to re-run) gives older priced rows today's rates only where those reproduce the stored cost exactly; it carries a frozen copy of labelling's prices for older labelling rows.
 - Ingestion rows arrive from the worker through `POST /api/internal/ai-usage` (service key), one per document, feature (`ocr`, `embed-document`), billed service and model, whatever the document's outcome. Their `durationMs` is the sum over `callCount` calls, so the report averages it per call and leaves those rows out of latency percentiles. Calls that reported no usage form their own `unavailable` row. Self-hosted OCR is always $0, even with no token counts.
+- A call whose `reportId` is a practice assessment's reference, or whose request is a try-it's marked with the `x-walkthrough` header (F-12; only the `chat` and `new-docs` try-its on their own routes, see docs/areas/services.md), is saved with `feature: 'walkthrough'`, no `reportId` and no `section`, and the user's id (`recordAiCalls`). So practice work never shows under an assessment, and its cost stays visible as one "Walkthrough" group.
 - Read by the EV-04 cost report (`usage-report.service.ts`).
 - Indexes: `feature`, `billedService`, `reportId`, `documentId`, `userId`, `createdAt`.
 
@@ -2222,14 +2392,6 @@ One collection holds the lasting facts an engineer keeps for the knowledge assis
 - The gateway adds the facts to S4's `context` after any context the browser sent (never from the browser), and adds none while memory is off. Facts steer an answer; they are never cited, because S4 only cites passages.
 - Turning memory off keeps the facts. Chat is not masked yet (PV-03), so the form tells the engineer not to type client names or site details.
 
-## Standards cite target (GN-16)
-
-There is no setting for it. The Review banner "n of m sections cite a standard"
-compares against a fixed 50% (`STANDARD_CITE_TARGET` in
-`client/src/features/assessments/citedStandards.ts`). The admin-set
-`app_settings.standardCiteTarget` was removed in the S-01 follow-up;
-`PATCH /api/settings/global` now accepts only `qaStrictness`.
-
 ## Source priority (RT-04)
 
 `app_settings.sourcePriority`: the four tier ids, highest authority first. Absent
@@ -2251,3 +2413,86 @@ code (`settings.service.ts`), not in the database. Written only by `PATCH /api/s
 for the signed-in user's own document. `metadata` is the same null-filled block as
 `app_settings`: `source_type: "settings"`, `jurisdiction`, `facility_type` and
 `COPE_dimension` null, `effective_date`.
+
+### The walkthrough record (F-12)
+
+The same document holds `walkthroughs` (optional, a plain object): what this account has done
+with each walkthrough.
+
+| Field | Meaning |
+|---|---|
+| `welcomeAt` | when the Welcome played or was skipped. Absent = a first-time account: the Welcome starts by itself |
+| `offers` | `false` once the user switches off "Offer walkthroughs on new screens". Absent = on |
+| `seen` | `{ <walkthrough id>: { state: 'played' \| 'skipped' \| 'declined', at } }`. A walkthrough listed here is not offered again |
+| `otherWay` | ids of the one-time "other way" offers already made |
+| `counts` | small tallies those offers need, e.g. `manual-observation` |
+| `practiceRemoved` | `true` after the user removes their practice assessment, so it is not made again at sign-in |
+
+- Read by `walkthroughRecordFor` (`walkthrough-record.service.ts`) and returned as `walkthroughs`
+  beside the signed-in user (`GET /api/auth/me`, `POST /api/auth/login`), with `practice`: the
+  reference of the user's live practice assessment, or null.
+- Written by `PATCH /api/settings/me` with `{ walkthroughs: { welcome?, offers?, seen?, otherWay?,
+  count?, clear? } }`, one dotted path at a time, so the practice service's `practiceRemoved` is
+  never overwritten. `clear` ("Offer them all again") empties `welcomeAt`, `seen`, `otherWay` and
+  `counts` only.
+- Walkthrough ids are the client's (`client/src/features/**/*walkthroughs.ts`); the gateway only
+  checks their shape (`/^[a-z0-9-]{1,40}$/`, at most 100 a call).
+
+## Practice assessment (F-12)
+
+One made-up assessment per user that the walkthroughs' hands-on steps run on. It is a real
+assessment with a real client and site, so every screen and every AI feature works on it
+unchanged. Decision record: a practice assessment is hidden by one shared rule, not by a second
+data path.
+
+| Collection | Mark | Notes |
+|---|---|---|
+| `assessments` | `practice: 'live' \| 'hidden' \| 'making'` | `'live'` is the one its owner (`engineer`) can open; `'hidden'` is one they reset or removed; `'making'` is one still being filled, open to no one. Reference `PRACTICE-0001` from the counter `practice`, never an RPT number. A partial unique index allows one live practice assessment per engineer |
+| `clients` | `practice: true` | "Harbourline Cold Store (practice)", one per practice assessment, `key` `practice:<user>:<reference>`, kept when its owner renames it, so it can never be found by name |
+| `sites` | `practice: true` | its one site; its `code` is the practice reference |
+
+Every other record it owns (observations, checklist, site walk, report sections, review log,
+OFIs) is an ordinary one keyed by the assessment, with the required metadata.
+
+- **Left out of everything.** Any query that lists or counts assessments, clients or sites across
+  records spreads `NOT_PRACTICE` (`services/practice/filter.ts`, `{ practice: { $exists: false } }`).
+  The one exception is the owner's own `GET /api/assessments`, which returns their live one as the
+  first row with `practice: true`. `practice-filter.test.ts` reads every list and count endpoint as
+  the owner, another engineer and an admin, with and without a practice set, and the answers must
+  match. A new cross-record reader must use the filter and join that table.
+- **Owner only.** `practiceGate` (`middleware/practice.middleware.ts`) answers 404 under
+  `/api/assessments/:reference/**` for anyone else, an admin included, and for a hidden one.
+  Archiving or reassigning it answers 409.
+- **Never deleted.** Reset and Remove set `practice: 'hidden'`: the review log and section
+  versions are append-only. Reset then makes a fresh one from the fixed template
+  (`services/practice/template.ts`, prepared text, no AI call).
+- **No notifications.** `createNotification` saves nothing for a practice reference.
+- **Usage.** Its AI calls are saved under the feature `walkthrough` (see AI-call usage).
+- **What the template holds:** 3 locations, 8 observations (1 to check, 1 with a question for the client), a checklist with 1
+  item left open, 1
+  ready site walk, 3 suggested OFIs, Sections 6 to 12 drafted (5 findings undecided, 1 of them
+  unsupported), proposed figures waiting for Sections 4 and 5, stage Generate (set by the real
+  re-check at creation).
+
+## Privacy words (PV-09)
+
+`privacy_words` holds the knowledge admin's two lists, one document per word: `list`
+(`always` or `never`), `word` as typed, `key` (lower case, spaces collapsed, as
+privacy-service compares; unique with `list`), `kind` (`CLIENT`, `SITE`, `ADDRESS` or
+`PERSON` on `always`, null on `never`), `reason`, `source` (`default` when seeded from
+privacy-service's `allow_list.json`, `admin` when added in Settings), `addedBy`
+(`{id, name}`, null for a default) and `at`. It is not a knowledge document, so it has no
+labels of its own: `metadata` is the same null-filled block as `app_settings`
+(`source_type: "settings"`). Always masked names are client data: only `settings:manage`
+reads or writes the collection, through `privacy-words.service.ts`.
+
+`app_settings.privacyWordsSeeded` is set once the defaults were seeded, so a default the
+admin removed is never seeded again. Each add and removal appends a `settings_log` row
+(`setting: 'privacyWords'`, `before` or `after` `{list, word, kind, reason}`, the other
+null). Rows are never edited: removing a word deletes its `privacy_words` document and logs
+it; there is no revert.
+
+`GET /api/settings/privacy-words/masked-in-reports` reads `knowledge_documents.privacyMapping`
+(`$objectToArray`) and returns each value once with its kind (from the tag) and how many
+reports hold it. It is the only route that reads the mapping, and it never returns a tag, a
+document id or a title (DECISIONS 2026-11-22).

@@ -18,6 +18,7 @@ from pathlib import Path
 from app import config, usage
 from app import privacy as pii
 from app.generation import ask as asking
+from app.generation import guide as guiding
 from app.generation import propose as proposing
 from app.generation.checklist import (
     CHECKLIST,
@@ -51,7 +52,7 @@ from app.retrieval.retriever import rerank, retrieve, search
 log = logging.getLogger("uvicorn.error")
 
 # Citable standards. Past reports (`marsh_report`) are fetched separately as precedent.
-STANDARD_SOURCES = ["fm_standard", "nfpa_standard", "local_standard"]
+STANDARD_SOURCES = ["fm_standard", "nfpa_standard"]
 # Candidates per observation for the reranker to choose from (AC14). Only the top
 # MAX_STANDARDS are sent, since every passage sent is paid for as input tokens.
 STANDARDS_PER_OBSERVATION = 8
@@ -193,7 +194,7 @@ def _nearest_first(per_observation: list[list[dict]]) -> dict[str, dict]:
     next nearest, so if rerank fails a cap still keeps every observation's nearest."""
     standards: dict[str, dict] = {}
     per_observation = [
-        [h for h in hits if (h.get("distance") or 0) <= MAX_STANDARD_DISTANCE]
+        [h for h in hits if h.get("distance", 0) <= MAX_STANDARD_DISTANCE]
         for hits in per_observation
     ]
     for rank in range(STANDARDS_PER_OBSERVATION):
@@ -337,11 +338,10 @@ def draft(
     # reports for the section as a whole. Past reports are filtered by country only:
     # their wording and judgements carry across facility types, and few reports share
     # one site's type.
-    queries = standard_queries(section, masked)
     *per_observation, past = search(
         [
             (query, {**site, "source_type": STANDARD_SOURCES}, STANDARDS_PER_OBSERVATION)
-            for query in queries
+            for query in standard_queries(section, masked)
         ]
         + [
             (
@@ -353,23 +353,6 @@ def draft(
         protection,
     )
 
-    # GN-01 AC: when this facility type has no standards at all, search the whole
-    # jurisdiction instead, and mark those passages `broader` so the reviewer sees it.
-    # Hits beyond the distance cut-off count as none: they would all be dropped below anyway.
-    broader = not _nearest_first(per_observation) and bool(queries)
-    if broader:
-        per_observation = search(
-            [
-                (
-                    q,
-                    {"jurisdiction": assessment.jurisdiction, "source_type": STANDARD_SOURCES},
-                    STANDARDS_PER_OBSERVATION,
-                )
-                for q in queries
-            ],
-            protection,
-        )
-    found = {h["id"] for hits in per_observation for h in hits}
     standards = _nearest_first(per_observation)
 
     # Past reports' passages under the same section heading, as wording and precedent.
@@ -392,17 +375,7 @@ def draft(
         log.warning("Rerank failed for section %s; using vector order", section_id, exc_info=True)
     standard_ids = set(standards)
     standards = {c["id"]: c for c in candidates if c["id"] in standard_ids}
-    ranked = len(standards)
     standards = dict(list(standards.items())[:MAX_STANDARDS])
-    standards_report = {
-        "section": title,
-        "searched": len(queries),
-        "fallback_searched": len(queries) if broader else 0,
-        "found": len(found),
-        "kept": len(standards),
-        "dropped": {"distance": len(found) - ranked, "cap": ranked - len(standards)},
-        "broader": broader and bool(standards),
-    }
     precedents = [c for c in candidates if c["id"] not in standard_ids][:MAX_PRECEDENTS]
 
     result, model = draft_section(
@@ -453,7 +426,6 @@ def draft(
     }
     sources = {
         ref: {"text": chunk["text"], **(chunk["metadata"] or {})}
-        | ({"broader": True} if broader and ref.startswith("C:") else {})
         for ref, chunk in passages.items()
         if ref in cited
     }
@@ -463,7 +435,6 @@ def draft(
         "subsections": subsections,
         "questions": questions,
         "sources": sources,
-        "standards_report": standards_report,
         "guardrail": guardrail,
         "usage": paid_calls,
         "provenance": {
@@ -720,7 +691,7 @@ def draft_checklist_for(facility_type: str, jurisdiction: str, standards) -> dic
         for key, hits in zip(keys, results):
             is_area = key in areas
             for hit in hits:
-                rank = (is_area, hit.get("distance") or 0, key)
+                rank = (is_area, hit["distance"], key)
                 if hit["id"] in kept and (hit["id"] not in owner or rank < owner[hit["id"]]):
                     owner[hit["id"]] = rank
         found_for = {
@@ -836,6 +807,10 @@ ASK_UNRANKED_OBSERVATIONS = 20
 # report text draws on more observations than a short answer.
 PROPOSE_OBSERVATIONS = 12
 PROPOSE_STANDARDS = 8
+# What a section should cover (AS-08): nearest standard passages per part of the section, and
+# how many of them all are kept after one rerank. A section has up to 16 parts.
+GUIDE_CANDIDATES = 5
+GUIDE_STANDARDS = 8
 
 
 def _lines(chunks: Iterator[str], blanks: bool = False) -> Iterator[str]:
@@ -910,6 +885,7 @@ def ask(
     privacy: dict | None = None,
     passage=None,
     propose=None,
+    guide=None,
 ) -> Iterator[dict]:
     """Answer one question about an assessment (AS-01): retrieve -> assemble -> generate ->
     guardrail, as events for the review workspace's Ask tab, ending with one `result` event that
@@ -932,7 +908,13 @@ def ask(
     standards in the drafting set are searched and citable, never past reports (AC4); each
     sentence streams marked supported or not (AC3), with the paragraph it is in, and a draft's
     `target` event names the subsection the model chose.
+
+    `guide` asks what one section should cover instead (AS-08): answered from the report
+    template's definition of the section and the selected standards, through `cover`.
     """
+    if guide is not None:
+        yield from cover(question, assessment, standard_ids, names, privacy, guide)
+        return
     paid_calls = usage.start()
     names = names or {}
     protection = pii.session(privacy)
@@ -1288,6 +1270,202 @@ def ask(
                         if propose
                         else {}
                     ),
+                },
+                "timings_ms": timings,
+                "privacy": protection.provenance(),
+                "generated_at": datetime.now(UTC).isoformat(),
+            },
+        },
+    }
+
+
+def cover(
+    question: str,
+    assessment,
+    standard_ids: list[str],
+    names: dict[str, str] | None,
+    privacy: dict | None,
+    guide,
+) -> Iterator[dict]:
+    """Say what one section of the report should cover (AS-08 AC1): retrieve -> assemble ->
+    generate -> guardrail, as `ask` does, with the same events and one `result` with the trace.
+
+    The evidence is the report template's definition of the section (`guide.template_parts`:
+    the section as a whole and each of its parts, labelled T1, T2, ...) and passages of the
+    standards selected on the assessment (`standard_ids`, through a Chroma `doc_id` filter),
+    searched once per part in one batched embed and reranked together. No observation or past
+    report is searched. Each line is checked before it is sent, as an answer's: a line with no
+    citation, in the first person, recommending or giving a percentage is never shown. The
+    question and the documents' names go through `/mask` as an answer's do; the template and the
+    standards are not client text.
+    """
+    paid_calls = usage.start()
+    names = names or {}
+    protection = pii.session(privacy)
+    timings: dict[str, int] = {}
+    step, clock = "retrieve", time.perf_counter()
+
+    def finished(name: str) -> None:
+        nonlocal clock
+        now = time.perf_counter()
+        timings[name] = int((now - clock) * 1000)
+        clock = now
+
+    statements: list[dict] = []
+    missing: list[str] = []
+    dropped: list[dict] = []
+    sources: dict[str, dict] = {}
+    parts = guiding.template_parts(guide.section_id, guide.section_title)
+    retrieved: dict[str, list[str]] = {"template": [f"T:{p['id']}" for p in parts], "standards": []}
+    reranked, model, error = False, None, None
+    yield {"type": "step", "step": "retrieve"}
+    try:
+        # 1. Retrieve. One /mask call for the question and the documents' names, so the model
+        # sees the names as the other Ask answers show them.
+        ids = sorted(names)
+        _, [masked_question, *shown] = _mask_evidence(
+            protection, [], [question, *(names[i] for i in ids)]
+        )
+        shown_names = dict(zip(ids, shown, strict=True))
+        kept: list[dict] = []
+        if parts and standard_ids:
+            where = {"doc_id": list(standard_ids)}
+            per_part = search(
+                [(spell_out(q), where, GUIDE_CANDIDATES) for q in guiding.queries(parts)],
+                protection,
+            )
+            candidates = list({p["id"]: p for hits in per_part for p in hits}.values())
+            try:
+                ranked = rerank(guiding.rank_query(parts), candidates) if candidates else []
+                kept = [
+                    c for c in ranked if c.get("relevance_score", 0) >= config.ASK_MIN_RELEVANCE
+                ][:GUIDE_STANDARDS]
+                reranked = True
+            except Exception:
+                log.warning("Rerank failed for writing guidance; using vector order", exc_info=True)
+                # Each part's nearest first, then each part's next, and so on.
+                order = [
+                    hits[n] for n in range(GUIDE_CANDIDATES) for hits in per_part if n < len(hits)
+                ]
+                kept = list({p["id"]: p for p in order}.values())[:GUIDE_STANDARDS]
+        retrieved["standards"] = [p["id"] for p in kept]
+        finished("retrieve")
+
+        # 2. Assemble.
+        step = "assemble"
+        labels = guiding.label_evidence(parts, kept)
+        by_label = {ref: (kind, item) for ref, kind, item in labels.values()}
+        if not parts:
+            # Nothing defines the section: say what is missing, ask no model (AS-01 AC4).
+            line = guiding.no_template(guide.section_title)
+            missing.append(line)
+            finished("assemble")
+            yield {"type": "missing", "text": line}
+        else:
+            if not kept:
+                line = guiding.no_standards(len(standard_ids))
+                missing.append(line)
+                yield {"type": "missing", "text": line}
+            user = guiding.user_message(masked_question, assessment, parts, kept, shown_names)
+            finished("assemble")
+
+            # 3. Generate, streamed line by line. 4. Guardrail each line before it is shown.
+            step = "generate"
+            yield {"type": "step", "step": "generate", "found": {"standards": len(kept)}}
+            written = stream_text(
+                guiding.SYSTEM,
+                [{"role": "user", "content": user}],
+                provider=config.LLM_PROVIDER,
+                model=config.ASK_MODEL,
+                effort=config.ASK_EFFORT,
+                feature="ask",
+            )
+            for line in _lines(written):
+                # Real values back before any check compares text (PV-02 Rule 4).
+                real, unknown = protection.unmask(line)
+                kind, words = asking.line_kind(real)
+                text, cites = asking.parse_words(words)
+                if unknown:
+                    dropped.append({"text": text, "reason": "placeholder"})
+                elif kind == "missing":
+                    problem = asking.content_problem(text)
+                    if problem or not text:
+                        dropped.append({"text": text, "reason": problem or "empty"})
+                        continue
+                    missing.append(text)
+                    yield {"type": "missing", "text": text}
+                elif text or cites:
+                    # No passage was selected, so a Differs line is checked as a statement.
+                    statement, why = asking.check_statement(text, cites, labels)
+                    if statement is None:
+                        dropped.append({"text": text, "reason": why})
+                        continue
+                    statements.append(statement)
+                    shown_sources = {
+                        c["ref"]: _ask_source(by_label[c["ref"]])
+                        for c in statement["citations"]
+                        if c["ref"] not in sources
+                    }
+                    sources |= shown_sources
+                    yield {"type": "statement", **statement, "sources": shown_sources}
+            model = config.ASK_MODEL
+            finished("generate")
+            if not statements:
+                missing.append(guiding.NO_SUPPORTED_ANSWER)
+                yield {"type": "missing", "text": guiding.NO_SUPPORTED_ANSWER}
+    except Exception as failure:  # noqa: BLE001
+        # What was said so far is kept; the engineer is told why it stopped and when (AC8).
+        if isinstance(failure, GenerationFailed | pii.PrivacyUnavailable | NotImplementedError):
+            log.error("Writing guidance failed at %s: %s", step, failure)
+        else:
+            log.exception("Writing guidance failed at %s", step)
+        error = {
+            "step": step,
+            "cause": _ask_cause(failure, step),
+            "at": datetime.now(UTC).isoformat(),
+        }
+        finished(step)
+    cited = [c for s in statements for c in s["citations"]]
+    unverified = sum(asking.not_found(c) for c in cited)
+    yield {
+        "type": "result",
+        "value": {
+            "statements": statements,
+            "missing": missing,
+            "sources": sources,
+            "confidence": asking.confidence(statements, len(dropped), missing),
+            "declined": not statements and error is None,
+            "error": error,
+            "usage": paid_calls,
+            # One trace per answer for the evaluation harness (AS-01 AC6): what the model was
+            # given and what the checks did, never the masked text or mapping.
+            "trace": {
+                "story": "AS-08",
+                "pipeline": ["retrieve", "assemble", "generate", "guardrail"],
+                "provider": config.LLM_PROVIDER,
+                "model": model,
+                "effort": config.ASK_EFFORT,
+                "prompt_version": guiding.PROMPT_VERSION,
+                "scope": {
+                    "jurisdiction": assessment.jurisdiction,
+                    "facility_type": assessment.facility_type,
+                    "standard_ids": list(standard_ids),
+                    "observations": 0,
+                },
+                "retrieved": retrieved,
+                "guide": {
+                    "kind": guide.kind,
+                    "section_id": guide.section_id,
+                    "template_parts": len(parts),
+                    "template_parts_cited": guiding.parts_cited(statements),
+                },
+                "reranked": reranked,
+                "guardrail": {
+                    "passed": not dropped and not unverified,
+                    "kept": len(statements),
+                    "dropped": dropped,
+                    "unverified_citations": unverified,
+                    "described_citations": sum(bool(c.get("described")) for c in cited),
                 },
                 "timings_ms": timings,
                 "privacy": protection.provenance(),

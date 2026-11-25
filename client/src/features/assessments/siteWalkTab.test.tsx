@@ -152,11 +152,11 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
       name: 'Site walk proposals, 1 ready to review',
     })
     expect(toolbar).toHaveTextContent(/^Site walk proposals/)
-    expect(toolbar.querySelector('.ob-pill')).toHaveTextContent('1')
+    expect(toolbar.querySelector('.ds-count-pill')).toHaveTextContent('1')
     const nav = within(await openWalksScreen('Site walk proposals, 1 ready to review'))
     expect(screen.getByRole('heading', { name: 'Site Walk Proposals' })).toBeInTheDocument()
-    expect(nav.getByRole('button', { name: /^Ready to review/ })).toHaveTextContent('1')
-    expect(nav.getByRole('button', { name: /^In progress/ })).toHaveTextContent('3')
+    expect(nav.getByRole('tab', { name: /^Ready to review/ })).toHaveTextContent('1')
+    expect(nav.getByRole('tab', { name: /^In progress/ })).toHaveTextContent('3')
 
     // Ready to review opens first; the incomplete observation shows as a count to fix.
     const ready = screen.getAllByRole('listitem').filter((li) => li.classList.contains('wr'))
@@ -164,7 +164,7 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     expect(within(ready[0]).getByRole('button', { name: /1 to fix$/ })).toBeInTheDocument()
 
     // In progress: the rest, newest first, each in its own words.
-    fireEvent.click(nav.getByRole('button', { name: /^In progress/ }))
+    fireEvent.click(nav.getByRole('tab', { name: /^In progress/ }))
     const rows = screen.getAllByRole('listitem').filter((li) => li.classList.contains('wr'))
     expect(rows).toHaveLength(3)
     expect(within(rows[0]).getByRole('button', { name: /Reading your walk$/ })).toBeInTheDocument()
@@ -243,10 +243,12 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     expect(await screen.findByRole('navigation', LIST)).toBeInTheDocument()
   })
 
-  it('has no Walks button when the engineer has no walk', async () => {
+  // CP-24 AC16: Site walk proposals is always above the table, with no count when none is ready.
+  it('shows Site walk proposals even when the engineer has no walk', async () => {
     await openObservations()
     await screen.findByRole('navigation', { name: 'Locations' })
-    expect(screen.queryByRole('button', { name: /^Site walk proposals/ })).toBeNull()
+    const button = screen.getByRole('button', { name: 'Site walk proposals' })
+    expect(button.querySelector('.ds-count-pill')).toBeNull()
     expect(screen.queryByRole('navigation', LIST)).toBeNull()
   })
 

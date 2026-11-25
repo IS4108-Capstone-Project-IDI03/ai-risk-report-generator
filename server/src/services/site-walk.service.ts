@@ -824,7 +824,11 @@ export async function runMediaTranscription(walkId: string, mediaId: string, con
     await setMediaTranscription(walkId, mediaId, { status: 'transcribing' })
     const assessment = await AssessmentModel.findById(walk.assessment, 'reference').lean()
     const result = await transcribeWithSegments(media.key, { reportId: assessment?.reference })
-    await setMediaTranscription(walkId, mediaId, { status: 'transcribed', text: result.transcript })
+    await setMediaTranscription(walkId, mediaId, {
+      status: 'transcribed',
+      text: result.transcript,
+      spoken: result.spoken,
+    })
   } catch (error) {
     const refused = error instanceof SpeechServiceError && !error.retryable
     if (!refused && !context.isLastAttempt) throw error
@@ -886,6 +890,7 @@ async function transcribeRecording(walkId: string, seq: number) {
       $set: {
         'recordings.$.transcription.status': 'transcribed',
         'recordings.$.transcription.text': result.transcript,
+        'recordings.$.transcription.spoken': result.spoken,
         'recordings.$.transcription.segments': result.segments,
       },
       $unset: { 'recordings.$.transcription.error': 1 },

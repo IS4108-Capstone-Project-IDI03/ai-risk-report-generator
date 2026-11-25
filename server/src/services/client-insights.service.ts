@@ -398,6 +398,9 @@ function evidenceOf(
   if (changes.length)
     figures.push({ label: 'F3', title: 'Change between first and latest visit', lines: changes })
 
+  // Most severe first; one with no severity yet (CP-24) last.
+  const rank = (severity: string | null) =>
+    severity ? SEVERITY_ORDER.indexOf(severity) : SEVERITY_ORDER.length
   const observations = withObservations
     .flatMap((s) =>
       current
@@ -406,9 +409,7 @@ function evidenceOf(
         .filter((e) => e.text),
     )
     .sort(
-      (a, b) =>
-        SEVERITY_ORDER.indexOf(a.o.severity) - SEVERITY_ORDER.indexOf(b.o.severity) ||
-        a.site.name.localeCompare(b.site.name),
+      (a, b) => rank(a.o.severity) - rank(b.o.severity) || a.site.name.localeCompare(b.site.name),
     )
     .slice(0, EVIDENCE_LIMIT)
     .map(({ site, o, text }, i) => ({
@@ -417,7 +418,8 @@ function evidenceOf(
       reference: site.reference,
       site: site.name,
       location: o.location ? locationText(o.location) : null,
-      severity: o.severity,
+      // A severity left empty (CP-24) reads as such; rag-service's model needs a string.
+      severity: o.severity ?? 'not rated',
       categories: o.copeDimensions ?? [],
       date: o.recordedAt.toISOString().slice(0, 10),
       text: text.length > EVIDENCE_CHARS ? text.slice(0, EVIDENCE_CHARS).trimEnd() + '…' : text,
@@ -445,7 +447,7 @@ export async function readClientInsights(
   id: string,
   user: SessionUser,
 ): Promise<{
-  client: { id: string; name: string }
+  client: { id: string; name: string; practice: boolean }
   insights: ClientInsightsDto
   evidence: InsightEvidence
 }> {
@@ -557,7 +559,7 @@ export async function readClientInsights(
     findings: findingsOf(sites, byCategory),
   }
   return {
-    client: { id: String(client._id), name: client.name },
+    client: { id: String(client._id), name: client.name, practice: !!client.practice },
     insights,
     evidence: evidenceOf(sites, byCategory, current),
   }

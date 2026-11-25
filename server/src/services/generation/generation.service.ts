@@ -14,7 +14,7 @@ import { AssessmentNotFoundError } from '../capture-session.service'
 import { isDuplicateKeyError } from '../mongo-errors'
 import { listObservations, type ObservationDto } from '../observation.service'
 import { permissionsFor } from '../permissions.service'
-import { figureFacts, isUsable, loadSections, toEvidence } from '../section.service'
+import { figureFacts, isUsable, loadSections, settled, toEvidence } from '../section.service'
 import { getSummary, SUMMARISED_SECTIONS } from '../summary.service'
 import {
   RUN_ORDER,
@@ -52,10 +52,9 @@ const TITLES = new Map([
   ...SUMMARISED_SECTIONS.map((s) => [s.id, s.title] as const),
 ])
 
-// Usable evidence (a note or a finished transcript) under at least one category,
-// as drafting reads it; uncategorised observations stay out (CP-02).
-const usableOf = (observations: ObservationDto[]) =>
-  observations.filter((o) => o.copeDimensions && isUsable(o))
+// Usable evidence (a note or a finished transcript), as drafting reads it;
+// observations still to check stay out (CP-24, section.service.ts `settled`).
+const usableOf = (observations: ObservationDto[]) => settled(observations).filter(isUsable)
 
 /** Returns a short hash of the usable observations, which changes when one is added, changed or removed. */
 export function evidenceFingerprint(observations: ObservationDto[]): string {
@@ -70,7 +69,7 @@ export function evidenceFingerprint(observations: ObservationDto[]): string {
 // so draftingEvidence refuses to draft (section.service.ts).
 const transcribingCount = (observations: ObservationDto[]) =>
   observations
-    .filter((o) => o.copeDimensions)
+    .filter((o) => !o.toCheck)
     .flatMap((o) => [...o.recordings, ...o.pages])
     .filter((m) => m.transcription.status === 'transcribing').length
 

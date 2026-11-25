@@ -171,8 +171,36 @@ export function citationNumbers(section: PMNode): Map<string, number> {
   return numbers
 }
 
+// The locked blocks the document walkthrough may point at: the first one in the report (Section 3's OFIs,
+// short enough to show whole; the score and loss tables run longer than a screen).
+const TAGGED_BLOCKS = new Set(['ofis', 'risk-quality', 'loss-estimates', 'table'])
+
+// The walkthrough's tag on the first violet paragraph: an empty box laid over it (document.css, .dm-walk-cover).
+function walkCover() {
+  const cover = document.createElement('span')
+  cover.className = 'dm-walk-cover'
+  cover.contentEditable = 'false'
+  cover.setAttribute('aria-hidden', 'true')
+  cover.setAttribute('data-walk', 'document.violet')
+  return cover
+}
+
 function reviewDecorations(doc: PMNode, context: ReviewContext): DecorationSet {
   const decorations: Decoration[] = []
+  // Walkthrough tags (F-12) go on the first violet paragraph and the first table block only. They are
+  // decoration attributes, so they never reach the saved document, the export or the schema.
+  let violetTagged = false
+  let lockedTagged = false
+  // The violet tag is a see-through cover on the paragraph, not an attribute on it: the walkthrough
+  // sets data-walk-on on its target, and ProseMirror re-draws a paragraph whose attributes change
+  // behind its back (the mark would be lost); it leaves a widget alone.
+  const violet = (at: number) => {
+    if (violetTagged) return
+    violetTagged = true
+    decorations.push(
+      Decoration.widget(at + 1, walkCover, { side: -1, ignoreSelection: true, key: 'walk-violet' }),
+    )
+  }
   doc.forEach((section, offset) => {
     const sectionId = section.attrs.id as string
     const numbers = citationNumbers(section)
@@ -193,9 +221,16 @@ function reviewDecorations(doc: PMNode, context: ReviewContext): DecorationSet {
       }
       // AI-drafted text awaiting Accept (AS-04): violet, its sentences still
       // unsupported marked and flagged (AC2, AC3).
+      if (!lockedTagged && node.type.name === 'lockedBlock' && TAGGED_BLOCKS.has(node.attrs.kind)) {
+        lockedTagged = true
+        decorations.push(
+          Decoration.node(at, at + node.nodeSize, { 'data-walk': 'document.locked' }),
+        )
+      }
       const ai = node.type.name === 'paragraph' ? (node.attrs.ai as string | null) : null
       if (ai) {
         decorations.push(Decoration.node(at, at + node.nodeSize, { class: 'dm-ai dm-ai-text' }))
+        violet(at)
         const id = ai.slice(ai.indexOf(':') + 1)
         const { text, pos } = paragraphText(node, at)
         for (const [from, to] of unsupportedRanges(text, context.aiUnsupported?.get(id) ?? [])) {
@@ -220,8 +255,10 @@ function reviewDecorations(doc: PMNode, context: ReviewContext): DecorationSet {
       // Still as drafted: a plain paragraph, in the draft's words. Set as a
       // sub-heading or a list item, it is the engineer's.
       const plain = node.type.name === 'paragraph' && parent?.type.name !== 'listItem'
-      if (plain && info.aiSignature !== null && signature(content) === info.aiSignature)
+      if (plain && info.aiSignature !== null && signature(content) === info.aiSignature) {
         decorations.push(Decoration.node(at, at + node.nodeSize, { class: 'dm-ai' }))
+        violet(at)
+      }
       const now = citesOf(content)
       const deleted = info.watchCitations && info.citations.some((c) => !now.includes(c))
       const flag = deleted ? DELETED_CITATION : info.flag

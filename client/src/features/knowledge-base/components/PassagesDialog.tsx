@@ -30,6 +30,7 @@ import {
   type SearchMode,
 } from '../api'
 import { needsReview } from '../display'
+import { Tip } from '../../help/Tip'
 import { CitedImage } from '../../sources/CitedImage'
 import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
@@ -298,30 +299,34 @@ function PassageFilters({
   return (
     <div className="kb-ptoolbar">
       <div className="kb-psearch">
-        <SearchField
-          label="Search this document"
-          placeholder={
-            mode === 'meaning'
-              ? 'Describe what you’re looking for, then press Enter'
-              : 'Search this document'
-          }
-          enterKeyHint="search"
-          disabled={!searchable}
-          title={searchable ? undefined : 'Search works once this document is active.'}
-          value={filters.words}
-          onChange={(e) => onChange({ ...filters, words: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onSearch()
-          }}
-          end={
-            <SegmentedControl
-              ariaLabel="Search by"
-              options={SEARCH_MODES.map((o) => ({ ...o, disabled: !searchable }))}
-              value={mode}
-              onChange={onMode}
-            />
-          }
-        />
+        <div className="kb-psearch-row">
+          <SearchField
+            label="Search this document"
+            placeholder={
+              mode === 'meaning'
+                ? 'Describe what you’re looking for, then press Enter'
+                : 'Search this document'
+            }
+            enterKeyHint="search"
+            disabled={!searchable}
+            title={searchable ? undefined : 'Search works once this document is active.'}
+            value={filters.words}
+            onChange={(e) => onChange({ ...filters, words: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onSearch()
+            }}
+            end={
+              <SegmentedControl
+                ariaLabel="Search by"
+                options={SEARCH_MODES.map((o) => ({ ...o, disabled: !searchable }))}
+                value={mode}
+                onChange={onMode}
+              />
+            }
+          />
+          {/* The Words | Meaning tip (F-13) sits beside the field, not inside it. */}
+          <Tip id="knowledge-passages.search" align="right" />
+        </div>
         {waiting && <p className="kb-psearch-hint">Press Enter to search</p>}
       </div>
       <Select

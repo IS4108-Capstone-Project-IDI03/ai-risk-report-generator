@@ -15,8 +15,10 @@ import {
 } from '../../../design-system'
 import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
+import { Tip } from '../../help/Tip'
 import { FocusButton } from '../../marshbot/focus/FocusButton'
 import { useReloadOnOutsideChange } from '../../notifications/useNotificationCounts'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { ClientGroup } from '../components/ClientGroup'
 import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
 import { WorkToolbar } from '../components/WorkToolbar'
@@ -26,7 +28,7 @@ import '../assessment-list.css'
 
 // A column heading; the sorted one carries an arrow (board 03).
 const Head = ({ arrow, children }: { arrow?: 'up' | 'down'; children: string }) => (
-  <span className="at-th" data-sorted={arrow ? '' : undefined}>
+  <span className="at-th" data-sorted={arrow ? '' : undefined} aria-hidden="true">
     {children}
     {arrow && <Icon name={'arrow-' + arrow} size={14} />}
   </span>
@@ -37,6 +39,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
   const compact = useCompact()
+  // F-12: the list has loaded once the gateway has answered (or failed). Nothing is offered
+  // while there is no row to point at: no practice assessment and nothing matching.
+  useWalkthroughScreen('assessments', !v.calendar.loading, !v.practiceRow && v.noResults)
   // Someone moved an assessment to or from this person, so the list follows without a refresh.
   // Only the rows are replaced: same keys, so no skeleton, and scroll, filters and sort stay.
   useReloadOnOutsideChange(v.refreshList)
@@ -57,6 +62,15 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
   // A row's Archive icon, only for what this engineer may archive.
   const archiveOf = (r: Parameters<typeof v.canArchiveRow>[0]) =>
     v.canArchiveRow(r) ? () => v.askArchive(r.id) : undefined
+  // F-12: the practice assessment is pinned above everything, whatever the sort and filters.
+  const pinned = v.practiceRow
+  // The first row with an Archive (or an admin's Reassign) button, for the walkthrough to point at.
+  const walkRow = v.filteredRows.find((r) => assign || v.canArchiveRow(r))?.id
+  // The first real row assigned to someone else: where an admin's "Open another engineer's
+  // assessment" walkthrough goes on a replay. An engineer's list holds only their own.
+  const otherRow = assign
+    ? v.filteredRows.find((r) => !r.record?.practice && r.engineerId !== v.userId)?.id
+    : undefined
   return (
     <div className="at-page">
       <TopBar
@@ -70,7 +84,9 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         bell={bell}
         action={
           <>
-            <FocusButton items={v.focus} onOpen={v.onRow} />
+            <span className="at-focus-walk" data-walk="assessments.focus">
+              <FocusButton items={v.focus} onOpen={v.onRow} />
+            </span>
             {compact && v.canEdit && (
               <span className="at-topnew">
                 <NewAssessmentButton onStart={v.goCreate} />
@@ -96,22 +112,57 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
             data-grouped={grouped || undefined}
             data-engineer={assign ? '' : undefined}
           >
-            <div className="at-head" aria-hidden="true">
+            {/* The words are hidden from screen readers one by one, so the Stage tip beside its
+                word stays reachable. */}
+            <div className="at-head" data-walk="assessments.head">
               <Head arrow={sorted(2) ? 'up' : undefined}>{'Assessment'}</Head>
               <span className="at-meta">
-                <span>{'Type'}</span>
+                <span aria-hidden="true">{'Type'}</span>
                 <Head arrow={sorted(0) ? 'down' : undefined}>{'Survey date'}</Head>
               </span>
-              {!!assign && <span className="at-engineer-head">{'Engineer'}</span>}
+              {!!assign && (
+                <span className="at-engineer-head" aria-hidden="true">
+                  {'Engineer'}
+                </span>
+              )}
               <span className="at-foot">
-                <span>{'Stage'}</span>
+                <span className="at-stage-head">
+                  <span aria-hidden="true">{'Stage'}</span>
+                  <Tip id="assessments.stage" />
+                </span>
                 <Head arrow={sorted(1) ? 'up' : undefined}>{'Report due'}</Head>
               </span>
               <span />
             </div>
+            {pinned &&
+              (grouped ? (
+                <ClientGroup
+                  key={'practice-' + pinned.id}
+                  client={{ title: pinned.client, viewClient: undefined }}
+                  site={{
+                    name: pinned.site,
+                    address: pinned.record?.site.address ?? null,
+                    newVisit: undefined,
+                    rows: [pinned],
+                  }}
+                  onOpen={v.onRow}
+                  onArchive={archiveOf}
+                  assign={assign}
+                  first
+                />
+              ) : (
+                <WorkRow
+                  key={pinned.id}
+                  r={pinned}
+                  grouped={false}
+                  onOpen={v.onRow}
+                  assign={assign}
+                  first
+                />
+              ))}
             {grouped
-              ? v.workGroups.flatMap((client) =>
-                  client.sites.map((site) => (
+              ? v.workGroups.flatMap((client, i) =>
+                  client.sites.map((site, j) => (
                     <ClientGroup
                       key={client.key + site.key}
                       client={client}
@@ -119,10 +170,13 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                       onOpen={v.onRow}
                       onArchive={archiveOf}
                       assign={assign}
+                      first={!pinned && i === 0 && j === 0}
+                      walkRow={walkRow}
+                      walkOther={otherRow}
                     />
                   )),
                 )
-              : v.filteredRows.map((r) => (
+              : v.filteredRows.map((r, i) => (
                   <WorkRow
                     key={r.id}
                     r={r}
@@ -130,6 +184,9 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                     onOpen={v.onRow}
                     onArchive={archiveOf(r)}
                     assign={assign}
+                    first={!pinned && i === 0}
+                    walkAction={r.id === walkRow}
+                    walkOther={r.id === otherRow}
                   />
                 ))}
             {!!v.noResults && (

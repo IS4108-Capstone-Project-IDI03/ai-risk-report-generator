@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Button, Callout, Dialog, IconButton, Select, Textarea } from '../../../design-system'
 import { GatewayError, type ChecklistItem, type SiteLocation } from '../api'
 import { categoryLabel } from '../categories'
 import { itemTitle } from '../checklistChecks'
+import { DictateButton } from '../dictation/DictateButton'
 import { locationLabel } from '../locations'
 import { SeverityPicker } from './SeverityPicker'
 
@@ -35,6 +36,7 @@ export function AnswerDialog({
   onClose,
   onSave,
   onFullCapture,
+  reference,
 }: {
   kind: 'confirm' | 'differs'
   item: ChecklistItem
@@ -42,6 +44,8 @@ export function AnswerDialog({
   onClose: () => void
   onSave: (answer: Answer) => Promise<void>
   onFullCapture: () => void
+  // The assessment, so what was seen can be dictated (CP-27); without it, no Dictate button.
+  reference?: string
 }) {
   const [note, setNote] = useState(
     kind === 'confirm' ? `Confirmed on site: ${itemTitle(item)}` : '',
@@ -57,6 +61,8 @@ export function AnswerDialog({
   const [photos, setPhotos] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Holds the text box, for dictation to find: the shared Textarea takes no ref.
+  const box = useRef<HTMLDivElement>(null)
   const save = async () => {
     if (!note.trim()) return setError('Write what you saw.')
     if (!locationId) return setError('Choose where you saw it.')
@@ -106,15 +112,24 @@ export function AnswerDialog({
             {item.text}
           </p>
         </div>
-        <Textarea
-          label="What you saw"
-          rows={3}
-          value={note}
-          placeholder={
-            kind === 'differs' ? 'e.g. No in-rack sprinklers on racks at 9 m.' : undefined
-          }
-          onChange={(event) => setNote(event.target.value)}
-        />
+        <div ref={box}>
+          <Textarea
+            label="What you saw"
+            rows={3}
+            value={note}
+            placeholder={
+              kind === 'differs' ? 'e.g. No in-rack sprinklers on racks at 9 m.' : undefined
+            }
+            onChange={(event) => setNote(event.target.value)}
+          />
+          {reference && (
+            <DictateButton
+              reference={reference}
+              field={() => box.current?.querySelector('textarea')}
+              onChange={setNote}
+            />
+          )}
+        </div>
         {place.kind === 'tab' ? (
           <Select
             label="Where"

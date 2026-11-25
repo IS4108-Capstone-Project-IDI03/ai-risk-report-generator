@@ -25,7 +25,9 @@ export function transcriptName(transcript: string | null) {
   const words = transcript?.trim().split(/\s+/).filter(Boolean) ?? []
   if (!words.length) return null
   const more = words.length > WORDS_IN_NAME
-  return `“${words.slice(0, WORDS_IN_NAME).join(' ')}${more ? '…' : ''}”`
+  const name = words.slice(0, WORDS_IN_NAME).join(' ')
+  // The cut word's own full stop is dropped, or "plant." plus "…" would read as four dots.
+  return `“${more ? name.replace(/[.,;:!?]+$/, '') + '…' : name}”`
 }
 
 // "4:12"

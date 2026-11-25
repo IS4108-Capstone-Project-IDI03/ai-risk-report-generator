@@ -2,6 +2,7 @@
 // the part's state. Flagged rows: red when drafting failed, amber when out of date or (before
 // step 1) when it has no observations. Rendered by screens/DraftingSteps.tsx.
 import { RowCount, RowMark, SectionRow, Tooltip } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import type { GenerationPart } from '../generation/types'
 import { outOfDateReason } from '../generation/words'
 import { plural } from '../reviewDisplay'
@@ -41,7 +42,13 @@ export function DraftingPartRow({ part, showCount }: { part: GenerationPart; sho
       <SectionRow
         {...row}
         flag="warn"
-        reason={outOfDateReason(part.outOfDate)}
+        // The (?) follows the reason, not the mark: the marks keep one pixel column (F-13).
+        reason={
+          <>
+            {outOfDateReason(part.outOfDate)}
+            <Tip id="generation.out-of-date" align="right" />
+          </>
+        }
         mark={<RowMark kind="stale" label="Out of date" />}
       />
     )

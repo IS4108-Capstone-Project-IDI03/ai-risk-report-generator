@@ -1,6 +1,7 @@
 import { hasCategory } from './categories'
 import { andList, hasHit, matchesAll, NO_SPEECH, searchWords } from './evidenceSearch'
 import { groupKey, groupLocations, locationLabel, type Place } from './locations'
+import { matchesStatus } from './observationRowState'
 import type { Observation, ObservationFilters } from './types'
 
 export const NO_FILTERS: ObservationFilters = {
@@ -81,12 +82,13 @@ export function placeFilter(list: Observation[]) {
 
 // The observation types (CP-08, CP-04, CP-19). One with a note and a recording is both.
 export const OBSERVATION_TYPES = ['Note', 'Voice', 'Photo', 'Scan']
-// Where an observation's recordings and photos stand (CP-08, CP-05).
+// Where an observation stands (CP-08, CP-05, CP-24); worked out in observationRowState.ts.
 export const OBSERVATION_STATUSES = [
   'Transcribing',
-  'Interpreting',
+  'Reading',
+  'To check',
   'Transcription failed',
-  'Interpretation failed',
+  'Reading failed',
   'Complete',
 ]
 
@@ -108,13 +110,8 @@ export const typeLabel = (o: Observation) => {
     ? [first, ...others.slice(0, -1)].join(', ') + ' and ' + others[others.length - 1]
     : first
 }
-// A sample observation has nothing being transcribed, but either part of its
-// sample proposal is briefly interpreting.
-export const statusOf = (o: Observation) =>
-  o.status ??
-  ([o.interpretation?.status, o.interpretation?.photos?.status].includes('interpreting')
-    ? 'Interpreting'
-    : 'Complete')
+// A sample observation has nothing to transcribe, read or check.
+export const statusOf = (o: Observation) => o.status ?? 'Complete'
 
 // What a search looks in on an observation (CP-13), each named for "Matched
 // in": its note, every recording's transcript as corrected (not one Whisper
@@ -159,7 +156,7 @@ export function matchesFilters(o: Observation, f: ObservationFilters) {
     (!f.cat || hasCategory(o.cats, f.cat)) &&
     (!f.sev || o.sev === f.sev) &&
     (!f.place || matchesPlace(o, f.place)) &&
-    (!f.status || statusOf(o) === f.status) &&
+    (!f.status || matchesStatus(o, f.status)) &&
     (!f.q || matchesSearch(o, searchWords(f.q)))
   )
 }

@@ -65,6 +65,10 @@ export function Thread({
   const follow = (instant: boolean) => {
     const el = scroller.current
     if (!el) return
+    // F-12: not while a walkthrough lights something outside the thread (the phone's stage bar):
+    // following scrolls the whole Overview there and takes the lit part out of view.
+    const lit = [...document.querySelectorAll('[data-walk-on]')]
+    if (lit.length && !lit.some((on) => el.contains(on))) return
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const behavior = instant || calm ? 'auto' : 'smooth'
     if (getComputedStyle(el).overflowY !== 'visible')

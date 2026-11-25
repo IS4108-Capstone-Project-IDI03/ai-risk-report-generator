@@ -21,6 +21,7 @@ import {
 } from '../models/notification.model'
 import { USER_ROLES, UserModel, type UserRole } from '../models/user.model'
 import type { SessionUser } from './auth.service'
+import { isPracticeReference } from './practice/filter'
 
 export class NotificationNotFoundError extends Error {
   constructor() {
@@ -186,7 +187,8 @@ function kindFor(purpose: NotificationPurpose, context?: Record<string, string>)
 }
 
 /**
- * Returns the notification just created, which nobody has read yet.
+ * Returns the notification just created, which nobody has read yet (none is saved for a
+ * practice assessment, F-12).
  *
  * When the context identifies a terminal event — both a `documentId` and a
  * `status` — creation is idempotent on `purpose + documentId + status +
@@ -209,6 +211,14 @@ export async function createNotification(input: NewNotification): Promise<Notifi
     createdBy: input.createdBy ?? null,
     createdByService: input.createdByService ?? null,
   }
+  // F-12: nothing about a practice assessment reaches the bell or the Inbox (ADR 0003). The one
+  // check for every producer, all of which name the assessment's reference; the caller gets
+  // the notification it asked for, never saved.
+  if (isPracticeReference(input.context?.reference))
+    return toDto(
+      new NotificationModel(doc).toObject({ flattenMaps: true }) as StoredNotification,
+      '',
+    )
 
   const key = dedupeKey(input)
   if (key) {

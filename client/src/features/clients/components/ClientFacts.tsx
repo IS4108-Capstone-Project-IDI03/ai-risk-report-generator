@@ -47,6 +47,7 @@ export function ClientFacts({
     <aside
       className={sheet ? 'cl-facts cl-facts--sheet' : 'cl-facts'}
       aria-label={sheet ? 'Client details' : 'Client facts'}
+      data-walk={sheet ? undefined : 'client.facts'}
     >
       <dl>
         {division && <Fact label="Division">{division}</Fact>}

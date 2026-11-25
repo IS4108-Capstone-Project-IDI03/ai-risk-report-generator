@@ -323,7 +323,11 @@ describe('callers record what their service returned', () => {
       audio_seconds: 30,
     })
     vi.mocked(fetch).mockResolvedValue(json({ transcript: 'hello', usage: [whisper] }))
-    expect(await transcribe('audio/a.m4a', 'RPT-2026-0901')).toBe('hello')
+    // An S5 from before CP-27 sends no `spoken`: what was said is its transcript.
+    expect(await transcribe('audio/a.m4a', 'RPT-2026-0901')).toEqual({
+      transcript: 'hello',
+      spoken: 'hello',
+    })
     expect(await AiCallModel.findOne().lean()).toMatchObject({
       feature: 'transcribe',
       billedService: 'openai-whisper',

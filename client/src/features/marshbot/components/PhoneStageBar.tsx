@@ -17,16 +17,16 @@ export function PhoneStageBar({ thread, onOpen }: { thread: AssistantThread; onO
   const surveyTone = now <= STAGES.indexOf('capture') ? dateTone(survey, false) : null
   const dueTone = now < STAGES.indexOf('exported') ? dateTone(thread.reportDue, true) : null
   return (
-    <button type="button" className="mb-phonebar" onClick={onOpen}>
+    <button type="button" className="mb-phonebar" data-walk="overview.client" onClick={onOpen}>
       <span className="mb-face mb-face--sm">
         <MarshBotFace mood={thread.mood} decorative />
       </span>
-      <span className="mb-phonebar-main">
-        <span className="mb-phonebar-stage">
+      <span className="mb-phonebar-main" data-walk="overview.glance">
+        <span className="mb-phonebar-stage" data-walk="overview.stage-label">
           <b>{STAGE_LABEL[thread.stage]}</b>
           {` · Stage ${now + 1} of ${STAGES.length}`}
         </span>
-        <span className="mb-phonebar-segs" aria-hidden="true">
+        <span className="mb-phonebar-segs" aria-hidden="true" data-walk="overview.stages">
           {STAGES.map((s, i) => (
             <i key={s} data-state={i < now ? 'done' : i === now ? 'now' : undefined} />
           ))}

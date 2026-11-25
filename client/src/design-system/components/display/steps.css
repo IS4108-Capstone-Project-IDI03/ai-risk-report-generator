@@ -471,7 +471,8 @@ div.ds-step-head:focus:not(:focus-visible) {
 .ds-mark-tick[data-in] path {
   animation: ds-draw var(--duration-slow) var(--ease-out) both;
 }
-.ds-mark-stale {
+.ds-mark-stale,
+.ds-mark-unsure {
   color: var(--amber-600);
 }
 .ds-mark-failed {
@@ -699,4 +700,32 @@ button.ds-task:active {
   .ds-seg[data-state='done'] > b {
     opacity: 1;
   }
+}
+
+/* ---- Step bar (F-12): SegmentBar's track filling its room, one group, no count ---- */
+.ds-stepbar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.ds-stepbar .ds-segbar-group {
+  flex: 1;
+}
+/* Going Back empties a segment at once; only filling animates. */
+.ds-stepbar .ds-seg[data-state='empty'] > b {
+  transition: none;
+}
+
+/* ---- Help tip beside a title (F-13): the title and its (?) in one row ---- */
+.ds-checkpoint-title,
+.ds-step-titlerow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ds-step-titlerow {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
 }

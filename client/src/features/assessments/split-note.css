@@ -6,6 +6,12 @@
   gap: 12px;
   margin-top: 12px;
 }
+/* The Split note button with its (?) beside it. */
+.sp-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .sp-panel {
   display: flex;
   flex-direction: column;
@@ -83,6 +89,11 @@
   overflow: hidden;
   box-sizing: border-box;
 }
+/* Keeps the height PartRow fits to the text. Without this, capture.css's `.cap-media textarea
+   { flex: 1 }` (meant for the note) sized each part to one line, and a wrapped line was cut off. */
+.sp-part > .sp-text {
+  flex: none;
+}
 .sp-text:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -145,4 +156,33 @@
 .sp select {
   min-height: 44px;
   flex-shrink: 0;
+}
+
+/* F-12 "Use note codes and Split note", the step that names the three groups: while the walkthrough
+   lights their headings (they carry data-walk-on), each group shows only its heading and its first
+   part (whole: a part's text is never cut mid-line), so all three fit on one screen. Only then:
+   the next step, round the whole panel, shows it at full size again. A phone shows only the
+   headings (below). */
+.sp-panel:has(.sp-heading[data-walk-on]) .sp-group > :not(.sp-heading, .sp-list, .sp-none),
+.sp-panel:has(.sp-heading[data-walk-on]) > .sp-foot,
+.sp-panel:has(.sp-heading[data-walk-on]) .sp-list > :not(:first-child),
+.sp-panel:has(.sp-heading[data-walk-on]) .sp-part > :not(.sp-text) {
+  /* Beats the design-system Button's inline display (+ Add part). */
+  display: none !important;
+}
+
+/* F-12, the next step, round the whole panel: on a phone it is too tall to light above MarshBot's
+   sheet, so each group again shows only its heading and its first part, with Confirm all parts
+   (the words name both). A computer shows it at full size. */
+@media (max-width: 767px) {
+  /* The step that names the three groups: on a phone their parts would push the third heading
+     under MarshBot's sheet, so only the headings show (a part is never cut mid-line instead). */
+  .sp-panel:has(.sp-heading[data-walk-on]) .sp-list {
+    display: none !important;
+  }
+  .sp-panel[data-walk-on] .sp-group > :not(.sp-heading, .sp-list, .sp-none),
+  .sp-panel[data-walk-on] .sp-list > :not(:first-child),
+  .sp-panel[data-walk-on] .sp-part > :not(.sp-text) {
+    display: none !important;
+  }
 }

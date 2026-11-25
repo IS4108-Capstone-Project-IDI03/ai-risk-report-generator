@@ -6,7 +6,7 @@ import { isValidObjectId, Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
 import { UserModel, type UserRole } from '../models/user.model'
 import { AssessmentArchivedError, AssessmentNotFoundError } from './capture-session.service'
-import { listAssessments, type AssessmentDto } from './assessment.service'
+import { listAssessments, PracticeAssessmentError, type AssessmentDto } from './assessment.service'
 import type { SessionUser } from './auth.service'
 import { createNotification, audienceOf, removeAssessmentItems } from './notification.service'
 import { hasPermission } from './permissions.service'
@@ -154,7 +154,8 @@ export async function tellAssignedEngineers(
  * Assessments list shows it. Its observations, drafts and costs stay with the
  * assessment: they hang off it, not off the engineer. Throws
  * AssessmentNotFoundError (404), AssessmentArchivedError (409),
- * AssessmentReassignedError (409, another admin moved it first) and
+ * AssessmentReassignedError (409, another admin moved it first), PracticeAssessmentError
+ * (409, F-12) and
  * UnknownEngineerError (400). Naming the engineer it already has changes and
  * sends nothing.
  *
@@ -166,9 +167,13 @@ export async function reassignAssessment(
   admin: SessionUser,
 ): Promise<AssessmentDto> {
   // a. Find it.
-  const assessment = await AssessmentModel.findOne({ reference }, 'engineer archivedAt').lean()
+  const assessment = await AssessmentModel.findOne(
+    { reference },
+    'engineer archivedAt practice',
+  ).lean()
   if (!assessment) throw new AssessmentNotFoundError(reference)
   if (assessment.archivedAt) throw new AssessmentArchivedError(reference)
+  if (assessment.practice) throw new PracticeAssessmentError()
   // b. Check the new engineer.
   const account = await activeAccount(engineerId)
   if (!account) throw new UnknownEngineerError()

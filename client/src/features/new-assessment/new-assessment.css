@@ -104,6 +104,16 @@
 }
 
 /* ---- New client | Existing client ---- */
+.na-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The switch keeps its full width; the help tip (F-13) sits beside it when there is one. */
+.na-mode-switch {
+  flex: 1;
+  min-width: 0;
+}
 .na-mode .ds-segmented {
   display: flex;
   width: 100%;
@@ -522,12 +532,6 @@
 /* A phone wraps before the report, never inside RPT-2026-0411. */
 .na-copy-from {
   white-space: nowrap;
-}
-.na-help {
-  padding: 12px 14px;
-  text-align: left;
-  color: var(--text-body);
-  font: 400 14px/1.45 var(--font-sans);
 }
 .na-help-list {
   display: grid;

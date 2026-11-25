@@ -1,5 +1,6 @@
 import { Button, Dialog, Tabs } from '../../../design-system'
-import { AskPanel, type AskDrafting } from '../ask/AskPanel'
+import { AskPanel, type AskDrafting, type AskGuidanceTarget } from '../ask/AskPanel'
+import { AskScreen } from '../ask/AskScreen'
 import type { AskPassage } from '../ask/passage'
 import type { AskItem, AskWorkflow } from '../ask/useAsk'
 import type { CommentAnchor } from '../comments/api'
@@ -26,6 +27,8 @@ export type InspectorAsk = {
   // Drafting text into the report from the tab (AS-04): only for whoever may
   // put text into it, the assigned engineer.
   drafting?: AskDrafting
+  // Writing guidance for the part open (AS-08), and going to a gap's place.
+  guidance?: AskGuidanceTarget
 }
 
 // The review workspace's right inspector: the evidence panel and, beside it,
@@ -53,16 +56,20 @@ export function ReviewInspector({
     )
   const answers = ask.ask?.items.length ?? 0
   const panel = (sheet: boolean) => (
-    <AskPanel
-      ask={ask.ask}
-      unavailable={ask.unavailable}
-      current={ask.current}
-      onCite={ask.onCite}
-      autoFocus={sheet}
-      locate={ask.locate}
-      onShowPassage={ask.onShowPassage}
-      drafting={ask.drafting}
-    />
+    <>
+      <AskScreen ask={ask.ask} />
+      <AskPanel
+        ask={ask.ask}
+        unavailable={ask.unavailable}
+        current={ask.current}
+        onCite={ask.onCite}
+        autoFocus={sheet}
+        locate={ask.locate}
+        onShowPassage={ask.onShowPassage}
+        drafting={ask.drafting}
+        guidance={ask.guidance}
+      />
+    </>
   )
   if (phone)
     return (
@@ -73,6 +80,7 @@ export function ReviewInspector({
             size="sm"
             iconLeft="message-circle-question"
             fullWidth
+            data-walk="review.ask-tab"
             onClick={() => ask.onSheet(true)}
           >
             Ask about this assessment
@@ -101,6 +109,7 @@ export function ReviewInspector({
               value: 'ask',
               label: 'Ask',
               icon: 'message-circle-question',
+              walk: 'review.ask-tab',
               ...(answers ? { count: answers } : {}),
             },
           ]}

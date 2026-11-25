@@ -1,6 +1,6 @@
 /* The observation page (CP-22 round 1): its header with the arrows between
    observations at the same location, and the stacked body. Used by
-   screens/ObservationPage.tsx and components/ObservationTags.tsx. */
+   screens/ObservationPage.tsx. */
 
 .op-head {
   display: flex;
@@ -235,37 +235,355 @@
     grid-column: auto;
   }
 }
-/* The menu's wrapper fills its column (the popover sets inline sizes, hence !important). */
-.op-menu {
-  display: flex !important;
-  width: 100%;
-}
-.op-menu > span {
-  display: flex !important;
-  flex: 1;
-  min-width: 0;
-}
-.op-fields .ob-picker {
-  height: 100%;
-  min-height: 48px;
-  font-size: 16px;
-}
-/* One line, cut with … when long; the button's title shows the whole path. */
-.op-fields .ob-picker > span:nth-child(2) {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .op-fields .ob-stamp {
   margin: 0;
-}
-.op-body .ob-note {
-  font-size: 16px;
-  overflow-wrap: anywhere;
 }
 
 /* The tile clips an outside ring, so a focused tile draws its ring inside. */
 .op-media .cap-tile > .cap-tile-open:focus-visible {
   outline-offset: -2px;
+}
+
+/* ======================================================================================
+   The observation page, CP-24 (design system v2): a record header, cards on the left and a
+   Details card on the right. Built from the boards 07 to 12e. Rendered by
+   screens/ObservationPage.tsx and its cards; the Note card is also the site walk proposal's.
+   ====================================================================================== */
+.cpp {
+  /* The photo tiles' own CSS names the site walk's font variable; outside the walk it is unset,
+     so "Add photo" fell back to 15 px. 12 / 600 as designed. */
+  --sw-font: var(--font-sans);
+  /* The Add photo tile reads these for its hover and its fade; outside .sw they are unset, so it
+     had no hover. */
+  --sw-hover: rgb(0 15 71 / 0.04);
+  --sw-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The header's save status ("Saving…", "Saved") sits before the stepper and takes no room when empty. */
+.cpp .rh-actions .ob-saved:empty {
+  display: none;
+}
+.cpp > .ob-line {
+  margin: 0 0 12px;
+}
+/* Add media and Restore are 44 px tap targets on touch screens (a phone, or a tablet at any
+   width). The button sizes itself inline, hence !important. */
+@media (pointer: coarse), (max-width: 767px) {
+  .cpp .rh-actions > button {
+    height: 44px !important;
+  }
+}
+.cpp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@media (min-width: 1100px) {
+  .cpp-body {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    /* The left column is never shorter than Details: when it would be, the Note card grows to
+       Details' bottom edge, so both columns end on one line. With more on the left it runs
+       longer and Details keeps its own height. */
+    align-items: stretch;
+  }
+  .cpp-details {
+    align-self: start;
+  }
+  .cpp-main > .cpp-card:first-child {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .cpp-main > .cpp-card:first-child > label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .cpp-main > .cpp-card:first-child textarea {
+    flex: 1;
+  }
+}
+.cpp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* v2 card: radius 16, 1 px --graphite-200, padding 20; its title 16 / 700 navy. */
+.cpp-card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card, 16px);
+  background: var(--surface-card);
+}
+.cpp-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+}
+/* A card title with a control at its right (the Note card's Dictate button, CP-27). */
+.cpp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.cpp-card-head .cpp-card-title {
+  margin: 0;
+}
+/* The note's text box fills the card, as tall as its words (three lines at least). */
+.cpp-card textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  field-sizing: content;
+  min-height: 64px;
+}
+.cpp-note-text {
+  margin: 0;
+  color: var(--text-primary);
+  font: 400 14px/1.5 var(--font-sans);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+/* The recordings and pages sit in the walk list's grey rounded panel (boards 07 to 12e). The
+   Record screen's own sheet (recording.css) makes .sw-list a white card, so the panel is stated
+   here; the list also carries the --sw-* values the row's buttons read. */
+.cpp-list {
+  --sw-hover: rgb(0 15 71 / 0.04);
+  --sw-fill: rgb(0 15 71 / 0.06);
+  --sw-line: rgb(0 15 71 / 0.1);
+  --sw-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  width: 100%;
+  max-width: none;
+  border-radius: 14px;
+  background: var(--sw-fill);
+  box-shadow: none;
+}
+.cpp-list .sw-item-main {
+  flex: 1;
+  min-width: 0;
+}
+/* A recording's tools (edit, bin) and a page's (edit, transcribe again, bin) take the same width on
+   a wide screen, so their open boxes end on one line. 3 buttons of 36 px and two 2 px gaps. */
+@media (min-width: 768px) {
+  /* The open text sits under the words, ending where the tools begin (boards 07c, 07d), not under them. */
+  .cpp-list .sw-item--rec,
+  .cpp-list .sw-item--rec[data-opens][data-more] {
+    grid-template-areas:
+      'lead main tools chev'
+      '. text . .';
+  }
+  .cpp-list .sw-item-tools {
+    min-width: 112px;
+    /* The row's 12 px gap would leave the chevron 12 px off its sibling tools; this makes it the
+       same 2 px as between them. A row with no chevron keeps its slot, so the bins stay in one column. */
+    margin-right: -10px;
+  }
+}
+@media (min-width: 768px) and (pointer: coarse) {
+  .cpp-list .sw-item-tools {
+    min-width: 136px;
+  }
+}
+/* A handwritten page's round mark is a button that opens the page: the row's quiet white circle. */
+.cpg-open {
+  position: relative;
+  padding: 0;
+  border: 0;
+  cursor: zoom-in;
+}
+/* The circle stays 36 px; the tap area reaches 44 px. */
+.cpg-open::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cpg-open:hover {
+    box-shadow: 0 0 0 1px var(--graphite-300);
+  }
+}
+.cpg-open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* Phone: the lead column is as wide as the round mark (a page's 36 px circle, a recording's 44 px
+   disc), and a row that can't open has no empty chevron column taking 12 px of the words' room. */
+@media (max-width: 767px) {
+  .cpp-list .sw-item--rec {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .cpp-list .sw-item--rec[data-opens][data-more] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .cpp-list .sw-item--rec:not([data-opens]) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'lead main tools'
+      'text text text';
+  }
+}
+/* A page's state words stay on one line ("Couldn't transcribe", board 12e). */
+.cpp-list .sw-status-word {
+  white-space: nowrap;
+}
+/* Not sure is amber (v2 principle 3): the count's icon and words, and the dotted underline. */
+.cpg-unsure {
+  color: var(--amber-600);
+  font-weight: 500;
+}
+.cpg-mark {
+  background: transparent;
+  color: inherit;
+  text-decoration: underline dotted var(--amber-600) 2px;
+  text-underline-offset: 3px;
+  /* A short unsure phrase ("4 m") moves to the next line whole, so its underline is one piece;
+     one longer than the box still wraps inside it (nowrap pushed an 80-letter word out of the box). */
+  display: inline-block;
+  max-width: 100%;
+}
+/* "As transcribed" under a corrected page's text. */
+.cpg-original {
+  margin-top: 8px;
+}
+.cpg-original summary {
+  cursor: pointer;
+  color: var(--graphite-600);
+  font: 500 13px/1.4 var(--font-sans);
+}
+/* A phone's finger needs 44 px: an invisible box around the small link takes the tap, so the line keeps its look. */
+@media (max-width: 767px), (pointer: coarse) {
+  .cpg-original summary {
+    position: relative;
+  }
+  .cpg-original summary::after {
+    content: '';
+    position: absolute;
+    inset: -13px 0;
+  }
+}
+.cpg-original .sw-transcript {
+  margin-top: 6px;
+}
+/* An open transcript drops down under its row: the play button, name and tools stay where they were. */
+.cpp-list .sw-item:has(.sw-transcript) {
+  align-items: start;
+}
+/* Photos: square tiles that fill the row (72 px at least, gap 8), then the dashed Add photo tile. */
+.cpp-card .cap-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+.cpp-card .cap-tile {
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--ob-line);
+}
+.cpp-card .cap-tile--end {
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+}
+.cpp-card .cap-tile > .cap-tile-open:focus-visible {
+  outline-offset: -2px;
+}
+/* A photo tile has no fill to change, so its hover is a veil over the photo (120 ms). The tile
+   is hovered, not the open button: the remove button's tap area covers most of a small tile. */
+.cpp-card .cap-tile-open img {
+  transition: filter 120ms var(--ob-ease, ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cpp-card .cap-tile:hover .cap-tile-open img {
+    filter: brightness(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cpp-card .cap-tile-open img {
+    transition: none;
+  }
+}
+.cpp-card .ob-stamp {
+  margin: 8px 0 0;
+}
+/* Remove: a 28 px white circle with a red bin, on hover or focus on a desktop and always on touch
+   (v2 "Photo tiles"). The tap area stays 44 px. */
+.cpp-card .cap-tile-remove > span {
+  width: 28px;
+  height: 28px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cpp-card .cap-tile-remove {
+    opacity: 0;
+    transition: opacity 120ms var(--ease-out);
+  }
+  .cpp-card .cap-tile:hover .cap-tile-remove,
+  .cpp-card .cap-tile-remove:focus-visible {
+    opacity: 1;
+  }
+}
+/* What the photos show: plain text under the tiles, with the quiet Copy into note beside it. */
+.cpp-desc-row {
+  margin-top: 12px;
+}
+.cpp-desc-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Copy into note is centred on the text's first line (21 px = .cpp-desc's 14 px at 1.5), whatever its
+   own height, and overflows that box evenly; a wrapped description still starts at the top. */
+.cpp-desc-text > :not(.cpp-desc) {
+  height: 21px;
+  align-items: center;
+}
+.cpp-desc {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--graphite-700);
+  font: 400 14px/1.5 var(--font-sans);
+  overflow-wrap: anywhere;
+  /* No text-wrap: pretty here: it pulled a word down to the next line to avoid a short last line,
+     leaving free width before the Copy icon (the phone's "...frost on / the frame."). */
+}
+/* Details: the fields stacked, then the stamps under a hairline. */
+.cpp-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cpp-details .cpp-card-title {
+  margin-bottom: 0;
+}
+.cpp-stamps {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--graphite-100);
+}
+.cpp-stamps p {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 500 12px/1.4 var(--font-sans);
+}
+.cpp-stamps p + p {
+  margin-top: 2px;
+}
+/* Removed media, folded away at the foot of the left column. */
+.cpp-removed > summary {
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+  .cpp-card {
+    padding: 16px;
+  }
+  .cpp-card textarea {
+    font-size: 16px;
+  }
 }

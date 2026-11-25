@@ -5,7 +5,9 @@ import {
   addMedia,
   correctTranscript,
   deleteObservation,
+  discardDraft,
   EmptyObservationError,
+  getObservation,
   getPageImage,
   getPhotoImage,
   getRedactedPhotoImage,
@@ -17,14 +19,12 @@ import {
   photoRegionSchema,
   ObservationNotFoundError,
   ObservationStateError,
-  readObservation,
-  READING_PARTS,
-  type ReadingPart,
   removeMedia,
   restoreMedia,
   restoreObservation,
   retranscribePage,
   retryPageTranscription,
+  retrySuggestion,
   retryTranscription,
   transcriptCorrectionSchema,
   UnknownLocationError,
@@ -34,8 +34,12 @@ import { fieldErrors } from './field-errors'
 import { mediaParts, multipartBody, readForm, tooLarge } from './media-form'
 import { sendFile } from './byte-range'
 import { requirePermission } from '../middleware/auth.middleware'
+import { practiceRecordGate } from '../middleware/practice.middleware'
 
 const router = Router()
+
+// F-12: a practice record is its owner's alone; 404 to anyone else on every route below.
+router.param('id', practiceRecordGate('observation'))
 
 // Answers a refused change with its status: 404 unknown, 403 not the
 // assessment's assigned engineer, 409 archived, in the wrong state, or left
@@ -57,9 +61,10 @@ function refuse(error: unknown, res: Response) {
 }
 
 // Changes an observation's tags (CP-06) and note (CP-08): JSON with any of
-// copeDimensions (null or [] to uncategorise), severity, locationId, standard and
-// note (null or '' to remove either). 400 lists the first problem with each
-// invalid field, as for capture.
+// copeDimensions (null or [] to uncategorise), severity (null to empty it),
+// locationId, standard and note (null or '' to remove either), and `confirm`,
+// the suggested fields to keep as they are (CP-24). 400 lists the first problem
+// with each invalid field, as for capture.
 router.patch('/:id', requirePermission('assessments:edit'), async (req, res) => {
   const parsed = observationChangesSchema.safeParse(req.body ?? {})
   if (!parsed.success) {
@@ -69,9 +74,9 @@ router.patch('/:id', requirePermission('assessments:edit'), async (req, res) => 
     return
   }
   if (Object.values(parsed.data).every((value) => value === undefined)) {
-    res
-      .status(400)
-      .json({ error: 'Send a category, severity, location, standard or note to change.' })
+    res.status(400).json({
+      error: 'Send a category, severity, location, standard or note to change, or confirm.',
+    })
     return
   }
   try {
@@ -147,8 +152,8 @@ router.put(
 
 // Adds recordings, photos and handwritten pages to a saved observation (CP-08,
 // CP-20), as a multipart form of `recording`, `photo` and `page` parts checked
-// as capture checks them. Each recording and page is transcribed; no photo is
-// read until an engineer asks. Needs no capture session, only the assessment's
+// as capture checks them. Each recording and page is transcribed, and the
+// photos described (CP-24). Needs no capture session, only the assessment's
 // assigned engineer.
 router.post(
   '/:id/media',
@@ -220,7 +225,8 @@ router.delete(
 
 // Removes a recording, photo or handwritten page (CP-08, CP-20), a soft
 // removal: it stays in S3, is no longer evidence, and can be restored. 200
-// with the observation.
+// with the observation. On a draft observation a recording goes for good,
+// file and all (CP-24).
 for (const kind of MEDIA_KINDS) {
   router.delete(`/:id/${kind}/:itemId`, requirePermission('assessments:edit'), async (req, res) => {
     try {
@@ -306,19 +312,32 @@ router.post(
   },
 )
 
-// Reads the observation (CP-05, CP-21): both parts the first time, or with
-// `{ "part": "categories" | "description" }` that part again, whenever asked.
-// Saving never reads it, so this is the only way its notes and photos reach
-// the model. For the assessment's assigned engineer, as a transcription retry is.
-router.post('/:id/interpretation', requirePermission('assessments:edit'), async (req, res) => {
-  const part: unknown = req.body?.part
-  if (part !== undefined && !READING_PARTS.includes(part as ReadingPart)) {
-    res.status(400).json({ error: 'part must be categories or description.' })
-    return
-  }
+// Tries suggesting the category and severity again after a failure (CP-24
+// AC13). 202 with the observation, now Reading. As PATCH: the assigned engineer.
+router.post('/:id/suggestion/retry', requirePermission('assessments:edit'), async (req, res) => {
   try {
-    await readObservation(req.params.id, part as ReadingPart | undefined, res.locals.user!)
-    res.status(202).end()
+    res.status(202).json(await retrySuggestion(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
+
+// One observation (CP-24): the open page re-reads it when the `observations`
+// event arrives. A draft observation only for its assessment's assigned engineer.
+router.get('/:id', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getObservation(req.params.id, res.locals.user!))
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
+
+// Discards a draft observation and its recordings' files (CP-24 AC3), when
+// New Observation is left without saving. 204; 404 if it is not a draft.
+router.delete('/:id/draft', requirePermission('assessments:edit'), async (req, res) => {
+  try {
+    await discardDraft(req.params.id, res.locals.user!)
+    res.status(204).end()
   } catch (error: unknown) {
     refuse(error, res)
   }

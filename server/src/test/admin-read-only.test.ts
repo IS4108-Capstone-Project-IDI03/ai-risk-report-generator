@@ -187,8 +187,8 @@ const CHANGES: [name: string, call: Call][] = [
     (u, w) => u.post(`/api/observations/${w.observationId}/pages/${w.pageId}/retranscribe`),
   ],
   [
-    'read an observation with AI',
-    (u, w) => u.post(`/api/observations/${w.observationId}/interpretation`),
+    'try a suggestion again',
+    (u, w) => u.post(`/api/observations/${w.observationId}/suggestion/retry`),
   ],
   ['draft a section', (u) => u.post(`${a}/sections/7/draft`)],
   [

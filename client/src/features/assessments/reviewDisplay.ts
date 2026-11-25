@@ -216,37 +216,14 @@ export function excerpt(text: string, max = 180) {
 // the draft, and the statement (a Claim key) it belongs to.
 export type ReviewFocus = { citation: string | null; statement: string | null }
 
-// The clause number of a passage (GN-16): the first one like 8.6.2 (digits with dots) found
-// scanning its headings from the last to the first; null when none has one.
-export function clauseOf(headings: string[]): string | null {
-  // The number must open the heading, or follow "Section" or "Clause": a "Table 8.6.2" or a
-  // "Figure 4.2" is not a clause, and a year like 2022.1 inside a title must not pass for one.
-  for (const h of [...headings].reverse()) {
-    const found = h.trim().match(/^(?:(?:section|clause)\s+)?(\d+(?:\.\d+)+)(?![\d.])/i)
-    if (found) return found[1]
-  }
-  return null
-}
-
-// "NFPA 13 (2022), 8.6.2, p. 114": a missing edition, clause or page is left out (GN-16 AC2).
-export function passageLabel(passage: SourcePassage): string {
-  const doc = passage.document
-  const title = doc?.title ?? 'Document not found'
-  return [
-    // Not again when the title already carries the edition ("NFPA 13 (2022)").
-    doc?.edition && !title.includes(doc.edition) ? `${title} (${doc.edition})` : title,
-    clauseOf(passage.headings),
-    pageLocator(passage),
-  ]
-    .filter(Boolean)
-    .join(', ')
-}
-
 // A citation in words, for its button's accessible name: "FM Global Data
 // Sheet 1-21, p. 12" or "Site observation, Bay 3, Ground".
 export function describeCitation(section: ReviewSection, id: string): string {
   const passage = section.sources[id]
-  if (passage) return passageLabel(passage)
+  if (passage)
+    return [passage.document?.title ?? 'Document not found', pageLocator(passage)]
+      .filter(Boolean)
+      .join(', ')
   const observation = id.startsWith('O:')
     ? section.observations.find((o) => o.id === id.slice(2))
     : undefined
@@ -257,6 +234,11 @@ export function describeCitation(section: ReviewSection, id: string): string {
 // The DOM id of a statement in the draft editor, so a claim can scroll to it.
 export const statementId = (sectionId: string, claim: string) =>
   `rv-statement-${sectionId}-${claim.replace('.', '-')}`
+
+// The DOM id of a subsection's note in the draft editor (a table, or a part
+// with no text), so writing guidance can go to it (AS-08).
+export const subsectionId = (sectionId: string, index: number) =>
+  `rv-subsection-${sectionId}-${index}`
 
 // Section 3's OFI categories in Marsh's report order (template pp. 8-9). Shared by
 // Generation's OFI list and Review's (OfiSuggestions, OfiReviewPanel).

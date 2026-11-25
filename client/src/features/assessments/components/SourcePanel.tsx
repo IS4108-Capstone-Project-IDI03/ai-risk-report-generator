@@ -2,6 +2,7 @@ import { PhotoReferences } from './PhotoReferences'
 import type { SavedObservation } from '../api'
 import { useEffect, useRef } from 'react'
 import { Badge, EvidenceCitation, IconButton, IconRegistry } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { calendarDate } from '../../knowledge-base/display'
 import type { FieldObservation, ReviewSection, SourcePassage } from '../api'
 import { formatDay } from '../format'
@@ -9,7 +10,6 @@ import {
   claimsOf,
   excerpt,
   FINDING_BADGE,
-  clauseOf,
   pageLocator,
   pages,
   severityLabel,
@@ -350,6 +350,7 @@ export function SourcePanel({
           <article
             ref={viewer}
             className="rv-viewer"
+            data-walk="review.evidence.source"
             aria-label={passage ? 'Source passage' : observation ? 'Field observation' : 'Citation'}
           >
             {passage ? (
@@ -392,7 +393,11 @@ export function SourcePanel({
 
       <section className="rv-panel-section" aria-label="Reference sources">
         <div className="rv-panel-head">
-          <h3 className="rv-label">Reference sources</h3>
+          {/* The panel has no heading of its own, so its help (F-13) sits on the first list's. */}
+          <span className="rv-panel-title">
+            <h3 className="rv-label">Reference sources</h3>
+            <Tip id="review.evidence" />
+          </span>
           <span className="rv-mono">{passages.length}</span>
         </div>
         {passages.length ? (
@@ -404,20 +409,7 @@ export function SourcePanel({
                   kind={p.kind === 'precedent' ? 'report' : 'standard'}
                   source={
                     <>
-                      {[
-                        // "NFPA 13 (2022), 8.6.2": the page follows as the locator (GN-16 AC5).
-                        p.document?.edition && !p.document.title.includes(p.document.edition)
-                          ? `${p.document.title} (${p.document.edition})`
-                          : (p.document?.title ?? p.documentId ?? 'Document not found'),
-                        clauseOf(p.headings),
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                      {p.broader && (
-                        <span className="rv-flag" title="Found by country only, not facility type">
-                          <Badge tone="neutral">Broader match</Badge>
-                        </span>
-                      )}
+                      {p.document?.title ?? p.documentId ?? 'Document not found'}
                       {p.document?.withdrawnAt && (
                         <span className="rv-flag">
                           <Badge tone="danger">Withdrawn</Badge>

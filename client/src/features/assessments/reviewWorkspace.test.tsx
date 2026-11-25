@@ -438,7 +438,7 @@ it('shows the draft editor with its sources, observations and claims beside it (
 
   // The reference source panel sits beside it, listing every cited passage (AC2).
   const sources = within(panel()).getByRole('region', { name: 'Reference sources' })
-  expect(within(sources).getByText('FM Global Data Sheet 1-21 (2022)')).toBeInTheDocument()
+  expect(within(sources).getByText('FM Global Data Sheet 1-21')).toBeInTheDocument()
   expect(within(sources).getByText('pp. 12–13')).toBeInTheDocument()
   expect(within(sources).getByText('Jurong Logistics Hub PRE 2024')).toBeInTheDocument()
 
@@ -490,7 +490,7 @@ it('opens the exact passage a citation references, with its page, title, edition
   // Citations are numbered across the section, in the order first cited.
   fireEvent.click(
     within(editor()).getByRole('button', {
-      name: 'Citation 2: FM Global Data Sheet 1-21 (2022), pp. 12–13',
+      name: 'Citation 2: FM Global Data Sheet 1-21, pp. 12–13',
     }),
   )
 
@@ -1070,7 +1070,8 @@ it('regenerates one section in the background and makes an accepted replacement 
   // The gateway pushes that the job is done: Review reads again and shows the replacement.
   generation = generationOf(11)
   current = workspace([WAITING, FIRE, EXPOSURES], LATER)
-  act(() => FakeEventSource.open[0].emit('drafting'))
+  // The Observations list opens its own stream too (CP-24): every open stream hears it.
+  act(() => FakeEventSource.open.forEach((source) => source.emit('drafting')))
 
   // Only that section gets a replacement, and its saved draft still shows.
   expect(await within(editor()).findByText('A replacement draft is ready')).toBeInTheDocument()
@@ -1196,7 +1197,8 @@ it('holds a section’s decisions while a drafting run redrafts it, then reads i
   // The run moves on: Review reads the section again, and it can be decided on.
   const before = reads
   generation = generationOf(11)
-  act(() => FakeEventSource.open[0].emit('drafting'))
+  // The Observations list opens its own stream too (CP-24): every open stream hears it.
+  act(() => FakeEventSource.open.forEach((source) => source.emit('drafting')))
   await waitFor(() =>
     expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled(),
   )
@@ -1508,14 +1510,4 @@ describe('Source region in review (KB-02)', () => {
     await waitFor(() => expect(text.querySelector('.katex')).not.toBeNull())
     expect(text).toHaveTextContent('Agent weight:')
   })
-})
-
-it('shows the standards banner against a fixed 50% target and still lets the engineer accept (GN-16)', async () => {
-  await openReview(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
-  expect(
-    await screen.findByText('1 of 2 sections cite a standard (target 50%)'),
-  ).toBeInTheDocument()
-  // 1 of 2 is exactly the target: no warning.
-  expect(screen.queryByText('Below target. Drafts still go ahead.')).toBeNull()
-  expect(within(editor()).getByRole('button', { name: 'Accept finding 1' })).toBeEnabled()
 })

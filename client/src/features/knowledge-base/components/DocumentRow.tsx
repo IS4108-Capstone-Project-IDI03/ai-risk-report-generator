@@ -10,6 +10,10 @@ import { calendarDate, isDraft, needsReview, reviewReasons } from '../display'
 import { DocumentDetails } from './DocumentDetails'
 import { ReviewBadge } from './ReviewBadge'
 
+// Which of this row's parts the walkthroughs point at (F-12): the table's first row, the row whose
+// details a walkthrough opens, and the Needs review row whose Review page it opens.
+export type RowWalk = { row?: boolean; open?: boolean; review?: boolean }
+
 /** Returns the document's row, plus its details row when open. */
 export function DocumentRow({
   document: d,
@@ -25,6 +29,7 @@ export function DocumentRow({
   onPublish,
   onClauses,
   canManage,
+  walk,
 }: {
   document: KnowledgeDocument
   open: boolean
@@ -43,6 +48,7 @@ export function DocumentRow({
   onClauses: () => void
   // Off for a risk engineer: no Review link, no actions in the details (IN-17).
   canManage: boolean
+  walk?: RowWalk
 }) {
   const panel = `kb-details-${d.id}`
   return (
@@ -50,6 +56,7 @@ export function DocumentRow({
       <tr
         id={`document-${d.id}`}
         data-focused={focused || undefined}
+        data-walk={walk?.row ? 'knowledge.row-1' : undefined}
         className={open ? 'kb-doc-row is-open' : 'kb-doc-row'}
         onClick={(e) => {
           if (!(e.target as HTMLElement).closest('a, button')) onToggle()
@@ -64,7 +71,10 @@ export function DocumentRow({
             className="kb-toggle"
             aria-expanded={open}
             aria-controls={panel}
-            onClick={onToggle}
+            data-walk={walk?.open ? 'knowledge.row-1.open' : undefined}
+            // A walkthrough's press (not a real tap) only opens the row: without this, stepping Back
+            // and Next would press again and close it, and the step would lose its target.
+            onClick={walk?.open ? (e) => (open && !e.isTrusted ? undefined : onToggle()) : onToggle}
           >
             <strong title={d.title}>{d.title}</strong>
             <small>
@@ -92,7 +102,7 @@ export function DocumentRow({
             )}
           </button>
         </td>
-        <td className="kb-col-status">
+        <td className="kb-col-status" data-walk={walk?.row ? 'knowledge.status.row-1' : undefined}>
           {/* One badge. A document with any Unconfirmed detail is not
               searchable, so it is never shown as Active (IN-05). */}
           {d.withdrawn ? (
@@ -102,7 +112,11 @@ export function DocumentRow({
             <StatusPill status="manual_draft" />
           ) : needsReview(d) ? (
             canManage ? (
-              <ReviewBadge title={d.title} onReview={onReview} />
+              <ReviewBadge
+                title={d.title}
+                onReview={onReview}
+                walk={walk?.review ? 'knowledge.review-open' : undefined}
+              />
             ) : (
               <Badge tone="moderate">Needs review</Badge>
             )

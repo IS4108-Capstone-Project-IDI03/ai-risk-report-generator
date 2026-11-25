@@ -3,7 +3,7 @@
 // pages. A tile opens its photo larger; a small round control at its corner
 // goes to the observation (collections), or a bin removes the photo (a page).
 // Rendered by screens/ObservationPage.tsx, Photos.tsx and Scans.tsx.
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { Icon } from '../../../design-system'
 import type { PhotoRegion } from '../api'
 import { MarkBox } from './PhotoMark'
@@ -43,11 +43,14 @@ export function PhotoGrid({
   tiles,
   label,
   onOpen,
+  end,
 }: {
   tiles: Tile[]
   // Names the list for screen readers, e.g. "Photos at Block A › Level 2".
   label: string
   onOpen: (tile: Tile & { url: string }) => void
+  // A last tile after the photos, e.g. the dashed Add photo tile on an observation's page.
+  end?: ReactNode
 }) {
   return (
     <ul className="cap-tiles" aria-label={label}>
@@ -97,6 +100,7 @@ export function PhotoGrid({
           )}
         </li>
       ))}
+      {end && <li className="cap-tile cap-tile--end">{end}</li>}
     </ul>
   )
 }

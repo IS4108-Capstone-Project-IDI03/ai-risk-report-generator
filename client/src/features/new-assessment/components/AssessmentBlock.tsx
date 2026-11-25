@@ -18,7 +18,7 @@ import { ContactsEditor } from './ContactsEditor'
 import { beforeStartLine, INVALID_DATE } from '../validate'
 import { DateField } from './DateField'
 import { ErrorLine } from './Field'
-import { Help } from './Help'
+import { Tip } from '../../help/Tip'
 
 export type CopyLocations = { count: number; from: string; on: boolean; set: (on: boolean) => void }
 
@@ -82,7 +82,7 @@ export function AssessmentBlock({
         )}
         <h3>{'Assessment ' + (j + 1)}</h3>
         <span className="na-type">
-          <Help label="What the assessment types mean" align="right">
+          <Tip id="new-assessment.type" align="right">
             <dl className="na-help-list">
               {TYPE_HELP.map((t) => (
                 <div key={t.value}>
@@ -96,10 +96,11 @@ export function AssessmentBlock({
                 {'This site has no earlier assessment, so this one is a First survey.'}
               </p>
             )}
-          </Help>
+          </Tip>
           <span
             className={'na-type-control' + (typeUnsure ? ' is-unsure' : '')}
             data-error={typeError ? '' : undefined}
+            data-walk={i === 0 && j === 0 ? 'new-assessment.type' : undefined}
           >
             <AssessmentTypeControl
               value={type as AssessmentType}
@@ -122,7 +123,10 @@ export function AssessmentBlock({
         </div>
       )}
       {/* An admin also picks who it is for, as the fourth column (RV-11, board 12). */}
-      <div className={'na-grid ' + (f.assign ? 'na-grid--4' : 'na-grid--3')}>
+      <div
+        className={'na-grid ' + (f.assign ? 'na-grid--4' : 'na-grid--3')}
+        data-walk={i === 0 && j === 0 ? 'new-assessment.dates' : undefined}
+      >
         {date('siteVisitDate', 'Survey start')}
         {date('siteVisitEndDate', 'Survey end')}
         {date('reportDueDate', 'Report due')}

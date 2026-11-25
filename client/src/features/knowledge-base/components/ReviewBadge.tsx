@@ -6,11 +6,21 @@
 import { Icon, IconRegistry } from '../../../design-system'
 
 /** Returns the Needs review badge that opens the document's Review page. */
-export function ReviewBadge({ title, onReview }: { title: string; onReview: () => void }) {
+export function ReviewBadge({
+  title,
+  onReview,
+  walk,
+}: {
+  title: string
+  onReview: () => void
+  // The badge's data-walk tag (F-12).
+  walk?: string
+}) {
   return (
     <button
       type="button"
       className="kb-review-badge"
+      data-walk={walk}
       // Starts with the visible words, so speech input ("click Needs review") finds it.
       aria-label={`Needs review: ${title}`}
       onClick={onReview}

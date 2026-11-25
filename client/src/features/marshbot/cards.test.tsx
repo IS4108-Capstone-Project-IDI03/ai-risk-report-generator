@@ -1,7 +1,8 @@
 // MarshBot's cards on their own (AS-06 round 7): the outline's note and attention rules, no quote
 // on a row, and every stage in Time in Each Stage with a text alternative. Cards are drawn
 // straight inside a stand-in MarshBot context: no gateway, no network.
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MarshBotContext } from './context'
@@ -172,7 +173,7 @@ describe('rows card', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('draws the card’s help as a (?) beside its title', () => {
+  it('draws the card’s help as a (?) beside its title, opening the sent words in a help tip', () => {
     const help = 'A row clears once its note gives a report writer something specific.'
     inBot(
       <RowsCard
@@ -188,34 +189,11 @@ describe('rows card', () => {
         }}
       />,
     )
-    expect(screen.getByRole('button', { name: help })).toBeTruthy()
-    // The help is a sentence: its tooltip wraps instead of running off the card on one line.
-    act(() => screen.getByRole('button', { name: help }).focus())
-    expect(screen.getByRole('tooltip').style.whiteSpace).toBe('normal')
-    expect(screen.getByRole('tooltip').style.maxWidth).toBe('280px')
-  })
-
-  it('opens the help on a tap, from the title’s left edge, and closes it on a press elsewhere', () => {
-    const help = 'A row clears once its note gives a report writer something specific.'
-    inBot(
-      <RowsCard
-        card={{
-          type: 'rows',
-          id: 'thin',
-          title: 'Thin',
-          note: '1 area',
-          help,
-          rows: [{ ...recordingRow, id: 'thin:1' }],
-          ticks: [],
-          cta: null,
-        }}
-      />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: help }))
-    const tip = screen.getByRole('tooltip')
-    expect([tip.style.top, tip.style.left]).toEqual(['calc(100% + 6px)', '0px'])
-    fireEvent.pointerDown(document.body)
-    expect(screen.queryByRole('tooltip')).toBeNull()
+    // F-13: the shared help tip, named for its card; the words stay as the gateway sent them.
+    fireEvent.click(screen.getByRole('button', { name: 'About Thin' }))
+    expect(screen.getByRole('dialog', { name: 'About Thin' })).toHaveTextContent(help)
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 

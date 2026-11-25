@@ -32,13 +32,21 @@ function respond(status: number, body: unknown = CAPTURE) {
 }
 // The dashboard's GET of the work list is answered by listReply, so fetchMock
 // sees only the POSTs a test queues. The list defaults to an unreachable gateway.
+// The header's background work (F-11) is answered as unreachable too.
 const unreachable = () => Promise.reject(new TypeError('Failed to fetch'))
 let listReply: () => Promise<Response> = unreachable
 function mockGateway(...replies: (() => Promise<Response>)[]) {
   const fetchMock = vi.fn()
   for (const reply of replies) fetchMock.mockImplementationOnce(reply)
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-    init?.method === 'GET' ? listReply() : fetchMock(url, init),
+    url.startsWith('/api/background-work')
+      ? unreachable()
+      : init?.method === 'GET'
+        ? listReply()
+        : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
+          url === '/api/settings/me'
+          ? Promise.resolve(new Response(null, { status: 204 }))
+          : fetchMock(url, init),
   )
   return fetchMock
 }
@@ -55,7 +63,8 @@ function openCapture() {
   // Open the assessment from the work list; capture starts from its Observations tab.
   fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+  fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
 }
 
 beforeAll(() => {
@@ -109,9 +118,11 @@ describe('Capture session (CP-01)', () => {
     openCapture()
 
     const save = screen.getByRole('button', { name: 'Save observation' })
-    expect(save).toBeDisabled()
+    // While the session starts, Save is busy and does nothing (the phone's bar is not a native
+    // disabled button, so it says so with aria-busy).
+    expect(save).toHaveAttribute('aria-busy', 'true')
     start(await respond(201))
-    await vi.waitFor(() => expect(save).toBeEnabled())
+    await vi.waitFor(() => expect(save).not.toHaveAttribute('aria-busy'))
     expect(screen.getByRole('img', { name: 'live' })).toBeInTheDocument()
   })
 
@@ -351,7 +362,8 @@ describe('Create assessment (CP-01)', () => {
     // With nothing captured yet, its Observations tab offers to add one too.
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     expect(screen.getByText('No observations yet')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Add manually' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
 
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
     expect(fetchMock.mock.calls[1][0]).toBe('/api/assessments/RPT-2026-0001/capture-session')
@@ -373,7 +385,8 @@ describe('Create assessment (CP-01)', () => {
       [/^Level/, 'Ground'],
       [/^Location/, 'Loading dock'],
     ] as const)
-      fireEvent.change(screen.getByLabelText(field), { target: { value } })
+      // The field's own input: the Location picker button on the form carries the same label.
+      fireEvent.change(screen.getByLabelText(field, { selector: 'input' }), { target: { value } })
     fireEvent.click(screen.getByRole('button', { name: 'Add location' }))
     expect(
       await screen.findByRole('button', { name: /Location: Warehouse › Ground › Loading dock/ }),
@@ -392,7 +405,7 @@ describe('Create assessment (CP-01)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
 
     // With the session live, the observation is saved to the gateway (CP-02).
-    expect(await screen.findByText('Observation saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
     expect(fetchMock.mock.calls[3][0]).toBe('/api/assessments/RPT-2026-0001/observations')
     expect(screen.getByRole('tab', { name: 'Observations 1' })).toBeInTheDocument()
 
@@ -1266,7 +1279,7 @@ it('archives my assessment from its workspace, then shows it only under Archived
     'page',
   )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  expect(screen.getByRole('button', { name: 'Add manually' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add observation' })).toBeInTheDocument()
 
   // Archive sits in the header's Assessment group.
   fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
@@ -1288,7 +1301,7 @@ it('archives my assessment from its workspace, then shows it only under Archived
 
   // An archived workspace offers neither capture nor another archive.
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  expect(screen.queryByRole('button', { name: 'Add manually' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Add observation' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
 
@@ -1636,7 +1649,7 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     await vi.waitFor(() => expect(screen.queryByText('Loading the checklist…')).toBeNull())
     expect(has('Generate checklist')).toBe(false)
     tab(/^Observations/)
-    for (const name of ['Add manually', 'Record site walk', 'Add location']) {
+    for (const name of ['Add observation', 'Add location']) {
       expect(has(name)).toBe(false)
     }
     // Generation shows the progress and View only in place of the draft button (GN-13 AC11).
@@ -1656,7 +1669,7 @@ describe('A knowledge admin in the workspace (RV-11)', () => {
     tab(/^Checklist/)
     expect(await screen.findByRole('button', { name: 'Generate checklist' })).toBeInTheDocument()
     tab(/^Observations/)
-    for (const name of ['Add manually', 'Record site walk', 'Add location']) {
+    for (const name of ['Add observation', 'Add location']) {
       expect(has(name)).toBe(true)
     }
     tab(/^Generation/)

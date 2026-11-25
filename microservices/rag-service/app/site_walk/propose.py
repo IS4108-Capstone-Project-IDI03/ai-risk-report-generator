@@ -71,7 +71,7 @@ def severity(consequence: str, likelihood: str) -> str:
     return _P[RAM[likelihood][list(CONSEQUENCES).index(consequence)]]
 
 
-# Must match speech-ocr-service/app/processors/vision.py CATEGORIES_INSTRUCTION (CP-21).
+# The only category prompt since CP-24 (the photo reading no longer proposes categories).
 # Fire doors and shutters are Construction: the sample reports put them in section 7
 # under compartmentation (eval/site_walk/LABELS.md).
 CATEGORIES = {
@@ -413,6 +413,8 @@ def _rate(observations: list[dict], recordings) -> None:
             sure = p_remark if positive else min(p_remark, p_consequence, p_likelihood)
             o["check"]["severity"] = _checked(sure)
             o["check"]["category"] = _checked(p_category)
+            # Kept for observation_rate.py and its eval; never returned by the site walk.
+            o["_probabilities"] = {"severity": sure, "category": p_category}
 
 
 def _walk_starts(recordings) -> dict[int, float]:

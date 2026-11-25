@@ -65,7 +65,11 @@ export function ConfirmDetailsStep({
     onSaved(updated)
   }
   return (
-    <section className="kb-step-panel" aria-labelledby="kb-step-confirm">
+    <section
+      className="kb-step-panel"
+      aria-labelledby="kb-step-confirm"
+      data-walk="knowledge-review.confirm"
+    >
       <h3 id="kb-step-confirm">Confirm details</h3>
       {open ? (
         <>

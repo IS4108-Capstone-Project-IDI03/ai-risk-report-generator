@@ -668,6 +668,11 @@ reports keep only two OFI photos, so the reference set in
 hit rate means much.
 
 Stories: CP-05, CP-04, CP-08.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes a
+category or a quote-checked reason; it describes the photos only, and the
+gateway starts it by itself (see "Manual observations are read in the
+background"). One reading per observation and the proposal not being drafting
+evidence stand.
 
 ## 2026-10-08 — AI-call usage is returned by the services and saved by the gateway
 
@@ -780,6 +785,7 @@ client's photos to a third party should be a deliberate act, and Marsh pays
 only for proposals someone wants. The cost is one tap per observation.
 
 Stories: CP-05 (CP-04 in the vetted sheet).
+Superseded 2026-11-20 by CP-24 ("Manual observations are read in the background"): the photos are described without being asked, on saving and when they or their marks change.
 
 ## 2026-10-08 — Repeats and newer editions: fingerprint at upload, one match check after ingestion, one Needs review status
 
@@ -930,6 +936,7 @@ wall penetration is both Construction and Protection), and with one category
 an engineer had to pick a section to leave it out of.
 
 Stories: CP-02, CP-06, GN-01.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes a category; the category is suggested from the observation's text (see "Manual observations are read in the background"), and is still one.
 
 ## 2026-10-10 — Ingestion moves to one cloud instance; tables and formulas are read by Claude Haiku 5.5, several at once
 
@@ -2114,6 +2121,7 @@ Rejected:
 Known limits: street addresses are not detected, only a postal code after "Singapore". A second `/mask` call per reading bends Rule 2 (one call per request); it adds nothing to the mapping.
 
 Stories: PV-04.
+Partly superseded 2026-11-20 (CP-24): the photo reading no longer proposes categories, so only the description is checked for added details, and there are no quotes or reasons.
 
 ## 2026-11-05 — privacy-service detects street addresses and vehicle plates; detectors.json switches each kind
 
@@ -2617,6 +2625,7 @@ Rejected:
 - Drawing the mark on Appendix A's photos and in the export: the report shows photos as taken; the mark only tells the AI reading where to look. Asked on 18 Nov.
 
 Stories: CP-10, CP-05, CP-21, PV-04.
+Partly superseded 2026-11-20 (CP-24): "Reading again stays the engineer's choice" no longer holds. A moved, added or cleared mark queues the description again by itself.
 
 ## 2026-11-17 — A knowledge document's passages are paged and outlined by the ingestion service, from clause numbers
 
@@ -2702,6 +2711,35 @@ The embedded text (`indexer.embedding_text`) and the reranker's (`retriever.rank
 
 Stories: IN-19, IN-17.
 
+## 2026-11-20 — Manual observations are read in the background; category and severity are filled in and marked, never offered
+
+Chose:
+- (CP-24) An engineer adds an observation with a location and what they saw. Everything else is done in the background, with no button: recordings and pages are transcribed, photos are described, and an empty category or severity is suggested.
+- Suggestions are filled in, not offered. The value is written where the engineer's would be, and the observation's `suggestion` records that it is still an AI value. Under the site walk's cutoff, `SITE_WALK_CHECK_BELOW` (0.70, unchanged), it is also marked not sure, and stays marked until the engineer confirms or changes it. Confirming keeps the value and makes it theirs.
+- The engineer's choice is never replaced. A field is theirs once they chose it at Save, changed it or confirmed it. Only an empty field or one holding an unconfirmed suggestion is suggested again, and the job's write checks that inside MongoDB, so a value chosen while it ran is kept. `PATCH /api/observations/:id` is the one write path for category and severity and clears the field's `suggestion` entry.
+- The classifier is the site walk's rating step, run on one observation's text through rag-service's `POST /observations/rate`: the same classifier, severity matrix and cutoff, and one category. No language model reads the observation, and no place is matched. The text is masked first with the same privacy session as the site walk; if masking is unavailable nothing is sent and the suggestion is stored as failed, without a retry. Its cost is saved under the feature `site-walk`.
+- One queued job per observation (`observation-reading`, concurrency 3, 2 tries, 5 s apart). Every trigger (save, media added, removed or restored, a photo's mark, a transcript or page text corrected or finished, a note change, a restore, Try again) adds 1 to `suggestion.run` and queues job `obs-reading-<id>-<run>`. A job writes only while the stored run is its own. The job describes photos first, waits while anything is transcribing (the transcript finishing queues a new run), and stops if both fields are the engineer's or there is no text. At startup `resumeReadings` queues a fresh run for any reading cut short.
+- A hidden draft observation holds the recordings made on New Observation, so each has somewhere to attach and transcribes before Save (AC1). Save turns it into the observation, leaving without saving deletes it with its files, and an hourly job deletes drafts unchanged for 24 hours (by `updatedAt`). Files go first and the record only when every file went, so a storage error keeps the draft for the next run and never leaves audio nothing points at. A draft is read by no list, count, drafting input, Ask, appendix, MarshBot check or report. It has no location; `location` is required on every other observation, and `severity` may now be `null`.
+- Drafting leaves out any observation to check: one rule, `settled` (`section.service.ts`), for an empty or not-sure category or severity or a failed suggestion. It replaces "has a category". Once an observation is settled it enters drafting, and drafts written without it show as out of date. Ask is unchanged.
+- The photo reading's category half is removed from S5 (`/interpret` returns the description and hazard type only), the gateway and the client, with Get AI proposal, Suggest again, Describe photos and Describe again, their route (`POST /api/observations/:id/interpretation` answers 404) and `eval.suggest_categories`. The description runs by itself, on saving and when photos or marks change. Old readings keep their stored categories, which nothing reads.
+- Updates are pushed, not polled: after each change the job publishes on the assessment's existing server-sent stream (`event: observations`) and the open Observations tab and observation page read again. The tab's existing 3-second poll for transcription stays.
+- A site walk proposal shows the `check` flags it already stored, with the same not-sure mark. They do not hold back Create all, and each created observation starts with the same marks. To keep them (AC17), such an observation is queued with `suggestion.rate: false`: its photos are described, but it is not rated again, and a new rating could change or clear a mark. The engineer's first change of their own (media, a transcript or page correction, a photo mark, a note edit, Try again) sets it back to true.
+
+Reason: a manual observation should need as little work as one from a site walk. The engineer's work is to check, not to ask for each step. The rating step is already tuned and scored, so it is reused as it is. The run number keeps a trigger that arrives while a job runs, and stops an older job writing last.
+
+Rejected:
+- Offering the suggestion for the engineer to accept (as the AI proposal did): it is one more step per observation. A marked value is already there, and the mark says when to look.
+- Letting a not-sure observation into drafting: a draft would cite a category nobody has seen. Leaving it out until settled keeps the report to values an engineer chose or confirmed.
+- A language model reading the observation to categorise it, as the removed photo reading did: the classifier already reaches 1.000 category agreement on the golden findings, with no cost worth counting and no free text to check.
+- A separate cutoff for category and severity, or a new cutoff: kept at 0.70 as decided. Calibrating them apart is parked.
+- Polling for the result: no new polling from sprint 5, and the stream already exists (ADR 0002 in `.local-docs/adr`).
+
+Evaluation (20 Nov 2026, `eval/site_walk/rate_eval.py`, outside CI): held-out, 79 findings (13 of 16 cases had saved notes; 13 findings skipped), category agreement 1.000 and severity 0.835 (target 0.84, one finding short); right when not marked 1.000 and 0.900; marked not sure 5.1% and 24.1%. Tuning, 145 findings: 1.000 and 0.862; right when not marked 1.000 and 0.933. About US$0.011 for both. On the tuning sweep 0.75 gives 97% severity right when not marked but marks 35%, so 0.70 stays.
+
+Known limits: the notes scored are the site walk's clean notes, not engineers' raw text. Whether Marsh allows site photos and notes to go to Google (G3) was open at PV-04 and this entry does not settle it: describing photos without being asked reverses the 2026-10-08 choice, and relies on blurring and masking.
+
+Stories: CP-24, CP-05, CP-21, CP-22, PV-04, AS-06.
+
 ## 2026-11-20 — A standard with no PDF is entered clause by clause, indexed as each clause is saved, and replaced by its PDF later
 
 Chose:
@@ -2725,3 +2763,131 @@ Rejected:
 - Masking typed text and screenshots: standards hold no client details. If admins start pasting client material, mask and blur as PV-06 does.
 
 Stories: IN-18, IN-07, IN-17, KB-02.
+
+## 2026-11-21 — The Observations tab can be read as building stacks, drawn in the browser from what the tab already holds
+
+- (CP-61) A List / Buildings switch on the Observations tab. Buildings draws each building as its levels, lowest at the bottom, with a cell per location in its worst observation's colour, then the locations elsewhere on site.
+- It is client only: the tab already holds the site's locations and the assessment's observations, so there is no new collection, endpoint or model call. The shapes are in `buildingStack.ts`, on CP-16's grouping (`groupLocations`), so the order is the location list's.
+- The stack keeps every location drawn while a filter is on, where the list drops those with no match. A building must keep its shape, and "nothing recorded" must not be confused with "nothing matching". So the workflow gives the stack its own list (`obsStack`): every location, the observations the filters show there, and how many it holds in all. A location whose observations are all filtered out reads "0 of 3".
+- Its chosen location is kept apart from the navigator's pick for the same reason: the navigator lets go of a place the filters empty. The two follow each other when the view is switched.
+- The view (`obsView`) is in the workflow's state, not the tab's, because capture unmounts the tab and Add observation here must return to the stacks.
+- Ground floors share a row across buildings: all the buildings are one CSS grid, and each floor is placed by its row from the ground. A level the app does not recognise goes above the rest, as it sorts last in the location list.
+- Cells are filled worst first, each a step lighter (solid red, then the 100 tints, then green 50). The app's severity 50 tints were not used: Critical's and High's are the same pink. Each cell also carries the severity's symbol and word.
+- Before a location is chosen, the side panel lists the locations with nothing recorded, each with a + that opens capture there. This was added to the idea as written, since "which locations have I not covered" is half the story's goal.
+
+Reason: on a large site the list shows what was found but not where it concentrates or what was missed. The location hierarchy from CP-16 already describes the site's shape, so the picture costs no new data.
+
+## 2026-11-22 — The words privacy-service never masks, and extra names it always masks, are kept in Settings and sent by the gateway
+
+- (PV-09) Settings > Privacy words, for knowledge admins only, keeps two lists in MongoDB (`privacy_words`): Never masked (words left as written) and Always masked (names masked as a client, site, address or person). Each entry has a reason; each add and removal is logged in `settings_log`.
+- The gateway sends both with every protected request (Rule 1): Always masked names join `known_entities`, and Never masked goes as `privacy.never_masked`. rag-service, S5 and ingestion pass it to `/mask`, where it replaces `allow_list.json`'s words for that call. Without the field privacy-service uses its file, so evals and older callers are unchanged. Read through a one-minute cache, as chat's known names are.
+- Masking wins twice: the gateway refuses a Never masked word that matches a recorded client, site, address or user (current or former name) or an Always masked name, and privacy-service never checks known names against the list.
+- The defaults are seeded once from privacy-service's new `GET /allow-list`, with each heading as the reason. The server image doesn't hold privacy-service's file, so the gateway asks for it, at start and before the lists are read or changed. Until it succeeds, requests leave `never_masked` out (the file applies, as before), and opening or changing the lists answers 503, so an admin can't add a word that would be sent without the defaults. `app_settings.privacyWordsSeeded` keeps a removed default from returning.
+- The floor-code pattern and the Marsh and FM Global teams stay in privacy-service: a pattern is a developer's tool, and a loose one would unmask everything.
+- rag-service's `Session.know()` skips mapping values on Never masked, so a word a past report's mapping tagged before the admin allowed it reads as written in drafting and chat. The stored passage keeps its tag until the report is re-run.
+- **The mapping's values now reach the browser, for knowledge admins only.** "Masked in reports" lists each value in `knowledge_documents.privacyMapping` once, with its kind and how many reports hold it, so an admin can spot a word masked by mistake. It never returns a tag, a document or its title. Before this, no API returned the mapping. The values are client details, but the same admins can already open the original reports.
+- Removing a Never masked word is immediate with Undo (it is masked again: the safe side). Removing an Always masked name asks first. There is no revert: each change is one add or one removal, and the log records who, what and why.
+
+Reason: changing `allow_list.json` took a deploy, and past reports name clients the app never recorded, which ingestion leaves readable (no `detect`). The admin who spots either is not a developer.
+
+Rejected:
+- A per-assessment or per-upload protection switch (PV-07's plan): a past report is shared by every assessment, so switching one off would expose another client.
+- Reading `allow_list.json` and Mongo both: a default the admin removed would come back.
+- Seeding from a copy of the file in the server: two copies drift.
+- Admin-edited patterns: a loose expression unmasks every word in every flow.
+- Showing which report holds a masked word: the count is enough to judge a mistake, and keeps the list from mapping clients to reports.
+
+Known limits: a change reaches reports already indexed only when they are re-run. An admin can still allow a real surname that isn't a recorded user (the log names who). The Masked in reports kind comes from the tag, so a value tagged two ways shows the first.
+
+Stories: PV-09, PV-05, PV-01, PV-02, PV-03, S-01.
+
+## 2026-11-23 — A site's weather is read by the gateway alone, at the engineer's pin or the geocoded address, and only advises
+
+- (CP-62) The Overview, New Observation and each Assessments row with a survey day today show the site's weather now (rain or no rain, rainfall in mm/h, temperature) and the rain forecast for the next 2 hours, with one warning: a thunderstorm (solid red, an alert), rain now ("Raining at site – do not proceed with outdoor or below-ground inspection."), or rain expected (amber). Every warning names Google Weather and says it is advisory. Nothing is blocked: engineers record at their desk too.
+- **Provider: Google.** The Weather API (current conditions and the hourly forecast) and the Geocoding API, with one server key, `GOOGLE_MAPS_SERVER_KEY`, kept apart from the browser key, which browsers can read. The team's Maps project already has billing, and the Weather API covers every country but Japan and Korea. Only `weather-provider.ts` calls it; `site-weather.service.ts` decides what counts.
+- **Where: the engineer's pin first, else the address.** A site's `coordinates` (CP-26) are an engineer's own point, so they win. Otherwise the address is geocoded on the first weather read and kept on the site as `geocode`, with the address it came from, so a correction (CP-18) is looked up again. It is never written into `coordinates`, which the map and directions treat as the engineer's. A result that is only a country or state counts as not found, and the panel asks for the address rather than guessing. A geocoder that can't be reached gives "Weather unavailable", not "add the address".
+- **A pin without an address still gets weather.** AC1 says a site with no address shows "Add the site address to see weather"; a pinned site isn't a guess, so it reads at the pin. Easy to change in `locate`.
+- **Geocoding is lazy**, on the first weather read rather than at create or correct, so sites made before CP-62 need no migration and the create and correct paths are unchanged.
+- **What counts is set in `.env`**, so every screen agrees: rain now is a rain, hail or thunder condition, or rain at or above `WEATHER_RAINING_MM_PER_HOUR` (0.5); rain expected is an hour of the next 2 with a chance at or above `WEATHER_RAIN_EXPECTED_PERCENT` (50) or that rate; thunder is a condition with thunder, or, ahead, a thunder chance at that percent. A typo in either value stops the gateway at start, so a warning can't be silently off.
+- **Readings are kept in memory per site for 10 minutes** (AC5): assessments at one site share them, reads at the same moment share one call, and a failure isn't retried for 30 seconds. Not Redis: one gateway runs, and a restart costs one call per site. The last good reading's time is kept for "Weather unavailable" (AC6); the page also remembers its own, for after a gateway restart.
+- **Refresh asks the gateway at once, which still answers from its 10-minute copy.** AC5 caps calls at one per site every 10 minutes, so a Refresh inside them returns the same reading with its time; after them it reads afresh. The panel reads by itself 10 minutes after each answer, skips a turn while the tab is hidden and reads as soon as it is shown again.
+- **The route doesn't refresh the session** (`requireAuthNoRefresh`), as MarshBot's brief doesn't: an open panel reading every 10 minutes must not keep an idle session alive (F-07).
+- **A dashboard row shows a line, not the panel**: one row of words under the reference, red for rain or a storm now and amber for rain expected, refreshing itself. The warning's full text and Refresh are on the Overview, a tap away. "Today" is the browser's calendar day, as the list's other date filters are.
+
+Reason: engineers were setting off for roofs, yards and basements without checking the weather at the site. The site's address and the map pin from CP-26 already say where to look, and Google's Maps project already exists.
+
+Rejected:
+- Calling the weather API from the browser with the browser key: the key would be readable and every viewer would spend calls (AC5).
+- Open-Meteo: free but non-commercial without a paid key, and its geocoder finds places, not street addresses. NEA's data.gov.sg feeds cover Singapore only, and sites are in Malaysia and the UK too. OpenWeatherMap's geocoder also finds cities, not addresses.
+- Writing the geocoded point into `coordinates`: it would appear as an engineer's pin on the map and in directions, and a later correction couldn't tell the two apart.
+- Blocking capture or Save while it rains (AC4).
+- Letting Refresh skip the cache: one press per engineer per minute would break AC5's limit.
+
+Known limits: Google has no minute-by-minute forecast, so "Now" is the current hour's forecast and the rainfall is the last hour's. The 2 hours are whole forecast hours, so up to three are shown. Readings are forgotten on a restart. An address in a building complex is placed at the complex, which is fine for weather (a few kilometres) but not for directions.
+
+Stories: CP-62, CP-26, CP-18, F-07.
+
+## 2026-11-24 — Writing guidance is asked by button: what a section covers comes from S4 with the template as evidence, what is missing from the gateway with no AI
+
+Chose:
+- (AS-08) Two buttons above the Ask tab's question box, "What should this section cover?" and "What is missing from this section?", for the part of the report open (in the document editor, the one the cursor is in). Asked into the conversation on screen with `POST …/ask` and `guide: { kind, sectionId }`; the question kept is the gateway's own wording. Buttons, not a guess from what is typed, as AS-04 chose. Asked on 23 Nov.
+- What is missing is worked out by the gateway from what is saved, with no AI call (`section-guidance.service.ts`), and saved as the answer at once. Asked on 23 Nov. A model would add cost and could word a gap as advice or disagree with the Export tab; a list built in code can do neither (AC3, AC4). It counts against no question limit.
+- AC3: the export check is built once, by `detailedBlockers` (`export.service.ts`), which gives each blocker a `kind` and a `fact` beside the Export tab's `reason`; `blockersFrom` (the Export tab, MarshBot) strips them, so the Export tab's answer is unchanged. The guidance lists the section's blockers from the same call, in the same order. Sections 4 and 5's missing figures name what reads "Not entered" (`notEntered` from `riskQualityFacts` and `lossEstimateFacts`).
+- AC2's other gaps, never blocking: parts with no text (once the section has some), every table part (nothing fills Sections 7 to 10's tables yet, so the report prints "Not entered"), COPE categories with no observation the draft can use, and each observation tagged with the section's categories that the draft leaves out (still to check, still transcribing, nothing recorded), at most 20 then a count. S4's `GET /sections` now lists each section's parts so the gateway knows them before a section is drafted.
+- Links: Go to section opens the section in the review workspace, scrolled to the finding (first pending, unsupported or citing a withdrawn source) or the part (its note in the draft editor) when the gap names one; Go to observation opens the observation on the Observations tab, or the tab for a category with none, through the leave guard so unsaved document edits ask first.
+- What a section should cover goes to S4 like a question (`orchestrator.cover`, `guide.py`, `as08-v1`): the template's definition of the section is evidence labelled T1 (the whole section) and T2 onwards (each part), cited like an observation; the selected standards are searched once per part in one batched embed, reranked together. No observation or past report is sent: the question is about the template and the standards. A cited part opens its place in the section, not the Evidence tab.
+- Sections: "what is missing" for Sections 2 to 12 (2 and 3 from the export check alone); "what it should cover" for Sections 4 to 12, which the template defines. Section 1 and Appendix A have neither: they are filled in from the assessment.
+
+Reason: the engineer needs to know what to write or capture before sign-off without leaving the review workspace, and the Export tab's list is the authority on what blocks sign-off. Reading it from the same function keeps the two from drifting.
+
+Rejected:
+- A model wording the gaps: it could turn a fact into advice and its list could differ from the Export tab's.
+- Recognising the questions from typed wording: an engineer typing "what is missing about the pump test?" means a question about evidence, not the section's gaps.
+- Sending observations with "what should this section cover?": the answer would start describing the site; what the observations lack is "what is missing"'s job.
+
+Stories: AS-08, AS-01, AS-03, AS-04, EX-01, GN-03, CP-24.
+
+## 2026-11-24 — RV-13: the model suggests each outcome, the gateway's rules decide what it may be, and the engineer confirms
+
+Chose:
+- (RV-13) A Comparison tab in the assessment workspace, between Review and Export. The previous report is the latest earlier assessment of the same site whose `reportStatus` is `finalised` and that is not archived, earlier by site visit date (else by creation); the engineer can pick another such report. AC1 (choosing a known site) was already CP-23's listed site.
+- What is compared: every paragraph and list item of the previous report's Sections 4 to 12 as the report reads it (its current text, built by `currentDocument`, so edits and the engineer's own words are in, rejected findings out), and each accepted OFI (its recommendation quoted, its Observation column beside it). Section 2 is left out: it summarises the others, so its sentences would duplicate them. The current side is the assessment's observations with words (note facts, transcripts, handwriting, else the photo description), its draft findings as reviewed and its accepted OFIs. A suggested severity not yet confirmed is not compared (`toCheck`), as drafting leaves it out.
+- S4 (`app/comparison/compare.py`, `rv13-v1`, `COMPARISON_MODEL` and `COMPARISON_EFFORT` on `LLM_PROVIDER`) suggests an outcome, its sources, a clear or partial match, disagreeing sources, possible matches, a reason or the missing evidence, and figures copied as written. Everything is masked in one `/mask` call first. A long report is compared 40 items per call, each call with all the current evidence.
+- The gateway decides the rest in code (`report-comparison-rules.ts`, `rv13-rules-v1`): an outcome other than Not checked with no current source becomes Not checked (silence is not a fix); a pair whose severities differ (or OFI priorities, Priority 1 the most urgent) is Worse or Improved whatever the model said; two or more disagreeing sources leave the outcome null for the engineer and cap confidence at Medium; a figure is kept only when both values appear in their texts exactly as copied, and its difference is worked out on the written digits (no floating point), or left out with a reason when the units differ. Confidence is worked out from these checks, never asked: Low when a rule changed the model's outcome, Medium for a partial match, possible matches, a dropped figure or disagreement, High otherwise.
+- New items are worked out on every read: current findings no previous item is compared with. A draft finding or OFI stands for the observations it cites, so an observation it cites is never New on its own.
+- The engineer's decisions are appended to the comparison, each recording the item's whole state with who and when; the latest is what the item reads. Fixed with no current source needs a note. A New item is paired from the previous item it matches. Dismissing hides an item from the counts and can be undone.
+- Out of date: each current source is kept with a hash of its words and of its tags (category, severity, location). Reading the tab compares them with now and names what was added, deleted, retagged or edited. Compare again copies the decisions whose sources are unchanged onto the new comparison (with their original name and time) and flags the rest, and any item whose evidence changed, with the reason.
+- The suggested outcome is shown in AI violet with a sparkle, a decided one in neutral grey with a tick: the story asks for an AI marking that turns neutral, an exception to design system v2's "no made by AI labels".
+- Kept in `report_comparisons`, one document per run, a failed one with its reason and time; nothing in the export, the review log or the sections reads or writes it, and it does not trigger MarshBot's re-check.
+
+Reason: an engineer must be able to trust that "Fixed" rests on something seen this time and that a measured change is arithmetic, not prose. Letting the model judge similarity and the code enforce the rules keeps both.
+
+Rejected:
+- Letting the model give confidence or differences: it can't be checked, and the story requires the difference in code.
+- Comparing against the previous report's draft findings only: the finalised report is what the client read, edits included.
+- Copying the engineer's decisions onto the AI's items in place (changing the comparison): a decision log keeps who and when, and Compare again can tell what to keep.
+- Treating every unpaired observation as New when a draft finding already covers it: one issue would be listed twice.
+
+Stories: RV-13, CP-23, RV-02, RV-08, GN-05, PV-02, CP-24.
+
+## 2026-11-24 — Background work is one gateway list, polled by an activity icon beside the bell, showing only measured progress
+
+- (F-11) Engineers and admins see their long-running jobs in one place: site walk transcription and proposals, voice notes and handwritten pages, photo readings and suggestions, drafting, ingestion, documents waiting on an admin, and documents uploaded for their own knowledge request. An activity icon beside the bell appears only while something is queued, running, failed or waiting on them, and opens a popover of rows; each row opens its job.
+- **One gateway list, read from MongoDB.** Every job already records its state in its own collection, and BullMQ removes a job from Redis once it finishes, so Redis can't say what ran. `background-work.service.ts` reads each collection once per poll and gives every job the same row shape.
+- **Progress only where it is measured.** An ingestion's stages, recordings and drafting parts are one segment each, the gateway marking each done, under way, failed or still to come, so a failure shows where it fell (the stage an ingestion failed in, a failed recording, a section that failed mid-run); an ingestion's pages are words under its stages, one bar a row. Other pages and OCR regions are a bar with the real count; a single AI call (a proposal, a description, a transcription, one section) is a working mark with its minutes. Nothing shows an estimated percentage.
+- **Polled, not pushed.** The ingestion worker writes its progress straight to MongoDB, so the gateway never hears of it; a push would mean every job, the Python worker included, telling the gateway. The icon reads every 5 seconds while work runs and every 30 seconds otherwise, not while the tab is hidden, on a route that does not refresh the session (F-07). The plan's "ride the bell's 10-second tick" was dropped: that tick fires only when a notification count moves, and new work usually starts from the person's own action. For the same reason, a call that starts a job (a drafting run, Regenerate, finishing a walk, saving media, an upload, any Try again) announces it once the gateway accepts it (`background-work/started.ts`), and the icon reads at once: a 4-second Regenerate would otherwise be over before the next 30-second read.
+- **No queue position.** Showing one would mean reading BullMQ's waiting lists for the gateway's queues and the ingestion worker's, which `job-queue.service.ts` doesn't expose; a queued row says how long it has waited instead.
+- **A document can be uploaded for a request.** The asking engineer could not see that an admin had started on it: a request only gained documents when filled, after ingestion. Uploading from the request records the document in the request's `incomingDocumentIds` and leaves it open; the engineer's row shows its ingestion.
+- **A popover, not a page.** A row is a link to where the job lives, which fits a popover; the bell already sets the pattern. No count badge, since red counts are the Inbox's and the bell's.
+- **Drafting has no Try again in the popover.** Drafting a failed part again means a new run, which drafts what the drafting tab's checkpoint offers; the row opens that tab.
+- **A failed segment is solid red in the popover.** The design system's lighter failed mark (a red outline on `--red-50`) read as pink beside the grey still to come at the popover's glance; the drafting screen keeps it, beside its section list.
+- **Failures don't flood it.** A finished run's failed sections fold into one row per assessment ("3 sections not drafted"), and every failure's reason is one line, its whole text a tooltip and on the job's own page. A failure for missing evidence is the engineer's input, not a broken job: the popover says drafting stopped and points to the drafting tab, which with MarshBot explains why.
+
+Rejected:
+- A server-sent-events channel per user: needs every job type, the ingestion worker included, to publish.
+- One combined bar for all work: pages, recordings and parts can't be added together.
+- A full page listing every engineer's work for admins: a glance is what's needed; Assessments already lists every engineer's assessments.
+
+Known limits: a job whose worker died still shows as running; an ingestion that failed before `failedStage` was recorded shows no stages; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
+
+Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.

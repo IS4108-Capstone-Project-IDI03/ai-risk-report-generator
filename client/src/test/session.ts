@@ -2,6 +2,17 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { expect } from 'vitest'
 import type { UserRole } from '../features/accounts/api'
 import type { Session } from '../features/auth/api'
+import type { WalkthroughRecord } from '../features/walkthrough/types'
+
+// Tests never get a walkthrough over them: the Welcome counts as played and offers are off (F-12).
+export const QUIET_WALKTHROUGHS: WalkthroughRecord = {
+  welcomeAt: '2026-01-01T00:00:00.000Z',
+  offers: false,
+  seen: {},
+  otherWay: [],
+  counts: {},
+  practice: null,
+}
 
 // Test sessions for each role, with the permissions the gateway sends for it
 // (ROLE_PERMISSIONS in server/src/services/permissions.service.ts).
@@ -19,6 +30,7 @@ export const SESSIONS: Record<UserRole, Session> = {
       'usage:view',
     ],
     notifications: { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null },
+    walkthroughs: QUIET_WALKTHROUGHS,
   },
   knowledge_admin: {
     user: { id: '6ab39017e45cf009e4507734', name: 'Sana Patel', role: 'knowledge_admin' },
@@ -37,6 +49,7 @@ export const SESSIONS: Record<UserRole, Session> = {
       'settings:manage',
     ],
     notifications: { total: 0, unread: 0, inboxTodo: 0, newestInbox: null, newestBell: null },
+    walkthroughs: QUIET_WALKTHROUGHS,
   },
 }
 

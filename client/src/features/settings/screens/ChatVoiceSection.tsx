@@ -1,14 +1,16 @@
 // Settings > Chat and voice: chat memory (CB-05), the voice-transcription model, and how the
 // chat reads answers aloud (speed and voice, CB-10). S-01 AC13. Called by Settings.tsx.
 // Speed and voice are saved in this browser (chat/speech.ts), so each device keeps its own.
+// "Set by an admin" sits beside the one admin-set setting (voice transcription), as the rest are the person's own.
 import { useEffect, useState } from 'react'
-import { Button, Select, Switch } from '../../../design-system'
+import { Button, Select, Switch, toast } from '../../../design-system'
 import type { Settings } from '../api'
 import { fetchMemory, setMemoryEnabled } from '../../chat/api'
 import { canSpeak, useVoices, useVoiceSettings } from '../../chat/speech'
 import { ModelRow } from '../components/ModelRow'
 import { SaveStatus } from '../components/SaveStatus'
 import { SetByAdmin } from '../components/SetByAdmin'
+import { SettingBlock } from '../components/SettingBlock'
 import type { SaveState } from '../useSave'
 
 type Props = { settings: Settings; onSaved: (settings: Settings) => void }
@@ -21,7 +23,9 @@ function ReadAloud() {
   return canSpeak() ? (
     <ReadAloudControls />
   ) : (
-    <p className="st-note">This browser cannot read answers aloud.</p>
+    <SettingBlock title="Reading answers aloud">
+      <p className="st-note">This browser cannot read answers aloud.</p>
+    </SettingBlock>
   )
 }
 
@@ -36,30 +40,35 @@ function ReadAloudControls() {
     speechSynthesis.speak(say)
   }
   return (
-    <div className="st-row">
-      <div className="st-row-label">Reading answers aloud</div>
+    <SettingBlock
+      title="Reading answers aloud"
+      help="Saved on this device only. Voices differ between devices."
+    >
       <div className="st-editor">
-        <Select
-          label="Speed"
-          value={String(voice.rate)}
-          options={SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
-          onChange={(e) => change({ rate: Number(e.target.value) })}
-        />
-        <Select
-          label="Voice"
-          value={voice.voiceURI}
-          options={[
-            { value: '', label: 'Browser default (works on every device)' },
-            ...voices.map((v) => ({ value: v.voiceURI, label: `${v.name} (${v.lang})` })),
-          ]}
-          onChange={(e) => change({ voiceURI: e.target.value })}
-        />
-        <Button variant="secondary" size="md" onClick={sample}>
+        <div className="st-field st-field--speed">
+          <Select
+            label="Speed"
+            value={String(voice.rate)}
+            options={SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
+            onChange={(e) => change({ rate: Number(e.target.value) })}
+          />
+        </div>
+        <div className="st-field st-field--voice">
+          <Select
+            label="Voice"
+            value={voice.voiceURI}
+            options={[
+              { value: '', label: 'Browser default (works on every device)' },
+              ...voices.map((v) => ({ value: v.voiceURI, label: `${v.name} (${v.lang})` })),
+            ]}
+            onChange={(e) => change({ voiceURI: e.target.value })}
+          />
+        </div>
+        <Button variant="secondary" pill iconLeft="volume-2" onClick={sample}>
           Play sample
         </Button>
       </div>
-      <p className="st-note">Saved on this device only. Voices differ between devices.</p>
-    </div>
+    </SettingBlock>
   )
 }
 
@@ -74,35 +83,39 @@ export function ChatVoiceSection({ settings, onSaved }: Props) {
     )
   }, [])
 
+  // Like the Walkthroughs offers switch: the switch itself shows a good change, so only a failure
+  // says anything. Without the catch, a failed save would be silent while the switch looked changed.
   const toggle = async (next: boolean) => {
-    setState({ status: 'saving', message: '' })
     try {
       setEnabled((await setMemoryEnabled(next)).enabled)
-      setState({ status: 'saved', message: '' })
     } catch {
-      setState({ status: 'failed', message: 'Try again.' })
+      toast.error("Couldn't save that change", { description: 'Please try again.' })
     }
   }
 
   const transcription = settings.models.find((m) => m.task === 'transcription')
   return (
-    <div className="st-stack">
+    <>
       {transcription && (
-        <>
-          {!settings.canEditGlobal && <SetByAdmin />}
-          <ModelRow row={transcription} canEdit={settings.canEditGlobal} onSaved={onSaved} />
-        </>
+        <ModelRow
+          row={transcription}
+          canEdit={settings.canEditGlobal}
+          note={!settings.canEditGlobal && <SetByAdmin />}
+          onSaved={onSaved}
+        />
       )}
       <ReadAloud />
-      <div className="st-row">
-        <Switch
-          label="Remember facts about me in chat"
-          checked={enabled ?? false}
-          disabled={enabled === null}
-          onChange={toggle}
-        />
-        <SaveStatus state={state} />
-      </div>
-    </div>
+      <SettingBlock>
+        <div className="st-switch-row">
+          <Switch
+            label="Remember facts about me in chat"
+            checked={enabled ?? false}
+            disabled={enabled === null}
+            onChange={toggle}
+          />
+          <SaveStatus state={state} />
+        </div>
+      </SettingBlock>
+    </>
   )
 }

@@ -21,6 +21,7 @@ import {
   sourceLabel,
 } from '../display'
 import { TIER_LABELS } from '../../settings/tiers'
+import { Tip } from '../../help/Tip'
 import { DetailText } from './DetailText'
 
 /** Returns one document's details and actions. */
@@ -59,12 +60,17 @@ export function DocumentDetails({
     onPublish().finally(() => setPublishing(false))
   }
   return (
-    <section id={id} className="kb-details" aria-label={`Details of ${d.title}`}>
+    <section
+      id={id}
+      className="kb-details"
+      aria-label={`Details of ${d.title}`}
+      data-walk="knowledge.details"
+    >
       <dl className="kb-facts">
         <Fact label="Source type">
           <DetailText text={sourceLabel(d.sourceType)} />
         </Fact>
-        <Fact label="Tier">
+        <Fact label="Tier" help={<Tip id="knowledge.tier" />}>
           {d.tier ? (
             <>
               {TIER_LABELS[d.tier.value]}
@@ -140,7 +146,13 @@ export function DocumentDetails({
           </Button>
         )}
         {canManage && !draft && !d.withdrawn && !needsReview(d) && (
-          <Button variant="tonal" size="sm" iconLeft={IconRegistry.action.edit} onClick={onEdit}>
+          <Button
+            variant="tonal"
+            size="sm"
+            iconLeft={IconRegistry.action.edit}
+            data-walk="knowledge.edit"
+            onClick={onEdit}
+          >
             Edit details
           </Button>
         )}
@@ -150,11 +162,18 @@ export function DocumentDetails({
               variant="ghost"
               size="sm"
               iconLeft={IconRegistry.object.history}
+              data-walk="knowledge.history"
               onClick={onHistory}
             >
               Edit history
             </Button>
-            <Button variant="ghost" size="sm" iconLeft="list" onClick={onPassages}>
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft="list"
+              data-walk="knowledge.passages"
+              onClick={onPassages}
+            >
               View passages
             </Button>
           </>
@@ -164,6 +183,7 @@ export function DocumentDetails({
             variant="danger-tonal"
             size="sm"
             iconLeft={IconRegistry.action.withdraw}
+            data-walk="knowledge.withdraw"
             onClick={onChangeStatus}
           >
             Withdraw
@@ -211,10 +231,30 @@ export function DocumentDetails({
   )
 }
 
-function Fact({ label, mono, children }: { label: string; mono?: boolean; children: ReactNode }) {
+// `help` is a help tip (F-13) shown beside the label.
+function Fact({
+  label,
+  mono,
+  help,
+  children,
+}: {
+  label: string
+  mono?: boolean
+  help?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div>
-      <dt className="kb-label">{label}</dt>
+      <dt className="kb-label">
+        {help ? (
+          <span className="kb-label-row">
+            {label}
+            {help}
+          </span>
+        ) : (
+          label
+        )}
+      </dt>
       <dd className={mono ? 'kb-mono' : undefined}>{children}</dd>
     </div>
   )

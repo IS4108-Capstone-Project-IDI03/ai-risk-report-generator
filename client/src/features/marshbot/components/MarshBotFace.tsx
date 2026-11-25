@@ -1,6 +1,6 @@
 // MarshBot's face, Robot A "Visor" (AS-06 board 16): one inline SVG, four moods that crossfade
 // over 180 ms with the antenna light, and an idle blink every 4 to 7 s. Used by StageRail and
-// PhoneStageBar; the chatbot's logo (features/chat/marshbot.svg) is the idle face on navy.
+// PhoneStageBar; the chatbot's logo (features/chat/marshbot.svg) is the idle face on a light tile.
 import { useEffect, useState } from 'react'
 import type { Mood } from '../types'
 

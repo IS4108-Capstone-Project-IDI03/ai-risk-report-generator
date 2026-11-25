@@ -178,11 +178,18 @@ export async function saveRiskQuality(
 // ratings, and each category's scores, one per line, for the model to use
 // unchanged; or why it cannot be drafted yet (AC1). The rating lines' wording is
 // read by rag-service's check_numbers_grounded: keep the two in step.
-export function riskQualityFacts(saved: IAssessment['riskQuality']) {
+export function riskQualityFacts(saved: IAssessment['riskQuality']): {
+  facts?: string
+  missing?: string
+  notEntered?: string
+} {
   const { categories, result } = riskQualityOf(saved)
   const { current, potential } = result
   if (!current || !potential)
-    return { missing: 'Enter all seven current and potential scores first.' }
+    return {
+      missing: 'Enter all seven current and potential scores first.',
+      notEntered: scoresNotEntered(categories),
+    }
   return {
     facts: [
       `Current Location Risk Quality Score: ${current.score}`,
@@ -192,4 +199,21 @@ export function riskQualityFacts(saved: IAssessment['riskQuality']) {
       ...categories.map((c) => `${c.category}: current ${c.current}, potential ${c.potential}`),
     ].join('\n'),
   }
+}
+
+const listed = (names: string[]) =>
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '')
+
+// Which scores Section 4's table shows as "Not entered", as a fact (AS-08 AC4):
+// each category with a score missing, and which of its two.
+function scoresNotEntered(categories: CategoryScore[]): string {
+  const open = categories.flatMap((c) => {
+    const sides = [c.current === null && 'current', c.potential === null && 'potential'].filter(
+      (side): side is string => !!side,
+    )
+    return sides.length ? [`${c.category} (${sides.join(' and ')})`] : []
+  })
+  return open.length
+    ? `Section 4's risk quality table reads Not entered for ${open.length} of its ${categories.length} categories: ${listed(open)}.`
+    : "Section 4's risk quality rating reads Not entered."
 }

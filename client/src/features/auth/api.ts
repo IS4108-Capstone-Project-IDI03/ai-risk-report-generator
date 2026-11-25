@@ -4,6 +4,7 @@
 import { GatewayError } from '../assessments/api'
 import type { UserRole } from '../accounts/api'
 import type { NotificationCounts } from '../notifications/api'
+import type { WalkthroughRecord } from '../walkthrough/types'
 
 // Matches PERMISSIONS in server/src/services/permissions.service.ts.
 export type Permission =
@@ -27,6 +28,8 @@ export type Session = {
   // sidebar the Inbox count. `total` and `unread` are the bell's; `inboxTodo` is
   // the Inbox's To do count; the times are as in notifications/api.ts.
   notifications: NotificationCounts
+  // What walkthroughs this person has played, skipped or declined (F-12).
+  walkthroughs: WalkthroughRecord
 }
 
 async function send(path: string, init: RequestInit = {}): Promise<Response> {

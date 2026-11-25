@@ -77,3 +77,64 @@ export async function changePassword(currentPassword: string, newPassword: strin
     body: JSON.stringify({ currentPassword, newPassword }),
   })
 }
+
+// PV-09: the knowledge admin's privacy word lists. Admins only; an engineer gets 403.
+export type PrivacyKind = 'CLIENT' | 'SITE' | 'ADDRESS' | 'PERSON'
+export type PrivacyList = 'always' | 'never'
+export type PrivacyWord = {
+  id: string
+  list: PrivacyList
+  word: string
+  // Always masked only: the placeholder's kind. Null on Never masked.
+  kind: PrivacyKind | null
+  reason: string
+  // `default`: the app's defaults (allow_list.json); `admin`: added in Settings.
+  source: 'default' | 'admin'
+  addedBy: { id: string; name: string } | null
+  at: string
+}
+type WordChange = { list: PrivacyList; word: string; kind: PrivacyKind | null; reason: string }
+// One add (before null) or removal (after null); newest first, at most 20.
+export type PrivacyWordChange = {
+  at: string
+  by: { id: string; name: string }
+  before: WordChange | null
+  after: WordChange | null
+}
+export type PrivacyWords = {
+  // The lists apply only when PII_PROTECTION is on (AC9).
+  protectionOn: boolean
+  always: PrivacyWord[]
+  never: PrivacyWord[]
+  history: PrivacyWordChange[]
+}
+// A word past reports had masked at ingestion (AC10): never its tag or which report.
+export type MaskedWord = { word: string; kind: string; reports: number; neverMasked: boolean }
+
+/** Admin: both lists and their last 20 changes. */
+export function getPrivacyWords(): Promise<PrivacyWords> {
+  return request<PrivacyWords>('/api/settings/privacy-words')
+}
+/** Admin: adds a word to one list; rejects with GatewayError (400, or 409 with the reason). */
+export async function addPrivacyWord(body: {
+  list: PrivacyList
+  word: string
+  reason: string
+  kind?: PrivacyKind
+}) {
+  await request<unknown>('/api/settings/privacy-words', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  })
+}
+/** Admin: removes one word from its list. */
+export async function removePrivacyWord(id: string) {
+  await request<unknown>(`/api/settings/privacy-words/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+/** Admin: every word past reports had masked, once each. */
+export function getMaskedInReports(): Promise<{ words: MaskedWord[] }> {
+  return request<{ words: MaskedWord[] }>('/api/settings/privacy-words/masked-in-reports')
+}

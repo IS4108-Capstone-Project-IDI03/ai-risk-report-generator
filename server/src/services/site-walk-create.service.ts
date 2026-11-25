@@ -223,6 +223,8 @@ export async function createAll(
       note: o.note,
       severity: o.severity!,
       copeDimensions: o.copeDimension ? [o.copeDimension] : null,
+      // The not-sure flags carry onto the observation (CP-24).
+      check: o.check,
       evidence: evidenceFor(walk, o),
       siteWalk: walk._id,
     })

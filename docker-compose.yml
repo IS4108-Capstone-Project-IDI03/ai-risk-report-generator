@@ -48,6 +48,7 @@ services:
       RAG_SERVICE_URL: http://rag-service:8002
       SPEECH_OCR_SERVICE_URL: http://speech-ocr-service:8003
       CONVERTER_SERVICE_URL: http://converter:3000
+      PRIVACY_SERVICE_URL: http://privacy-service:8004
       REDIS_URL: redis://redis:6379
     depends_on:
       mongo:

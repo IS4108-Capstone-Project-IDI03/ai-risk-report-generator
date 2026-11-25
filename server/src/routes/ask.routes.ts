@@ -7,13 +7,15 @@
 // are only read: asking and deleting answer 409 (AS-03 AC5).
 // A request for text for a section (AS-04: `propose`) also needs
 // `reports:generate` and the assigned engineer (403), on an assessment
-// neither archived nor finalised (409).
+// neither archived nor finalised (409). Writing guidance for a section (AS-08:
+// `guide`) needs only `reports:ask`, as a question does.
 import { Router, type Response } from 'express'
 import { requirePermission } from '../middleware/auth.middleware'
 import { hasPermission } from '../services/permissions.service'
 import { NotAssignedError } from '../services/assessment.service'
 import {
   answerQuestion,
+  answerWhatIsMissing,
   ConversationFullError,
   ConversationNotFoundError,
   deleteConversation,
@@ -129,10 +131,13 @@ router.delete(
 // `conversation` to go into one of the user's conversations; without it, the
 // question starts a new one (AS-03). `propose` asks for text for a section
 // instead (AS-04): `{ kind: 'draft', sectionId }`, or `{ kind: 'rewrite' }`
-// with the passage to rewrite. The answer streams as server-sent events
-// (`question` with the conversation it is in, `step`, `statement`, `missing`,
-// a proposal's `target`, then `result` with the saved answer). One request
-// per question and no polling (AS-01 AC8).
+// with the passage to rewrite. `guide` asks for writing guidance for a section
+// instead (AS-08), with no question typed: `{ kind: 'cover', sectionId }` is
+// answered by S4 as a question is; `{ kind: 'missing', sectionId }` by the
+// gateway at once, with no AI call (`question`, then `result`). The answer
+// streams as server-sent events (`question` with the conversation it is in,
+// `step`, `statement`, `missing`, a proposal's `target`, then `result` with the
+// saved answer). One request per question and no polling (AS-01 AC8).
 router.post('/', requirePermission('reports:ask'), async (req, res) => {
   const parsed = questionSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -144,10 +149,37 @@ router.post('/', requirePermission('reports:ask'), async (req, res) => {
     res.status(403).json({ error: 'Only risk engineers can draft text into a report.' })
     return
   }
+  const reference = (req.params as Params).reference
+  const { question, passage, conversation, propose, guide } = parsed.data
+  // What is missing from a section (AS-08 AC2): listed by the gateway, so the
+  // whole answer goes at once, as the same events a question's ends with.
+  if (guide?.kind === 'missing') {
+    try {
+      const found = await answerWhatIsMissing(
+        reference,
+        res.locals.user!,
+        guide.sectionId,
+        conversation,
+      )
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'question',
+          id: String(found.saved._id),
+          question: found.saved.question,
+          askedAt: found.saved.askedAt,
+          conversation: found.conversation,
+        })}\n\n`,
+      )
+      res.end(`data: ${JSON.stringify({ type: 'result', answer: found.answer })}\n\n`)
+    } catch (error: unknown) {
+      refuse(error, res)
+    }
+    return
+  }
   let prepared: PreparedQuestion
   try {
-    const reference = (req.params as Params).reference
-    const { question, passage, conversation, propose } = parsed.data
     prepared = await prepareQuestion(
       reference,
       res.locals.user!,
@@ -155,6 +187,7 @@ router.post('/', requirePermission('reports:ask'), async (req, res) => {
       passage,
       conversation,
       propose,
+      guide,
     )
   } catch (error: unknown) {
     refuse(error, res)

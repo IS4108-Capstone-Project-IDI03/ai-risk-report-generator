@@ -20,6 +20,7 @@ import { OverviewTable } from '../components/OverviewTable'
 import { StackedCostChart } from '../components/StackedCostChart'
 import { DEFAULT_RANGE, RANGES, SPLITS } from '../options'
 import { useLoad } from '../useLoad'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 
 // Has the reader's search in its reference, client or site.
 const matches = (g: OverviewGroup, search: string) =>
@@ -64,11 +65,13 @@ export function ReportUsageOverview({
   }
   const shown = error ? null : data
   const noun = groupBy === 'engineer' ? 'engineers' : 'assessments'
+  // F-12: ready once the figures have loaded; held back (no offer) when there is nothing to point at.
+  useWalkthroughScreen('usage', !loading, !shown || shown.totals.calls === 0)
 
   return (
     <div className="uc" aria-busy={loading}>
       <div className="uc-toolbar">
-        <div className="uc-filters">
+        <div className="uc-filters" data-walk="usage.filters">
           <Select
             label="Period"
             value={range}

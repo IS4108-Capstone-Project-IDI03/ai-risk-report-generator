@@ -1,5 +1,6 @@
 // Gateway calls for the review workspace's Ask tab (AS-01), whose questions
-// are kept in conversations (AS-03): GET and POST
+// are kept in conversations (AS-03), writing guidance for a section included
+// (AS-08): GET and POST
 // /api/assessments/:reference/ask, and GET and DELETE …/ask/conversations/:id
 // (server/src/routes/ask.routes.ts). A question is one POST whose answer
 // streams back as server-sent events; the tab never polls, so the idle
@@ -9,9 +10,11 @@ import type { FieldObservation, ReviewWorkspace, SourcePassage } from '../api'
 import { passageBody, type AskPassage } from './passage'
 
 export type AskCitation = {
-  // `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report).
+  // `O:<observation id>`, `C:<chunk id>` (a standard) or `P:<chunk id>` (a past report),
+  // or `T:<section>` / `T:<section>.<part>`: the report template's definition of a
+  // section or one of its parts (AS-08).
   ref: string
-  kind: 'observation' | 'standard' | 'report'
+  kind: 'observation' | 'standard' | 'report' | 'template'
   quote: string | null
   // Whether the quoted words were found in the source.
   verified: boolean
@@ -31,6 +34,43 @@ export type AskStatement = {
 export type Confidence = 'high' | 'medium' | 'low'
 export type AskFailure = { step: string; cause: string; at: string }
 
+// Writing guidance for a section (AS-08): what it should cover, or what is
+// missing from it.
+export type GuideKind = 'cover' | 'missing'
+export type GuideRequest = { kind: GuideKind; sectionId: string }
+// The guidance a question asked for, with the section as the report heads it.
+export type AskGuidance = GuideRequest & { label: string }
+
+// Where a gap is finished (AS-08 AC2): the section, at a part or a finding
+// when known, or an observation (the Observations tab when its id is null).
+export type GapLink =
+  | { to: 'section'; sectionId: string; subsection?: number; finding?: string }
+  | { to: 'observation'; observationId: string | null }
+
+// One thing missing from a section, stated as a fact (AC4). Those that block
+// the export are the Export tab's own (AC3).
+export type SectionGap = {
+  kind: string
+  fact: string
+  blocksExport: boolean
+  link: GapLink
+}
+
+// A section of the report template, or one of its parts, that an answer
+// cites (AS-08 AC1). Selecting it goes to that place in the section.
+export type TemplatePart = {
+  id: string
+  sectionId: string
+  // The section as the report heads it, e.g. "9. Fire Protection".
+  label: string
+  // The part's index and heading; null for the whole section.
+  subsection: number | null
+  heading: string | null
+  kind: 'section' | 'narrative' | 'fields' | 'table'
+  fields: string[]
+  text: string
+}
+
 export type AskAnswer = {
   id: string
   question: string
@@ -38,6 +78,12 @@ export type AskAnswer = {
   passage: AskPassage | null
   // Text proposed for a section (AS-04), or null (absent) for a question.
   proposal?: Proposal | null
+  // Writing guidance for a section (AS-08), or null (absent) for a question.
+  guidance?: AskGuidance | null
+  // What is missing from the section (AS-08 AC2); absent or empty otherwise.
+  gaps?: SectionGap[]
+  // The template's parts the answer cites (AS-08 AC1); absent on older answers.
+  template?: TemplatePart[]
   askedAt: string
   status: 'answering' | 'complete' | 'stopped' | 'failed'
   statements: AskStatement[]
@@ -177,6 +223,7 @@ export type AskEvent =
       type: 'statement'
       passages?: SourcePassage[]
       observations?: FieldObservation[]
+      template?: TemplatePart[]
     } & AskStatement)
   | { type: 'missing'; text: string }
   // The subsection a draft's text fits, as the model named it (AS-04).
@@ -203,7 +250,8 @@ export class AskRefusedError extends Error {
  * Asks one question, about a selected passage when given (AS-02), in the
  * conversation given, else as the first of a new one (AS-03); `onEvent` gets
  * each event as it arrives. Resolves when the stream ends. With `propose`, it
- * asks for text for a section instead (AS-04).
+ * asks for text for a section instead (AS-04); with `guide`, writing guidance
+ * for a section (AS-08), whose question is the gateway's own wording.
  */
 export async function askQuestion(
   reference: string,
@@ -213,6 +261,7 @@ export async function askQuestion(
   passage?: AskPassage | null,
   conversation?: string | null,
   propose?: ProposeRequest | null,
+  guide?: GuideRequest | null,
 ): Promise<void> {
   let response: Response
   try {
@@ -220,7 +269,7 @@ export async function askQuestion(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        question,
+        ...(guide ? { guide: { kind: guide.kind, sectionId: guide.sectionId } } : { question }),
         ...(passage && { passage: passageBody(passage) }),
         ...(conversation && { conversation }),
         ...(propose && { propose }),

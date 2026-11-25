@@ -47,6 +47,13 @@ const KIND: Record<string, { icon: string; label: string; fg: string; bg: string
     fg: 'var(--ai-fg)',
     bg: 'var(--ai-bg)',
   },
+  // The report template's definition of a section or one of its parts (AS-08).
+  template: {
+    icon: 'layout-template',
+    label: 'Report template',
+    fg: 'var(--graphite-700)',
+    bg: 'var(--graphite-50)',
+  },
 }
 function EvidenceCitation({
   kind = 'report',

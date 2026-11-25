@@ -8,6 +8,8 @@ export const AI_FEATURES = [
   'draft-section',
   'retrieval',
   'transcribe',
+  // S5's model pass over a transcript, taking a self-correction's abandoned half out (CP-27).
+  'tidy-transcript',
   // A handwritten note page (CP-19), read by S5's handwriting provider.
   'transcribe-handwriting',
   'label-document',
@@ -36,6 +38,11 @@ export const AI_FEATURES = [
   'knowledge-search',
   // Sorting a shorthand note's uncoded lines into facts, info requests and recommendations (CP-35).
   'split-note',
+  // Any call made on a practice assessment or while a walkthrough's try-it runs (F-12): stored
+  // with no reportId, so assessment totals stay clean. Set by ai-usage.service.ts recordAiCalls.
+  'walkthrough',
+  // Comparing an assessment with the previous report for the same site (RV-13), in rag-service.
+  'report-comparison',
 ] as const
 export const BILLED_SERVICES = [
   'anthropic',

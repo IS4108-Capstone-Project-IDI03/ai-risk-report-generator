@@ -105,6 +105,14 @@ function palette(variant: string, hover: boolean, active: boolean) {
         color: 'var(--graphite-900)',
         border: '1px solid transparent',
       }
+    // The secondary pill in the light ink blue of the Add location row (v2 ink ramp): for a secondary
+    // action that sits on the grey page, where the grey pill would be lost (Site walk proposals).
+    case 'pill-ink':
+      return {
+        background: active || hover ? 'var(--ink-200)' : 'var(--ink-100)',
+        color: 'var(--marsh-navy)',
+        border: '1px solid transparent',
+      }
     case 'primary':
       return {
         background: active
@@ -248,7 +256,7 @@ function Button({
             overflowWrap: s.wrap ? 'anywhere' : undefined,
             letterSpacing: '0.005em',
             borderRadius:
-              pill || variant === 'create' || variant === 'pill'
+              pill || variant === 'create' || variant.startsWith('pill')
                 ? 'var(--radius-pill)'
                 : 'var(--radius-md)',
             cursor: blocked || loading ? 'not-allowed' : 'pointer',

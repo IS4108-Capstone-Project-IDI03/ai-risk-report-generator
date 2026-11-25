@@ -5,7 +5,9 @@ import { Button, Callout, Dialog, IconRegistry, toast } from '../../../design-sy
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import type { AskDrafting } from '../ask/AskPanel'
+import { DictationScope } from '../dictation/scope'
 import { DocumentAsk } from '../ask/DocumentAsk'
+import type { AskGuidanceTarget } from '../ask/AskPanel'
 import { editorPassage, type AskPassage } from '../ask/passage'
 import { isAskShortcut } from '../ask/shortcut'
 import { READ_ONLY, type AskWorkflow } from '../ask/useAsk'
@@ -32,6 +34,8 @@ import { documentExtensions } from '../document/schema'
 import { buildReportDocument, type ReportDocument } from '../document/sections'
 import { useDocumentSave, type SaveStatus } from '../document/useDocumentSave'
 import { formatDayTime } from '../format'
+import { Tip } from '../../help/Tip'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { setLeaveGuard } from '../leaveGuard'
 import { registerPendingSave } from '../pendingSaves'
 import { useSections } from '../useSections'
@@ -107,6 +111,7 @@ function DocumentBody({
   canComment,
   me,
   ask,
+  onViewObservation,
   onReturn,
   onReload,
   wrapStyle,
@@ -124,6 +129,8 @@ function DocumentBody({
   me: Stamp
   // Asking about the selected text (AS-02): the Ask tab's conversation, or null.
   ask: AskWorkflow | null
+  // Where writing guidance's Go to observation goes (AS-08).
+  onViewObservation?: (id: string | null) => void
   onReturn: (sectionId: string) => void
   onReload: () => void
   wrapStyle: React.CSSProperties
@@ -201,6 +208,10 @@ function DocumentBody({
       setAskHint(null)
     },
   })
+
+  // The walkthrough engine (F-12) hears the document has rendered; it is held back while the
+  // document has unsaved work, so an offer never lands on someone mid-edit.
+  useWalkthroughScreen('document', !!editor, !readOnly && status !== 'saved' && 'unsaved')
 
   // Saving starts from the document as it opened; read only, nothing saves.
   useEffect(() => {
@@ -515,6 +526,16 @@ function DocumentBody({
     setCurrent(entry.sectionId)
     goToPage(entry.page - 1)
   }
+  // Writing guidance for the section the cursor is in (AS-08): Go to section
+  // scrolls to it here; Go to observation opens it on the Observations tab,
+  // asking first if there are unsaved changes (the leave guard).
+  const guidance: AskGuidanceTarget = {
+    target: { sectionId: current, label: labelOf(current) },
+    onGo: (link) => {
+      if (link.to === 'section') goTo(link.sectionId)
+      else onViewObservation?.(link.observationId)
+    },
+  }
 
   if (!editor) return null
   return (
@@ -545,31 +566,40 @@ function DocumentBody({
               : 'Headings and parts filled in elsewhere stay as they are. Violet text is still as the draft wrote it; once you change it, it is yours. Changes save when you pause.'}
           </p>
         </nav>
-        <section aria-label="Document editor" className="dm-main" ref={main}>
+        <section
+          aria-label="Document editor"
+          className="dm-main"
+          ref={main}
+          data-walk="document.page"
+        >
           <div className="dm-head" ref={header}>
             <div className="dm-bar">
               <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={returnToReview}>
                 Return to review
               </Button>
-              <p className="dm-save-status" role="status">
-                {readOnly ? (
-                  'Read only · You can comment and reply'
-                ) : (
-                  <>
-                    {STATUS_TEXT[status]}
-                    {savedAt && status !== 'saving' && (
-                      <span className="dm-save-time">
-                        {' '}
-                        · Last saved {formatDayTime(new Date(savedAt))}
-                      </span>
-                    )}
-                  </>
-                )}
-              </p>
+              <div className="dm-save-row">
+                <p className="dm-save-status" role="status">
+                  {readOnly ? (
+                    'Read only · You can comment and reply'
+                  ) : (
+                    <>
+                      {STATUS_TEXT[status]}
+                      {savedAt && status !== 'saving' && (
+                        <span className="dm-save-time">
+                          {' '}
+                          · Last saved {formatDayTime(new Date(savedAt))}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </p>
+                <Tip id="document.save-status" />
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
                 iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                data-walk="document.page-layout"
                 onClick={switchView}
               >
                 {pageMode ? 'Continuous view' : 'Page layout'}
@@ -686,13 +716,16 @@ function DocumentBody({
                 </div>
                 {/* Open threads beside their text (RV-03 AC1). */}
                 {marginShown && (
-                  <CommentMargin
-                    editor={editor}
-                    comments={comments}
-                    me={me}
-                    canComment={canComment}
-                    actions={actions}
-                  />
+                  // Its comment boxes can be dictated into (CP-27).
+                  <DictationScope reference={reference}>
+                    <CommentMargin
+                      editor={editor}
+                      comments={comments}
+                      me={me}
+                      canComment={canComment}
+                      actions={actions}
+                    />
+                  </DictationScope>
                 )}
               </div>
             </div>
@@ -704,6 +737,7 @@ function DocumentBody({
                 overlay={!room}
                 onShowPassage={showAsked}
                 drafting={drafting}
+                guidance={guidance}
                 onClose={() => {
                   setAskOpen(false)
                   setAskMarks(editor.view, { shown: null })
@@ -712,19 +746,21 @@ function DocumentBody({
             )}
             {/* The comments list (AC8), and threads where there is no margin. */}
             {comments.panel && (
-              <CommentsPanel
-                comments={comments}
-                parts={report.parts}
-                me={me}
-                canComment={canComment}
-                actions={actions}
-                marginShown={room}
-                overlay={!room}
-                onClose={() => {
-                  if (comments.active === DRAFT) comments.cancelDraft()
-                  comments.setPanel(null)
-                }}
-              />
+              <DictationScope reference={reference}>
+                <CommentsPanel
+                  comments={comments}
+                  parts={report.parts}
+                  me={me}
+                  canComment={canComment}
+                  actions={actions}
+                  marginShown={room}
+                  overlay={!room}
+                  onClose={() => {
+                    if (comments.active === DRAFT) comments.cancelDraft()
+                    comments.setPanel(null)
+                  }}
+                />
+              </DictationScope>
             )}
           </div>
         </section>
@@ -806,6 +842,7 @@ export function DocumentEdit({
   canComment = false,
   me = NOBODY,
   ask = null,
+  onViewObservation,
   onReturn,
   onReload,
   wrapStyle,
@@ -834,6 +871,8 @@ export function DocumentEdit({
   // The Ask tab's conversation, to ask about selected text here (AS-02);
   // null without `reports:ask`.
   ask?: AskWorkflow | null
+  // Opens an observation on the Observations tab, or the tab for null (AS-08).
+  onViewObservation?: (id: string | null) => void
   onReturn: (sectionId: string) => void
   // Reads the workspace again and reopens the document from it.
   onReload: () => void
@@ -870,6 +909,7 @@ export function DocumentEdit({
       canComment={canComment}
       me={me}
       ask={ask}
+      onViewObservation={onViewObservation}
       onReturn={onReturn}
       onReload={onReload}
       wrapStyle={wrapStyle}

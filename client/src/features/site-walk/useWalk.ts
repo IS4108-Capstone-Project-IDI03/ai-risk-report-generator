@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GatewayError } from '../assessments/api'
 import { toast } from '../../design-system'
-import { finishWalk, retryRecording, saveNote, startWalk, type SiteWalk } from './api'
+import { finishWalk, getWalk, retryRecording, saveNote, startWalk, type SiteWalk } from './api'
 import {
   deviceStore,
   photoKey,
@@ -259,6 +259,15 @@ export function useWalk(reference: string, store?: UploadStore) {
   )
 
   useWalkPolling(reference, walk, finished, version, applyPolled)
+  // F-12: reads the walk once more (the practice try-it, told by the gateway's push that the
+  // finished walk has been read). A reply overtaken by a save here is dropped, as a poll's is.
+  const walkId = walk?.id
+  const reread = useCallback(() => {
+    if (!walkId) return
+    getWalk(reference, walkId)
+      .then((fresh) => applyPolled(fresh, version))
+      .catch(() => undefined) // offline or a blip: the next push reads again
+  }, [reference, walkId, version, applyPolled])
 
   const everyItem = walkItems(walk, unsent, sendingCount > 0)
   const items = everyItem.filter((i) => !removals.hidden.has(hiddenKey(i)))
@@ -288,6 +297,7 @@ export function useWalk(reference: string, store?: UploadStore) {
     problem,
     setProblem,
     finished,
+    reread,
     addRecording,
     claimSeq,
     addPhoto,

@@ -1,4 +1,5 @@
 import base64
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -8,7 +9,7 @@ from app.privacy import PrivacyUnavailable
 from app.processors.chat_pdf import PdfRefused, extract_pages
 from app.processors.chat_photo import check_faces
 from app.processors.handwriting import HandwritingError, transcribe_page
-from app.processors.stt import TranscriptionError, transcribe, transcribe_clip
+from app.processors.stt import TranscriptionError, check_whisper, transcribe, transcribe_clip
 from app.processors.vision import (
     InterpretationError,
     describe_chat_photo,
@@ -62,23 +63,23 @@ class Privacy(BaseModel):
     known_entities: list[KnownEntity] = []
     # Whether details Gemini adds to its answer (a name read off a photo) are taken out.
     check_answers: bool = False
+    # PV-09: the admin's Never masked words, passed on to /mask. None (left out) until the gateway
+    # has seeded the list, so privacy-service uses its own file; [] would mean none at all.
+    never_masked: list[str] | None = None
 
 
-# Everything the engineer captured about one finding, each item by the name the proposal cites
-# it by (CP-05, CP-21), with where it was found, and which parts of the proposal to write: the
-# categories, the photos' description, or (left out) both, or the categories alone without photos.
+# The photos of one finding to describe (CP-05, CP-24), each by its name, with where it was found
+# and the note or transcripts as a hint. An older gateway may still send `parts`: it is ignored
+# (pydantic drops unknown fields by default).
 class InterpretRequest(BaseModel):
     photos: list[PhotoItem] = []
     texts: list[TextItem] = []
     location: str | None = None
-    parts: list[Literal["categories", "description"]] | None = Field(default=None, min_length=1)
     privacy: Privacy | None = None
 
     @model_validator(mode="after")
-    def has_evidence(self):
-        if not self.photos and not self.texts:
-            raise ValueError("There is nothing to read: no photo, note or transcript.")
-        if self.parts and "description" in self.parts and not self.photos:
+    def has_photos(self):
+        if not self.photos:
             raise ValueError("There are no photos to describe.")
         labels = [item.label for item in (*self.photos, *self.texts)]
         if len(set(labels)) != len(labels):
@@ -91,11 +92,34 @@ def health() -> dict:
     return {"status": "ok", "service": "speech-ocr"}
 
 
+@router.get("/health/providers")
+def health_providers() -> dict:
+    """Ask Whisper for its model's details, no audio and no cost (F-12's quick check before a
+    try-it). A failure is `ok: false`, not an error."""
+    try:
+        check_whisper()
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("Whisper check failed")
+        return {"ok": False}
+    return {"ok": True}
+
+
+# A recording to transcribe. `privacy` is whether the tidy model's pass (CP-27) may read the
+# text, and how to mask it first; left out, the transcript is tidied by rules alone.
+class TranscribeRequest(BaseModel):
+    s3_key: str
+    privacy: Privacy | None = None
+
+
+def _privacy(privacy: Privacy | None) -> dict | None:
+    return privacy.model_dump() if privacy else None
+
+
 @router.post("/transcribe")
-def transcribe_audio(request: S3KeyRequest) -> dict:
+def transcribe_audio(request: TranscribeRequest) -> dict:
     # The gateway stores the result and shows `detail` to the engineer on failure.
     try:
-        return transcribe(request.s3_key)
+        return transcribe(request.s3_key, _privacy(request.privacy))
     except TranscriptionError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -105,6 +129,7 @@ class ClipRequest(BaseModel):
     audio_base64: str
     # Its extension tells Whisper the format (webm, m4a...).
     filename: str = "question.webm"
+    privacy: Privacy | None = None
 
 
 @router.post("/transcribe-clip")
@@ -115,7 +140,7 @@ def transcribe_audio_clip(request: ClipRequest) -> dict:
     except ValueError as error:
         raise HTTPException(status_code=422, detail="The audio is not valid base64.") from error
     try:
-        return transcribe_clip(audio, request.filename)
+        return transcribe_clip(audio, request.filename, _privacy(request.privacy))
     except TranscriptionError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -128,7 +153,6 @@ def interpret_observation(request: InterpretRequest) -> dict:
             [p.model_dump() for p in request.photos],
             [t.model_dump() for t in request.texts],
             request.location,
-            tuple(request.parts) if request.parts else None,
             request.privacy.model_dump() if request.privacy else None,
         )
     except (InterpretationError, PrivacyUnavailable) as error:

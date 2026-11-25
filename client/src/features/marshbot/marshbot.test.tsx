@@ -5,6 +5,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Toaster } from '../../design-system'
+import { useWalkthroughs } from '../walkthrough/engine'
+import { onSignal } from '../walkthrough/signals'
 import { MarshBotOverview } from './screens/MarshBotOverview'
 import { ThreadHarness as Thread } from './testHarness'
 import {
@@ -92,6 +94,9 @@ function show(first: AssistantThread, openLink = vi.fn()) {
       gets += 1
       return json(threads.length > 1 ? threads.shift() : threads[0])
     }
+    // The site weather bar above the thread (CP-62): not MarshBot's, so not counted here.
+    if (method === 'GET' && u === `/api/assessments/${reference}/weather`)
+      return json({ status: 'unconfigured' })
     posts.push({
       url: u.replace(reference, REF),
       body: init?.body ? JSON.parse(String(init.body)) : null,
@@ -801,6 +806,27 @@ describe('MarshBot Overview', () => {
     expect(
       screen.getByRole('button', { name: 'That’s everything' }).getAttribute('aria-disabled'),
     ).toBeNull()
+  })
+
+  // F-12: "Find your way around an assessment" waits unseen on the reply's answer; a refusal must
+  // tell it, so it shows its step again instead of waiting for ever.
+  it('says a refused reply to the walkthrough only while the Overview walkthrough plays', async () => {
+    const heard = vi.fn()
+    const stop = onSignal('try-it-failed', heard)
+    replyStatus = 500
+    show(visitQuestion)
+    fireEvent.click(await screen.findByRole('button', { name: 'That’s everything' }))
+    await waitFor(() =>
+      expect(screen.queryByText('That’s everything', { selector: '.mbt-me' })).toBeNull(),
+    )
+    expect(heard).not.toHaveBeenCalled()
+    cleanup()
+    act(() => useWalkthroughs.setState({ running: { id: 'overview', at: 4, total: 7 } }))
+    show(visitQuestion)
+    fireEvent.click(await screen.findByRole('button', { name: 'That’s everything' }))
+    await waitFor(() => expect(heard).toHaveBeenCalledTimes(1))
+    act(() => useWalkthroughs.setState({ running: null }))
+    stop()
   })
 
   it('drops a read sent before a reply that answers after it', async () => {

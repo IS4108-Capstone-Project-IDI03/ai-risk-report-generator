@@ -293,7 +293,7 @@ describe('All Recordings (CP-12)', () => {
     fireEvent.click(within(rowOf(view, 'Recording 3')).getByRole('button', { name: PERMIT }))
 
     expect(screen.queryByRole('group', { name: 'Recordings' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Recording 3' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'Recording 3' })).toBeInTheDocument()
     click('Back to All Recordings')
     expect(screen.getByRole('group', { name: 'Recordings' })).toBeInTheDocument()
   })

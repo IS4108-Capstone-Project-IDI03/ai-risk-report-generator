@@ -19,6 +19,8 @@ function Textarea({
   rows = 4,
   disabled = false,
   style = {},
+  onFocus,
+  onBlur,
   ...rest
 }: TextareaProps) {
   const descriptionId = useId()
@@ -49,8 +51,14 @@ function Textarea({
         aria-describedby={error || hint ? descriptionId : undefined}
         rows={rows}
         disabled={disabled}
-        onFocus={() => setFocus(true)}
-        onBlur={() => setFocus(false)}
+        onFocus={(e) => {
+          setFocus(true)
+          onFocus?.(e)
+        }}
+        onBlur={(e) => {
+          setFocus(false)
+          onBlur?.(e)
+        }}
         style={{
           boxSizing: 'border-box',
           padding: '8px 10px',

@@ -48,11 +48,12 @@ export class MissingFiguresError extends Error {
 }
 
 // The engineer's figures a Section 4 or 5 draft is given (`facts`), or why it
-// cannot be drafted yet (`missing`). Other sections have neither.
+// cannot be drafted yet (`missing`) and, as a fact, which of its tables' figures
+// read "Not entered" (`notEntered`, AS-08). Other sections have none of these.
 export function figureFacts(
   sectionId: string,
   assessment: Pick<IAssessment, 'riskQuality' | 'lossEstimates'>,
-): { facts?: string; missing?: string } {
+): { facts?: string; missing?: string; notEntered?: string } {
   if (sectionId === '4') return riskQualityFacts(assessment.riskQuality)
   if (sectionId === '5') return lossEstimateFacts(assessment.lossEstimates)
   return {}
@@ -105,9 +106,12 @@ export function toDraftDto(s: IReportSection & { _id: unknown }): SectionDraftDt
 // several categories is its own evidence in each of their sections, and counts
 // towards each one's minimum. Observations under other categories go to the
 // draft too, as backup, since one finding can concern several sections.
-// Uncategorised ones (null) stay out (CP-02 AC4).
-function categorised(observations: ObservationDto[]) {
-  return observations.filter((o) => o.copeDimensions)
+// Ones still to check stay out (CP-24, the one shared rule `toCheck`): an
+// empty or not-sure category or severity, or a failed suggestion. Once settled,
+// one enters drafting and drafts written without it show as out of date.
+/** Returns the observations drafting may use: none still to check. */
+export function settled(observations: ObservationDto[]) {
+  return observations.filter((o) => !o.toCheck)
 }
 export function filedUnder(section: TemplateSection, categories: readonly string[]): boolean {
   return categories.some((c) => section.cope_dimensions.includes(c))
@@ -157,7 +161,12 @@ export function isUsable(o: ObservationDto): boolean {
 
 // An observation as the draft is given it, and as the draft saves it.
 export type Evidence = IReportSection['evidence'][number]
-/** Returns the observation as a draft's evidence entry. */
+/**
+ * Returns the observation as a draft's evidence entry. Only settled ones are
+ * evidence, so category and severity are set. A not-sure mark needs no place
+ * here: confirming one moves the observation into drafting, which already
+ * counts it as added to an earlier draft (CP-24).
+ */
 export function toEvidence(o: ObservationDto): Evidence {
   const handwriting = handwritingOf(o)
   return {
@@ -171,7 +180,7 @@ export function toEvidence(o: ObservationDto): Evidence {
     // so an observation without pages must read exactly as it did before pages
     // existed, or every earlier draft would show as out of date.
     ...(handwriting.length ? { handwriting } : {}),
-    severity: o.severity,
+    severity: o.severity!,
     location: o.location && locationText(o.location),
     standard: o.standard,
   }
@@ -339,7 +348,7 @@ export async function loadSections(reference: string): Promise<LoadedSection[]> 
     listObservations(reference),
     sectionDrafts(assessment._id),
   ])
-  const usable = categorised(observations).filter(isUsable)
+  const usable = settled(observations).filter(isUsable)
   const evidence = usable.map(toEvidence)
   return sections.map((section) => {
     const { saved: latest, replacement } = drafts.get(section.id) ?? NO_DRAFTS
@@ -403,13 +412,13 @@ export async function assessmentToDraft(reference: string, user: SessionUser) {
   return assessment
 }
 
-// The usable, categorised observations a draft is given, loaded by the
+// The usable, settled observations a draft is given, loaded by the
 // assessment (AC2), oldest first so the draft reads them in the order they
 // were captured. Throws while a transcription is unfinished, a recording's or a
 // handwritten page's (CP-19 AC14), since a draft would miss it. Shared with OFI
 // drafting (GN-05).
 export async function draftingEvidence(reference: string): Promise<Evidence[]> {
-  const inputs = categorised((await listObservations(reference)).reverse())
+  const inputs = settled((await listObservations(reference)).reverse())
   const transcribing = (o: ObservationDto) =>
     [...o.recordings, ...o.pages].some((m) => m.transcription.status === 'transcribing')
   if (inputs.some(transcribing)) throw new TranscriptionInProgressError()
@@ -424,7 +433,7 @@ export async function draftingEvidence(reference: string): Promise<Evidence[]> {
 export async function draftingRecommendations(
   reference: string,
 ): Promise<Record<string, string[]>> {
-  const inputs = categorised((await listObservations(reference)).reverse()).filter(isUsable)
+  const inputs = settled((await listObservations(reference)).reverse()).filter(isUsable)
   return Object.fromEntries(
     inputs.flatMap((o) => {
       const texts = o.parts.filter((p) => p.kind === 'recommendation').map((p) => p.text)

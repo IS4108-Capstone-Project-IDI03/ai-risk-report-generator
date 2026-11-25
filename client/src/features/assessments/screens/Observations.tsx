@@ -1,10 +1,11 @@
-// The Observations tab (CP-22): the location navigator beside a compact list
-// whose toolbar holds the site walks and the two ways to capture (record a
-// site walk or add manually), and each observation's own page. Rendered by AssessmentApp.tsx;
+// The Observations tab (CP-22, CP-24): the location navigator beside a compact list
+// whose toolbar ends in the one Add observation button (add manually or record a site walk),
+// the Site walk proposals button on the title row, and each observation's own page. The title
+// row's switch swaps the navigator and list for the building stack (CP-61). Rendered by AssessmentApp.tsx;
 // the data and saves are in useAssessmentWorkflow.tsx, the site walk screens in
 // features/site-walk.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dialog, Icon } from '../../../design-system'
+import { Dialog, Icon, useIsPhone } from '../../../design-system'
 import {
   discardWalk,
   retryWalk,
@@ -26,7 +27,13 @@ import {
   TranscribeAgainDialog,
   TranscriptDialog,
 } from '../components/ObservationDialogs'
+import { AddObservationMenu } from '../components/AddObservationMenu'
+import { BuildingStack } from '../components/BuildingStack'
 import { ObservationFilters } from '../components/ObservationFilters'
+import { ObservationFooter } from '../components/ObservationFooter'
+import { ObservationTitleRow } from '../components/ObservationTitleRow'
+import { onSignal } from '../../walkthrough/signals'
+import { WalkScreen } from '../components/WalkScreen'
 import { ObservationList } from '../components/ObservationList'
 import { ToAskPanel } from '../components/ToAskPanel'
 import { PhotoDialog, type ViewedPhoto } from '../components/PhotoReferences'
@@ -77,6 +84,7 @@ export function Observations({
   media?: string
 }) {
   const view = useObservationsView(v)
+  const phone = useIsPhone()
   const { walks, reload } = useSiteWalks(v.captureRef)
   const [walk, setWalk] = useState<WalkScreen>(walkFromUrl)
   useEffect(() => {
@@ -88,6 +96,21 @@ export function Observations({
     window.history.replaceState(null, '', window.location.pathname + '?' + q.toString())
   }, [walk])
   const waiting = useKeptUploads(v.captureRef, reload)
+  // F-12: the walkthrough engine opens a walk screen by changing the URL (as the browser's Back and
+  // Forward do), so the screen follows it. Without this "Review my walk" would stay on the recorder.
+  useEffect(() => {
+    const follow = () => {
+      setWalk(walkFromUrl())
+      reload()
+    }
+    window.addEventListener('popstate', follow)
+    // The walk the recorder just finished is listed by the time "Review my walk" opens the list.
+    const stopReady = onSignal('site-walk-proposal-ready', reload)
+    return () => {
+      window.removeEventListener('popstate', follow)
+      stopReady()
+    }
+  }, [reload])
   // An Inbox row for a ready or failed site walk opens its review, whether this tab
   // was already showing or is only now mounting.
   useEffect(() => {
@@ -118,6 +141,20 @@ export function Observations({
     [],
   )
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
+  // The location chosen in the building stack (CP-61). Back from capture, the one it was opened
+  // at. Kept apart from the navigator's pick, which lets go of a place the filters empty, while
+  // the stack keeps every location drawn; the two follow each other on a switch of view.
+  const [cell, setCell] = useState<string | null>(
+    () => v.obsStack.find((l) => l.landing)?.id ?? null,
+  )
+  const chooseCell = (id: string | null) => {
+    setCell(id)
+    view.pick(id ? { kind: 'location', id } : { kind: 'all' })
+  }
+  const showAs = (next: 'list' | 'stack') => {
+    if (next === 'stack' && view.place.kind === 'location') setCell(view.place.id)
+    v.setObsView(next)
+  }
   // The title, navigator and table stay put; only the table scrolls (round 3).
   const pane = useFitPane<HTMLDivElement>()
   const open = v.obsList.find((o) => o.open)
@@ -177,6 +214,7 @@ export function Observations({
       <SiteWalks
         walks={walks}
         waiting={waiting}
+        archived={v.archivedOpen}
         onBack={() => setWalk(null)}
         onRecord={canCapture ? () => setWalk({ kind: 'record', from: 'list' }) : undefined}
         onOpen={(w) =>
@@ -210,10 +248,37 @@ export function Observations({
     )
   const shownWalks = openWalks(walks)
   const readyWalks = shownWalks.filter((w) => w.status === 'ready').length
+  // The building stack (CP-61) in place of the navigator and the list.
+  const stackOn = v.obsView === 'stack' && !v.obsShowDeleted
   // Add manually opens capture at the location picked, when there is one.
-  const addManually = view.location?.addObservation ?? v.goField
+  const addManually =
+    (stackOn
+      ? v.obsStack.find((l) => l.id === cell)?.addObservation
+      : view.location?.addObservation) ?? v.goField
+  // One toolbar row: search, the four filters, then Add observation. The deleted list has its count there instead.
+  const toolbar = (
+    <ObservationFilters v={v}>
+      {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
+      {!v.obsShowDeleted && canCapture && (
+        <span className="ob-bar-add">
+          <AddObservationMenu
+            fullWidth={phone}
+            onManual={addManually}
+            onWalk={() => setWalk({ kind: 'record' })}
+          />
+        </span>
+      )}
+    </ObservationFilters>
+  )
   return (
     <>
+      {/* F-12: the tab is ready once the observations are listed. Nothing is offered while one is
+          open, over an archive, or with nothing to look at yet. */}
+      <WalkScreen
+        screen="observations"
+        ready={v.obsSynced}
+        hold={!!open || v.archivedOpen || v.obsTotal === 0 || v.obsShowDeleted}
+      />
       <div ref={page} className="ob">
         {open ? (
           // c. One observation on its own page, edited in place.
@@ -236,85 +301,59 @@ export function Observations({
               />
             )}
             {/* e. The list's own header, then the navigator beside the list (above it on a phone). */}
-            {!v.obsShowDeleted && <h2 className="ob-title">All Observations</h2>}
-            <div ref={pane} className="ob-layout" data-fit="">
-              {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
-              <div
-                className="ob-card"
-                style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}
-              >
-                {/* The filters on the left; the site walks and the two ways to capture on the right. */}
-                <div className="ob-filters">
-                  <div className="ob-filter-set">
-                    <ObservationFilters v={v} />
-                  </div>
-                  {/* Deleted list: its count sits in the toolbar, by the table. */}
-                  {v.obsShowDeleted && <span className="ob-count">{v.obsCountLabel}</span>}
+            {!v.obsShowDeleted && (
+              <ObservationTitleRow
+                ready={readyWalks}
+                total={shownWalks.length}
+                onOpen={() => setWalk({ kind: 'list' })}
+                view={v.obsView}
+                onView={showAs}
+              />
+            )}
+            {/* f. Buildings (CP-61): the stacks in place of the navigator and the list. */}
+            {stackOn ? (
+              <BuildingStack
+                v={v}
+                pane={pane}
+                toolbar={toolbar}
+                chosen={cell}
+                onChoose={chooseCell}
+                onUnplaced={() => {
+                  v.setObsView('list')
+                  view.pick({ kind: 'group', group: 'unrecorded' })
+                }}
+              />
+            ) : (
+              <div ref={pane} className="ob-layout" data-fit="">
+                {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
+                <div
+                  className="ob-card"
+                  style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}
+                >
+                  {toolbar}
+                  {/* The place picked in the navigator, above the table. */}
+                  {!v.obsShowDeleted && view.place.kind !== 'all' && (
+                    <p className="ob-where">
+                      <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
+                      {view.title}
+                    </p>
+                  )}
                   {!v.obsShowDeleted && (
-                    <div className="ob-head-actions">
-                      {(shownWalks.length > 0 || waiting > 0) && (
-                        <button
-                          type="button"
-                          className="ob-button ob-button--tinted ob-walks-button"
-                          aria-label={
-                            readyWalks
-                              ? `Site walk proposals, ${readyWalks} ready to review`
-                              : `Site walk proposals (${shownWalks.length})`
-                          }
-                          onClick={() => setWalk({ kind: 'list' })}
-                        >
-                          <Icon name="list" size={16} />
-                          <span>Site walk proposals</span>
-                          {readyWalks > 0 && (
-                            <span className="ob-pill" data-tone="navy">
-                              {readyWalks}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                      {canCapture && (
-                        <>
-                          <button
-                            type="button"
-                            className="ob-button ob-button--primary"
-                            aria-label="Record site walk"
-                            onClick={() => setWalk({ kind: 'record' })}
-                          >
-                            <Icon name="mic" size={16} />
-                            {/* One span, so the button's gap doesn't double the space before "site walk". */}
-                            <span>
-                              Record<span className="ob-more"> site walk</span>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="ob-button ob-button--tinted"
-                            aria-label="Add manually"
-                            onClick={addManually}
-                          >
-                            <Icon name="plus" size={16} />
-                            <span>
-                              Add<span className="ob-more"> manually</span>
-                            </span>
-                          </button>
-                        </>
-                      )}
-                    </div>
+                    <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
+                  )}
+                  <ObservationList v={v} view={view} />
+                  {!v.obsShowDeleted && v.obsTotal > 0 && !v.obsNoMatch && (
+                    <ObservationFooter
+                      total={v.obsTotal}
+                      shown={v.obsShownCount}
+                      toCheck={v.obsToCheckCount}
+                      filtered={v.obsFiltering}
+                      onToCheck={() => v.setObsFilter('status', 'To check')}
+                    />
                   )}
                 </div>
-                {/* The place picked in the navigator, above the table. */}
-                {!v.obsShowDeleted && view.place.kind !== 'all' && (
-                  <p className="ob-where">
-                    <Icon name="map-pin" size={15} color="var(--marsh-navy)" />
-                    {view.title}
-                  </p>
-                )}
-                {!v.obsShowDeleted && (
-                  <ToAskPanel reference={v.captureRef} refreshKey={v.obsCountLabel} />
-                )}
-                <ObservationList v={v} view={view} />
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

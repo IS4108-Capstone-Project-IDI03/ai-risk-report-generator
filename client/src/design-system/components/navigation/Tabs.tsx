@@ -13,6 +13,8 @@ export type TabsProps = {
     icon?: string
     count?: number
     alert?: string
+    // The tab's data-walk tag (F-12), so a walkthrough can point at this one tab.
+    walk?: string
   }[]
   value?: string | number
   onChange?: (value: string) => void
@@ -20,8 +22,10 @@ export type TabsProps = {
   // screen readers.
   compact?: boolean
   style?: React.CSSProperties
+  // The whole row's data-walk tag (F-12).
+  walk?: string
 }
-function Tabs({ items = [], value, onChange, compact = false, style = {} }: TabsProps) {
+function Tabs({ items = [], value, onChange, compact = false, style = {}, walk }: TabsProps) {
   // Scrolls a row too narrow for its tabs so the chosen one shows; without
   // this a phone could open on a tab that is off to the side.
   const list = useRef<HTMLDivElement>(null)
@@ -40,6 +44,7 @@ function Tabs({ items = [], value, onChange, compact = false, style = {} }: Tabs
       className={compact ? 'ds-tabs ds-tabs-compact' : 'ds-tabs'}
       role="tablist"
       aria-label="View"
+      data-walk={walk}
       style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -55,6 +60,7 @@ function Tabs({ items = [], value, onChange, compact = false, style = {} }: Tabs
           <button
             key={t.value}
             role="tab"
+            data-walk={t.walk}
             aria-selected={active}
             aria-label={
               t.alert

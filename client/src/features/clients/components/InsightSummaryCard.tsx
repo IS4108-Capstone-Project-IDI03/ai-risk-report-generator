@@ -6,6 +6,7 @@
 // screens/InsightsTab.
 import { useState } from 'react'
 import { Button, Callout, ConfidenceIndicator, IconButton } from '../../../design-system'
+import { Tip } from '../../help/Tip'
 import { formatDayYearTime } from '../../assessments/format'
 import type { InsightSummary } from '../api'
 import { plural } from '../formatClient'
@@ -44,11 +45,14 @@ export function InsightSummaryCard({
   }
 
   return (
-    <section className="cl-card ci-card" aria-labelledby="ci-summary">
+    <section className="cl-card ci-card" aria-labelledby="ci-summary" data-walk="insights.summary">
       <div className="ci-card-head">
-        <h2 id="ci-summary" className="ci-h">
-          {'Summary'}
-        </h2>
+        <span className="ci-h-tip">
+          <h2 id="ci-summary" className="ci-h">
+            {'Summary'}
+          </h2>
+          <Tip id="client.insights-summary" />
+        </span>
         {written && <ConfidenceIndicator level={summary.confidence} />}
         {written && (
           <IconButton

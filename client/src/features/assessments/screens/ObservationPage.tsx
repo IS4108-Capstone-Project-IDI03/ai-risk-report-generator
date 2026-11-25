@@ -1,22 +1,27 @@
-// One observation's own page (CP-22), in place of the old expanded row and
-// Edit dialog: its location with arrows through every observation and its
-// badge (From site walk). Then the words on the left: its categories, severity
-// and location, its note, its recordings, what the AI suggests; and its
-// pictures on the right: photos and handwritten pages (round 6). Rendered by
-// screens/Observations.tsx.
+// One observation's own page (CP-22, CP-24): a record header (Back, its category tile, where it is,
+// the stepper through every observation, Add media and the bin), then the cards on the left (Note,
+// Recordings, Photos, Handwritten pages, each only when it has something) and Details on the right.
+// A category or severity the AI suggested shows its state in Details (components/ObservationDetails.tsx).
+// Rendered by screens/Observations.tsx. Calls RecordHeader, RecordStepper and the cards.
 import { useEffect, useRef } from 'react'
-import { Icon } from '../../../design-system'
-import { BackButton } from '../components/BackButton'
-import { MediaPanel } from '../components/MediaPanel'
+import {
+  Button,
+  Icon,
+  IconAction,
+  RecordHeader,
+  RecordStepper,
+  useIsPhone,
+} from '../../../design-system'
 import { ObservationBadge } from '../components/ObservationBadge'
-import { PathTitle } from '../components/PathTitle'
+import { CategoryMark } from '../components/ObservationMarks'
+import { ObservationDetails } from '../components/ObservationDetails'
 import { ObservationNote } from '../components/ObservationNote'
-import { ObservationProposal, PhotoReading } from '../components/ObservationProposal'
-import { ObservationTags } from '../components/ObservationTags'
-import { PageEntry } from '../components/PageEntry'
+import { PagesCard } from '../components/PagesCard'
+import { PhotosCard } from '../components/PhotosCard'
 import type { ViewedPhoto } from '../components/PhotoReferences'
-import { RecordingItem } from '../components/RecordingItem'
+import { RecordingsCard } from '../components/RecordingsCard'
 import { RemovedMedia } from '../components/RemovedMedia'
+import { locationParts } from '../locations'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useScrollToEvidence } from '../useScrollToEvidence'
 import { useObservationSave } from '../useObservationSave'
@@ -24,6 +29,11 @@ import type { ObservationRowView } from '../useObservationsView'
 import '../observation-page.css'
 
 const SAVE_TEXT = { idle: '', saving: 'Saving…', saved: 'Saved', failed: '' }
+
+// Which stepper arrow had focus when it was used. Stepping remounts the page (key={open.key} in
+// screens/Observations.tsx), which drops focus; the new page reads this to put it back. Only a
+// focused arrow is restored: focusing one nobody had focused would pop its tooltip open.
+let steppedWith: 'previous' | 'next' | null = null
 
 export function ObservationPage({
   v,
@@ -39,12 +49,19 @@ export function ObservationPage({
   // A recording's or page's id to scroll to, from a MarshBot link (AS-06).
   media?: string
 }) {
+  const phone = useIsPhone()
   const { status, save, whenSaved } = useObservationSave((change) =>
     v.saveObsChanges(o.key, change),
   )
   // Leaves once pending saves went through: if one failed, the page stays with
   // the reason, or the only copy of the edit would be lost.
-  const leave = (to: string | null) => whenSaved(() => (to ? v.openObs(to, true) : v.closeObs()))
+  const leave = (to: string | null, arrow?: 'previous' | 'next') =>
+    whenSaved(() => {
+      const focused = top.current?.querySelector('nav.rs')?.contains(document.activeElement)
+      steppedWith = focused ? (arrow ?? null) : null
+      if (to) v.openObs(to, true)
+      else v.closeObs()
+    })
   // A saved photo also carries how it last went to the AI (PV-04), and its
   // mark with a way to change it (CP-10).
   const view = (photo: { name: string; url: string }) => {
@@ -57,7 +74,7 @@ export function ObservationPage({
       mark: saved?.mark,
     })
   }
-  // a. Every observation in the assessment, in list order: the arrows step through them.
+  // a. Every observation in the assessment, in list order: the stepper moves through them.
   const at = order.findIndex((x) => x.key === o.key)
   const previous = at > 0 ? order[at - 1] : undefined
   const next = at >= 0 ? order[at + 1] : undefined
@@ -72,192 +89,160 @@ export function ObservationPage({
           : v.obsFrom === 'recordings'
             ? 'All Recordings'
             : o.deleted
-              ? 'Deleted observations'
+              ? 'Deleted Observations'
               : 'Observations'
   const hasRecordings = o.recordings.length > 0 || o.hasAudio
-  // Suggest categories lives in the category menu: the first reading, or a new one.
-  const proposal = o.proposal
-  const suggest = proposal
-    ? proposal.status === 'unread'
-      ? proposal.read
-      : (proposal.readCategories ?? undefined)
-    : undefined
-  // Opened from the list or by the arrows, it starts at its top.
-  const bar = useRef<HTMLDivElement>(null)
+  // Opened from the list or by the stepper, it starts at its top.
+  const top = useRef<HTMLDivElement>(null)
   // Braces matter: newer Chrome's scrollIntoView returns a promise, and an effect
   // that returns one crashes React when the page closes (blank screen).
   useEffect(() => {
     // The whole tab scrolls, so start it at the top; 'nearest' left Back under the tab bar.
-    bar.current?.closest('.om-scroll')?.scrollTo?.({ top: 0 })
+    top.current?.closest('.om-scroll')?.scrollTo?.({ top: 0 })
+  }, [])
+  // Stepped to from the other page: focus the same arrow again, or the other one when this
+  // direction is now disabled (the last observation), so a keyboard user can keep stepping.
+  useEffect(() => {
+    if (!steppedWith) return
+    const arrows = top.current?.querySelectorAll<HTMLButtonElement>('nav.rs button')
+    const [first, second] = steppedWith === 'previous' ? [0, 1] : [1, 0]
+    const wanted = arrows?.[first]?.disabled ? arrows?.[second] : arrows?.[first]
+    wanted?.focus({ preventScroll: true })
+    steppedWith = null
   }, [])
   // After the scroll to top, so a MarshBot link to a recording or page is not undone by it.
   useScrollToEvidence(media)
+
+  // Where it is: the building and level over the place's name, as the title path shows them.
+  const eyebrow = !o.path || o.path.bare ? '' : locationParts(o.path).slice(0, -1).join(' › ')
+  const tile = (
+    <span className="ob-cat-wrap">
+      <CategoryMark cats={o.cats} />
+      {o.fromSiteWalk && (
+        <span className="ob-cat-flag">
+          <ObservationBadge kind="walk" />
+        </span>
+      )}
+    </span>
+  )
+  const stamps = [o.deletedLabel, o.editedLabel].filter((x): x is string => !!x)
   return (
-    <>
-      {/* b. Back at the page's left, where every sub-screen has it; then where
-          it is with its arrows, and how the last save went. */}
-      <BackButton label={backLabel} onClick={() => leave(null)} />
-      <div ref={bar} className="op-head">
-        {o.fromSiteWalk && (
-          <div className="op-badge">
-            <ObservationBadge kind="walk" />
-          </div>
-        )}
-        <div className="op-where">
-          <button
-            type="button"
-            className="op-step"
-            aria-label="Previous observation"
-            disabled={!previous}
-            onClick={() => previous && leave(previous.key)}
-          >
-            <Icon name="chevron-left" size={20} />
-          </button>
-          <PathTitle path={o.path} />
-          <button
-            type="button"
-            className="op-step"
-            aria-label="Next observation"
-            disabled={!next}
-            onClick={() => next && leave(next.key)}
-          >
-            <Icon name="chevron-right" size={20} />
-          </button>
-        </div>
-        {/* Where this one sits among them; nothing when it is the only one. */}
-        {order.length > 1 && at >= 0 && (
-          <p className="op-which">{`${at + 1} of ${order.length}`}</p>
-        )}
-        <div className="op-actions">
-          <span className="ob-saved" role="status">
-            {SAVE_TEXT[status.state] && <span key={status.state}>{SAVE_TEXT[status.state]}</span>}
-          </span>
-          {!!o.addMedia && (
-            <button type="button" className="ob-button ob-button--tinted" onClick={o.addMedia}>
-              <Icon name="paperclip" size={16} />
-              {'Add media'}
-            </button>
-          )}
-          {o.canChange && (
-            // The bin alone: everyone knows what it does (round 6).
-            <button
-              type="button"
-              className="ob-button ob-button--danger ob-icon-button"
-              aria-label="Delete observation"
-              title="Delete"
-              onClick={o.deleteObs}
-            >
-              <Icon name="trash-2" size={17} />
-            </button>
-          )}
-          {o.canRestore && (
-            <button type="button" className="ob-button ob-button--primary" onClick={o.restoreObs}>
-              <Icon name="rotate-ccw" size={16} />
-              {'Restore'}
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="cpp" ref={top}>
+      {/* b. Back, where it is, and at the right the stepper and its actions. */}
+      <RecordHeader
+        back={backLabel}
+        onBack={() => leave(null)}
+        backWalk="observation.back"
+        tile={tile}
+        eyebrow={eyebrow}
+        title={o.path?.name ?? 'No location yet'}
+        actions={
+          <>
+            <span className="ob-saved" role="status">
+              {SAVE_TEXT[status.state] && <span key={status.state}>{SAVE_TEXT[status.state]}</span>}
+            </span>
+            {/* Where this one sits among them; nothing when it is the only one. */}
+            {order.length > 1 && at >= 0 && (
+              <RecordStepper
+                at={at + 1}
+                total={order.length}
+                onPrevious={() => previous && leave(previous.key, 'previous')}
+                onNext={() => next && leave(next.key, 'next')}
+              />
+            )}
+            {!!o.addMedia && (
+              <Button variant="pill" iconLeft="paperclip" onClick={o.addMedia}>
+                {'Add media'}
+              </Button>
+            )}
+            {o.canChange && (
+              <IconAction
+                icon="trash-2"
+                label="Delete observation"
+                tooltip="Delete observation"
+                size="md"
+                shaded
+                style={{ color: 'var(--red-600)' }}
+                onClick={o.deleteObs}
+              />
+            )}
+            {o.canRestore && (
+              <Button variant="create" iconLeft="rotate-ccw" onClick={o.restoreObs}>
+                {'Restore'}
+              </Button>
+            )}
+          </>
+        }
+      />
       {status.state === 'failed' && (
         <p className="ob-line ob-line--problem" role="alert" style={{ margin: '0 0 12px' }}>
           <Icon name="circle-alert" size={14} />
           <span>{'Not saved: ' + status.problem}</span>
         </p>
       )}
-      {/* c. The words beside the pictures (stacked on a narrow screen). */}
-      <div className="op-body">
-        <div className="op-col">
-          {/* The checklist item it answers (CP-31), as worded then. */}
-          {!!o.checklist && (
-            <p className="ob-line">
-              <Icon
-                name={o.checklist.result === 'confirmed' ? 'circle-check' : 'equal-not'}
-                size={14}
-              />
-              <span>
-                {(o.checklist.result === 'confirmed' ? 'Confirms' : 'Differs from') +
-                  ' checklist: ' +
-                  o.checklist.text}
-              </span>
-            </p>
-          )}
-          <ObservationTags
-            o={o}
-            locations={v.obsLocOptions}
-            save={save}
-            suggest={suggest}
-            stamps={
-              <>
-                {!!o.deletedLabel && <p className="ob-stamp">{o.deletedLabel}</p>}
-                {!!o.editedLabel && <p className="ob-stamp">{o.editedLabel}</p>}
-              </>
-            }
+      {/* The checklist item it answers (CP-31), as worded then. */}
+      {!!o.checklist && (
+        <p className="ob-line">
+          <Icon
+            name={o.checklist.result === 'confirmed' ? 'circle-check' : 'equal-not'}
+            size={14}
           />
-          <ObservationNote key={o.key} note={o.detail ?? ''} canChange={o.canChange} save={save} />
-          {hasRecordings && (
-            <section className="ob-card ob-section" aria-label="Recordings">
-              <h3 className="ob-section-head">
-                <span>{'Recordings'}</span>
-              </h3>
-              {o.recordings.map((r) => (
-                <RecordingItem key={r.id} r={r} />
-              ))}
-              {/* A sample observation's clip, played in this demo. */}
-              {o.hasAudio && (
-                <button
-                  type="button"
-                  className="ob-button ob-button--tinted ob-button--small"
-                  onClick={v.playSampleAudio}
-                >
-                  <Icon name="play" size={14} />
-                  {o.audioLabel}
-                </button>
-              )}
-            </section>
-          )}
-          {/* What the AI suggests, in its own section under the recordings (round 6). */}
-          {!!proposal && (
-            <ObservationProposal proposal={proposal} save={save} busy={status.state === 'saving'} />
-          )}
-        </div>
-        <div className="op-col">
-          <MediaPanel
-            photos={o.media.map((m) => ({
+          <span>
+            {(o.checklist.result === 'confirmed' ? 'Confirms' : 'Differs from') +
+              ' checklist: ' +
+              o.checklist.text}
+          </span>
+        </p>
+      )}
+      {/* c. The cards: the left column never ends above Details (the Note card grows to it). */}
+      <div className="cpp-body">
+        <div className="cpp-main">
+          <ObservationNote
+            key={o.key}
+            note={o.detail ?? ''}
+            canChange={o.canChange}
+            save={save}
+            reference={v.liveReference ?? undefined}
+          />
+          {hasRecordings && <RecordingsCard o={o} phone={phone} playSample={v.playSampleAudio} />}
+          <PhotosCard
+            tiles={o.media.map((m) => ({
               key: m.id ?? m.name,
               name: m.name,
               url: m.url,
               remove: m.remove,
               region: m.region,
             }))}
-            photoStamps={o.media
-              .filter((m) => m.addedLabel)
-              .map((m) => (
-                <p key={m.name} className="ob-stamp">
-                  {m.addedLabel}
-                </p>
-              ))}
-            // Only when there is something to show: a reading, or photos to describe.
-            photoReading={
-              !!proposal &&
-              proposal.status !== 'unread' &&
-              (!!proposal.photos || o.media.length > 0) && (
-                <PhotoReading proposal={proposal} save={save} busy={status.state === 'saving'} />
-              )
-            }
-            pageCount={o.pages.length}
-            pages={o.pages.map((p, index) => (
-              <PageEntry
-                key={p.id}
-                page={p}
-                first={index === 0}
-                onView={() => view({ name: p.name, url: p.url })}
-              />
-            ))}
+            stamps={o.media.map((m) => m.addedLabel).filter((x): x is string => !!x)}
+            // The description of the photos, written without being asked (CP-24).
+            description={o.photoDescription}
+            save={save}
+            busy={status.state === 'saving'}
             onOpen={view}
+            onAdd={o.addMedia}
+            retry={o.retryDescription}
           />
+          {o.pages.length > 0 && <PagesCard pages={o.pages} onView={view} />}
           {o.removedMedia.length > 0 && <RemovedMedia items={o.removedMedia} onOpen={view} />}
         </div>
+        <ObservationDetails
+          o={o}
+          locations={v.obsLocOptions}
+          save={save}
+          onConfirmed={(field) =>
+            v.notify((field === 'category' ? 'Category' : 'Severity') + ' confirmed')
+          }
+          stamps={
+            stamps.length > 0 && (
+              <div className="cpp-stamps">
+                {stamps.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            )
+          }
+        />
       </div>
-    </>
+    </div>
   )
 }

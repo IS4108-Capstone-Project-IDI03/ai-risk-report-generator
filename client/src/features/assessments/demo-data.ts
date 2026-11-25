@@ -1,60 +1,6 @@
 import type { SiteLocation } from './api'
 import { NO_FILTERS } from './observationFilters'
-import type { AssessmentRow, Observation, WorkflowState } from './types'
-
-// The demo's stand-ins for a proposal (CP-05, CP-21), by COPE category.
-const SAMPLE_PROPOSALS: Record<string, { finding: string; hazardType: string }> = {
-  Construction: {
-    finding: 'a cable penetration through the fire-rated wall was not sealed with fire stopping.',
-    hazardType: 'Other',
-  },
-  Occupancy: {
-    finding: 'combustible materials were stored inside the electrical switch room.',
-    hazardType: 'Housekeeping',
-  },
-  Protection: {
-    finding: 'the valves on the hosereel firewater supply line were not locked open.',
-    hazardType: 'Fire Protection System Operation',
-  },
-  Exposure: {
-    finding: 'pallets were stacked against the boundary fence beside the neighbouring warehouse.',
-    hazardType: 'Other',
-  },
-}
-// A sample proposal for an observation saved in the demo, when no capture
-// session is live, by the categories the engineer chose. It is labelled a
-// sample: nothing reads the observation. An uncategorised observation gets
-// Protection, so the demo can show Add. Only one with photos is described.
-export function sampleInterpretation(
-  categories: string[],
-  where: string,
-  withPhotos: boolean,
-): NonNullable<Observation['interpretation']> {
-  const known = categories.filter((c) => c in SAMPLE_PROPOSALS)
-  const chosen = known.length ? known : ['Protection']
-  const first = SAMPLE_PROPOSALS[chosen[0]]
-  return {
-    status: 'interpreting',
-    photos: withPhotos
-      ? {
-          status: 'interpreting',
-          description: `During the site visit to ${where}, it was observed that ${first.finding}`,
-          hazardType: first.hazardType,
-          error: null,
-          model: null,
-          outOfDate: false,
-        }
-      : null,
-    categories: chosen.map((category) => ({
-      category,
-      reason: `A sample reason: ${SAMPLE_PROPOSALS[category].finding}`,
-      evidence: [],
-    })),
-    error: null,
-    model: null,
-    sample: true,
-  }
-}
+import type { AssessmentRow, WorkflowState } from './types'
 
 // The assessment the capture screen opens. The server seed (`npm run seed`)
 // creates the same reference, so live and demo views name the same site.
@@ -127,6 +73,10 @@ export const initialState: WorkflowState = {
   fTrans: false,
   fTransBusy: false,
   fVoiceError: null,
+  fDraft: null,
+  fSending: 0,
+  fLengths: {},
+  fLocRefused: 0,
   fClips: [],
   fPhotos: [],
   fPhotoError: null,
@@ -152,7 +102,6 @@ export const initialState: WorkflowState = {
   fSev: '',
   checklistOpen: false,
   fChecklistItem: null,
-  fToast: null,
   fRecent: [
     {
       icon: 'camera',
@@ -174,7 +123,6 @@ export const initialState: WorkflowState = {
       detail:
         'Racking installed against the north wall since the 2023 survey has completely obstructed the spray pattern for heads SH-04 and SH-05. Minimum clearance of 457 mm is not maintained. Rerouting or relocation of drops is required to meet the design density recorded in 2023.',
       interpretation: {
-        status: 'interpreted',
         photos: {
           status: 'interpreted',
           description:
@@ -184,16 +132,6 @@ export const initialState: WorkflowState = {
           model: null,
           outOfDate: false,
         },
-        categories: [
-          {
-            category: 'Protection',
-            reason: 'IMG_0442.jpg shows pallet racking directly beneath two sprinkler heads.',
-            evidence: [{ item: 'IMG_0442.jpg', quote: null, verified: null }],
-          },
-        ],
-        error: null,
-        model: null,
-        sample: true,
       },
     },
     {
@@ -317,6 +255,7 @@ export const initialState: WorkflowState = {
   obsOpen: null,
   of: NO_FILTERS,
   obsShowDeleted: false,
+  obsView: 'list',
   obsSort: 'newest',
   obsFolded: {},
   obsLocForm: false,

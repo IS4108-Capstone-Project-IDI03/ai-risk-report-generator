@@ -23,6 +23,7 @@
 - LLM provider is set by `LLM_PROVIDER` env var in microservices/rag-service,
   the photo-interpretation provider by `VISION_PROVIDER` in S5 (CP-05), the
   handwriting-transcription provider by `HANDWRITING_PROVIDER` in S5 (CP-19),
+  the transcript-tidying provider by `TIDY_PROVIDER` in S5 (CP-27),
   and the table/formula OCR provider by `OCR_PROVIDER` in ingestion (IN-12) — never
   hardcode "anthropic" or "gemini" in application code.
 - All metadata fields on a MongoDB document must include: source_type,
@@ -31,7 +32,8 @@
   `COPE_dimension` is a list of one or more categories, since one finding can
   concern several. Three exceptions: an
   uncategorised observation stores `COPE_dimension: null` (present, but
-  null, never `[]`), which keeps it out of category-scoped drafting (CP-02); a
+  null, never `[]`), which keeps it out of category-scoped drafting (CP-02; so
+  does any observation to check, see below); a
   knowledge document's Unconfirmed details are `null` (IN-05), while its
   passages omit those keys and stay out of search until the admin fills them in;
   and knowledge documents have no `COPE_dimension`: each passage carries its
@@ -94,6 +96,14 @@
   may read them, and on an archived assessment asking and deleting answer
   409. S4 is never sent earlier turns: each question stands alone. See
   docs/areas/database.md, "Ask conversations".
+- Writing guidance (AS-08): "What is missing from this section?" is listed by
+  the gateway (`section-guidance.service.ts`) with no AI call, and its gaps
+  that block the export come only from `detailedBlockers` (`export.service.ts`),
+  the one function the Export tab's check (`blockersFrom`) is built from: add
+  or change a blocker there, with its `fact`, never in the guidance. A gap is
+  a fact naming its section, never a next step. "What should this section
+  cover?" goes through S4's orchestrator (`orchestrator.cover`) like an Ask
+  answer. See docs/areas/services.md, "Writing guidance for a section".
 - The report export (EX-01) prints HTML that came from the browser:
   `export-render.service.ts` opens it with page scripts off, a content security
   policy and every request refused. Keep it that way: nothing in the export
@@ -106,6 +116,47 @@
   request calls `queueAssessmentCheck`. MarshBot pushes to the open Overview
   (server-sent events): never add polling for it. See docs/areas/services.md,
   "Assessment assistant (MarshBot)".
+- Drafting reads observations only through `settled` (`section.service.ts`):
+  one with an empty or not-sure category or severity, or a failed suggestion
+  (`toCheck`, CP-24), is left out until the engineer settles it. A suggested
+  category or severity is an AI value until the engineer chooses, changes or
+  confirms it: `updateObservation` is the one write path that makes it theirs,
+  and the reading job (`observation-reading.service.ts`) never replaces it. A
+  draft observation (`draft: true`, New Observation's recordings before Save)
+  is left out of every list, count, drafting input and report by
+  `listObservations`: read observations through it, never around it. See
+  docs/areas/database.md and docs/areas/services.md, "Reading an observation".
+- A practice assessment (F-12: `practice` set on the assessment, `practice: true`
+  on its made-up client and site) is a real assessment that only its owner
+  sees. Every query that lists or counts assessments, clients or sites ACROSS
+  records spreads `NOT_PRACTICE` (`services/practice/filter.ts`), and a new one
+  joins the table in `practice-filter.test.ts`. Never delete one: Reset and
+  Remove set `practice: 'hidden'`. It makes no notification, and its AI calls
+  are saved under the usage feature `walkthrough` with no `reportId`
+  (`recordAiCalls`). See docs/areas/database.md, "Practice assessment".
+- Walkthrough and help-tip words (F-12, F-13) are fixed text in the client
+  (`features/**/*walkthroughs.ts`, `features/help/tips.ts`): no model writes or
+  changes them. A step points at a `data-walk` tag: keep the tags when you
+  restyle a screen. A screen with a walkthrough makes one
+  `useWalkthroughScreen` call and raises `signal(...)` when a hands-on step's
+  action has finished: never add polling for it. Hands-on steps run only on the
+  practice assessment. See docs/areas/services.md, "Walkthroughs and the
+  practice assessment".
+- Comparing with the previous report (RV-13) lives in `report_comparisons`, kept
+  apart from the report: never write a section, version, review log entry or
+  finding from it, and nothing in the export may read it. S4 only suggests
+  each outcome; the rules that decide what an outcome may be (no Fixed or
+  Unchanged without a current source, a severity change is Worse or Improved,
+  disagreeing sources are the engineer's call) and every figure's difference
+  are worked out by the gateway (`report-comparison-rules.ts`), never by a
+  model. See docs/areas/services.md, "Comparing with the previous report".
+
+- The site's weather (CP-62) is read from Google only by the gateway
+  (`site-weather.service.ts`, `weather-provider.ts`) with `GOOGLE_MAPS_SERVER_KEY`, which never
+  reaches a browser (unlike `GOOGLE_MAPS_BROWSER_KEY`), at most once per site every 10 minutes. It
+  is advisory: never block capture or Save on it, and never show a reading the gateway couldn't
+  refresh as current. A geocoded address is kept on the site as `geocode`, never in
+  `coordinates`, which only an engineer sets. See docs/areas/services.md, "Site weather".
 
 ## Known pitfalls
 <!-- One line each: what went wrong → why → how to avoid.

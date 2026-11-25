@@ -11,6 +11,8 @@ import {
   Table,
 } from '../../design-system'
 import { GatewayError } from '../assessments/api'
+import { Tip } from '../help/Tip'
+import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
 import { JURISDICTIONS } from '../assessments/demo-data'
 import {
   createUser,
@@ -159,6 +161,10 @@ export function UserAccounts({
     if (user) setListVersion((v) => v + 1)
   }
 
+  // F-12: ready once the list has loaded; held back (no offer) while a profile or the new-account form is open.
+  const loaded = list?.key === listKey && 'data' in list ? list.data : null
+  useWalkthroughScreen('accounts', !!loaded, creating || !!selected || loaded?.length === 0)
+
   if (creating) {
     return (
       <div className="accounts">
@@ -211,7 +217,7 @@ export function UserAccounts({
 
   const currentList = list?.key === listKey ? list : null
   const addButton = (
-    <Button variant="primary" iconLeft="plus" onClick={startCreating}>
+    <Button variant="primary" iconLeft="plus" data-walk="accounts.add" onClick={startCreating}>
       Add account
     </Button>
   )
@@ -266,18 +272,23 @@ export function UserAccounts({
         />
       ) : narrow ? (
         <ul className="accounts-stack" aria-label="User accounts">
-          {currentList.data.map((user) => (
-            <li key={user.id}>
+          {currentList.data.map((user, i) => (
+            <li key={user.id} data-walk={i === 0 ? 'accounts.row-1' : undefined}>
               <button
                 type="button"
                 className="accounts-stack-item"
                 aria-label={`Open profile for ${user.name}`}
+                data-walk={i === 0 ? 'accounts.row-1.name' : undefined}
                 onClick={() => open(user.id)}
               >
                 <span className="accounts-avatar" aria-hidden="true">
                   {initials(user.name)}
                 </span>
-                <span className="accounts-stack-text">
+                {/* A narrow list has no headings (F-12): its "headings" tag sits inside row 1, so the highlight is row 1 alone. */}
+                <span
+                  className="accounts-stack-text"
+                  data-walk={i === 0 ? 'accounts.head' : undefined}
+                >
                   <strong>{user.name}</strong>
                   <small>
                     {roleLabel(user.role)} · {user.email}
@@ -292,6 +303,7 @@ export function UserAccounts({
         </ul>
       ) : (
         <Table
+          walk={{ head: 'accounts.head', row1: 'accounts.row-1' }}
           columns={[
             {
               key: 'name',
@@ -301,6 +313,7 @@ export function UserAccounts({
                   type="button"
                   className="accounts-link"
                   aria-label={`Open profile for ${row.name}`}
+                  data-walk={row.id === currentList.data[0].id ? 'accounts.row-1.name' : undefined}
                   onClick={() => open(String(row.id))}
                 >
                   {row.name}
@@ -309,7 +322,15 @@ export function UserAccounts({
             },
             { key: 'staffId', header: 'Staff ID' },
             { key: 'email', header: 'Email' },
-            { key: 'role', header: 'Role' },
+            {
+              key: 'role',
+              header: (
+                <span className="accounts-th-tip">
+                  {'Role'}
+                  <Tip id="accounts.role" />
+                </span>
+              ),
+            },
             { key: 'office', header: 'Office' },
             { key: 'status', header: 'Status' },
           ]}

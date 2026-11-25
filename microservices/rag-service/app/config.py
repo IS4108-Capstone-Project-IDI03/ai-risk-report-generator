@@ -34,6 +34,12 @@ PROPOSE_EFFORT = os.getenv("PROPOSE_EFFORT", "medium")
 INSIGHTS_MODEL = os.getenv("INSIGHTS_MODEL", LLM_MODEL)
 INSIGHTS_EFFORT = os.getenv("INSIGHTS_EFFORT", "medium")
 
+# Comparing an assessment with the previous report for the same site (RV-13). Same provider
+# as drafting (LLM_PROVIDER). Medium effort: many short judgements, each one checked and then
+# decided by the engineer.
+COMPARISON_MODEL = os.getenv("COMPARISON_MODEL", LLM_MODEL)
+COMPARISON_EFFORT = os.getenv("COMPARISON_EFFORT", "medium")
+
 # Knowledge base chat (CB-01). Provider names come from env, like LLM_PROVIDER above.
 # The defaults are the CB-01 model comparison's winner (docs/devguides/DECISIONS.md, 2026-10-15).
 CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")

@@ -44,6 +44,8 @@ export function CitationMarker({ passage, quote }: Props) {
       role="button"
       tabIndex={0}
       className={`rv-cite chat-cite chat-cite--${state}`}
+      // F-12: the walkthrough points at citation 1 (the first answer's first number).
+      data-walk={number === 1 ? 'chat.citation-1' : undefined}
       aria-label={name}
       aria-current={current ? 'true' : undefined}
       onClick={(event) => open(event.currentTarget)}

@@ -1,0 +1,79 @@
+/* HelpTip (F-13): the round (?) button and its popover. Moved here from capture.css's
+   .cap-help rules so the design system owns them; same look as before. */
+.ds-help {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  /* 44px to tap, drawn at 32px so the label row stays compact. */
+  margin: -6px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--marsh-navy);
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+}
+.ds-help::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.ds-help:focus-visible {
+  outline: 2px solid var(--border-focus);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-help:hover {
+    background: rgb(0 15 71 / 0.06); /* must match --cap-fill in features/assessments/capture.css */
+  }
+}
+.ds-help-menu {
+  width: min(320px, calc(100vw - 32px));
+}
+
+/* The words: 14/20, a short list, bold key words. :where keeps these at zero specificity so a
+   screen's own markup (a definition list, a note) can still style itself. */
+.ds-help-body {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  text-align: left;
+  color: var(--text-body);
+  font: 400 14px/20px var(--font-sans);
+}
+:where(.ds-help-body) p {
+  margin: 0;
+}
+:where(.ds-help-body) :is(ul, ol) {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 20px;
+}
+:where(.ds-help-body) ul {
+  list-style: disc;
+}
+:where(.ds-help-body) ol {
+  list-style: decimal;
+}
+:where(.ds-help-body) li::marker {
+  color: var(--graphite-600);
+}
+:where(.ds-help-body) :is(b, strong) {
+  font-weight: 600;
+}
+/* Show me: a text link at the foot, left-aligned with the words above it. */
+.ds-help-show {
+  display: flex;
+  margin: 2px 0 -4px -6px;
+}
+@media (max-width: 767px) {
+  .ds-help-body {
+    padding: 8px 4px 4px;
+  }
+  .ds-help-show .ds-press {
+    min-height: 44px;
+  }
+}

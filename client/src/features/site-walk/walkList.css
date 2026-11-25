@@ -61,6 +61,11 @@
 
 /* ---- The walk, in order ---- */
 .sw-list {
+  /* The same values as .sw (site-walk.css), so the list also draws right outside the site walk
+     screens (New Observation, the observation page). */
+  --sw-font: var(--font-sans);
+  --sw-fill: rgb(0 15 71 / 0.06);
+  --sw-line: rgb(0 15 71 / 0.1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -82,6 +87,8 @@
   flex-direction: column;
   align-items: stretch;
 }
+/* The row's round mark: Play is the navy disc (v2 keeps navy for the main action); a clip that
+   can't play yet has the quiet white circle. One definition each (CP-24). */
 .sw-item-icon,
 .sw-play {
   display: grid;
@@ -90,6 +97,8 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
+}
+.sw-item-icon {
   background: var(--graphite-0);
   color: var(--marsh-navy);
 }
@@ -99,6 +108,13 @@
   background: var(--surface-nav);
   color: var(--text-inverse);
   cursor: pointer;
+  transition: background-color 120ms var(--sw-ease, ease-out);
+}
+/* Navy goes a step lighter on hover, as every navy button does. */
+@media (hover: hover) and (pointer: fine) {
+  .sw-play:hover {
+    background: var(--action-primary-hover);
+  }
 }
 /* The circle stays 36px; the tap area reaches 44px. */
 .sw-play::after {
@@ -209,4 +225,157 @@
    its bottom offset inline, hence !important. */
 body:has(.sw-recording) [data-sonner-toaster][data-y-position='bottom'] {
   bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+}
+
+/* ---- A recording row (CP-24): play, words, tools, then the chevron, always last ----
+   A grid, so the open transcript is a line of its own: under the words on a wide screen, the
+   row's full width on a phone. Phone first. The page's handwritten-page row uses the same
+   classes and data-opens / data-more. */
+.sw-item--rec {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'lead main tools chev'
+    'text text text text';
+  /* Only a column gap: .sw-item's 12px also spreads rows, so the empty transcript row of a closed
+     row added 12px of dead space under the mark (the open text brings its own top margin). */
+  column-gap: 12px;
+  row-gap: 0;
+  align-items: center;
+  /* Rows keep their own height; the spare pixel of a 64 px row goes above and below, not to the empty
+     text row, so the mark sits exactly in the middle. */
+  align-content: center;
+}
+.sw-item--rec > .sw-item-icon,
+.sw-item--rec > .sw-play {
+  grid-area: lead;
+}
+.sw-item--rec > .sw-item-main {
+  grid-area: main;
+}
+.sw-item--rec > .sw-item-tools {
+  grid-area: tools;
+  justify-content: flex-end;
+}
+.sw-item--rec > .sw-chev {
+  grid-area: chev;
+}
+.sw-item--rec > .sw-text {
+  grid-area: text;
+  margin-top: 12px;
+}
+/* A row that opens and has more than the bin: the chevron stays at the top right with the first
+   words, then the open text at the row's full width, and the other tools take their own line last,
+   at the bottom right (board 12e). */
+.sw-item--rec[data-opens][data-more] {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lead main chev'
+    'text text text'
+    'tools tools tools';
+}
+/* The gap above the tools line belongs to the open text, which is only there while open: a closed
+   row keeps no dead space under its words. */
+.sw-item--rec[data-opens][data-more] > .sw-text {
+  margin-bottom: 16px;
+}
+@media (max-width: 559px), (pointer: coarse) {
+  .sw-item--rec {
+    grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  }
+  .sw-item--rec[data-opens][data-more] {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+}
+/* A wide screen: everything on the first line, the text under the words, and the chevron's
+   column kept empty when the row can't open, so the bins stay in one column down the list. */
+@media (min-width: 768px) {
+  .sw-item--rec,
+  .sw-item--rec[data-opens][data-more] {
+    grid-template-columns: 36px minmax(0, 1fr) auto 36px;
+    grid-template-areas:
+      'lead main tools chev'
+      '. text text text';
+  }
+  .sw-item--rec[data-opens][data-more] > .sw-text {
+    margin-bottom: 0;
+  }
+}
+@media (min-width: 768px) and (pointer: coarse) {
+  .sw-item--rec,
+  .sw-item--rec[data-opens][data-more] {
+    grid-template-columns: 36px minmax(0, 1fr) auto 44px;
+  }
+}
+/* Who added or corrected a row's item (the observation page): a grey line under its length. */
+.sw-stamp {
+  margin: 2px 0 0;
+  color: var(--graphite-600);
+  font-size: 12px;
+}
+/* The chevron turns half a turn in the time the text takes to open or close (motion row 4). */
+.sw-chev svg,
+.sw-chev > span {
+  transition: transform 240ms var(--ease-out);
+}
+.sw-chev[aria-expanded='true'] svg,
+.sw-chev[aria-expanded='true'] > span {
+  transform: rotate(180deg);
+}
+.sw-chev[aria-expanded='false'] svg,
+.sw-chev[aria-expanded='false'] > span {
+  transition-duration: 180ms;
+}
+/* The transcript: height and opacity open over 240 ms and close over 180 ms. The inner box
+   clips, so the grid row can shrink to nothing. */
+.sw-text {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: sw-text-open 240ms var(--ease-out) both;
+}
+.sw-text > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.sw-text[data-closing] {
+  animation: sw-text-close 180ms var(--ease-out) both;
+}
+/* The text's margins (12px above, 16px below on a phone) grow and shrink with it, so the row doesn't
+   jump at either end. */
+@keyframes sw-text-open {
+  from {
+    grid-template-rows: 0fr;
+    margin-block: 0;
+    opacity: 0;
+  }
+}
+@keyframes sw-text-close {
+  to {
+    grid-template-rows: 0fr;
+    margin-block: 0;
+    opacity: 0;
+  }
+}
+/* With reduced motion the text only fades, and the chevron just flips. */
+@media (prefers-reduced-motion: reduce) {
+  .sw-text {
+    animation-name: sw-text-fade-in;
+  }
+  .sw-text[data-closing] {
+    animation-name: sw-text-fade-out;
+  }
+  .sw-chev svg,
+  .sw-chev > span {
+    transition: none;
+  }
+}
+@keyframes sw-text-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sw-text-fade-out {
+  to {
+    opacity: 0;
+  }
 }

@@ -43,6 +43,37 @@ def test_a_word_added_to_the_file_is_never_read_as_a_person(allowing):
     assert mask([EQUIVALENCIES]) == [EQUIVALENCIES]
 
 
+def test_the_admins_list_sent_with_a_request_replaces_the_files_words(allowing):
+    # PV-09: the gateway sends the Never masked list kept in Settings. Even an empty list
+    # replaces the file's words, so a word the admin removed is masked again.
+    allowing({"never_a_person": {"report wording": ["Equivalencies"]}})
+
+    def mask_never(never_masked):
+        response = client.post(
+            "/mask", json={"texts": [EQUIVALENCIES], "never_masked": never_masked}
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["texts"]
+
+    assert mask_never([]) != [EQUIVALENCIES]
+    assert mask_never(["Equivalencies"]) == [EQUIVALENCIES]
+
+
+def test_a_known_name_is_masked_even_when_the_admin_lists_it(allowing):
+    # A guard (PV-09 AC4): the gateway refuses such an entry, and masking wins here too.
+    allowing({})
+    response = client.post(
+        "/mask",
+        json={
+            "texts": ["Crest Tower called."],
+            "known_entities": [{"type": "SITE", "names": ["Crest Tower"]}],
+            "never_masked": ["Crest Tower"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert "Crest Tower" not in response.json()["texts"][0]
+
+
 @pytest.fixture
 def shipped(monkeypatch):
     """The committed allow_list.json."""
@@ -63,6 +94,26 @@ def test_the_shipped_file_keeps_what_a_past_report_had_masked_wrongly(shipped):
         "Marsh McLennan businesses include Guy Carpenter, Mercer and Oliver Wyman.",
     ]
     assert mask(lines) == lines
+
+
+def test_the_files_words_are_offered_to_the_gateway_with_their_headings(allowing):
+    # PV-09: the gateway seeds Settings' Never masked list from them once; patterns stay here.
+    allowing(
+        {
+            "never_a_person": {"equipment": ["Hosereel"]},
+            "never_masked": {"Marsh": ["Marsh", "Marsh McLennan"]},
+            "never_a_person_patterns": {"floors": "[lb][0-9]{1,3}"},
+        }
+    )
+    response = client.get("/allow-list")
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "words": [
+            {"word": "Hosereel", "reason": "equipment"},
+            {"word": "Marsh", "reason": "Marsh"},
+            {"word": "Marsh McLennan", "reason": "Marsh"},
+        ]
+    }
 
 
 def test_a_typo_in_the_file_is_refused(allowing):

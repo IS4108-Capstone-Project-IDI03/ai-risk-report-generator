@@ -65,10 +65,12 @@ When the user message has a <passage>
   should be used, and never choose between them in any other line.
 """
 
-# A citation as the model writes it: [O2], [C1 "words"], or a list such as [O2, C1].
-_QUOTED = re.compile(r'\[\s*([OCP])(\d+)\s*[:,]?\s*"((?:[^"\\]|\\.)*)"\s*\]')
-_LIST = re.compile(r"\[\s*([OCP]\d+(?:\s*[,;]\s*[OCP]\d+)*)\s*\]")
-_LABEL = re.compile(r"([OCP])(\d+)")
+# A citation as the model writes it: [O2], [C1 "words"], or a list such as [O2, C1]. T labels a
+# part of the report template, which only writing guidance is given (AS-08); a T label in any
+# other answer names nothing it was given, so it counts for nothing.
+_QUOTED = re.compile(r'\[\s*([OCPT])(\d+)\s*[:,]?\s*"((?:[^"\\]|\\.)*)"\s*\]')
+_LIST = re.compile(r"\[\s*([OCPT]\d+(?:\s*[,;]\s*[OCPT]\d+)*)\s*\]")
+_LABEL = re.compile(r"([OCPT])(\d+)")
 _MISSING = re.compile(r"^\s*(?:\*\*)?missing\s*(?:evidence)?\s*:\s*(?:\*\*)?\s*", re.IGNORECASE)
 # Where the sources behind a selected passage disagree (AS-02 AC4).
 _DIFFERS = re.compile(
@@ -336,6 +338,9 @@ def check_statement(
         if kind == "observation":
             # An observation is cited as a whole; a quote from it, when given, must be in it.
             verified = quote_found(quote, observation_text(item)) if quote else True
+        elif kind == "template":
+            # A part of the report template (AS-08), likewise cited as a whole.
+            verified = quote_found(quote, item["text"]) if quote else True
         else:
             where = quote_check(quote, item) if quote else "missing"
             verified = where == "found"

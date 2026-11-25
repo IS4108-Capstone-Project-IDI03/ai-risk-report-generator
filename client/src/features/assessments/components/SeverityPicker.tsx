@@ -15,7 +15,8 @@ const SEVERITIES = ['critical', 'high', 'moderate', 'low']
 
 // An observation's severity, chosen from four chips that are native radios,
 // at least 44px tall for gloved hands, each with its symbol in its colour and
-// a red asterisk marking it required. Used by capture. '' leaves none chosen.
+// a red asterisk marking it required. Used by ChecklistAnswer.tsx (capture uses CaptureSeverity).
+// '' leaves none chosen.
 export function SeverityPicker({
   value,
   onChange,

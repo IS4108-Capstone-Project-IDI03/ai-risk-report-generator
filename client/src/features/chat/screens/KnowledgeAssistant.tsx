@@ -25,6 +25,7 @@ import { chatLibrary } from '../library'
 import marshbot from '../marshbot.svg'
 import { starters } from '../starters'
 import { VersionsContext } from '../useVersions'
+import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import type { Versions } from '../api'
 import { chatTheme } from '../theme'
 import '../chat.css'
@@ -39,6 +40,8 @@ export function KnowledgeAssistant({
   notify: (message: string) => void
 }) {
   const documents = useDocumentMap()
+  // F-12: this screen is lazy-loaded, so reaching this line means the chat has really rendered.
+  useWalkthroughScreen('chat', true)
   // The versions of the chat on screen (CB-04); loaded by AnswerBar, read by UserMessage.
   const [versions, setVersions] = useState<Versions>({})
   const versionState = useMemo(() => ({ versions, setVersions }), [versions])
@@ -95,7 +98,7 @@ export function KnowledgeAssistant({
                 {/* A greeting only: given children, OpenUI drops its own welcome composer (whose
                 placeholder can't be changed) and keeps the one below, with the starters. */}
                 <AgentInterface.Welcome>
-                  <div className="chat-welcome">
+                  <div className="chat-welcome" data-walk="chat.welcome">
                     <img src={marshbot} alt="" width={64} height={64} />
                     <h2>Hi, I'm MarshBot</h2>
                     <p>

@@ -14,7 +14,8 @@ export type PhoneBarProps = {
   alert?: { count: number; label: string }
   bell?: React.ReactNode
   // A drilled-in screen (capture) swaps the menu for a back arrow and shows its own title.
-  back?: { label: string; title: string; onClick: () => void }
+  // `walk`: its data-walk tag, for a walkthrough to press (F-12).
+  back?: { label: string; title: string; onClick: () => void; walk?: string }
 }
 
 /** Returns the 56px navy phone bar; the panel button's label is "Open navigation". */
@@ -29,6 +30,7 @@ export function PhoneBar({ logoSrc, onMenu, alert, bell, back }: PhoneBarProps) 
           back ? back.label : alert?.count ? `Open navigation, ${alert.label}` : 'Open navigation'
         }
         onClick={back ? back.onClick : onMenu}
+        data-walk={back?.walk}
       >
         <Icon name={back ? 'chevron-left' : 'panel-left'} size={20} />
         {!back && alert?.count ? (

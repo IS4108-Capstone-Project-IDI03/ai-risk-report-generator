@@ -14,6 +14,10 @@ export type AIDraftBlockProps = {
   // (e.g. "Accept <title>"), and whether it is unavailable for now.
   acceptLabel?: string
   acceptDisabled?: boolean
+  // Walkthrough tags (F-12) for the heading bar, the Accept button and the whole box, as data-walk.
+  headWalk?: string
+  cardWalk?: string
+  acceptWalk?: string
   onEdit?: () => void
   onShowEvidence?: () => void
   style?: React.CSSProperties
@@ -56,6 +60,9 @@ function AIDraftBlock({
   onAccept,
   acceptLabel,
   acceptDisabled = false,
+  headWalk,
+  cardWalk,
+  acceptWalk,
   onEdit,
   onShowEvidence,
   style = {},
@@ -67,6 +74,7 @@ function AIDraftBlock({
   const isAI = status === 'draft' || status === 'flagged'
   return (
     <article
+      data-walk={cardWalk}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -79,6 +87,7 @@ function AIDraftBlock({
       }}
     >
       <header
+        data-walk={headWalk}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -174,6 +183,7 @@ function AIDraftBlock({
             size={'sm'}
             iconLeft={'check'}
             aria-label={acceptLabel}
+            data-walk={acceptWalk}
             disabled={acceptDisabled}
             onClick={onAccept}
           >

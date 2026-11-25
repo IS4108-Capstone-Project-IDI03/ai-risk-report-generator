@@ -1,6 +1,7 @@
 // MarshBot's rail beside the thread (AS-06 canvas P6, 248 px since round 7): MarshBot's face, its name with the
 // status pill under it, the eight stages packed, "At a Glance" in the height left, and the client
 // card pinned at the foot. It never scrolls. Called by screens/MarshBotOverview.tsx when the Overview is wide enough.
+import { Tip } from '../../help/Tip'
 import type { AssistantThread } from '../types'
 import { BotStatus } from './BotStatus'
 import { ClientCard } from './ClientCard'
@@ -29,6 +30,10 @@ export function Rail({
             <b>MarshBot</b>
             <BotStatus status={thread.status} />
           </div>
+          {/* F-13: how the stage moves, at the head of the stages below it. */}
+          <span className="mb-bot-tip">
+            <Tip id="overview.stages" align="right" />
+          </span>
         </div>
         <StageRail thread={thread} />
         <Glance facts={thread.glance} />
