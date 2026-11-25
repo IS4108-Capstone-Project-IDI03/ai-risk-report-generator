@@ -61,8 +61,11 @@ def _shortened(text: str, limit: int) -> str:
     """The text in `limit` words or fewer: its first clause, else its first `limit` words."""
     if len(text.split()) <= limit:
         return text
-    # A clause ends at [.;:] before a capital, so "e.g. wet pipe" is never a cut point.
-    text = re.split(r"(?<=[.;:])\s+(?=[A-Z])|,\s", text, maxsplit=1)[0]
+    # A clause ends at [.;:] before a capital, so "e.g. wet pipe" is never a cut point. A first
+    # clause under 8 words is a stub ("Check that inspection."), so the words are cut instead.
+    first = re.split(r"(?<=[.;:])\s+(?=[A-Z])|,\s", text, maxsplit=1)[0]
+    if len(first.split()) >= 8:
+        text = first
     words = text.split()
     if len(words) > limit:
         words = words[:limit]

@@ -593,3 +593,17 @@ def test_a_proper_noun_keeps_its_capital():
     assert check_led("Singapore Civil Defence Force approval is current?") == (
         "Check: Singapore Civil Defence Force approval is current?"
     )
+
+
+def test_a_comma_early_in_a_long_item_never_leaves_a_stub():
+    # Seen live 25 Nov: "Check that inspection, testing and maintenance ..." became
+    # "Check that inspection." A first clause under 8 words is not kept on its own.
+    from app.generation.checklist import verb_led
+
+    long = (
+        "Check that inspection, testing and maintenance of the sprinkler system follow the "
+        "schedule in the standard and that records are kept on site for review."
+    )
+    made = verb_led(long)
+    assert made.startswith("Check that inspection, testing and maintenance")
+    assert 8 <= len(made.split()) <= 20
