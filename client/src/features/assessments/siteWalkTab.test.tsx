@@ -205,6 +205,17 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     expect(calls).toContain(`DELETE ${WALKS}/w1`)
   })
 
+  it('names a failed walk a site walk in its delete toast: it has no proposal yet', async () => {
+    walks = [walk({ error: 'The recording could not be transcribed.' })]
+    await openObservations()
+    await openWalksScreen('Site walk proposals (1)')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Site walk' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete this site walk?' }))
+    walks = []
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete site walk' }))
+    expect(await screen.findByText(/Site walk deleted/)).toBeInTheDocument()
+  })
+
   it('opens the review from a ready walk', async () => {
     walks = [READY]
     await openObservations()

@@ -44,9 +44,9 @@ def q(value, quote=None, document=1):
     return Quoted(value=value, quote=quote or value, document=document)
 
 
-def reading(client_name="Acme Pte Ltd", site_name="Tuas Warehouse", hint=None, **site):
+def reading(client_name="Acme Pte Ltd", site_name="Tuas Warehouse", hint=None, others=(), **site):
     return IntakeReading(
-        client=ReadClient(name=q(client_name), division=q(None)),
+        client=ReadClient(name=q(client_name), division=q(None), others=list(others)),
         sites=[
             ReadSite(
                 name=q(site_name),
@@ -133,6 +133,7 @@ def test_values_are_filled_with_their_sources(monkeypatch, fake_jev):
     assert body["client"] == {
         "name": {"value": "Acme Pte Ltd", "source": source},
         "division": {"value": None, "source": None},
+        "also_named": [],
         "existing_id": None,
         "match_not_sure": False,
     }
@@ -164,6 +165,22 @@ def test_values_are_filled_with_their_sources(monkeypatch, fake_jev):
     ]
     assert body["usage"][0]["feature"] == "client-intake"
     assert "Document 1: Request.eml" in prompts[0] and "Tuas Ave 1" in prompts[0]
+
+
+def test_another_client_in_the_documents_is_named_for_the_engineer(monkeypatch, fake_jev):
+    north_gate = "From: Lim\nPlease survey North Gate Logistics' Tilbury depot on 3 Dec 2026."
+    docs = [*DOCS, {"id": "f2", "name": "Other.eml", "text": north_gate}]
+    others = [
+        q("North Gate Logistics", document=2),
+        # The chosen client again, and a name its document doesn't hold: both left out.
+        q("ACME PTE. LTD.", "Acme Pte Ltd"),
+        q("Kestrel Holdings", document=2),
+    ]
+
+    body = read(monkeypatch, reading(others=others), documents=docs)[0].json()
+
+    assert body["client"]["name"]["value"] == "Acme Pte Ltd"
+    assert body["client"]["also_named"] == ["North Gate Logistics"]
 
 
 def test_a_quote_not_in_its_document_empties_the_value(monkeypatch, fake_jev):

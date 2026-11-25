@@ -68,18 +68,21 @@ export function SiteWeatherPanel({ reference, layout }: Props) {
               <NoReading weather={weather} now={now} />
             )}
           </div>
-          <IconButton
-            icon="refresh-cw"
-            size="lg"
-            label="Refresh site weather"
-            tooltip="Refresh"
-            className="wx-refresh"
-            data-busy={refreshing || undefined}
-            aria-disabled={refreshing || undefined}
-            onClick={() => {
-              if (!refreshing) refresh()
-            }}
-          />
+          {/* No weather service is set up: refreshing could never bring a reading. */}
+          {weather?.status !== 'unconfigured' && (
+            <IconButton
+              icon="refresh-cw"
+              size="lg"
+              label="Refresh site weather"
+              tooltip="Refresh"
+              className="wx-refresh"
+              data-busy={refreshing || undefined}
+              aria-disabled={refreshing || undefined}
+              onClick={() => {
+                if (!refreshing) refresh()
+              }}
+            />
+          )}
         </div>
       </div>
     </section>
@@ -206,7 +209,7 @@ function NoReading({
         <p className="wx-lead">
           <b>{'Weather unavailable'}</b>
         </p>
-        <p className="wx-meta">{"Weather isn't available for this site."}</p>
+        <p className="wx-meta">{"Site weather isn't set up in this app yet."}</p>
       </>
     )
   return (

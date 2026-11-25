@@ -123,40 +123,43 @@ export function PhotoTable<R extends PhotoRow>({
   }
   return (
     <div className="ob-card">
-      <div className="ob-bar">
-        {search && (
-          <SearchField
-            className="ob-bar-search"
-            label={search.label}
-            placeholder={search.label}
-            value={search.query}
-            onChange={(e) => onQuery(e.target.value)}
-          />
-        )}
-        {filters && (
-          <div className="ob-bar-pills">
-            {filters.menus.map((m) => (
-              <PillFilter
-                key={m.key}
-                name={m.name}
-                choices={m.choices}
-                value={filters.values[m.key]}
-                onChoose={(value) => filters.onChoose(m.key, value)}
-              />
-            ))}
-            {/* The search counts as one of them, as on the Observations tab. */}
-            {filtering + (query ? 1 : 0) > 1 && (
-              <button
-                type="button"
-                className="ob-button ob-button--small"
-                onClick={filters.onClear}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* No search and no filters (a site-walk proposal's media): no empty toolbar strip. */}
+      {(search || filters) && (
+        <div className="ob-bar">
+          {search && (
+            <SearchField
+              className="ob-bar-search"
+              label={search.label}
+              placeholder={search.label}
+              value={search.query}
+              onChange={(e) => onQuery(e.target.value)}
+            />
+          )}
+          {filters && (
+            <div className="ob-bar-pills">
+              {filters.menus.map((m) => (
+                <PillFilter
+                  key={m.key}
+                  name={m.name}
+                  choices={m.choices}
+                  value={filters.values[m.key]}
+                  onChoose={(value) => filters.onChoose(m.key, value)}
+                />
+              ))}
+              {/* The search counts as one of them, as on the Observations tab. */}
+              {filtering + (query ? 1 : 0) > 1 && (
+                <button
+                  type="button"
+                  className="ob-button ob-button--small"
+                  onClick={filters.onClear}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {narrowed && shown.length === 0 && (
         <div className="ob-empty">
           <EmptyState

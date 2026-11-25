@@ -100,11 +100,21 @@ export const answerSpoken = new EventTarget()
 // Without it, reopening an old chat would start reading its last answer.
 export const handsFreeTurn = { waiting: false }
 
-/** The voices this device can speak with; the browser loads them a moment after the page. */
+// macOS's novelty voices (sound effects and singing), which read an answer as a joke.
+const NOVELTY = new Set(
+  'Albert,Bad News,Bahh,Bells,Boing,Bubbles,Cellos,Good News,Jester,Organ,Superstar,Trinoids,Whisper,Wobble,Zarvox'.split(
+    ',',
+  ),
+)
+/** Returns the voices fit to read an English answer: English ones, without the novelty voices. */
+export const readingVoices = (voices: SpeechSynthesisVoice[]) =>
+  voices.filter((v) => v.lang.toLowerCase().startsWith('en') && !NOVELTY.has(v.name))
+
+/** The voices this device can read an answer with; the browser loads them a moment after the page. */
 export function useVoices() {
-  const [voices, setVoices] = useState(() => speechSynthesis.getVoices())
+  const [voices, setVoices] = useState(() => readingVoices(speechSynthesis.getVoices()))
   useEffect(() => {
-    const update = () => setVoices(speechSynthesis.getVoices())
+    const update = () => setVoices(readingVoices(speechSynthesis.getVoices()))
     speechSynthesis.addEventListener('voiceschanged', update)
     return () => speechSynthesis.removeEventListener('voiceschanged', update)
   }, [])

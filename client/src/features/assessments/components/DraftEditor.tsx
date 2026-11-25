@@ -533,7 +533,11 @@ function DraftSubsection({
   const cited = [
     ...new Set([
       ...claims.flatMap((c) => c.citations),
-      ...aiBlocks.flatMap((b) => b.content.flatMap((c) => (c.type === 'cite' ? [c.id] : []))),
+      // Every cite mark in the subsection's text: AI text awaiting Accept, and text already
+      // accepted or written by the engineer, which would otherwise read "1 source" beside 2 marks.
+      ...textBlocksIn(blocks).flatMap((b) =>
+        b.content.flatMap((c) => (c.type === 'cite' ? [c.id] : [])),
+      ),
     ]),
   ]
   const pending = claims.filter((c) => c.review.state === 'pending')

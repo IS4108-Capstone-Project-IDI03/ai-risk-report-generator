@@ -203,7 +203,7 @@ def test_every_prompt_says_to_copy_placeholders_exactly():
     # With protection off too, so off and on evals differ only in masking (as in rag-service).
     for marked in (False, True):
         assert "Copy bracketed placeholders" in vision.system_instruction(marked)
-    assert vision.PROMPT_VERSION == "cp10-v1"
+    assert vision.PROMPT_VERSION == "cp10-v2"
 
 
 def test_blurs_the_close_up_of_a_marked_area_too(monkeypatch, fake_privacy):

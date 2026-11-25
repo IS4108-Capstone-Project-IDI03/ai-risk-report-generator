@@ -1192,7 +1192,11 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
-    expect(screen.getByText('Whisper timed out.')).toBeInTheDocument()
+    // Once for screen readers, once written out for a phone (no hover tooltip there).
+    expect(screen.getAllByText('Whisper timed out.')).toHaveLength(2)
+    expect(
+      screen.getByText('Whisper timed out.', { selector: '.sw-status-reason' }),
+    ).toBeInTheDocument()
     click('Try transcribing again')
 
     await vi.waitFor(() =>

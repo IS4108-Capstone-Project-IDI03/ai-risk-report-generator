@@ -20,7 +20,7 @@ from app.model_override import MODEL_OVERRIDE
 from app.processors.images import upright_jpeg
 
 # Bump whenever the prompt wording changes, so a saved proposal names the prompt it came from.
-PROMPT_VERSION = "cp10-v1"
+PROMPT_VERSION = "cp10-v2"
 
 
 # The model for this request: the admin's choice (S-01, X-Model header), else VISION_MODEL.
@@ -76,9 +76,9 @@ finding during a site survey, and propose a description of them for the engineer
 
 PHOTOS_INSTRUCTION = f"""
 
-description: one or two sentences in the form Marsh's reports use, for example "During the site \
-visit to the L43 hosereel pump room, it was observed that the valves were not locked open." Name \
-the location if you are given it. Use Singapore English. State only what the photographs show: no \
+description: one or two sentences in the form Marsh's reports use: "During the site visit to \
+<location>, it was observed that <what the photographs show>." Name the location if you are \
+given it. Use Singapore English. State only what the photographs show: no \
 recommendations, and nothing about what the condition may lead to.
 
 Describe only what is visible. If a detail cannot be made out, leave it out rather than guess. \
@@ -86,7 +86,9 @@ If the photographs show nothing wrong, say what they show and set hazard_type to
 "No hazard visible". Never invent a hazard.
 
 The note and transcripts say what the engineer saw. Use them to know what to look at, but \
-describe what the photographs show, not what the text claims.
+describe what the photographs show, not what the text claims. A condition the photographs can't \
+show (a part that isn't there, a test not done, a valve's position or supervision) is left out \
+unless it is plainly visible.
 
 hazard_type: the closest of {", ".join(HAZARD_TYPES[:-2])}; "Other" if none fits; or \
 "No hazard visible"."""

@@ -433,6 +433,19 @@ describe('New Assessment from client documents (CP-23)', () => {
     expect(screen.getByText(/Nothing could be read from these documents/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Client name/)).toHaveValue('')
   })
+  it('warns when the documents also name another client, naming it', async () => {
+    await readAll({
+      ...READ,
+      result: {
+        ...READ.result,
+        client: { ...READ.result.client, alsoNamed: ['North Gate Logistics'] },
+      },
+    })
+
+    expect(screen.getByText('These documents name more than one client')).toBeInTheDocument()
+    expect(screen.getByText(/also ask for a survey for North Gate Logistics/)).toBeInTheDocument()
+  })
+
   it('fills the form in when Try again reads the documents after a failed read', async () => {
     let reads = 0
     intakeGateway(() =>

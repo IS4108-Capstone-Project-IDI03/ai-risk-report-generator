@@ -55,8 +55,11 @@ export function WorkRow({
   const practice = !!r.record?.practice
   // The walkthrough's tag for the button it points at (assessment-list.css keeps it visible).
   const actionTag = walkAction ? 'assessments.row-action' : undefined
-  // Finished work shows its due date alone, never "late".
-  const finished = r.status === STATUS_LABEL.finalised || r.status === STATUS_LABEL.archived
+  // Finished work (finalised, archived or exported) shows its due date alone, never "late".
+  const finished =
+    r.status === STATUS_LABEL.finalised ||
+    r.status === STATUS_LABEL.archived ||
+    r.stage === 'exported'
   const changed = assign?.changed === r.id
   // A saved assessment still in progress whose site visit is today shows the site's weather
   // (CP-62), so the engineer sees rain before setting off.

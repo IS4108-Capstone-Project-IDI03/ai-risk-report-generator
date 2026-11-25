@@ -110,7 +110,7 @@ export function ClientRecord({
         surveyDate: v.siteVisitDate,
         dueDate: v.reportDueDate,
         archived: v.status === 'archived',
-        done: v.status === 'archived' || v.status === 'finalised',
+        done: v.status === 'archived' || v.status === 'finalised' || v.stage === 'exported',
       })),
     ),
   )

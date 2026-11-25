@@ -239,11 +239,15 @@ export function Observations({
         }
         onDelete={
           canCapture
-            ? (walkId) =>
-                discardWalk(v.captureRef, walkId).then(() => {
+            ? (walkId) => {
+                // Named as DeleteWalkDialog names it: a walk with no proposal yet is a site walk.
+                const gone = walks.find((w) => w.id === walkId)
+                const what = gone?.status === 'ready' || gone?.proposal ? 'Proposal' : 'Site walk'
+                return discardWalk(v.captureRef, walkId).then(() => {
                   reload()
-                  v.notify('Proposal deleted')
+                  v.notify(`${what} deleted`)
                 })
+              }
             : undefined
         }
       />

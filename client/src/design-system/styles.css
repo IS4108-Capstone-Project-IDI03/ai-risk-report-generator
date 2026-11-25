@@ -132,6 +132,22 @@
   flex-shrink: 0;
   max-width: 100%;
 }
+/* A fade on an edge that has more tabs past it (Tabs' markMore). */
+.ds-tabs[data-more='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.ds-tabs[data-more='start'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.ds-tabs[data-more='start end'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
+}
 .ds-tabs::-webkit-scrollbar {
   display: none;
 }

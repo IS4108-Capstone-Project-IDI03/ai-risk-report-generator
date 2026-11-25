@@ -12,6 +12,7 @@ import { SiteCard } from '../components/SiteCard'
 import { SitesPicker } from '../components/SitesPicker'
 import type { IntakeFile } from '../api'
 import type { ClientMode } from '../form'
+import { andList } from '../../assessments/evidenceSearch'
 import { scrollToField } from '../scrollToField'
 import type { NewAssessmentForm as Form } from '../useNewAssessment'
 
@@ -25,6 +26,7 @@ export function NewAssessmentForm({
   enter,
   filled,
   readNothing,
+  alsoNamed = [],
   rejected,
 }: {
   f: Form
@@ -33,6 +35,8 @@ export function NewAssessmentForm({
   // Filled in from documents that were read: the amber fields' help tip shows.
   filled: boolean
   readNothing: boolean
+  // Other companies the documents also name as clients: their documents were mixed in.
+  alsoNamed?: string[]
   // The files refused or failed to read, for the Rejected pill; none if filled in by hand.
   rejected: IntakeFile[]
 }) {
@@ -83,6 +87,11 @@ export function NewAssessmentForm({
             {
               'Nothing could be read from these documents. Fill in the form, or add other documents.'
             }
+          </Callout>
+        )}
+        {alsoNamed.length > 0 && (
+          <Callout tone="warning" title="These documents name more than one client">
+            {`They also ask for a survey for ${andList(alsoNamed)}. Remove its sites from this form, and start a separate New Assessment with its documents.`}
           </Callout>
         )}
         <div className="na-mode">

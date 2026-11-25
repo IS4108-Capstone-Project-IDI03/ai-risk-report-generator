@@ -68,12 +68,17 @@ export function priorityFor(a: PriorityInput, today: string): Unranked | null {
   }
   // Spare time against each deadline still ahead: the survey while preparing, and the report.
   const survey = a.siteVisitDate && daysTo(a.siteVisitDate, today)
-  const spares: [number, string][] = []
-  if (BEFORE_SURVEY.includes(a.stage) && survey !== undefined && survey >= 0)
-    spares.push([survey - workLeft(a.stage, (s) => BEFORE_SURVEY.includes(s)), 'the survey'])
-  if (due !== undefined)
-    spares.push([due - workLeft(a.stage, (s) => !BEFORE_SURVEY.includes(s)), 'the report is due'])
-  const [spare, before] = spares.sort((x, y) => x[0] - y[0])[0] ?? [Infinity, '']
+  // [spare days, the deadline, days to it, days of work left before it]
+  const spares: [number, string, number, number][] = []
+  if (BEFORE_SURVEY.includes(a.stage) && survey !== undefined && survey >= 0) {
+    const work = workLeft(a.stage, (s) => BEFORE_SURVEY.includes(s))
+    spares.push([survey - work, 'the survey is', survey, work])
+  }
+  if (due !== undefined) {
+    const work = workLeft(a.stage, (s) => !BEFORE_SURVEY.includes(s))
+    spares.push([due - work, 'the report is due', due, work])
+  }
+  const [spare, before, until, work] = spares.sort((x, y) => x[0] - y[0])[0] ?? [Infinity, '', 0, 0]
   // Fix now puts an assessment in Focus but ranks by its spare time too:
   // without this, a walk to review due in a month outranked a report due in 3 days.
   if (a.fixNow) {
@@ -83,10 +88,11 @@ export function priorityFor(a: PriorityInput, today: string): Unranked | null {
   }
   if (spare >= SHORT_ON_TIME_DAYS) return null
   const days = Math.floor(spare)
-  const text =
-    days > 0
-      ? `${plural(days, 'day')} to spare before ${before}.`
-      : `No time to spare before ${before}.`
+  // Names the deadline and the work left too: "1 day to spare" alone sat beside the list's
+  // "in 4 days" with nothing saying the other 3 days are work still to do.
+  const when = until === 0 ? 'today' : `in ${plural(until, 'day')}`
+  const why = `${before} ${when}, with about ${plural(Math.ceil(work), 'day')} of work left`
+  const text = days > 0 ? `${plural(days, 'day')} to spare: ${why}.` : `No time to spare: ${why}.`
   return { reason: 'short_on_time', text, urgency: spare }
 }
 

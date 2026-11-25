@@ -711,11 +711,14 @@ describe('Work list (RV-10)', () => {
       ['Far', 8, 8, 'not_started'],
       ['Done', -2, 1, 'finalised'],
       ['Shelved', -2, 2, 'archived'],
+      // Exported (AS-06 stage) is finished too: past its due date, it is not late.
+      ['Exported', -2, -12, 'under_review'],
     ]
     listReply = () =>
       respond(
         200,
         cases.map(([name, due, visit, status], i) => ({
+          ...(name === 'Exported' && { stage: 'exported' }),
           ...CREATED,
           id: `case-${i}`,
           reference: `RPT-CASE-${i}`,
@@ -731,8 +734,8 @@ describe('Work list (RV-10)', () => {
     // Grouped by client, then site in name order.
     const shown = () =>
       screen.getAllByRole('button', { name: /^Case/ }).map((b) => b.getAttribute('data-id'))
-    // Archived work is hidden until Status is Archived: 6 of the 7.
-    expect(results()).toHaveTextContent('6 assessments')
+    // Archived work is hidden until Status is Archived: 7 of the 8.
+    expect(results()).toHaveTextContent('7 assessments')
 
     // Each row counts down to its report due date, or is marked overdue.
     const row = (name: string) =>
@@ -743,6 +746,7 @@ describe('Work list (RV-10)', () => {
     expect(row('Far')).toHaveTextContent('in 8 days')
     // Finished work shows its date alone, never late.
     expect(row('Done')).not.toHaveTextContent(/late|today|in \d+ days/)
+    expect(row('Exported')).not.toHaveTextContent(/late|today|in \d+ days/)
 
     // The footer's late link applies the Late choice of the Report due pill.
     expect(screen.getByRole('button', { name: '1 report late' })).toBeInTheDocument()
@@ -761,7 +765,7 @@ describe('Work list (RV-10)', () => {
 
     // Any report due clears the pill and shows every assessment.
     choose('Report due: Site visit within 7 days', 'Any report due')
-    expect(results()).toHaveTextContent('6 assessments')
+    expect(results()).toHaveTextContent('7 assessments')
   })
 
   it('filters by stage and searches by site and client', async () => {

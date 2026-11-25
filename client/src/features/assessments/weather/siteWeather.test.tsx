@@ -219,6 +219,13 @@ describe('the panel (AC2-AC4)', () => {
     expect(panel()).toHaveTextContent("“2 Jurong Port Rd” couldn't be found on the map.")
   })
 
+  it('says weather is not set up, with no Refresh, when the gateway has no weather key', async () => {
+    answers = [{ status: 'unconfigured' }]
+    await open()
+    expect(panel()).toHaveTextContent("Site weather isn't set up in this app yet.")
+    expect(screen.queryByRole('button', { name: 'Refresh site weather' })).not.toBeInTheDocument()
+  })
+
   it('shows nothing without an assessment reference', async () => {
     await open('card', null)
     expect(screen.queryByRole('region', { name: 'Site weather' })).not.toBeInTheDocument()
@@ -322,5 +329,12 @@ describe('a dashboard row with a site visit today (AC2)', () => {
     expect(screen.getByText(/Raining/).closest('.wx-rowline')).toHaveTextContent(
       'Raining · 2.4 mm/h · 27°C · Rain expected in the next 2 h · Updated 16:40',
     )
+  })
+
+  it('shows nothing when no weather service is set up', async () => {
+    answers = [{ status: 'unconfigured' }]
+    const { container } = render(<RowWeather reference="RPT-2026-0411" />)
+    await wait()
+    expect(container).toBeEmptyDOMElement()
   })
 })

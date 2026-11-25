@@ -18,6 +18,7 @@ import { CitationSelectionContext, type SelectedCitation } from '../components/c
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
 import { PdfAttach } from '../components/PdfAttach'
+import { QuestionFromLink } from '../components/QuestionFromLink'
 import { PhotoAttach } from '../components/PhotoAttach'
 import { UserMessage } from '../components/UserMessage'
 import { VoiceInput } from '../components/VoiceInput'
@@ -113,6 +114,7 @@ export function KnowledgeAssistant({
                 <PhotoAttach />
                 <PdfAttach />
                 <VoiceInput />
+                <QuestionFromLink />
               </AgentInterface>
               {selected && <CitationPanel selected={selected} onClose={close} />}
             </div>

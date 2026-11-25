@@ -8,6 +8,7 @@ import { Icon, IconRegistry } from '../../../design-system'
 import { transcriptName } from '../../site-walk/walkItems'
 import type { ObservationPage } from '../types'
 import { PageText } from './PageText'
+import '../../site-walk/statusReason.css'
 
 // A handwritten page as the Observations tab and the Scans view show it.
 export type PageView = ObservationPage & {
@@ -108,6 +109,12 @@ export function PageEntry({ page: p, onView }: { page: PageView; onView: () => v
             </span>
           )}
         </p>
+        {/* Why it failed, on a phone (recording.css); screen readers hear it in the line above. */}
+        {failed && !!p.error && (
+          <p className="sw-status-reason" aria-hidden="true">
+            {p.error}
+          </p>
+        )}
         {[p.correctedLabel, p.addedLabel].map(
           (line) =>
             !!line && (

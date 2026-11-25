@@ -46,6 +46,8 @@ class Quoted(_Model):
 class ReadClient(_Model):
     name: Quoted
     division: Quoted
+    # Other companies the documents ask to have surveyed: documents from two clients mixed up.
+    others: list[Quoted]
 
 
 class ReadSite(_Model):
@@ -100,7 +102,9 @@ it is in. When later emails change a date, the latest email wins.
 
 What to fill in:
 - client: the company that owns or runs the sites (not Marsh, an insurer or a consultant). \
-name as written; division: its business unit or division, if stated.
+name as written; division: its business unit or division, if stated; others: any other \
+company that the documents also ask Marsh to survey its own site for (documents from a second \
+client mixed in), each with its quote; [] when every document is about one client.
 - sites: one per distinct site (a plant, warehouse, building or campus at one address); a \
 site mentioned several times is one site. name; address: the street address as written; \
 country: the words naming its country or city; what_it_is: the words saying what the site \
@@ -303,6 +307,14 @@ def read_client_intake(documents, clients, facility_types, jurisdictions, privac
     sources = _Sources(documents, texts)
     client = {"name": sources.field(reading.client.name)}
     client["division"] = sources.field(reading.client.division)
+    # Another client's documents mixed in: named so the engineer can split them off. Without
+    # this, a second company's email and its site went quietly under the first client.
+    others = [sources.field(o)["value"] for o in reading.client.others]
+    client["also_named"] = list(
+        dict.fromkeys(
+            o for o in others if o and _name_key(o) != _name_key(client["name"]["value"] or "")
+        )
+    )
     sites = [
         {
             "name": sources.field(s.name),

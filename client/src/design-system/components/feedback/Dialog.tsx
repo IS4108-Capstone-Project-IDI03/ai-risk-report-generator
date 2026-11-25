@@ -30,6 +30,12 @@ function leaveCopy(element: HTMLDialogElement) {
   // dropdowns would flash their first option while it fades.
   const picks = element.querySelectorAll('select')
   copy.querySelectorAll('select').forEach((s, n) => (s.selectedIndex = picks[n].selectedIndex))
+  // A cloned <audio>/<video> loads its src again, and the owner may already have revoked that
+  // blob URL (Add media's queued recording): without this the console logs ERR_FILE_NOT_FOUND.
+  copy.querySelectorAll('audio, video').forEach((m) => {
+    m.removeAttribute('src')
+    m.querySelectorAll('source').forEach((s) => s.remove())
+  })
   // The copy carries the open attribute, and showModal refuses a dialog already open.
   copy.removeAttribute('open')
   document.body.append(copy)
@@ -78,7 +84,9 @@ export function Dialog({
       const copy = canAnimate && !element.isConnected ? leaveCopy(element) : null
       element.close()
       const refocus = () => {
-        if (previousFocus instanceof HTMLElement) previousFocus.focus()
+        // preventScroll: returning focus must not scroll the page, or Ask's "Go to the passage"
+        // on a phone would be scrolled back to the button that opened the sheet.
+        if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true })
       }
       if (!copy) return refocus()
       // Focus returns once the copy is gone: while it shows, the page behind is inert.

@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../../design-system'
 import { minutes, transcriptName, type RecordingStatus, type WalkItem } from '../walkItems'
+import '../statusReason.css'
 
 // What the row reads from a recording; a WalkItem recording has all of it.
 // `durationSec` is null for a saved recording whose length isn't known yet; the row then shows no length.
@@ -145,6 +146,12 @@ export function RecordingRow({
             </>
           )}
         </p>
+        {/* aria-hidden: screen readers already hear the reason in the status line. */}
+        {item.status === 'failed' && !!error && (
+          <p className="sw-status-reason" aria-hidden="true">
+            {error}
+          </p>
+        )}
         {stamps?.map((line) => (
           <p key={line} className="sw-stamp">
             {line}

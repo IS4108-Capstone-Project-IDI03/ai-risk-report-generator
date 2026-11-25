@@ -4,6 +4,7 @@
 // template's; the engineer renames, adds or removes them to suit the site. Totals
 // are the gateway's, as last saved. Used by LossEstimateFigures.tsx.
 import { Button, IconButton, Input } from '../../../design-system'
+import { formatDay } from '../format'
 import { formatAmount } from '../reportFigures'
 
 export type TypedValue = { key: string; item: string; value: string }
@@ -100,7 +101,8 @@ export function LossValuesTable({
                     onChange={(e) => onChange({ dateOfValues: e.target.value })}
                   />
                 ) : (
-                  ` ${typed.dateOfValues || '–'}`
+                  // "31 Dec 2026", as every screen dates a day, not the stored 2026-12-31.
+                  ` ${typed.dateOfValues ? formatDay(new Date(typed.dateOfValues + 'T00:00:00')) : '–'}`
                 )}
               </label>
             </th>

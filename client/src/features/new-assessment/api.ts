@@ -58,7 +58,15 @@ export type IntakeFile = {
 }
 // The AI's reading of the documents (rag-service's answer, camelCased by the gateway).
 export type IntakeResult = {
-  client: { name: Field; division: Field; existingId: string | null; matchNotSure: boolean }
+  client: {
+    name: Field
+    division: Field
+    existingId: string | null
+    matchNotSure: boolean
+    // Other companies the documents also ask to have surveyed (a second client's documents
+    // mixed in); absent from a reading made before this was added.
+    alsoNamed?: string[]
+  }
   sites: {
     ref: string
     existingId: string | null

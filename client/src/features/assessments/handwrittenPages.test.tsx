@@ -442,9 +442,10 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     await openObservations()
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
+    // Once for screen readers, once written out for a phone (no hover tooltip there).
     expect(
-      screen.getByText('The handwriting service could not transcribe the page.'),
-    ).toBeInTheDocument()
+      screen.getAllByText('The handwriting service could not transcribe the page.'),
+    ).toHaveLength(2)
     click('Try transcribing Page 1 again')
 
     await vi.waitFor(() =>

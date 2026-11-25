@@ -259,6 +259,7 @@ const OBS = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
   note: `Note ${id}`,
   recordings: [],
+  photos: [],
   location: { name: 'Bay 3', building: 'Warehouse', floor: 'Ground' },
   severity: 'high',
   checklistItem: null,
@@ -464,6 +465,17 @@ it('links an existing observation, searched and picked, with the row result', as
       body: { checklistItem: { itemId: 'a', result: 'differs' } },
     }),
   )
+})
+
+it('names a photo-only observation by its photos, as the Observations list does', async () => {
+  observations = [OBS('o1', { note: null, photos: [{ id: 'p1' }] })]
+  mock(base(checklist([marked('a', 'Alpha', 'confirmed')])))
+  showAnswering()
+  await screen.findByRole('listitem', { name: 'Alpha' })
+  fireEvent.click(within(rowOf('Alpha')).getByRole('button', { name: 'Link an observation' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Link existing observation' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Link an observation' })
+  expect(await within(dialog).findByText('1 photograph')).toBeInTheDocument()
 })
 
 it('says so when there is no observation to link', async () => {

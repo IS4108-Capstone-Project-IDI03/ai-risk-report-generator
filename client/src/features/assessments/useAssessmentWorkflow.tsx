@@ -159,10 +159,14 @@ export type ObservationChange = {
   // Keeps these not-sure values as they are (CP-24): they become the engineer's.
   confirm?: ('category' | 'severity')[]
 }
-// Past its report due date (local calendar day) and not finalised. Due today is not overdue.
+// A finished report: finalised, or exported (AS-06 stage). Without the stage, an exported report
+// still read "4 days late" on the list and counted in "1 report late".
+const isDone = (r: Pick<AssessmentRow, 'status' | 'stage'>) =>
+  r.status === STATUS_LABEL.finalised || r.stage === 'exported'
+// Past its report due date (local calendar day) and not finished. Due today is not overdue.
 function isOverdue(r: AssessmentRow) {
   const today = new Date().toLocaleDateString('en-CA')
-  return !!r.reportDueDate && r.reportDueDate < today && r.status !== STATUS_LABEL.finalised
+  return !!r.reportDueDate && r.reportDueDate < today && !isDone(r)
 }
 // Local calendar days from today to an ISO day: 0 today, negative once past.
 function daysFromToday(isoDay: string) {
@@ -175,10 +179,10 @@ function withinWeek(isoDay: string | null | undefined) {
   const days = daysFromToday(isoDay)
   return days >= 0 && days <= 7
 }
-// Assessments still in progress: neither finalised nor archived. The
+// Assessments still in progress: neither finished nor archived. The
 // dashboard boxes and a client's open count both use it.
 function inProgress(r: AssessmentRow) {
-  return r.status !== STATUS_LABEL.finalised && r.status !== STATUS_LABEL.archived
+  return !isDone(r) && r.status !== STATUS_LABEL.archived
 }
 const DATE_FILTERS: Record<DateFilter, (r: AssessmentRow) => boolean> = {
   overdue: (r) => inProgress(r) && isOverdue(r),
@@ -189,7 +193,7 @@ const DATE_FILTERS: Record<DateFilter, (r: AssessmentRow) => boolean> = {
 // amber within three days. Past due, the row shows its Overdue badge instead;
 // a finalised report is no longer counting down.
 function dueCountdown(r: AssessmentRow) {
-  if (!r.reportDueDate || r.status === STATUS_LABEL.finalised) return null
+  if (!r.reportDueDate || isDone(r)) return null
   const days = daysFromToday(r.reportDueDate)
   if (days < 0) return null
   return {
@@ -515,6 +519,20 @@ function placeQuery(s: WorkflowState, fromProposal: boolean): string {
   if (walk && s.screen === 'field' && fromProposal) q.set('walk', walk)
   return '?' + q.toString()
 }
+// Every tab (and evidence view) a URL may name. Without this an unknown ?tab= (a guess such as
+// tab=generation) opened a blank workspace with no tab selected; it now opens the default tab.
+const URL_TABS = new Set([
+  'overview',
+  'checklist',
+  'observations',
+  'photos',
+  'scans',
+  'recordings',
+  'generate',
+  'review',
+  'comparison',
+  'export',
+])
 // Returns the assessment, tab and observation the URL names, or nothing. An
 // assessment or capture path naming no assessment opens the Assessments list:
 // there is nothing to show without one.
@@ -530,7 +548,7 @@ function placeFromUrl(): Partial<WorkflowState> {
   return {
     captureTarget: target,
     recent: [target],
-    ...(q.get('tab') && { tab: q.get('tab')! }),
+    ...(URL_TABS.has(q.get('tab') ?? '') && { tab: q.get('tab')! }),
     obsOpen: q.get('obs'),
     // A refreshed proposal Add observation has lost its proposal, and Save
     // would add straight to the assessment; it reopens the review instead.
@@ -2019,7 +2037,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     const fStatus = s.fStatus
     const showArchived = fStatus === STATUS_LABEL.archived
     const isArchived = (r: AssessmentRow) => r.status === STATUS_LABEL.archived
-    const isFinished = (r: AssessmentRow) => r.status === STATUS_LABEL.finalised || isArchived(r)
+    const isFinished = (r: AssessmentRow) => isDone(r) || isArchived(r)
     // A saved sort that is no longer a choice falls back to the default.
     const workSort = SORT_CHOICES.includes(s.workSort) ? s.workSort : SORT_LATEST
     const byName = (a: string, b: string) =>
@@ -2190,7 +2208,7 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           surveyDate: a.siteVisitDate,
           dueDate: a.reportDueDate,
           archived: a.status === 'archived',
-          done: a.status === 'archived' || a.status === 'finalised',
+          done: a.status === 'archived' || a.status === 'finalised' || a.stage === 'exported',
         })
       }
       return [...byId.values()]

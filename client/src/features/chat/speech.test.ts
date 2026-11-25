@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { asProblem, isStopWord, loadSettings, micProblem, saveSettings, spokenText } from './speech'
+import {
+  asProblem,
+  isStopWord,
+  loadSettings,
+  micProblem,
+  readingVoices,
+  saveSettings,
+  spokenText,
+} from './speech'
 
 // Node in CI has no localStorage (a laptop's may), so each test brings its own.
 beforeEach(() => {
@@ -58,5 +66,13 @@ describe('asProblem (design system v2 errors)', () => {
       fix: 'Try again closer to the microphone.',
     })
     expect(asProblem('Too long')).toEqual({ problem: 'Too long', fix: '' })
+  })
+})
+
+describe('readingVoices', () => {
+  it('offers English voices only, without the novelty ones', () => {
+    const voice = (name: string, lang: string) => ({ name, lang }) as SpeechSynthesisVoice
+    const all = [voice('Samantha', 'en-US'), voice('Bubbles', 'en-US'), voice('Alice', 'it-IT')]
+    expect(readingVoices(all).map((v) => v.name)).toEqual(['Samantha'])
   })
 })
