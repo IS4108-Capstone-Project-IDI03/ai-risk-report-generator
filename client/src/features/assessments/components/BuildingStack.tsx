@@ -78,7 +78,11 @@ export function BuildingStack({
   return (
     <>
       <div ref={pane} className="ob-layout bs-layout" data-fit="">
-        <div className="ob-card bs-card">
+        {/* With no panel beside it (no locations yet), the card takes the whole row. */}
+        <div
+          className="ob-card bs-card"
+          data-alone={!side || stack.cells.length === 0 ? '' : undefined}
+        >
           {toolbar}
           {stack.cells.length === 0 ? (
             <div className="ob-empty">
@@ -200,11 +204,14 @@ export function BuildingStack({
               <TableFooter>
                 {[
                   plural(stack.cells.length, 'location'),
-                  `${gaps.length} with nothing recorded`,
+                  // Said only when there is a gap to cover; "0 with nothing recorded" was noise.
+                  gaps.length > 0 && `${gaps.length} with nothing recorded`,
                   v.obsFiltering
                     ? `${v.obsShownCount} of ${plural(v.obsTotal, 'observation')}`
                     : plural(v.obsTotal, 'observation'),
-                ].join(' · ')}
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </TableFooter>
             </>
           )}
@@ -261,6 +268,8 @@ function StackCellButton({
 }) {
   const l = cell.location
   const mark = IconRegistry.severity[cell.worst as keyof typeof IconRegistry.severity]
+  // "2 · Moderate": the word is its own span, so a narrow cell can drop it (building-stack.css).
+  const [count, word] = cellLine(cell).split(' · ')
   return (
     <button
       type="button"
@@ -276,7 +285,10 @@ function StackCellButton({
       <span className="bs-cell-name">{l.name}</span>
       <span className="bs-cell-line">
         {mark && cell.shown > 0 && <Icon name={mark.icon} size={13} />}
-        <span>{cellLine(cell)}</span>
+        <span>
+          {count}
+          {word && <span className="bs-cell-word">{' · ' + word}</span>}
+        </span>
       </span>
     </button>
   )
@@ -330,7 +342,7 @@ function NothingRecorded({
           <p className="bs-panel-count">
             {gaps.length
               ? `${plural(gaps.length, 'location')} ${gaps.length === 1 ? 'has' : 'have'} no observation, so choose one to add its first.`
-              : 'Each location has at least 1 observation, so choose one to see what was found there.'}
+              : 'Choose a location to see what was found there.'}
           </p>
         </div>
       </div>

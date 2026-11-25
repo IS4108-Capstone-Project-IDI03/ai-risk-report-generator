@@ -164,17 +164,16 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
       {viewing && <PhotoDialog photo={viewing} onClose={() => setViewing(null)} />}
       {v.leaveOpen && (
         <Dialog
-          className="ds-dialog--v2"
           title="Leave without saving?"
           description={'Not saved: ' + v.unsavedLabel + '.'}
           width={480}
           onClose={v.closeLeave}
           footer={
             <>
-              <Button variant="pill" style={{ height: 44 }} onClick={v.closeLeave}>
+              <Button variant="pill" onClick={v.closeLeave}>
                 {'Stay'}
               </Button>
-              <Button variant="danger" pill style={{ height: 44 }} onClick={v.discardAndLeave}>
+              <Button variant="danger" pill onClick={v.discardAndLeave}>
                 {'Leave'}
               </Button>
             </>

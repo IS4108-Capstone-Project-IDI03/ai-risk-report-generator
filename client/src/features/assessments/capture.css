@@ -37,7 +37,7 @@
 }
 .cap-btn--primary {
   background: var(--marsh-navy);
-  color: #fff;
+  color: var(--text-inverse);
 }
 .cap-btn--secondary {
   background: var(--cap-fill);
@@ -45,7 +45,7 @@
 }
 .cap-btn--danger {
   background: var(--action-danger);
-  color: #fff;
+  color: var(--text-inverse);
 }
 @media (hover: hover) {
   .cap-btn--primary:hover:not(:disabled) {
@@ -443,6 +443,15 @@
 }
 
 /* ---- Dialogs: one sentence, then Cancel and the action ---- */
+/* A dialog's body: its error, then its words and fields, one under another. */
+.cap-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cap-stack--roomy {
+  gap: 16px;
+}
 .cap-dialog-text {
   margin: 0;
   font-size: 15px;
@@ -491,6 +500,8 @@
 /* The bar at the foot of a phone's screen is the page's last row: no space under the cards. */
 .cap-page--v2 {
   padding-bottom: 0;
+  /* Its width decides whether the checklist fits beside the two cards (below). */
+  container: cap-page / inline-size;
 }
 .cap-page--v2 .cap-grid {
   margin-bottom: 16px;
@@ -525,9 +536,13 @@
   /* Each label and its icon centred in its stretched segment. */
   justify-content: center;
 }
-/* A narrow phone: the severity choices drop their icons and keep their words and colours, as the
-   New Assessment type control does under 400 px. */
-@media (max-width: 400px) {
+/* A narrow field (a phone, or the details card beside the checklist on a laptop): the severity
+   choices drop their icons and keep their words and colours, as the New Assessment type control
+   does under 400 px. Without this, Low ran out of the card at 1440 px with the sidebar open. */
+.cap-sev {
+  container-type: inline-size;
+}
+@container (max-width: 400px) {
   .cap-sev .ds-segmented button {
     min-width: 0;
     padding: 0 6px;
@@ -548,6 +563,7 @@
 }
 .cap-foot-buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 12px;
 }
@@ -607,7 +623,8 @@
 }
 .cap-rec-clock {
   color: var(--text-primary);
-  font: 700 25px/31px var(--font-mono);
+  font: 700 25px/31px var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .cap-rec-hint {
   text-align: center;
@@ -712,6 +729,17 @@
   grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
   gap: 16px;
   align-items: start;
+}
+/* Too narrow for three columns (a laptop with the sidebar open): the checklist goes under the two
+   cards, full width, instead of squeezing them until Save and the mode switch were cut off. */
+@container cap-page (max-width: 1079px) {
+  .cap-with-pane[data-pane] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cap-with-pane[data-pane] .cap-checklist-pane {
+    position: static;
+    max-height: none;
+  }
 }
 .cap-checklist-pane {
   position: sticky;

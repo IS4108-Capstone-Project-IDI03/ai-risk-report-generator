@@ -4,6 +4,7 @@
 // re-exported for screens/Observations.tsx.
 import { useEffect, useId, useRef } from 'react'
 import {
+  Button,
   Callout,
   Dialog,
   Icon,
@@ -35,26 +36,16 @@ export function RemoveLocationDialog({ v }: { v: AssessmentWorkflow }) {
       onClose={busy ? undefined : v.closeLocRemove}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeLocRemove}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeLocRemove}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--danger"
-            disabled={busy}
-            onClick={() => run(v.confirmLocRemove)}
-          >
+          </Button>
+          <Button pill variant="danger" disabled={busy} onClick={() => run(v.confirmLocRemove)}>
             {'Remove location'}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="cap-stack">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title="Location not removed">
@@ -73,14 +64,14 @@ export function RemoveLocationDialog({ v }: { v: AssessmentWorkflow }) {
   )
 }
 
-// What the picker says under "Where are you?": a new assessment starts with
-// the form to add its first location.
+// What the picker says under "Where are you?", only when it adds something: a new assessment
+// starts with the form to add its first location. A plain pick needs no line.
 const pickerDescription = (v: AssessmentWorkflow) =>
   v.proposalCapture
     ? 'The site walk’s locations and the assessment’s others.'
     : v.noLocations
       ? 'Add the first location you’re inspecting. Observations are saved to it.'
-      : 'Observations are saved to the location you choose.'
+      : undefined
 
 // The Location field of New Observation (CP-24), and where the engineer picks, searches for, adds
 // or changes the location they are capturing in. On a phone the list opens as a bottom sheet.
@@ -137,9 +128,11 @@ export function LocationPicker({ v }: { v: AssessmentWorkflow }) {
             <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
               {'Where are you?'}
             </div>
-            <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-              {pickerDescription(v)}
-            </div>
+            {pickerDescription(v) && (
+              <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                {pickerDescription(v)}
+              </div>
+            )}
           </div>
           <LocationChoices v={v} />
         </div>

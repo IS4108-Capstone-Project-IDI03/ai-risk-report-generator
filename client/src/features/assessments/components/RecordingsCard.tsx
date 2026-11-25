@@ -17,7 +17,11 @@ export function RecordingsCard({
   playSample: () => void
 }) {
   return (
-    <RecordCard title="Recordings">
+    // "Recordings · 2", as the Photos and Handwritten Pages cards count theirs.
+    <RecordCard
+      title={o.recordings.length ? 'Recordings · ' + o.recordings.length : 'Recordings'}
+      label="Recordings"
+    >
       {o.recordings.length > 0 && (
         <ul className="sw-list cpp-list">
           {o.recordings.map((r) => (

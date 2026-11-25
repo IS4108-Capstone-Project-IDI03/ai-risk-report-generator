@@ -3,8 +3,8 @@
 // right end, whatever `children` hold (the Add observation button, or the deleted list's
 // count). A pill that is set shows its value (board 03) and an ✕ that clears it, so the applied
 // filters read at a glance. Rendered by screens/Observations.tsx; the filtering is in
-// useAssessmentWorkflow.tsx. FilterChip below is the older chip, still used by All Photos
-// and the site walk tables.
+// useAssessmentWorkflow.tsx. PillFilter is shared with All Photos, Pages and Recordings
+// (PhotoTable.tsx); FilterChip below is the older chip, still used by the site walk tables.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FilterPill, Icon, SearchField } from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../filterChoices'
@@ -67,7 +67,7 @@ export function ObservationFilters({
       />
       <div className="ob-bar-pills">
         {menus.map(([key, name, choices]) => (
-          <FilterMenu
+          <PillFilter
             key={key}
             name={name}
             choices={choices}
@@ -88,9 +88,9 @@ export function ObservationFilters({
   )
 }
 
-// One filter pill: its name until set, then the chosen word with an ✕ (in place of the chevron)
-// that clears it.
-function FilterMenu({
+/** Returns one filter pill: its name until set, then the chosen word with an ✕ (in place of the
+ chevron) that clears it. */
+export function PillFilter({
   name,
   choices,
   value,

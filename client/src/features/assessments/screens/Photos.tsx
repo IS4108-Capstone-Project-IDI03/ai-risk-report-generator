@@ -57,13 +57,21 @@ export function Photos({ v }: { v: AssessmentWorkflow }) {
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
   return (
     <div className="ob">
-      <ScreenHeader title="All Photos" back="Observations" onBack={v.goObservations} />
+      <ScreenHeader
+        title="All Photos"
+        detail="Every photo saved with an observation, newest first."
+        back="Observations"
+        onBack={v.goObservations}
+      />
       {photos.length === 0 ? (
-        <EmptyState
-          icon="image"
-          title="No photos yet"
-          description="Photos appear here once they are saved with an observation."
-        />
+        // The empty list keeps the list's card, as the Observations tab's does.
+        <div className="ob-card ob-empty">
+          <EmptyState
+            icon="image"
+            title="No photos yet"
+            description="Photos appear here once they are saved with an observation."
+          />
+        </div>
       ) : (
         <PhotoTable
           label="Site photographs"

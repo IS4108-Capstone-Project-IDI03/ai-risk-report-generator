@@ -2,8 +2,8 @@
 // Recordings (CP-12): a table with one row per item: a thumbnail (opens it full
 // size to zoom), the observation, its location and its category. A tap
 // anywhere else on the row opens the observation (round 6), as a row of the
-// Observations table does. The count sits in the toolbar above the rows. On a
-// phone each row stacks. Rendered by screens/Photos.tsx, screens/Scans.tsx,
+// Observations table does. The toolbar and the footer count are the Observations
+// tab's own (v2 "One list frame"). On a phone each row stacks. Rendered by screens/Photos.tsx, screens/Scans.tsx,
 // components/RecordingTable.tsx (with a play tile for the thumbnail) and the
 // site walk proposal's ProposalMedia.tsx.
 //
@@ -20,7 +20,14 @@
 // the search (Location, Category, Severity and the item's own), as the
 // Observations tab's do, and narrow the rows with it.
 import type { ReactNode } from 'react'
-import { EmptyState, Icon, IconRegistry, SearchField } from '../../../design-system'
+import {
+  EmptyState,
+  Icon,
+  IconAction,
+  IconRegistry,
+  SearchField,
+  TableFooter,
+} from '../../../design-system'
 import type { TranscriptionStatus } from '../api'
 import { filtersSet, type EvidenceFilters, type FilterMenu } from '../evidenceFilters'
 import { rowMatches, searchWords, textHits } from '../evidenceSearch'
@@ -31,7 +38,7 @@ import { HitText } from './HitText'
 import { LocationPath } from './LocationPath'
 import { ZoomBadge } from './ZoomBadge'
 import { CategoryMark } from './ObservationMarks'
-import { FilterChip } from './ObservationFilters'
+import { PillFilter } from './ObservationFilters'
 
 export type PhotoRow = {
   key: string
@@ -88,7 +95,7 @@ export function PhotoTable<R extends PhotoRow>({
 }: {
   label: string
   rows: R[]
-  // e.g. "3 photos across 2 locations", shown in the toolbar.
+  // e.g. "3 photos across 2 locations", shown in the footer.
   count: string
   onOpen?: (row: R & { url: string }) => void
   // In place of the thumbnail, e.g. a recording's play tile.
@@ -116,10 +123,10 @@ export function PhotoTable<R extends PhotoRow>({
   }
   return (
     <div className="ob-card">
-      <div className="ob-filters">
+      <div className="ob-bar">
         {search && (
           <SearchField
-            className="ob-search"
+            className="ob-bar-search"
             label={search.label}
             placeholder={search.label}
             value={search.query}
@@ -127,9 +134,9 @@ export function PhotoTable<R extends PhotoRow>({
           />
         )}
         {filters && (
-          <div className="ob-filter-set">
+          <div className="ob-bar-pills">
             {filters.menus.map((m) => (
-              <FilterChip
+              <PillFilter
                 key={m.key}
                 name={m.name}
                 choices={m.choices}
@@ -149,9 +156,6 @@ export function PhotoTable<R extends PhotoRow>({
             )}
           </div>
         )}
-        <span className="ob-count">
-          {narrowed ? `${shown.length} of ${plural(rows.length, noun)}` : count}
-        </span>
       </div>
       {narrowed && shown.length === 0 && (
         <div className="ob-empty">
@@ -200,7 +204,13 @@ export function PhotoTable<R extends PhotoRow>({
                   onClick={() => onOpen({ ...r, url: r.url! })}
                 >
                   {/* shortcut: loads the original; serve smaller copies if photo lists grow long. */}
-                  <img src={r.url} alt="" loading="lazy" />
+                  {/* A file that won't load leaves the grey tile, not the browser's broken-image mark. */}
+                  <img
+                    src={r.url}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                  />
                   <ZoomBadge />
                 </button>
               ) : (
@@ -247,6 +257,10 @@ export function PhotoTable<R extends PhotoRow>({
           ))}
         </ul>
       </div>
+      {/* The count under the rows, as every v2 table has it ("0 of 3 recordings" under none found). */}
+      <TableFooter>
+        {narrowed ? `${shown.length} of ${plural(rows.length, noun)}` : count}
+      </TableFooter>
     </div>
   )
 }
@@ -287,14 +301,11 @@ function ItemLine({
           Couldn’t transcribe
         </span>
       )}
+      {/* v2 failed row: a grey retry icon beside the red words. */}
       {item.status === 'failed' && !!item.retry && (
-        <button
-          type="button"
-          className="ob-button ob-button--tinted ob-button--small ob-pt-above"
-          onClick={item.retry}
-        >
-          Retry
-        </button>
+        <span className="ob-pt-above">
+          <IconAction icon="rotate-ccw" label="Retry" tooltip="Try again" onClick={item.retry} />
+        </span>
       )}
       {!!item.detail && (
         <button

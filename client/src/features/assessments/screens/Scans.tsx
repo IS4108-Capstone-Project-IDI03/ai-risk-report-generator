@@ -52,13 +52,21 @@ export function Scans({ v }: { v: AssessmentWorkflow }) {
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
   return (
     <div className="ob">
-      <ScreenHeader title="All Handwritten Pages" back="Observations" onBack={v.goObservations} />
+      <ScreenHeader
+        title="All Handwritten Pages"
+        detail="Every handwritten page saved with an observation, with its transcript."
+        back="Observations"
+        onBack={v.goObservations}
+      />
       {scans.length === 0 ? (
-        <EmptyState
-          icon={IconRegistry.evidence.handwriting}
-          title="No handwritten pages yet"
-          description="Pages appear here once they are saved with an observation in Scan mode."
-        />
+        // The empty list keeps the list's card, as the Observations tab's does.
+        <div className="ob-card ob-empty">
+          <EmptyState
+            icon={IconRegistry.evidence.handwriting}
+            title="No handwritten pages yet"
+            description="Pages appear here once they are saved with an observation in Scan mode."
+          />
+        </div>
       ) : (
         <PhotoTable
           label="Handwritten pages"

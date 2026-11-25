@@ -70,8 +70,9 @@
   grid-column: var(--bs-col);
   align-self: end;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   min-width: 0;
   padding: 12px 4px 8px;
 }
@@ -81,8 +82,8 @@
   overflow: hidden;
   color: var(--marsh-navy);
   font: 700 15px/1.3 var(--ob-font);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* A long building name wraps (its count drops under it) rather than being cut. */
+  overflow-wrap: anywhere;
 }
 .bs-head > span:last-child {
   flex: none;
@@ -144,6 +145,8 @@
 /* ---- A location's cell ---- */
 .bs-cell {
   flex: 1 1 84px;
+  /* The cell's own width decides whether its severity word fits (below). */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -187,6 +190,13 @@
 .bs-cell-line > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A cell too narrow for "2 · Moderate" keeps the symbol and the count ("⚠ 2"), never a cut word;
+   the colour, the symbol and the cell's name for a screen reader still say the severity. */
+@container (max-width: 104px) {
+  .bs-cell-word {
+    display: none;
+  }
 }
 /* Worst first, each a step lighter than the one before, so the order reads
    without telling red from green; the symbol and the word say it again. The
@@ -575,4 +585,9 @@
     top: 3px;
     bottom: 3px;
   }
+}
+
+/* No panel beside the stacks (no locations yet, or a narrow window): the card fills the row. */
+.bs-layout > .bs-card[data-alone] {
+  grid-column: 1 / -1;
 }
