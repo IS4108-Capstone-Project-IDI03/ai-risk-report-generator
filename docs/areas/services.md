@@ -2458,6 +2458,15 @@ a failed transcription. A choice with a `link` (Add observations, Export Again)
 only opens a tab and posts nothing. It never takes typed input and sends
 nothing to the bell or the Inbox.
 
+**Read-only summary (mobile app).** `GET /api/assessments/:reference/assistant/summary`
+(`assessments:view`, the assigned engineer only; others 403, archived 409, unknown 404)
+gives the stage, the three "At a glance" facts, the one next step, the open items
+most urgent first and the checklist areas that need more. It reads the stored brief
+and writes nothing: unlike `GET .../assistant` it records no open (so "what changed
+since you last opened" is not moved), starts no coverage check and asks for no
+wording, so it makes no paid call. Built by `assistant/summary.ts`; the next step is
+the first open item (Fix now, then gap, then reminder), else the stage's own move.
+
 **In the browser.** The newest bot turn has one action slot under its last
 bubble or card: that card's `cta` (e.g. Open Generation), then the choices;
 older turns show none. Scrolled away from it, a sticky bar at the bottom of the

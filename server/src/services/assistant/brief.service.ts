@@ -6,6 +6,7 @@
 import type { Types } from 'mongoose'
 import type { SessionUser } from '../auth.service'
 import { AssessmentModel } from '../../models/assessment.model'
+import { AssistantBriefModel } from '../../models/assistant-brief.model'
 import { AssistantViewerModel } from '../../models/assistant-viewer.model'
 import { NotAssignedError, opensAssessment } from '../assessment.service'
 import { AssessmentArchivedError, AssessmentNotFoundError } from '../capture-session.service'
@@ -17,6 +18,7 @@ import { refreshBrief, type StoredBrief } from './recheck.service'
 import { engineerThread } from './thread.service'
 import { adminThread } from './thread/view'
 import type { ThreadBrief } from './thread/types'
+import { summaryOf, type AssistantSummary } from './summary'
 import type { AssistantThread } from './types'
 
 export { activitySchema }
@@ -58,6 +60,26 @@ export async function getThread(reference: string, user: SessionUser): Promise<A
   if (!assessment.archivedAt && (await startCoverageIfDue(brief, now)))
     brief.coverage = { ...brief.coverage, status: 'running' }
   return engineerThread(reference, { type: 'open' }, { brief: brief as unknown as ThreadBrief })
+}
+
+/**
+ * Returns the next step and gaps for GET .../assistant/summary (the mobile app's Overview
+ * card). Read only: it reads the stored brief, which the re-check keeps current whenever
+ * anything under the assessment changes, and writes nothing: no open recorded, no coverage
+ * check, no wording. Only when no brief was ever saved does it make the first one.
+ * Throws AssessmentNotFoundError, NotAssignedError (anyone but the assigned engineer, an
+ * admin too), AssessmentArchivedError.
+ */
+export async function getSummary(reference: string, user: SessionUser): Promise<AssistantSummary> {
+  const assessment = await forEngineer(reference, user)
+  const stored =
+    (await AssistantBriefModel.findOne({ assessment: assessment._id }).lean()) ??
+    (await freshBrief(reference))
+  const viewer = await AssistantViewerModel.findOne(
+    { assessment: assessment._id, user: user.id },
+    'dismissed',
+  ).lean()
+  return summaryOf(stored as unknown as ThreadBrief, viewer?.dismissed ?? [], new Date())
 }
 
 /** Returns the assessment for a change by its assigned engineer; throws NotAssignedError, AssessmentArchivedError. */
