@@ -1,5 +1,5 @@
 // MarshBot's routes (AS-06), mounted at /api/assessments/:reference/assistant:
-// the conversation, replies and activity. Reading needs an
+// the conversation, its read-only summary, replies and activity. Reading needs an
 // assessment the caller can open (its engineer or a knowledge admin); the rest
 // are the assigned engineer's. 403 not theirs, 404 unknown, 409 archived or a
 // reply not asked for. Calls services/assistant/brief.service.ts
@@ -11,7 +11,12 @@ import {
   AssessmentNotFoundError,
 } from '../services/capture-session.service'
 import { CannotOpenAssessmentError } from '../services/comment.service'
-import { activitySchema, getThread, postActivity } from '../services/assistant/brief.service'
+import {
+  activitySchema,
+  getSummary,
+  getThread,
+  postActivity,
+} from '../services/assistant/brief.service'
 import {
   InvalidReplyError,
   postReply,
@@ -46,6 +51,16 @@ function refuse(error: unknown, res: Response) {
 router.get('/', requirePermission('assessments:view'), async (req, res) => {
   try {
     res.json(await getThread((req.params as Params).reference, res.locals.user!))
+  } catch (error: unknown) {
+    refuse(error, res)
+  }
+})
+
+// The next step and gaps, read only, for the mobile app (AS-06): unlike GET /, it records no
+// open, starts no coverage check and calls no AI. The assigned engineer's only.
+router.get('/summary', requirePermission('assessments:view'), async (req, res) => {
+  try {
+    res.json(await getSummary((req.params as Params).reference, res.locals.user!))
   } catch (error: unknown) {
     refuse(error, res)
   }

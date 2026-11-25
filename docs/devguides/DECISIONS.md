@@ -2891,3 +2891,19 @@ Rejected:
 Known limits: a job whose worker died still shows as running; an ingestion that failed before `failedStage` was recorded shows no stages; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
 
 Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.
+
+## 2026-11-19 — The mobile Overview reads a summary route, not the conversation
+
+Chose:
+- (AS-06) `GET /api/assessments/:reference/assistant/summary` returns the stage, the three "At a glance" facts, the next step, the open items ranked, and the thin checklist areas, built from the stored brief by `assistant/summary.ts`. It writes nothing and calls no AI.
+- The next step is the first open item (Fix now, then gap, then reminder); with none open, a fixed line for the stage. Items the viewer dismissed stay out while their fingerprint is unchanged, as in the conversation.
+- The assigned engineer only: an admin who is not the assigned engineer gets 403 (the mobile app is for engineers; the admin's one-turn view stays on the browser's Overview).
+
+Reason: `GET .../assistant` is not a pure read. For the assigned engineer it records the open (which feeds "what changed since you last opened"), starts the paid coverage check, and moves the thread on for the wording AI. A phone that only wants to look would reset the browser's change notes and spend on every open. The brief is kept current by the re-check on every change under the assessment, so reading it is enough.
+
+Rejected:
+- Calling the conversation from the phone and ignoring the turns: the side effects above.
+- Re-checking on every summary read (`refreshBrief`): it saves, advances the thread and pushes when anything changed, which a read should not do. Only a missing brief is made, once.
+- Live push to the phone (server-sent events): a long-lived connection costs battery, and the checklist and observations already reload on open and pull.
+
+Stories: AS-06.
