@@ -25,7 +25,7 @@ import { checklistPdfHtml } from './checklist-pdf'
 import { clientNameOf } from './client.service'
 import { printPdf, withExportPage } from './export-render.service'
 import { exportDay } from './export.service'
-import { fixedItemsFor } from './checklist-fixed.service'
+import { fixedItemsFor, WORDS_MESSAGE, withinWords } from './checklist-fixed.service'
 import { listApplicablePastReports, listApplicableStandards } from './knowledge-document.service'
 import { locationText } from './location.service'
 import { checkingObservations } from './observation.service'
@@ -99,13 +99,12 @@ const REMOVED = 'This item was removed from the checklist. Restore it first.'
 
 // An item's wording, and its COPE categories: one or more, stored in C-O-P-E
 // order without repeats, as an observation's are (CP-32).
-// About 20 words, so every item fits on one or two lines (CP-37); 25 leaves room for a long name.
 const itemText = z
   .string()
   .trim()
   .min(1, 'Write what to check.')
   .max(1000)
-  .refine((t) => t.split(/\s+/).length <= 25, 'Keep it to about 20 words.')
+  .refine(withinWords, WORDS_MESSAGE)
 const itemCategories = z
   .array(z.enum(COPE_DIMENSIONS))
   .min(1, 'Choose at least one category.')
@@ -374,7 +373,7 @@ function flagsFor(origin: ItemOrigin, citations: IChecklistCitation[], flags: 'u
 // An item as S4 generated it, and as it is saved, with what it carries over.
 type Generated = ItemPlace & Pick<IChecklistItem, 'COPE_dimension' | 'flags' | 'fields'>
 type Carried = Generated &
-  Partial<Pick<IChecklistItem, 'status' | 'removed' | 'edited' | 'check' | 'carried'>>
+  Partial<Pick<IChecklistItem, 'status' | 'removed' | 'edited' | 'check' | 'carried' | 'important'>>
 
 // Carries the latest checklist into a regenerated one: its answers (CP-31) and
 // the engineer's changes (CP-32 AC3). Each new item that is the same as an
@@ -427,6 +426,8 @@ function carryOver(
       ...edited,
       ...(before.status === 'removed' && { status: 'removed' as const, removed: before.removed }),
       check: before.check ?? null,
+      // Without this, generating again drops the engineer's star (CP-37).
+      important: before.important ?? null,
       carried: [before._id, ...(before.carried ?? [])],
     }
   })
@@ -582,13 +583,15 @@ export async function generateChecklist(
     standards: inScope.map(({ issuingBody: _i, uploadedAt: _u, ...s }) => s),
     items: carried.items,
     notes: draft.no_past_reports ? [NO_PAST_REPORTS] : [],
-    // Fixed questions first; then S4's sections; then the engineer's own sections that their
-    // kept items still sit under (CP-37), or those items would lose their heading.
+    // Fixed questions first; then S4's sections; then any earlier section a kept item still
+    // sits under (CP-37): an engineer's own, or "Always check" for an edited fixed item this
+    // run doesn't bring. Without it the tab hides those items, with their marks and links.
     areas: [
-      ...(fixed.some((i) => i.area === FIXED_AREA.id) ? [FIXED_AREA] : []),
+      ...(carried.items.some((i) => i.area === FIXED_AREA.id) ? [FIXED_AREA] : []),
       ...draft.areas,
       ...(previous?.areas ?? []).filter(
-        (a) => a.id.startsWith(CUSTOM_AREA) && carried.items.some((i) => i.area === a.id),
+        (a) =>
+          a.id !== FIXED_AREA.id && !known.has(a.id) && carried.items.some((i) => i.area === a.id),
       ),
     ],
     hazards: draft.hazards.map(({ in_scope, ...h }) => ({ ...h, inScope: in_scope })),

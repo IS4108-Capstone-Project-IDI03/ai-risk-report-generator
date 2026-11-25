@@ -151,6 +151,16 @@ describe('fixed checklist items, admin side (CP-37 AC4)', () => {
     expect((await admin.patch(`${SETTINGS}/${missing}`).send({ text: 'x' })).status).toBe(404)
     expect((await admin.delete(`${SETTINGS}/not-an-id`)).status).toBe(404)
   })
+
+  it('refuses more than 25 words, as for the engineer, and the hazards section', async () => {
+    const long = Array.from({ length: 26 }, () => 'word').join(' ')
+    const refused = await add(long)
+    expect(refused.status).toBe(400)
+    expect(refused.body.error ?? refused.body.message).toBe('Keep it to about 20 words.')
+    const id = (await add('Is the roof access locked?')).body.id
+    expect((await admin.patch(`${SETTINGS}/${id}`).send({ text: long })).status).toBe(400)
+    expect((await add('Is the roof access locked?', TYPE, { area: 'hazards' })).status).toBe(400)
+  })
 })
 
 describe('the generated checklist (CP-37 AC1, AC3, AC5)', () => {

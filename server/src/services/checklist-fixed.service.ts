@@ -11,7 +11,14 @@ import { SettingsInputError } from './settings.service'
 import type { SessionUser } from './auth.service'
 import seed from './checklist-fixed.json'
 
-const AREAS = ['7', '8', '9', '10', '11', '12', 'hazards']
+// Report sections only: a fixed item has no hazard, so a 'hazards' area would never show it.
+const AREAS = ['7', '8', '9', '10', '11', '12']
+
+// About 20 words, so every checklist item fits on one or two lines (CP-37); 25 leaves room for a
+// long name. Shared with checklist.service.ts `itemText`; it lives here because that file imports
+// this one, and the reverse import would be circular.
+export const withinWords = (t: string) => t.split(/\s+/).length <= 25
+export const WORDS_MESSAGE = 'Keep it to about 20 words.'
 
 const addSchema = z.object({
   facilityType: z
@@ -21,7 +28,8 @@ const addSchema = z.object({
     .string()
     .trim()
     .min(1, 'Write the question.')
-    .max(500, 'A question is 500 characters or fewer.'),
+    .max(500, 'A question is 500 characters or fewer.')
+    .refine(withinWords, WORDS_MESSAGE),
   area: z
     .string()
     // An empty string clears the section, as the editor sends it.

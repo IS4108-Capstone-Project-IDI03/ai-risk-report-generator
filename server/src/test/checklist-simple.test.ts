@@ -321,6 +321,27 @@ describe('important items, sources and the word limit (CP-37)', () => {
     expect(row(await patch(id, { important: false }), id).important).toBeNull()
   })
 
+  it('keeps the important mark on fixed and generated items when generated again', async () => {
+    await admin.post(SETTINGS).send({ facilityType: TYPE, text: 'Roof access locked?' })
+    const { checklist } = (await generate()).body
+    for (const item of checklist.items) await patch(item.id, { important: true })
+    const again = (await generate()).body.checklist
+    expect(again.items.length).toBe(checklist.items.length)
+    expect(again.items.every((i: Row) => i.important?.at)).toBe(true)
+  })
+
+  it("keeps the section of an edited fixed item the new run doesn't bring", async () => {
+    await admin.post(SETTINGS).send({ facilityType: TYPE, text: 'Roof access locked?' })
+    const { checklist } = (await generate()).body
+    const fixed = checklist.items.find((i: { fixed?: boolean }) => i.fixed)
+    await patch(fixed.id, { text: 'Is the roof access hatch locked?' })
+    const again = (await generate({ standardIds: [], includeDefaults: false })).body.checklist
+    const kept = again.items.find(
+      (i: { text: string }) => i.text === 'Is the roof access hatch locked?',
+    )
+    expect(again.areas.some((a: { id: string }) => a.id === kept.area)).toBe(true)
+  })
+
   it('names the standards an item cites', async () => {
     const std = await KnowledgeDocumentModel.create({
       title: 'NFPA 13 Sprinkler Systems',
