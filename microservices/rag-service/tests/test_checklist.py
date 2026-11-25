@@ -559,3 +559,37 @@ def test_a_past_report_item_always_starts_with_check():
         == "Check: confirm the pump is tested weekly."
     )
     assert len(check_led("Is " + "the sprinkler and pump " * 10 + "tested?").split()) <= 20
+
+
+def test_a_long_past_report_question_keeps_its_words():
+    from app.generation.checklist import check_led
+
+    long = (
+        "Are the fire doors on every floor of the warehouse kept shut and free of wedges "
+        "during working hours and checked by security at night?"
+    )
+    made = check_led(long)
+    assert made.startswith("Check: are the fire doors on every floor")
+    assert len(made.split()) <= 20
+    # Still a question once shortened.
+    assert made.endswith("?")
+
+
+def test_shortening_never_cuts_at_an_abbreviation():
+    made = verb_led(
+        "Check the sprinkler system type (e.g. wet pipe or dry pipe) in each storage building "
+        "and whether the design suits the stored goods"
+    )
+    assert "e.g. wet pipe" in made
+    assert len(made.split()) <= 20
+
+
+def test_a_proper_noun_keeps_its_capital():
+    from app.generation.checklist import check_led
+
+    assert verb_led("Singapore Civil Defence Force fire certificate") == (
+        "Check Singapore Civil Defence Force fire certificate"
+    )
+    assert check_led("Singapore Civil Defence Force approval is current?") == (
+        "Check: Singapore Civil Defence Force approval is current?"
+    )
