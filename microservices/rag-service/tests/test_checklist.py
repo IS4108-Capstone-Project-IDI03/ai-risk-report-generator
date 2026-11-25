@@ -554,5 +554,8 @@ def test_a_past_report_item_always_starts_with_check():
     assert check_led("Are the fire doors kept shut?") == "Check: are the fire doors kept shut?"
     assert check_led("Is CCTV recorded?") == "Check: is CCTV recorded?"
     # Another verb is led by Check too, and a long one is still cut to about 20 words.
-    assert check_led("Confirm the pump is tested weekly.") == "Check: confirm the pump is tested weekly."
+    assert (
+        check_led("Confirm the pump is tested weekly.")
+        == "Check: confirm the pump is tested weekly."
+    )
     assert len(check_led("Is " + "the sprinkler and pump " * 10 + "tested?").split()) <= 20
