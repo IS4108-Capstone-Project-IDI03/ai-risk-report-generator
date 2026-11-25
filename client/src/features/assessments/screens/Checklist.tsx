@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Button, Callout, EmptyState, IconButton, toast } from '../../../design-system'
 import { downloadChecklistPdf, generateChecklist, GatewayError, type ChecklistChoice } from '../api'
-import { caption, heading, muted } from '../checklistChecks'
 import { ChecklistBuild } from '../components/ChecklistBuild'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
+import { ChecklistRegenerated, type Changes } from '../components/ChecklistRegenerated'
 import { formatDay } from '../format'
-import { plural } from '../reviewDisplay'
 import { Tip } from '../../help/Tip'
 import { useActivity } from '../../marshbot/useActivity'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
@@ -21,80 +20,6 @@ function download(file: Blob, fileName: string) {
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
-}
-
-type Changes = { edited: number; added: number; removed: number }
-
-// "Your 2 edited, 1 added and 1 removed items are kept.", or null for none (CP-32).
-function changesKept({ edited, added, removed }: Changes) {
-  const parts = [
-    edited && `${edited} edited`,
-    added && `${added} added`,
-    removed && `${removed} removed`,
-  ].filter(Boolean) as string[]
-  if (!parts.length) return null
-  const total = edited + added + removed
-  const list =
-    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
-  return `Your ${list} ${total === 1 ? 'item is' : 'items are'} kept.`
-}
-
-// What regenerating an answered or customised checklist did to its answers
-// (CP-31) and the engineer's changes (CP-32), until dismissed: that they were
-// all kept; or how many answers were not, with the items as they were worded,
-// folded away, since the new items that may replace them are highlighted in
-// the checklist below. Nothing is said of a checklist with neither.
-function Regenerated({
-  lost,
-  replacing,
-  changes,
-  onDismiss,
-}: {
-  lost: string[]
-  // How many new items may replace them, highlighted below.
-  replacing: number
-  changes: Changes | null
-  onDismiss: () => void
-}) {
-  const dismiss = (
-    <Button variant="link" size="sm" onClick={onDismiss}>
-      Dismiss
-    </Button>
-  )
-  const kept = changes && changesKept(changes)
-  if (lost.length === 0) {
-    return (
-      <Callout tone="success" title="Checklist regenerated">
-        {[kept, 'All your answers are kept.'].filter(Boolean).join(' ')}
-        <div style={{ marginTop: 'var(--space-3)' }}>{dismiss}</div>
-      </Callout>
-    )
-  }
-  const one = lost.length === 1
-  const highlighted =
-    replacing === 0
-      ? ''
-      : `${replacing === 1 ? 'An item that' : 'Items that'} may replace ${one ? 'it' : 'them'} ${replacing === 1 ? 'is' : 'are'} tinted below. `
-  return (
-    <Callout
-      tone="warning"
-      title={`Checklist regenerated: ${plural(lost.length, 'answer')} ${one ? 'was' : 'were'} not kept`}
-    >
-      {one ? 'This item was' : 'These items were'} reworded, so{' '}
-      {one ? 'its answer' : 'their answers'} did not carry over. {highlighted}What you recorded is
-      still in Observations.{kept && ` ${kept}`}
-      {/* For an item removed rather than reworded, which nothing below shows. */}
-      <details style={{ margin: 'var(--space-3) 0' }}>
-        <summary style={{ cursor: 'pointer' }}>Show the earlier wording ({lost.length})</summary>
-        <ul style={{ margin: 'var(--space-3) 0 0', paddingLeft: 'var(--space-6)' }}>
-          {lost.map((text, i) => (
-            <li key={i + text}>{text}</li>
-          ))}
-        </ul>
-      </details>
-      {dismiss}
-    </Callout>
-  )
 }
 
 // The assessment's Checklist tab: the standards that apply to the site, ticked
@@ -139,14 +64,19 @@ export function Checklist({
 
   if (loadError) {
     return (
-      <div style={{ padding: '24px' }}>
+      <div className="ck-page">
         <Callout tone="danger" title="The checklist could not be loaded">
           {loadError}
         </Callout>
       </div>
     )
   }
-  if (!view) return <p style={{ ...muted, padding: '24px' }}>Loading the checklist…</p>
+  if (!view)
+    return (
+      <div className="ck-page" aria-busy="true">
+        <p className="cl-note">Loading the checklist…</p>
+      </div>
+    )
 
   const answered = view.checklist?.items.filter((i) => i.check) ?? []
   // The engineer's own changes (CP-32), kept when it is generated again.
@@ -197,50 +127,29 @@ export function Checklist({
   // Before any checklist, and when Regenerate is pressed, the engineer builds one.
   const building = canGenerate && (!view.checklist || rebuilding)
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-6)',
-        padding: 'var(--space-8)',
-        maxWidth: '760px',
-      }}
-    >
+    <div className="ck-page">
       {!building && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 'var(--space-5)',
-          }}
-        >
-          <h2
-            style={{
-              ...heading,
-              fontSize: 'var(--text-h2-size)',
-              fontWeight: 'var(--weight-bold)',
-              color: 'var(--marsh-navy)',
-              flex: '1 1 360px',
-            }}
-          >
-            Pre-survey checklist
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        <div className="cl-top">
+          <div className="cl-top-title">
+            <h2 className="cl-title">Pre-survey checklist</h2>
+            {/* Only the date: the model, standards count and version are not the reader's concern. */}
+            {generated && <p className="cl-meta">Generated {formatDay(generated)}</p>}
+          </div>
+          <div className="cl-top-actions">
             {view.checklist && (
               <IconButton
                 icon="download"
                 label="Download checklist PDF"
                 tooltip="Download PDF"
-                variant="outline"
+                className="ds-icon-button--shaded"
+                style={{ borderRadius: 'var(--radius-pill)' }}
                 data-walk="checklist.download"
                 disabled={downloading}
                 onClick={() => void downloadPdf()}
               />
             )}
             {canGenerate && view.checklist && (
-              <Button variant="secondary" iconLeft="sparkles" onClick={() => setRebuilding(true)}>
+              <Button variant="pill" iconLeft="sparkles" onClick={() => setRebuilding(true)}>
                 Regenerate checklist
               </Button>
             )}
@@ -249,7 +158,7 @@ export function Checklist({
         </div>
       )}
       {regenerated && (
-        <Regenerated
+        <ChecklistRegenerated
           lost={regenerated.lost}
           replacing={regenerated.replacing.size}
           changes={regenerated.changes}
@@ -274,34 +183,25 @@ export function Checklist({
           onGenerate={(choice) => void generate(choice)}
           onCancel={view.checklist ? () => setRebuilding(false) : undefined}
         />
-      ) : view.checklist && generated ? (
-        <>
-          <p style={caption}>
-            Generated {formatDay(generated)}{' '}
-            {generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ·{' '}
-            {view.checklist.provenance.model ?? 'no model called'} ·{' '}
-            {plural(view.checklist.standards.length, 'standard')} ·{' '}
-            {view.checklist.provenance.checklist_version}
-          </p>
-          <ChecklistItems
-            key={view.checklist.id}
-            reference={reference}
-            view={{ ...view, checklist: view.checklist }}
-            setView={setView}
-            reload={reload}
-            answering={answering}
-            customising={canGenerate}
-            openArea={area}
-            openItem={item}
-            highlight={regenerated?.replacing}
-            regenerateHint={
-              canGenerate
-                ? 'Regenerate it for the site as it is now.'
-                : "The assessment's assigned engineer can regenerate it."
-            }
-            onViewObservation={onViewObservation}
-          />
-        </>
+      ) : view.checklist ? (
+        <ChecklistItems
+          key={view.checklist.id}
+          reference={reference}
+          view={{ ...view, checklist: view.checklist }}
+          setView={setView}
+          reload={reload}
+          answering={answering}
+          customising={canGenerate}
+          openArea={area}
+          openItem={item}
+          highlight={regenerated?.replacing}
+          regenerateHint={
+            canGenerate
+              ? 'Regenerate it for the site as it is now.'
+              : "The assessment's assigned engineer can regenerate it."
+          }
+          onViewObservation={onViewObservation}
+        />
       ) : (
         <EmptyState
           icon="list-checks"

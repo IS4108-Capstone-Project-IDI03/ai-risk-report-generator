@@ -12,7 +12,7 @@
   box-sizing: border-box;
   background: var(--surface-card);
   border: 1px solid var(--graphite-200);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   box-shadow: 0 2px 8px rgb(0 15 71 / 0.05);
 }
 .mbt-card[data-wide] {
@@ -65,7 +65,7 @@
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .mbt-row:last-child {
-  border-radius: 0 0 17px 17px;
+  border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
 }
 .mbt-row[data-link] {
   cursor: pointer;
@@ -82,7 +82,7 @@
 .mbt-tile {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--radius-tile);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,7 +178,7 @@
 .mbt .mbt-open {
   width: var(--mbt-arrow, 32px) !important;
   height: var(--mbt-arrow, 32px) !important;
-  border-radius: 999px !important;
+  border-radius: var(--radius-pill) !important;
   background: var(--graphite-100) !important;
   color: var(--marsh-navy) !important;
 }
@@ -205,7 +205,7 @@
   border-top: 1px solid var(--mbt-line);
 }
 .mbt-ticks:last-child {
-  border-radius: 0 0 17px 17px;
+  border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
 }
 .mbt-ticks li {
   margin: -1px 0 0 -1px;
@@ -282,11 +282,11 @@
 .mbt-segs i {
   flex: 1;
   min-width: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--graphite-200);
 }
 .mbt-segs[data-fill] {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--graphite-200);
 }
 .mbt-segs[data-fill] i {
@@ -529,7 +529,7 @@
   align-items: center;
   padding: 0 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: none;
   font: inherit;
   text-align: left;
@@ -660,7 +660,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px;
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   background: var(--graphite-50);
 }
 .mbt-lane h4 {
@@ -698,7 +698,7 @@
   height: 20px;
   padding: 0 7px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
   font-size: var(--mbt-size);
   line-height: var(--mbt-leading);
@@ -736,7 +736,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid var(--graphite-100);
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .mbt-lane[data-state='wait'] .mbt-lane-card {
@@ -804,7 +804,7 @@
 /* The bar: its fill is the stage's share of the longest stage. */
 .mbt-time-bar {
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   background: var(--graphite-200);
 }
@@ -838,7 +838,7 @@
 }
 .mbt-time-days em {
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ink-50);
   color: var(--marsh-navy);
   font-size: var(--mbt-size);

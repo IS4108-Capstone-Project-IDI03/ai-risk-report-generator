@@ -1,16 +1,24 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Button, Callout, Dialog, IconButton, Select, Textarea } from '../../../design-system'
+import { Button, Callout, Dialog, Icon, IconButton, Select, Textarea } from '../../../design-system'
 import { GatewayError, type ChecklistItem, type SiteLocation } from '../api'
 import { categoryLabel } from '../categories'
 import { DictateButton } from '../dictation/DictateButton'
 import { locationLabel } from '../locations'
 import { SeverityPicker } from './SeverityPicker'
+import '../checklist.css'
 
 const caption: CSSProperties = {
   margin: 0,
   fontSize: 'var(--text-caption-size)',
   color: 'var(--text-secondary)',
+}
+// The field-label look (12 / 600), so "Checklist expects" reads like "What you saw" below it.
+const label: CSSProperties = {
+  margin: 0,
+  fontSize: '12px',
+  fontWeight: 600,
+  color: 'var(--graphite-700)',
 }
 
 // Where an answer's observation is saved (CP-31): on site, the location capture
@@ -80,16 +88,22 @@ export function AnswerDialog({
   return (
     <Dialog
       className="ds-dialog-sheet"
-      title={kind === 'confirm' ? 'Confirm' : 'Record a difference'}
+      title={kind === 'confirm' ? 'Confirm what you saw' : 'Record a difference'}
       description={'Saved as an observation under ' + categoryLabel(item.COPE_dimension) + '.'}
       width={520}
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
+          <Button variant="secondary" pill onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button variant="primary" iconLeft="check" loading={saving} onClick={() => void save()}>
+          <Button
+            variant="primary"
+            pill
+            iconLeft="check"
+            loading={saving}
+            onClick={() => void save()}
+          >
             Save observation
           </Button>
         </>
@@ -97,13 +111,14 @@ export function AnswerDialog({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
         <div>
-          <p style={caption}>Checklist expects</p>
+          <p style={label}>Checklist expects</p>
           <p
             style={{
               margin: 'var(--space-2) 0 0',
               paddingLeft: 'var(--space-4)',
-              borderLeft: '2px solid var(--border-default)',
-              fontSize: 'var(--text-small-size)',
+              borderLeft: '2px solid var(--border-strong)',
+              fontSize: 'var(--text-body-size)',
+              color: 'var(--text-secondary)',
             }}
           >
             {item.text}
@@ -141,17 +156,8 @@ export function AnswerDialog({
           place.location && <p style={caption}>At {locationLabel(place.location)}</p>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <label
-            style={{
-              alignSelf: 'flex-start',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              fontSize: 'var(--text-small-size)',
-              color: 'var(--text-link)',
-              cursor: 'pointer',
-            }}
-          >
+          {/* A secondary pill around the hidden file input, so the whole pill opens the picker. */}
+          <label className="cl-photo-btn">
             <input
               type="file"
               accept="image/jpeg,image/png"
@@ -164,6 +170,7 @@ export function AnswerDialog({
                 event.target.value = ''
               }}
             />
+            <Icon name="image-plus" size={16} />
             Add photo
           </label>
           {photos.map((photo, index) => (

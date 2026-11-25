@@ -128,7 +128,7 @@
   height: 26px;
   padding: 0 9px 0 8px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -146,7 +146,7 @@
   height: auto;
   min-height: 26px;
   padding-block: 4px;
-  border-radius: 13px;
+  border-radius: var(--radius-popover);
   line-height: 18px;
   white-space: normal;
   /* Two even lines ("10 sections / to do"), never one word left alone. */
@@ -229,7 +229,7 @@
   align-content: center;
   align-items: center;
   padding: 6px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-field);
   transition: background-color var(--duration-base) var(--ease-out);
 }
 .mb-stage[data-state='now'] .mb-stage-band {
@@ -288,7 +288,7 @@
   gap: 5px;
   margin: 0 -6px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
@@ -363,7 +363,7 @@
 .mb-glance-tile {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--radius-tile);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -406,7 +406,7 @@
   margin-top: auto;
   padding: 8px;
   border: 1px solid var(--graphite-200);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface-card);
   box-shadow: 0 1px 2px rgb(0 15 71 / 0.05);
   font: inherit;
@@ -420,7 +420,7 @@
 .mb-client .client-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--radius-tile);
   font-size: 11px;
 }
 .mb-client-text {
@@ -527,7 +527,7 @@
   gap: 10px;
   padding: 12px 16px;
   border: 1px solid var(--graphite-200);
-  border-radius: 6px 18px 18px 18px;
+  border-radius: var(--radius-md) var(--radius-card) var(--radius-card) var(--radius-card);
   background: var(--surface-card);
   font-size: 13px;
   font-weight: 500;
@@ -624,7 +624,7 @@
 .mb-phonebar-segs i {
   flex: 1;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--graphite-200);
 }
 .mb-phonebar-segs i[data-state='done'] {
@@ -724,7 +724,7 @@
 .mb-details-client .client-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: var(--radius-field);
   font-size: 14px;
 }
 .mb-details-name {

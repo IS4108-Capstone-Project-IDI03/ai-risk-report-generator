@@ -29,12 +29,16 @@ export function ChecklistBody({ v }: { v: AssessmentWorkflow }) {
     )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <p style={caption}>
-        The checklist is built on the Checklist tab.{' '}
-        <Button variant="link" size="sm" onClick={v.goToChecklistTab}>
-          Rebuild it
-        </Button>
-      </p>
+      {/* Building and regenerating stay on the tab; this is the way there. */}
+      <Button
+        variant="link"
+        size="sm"
+        iconRight="arrow-right"
+        style={{ alignSelf: 'flex-start' }}
+        onClick={v.goToChecklistTab}
+      >
+        Rebuild it on the Checklist tab
+      </Button>
       <ChecklistItems
         key={view.checklist.id}
         reference={reference}

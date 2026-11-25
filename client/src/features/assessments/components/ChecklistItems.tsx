@@ -3,7 +3,7 @@
 // the phone sheet. Called by screens/Checklist.tsx and ChecklistSheet.tsx. Calls the mark, edit,
 // remove and add endpoints in api.ts; an observation for a difference goes through AnswerDialog.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import { toast } from '../../../design-system'
+import { Icon, toast } from '../../../design-system'
 import {
   GatewayError,
   editChecklistItem,
@@ -332,8 +332,14 @@ export function ChecklistItems({
               ))}
             </ul>
             {more > 0 && (
-              <button type="button" className="cl-link" onClick={toggle}>
+              <button
+                type="button"
+                className="cl-show-more"
+                aria-expanded={expanded}
+                onClick={toggle}
+              >
                 {expanded ? 'Show less' : `Show ${more} more`}
+                <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
               </button>
             )}
           </section>

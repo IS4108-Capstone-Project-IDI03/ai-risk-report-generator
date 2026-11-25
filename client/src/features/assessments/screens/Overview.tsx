@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type * as React from 'react'
-import { Button, Icon } from '../../../design-system'
+import { Icon, IconAction } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { SiteMapCard } from '../components/SiteMapCard'
@@ -43,30 +43,31 @@ export function Overview({
   )
 }
 
+// v2 cards: white, 1 px border, radius 16, no shadow (only floating things have one).
 const card: React.CSSProperties = {
   background: 'var(--surface-card)',
   border: '1px solid var(--border-default)',
-  borderRadius: '8px',
-  boxShadow: 'var(--shadow-sm)',
+  borderRadius: 'var(--radius-card)',
 }
+// A card's title line: 16 / 700 navy, its one action an icon at the right.
 const cardHead: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '12px',
-  padding: '14px 20px',
+  minHeight: '52px',
+  padding: '10px 12px 10px 20px',
+  boxSizing: 'border-box',
   borderBottom: '1px solid var(--border-subtle)',
-  background: 'var(--surface-sunken)',
-  fontSize: '19px',
-  lineHeight: '28px',
-  fontWeight: '600',
-  color: 'var(--text-primary)',
+  fontSize: '16px',
+  lineHeight: '22px',
+  fontWeight: '700',
+  color: 'var(--marsh-navy)',
 }
 // A sample assessment has no report on the server to count from.
 const NOT_AVAILABLE: BoxContent = {
   value: '—',
-  unit: 'not available',
-  note: 'Needs the assessment on the server',
+  note: 'Shows once the assessment is saved',
 }
 
 const unit = (n: number, word: string) => word + (n === 1 ? '' : 's')
@@ -77,8 +78,8 @@ type Fact = AssessmentWorkflow['ovSiteFacts'][number]
 // page (CP-18), reads as a link.
 function Facts({ facts }: { facts: Fact[] }) {
   return (
-    <div style={{ padding: '6px 20px 14px' }}>
-      {facts.map((ff) => (
+    <div style={{ padding: '4px 20px 12px' }}>
+      {facts.map((ff, i) => (
         <div
           key={ff.label}
           style={{
@@ -86,14 +87,15 @@ function Facts({ facts }: { facts: Fact[] }) {
             alignItems: 'baseline',
             gap: '16px',
             padding: '10px 0',
-            borderBottom: '1px solid var(--border-subtle)',
+            // Hairlines between rows only: the card's title line already has one above.
+            borderTop: i ? '1px solid var(--border-subtle)' : 'none',
           }}
         >
           <span
             style={{
               flex: '0 0 auto',
-              width: '150px',
-              fontSize: '14px',
+              width: 'min(140px, 38%)',
+              fontSize: '13px',
               color: 'var(--text-muted)',
             }}
           >
@@ -103,8 +105,8 @@ function Facts({ facts }: { facts: Fact[] }) {
             style={{
               flex: '1',
               minWidth: '0',
-              fontSize: '15px',
-              lineHeight: '22px',
+              fontSize: '14px',
+              lineHeight: '20px',
               color: 'var(--text-body)',
               textWrap: 'pretty',
             }}
@@ -132,7 +134,8 @@ function OverviewLayout({ v }: { v: AssessmentWorkflow }) {
     <>
       <div
         style={{
-          padding: '24px clamp(16px,2vw,28px) 40px',
+          // The page gutter, down to 16 px on a phone.
+          padding: '24px clamp(16px, 4vw, var(--page-gutter)) 40px',
           animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
         }}
       >
@@ -175,14 +178,7 @@ function OverviewLayout({ v }: { v: AssessmentWorkflow }) {
                 <div style={cardHead}>
                   {'Site'}
                   {edit?.site.allowed && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconLeft="pencil"
-                      onClick={() => setDialog('site')}
-                    >
-                      {'Edit site'}
-                    </Button>
+                    <IconAction icon="pencil" label="Edit site" onClick={() => setDialog('site')} />
                   )}
                 </div>
                 <Facts facts={v.ovSiteFacts} />
@@ -209,14 +205,11 @@ function OverviewLayout({ v }: { v: AssessmentWorkflow }) {
                 <div style={cardHead}>
                   {'Assessment record'}
                   {edit && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconLeft="pencil"
+                    <IconAction
+                      icon="pencil"
+                      label="Edit details"
                       onClick={() => setDialog('details')}
-                    >
-                      {'Edit details'}
-                    </Button>
+                    />
                   )}
                 </div>
                 <Facts facts={v.ovRecordFacts} />
@@ -259,8 +252,15 @@ function ReportSections() {
   return (
     <div style={{ ...card, overflow: 'hidden' }}>
       <div style={cardHead}>{'Report sections'}</div>
-      <p style={{ margin: 0, padding: '14px 20px', fontSize: '15px', color: 'var(--text-muted)' }}>
-        {'The report sections show here once this assessment is saved on the server.'}
+      <p
+        style={{
+          margin: 0,
+          padding: '14px 20px 16px',
+          fontSize: '14px',
+          color: 'var(--text-muted)',
+        }}
+      >
+        {'Report sections show here once the assessment is saved.'}
       </p>
     </div>
   )
