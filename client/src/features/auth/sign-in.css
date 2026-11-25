@@ -58,42 +58,15 @@
   color: var(--text-secondary);
   text-wrap: pretty;
 }
-.sign-in-tabs {
-  display: flex;
-  justify-content: center;
-}
 .sign-in-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.sign-in-form > button:first-child {
-  font-size: 15px !important;
-  white-space: normal !important;
-  height: auto !important;
-  min-height: var(--control-height-lg);
-  padding-block: 10px !important;
-}
-.sign-in-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 4px 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.sign-in-divider span {
-  flex: 1;
-  height: 1px;
-  background: var(--border-default);
-}
 .sign-in-options {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
 }
