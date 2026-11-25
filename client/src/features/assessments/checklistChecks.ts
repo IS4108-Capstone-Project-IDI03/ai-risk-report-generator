@@ -37,18 +37,12 @@ export function needLabel(need: number) {
     : `Needs ${need} more observation${need === 1 ? '' : 's'} to draft`
 }
 
-// An item's name in a list: a template subsection by its heading.
-export function itemTitle(item: ChecklistItem) {
-  return item.origin === 'template' && item.subsection ? item.subsection : item.text
-}
-
-// A template item's own wording under its heading, and the fields it covers.
-export function itemDetail(item: ChecklistItem) {
-  if (item.origin !== 'template') return null
-  const detail = item.text === item.subsection ? '' : item.text
-  const fields = item.fields.length ? `Covers: ${item.fields.join(', ')}.` : ''
-  return [detail, fields].filter(Boolean).join(' ') || null
-}
+// A question's length rule (CP-37): about 20 words; over 25 is refused.
+export const WORDS_TARGET = 20
+export const WORDS_MAX = 25
+export const WORDS_MESSAGE = 'Keep it to about 20 words.'
+/** Returns how many words the text has. */
+export const wordCount = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
 // The checklist's shared look, on the tab and on site.
 export const card = {

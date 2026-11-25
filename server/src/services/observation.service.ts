@@ -221,6 +221,14 @@ export type ObservationDetails = z.infer<typeof newObservationSchema>
 // suggestion's not-sure mark clears, even for the same value. `confirm` keeps
 // the values named as they are and clears their marks. null empties severity.
 export const observationChangesSchema = z.object({
+  // The checklist item this observation answers (CP-37): link it, or null to unlink.
+  checklistItem: z
+    .object({
+      itemId: z.string().refine(isValidObjectId, 'Choose an item on the checklist.'),
+      result: z.enum(CHECK_RESULTS, 'Answer the item as confirmed or differs.'),
+    })
+    .nullable()
+    .optional(),
   // null clears the tags (back to Fact).
   kinds: kindsField.nullable().optional(),
   // null or [] clears the labels.
@@ -729,6 +737,8 @@ export async function checkingObservations(assessment: Types.ObjectId) {
 async function checklistLink(
   assessment: Types.ObjectId,
   input: NonNullable<ObservationDetails['checklistItem']>,
+  // The observation being re-linked, which does not count as "another" one checking the item.
+  except?: Types.ObjectId,
 ): Promise<IChecklistLink> {
   const checklist = await ChecklistModel.findOne({ assessment })
     .sort({ createdAt: -1, _id: -1 })
@@ -749,6 +759,7 @@ async function checklistLink(
     assessment,
     'checklistItem.item': { $in: [item._id, ...(item.carried ?? [])] },
     deleted: { $exists: false },
+    ...(except && { _id: { $ne: except } }),
   })
   if (checked) {
     throw new ChecklistItemError(
@@ -949,6 +960,10 @@ export async function updateObservation(
     set.location = changes.locationId
   change('standard', o.standard, changes.standard)
   change('note', o.note, changes.note)
+  if (changes.checklistItem === null) unset.checklistItem = 1
+  else if (changes.checklistItem) {
+    set.checklistItem = await checklistLink(o.assessment, changes.checklistItem, o._id)
+  }
   if (changes.kinds === null) unset.kinds = 1
   else if (changes.kinds) set.kinds = changes.kinds
   if (changes.labels !== undefined) {

@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.generation.checklist import (
+    _VERBS,
     CHECKLIST,
     ChecklistDraft,
     Citation,
@@ -11,6 +12,7 @@ from app.generation.checklist import (
     hazards_for,
     named_standard,
     template_items,
+    verb_led,
 )
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
@@ -61,27 +63,33 @@ def generate(
     facility_type="Distribution warehouse",
     standards=(NFPA13,),
     found=(RACKS, ROOF),
+    past=(),
+    past_items=(),
+    past_report_ids=None,
 ):
     searches, prompts = [], []
 
-    def search(requests):
+    # A past-report search (CP-37) finds `past`; every other search finds `found`.
+    def search(requests, protection=None, restore=True):
         searches.extend(requests)
-        return [list(found) for _ in requests]
+        return [
+            list(past if f.get("source_type") == "marsh_report" else found) for _, f, _ in requests
+        ]
 
     def complete(system, user, schema, effort):
         prompts.append((system, user, effort))
-        return ChecklistDraft(items=items), "claude-opus-5-5"
+        return ChecklistDraft(items=items, past_report_items=list(past_items)), "claude-opus-5-5"
+
+    monkeypatch.setattr(
+        "app.orchestrator.orchestrator.report_titles", lambda ids: {i: f"Report {i}" for i in ids}
+    )
 
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search)
     monkeypatch.setattr("app.generation.checklist.complete", complete)
-    response = client.post(
-        "/checklist/draft",
-        json={
-            "facility_type": facility_type,
-            "jurisdiction": "SG",
-            "standards": list(standards),
-        },
-    )
+    body = {"facility_type": facility_type, "jurisdiction": "SG", "standards": list(standards)}
+    if past_report_ids is not None:
+        body["past_report_ids"] = past_report_ids
+    response = client.post("/checklist/draft", json=body)
     return response, searches, prompts
 
 
@@ -98,7 +106,7 @@ def test_every_template_subsection_but_comments_is_an_item():
     assert all(i["origin"] == "template" and not i["citations"] for i in made)
     # Construction covers walls, roof and frame.
     narrative = next(i for i in made if i["subsection"] == "Construction Narrative")
-    assert all(word in narrative["text"] for word in ("Walls", "roof", "frame"))
+    assert all(word in narrative["text"] for word in ("walls", "roof", "frame"))
     # A subsection with fields lists them.
     power = next(i for i in made if i["subsection"] == "Power")
     assert "Site Feed" in power["fields"]
@@ -147,7 +155,7 @@ def test_a_warehouse_checklist_covers_its_hazards_with_cited_items(monkeypatch):
     # AC9: provenance names the model, prompt and hazard list.
     provenance = body["provenance"]
     assert provenance["model"] == "claude-opus-5-5"
-    assert provenance["prompt_version"].startswith("cp30")
+    assert provenance["prompt_version"] == "cp37-v3"
     assert provenance["checklist_version"] == CHECKLIST["version"]
     assert provenance["effort"] == prompts[0][2] == "medium"
     assert isinstance(body["usage"], list)
@@ -204,14 +212,18 @@ def test_warehouse_and_office_checklists_cover_only_their_own_hazards(monkeypatc
 def test_only_the_standards_in_scope_are_searched(monkeypatch):
     # AC2: an unticked standard is never searched, so no item can cite it.
     _, searches, _ = generate(monkeypatch, [], standards=(NFPA13, SS575))
-    assert all(set(filters["doc_id"]) <= {"nfpa13", "ss575"} for _, filters, _ in searches)
+    assert all(
+        set(filters["doc_id"]) <= {"nfpa13", "ss575"}
+        for _, filters, _ in searches
+        if "doc_id" in filters
+    )
 
 
 def test_a_hazard_is_searched_within_its_own_standards_when_they_are_in_scope(monkeypatch):
     # AC7: racks are checked against NFPA 13, so only NFPA 13 is searched for them; the
     # roof's FM 1-57 is not in scope, so it is searched across every standard in scope.
     response, searches, _ = generate(monkeypatch, [], standards=(NFPA13, SS575))
-    by_query = {query: filters["doc_id"] for query, filters, _ in searches}
+    by_query = {query: f["doc_id"] for query, f, _ in searches if "doc_id" in f}
     assert by_query[
         "Distribution warehouse: " + hazards_for("Distribution warehouse")[0]["search"]
     ] == ["nfpa13"]
@@ -262,7 +274,8 @@ def test_with_no_standards_in_scope_nothing_is_searched_or_generated(monkeypatch
     # AC10: template and hazard items only, with no paid call.
     response, searches, prompts = generate(monkeypatch, [item()], standards=())
     body = response.json()
-    assert not searches and not prompts
+    assert not [r for r in searches if r[1].get("source_type") != "marsh_report"]
+    assert not prompts
     assert body["provenance"]["model"] is None
     assert {i["origin"] for i in body["items"]} == {"template", "hazard_list"}
     assert body["sources"] == {}
@@ -291,7 +304,7 @@ def test_a_model_failure_is_a_502_with_its_reason(monkeypatch):
     def complete(system, user, schema, effort):
         raise GenerationFailed("The language model could not be reached.")
 
-    monkeypatch.setattr("app.orchestrator.orchestrator.search", lambda r: [[RACKS] for _ in r])
+    monkeypatch.setattr("app.orchestrator.orchestrator.search", lambda r, **_: [[RACKS] for _ in r])
     monkeypatch.setattr("app.generation.checklist.complete", complete)
     response = client.post(
         "/checklist/draft",
@@ -343,7 +356,7 @@ def test_each_area_and_hazard_keeps_its_own_passages_and_the_model_is_told_which
 
 def test_a_passage_found_by_several_searches_is_offered_under_the_nearest_only(monkeypatch):
     # Offered under two areas, the model wrote the same requirement in both (cp30-v3).
-    def search(requests):
+    def search(requests, **_):
         # Racks is nearest to the Fire Protection (9) search, further from every other area's;
         # no hazard's search finds it.
         hazard_queries = {f"Office: {h['search']}" for h in hazards_for("Office")}
@@ -358,7 +371,7 @@ def test_a_passage_found_by_several_searches_is_offered_under_the_nearest_only(m
 
     def complete(system, user, schema, effort):
         prompts.append(user)
-        return ChecklistDraft(items=[]), "claude-opus-5-5"
+        return ChecklistDraft(items=[], past_report_items=[]), "claude-opus-5-5"
 
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search)
     monkeypatch.setattr("app.generation.checklist.complete", complete)
@@ -405,7 +418,7 @@ def test_a_hazard_keeps_a_passage_its_search_found_even_if_an_area_found_it_near
     # AC7: the hazard is checked against its own standards first, so it wins the passage.
     racks_query = "Distribution warehouse: " + hazards_for("Distribution warehouse")[0]["search"]
 
-    def search(requests):
+    def search(requests, **_):
         return [
             [{**RACKS, "distance": 0.4}]
             if query == racks_query
@@ -419,7 +432,7 @@ def test_a_hazard_keeps_a_passage_its_search_found_even_if_an_area_found_it_near
 
     def complete(system, user, schema, effort):
         prompts.append(user)
-        return ChecklistDraft(items=[]), "claude-opus-5-5"
+        return ChecklistDraft(items=[], past_report_items=[]), "claude-opus-5-5"
 
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search)
     monkeypatch.setattr("app.generation.checklist.complete", complete)
@@ -440,7 +453,7 @@ def test_each_area_is_searched_and_described_by_what_it_covers_not_its_title(mon
     # and the model filed items like idle pallet storage there (cp30-v4).
     searches = []
 
-    def search(requests):
+    def search(requests, **_):
         searches.extend(requests)
         return [[RACKS] for _ in requests]
 
@@ -448,7 +461,7 @@ def test_each_area_is_searched_and_described_by_what_it_covers_not_its_title(mon
 
     def complete(system, user, schema, effort):
         prompts.append((system, user))
-        return ChecklistDraft(items=[]), "claude-opus-5-5"
+        return ChecklistDraft(items=[], past_report_items=[]), "claude-opus-5-5"
 
     monkeypatch.setattr("app.orchestrator.orchestrator.search", search)
     monkeypatch.setattr("app.generation.checklist.complete", complete)
@@ -477,7 +490,7 @@ def test_a_heading_too_long_to_be_one_is_not_shown_to_the_model(monkeypatch):
     story = "3.2.2 Loss Examples. " + "The plant's hot work permit system was not followed. " * 5
     monkeypatch.setattr(
         "app.orchestrator.orchestrator.search",
-        lambda requests: [
+        lambda requests, **_: [
             [{**RACKS, "metadata": {**RACKS["metadata"], "headings": ["Rack Storage", story]}}]
             for _ in requests
         ],
@@ -486,7 +499,7 @@ def test_a_heading_too_long_to_be_one_is_not_shown_to_the_model(monkeypatch):
 
     def complete(system, user, schema, effort):
         prompts.append((system, user))
-        return ChecklistDraft(items=[]), "claude-opus-5-5"
+        return ChecklistDraft(items=[], past_report_items=[]), "claude-opus-5-5"
 
     monkeypatch.setattr("app.generation.checklist.complete", complete)
     client.post(
@@ -498,3 +511,99 @@ def test_a_heading_too_long_to_be_one_is_not_shown_to_the_model(monkeypatch):
     assert "hot work permit" not in user
     # Nor is a story of a past fire a requirement to check (cp30-v5).
     assert "Never base an item on one." in system
+
+
+def test_every_template_item_is_a_short_verb_led_check():
+    made = template_items()
+    assert all(i["text"].split()[0].lower() in _VERBS for i in made)
+    assert all(len(i["text"].split()) <= 20 for i in made)
+
+
+def test_a_noun_phrase_item_gets_a_verb_and_a_long_one_is_shortened(monkeypatch):
+    long = (
+        "Check the sprinkler, pump and water supply arrangements across every building on the "
+        "site and note whether each of them has been tested, serviced and signed off by a "
+        "competent person in the last twelve months."
+    )
+    response, _, _ = generate(
+        monkeypatch,
+        [item(text="CCTV coverage"), item(hazard="idle_pallets", text=long)],
+    )
+    texts = [i["text"] for i in response.json()["items"] if i["origin"] == "hazard"]
+    assert "Check CCTV coverage" in texts
+    assert all(len(t.split()) <= 20 for t in texts)
+    assert verb_led("Management programmes in place") == "Check management programmes in place"
+
+
+def test_the_prompt_asks_for_short_verb_led_items():
+    from app.generation.checklist import CHECKLIST_PROMPT_VERSION, SYSTEM_PROMPT
+
+    assert CHECKLIST_PROMPT_VERSION == "cp37-v3"
+    assert "at most 20 words" in SYSTEM_PROMPT and "starts with a verb" in SYSTEM_PROMPT
+    # Past-report items are checks too, never questions (v3).
+    assert '"Check whether ..."' in SYSTEM_PROMPT
+
+
+def test_a_past_report_item_always_starts_with_check():
+    from app.generation.checklist import check_led
+
+    assert check_led("Check whether fire doors are kept shut.") == (
+        "Check whether fire doors are kept shut."
+    )
+    # A question the model still wrote becomes a check, keeping its acronyms.
+    assert check_led("Are the fire doors kept shut?") == "Check: are the fire doors kept shut?"
+    assert check_led("Is CCTV recorded?") == "Check: is CCTV recorded?"
+    # Another verb is led by Check too, and a long one is still cut to about 20 words.
+    assert (
+        check_led("Confirm the pump is tested weekly.")
+        == "Check: confirm the pump is tested weekly."
+    )
+    assert len(check_led("Is " + "the sprinkler and pump " * 10 + "tested?").split()) <= 20
+
+
+def test_a_long_past_report_question_keeps_its_words():
+    from app.generation.checklist import check_led
+
+    long = (
+        "Are the fire doors on every floor of the warehouse kept shut and free of wedges "
+        "during working hours and checked by security at night?"
+    )
+    made = check_led(long)
+    assert made.startswith("Check: are the fire doors on every floor")
+    assert len(made.split()) <= 20
+    # Still a question once shortened.
+    assert made.endswith("?")
+
+
+def test_shortening_never_cuts_at_an_abbreviation():
+    made = verb_led(
+        "Check the sprinkler system type (e.g. wet pipe or dry pipe) in each storage building "
+        "and whether the design suits the stored goods"
+    )
+    assert "e.g. wet pipe" in made
+    assert len(made.split()) <= 20
+
+
+def test_a_proper_noun_keeps_its_capital():
+    from app.generation.checklist import check_led
+
+    assert verb_led("Singapore Civil Defence Force fire certificate") == (
+        "Check Singapore Civil Defence Force fire certificate"
+    )
+    assert check_led("Singapore Civil Defence Force approval is current?") == (
+        "Check: Singapore Civil Defence Force approval is current?"
+    )
+
+
+def test_a_comma_early_in_a_long_item_never_leaves_a_stub():
+    # Seen live 25 Nov: "Check that inspection, testing and maintenance ..." became
+    # "Check that inspection." A first clause under 8 words is not kept on its own.
+    from app.generation.checklist import verb_led
+
+    long = (
+        "Check that inspection, testing and maintenance of the sprinkler system follow the "
+        "schedule in the standard and that records are kept on site for review."
+    )
+    made = verb_led(long)
+    assert made.startswith("Check that inspection, testing and maintenance")
+    assert 8 <= len(made.split()) <= 20

@@ -292,7 +292,7 @@ export type ChecklistDraftResult = {
   items: {
     area: string
     subsection: string | null
-    origin: 'template' | 'standard' | 'hazard' | 'hazard_list'
+    origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'past_report'
     hazard: string | null
     text: string
     fields: string[]
@@ -304,6 +304,8 @@ export type ChecklistDraftResult = {
   areas: { id: string; title: string }[]
   hazards: { id: string; name: string; standards: string[]; in_scope: string[] }[]
   sources: Record<string, unknown>
+  // True when no past Marsh report matched the site type and country (CP-37).
+  no_past_reports?: boolean
   // One item per paid call (EV-03); saved by checklist.service.ts.
   usage?: unknown
   provenance: {

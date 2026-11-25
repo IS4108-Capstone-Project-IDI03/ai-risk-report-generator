@@ -310,7 +310,9 @@ def rerank(
     ]
 
 
-def search(requests: list[tuple[str, dict, int]], protection=None) -> list[list[dict]]:
+def search(
+    requests: list[tuple[str, dict, int]], protection=None, restore: bool = True
+) -> list[list[dict]]:
     """Run several searches with one Cohere call, for drafting a section.
 
     Each request is `(query, filters, k)` and gets its `k` nearest passages, nearest
@@ -319,7 +321,8 @@ def search(requests: list[tuple[str, dict, int]], protection=None) -> list[list[
     per subsection with `retrieve()` (embed and rerank each) would hit the limit on a
     large section, so callers rerank the combined hits once with `rerank()` (GN-01 AC14).
     `protection` is the request's privacy Session: past reports' values are added to what it
-    masks (PV-05, `past_reports.with_real_words`).
+    masks (PV-05, `past_reports.with_real_words`). `restore=False` leaves a past report's
+    passages masked, for a caller with no privacy session (the checklist, CP-37).
     """
     empty = [[] for _ in requests]
     if not requests:
@@ -371,5 +374,7 @@ def search(requests: list[tuple[str, dict, int]], protection=None) -> list[list[
                     for n in range(len(found["ids"][row]))
                 ]
     # Past reports are stored with tags; every request's passages get their words back at once.
+    if not restore:
+        return results
     restored = iter(with_real_words([p for found in results for p in found], protection))
     return [[next(restored) for _ in found] for found in results]

@@ -6,6 +6,7 @@ import { GatewayError } from '../assessments/api'
 import { Tip } from '../help/Tip'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
 import { getSettings, type Settings as SettingsData } from './api'
+import { ChecklistSection } from './screens/ChecklistSection'
 import { ChatVoiceSection } from './screens/ChatVoiceSection'
 import { ComingSoonSection } from './screens/ComingSoonSection'
 import { ModelsSection } from './screens/ModelsSection'
@@ -87,6 +88,12 @@ const ADMIN: Section[] = [
     render: needs((s, f, end) => <SourcePrioritySection settings={s} onSaved={f} titleEnd={end} />),
   },
   {
+    id: 'checklist',
+    icon: 'list-checks',
+    label: 'Checklist',
+    render: needs((s) => <ChecklistSection canEdit={s.canEditGlobal} />),
+  },
+  {
     id: 'privacy-words',
     icon: 'shield',
     label: 'Privacy Words',
@@ -95,10 +102,7 @@ const ADMIN: Section[] = [
   },
 ]
 // Built by teammates later; each shows who. Order here is the order in the menu.
-const SOON: Section[] = [
-  ['QA Eval', 'Chris', 'flask-conical'],
-  ['Checklist', 'Xuren', 'list-checks'],
-].map(([name, owner, icon]) => ({
+const SOON: Section[] = [['QA Eval', 'Chris', 'flask-conical']].map(([name, owner, icon]) => ({
   id: name,
   label: name,
   icon,

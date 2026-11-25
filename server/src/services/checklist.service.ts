@@ -25,7 +25,8 @@ import { checklistPdfHtml } from './checklist-pdf'
 import { clientNameOf } from './client.service'
 import { printPdf, withExportPage } from './export-render.service'
 import { exportDay } from './export.service'
-import { listApplicableStandards } from './knowledge-document.service'
+import { fixedItemsFor, WORDS_MESSAGE, withinWords } from './checklist-fixed.service'
+import { listApplicablePastReports, listApplicableStandards } from './knowledge-document.service'
 import { locationText } from './location.service'
 import { checkingObservations } from './observation.service'
 import { findPassage, requestChecklistDraft, searchPassages } from './rag.service'
@@ -37,6 +38,14 @@ export class UnknownStandardError extends Error {
   constructor() {
     super('One of the chosen standards no longer applies to this site. Reload and try again.')
     this.name = 'UnknownStandardError'
+  }
+}
+
+// A chosen past report that does not match the site, or does not exist.
+export class UnknownPastReportError extends Error {
+  constructor() {
+    super('One of the chosen past reports no longer applies to this site. Reload and try again.')
+    this.name = 'UnknownPastReportError'
   }
 }
 
@@ -90,7 +99,12 @@ const REMOVED = 'This item was removed from the checklist. Restore it first.'
 
 // An item's wording, and its COPE categories: one or more, stored in C-O-P-E
 // order without repeats, as an observation's are (CP-32).
-const itemText = z.string().trim().min(1, 'Write what to check.').max(1000)
+const itemText = z
+  .string()
+  .trim()
+  .min(1, 'Write what to check.')
+  .max(1000)
+  .refine(withinWords, WORDS_MESSAGE)
 const itemCategories = z
   .array(z.enum(COPE_DIMENSIONS))
   .min(1, 'Choose at least one category.')
@@ -98,13 +112,20 @@ const itemCategories = z
 
 // The body of POST .../checklist/items: an item the engineer adds (CP-32 AC1),
 // under a report section (and optionally one of its subsections) or a risk.
-export const addChecklistItemSchema = z.object({
-  area: z.string().min(1).max(40),
-  subsection: z.string().max(300).nullish(),
-  hazard: z.string().max(80).nullish(),
-  text: itemText,
-  COPE_dimension: itemCategories,
-})
+// Either an existing section (`area`) or a new one by name (`newSection`), never both; no category
+// is needed (the simple checklist has none).
+export const addChecklistItemSchema = z
+  .object({
+    area: z.string().min(1).max(40).optional(),
+    newSection: z.string().trim().min(1, 'Name the section.').max(60).optional(),
+    subsection: z.string().max(300).nullish(),
+    hazard: z.string().max(80).nullish(),
+    text: itemText,
+    COPE_dimension: itemCategories.optional(),
+  })
+  .refine((i) => (i.area === undefined) !== (i.newSection === undefined), {
+    message: 'Choose a section or name a new one.',
+  })
 
 // The body of PATCH .../checklist/items/:itemId: what the engineer changed
 // (CP-32 AC1-2). `citations` replaces the item's references: each a passage
@@ -122,10 +143,19 @@ export const editChecklistItemSchema = z
       )
       .max(10)
       .optional(),
+    // CP-37: mark or unmark the item important.
+    important: z.boolean().optional(),
   })
-  .refine((e) => e.text !== undefined || e.COPE_dimension !== undefined || e.citations, {
-    message: 'Send what to change.',
-  })
+  .refine(
+    (e) =>
+      e.text !== undefined ||
+      e.COPE_dimension !== undefined ||
+      e.citations ||
+      e.important !== undefined,
+    {
+      message: 'Send what to change.',
+    },
+  )
 
 // The query of GET .../checklist/passages: the words to look for.
 export const passageSearchSchema = z.object({ q: z.string().trim().min(1).max(500) })
@@ -133,6 +163,10 @@ export const passageSearchSchema = z.object({ q: z.string().trim().min(1).max(50
 export const generateChecklistSchema = z.object({
   // The standards kept ticked (AC2); none still gives template and hazard items (AC10).
   standardIds: z.array(z.string()).max(200),
+  // CP-37: the past Marsh reports to draw questions from (absent: every matching one; []: none)
+  // and whether to add the admin's fixed questions (absent: yes).
+  pastReportIds: z.array(z.string()).max(200).optional(),
+  includeDefaults: z.boolean().optional(),
 })
 
 export type StandardDto = {
@@ -148,6 +182,13 @@ export type StandardDto = {
 }
 
 type Checklist = IChecklist & { _id: Types.ObjectId }
+
+// CP-37: where fixed questions sit, and the note shown when no past Marsh report matched.
+const FIXED_AREA = { id: 'fixed', title: 'Always check' }
+// The id prefix of a section the engineer named themselves (CP-37).
+const CUSTOM_AREA = 'custom-'
+const NO_PAST_REPORTS =
+  'No past Marsh reports match this site type and country, so only the fixed questions and the standards are used.'
 
 // Where an item stands on site (CP-31): answered by an observation, Confirmed
 // or Differs, or marked without one; null while unchecked.
@@ -194,6 +235,29 @@ async function itemChecks(checklist: Checklist): Promise<Map<string, ItemCheckDt
   return checks
 }
 
+// The past reports an item cites, once each, read from the passages saved with the checklist.
+function reportsOf(citations: IChecklistCitation[], sources: Record<string, unknown>) {
+  const found = citations.flatMap(({ ref }) => {
+    const s = sources?.[ref] as { title?: string; doc_id?: string } | undefined
+    return s?.title ? [{ title: s.title, docId: s.doc_id }] : []
+  })
+  return found.filter((r, n) => found.findIndex((x) => x.title === r.title) === n)
+}
+
+// The standards an item cites, once each, by the title kept on the checklist.
+function standardsOf(
+  citations: IChecklistCitation[],
+  sources: Record<string, unknown>,
+  standards: { id: string; title: string }[],
+) {
+  const titles = citations.flatMap(({ ref }) => {
+    const docId = (sources?.[ref] as { doc_id?: string } | undefined)?.doc_id
+    const found = standards.find((s) => s.id === docId)
+    return found ? [found.title] : []
+  })
+  return [...new Set(titles)].map((title) => ({ title }))
+}
+
 function toDto(
   { _id, assessment: _a, createdBy: _c, metadata: _m, items, ...c }: Checklist,
   checks: Map<string, ItemCheckDto>,
@@ -204,6 +268,12 @@ function toDto(
     items: items.map(({ _id: itemId, check: _k, carried: _f, edited, removed, ...item }) => ({
       id: String(itemId),
       ...item,
+      // CP-37: the admin's fixed questions are marked; a past-report question names its reports.
+      fixed: item.origin === 'fixed',
+      // CP-37: the standards it cites, by title, for its "from ..." line.
+      sourceStandards: standardsOf(item.citations, c.sources, c.standards),
+      important: item.important ? { at: item.important.at } : null,
+      sourceReports: item.origin === 'past_report' ? reportsOf(item.citations, c.sources) : [],
       // Who edited or removed it, and when (CP-32); checklists from before
       // CP-32 have neither.
       edited: edited ? { at: edited.at, by: edited.by.name } : null,
@@ -295,14 +365,15 @@ const asGenerated = (i: IChecklistItem): IChecklistItem => ({ ...i, ...(i.edited
 // the engineer's own never is.
 function flagsFor(origin: ItemOrigin, citations: IChecklistCitation[], flags: 'uncited'[]) {
   const others = flags.filter((f) => f !== 'uncited')
-  const cited = origin === 'template' || origin === 'manual' || citations.length > 0
+  const cited =
+    origin === 'template' || origin === 'manual' || origin === 'fixed' || citations.length > 0
   return cited ? others : [...others, 'uncited' as const]
 }
 
 // An item as S4 generated it, and as it is saved, with what it carries over.
 type Generated = ItemPlace & Pick<IChecklistItem, 'COPE_dimension' | 'flags' | 'fields'>
 type Carried = Generated &
-  Partial<Pick<IChecklistItem, 'status' | 'removed' | 'edited' | 'check' | 'carried'>>
+  Partial<Pick<IChecklistItem, 'status' | 'removed' | 'edited' | 'check' | 'carried' | 'important'>>
 
 // Carries the latest checklist into a regenerated one: its answers (CP-31) and
 // the engineer's changes (CP-32 AC3). Each new item that is the same as an
@@ -355,6 +426,8 @@ function carryOver(
       ...edited,
       ...(before.status === 'removed' && { status: 'removed' as const, removed: before.removed }),
       check: before.check ?? null,
+      // Without this, generating again drops the engineer's star (CP-37).
+      important: before.important ?? null,
       carried: [before._id, ...(before.carried ?? [])],
     }
   })
@@ -417,6 +490,11 @@ export async function getChecklist(reference: string) {
   return {
     scope: { facilityType: site.facilityType, jurisdiction: site.jurisdiction },
     standards: await applicable(site),
+    // CP-37: what the engineer can choose from before generating.
+    pastReports: (await listApplicablePastReports(site.facilityType, site.jurisdiction)).map(
+      (d) => ({ id: d.id, title: d.title }),
+    ),
+    defaults: { count: (await fixedItemsFor(site.facilityType)).length },
     checklist: await latest(assessment._id),
   }
 }
@@ -438,6 +516,12 @@ export async function generateChecklist(
     throw new UnknownStandardError()
   }
   const inScope = standards.filter((s) => chosen.has(s.id))
+  if (input.pastReportIds) {
+    const reports = await listApplicablePastReports(site.facilityType, site.jurisdiction)
+    if (input.pastReportIds.some((id) => !reports.some((r) => r.id === id))) {
+      throw new UnknownPastReportError()
+    }
+  }
 
   // Only the kind of site goes to S4, so no client detail needs masking.
   const draft = await requestChecklistDraft({
@@ -448,6 +532,7 @@ export async function generateChecklist(
       source_type: s.sourceType,
       standard_number: s.standardNumber,
     })),
+    ...(input.pastReportIds && { past_report_ids: input.pastReportIds }),
   })
   // Its paid calls, for the cost report (EV-03), all under the checklist, as
   // chat's are under chat.
@@ -458,19 +543,38 @@ export async function generateChecklist(
     )
   }
 
+  // CP-37: the admin's fixed questions for this site type always come first, in their own area
+  // unless the admin gave one the checklist has.
+  const known = new Set(draft.areas.map((a) => a.id))
+  const fixed = (input.includeDefaults === false ? [] : await fixedItemsFor(site.facilityType)).map(
+    ({ text, area }) => ({
+      area: area && known.has(area) ? area : FIXED_AREA.id,
+      subsection: null,
+      origin: 'fixed' as const,
+      hazard: null,
+      text,
+      fields: [],
+      COPE_dimension: [],
+      citations: [],
+      flags: [],
+    }),
+  )
   const previous = await latestStored(assessment._id)
   const carried = carryOver(
     previous,
     previous ? await itemChecks(previous) : new Map<string, ItemCheckDto>(),
-    draft.items.map(({ citations, ...item }) => ({
-      ...item,
-      citations: citations.map((c) => ({
-        ref: c.ref,
-        quote: c.quote,
-        quoteFound: c.quote_found,
-        ...(c.quote_described && { quoteDescribed: true }),
+    [
+      ...fixed,
+      ...draft.items.map(({ citations, ...item }) => ({
+        ...item,
+        citations: citations.map((c) => ({
+          ref: c.ref,
+          quote: c.quote,
+          quoteFound: c.quote_found,
+          ...(c.quote_described && { quoteDescribed: true }),
+        })),
       })),
-    })),
+    ],
   )
   const saved = await ChecklistModel.create({
     assessment: assessment._id,
@@ -478,7 +582,18 @@ export async function generateChecklist(
     jurisdiction: site.jurisdiction,
     standards: inScope.map(({ issuingBody: _i, uploadedAt: _u, ...s }) => s),
     items: carried.items,
-    areas: draft.areas,
+    notes: draft.no_past_reports ? [NO_PAST_REPORTS] : [],
+    // Fixed questions first; then S4's sections; then any earlier section a kept item still
+    // sits under (CP-37): an engineer's own, or "Always check" for an edited fixed item this
+    // run doesn't bring. Without it the tab hides those items, with their marks and links.
+    areas: [
+      ...(carried.items.some((i) => i.area === FIXED_AREA.id) ? [FIXED_AREA] : []),
+      ...draft.areas,
+      ...(previous?.areas ?? []).filter(
+        (a) =>
+          a.id !== FIXED_AREA.id && !known.has(a.id) && carried.items.some((i) => i.area === a.id),
+      ),
+    ],
     hazards: draft.hazards.map(({ in_scope, ...h }) => ({ ...h, inScope: in_scope })),
     // The engineer's references keep the passages they were chosen from (CP-32
     // AC3, AC5).
@@ -562,16 +677,25 @@ export async function addChecklistItem(
   const assessment = await assessmentToDraft(reference, user)
   const checklist = await latestStored(assessment._id)
   if (!checklist) throw new NoChecklistError()
-  const risk = input.area === 'hazards'
+  // A new section is found by name, ignoring case, or made now (CP-37).
+  let area = input.area ?? ''
+  const newAreas: { id: string; title: string }[] = []
+  if (input.newSection !== undefined) {
+    const title = input.newSection
+    const same = checklist.areas.find((a) => a.title.toLowerCase() === title.toLowerCase())
+    area = same?.id ?? `${CUSTOM_AREA}${new Types.ObjectId()}`
+    if (!same) newAreas.push({ id: area, title })
+  }
+  const risk = area === 'hazards'
   const known = risk
     ? checklist.hazards.some((h) => h.id === input.hazard)
-    : checklist.areas.some((a) => a.id === input.area)
+    : area !== '' && (newAreas.length > 0 || checklist.areas.some((a) => a.id === area))
   if (!known) throw new InvalidChecklistItemError('Choose a report section or priority risk.')
   const subsection = risk ? null : (input.subsection ?? null)
   if (
     subsection &&
     !checklist.items.some(
-      (i) => i.origin === 'template' && i.area === input.area && i.subsection === subsection,
+      (i) => i.origin === 'template' && i.area === area && i.subsection === subsection,
     )
   ) {
     throw new InvalidChecklistItemError('Choose a subsection of that report section.')
@@ -581,15 +705,16 @@ export async function addChecklistItem(
     { _id: checklist._id },
     {
       $push: {
+        ...(newAreas.length && { areas: { $each: newAreas } }),
         items: {
           _id: id,
-          area: input.area,
+          area,
           subsection,
           origin: 'manual',
           hazard: risk ? input.hazard : null,
           text: input.text,
           fields: [],
-          COPE_dimension: input.COPE_dimension,
+          COPE_dimension: input.COPE_dimension ?? [],
           citations: [],
           flags: [],
         },
@@ -744,6 +869,16 @@ export async function editChecklistItem(
 ) {
   const { assessment, checklist, item } = await itemToChange(reference, itemId, user)
   if (item.status === 'removed') throw new ChecklistChangeError(REMOVED)
+  // Importance is not an edit of the item: it is saved on its own, with no "edited" stamp.
+  if (input.important !== undefined) {
+    await ChecklistModel.updateOne(
+      { _id: checklist._id, 'items._id': item._id },
+      { $set: { 'items.$.important': input.important ? changeBy(user) : null } },
+    )
+    if (input.text === undefined && !input.COPE_dimension && !input.citations) {
+      return getChecklist(reference)
+    }
+  }
   const chosen =
     input.citations && assessment.site
       ? await chosenCitations(checklist, item, assessment.site, input.citations)

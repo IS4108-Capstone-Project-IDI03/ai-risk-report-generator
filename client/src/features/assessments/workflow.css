@@ -238,9 +238,12 @@ main.om-scroll {
    under it when it has one. */
 .om-more-menu {
   min-width: 200px !important;
+  /* Sized to its longest item, so "Link existing observation" stays on one line. */
+  width: max-content !important;
+  max-width: calc(100vw - 32px);
 }
 .om-more-menu.has-notes {
-  width: 280px;
+  width: 280px !important;
 }
 .om-more-item {
   display: flex;
@@ -255,6 +258,7 @@ main.om-scroll {
   font-size: 15px;
   color: var(--text-body);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 .om-more-item:hover {

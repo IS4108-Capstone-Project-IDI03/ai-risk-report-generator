@@ -8,9 +8,18 @@ import { Schema, Types, model } from 'mongoose'
 // Where an item came from: the report template; the model, from a standard
 // ('standard') or for a configured hazard ('hazard'); or the hazard list's own
 // item when the model wrote none for it ('hazard_list'); or the engineer, who
-// added it ('manual', CP-32). Only 'standard' and 'hazard' are AI-written
-// (AC8). CP-33 adds 'recommended'.
-export const ITEM_ORIGINS = ['template', 'standard', 'hazard', 'hazard_list', 'manual'] as const
+// added it ('manual', CP-32); a past Marsh report ('past_report', CP-37, AI-written); or the
+// admin's list for the site type ('fixed', CP-37). Only 'standard', 'hazard' and 'past_report'
+// are AI-written (AC8). CP-33 adds 'recommended'.
+export const ITEM_ORIGINS = [
+  'template',
+  'standard',
+  'hazard',
+  'hazard_list',
+  'manual',
+  'past_report',
+  'fixed',
+] as const
 export type ItemOrigin = (typeof ITEM_ORIGINS)[number]
 // Removed by the engineer (CP-32): kept, so it can be restored and stays
 // removed when the checklist is generated again.
@@ -21,7 +30,7 @@ export const ITEM_FLAGS = ['uncited'] as const
 // An item marked on site without an observation (CP-31 AC4). Confirmed and
 // Differs are not stored here: they are read from the observation that checks
 // the item, so deleting it unchecks the item (AC5).
-export const CHECK_MARKS = ['not_seen', 'not_applicable'] as const
+export const CHECK_MARKS = ['confirmed', 'differs', 'not_seen', 'not_applicable'] as const
 export type CheckMark = (typeof CHECK_MARKS)[number]
 
 export interface IChecklistMark {
@@ -78,6 +87,8 @@ export interface IChecklistItem {
   removed: IChecklistChange | null
   // Not seen or Not applicable (CP-31 AC4), else null.
   check: IChecklistMark | null
+  // Marked important by the engineer (CP-37): shown first in its section, oldest mark first.
+  important?: IChecklistChange | null
   // The same item in earlier checklists of the assessment, newest first, so an
   // observation that checked one of them still checks this one (CP-31).
   carried: Types.ObjectId[]
@@ -97,6 +108,8 @@ export interface IChecklist {
     edition: string | null
   }[]
   items: IChecklistItem[]
+  // Short notes for the engineer, e.g. that no past Marsh report matched this site type (CP-37).
+  notes?: string[]
   // The report areas the items fall under, in report order, with their titles.
   areas: { id: string; title: string }[]
   // The configured hazards and which of their named standards were in scope (AC7).
@@ -190,6 +203,13 @@ const itemSchema = new Schema<IChecklistItem>({
     ),
     default: null,
   },
+  important: {
+    type: new Schema<IChecklistChange>(
+      { at: { type: Date, required: true }, by: changeBy },
+      { _id: false },
+    ),
+    default: null,
+  },
   carried: { type: [Schema.Types.ObjectId], default: [] },
 })
 
@@ -212,6 +232,7 @@ const checklistSchema = new Schema<IChecklist>(
       default: [],
     },
     items: { type: [itemSchema], default: [] },
+    notes: { type: [String], default: [] },
     areas: {
       type: [
         {

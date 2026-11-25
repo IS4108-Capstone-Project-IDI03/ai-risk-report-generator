@@ -96,8 +96,6 @@ describe('Settings', () => {
   it('shows Coming soon with the owner, and no controls', async () => {
     mock(data(false))
     render(<Settings />)
-    open('Checklist')
-    expect(screen.getByText('Coming soon. Being built by Xuren.')).toBeInTheDocument()
     open('QA Eval')
     expect(screen.getByText('Coming soon. Being built by Chris.')).toBeInTheDocument()
     // One quiet line, under the title: no second name and no card of its own.
@@ -116,8 +114,8 @@ describe('Settings', () => {
       within(el)
         .getAllByRole('button')
         .map((b) => b.textContent)
-    expect(names(group('Set by admin'))).toEqual(['Models', 'Source Priority'])
-    expect(names(group('Coming soon'))).toEqual(['QA Eval', 'Checklist'])
+    expect(names(group('Set by admin'))).toEqual(['Models', 'Source Priority', 'Checklist'])
+    expect(names(group('Coming soon'))).toEqual(['QA Eval'])
     // What a person sets for themselves has no heading and comes first.
     const personal = menu.firstElementChild as HTMLElement
     expect(names(personal)).toEqual(['Password', 'Chat and Voice', 'Walkthroughs'])

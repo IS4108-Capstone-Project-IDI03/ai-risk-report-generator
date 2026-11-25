@@ -17,10 +17,17 @@ export function MoreMenu({
   items,
   notes = [],
   label = 'More actions',
+  icon = 'ellipsis',
+  size = 'md',
+  popoverLabel = 'More actions',
 }: {
   items: MoreMenuItem[]
   notes?: string[]
   label?: string
+  // The checklist's link menu (CP-37) reuses this with its own icon, size and popover name.
+  icon?: string
+  size?: 'sm' | 'md'
+  popoverLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   if (!items.length) return null
@@ -28,14 +35,14 @@ export function MoreMenu({
     <Popover
       open={open}
       onOpenChange={setOpen}
-      ariaLabel="More actions"
+      ariaLabel={popoverLabel}
       align="right"
       surfaceClassName={notes.length ? 'om-more-menu has-notes' : 'om-more-menu'}
       trigger={
         <IconButton
-          icon="ellipsis"
+          icon={icon}
           label={label}
-          size="md"
+          size={size}
           selected={open}
           onClick={() => setOpen(!open)}
         />

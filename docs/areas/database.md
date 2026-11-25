@@ -1818,6 +1818,25 @@ removed, the first is restored, so each risk keeps one. The response's
 `carryOver.changes` counts the `{ edited, added, removed }` items kept.
 A removed item can't be marked or answered (409) until restored.
 
+## Checklist additions (CP-37)
+
+`checklists.items[].origin` also takes `past_report` (a question drawn from a past Marsh report of
+the same site type and country, cited by passage; the saved `sources[ref]` holds the report's
+`title` and `doc_id`) and `fixed` (copied from `checklist_fixed_items`; never cited, never
+`uncited`). Fixed items sit in `area: 'fixed'` ("Always check") unless the admin gave a section
+the checklist has. `checklists.notes` is a list of short notes for the engineer; today it holds
+the "no past Marsh reports match" note when S4 found none. The DTO adds `fixed` and `sourceReports`
+to each item and `notes` to the checklist.
+
+`checklist_fixed_items` holds the admin's fixed questions, one document per question: `facilityType`
+(one of the site types), `text` (1-500 characters), `area` (a section id or null), `removed`
+(`{at, by}` or null: soft delete, so Restore works) and `metadata` (`source_type: "checklist"`,
+`jurisdiction: "all"`, `facility_type`, `COPE_dimension: "all"`, `effective_date`). Seeded once at
+server start from `services/checklist-fixed.json` (placeholder test data until the real list
+arrives). Edited only through `/api/settings/checklist` (`knowledge:manage`): `GET /` (site types and
+every item), `POST /`, `PATCH /:id`, `DELETE /:id` (remove), `POST /:id/restore`. Editing the list
+does not change checklists already generated.
+
 ## Knowledge documents (IN-01, KB-01, IN-07)
 
 `knowledge_documents` holds one record per accepted upload, or per standard

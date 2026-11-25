@@ -6,6 +6,7 @@ import {
   correctTranscript,
   deleteObservation,
   discardDraft,
+  ChecklistItemError,
   EmptyObservationError,
   getObservation,
   getPageImage,
@@ -53,6 +54,7 @@ function refuse(error: unknown, res: Response) {
         : error instanceof AssessmentArchivedError ||
             error instanceof ObservationStateError ||
             error instanceof NotRetryableError ||
+            error instanceof ChecklistItemError ||
             error instanceof EmptyObservationError
           ? 409
           : null

@@ -16,11 +16,92 @@ from app.generation.generator import TEMPLATE, _block, _chunk_block
 from app.generation.llm import complete
 
 # Bump whenever the prompt wording changes, so a saved checklist names the prompt it came from.
-CHECKLIST_PROMPT_VERSION = "cp30-v5"  # v5: no item from a loss history or example
+CHECKLIST_PROMPT_VERSION = "cp37-v3"  # v3: past-report items start with Check; v2: verb-led items
 CHECKLIST = json.loads((Path(__file__).parent / "checklist.json").read_text())
 
 # "NFPA 13" -> ("nfpa_standard", "13"), as standards are labelled in the knowledge base.
 _ISSUERS = {"NFPA": "nfpa_standard", "FM": "fm_standard"}
+
+
+_VERBS = set(
+    "check confirm verify ask inspect record review test look measure note see find establish "
+    "identify ensure walk photograph compare count open read".split()
+)
+# Words a cut-short item must not end on.
+_DANGLING = {
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "for",
+    "and",
+    "or",
+    "with",
+    "by",
+    "from",
+    "the",
+    "a",
+    "an",
+}
+
+
+def _lowered(text: str) -> str:
+    """The text with its first word lower-cased, unless it is a name: acronyms and tags
+    (CCTV, FM, NFPA13) and proper nouns ("Singapore Civil Defence") stay as written."""
+    words = text.split(" ", 2)
+    first = words[0]
+    acronym = sum(c.isupper() for c in first) > 1 or any(c.isdigit() for c in first)
+    # A capitalised next word (not an acronym: "Is CCTV ...") marks a name.
+    proper = len(words) > 1 and words[1][:1].isupper() and not words[1].isupper()
+    return text if acronym or proper else text[:1].lower() + text[1:]
+
+
+def _shortened(text: str, limit: int) -> str:
+    """The text in `limit` words or fewer: its first clause, else its first `limit` words."""
+    if len(text.split()) <= limit:
+        return text
+    # A clause ends at [.;:] before a capital, so "e.g. wet pipe" is never a cut point. A first
+    # clause under 8 words is a stub ("Check that inspection."), so the words are cut instead.
+    first = re.split(r"(?<=[.;:])\s+(?=[A-Z])|,\s", text, maxsplit=1)[0]
+    if len(first.split()) >= 8:
+        text = first
+    words = text.split()
+    if len(words) > limit:
+        words = words[:limit]
+        while words and words[-1].lower().strip(",;:") in _DANGLING:
+            words.pop()
+        text = " ".join(words)
+    return text.rstrip(".,;: ") + "."
+
+
+def verb_led(text: str) -> str:
+    """The item text as one short instruction: it starts with a verb, in about 20 words or fewer.
+
+    The model and the config sometimes give a bare noun ("CCTV"); without this the checklist
+    would show headings, not things to do. Only the wording changes, never a citation or quote.
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    if text.split(" ", 1)[0].strip(".,:;").lower() in _VERBS:
+        return _shortened(text, 20)
+    return "Check " + _lowered(_shortened(text, 19))
+
+
+def check_led(text: str) -> str:
+    """A past-report item as a check that starts with "Check", in about 20 words or fewer.
+
+    The model sometimes still writes a question ("Are ...?") or another verb; "Check:" leads
+    those, so every past-report row reads like the rest of the checklist (CP-37).
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    if text.split(" ", 1)[0].lower() == "check":
+        return _shortened(text, 20)
+    # Shortened before the prefix: "Check:" as a cut point left only "Check.".
+    body = _shortened(text, 19)
+    # A question cut short keeps its question mark.
+    if text.endswith("?") and body.endswith("."):
+        body = body[:-1] + "?"
+    return "Check: " + _lowered(body)
 
 
 def named_standard(name: str) -> tuple[str, str]:
@@ -72,7 +153,9 @@ def template_items() -> list[dict]:
                     "subsection": heading,
                     "origin": "template",
                     "hazard": None,
-                    "text": CHECKLIST["template_details"].get(f"{section_id}/{heading}", heading),
+                    "text": verb_led(
+                        CHECKLIST["template_details"].get(f"{section_id}/{heading}", heading)
+                    ),
                     "fields": sub.get("fields", []),
                     "COPE_dimension": section["cope_dimensions"],
                     "citations": [],
@@ -101,9 +184,20 @@ class Item(BaseModel):
     citations: list[Citation]
 
 
+class PastItem(BaseModel):
+    """A question to check on this site, drawn from one past report's passage (CP-37)."""
+
+    model_config = ConfigDict(extra="forbid")
+    area: str
+    subsection: str | None
+    text: str
+    citation: Citation
+
+
 class ChecklistDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
     items: list[Item]
+    past_report_items: list[PastItem]
 
 
 def _areas() -> str:
@@ -139,8 +233,9 @@ requirement no area's scope covers gets no item: never stretch a passage to fill
 Prefer the passages of the standards the hazard is checked against.
 
 Rules:
-- Each item is one inspection point, written as an instruction to the engineer \
-("Check ...", "Record ..."), in one sentence, in Singapore English.
+- Each item is one check of at most 20 words, written as an instruction to the engineer \
+that starts with a verb ("Check ...", "Confirm ...", "Verify ...", "Ask ...", "Inspect ...", \
+"Record ..."), never a noun phrase like "CCTV coverage", in Singapore English.
 - Every item rests on the standards passages given. `citations` lists each passage it \
 rests on by its label (C1, C2), with `quote`: the passage's own words that support it, \
 copied exactly, at most 30 words. Never write an item no passage supports.
@@ -150,6 +245,15 @@ requirements. Never base an item on one.
 about the site itself.
 - Each requirement appears once, under the one area or hazard it best belongs to. Never \
 write the same check twice in different words.
+- Past Marsh reports (<past_reports>) are separate from the standards. For a finding or \
+recommendation in one that an engineer could check on this kind of site, write a \
+`past_report_items` entry: a check of at most 20 words that starts with "Check whether ..." \
+or "Check that ...", never a question, with `area` and \
+`subsection` as for an item, at most one per past report passage, and `citation` its \
+label (R1, R2) and `quote`, copied exactly, at most 30 words. Make the check general: \
+never copy a name, place, quantity, date or tag such as [PERSON_1] from the past report. \
+Write none for a passage with nothing to check. Never cite a past report in `items`, \
+or a standard in `past_report_items`.
 - Do not repeat a template subsection as an item. Do not recommend improvements; this is \
 a list of what to inspect."""
 
@@ -163,7 +267,13 @@ def _found_lines(found_for: dict[str, list[str]], labels: dict[str, str]) -> str
 
 
 def _user_prompt(
-    facility_type: str, jurisdiction: str, hazards: list[dict], found: str, blocks
+    facility_type: str,
+    jurisdiction: str,
+    hazards: list[dict],
+    found: str,
+    blocks,
+    past_found: str = "",
+    past_blocks=(),
 ) -> str:
     return "\n\n".join(
         [
@@ -172,6 +282,8 @@ def _user_prompt(
             f"<hazards>\n{_hazard_lines(hazards) or 'none'}\n</hazards>",
             f"<found_for>\n{found or 'none'}\n</found_for>",
             _block("standards", blocks),
+            f"<past_found_for>\n{past_found or 'none'}\n</past_found_for>",
+            _block("past_reports", list(past_blocks)),
         ]
     )
 
@@ -186,12 +298,15 @@ def draft_items(
     passages: list[dict],
     found_for: dict[str, list[str]],
     effort: str,
+    past: list[dict] = (),
+    past_found: dict[str, list[str]] | None = None,
 ) -> tuple[list[dict], str]:
     """Return the model's items, with labels mapped to `C:<chunk id>`, and the model.
 
     `found_for` maps each report area and hazard id to the passage ids its search found.
-    An item for an area or hazard that does not exist is dropped; a citation of a label
-    it was not given is kept as written, so the caller's check flags it.
+    `past` are past-report passages (CP-37), labelled R1, R2; their items have origin
+    "past_report". An item for an area or hazard that does not exist is dropped; a citation
+    of a label it was not given is kept as written, so the caller's check flags it.
     """
     full: dict[str, str] = {}
     labels: dict[str, str] = {}
@@ -200,9 +315,22 @@ def draft_items(
         full[f"C{n}"] = f"C:{passage['id']}"
         labels[passage["id"]] = f"C{n}"
         blocks.append(_chunk_block(f"C{n}", passage))
+    past_blocks = []
+    for n, passage in enumerate(past, 1):
+        full[f"R{n}"] = f"C:{passage['id']}"
+        labels[passage["id"]] = f"R{n}"
+        past_blocks.append(_chunk_block(f"R{n}", passage))
     draft, model = complete(
         SYSTEM_PROMPT,
-        _user_prompt(facility_type, jurisdiction, hazards, _found_lines(found_for, labels), blocks),
+        _user_prompt(
+            facility_type,
+            jurisdiction,
+            hazards,
+            _found_lines(found_for, labels),
+            blocks,
+            _found_lines(past_found or {}, labels),
+            past_blocks,
+        ),
         ChecklistDraft,
         effort,
     )
@@ -236,12 +364,36 @@ def draft_items(
                 "subsection": subsection,
                 "origin": "hazard" if hazard else "standard",
                 "hazard": hazard["id"] if hazard else None,
-                "text": re.sub(r"\s+", " ", item.text).strip(),
+                "text": verb_led(item.text),
                 "fields": [],
                 "COPE_dimension": cope,
                 "citations": [
                     {"ref": full.get(c.label, c.label), "quote": c.quote} for c in item.citations
                 ],
+                "flags": [],
+            }
+        )
+    # One question per past-report passage at most; the first to cite it stays.
+    used: set[str] = set()
+    for item in draft.past_report_items:
+        section = TEMPLATE["sections"].get(item.area) if item.area in _SECTIONS else None
+        ref = full.get(item.citation.label)
+        if section is None or ref is None or ref in used:
+            continue
+        used.add(ref)
+        headings = {
+            s["heading"] for s in section["subsections"] if not s["heading"].endswith("Comments")
+        }
+        items.append(
+            {
+                "area": item.area,
+                "subsection": item.subsection if item.subsection in headings else None,
+                "origin": "past_report",
+                "hazard": None,
+                "text": check_led(item.text),
+                "fields": [],
+                "COPE_dimension": section["cope_dimensions"],
+                "citations": [{"ref": ref, "quote": item.citation.quote}],
                 "flags": [],
             }
         )

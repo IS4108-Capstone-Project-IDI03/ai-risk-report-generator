@@ -735,3 +735,34 @@
     display: inline;
   }
 }
+
+/* Settings > Checklist (CP-37): the fixed items of a site type. */
+.st-cl-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.st-cl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.st-cl-row--edit {
+  flex-direction: column;
+  align-items: stretch;
+}
+.st-cl-text {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.st-cl-row button {
+  min-height: 44px;
+}

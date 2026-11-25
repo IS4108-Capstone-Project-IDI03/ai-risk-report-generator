@@ -540,10 +540,23 @@ export async function updateObservation(
     asked?: boolean
     // Keeps these not-sure values as they are: they become the engineer's (CP-24).
     confirm?: ('category' | 'severity')[]
+    // Links it to a checklist item, or null unlinks it (CP-37).
+    checklistItem?: { itemId: string; result: 'confirmed' | 'differs' } | null
   },
 ): Promise<SavedObservation> {
   return (await request<SavedObservation>('PATCH', observationPath(id), changes)).data
 }
+
+/** Returns the observation after linking it to a checklist item as confirmed or differs (CP-37). */
+export const linkObservation = (
+  observationId: string,
+  itemId: string,
+  result: 'confirmed' | 'differs',
+) => updateObservation(observationId, { checklistItem: { itemId, result } })
+
+/** Returns the observation after cutting its link to any checklist item (CP-37). */
+export const unlinkObservation = (observationId: string) =>
+  updateObservation(observationId, { checklistItem: null })
 
 /** Returns the observation with the named not-sure fields confirmed as they are (CP-24). */
 export async function confirmSuggestion(
@@ -907,7 +920,15 @@ export type ChecklistItem = {
   subsection: string | null
   // Only 'standard' and 'hazard' are written by the model (AC8); 'manual' is
   // the engineer's own (CP-32).
-  origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'manual'
+  origin: 'template' | 'standard' | 'hazard' | 'hazard_list' | 'manual' | 'past_report'
+  // Always on the checklist for the site type, set in Settings (CP-37).
+  fixed?: boolean
+  // The past Marsh reports a 'past_report' item came from (CP-37).
+  sourceReports?: { title: string; docId?: string }[]
+  // The codes and standards it cites, for its "from ..." line (CP-37).
+  sourceStandards?: { title: string }[]
+  // When the engineer marked it important (they sort to the top, oldest mark first); null if not.
+  important?: { at: string } | null
   hazard: string | null
   text: string
   fields: string[]
@@ -952,6 +973,8 @@ export type Checklist = {
   jurisdiction: string
   standards: Omit<ScopeStandard, 'issuingBody' | 'uploadedAt'>[]
   items: ChecklistItem[]
+  // Calm lines above the list, e.g. why only the fixed questions are shown (CP-37).
+  notes?: string[]
   areas: { id: string; title: string }[]
   hazards: { id: string; name: string; standards: string[]; inScope: string[] }[]
   sources: Record<string, ChecklistSource>
@@ -971,6 +994,10 @@ export type ChecklistView = {
   scope: { facilityType: string; jurisdiction: string }
   standards: ScopeStandard[]
   checklist: Checklist | null
+  // Past Marsh reports that match the site type and country, to build from (CP-37).
+  pastReports?: { id: string; title: string }[]
+  // The admin's fixed questions for this site type: how many there are (CP-37).
+  defaults?: { count: number }
   // After regenerating (CP-31): how many of the earlier checklist's answers
   // were kept, the text of each item whose answer was not, and the ids of the
   // new items that may replace those: new, in the same section or risk; and
@@ -990,32 +1017,33 @@ export async function getChecklist(reference: string, signal?: AbortSignal) {
   return (await request<ChecklistView>('GET', checklistPath(reference), undefined, signal)).data
 }
 
-// Generates a checklist from the standards kept ticked (AC2); the gateway saves
-// it as the latest and keeps the earlier ones.
-export async function generateChecklist(reference: string, standardIds: string[]) {
-  return (await request<ChecklistView>('POST', checklistPath(reference), { standardIds })).data
+// What a checklist is built from: the standards and past reports picked, and whether the
+// admin's fixed questions are included.
+export type ChecklistChoice = {
+  standardIds: string[]
+  pastReportIds: string[]
+  includeDefaults: boolean
 }
 
-// Marks an item Not seen or Not applicable, or clears its mark with null
-// (CP-31 AC4); no observation is saved.
+// Generates a checklist from what was picked (AC2); the gateway saves
+// it as the latest and keeps the earlier ones.
+export async function generateChecklist(reference: string, choice: ChecklistChoice) {
+  return (await request<ChecklistView>('POST', checklistPath(reference), choice)).data
+}
+
+// Marks an item (tick, cross or not seen), or clears its mark with null; no observation is saved.
 export async function markChecklistItem(
   reference: string,
   itemId: string,
-  mark: 'not_seen' | 'not_applicable' | null,
+  mark: 'confirmed' | 'differs' | 'not_seen' | null,
 ) {
   const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}/mark`
   return (await request<ChecklistView>('PUT', path, { mark })).data
 }
 
-// An item the engineer adds (CP-32): under a report section, optionally one
-// of its subsections, or under a priority risk ('hazards' with its id).
-export type NewChecklistItem = {
-  area: string
-  subsection: string | null
-  hazard: string | null
-  text: string
-  COPE_dimension: string[]
-}
+// An item the engineer adds (CP-32): under an existing section's area id, or under a new
+// section the gateway creates from its name.
+export type NewChecklistItem = { text: string; area: string } | { text: string; newSection: string }
 
 // Adds the engineer's own item; returns the checklist and the new item's id.
 export async function addChecklistItem(reference: string, item: NewChecklistItem) {
@@ -1032,6 +1060,7 @@ export async function editChecklistItem(
     text?: string
     COPE_dimension?: string[]
     citations?: { ref: string; quote: string }[]
+    important?: boolean
   },
 ) {
   const path = `${checklistPath(reference)}/items/${encodeURIComponent(itemId)}`

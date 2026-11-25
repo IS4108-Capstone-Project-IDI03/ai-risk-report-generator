@@ -126,3 +126,44 @@ export async function removePrivacyWord(id: string) {
 export function getMaskedInReports(): Promise<{ words: MaskedWord[] }> {
   return request<{ words: MaskedWord[] }>('/api/settings/privacy-words/masked-in-reports')
 }
+
+// CP-37: the fixed checklist items per site type. Knowledge admins only; others get 403.
+export type FixedItem = {
+  id: string
+  facilityType: string
+  text: string
+  area: string | null
+  // Soft-removed: kept so Restore works, left out of new checklists.
+  removed: boolean
+}
+export type FixedItems = { facilityTypes: string[]; items: FixedItem[] }
+
+const FIXED = '/api/settings/checklist'
+/** Admin: the site types and every fixed item, removed ones included. */
+export function getFixedItems(): Promise<FixedItems> {
+  return request<FixedItems>(FIXED)
+}
+/** Admin: adds a fixed item to a site type; returns it. */
+export function addFixedItem(body: { facilityType: string; text: string; area?: string }) {
+  return request<FixedItem>(FIXED, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  })
+}
+/** Admin: changes a fixed item's wording or area; returns it. */
+export function editFixedItem(id: string, body: { text?: string; area?: string }) {
+  return request<FixedItem>(`${FIXED}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  })
+}
+/** Admin: removes a fixed item (it can be restored); returns it. */
+export function removeFixedItem(id: string) {
+  return request<FixedItem>(`${FIXED}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+/** Admin: puts a removed fixed item back; returns it. */
+export function restoreFixedItem(id: string) {
+  return request<FixedItem>(`${FIXED}/${encodeURIComponent(id)}/restore`, { method: 'POST' })
+}

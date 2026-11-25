@@ -31,6 +31,12 @@ export function locationLabel(l: Place) {
   return locationParts(l).join(' › ')
 }
 
+/** Returns the sentence saying where checklist answers are saved (CP-31, CP-37). */
+export const answerPlace = (location: Place | null | undefined) =>
+  location
+    ? 'Answers are saved at ' + locationLabel(location) + '.'
+    : 'Choose where you are to confirm items or record differences.'
+
 // The place's parts, general to specific, for the arrow path: ["Block A",
 // "Level 2", "Staircase"]; ["Elsewhere on site", "Fire access route"].
 export function locationParts(l: Place): string[] {

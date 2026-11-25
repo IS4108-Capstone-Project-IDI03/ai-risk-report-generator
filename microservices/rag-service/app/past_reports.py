@@ -76,3 +76,19 @@ def _restored(passage: dict, mapping: dict[str, str] | None) -> dict:
     if metadata.get("headings"):
         metadata["headings"] = [real(h) for h in metadata["headings"]]
     return {**passage, "text": real(passage["text"]), "metadata": metadata}
+
+
+def report_titles(doc_ids: set[str]) -> dict[str, str]:
+    """Each past report's title by document id (CP-37), for naming a checklist item's source.
+
+    A title is a label, not a value to unmask, so a database error gives no titles rather
+    than failing the checklist.
+    """
+    ids = [ObjectId(i) for i in doc_ids if isinstance(i, str) and ObjectId.is_valid(i)]
+    if not ids:
+        return {}
+    try:
+        found = collection().find({"_id": {"$in": ids}}, {"title": 1})
+    except PyMongoError:
+        return {}
+    return {str(d["_id"]): d["title"] for d in found if d.get("title")}

@@ -1,21 +1,8 @@
 import { useState } from 'react'
-import {
-  Button,
-  Callout,
-  Checkbox,
-  Dialog,
-  EmptyState,
-  IconButton,
-  toast,
-} from '../../../design-system'
-import {
-  downloadChecklistPdf,
-  generateChecklist,
-  GatewayError,
-  type ChecklistView,
-  type ScopeStandard,
-} from '../api'
-import { caption, card, country, heading, muted } from '../checklistChecks'
+import { Button, Callout, EmptyState, IconButton, toast } from '../../../design-system'
+import { downloadChecklistPdf, generateChecklist, GatewayError, type ChecklistChoice } from '../api'
+import { caption, heading, muted } from '../checklistChecks'
+import { ChecklistBuild } from '../components/ChecklistBuild'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
 import { formatDay } from '../format'
 import { plural } from '../reviewDisplay'
@@ -23,28 +10,6 @@ import { Tip } from '../../help/Tip'
 import { useActivity } from '../../marshbot/useActivity'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { useChecklist } from '../useChecklist'
-
-// "NFPA 13 · 2025" from what the knowledge base knows of a standard.
-function designation(s: Pick<ScopeStandard, 'issuingBody' | 'standardNumber' | 'edition'>) {
-  const name = [s.issuingBody, s.standardNumber].filter(Boolean).join(' ')
-  return [name, s.edition].filter(Boolean).join(' · ')
-}
-
-// The standards to leave unticked by default: those the latest checklist left
-// out, unless added to the knowledge base since it was generated. Before any
-// checklist, every standard is ticked.
-function leftOut(view: ChecklistView): Set<string> {
-  const last = view.checklist
-  if (!last) return new Set()
-  const generated = new Date(last.provenance.generated_at)
-  return new Set(
-    view.standards
-      .filter(
-        (s) => !last.standards.some((u) => u.id === s.id) && new Date(s.uploadedAt) <= generated,
-      )
-      .map((s) => s.id),
-  )
-}
 
 // Hands the browser the file to save.
 function download(file: Blob, fileName: string) {
@@ -109,7 +74,7 @@ function Regenerated({
   const highlighted =
     replacing === 0
       ? ''
-      : `${replacing === 1 ? 'An item that' : 'Items that'} may replace ${one ? 'it' : 'them'} ${replacing === 1 ? 'is' : 'are'} highlighted below. `
+      : `${replacing === 1 ? 'An item that' : 'Items that'} may replace ${one ? 'it' : 'them'} ${replacing === 1 ? 'is' : 'are'} tinted below. `
   return (
     <Callout
       tone="warning"
@@ -156,22 +121,15 @@ export function Checklist({
   // The assessment is archived: no walkthrough is offered on it (F-12).
   archived?: boolean
 }) {
-  const { view, setView, sections, loadError, reload } = useChecklist(reference)
+  const { view, setView, loadError, reload } = useChecklist(reference)
   // F-12: ready once the checklist has loaded; nothing is offered over an error or an archive.
   useWalkthroughScreen('checklist', !!view, archived || !!loadError)
   // AS-06: the assigned engineer's time here and which items they saw (an admin's is not counted).
   useActivity(reference, 'checklist', canGenerate, true)
-  // The engineer's own ticks, for the checklist shown when they were made; a new
-  // checklist starts again from the standards it used (leftOut).
-  const [ticks, setTicks] = useState<{ checklist: string | null; unticked: Set<string> } | null>(
-    null,
-  )
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Regenerating once items are answered asks first, then says what became of
-  // the answers, the items whose answers were not kept, and highlights the new
-  // items that may replace them, until dismissed; null when nothing is to be said.
-  const [asking, setAsking] = useState(false)
+  // Pressing Regenerate shows the build view again; null when nothing is to be said after.
+  const [rebuilding, setRebuilding] = useState(false)
   const [regenerated, setRegenerated] = useState<{
     lost: string[]
     replacing: Set<string>
@@ -190,26 +148,18 @@ export function Checklist({
   }
   if (!view) return <p style={{ ...muted, padding: '24px' }}>Loading the checklist…</p>
 
-  const shownId = view.checklist?.id ?? null
-  // The standards unticked; everything else applicable is in scope.
-  const unticked = ticks && ticks.checklist === shownId ? ticks.unticked : leftOut(view)
-  const setUnticked = (next: Set<string>) => setTicks({ checklist: shownId, unticked: next })
-  const chosen = view.standards.filter((s) => !unticked.has(s.id))
   const answered = view.checklist?.items.filter((i) => i.check) ?? []
   // The engineer's own changes (CP-32), kept when it is generated again.
   const customised =
     view.checklist?.items.some((i) => i.origin === 'manual' || i.edited || i.removed) ?? false
-  const generate = async () => {
-    setAsking(false)
+  const generate = async (choice: ChecklistChoice) => {
     setRunning(true)
     setError(null)
     setRegenerated(null)
     try {
-      const generated = await generateChecklist(
-        reference,
-        chosen.map((s) => s.id),
-      )
+      const generated = await generateChecklist(reference, choice)
       setView(generated)
+      setRebuilding(false)
       if (answered.length || customised) {
         setRegenerated({
           lost: generated.carryOver?.dropped ?? [],
@@ -244,6 +194,8 @@ export function Checklist({
     }
   }
 
+  // Before any checklist, and when Regenerate is pressed, the engineer builds one.
+  const building = canGenerate && (!view.checklist || rebuilding)
   return (
     <div
       style={{
@@ -251,63 +203,50 @@ export function Checklist({
         flexDirection: 'column',
         gap: 'var(--space-6)',
         padding: 'var(--space-8)',
-        maxWidth: '1080px',
+        maxWidth: '760px',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 'var(--space-5)',
-        }}
-      >
-        <h2 style={{ ...heading, fontSize: '20px', flex: '1 1 360px' }}>Pre-survey checklist</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          {view.checklist && (
-            <IconButton
-              icon="download"
-              label="Download checklist PDF"
-              tooltip="Download PDF"
-              variant="outline"
-              data-walk="checklist.download"
-              disabled={downloading}
-              onClick={() => void downloadPdf()}
-            />
-          )}
-          {canGenerate && (
-            <Button
-              variant={view.checklist ? 'secondary' : 'primary'}
-              iconLeft="sparkles"
-              loading={running}
-              disabled={running}
-              data-walk="checklist.generate"
-              onClick={() => (answered.length || customised ? setAsking(true) : void generate())}
-            >
-              {view.checklist ? 'Regenerate checklist' : 'Generate checklist'}
-            </Button>
-          )}
-          {canGenerate && view.checklist && <Tip id="checklist.regenerate" align="right" />}
+      {!building && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 'var(--space-5)',
+          }}
+        >
+          <h2
+            style={{
+              ...heading,
+              fontSize: 'var(--text-h2-size)',
+              fontWeight: 'var(--weight-bold)',
+              color: 'var(--marsh-navy)',
+              flex: '1 1 360px',
+            }}
+          >
+            Pre-survey checklist
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            {view.checklist && (
+              <IconButton
+                icon="download"
+                label="Download checklist PDF"
+                tooltip="Download PDF"
+                variant="outline"
+                data-walk="checklist.download"
+                disabled={downloading}
+                onClick={() => void downloadPdf()}
+              />
+            )}
+            {canGenerate && view.checklist && (
+              <Button variant="secondary" iconLeft="sparkles" onClick={() => setRebuilding(true)}>
+                Regenerate checklist
+              </Button>
+            )}
+            {canGenerate && view.checklist && <Tip id="checklist.regenerate" align="right" />}
+          </div>
         </div>
-      </div>
-      {running && <p style={muted}>Generating the checklist. This takes about half a minute.</p>}
-      {asking && (
-        <Dialog
-          title="Regenerate the checklist?"
-          description="Your answers stay with the items that come back. Your edited, added and removed items are kept too. If an AI-written item is reworded, you'll be shown which ones to answer again. Nothing is removed from Observations."
-          onClose={() => setAsking(false)}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setAsking(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" iconLeft="sparkles" onClick={() => void generate()}>
-                Regenerate
-              </Button>
-            </>
-          }
-        />
       )}
       {regenerated && (
         <Regenerated
@@ -317,73 +256,27 @@ export function Checklist({
           onDismiss={() => setRegenerated(null)}
         />
       )}
-
-      {/* Folded once there is a checklist: the standards matter again only to regenerate. */}
-      <details
-        open={!view.checklist}
-        aria-label="Standards to use"
-        style={card}
-        data-walk="checklist.standards"
-      >
-        <summary
-          style={{
-            cursor: 'pointer',
-            padding: 'var(--space-5) var(--space-6)',
-            fontWeight: 600,
-            fontSize: 'var(--text-body-size)',
-          }}
-        >
-          Standards to use ({chosen.length} of {view.standards.length} selected)
-          {/* F-13: a button inside a summary does not fold the card. */}
-          <span style={{ display: 'inline-flex', verticalAlign: 'middle', marginLeft: 6 }}>
-            <Tip id="checklist.standards" />
-          </span>
-        </summary>
-        <div style={{ padding: '0 var(--space-6) var(--space-6)' }}>
-          {view.standards.length === 0 ? (
-            <p style={muted}>
-              No standards in the knowledge base apply to {view.scope.facilityType} in{' '}
-              {country(view.scope.jurisdiction)}. The checklist will have the template and
-              facility-risk items only. Ask a knowledge admin to add the standards.
-            </p>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))',
-                gap: 'var(--space-4) var(--space-8)',
-              }}
-            >
-              {view.standards.map((s) => (
-                <Checkbox
-                  key={s.id}
-                  label={s.title}
-                  description={designation(s) || undefined}
-                  checked={!unticked.has(s.id)}
-                  disabled={!canGenerate || running}
-                  onChange={(checked) => {
-                    const next = new Set(unticked)
-                    if (checked) next.delete(s.id)
-                    else next.add(s.id)
-                    setUnticked(next)
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </details>
-
       {error && (
         <Callout tone="danger" title="Couldn't generate the checklist">
           {error}
           {view.checklist && ' The checklist below is the last one generated.'}
         </Callout>
       )}
-
-      {view.checklist && generated ? (
+      {building ? (
+        <ChecklistBuild
+          view={view}
+          running={running}
+          note={
+            view.checklist
+              ? 'Your answers stay with the items that come back, and your edited, added and removed items are kept. Nothing is removed from Observations.'
+              : undefined
+          }
+          onGenerate={(choice) => void generate(choice)}
+          onCancel={view.checklist ? () => setRebuilding(false) : undefined}
+        />
+      ) : view.checklist && generated ? (
         <>
-          <p style={{ ...caption, fontFamily: 'var(--font-mono)' }}>
+          <p style={caption}>
             Generated {formatDay(generated)}{' '}
             {generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ·{' '}
             {view.checklist.provenance.model ?? 'no model called'} ·{' '}
@@ -394,7 +287,6 @@ export function Checklist({
             key={view.checklist.id}
             reference={reference}
             view={{ ...view, checklist: view.checklist }}
-            sections={sections}
             setView={setView}
             reload={reload}
             answering={answering}
@@ -414,11 +306,7 @@ export function Checklist({
         <EmptyState
           icon="list-checks"
           title="No checklist yet"
-          description={
-            canGenerate
-              ? 'Choose the standards to use, then generate the checklist.'
-              : "The assessment's assigned engineer generates its checklist."
-          }
+          description="The assessment's assigned engineer generates its checklist."
         />
       )}
     </div>
