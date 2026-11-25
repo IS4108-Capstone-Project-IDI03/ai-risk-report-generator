@@ -25,41 +25,41 @@ Hard rule (CLAUDE.md): route files must not import from `models/`. Today `routes
 
 ## Folders and key files
 
-| Path | Job |
-|---|---|
-| `src/index.ts` | Builds the app, mounts routers, sets body limits, runs startup recovery, `listen` |
-| `src/config.ts` | Reads env once; throws at boot if a required var is missing |
-| `src/routes/` | 31 files: one router per area; thin handlers |
-| `src/middleware/` | `auth.middleware.ts` (session + permission), `service-auth.middleware.ts` (shared key), `assistant-recheck.middleware.ts` (MarshBot re-check after a change) |
-| `src/services/` | Business logic. Biggest: `observation.service.ts`, `knowledge-document.service.ts`, `usage-report.service.ts`, `assessment-ask.service.ts` |
-| `src/services/assistant/` | MarshBot: brief, checks, stage, server-sent-events bus, daily check queue |
-| `src/services/generation/` | Background drafting runs (GN-13) |
-| `src/services/job-queue.service.ts` | `defineQueue` + `startWorkers` (BullMQ wrapper) |
-| `src/services/permissions.service.ts` | The role-to-permission matrix |
-| `src/services/storage.service.ts` | S3 put/get/copy/delete |
-| `src/models/` | 38 Mongoose model files, plus `db.ts` (connect + index setup) |
-| `src/scripts/` | Seeds and one-off migrations (run through `npm run seed:*`, `migrate:*`) |
-| `src/test/` | 100+ Vitest files, in-memory Mongo |
+| Path                                  | Job                                                                                                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/index.ts`                        | Builds the app, mounts routers, sets body limits, runs startup recovery, `listen`                                                                            |
+| `src/config.ts`                       | Reads env once; throws at boot if a required var is missing                                                                                                  |
+| `src/routes/`                         | 31 files: one router per area; thin handlers                                                                                                                 |
+| `src/middleware/`                     | `auth.middleware.ts` (session + permission), `service-auth.middleware.ts` (shared key), `assistant-recheck.middleware.ts` (MarshBot re-check after a change) |
+| `src/services/`                       | Business logic. Biggest: `observation.service.ts`, `knowledge-document.service.ts`, `usage-report.service.ts`, `assessment-ask.service.ts`                   |
+| `src/services/assistant/`             | MarshBot: brief, checks, stage, server-sent-events bus, daily check queue                                                                                    |
+| `src/services/generation/`            | Background drafting runs (GN-13)                                                                                                                             |
+| `src/services/job-queue.service.ts`   | `defineQueue` + `startWorkers` (BullMQ wrapper)                                                                                                              |
+| `src/services/permissions.service.ts` | The role-to-permission matrix                                                                                                                                |
+| `src/services/storage.service.ts`     | S3 put/get/copy/delete                                                                                                                                       |
+| `src/models/`                         | 38 Mongoose model files, plus `db.ts` (connect + index setup)                                                                                                |
+| `src/scripts/`                        | Seeds and one-off migrations (run through `npm run seed:*`, `migrate:*`)                                                                                     |
+| `src/test/`                           | 100+ Vitest files, in-memory Mongo                                                                                                                           |
 
 ## API map
 
 All under `/api` (see the `app.use` lines in `src/index.ts`).
 
-| Group | What it does |
-|---|---|
-| `/auth` | Login, logout, `me`, password reset, accept invitation (public) |
-| `/users` | Accounts, roles, invitations (`users:manage`) |
-| `/assessments` | Assessments, sections, review, export, reassign; sub-routers for site-walks, comments, ask, proposals, assistant (MarshBot), generation |
-| `/observations` | Edit observations, recordings, photos, pages |
-| `/clients`, `/sites`, `/client-intakes`, `/client-documents` | Client data, sites, intake reading, kept client files |
-| `/knowledge-documents`, `/knowledge-gaps` | Standards library and requests for missing ones |
-| `/rag`, `/qa` | Draft report text and quality check (calls rag-service) |
-| `/chat` | Knowledge chat (conversations, photos, PDFs, memory, voice) |
-| `/settings` | Models, global defaults, per-user preferences |
-| `/usage` | Usage and cost report, CSV export |
-| `/notifications` | Inbox, plus a poll-only `count` path that does not refresh the session |
-| `/internal/*` | Service-to-service (shared key, no session) |
-| `/health` | Public health check |
+| Group                                                        | What it does                                                                                                                            |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `/auth`                                                      | Login, logout, `me`, password reset, accept invitation (public)                                                                         |
+| `/users`                                                     | Accounts, roles, invitations (`users:manage`)                                                                                           |
+| `/assessments`                                               | Assessments, sections, review, export, reassign; sub-routers for site-walks, comments, ask, proposals, assistant (MarshBot), generation |
+| `/observations`                                              | Edit observations, recordings, photos, pages                                                                                            |
+| `/clients`, `/sites`, `/client-intakes`, `/client-documents` | Client data, sites, intake reading, kept client files                                                                                   |
+| `/knowledge-documents`, `/knowledge-gaps`                    | Standards library and requests for missing ones                                                                                         |
+| `/rag`, `/qa`                                                | Draft report text and quality check (calls rag-service)                                                                                 |
+| `/chat`                                                      | Knowledge chat (conversations, photos, PDFs, memory, voice)                                                                             |
+| `/settings`                                                  | Models, global defaults, per-user preferences                                                                                           |
+| `/usage`                                                     | Usage and cost report, CSV export                                                                                                       |
+| `/notifications`                                             | Inbox, plus a poll-only `count` path that does not refresh the session                                                                  |
+| `/internal/*`                                                | Service-to-service (shared key, no session)                                                                                             |
+| `/health`                                                    | Public health check                                                                                                                     |
 
 ## Data it owns
 
@@ -78,14 +78,14 @@ Collection names from `src/models/*`. Schemas: `docs/areas/database.md`.
 
 BullMQ on Redis, worked inside the gateway process (`services/job-queue.service.ts`; workers start from `startWorkers()` in `index.ts`). Under `NODE_ENV=test` jobs run inline, no Redis.
 
-| Queue | Defined in | For |
-|---|---|---|
-| `transcription` | `background-queues.service.ts` | Voice notes and site-walk audio |
-| `site-walk-proposal` | `background-queues.service.ts` | Building a walk's proposal |
-| coverage queue | `assistant/coverage.service.ts` | MarshBot coverage |
-| check queue | `assistant/check-queue.service.ts` | MarshBot re-check and daily check |
-| cleanup queue | `client-intake.service.ts` | Daily client-intake cleanup |
-| ingestion queue | `ingestion-queue.service.ts` | Own `new Queue`, not via `defineQueue`; the Python ingestion worker consumes it |
+| Queue                | Defined in                         | For                                                                             |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
+| `transcription`      | `background-queues.service.ts`     | Voice notes and site-walk audio                                                 |
+| `site-walk-proposal` | `background-queues.service.ts`     | Building a walk's proposal                                                      |
+| coverage queue       | `assistant/coverage.service.ts`    | MarshBot coverage                                                               |
+| check queue          | `assistant/check-queue.service.ts` | MarshBot re-check and daily check                                               |
+| cleanup queue        | `client-intake.service.ts`         | Daily client-intake cleanup                                                     |
+| ingestion queue      | `ingestion-queue.service.ts`       | Own `new Queue`, not via `defineQueue`; the Python ingestion worker consumes it |
 
 On boot, `index.ts` also resumes work that a restart interrupted: drafting runs, transcriptions, site walks, interpretations.
 

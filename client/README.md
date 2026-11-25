@@ -25,30 +25,30 @@ The browser app (React 19, Vite, TypeScript, port 3000) where engineers and know
 
 All paths are under `client/src/`.
 
-| Path | Job |
-|---|---|
-| `main.tsx` | Starts React and mounts `App`. |
-| `App.tsx` | Checks for a saved session, shows `SignIn` or the `Workspace`, ends the session on a 401 event, signs out. |
-| `features/assessments/` | The core. Shell (`AssessmentApp.tsx`), the workflow hook, `api.ts`, `screens/` (Dashboard, Overview, Checklist, Observations, Review, ReviewWorkspace, exports), `ask/`, `comments/`, `document/` (editor and export), `generation/`. |
-| `features/auth/` | Sign-in, set-password, idle timeout, and `access.ts` (screen paths and role permissions). |
-| `features/new-assessment/` | The create-assessment form and client intake. |
-| `features/site-walk/` | Record a site walk: capture, pending uploads, proposals. |
-| `features/knowledge-base/` | Knowledge base for admins (documents, review, manual standards) and read-only for engineers. |
-| `features/sources/` | Shows a cited passage (text, math, page region). Reused wherever a citation appears. |
-| `features/chat/` | The Ask screen (knowledge assistant), PDF viewer, OpenUI rendering. |
-| `features/marshbot/` | MarshBot: threads, cards, details panel. |
-| `features/clients/` | Client list and client page. |
-| `features/inbox/` | Inbox of items to do. |
-| `features/notifications/` | Bell, list, and the counts context (one poller). |
-| `features/calendar/` | Surveys and report due dates by month or week. |
-| `features/assignment/` | Choose which engineer an assessment is assigned to. |
-| `features/accounts/` | User accounts screen (admin). |
-| `features/settings/` | Settings screens. |
-| `features/usage/` | Usage and cost screen (charts, lazy-loaded). |
-| `design-system/components/` | Shared controls in folders `ai`, `core`, `display`, `feedback`, `forms`, `navigation`. |
-| `design-system/tokens/` | CSS variables: colours, spacing, type, motion, elevation, fonts. |
-| `design-system/index.ts` | The one place features import shared components from. |
-| `test/` | `setup.ts` (mocks sign-in for every test) and `session.ts` (test sessions). |
+| Path                        | Job                                                                                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.tsx`                  | Starts React and mounts `App`.                                                                                                                                                                                                        |
+| `App.tsx`                   | Checks for a saved session, shows `SignIn` or the `Workspace`, ends the session on a 401 event, signs out.                                                                                                                            |
+| `features/assessments/`     | The core. Shell (`AssessmentApp.tsx`), the workflow hook, `api.ts`, `screens/` (Dashboard, Overview, Checklist, Observations, Review, ReviewWorkspace, exports), `ask/`, `comments/`, `document/` (editor and export), `generation/`. |
+| `features/auth/`            | Sign-in, set-password, idle timeout, and `access.ts` (screen paths and role permissions).                                                                                                                                             |
+| `features/new-assessment/`  | The create-assessment form and client intake.                                                                                                                                                                                         |
+| `features/site-walk/`       | Record a site walk: capture, pending uploads, proposals.                                                                                                                                                                              |
+| `features/knowledge-base/`  | Knowledge base for admins (documents, review, manual standards) and read-only for engineers.                                                                                                                                          |
+| `features/sources/`         | Shows a cited passage (text, math, page region). Reused wherever a citation appears.                                                                                                                                                  |
+| `features/chat/`            | The Ask screen (knowledge assistant), PDF viewer, OpenUI rendering.                                                                                                                                                                   |
+| `features/marshbot/`        | MarshBot: threads, cards, details panel.                                                                                                                                                                                              |
+| `features/clients/`         | Client list and client page.                                                                                                                                                                                                          |
+| `features/inbox/`           | Inbox of items to do.                                                                                                                                                                                                                 |
+| `features/notifications/`   | Bell, list, and the counts context (one poller).                                                                                                                                                                                      |
+| `features/calendar/`        | Surveys and report due dates by month or week.                                                                                                                                                                                        |
+| `features/assignment/`      | Choose which engineer an assessment is assigned to.                                                                                                                                                                                   |
+| `features/accounts/`        | User accounts screen (admin).                                                                                                                                                                                                         |
+| `features/settings/`        | Settings screens.                                                                                                                                                                                                                     |
+| `features/usage/`           | Usage and cost screen (charts, lazy-loaded).                                                                                                                                                                                          |
+| `design-system/components/` | Shared controls in folders `ai`, `core`, `display`, `feedback`, `forms`, `navigation`.                                                                                                                                                |
+| `design-system/tokens/`     | CSS variables: colours, spacing, type, motion, elevation, fonts.                                                                                                                                                                      |
+| `design-system/index.ts`    | The one place features import shared components from.                                                                                                                                                                                 |
+| `test/`                     | `setup.ts` (mocks sign-in for every test) and `session.ts` (test sessions).                                                                                                                                                           |
 
 ## How screens are chosen
 
@@ -85,15 +85,15 @@ There is no router library. The URL path is the router, done by hand:
 
 All from `client/`:
 
-| Command | Does |
-|---|---|
-| `npm run dev` | Vite dev server on :3000, using `SERVER_URL` |
-| `npm run dev:local` | Same, but ignores `.env.development`, so uses localhost:4000 |
-| `npm run build` | `tsc -b` then `vite build` |
-| `npm run lint` | ESLint |
-| `npm run format` | Prettier write |
-| `npm test` | Vitest once (jsdom) |
-| `npm run test:watch` | Vitest watch |
+| Command              | Does                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| `npm run dev`        | Vite dev server on :3000, using `SERVER_URL`                 |
+| `npm run dev:local`  | Same, but ignores `.env.development`, so uses localhost:4000 |
+| `npm run build`      | `tsc -b` then `vite build`                                   |
+| `npm run lint`       | ESLint                                                       |
+| `npm run format`     | Prettier write                                               |
+| `npm test`           | Vitest once (jsdom)                                          |
+| `npm run test:watch` | Vitest watch                                                 |
 
 Tests: Vitest plus Testing Library, files named `*.test.ts(x)` next to the code. `src/test/setup.ts` mocks the auth calls so every test signs in without a gateway. Tests stub `fetch` (see `features/auth/idleTimeout.test.tsx`). Test timeout is 20 s because full-app tests are slow.
 
