@@ -314,6 +314,14 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
     expect(screen.getByRole('table', { name: 'Cost by assessment' })).toBeInTheDocument()
   })
 
+  // Found live: the chatbot's bar made it "Showing all 9 assessments" with only 6 of them.
+  it('counts only assessments as assessments, and the chatbot as another use', async () => {
+    mockGateway()
+    await openUsage()
+    expect(screen.getByText('Showing all 3 bars')).toBeInTheDocument()
+    expect(screen.getByText('2 assessments · 1 other use')).toBeInTheDocument()
+  })
+
   it('reloads for the period and split chosen', async () => {
     const urls = mockGateway()
     await openUsage()

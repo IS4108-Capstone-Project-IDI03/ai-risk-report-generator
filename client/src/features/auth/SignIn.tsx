@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Button, Callout, Input } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
+import { meetsRule, PASSWORD_RULE } from './passwordRule'
 import { SetPassword } from './SetPassword'
 import './sign-in.css'
 
@@ -32,6 +33,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   const [resetEmail, setResetEmail] = useState('')
   const [resetToken, setResetToken] = useState(emailedResetCode)
   const [newPassword, setNewPassword] = useState('')
+  const [passwordProblem, setPasswordProblem] = useState('')
   // An invitation link opens the set-password screen instead.
   const [inviteToken, setInviteToken] = useState(emailedInviteCode)
   // Remove the code from the address bar so it isn't kept in history or shared.
@@ -82,6 +84,12 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   async function submitResetConfirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || !resetToken.trim() || !newPassword.trim()) return
+    // The gateway refuses it too; checking here says why before the reset code is spent on nothing.
+    if (!meetsRule(newPassword)) {
+      setPasswordProblem(PASSWORD_RULE)
+      return
+    }
+    setPasswordProblem('')
     setBusy(true)
     setError('')
     try {
@@ -173,6 +181,8 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 autoComplete="new-password"
+                error={passwordProblem || undefined}
+                hint={PASSWORD_RULE}
               />
               <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Updating…' : 'Set new password'}

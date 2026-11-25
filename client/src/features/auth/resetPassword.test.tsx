@@ -54,13 +54,36 @@ describe('Reset password (F-06)', () => {
     await waitFor(() => screen.getByLabelText(/Reset code/))
 
     fireEvent.change(screen.getByLabelText(/Reset code/), { target: { value: 'abc123' } })
-    fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one!' } })
+    fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one 2!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set new password' }))
 
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument(),
     )
     expect(screen.getByRole('status')).toHaveTextContent('Sign in with your new password')
+  })
+
+  // Found live: a reset took "password"; the rule is the same as Change password's.
+  it('says the password rule and sends nothing when the new password has no number', async () => {
+    openResetRequest()
+    const sent: string[] = []
+    mockGateway((url) => {
+      sent.push(url)
+      return respond(200, { message: 'sent' })
+    })
+    fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: 'demo@marsh.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
+    await waitFor(() => screen.getByLabelText(/Reset code/))
+
+    fireEvent.change(screen.getByLabelText(/Reset code/), { target: { value: 'abc123' } })
+    fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set new password' }))
+
+    expect(screen.getByLabelText(/New password/)).toHaveAccessibleDescription(
+      /Use at least one letter and one number/,
+    )
+    expect(screen.getByLabelText(/New password/)).toBeInvalid()
+    expect(sent).toEqual(['/api/auth/request-reset'])
   })
 
   it('shows the gateway error for an invalid or expired token', async () => {
@@ -75,7 +98,7 @@ describe('Reset password (F-06)', () => {
     await waitFor(() => screen.getByLabelText(/Reset code/))
 
     fireEvent.change(screen.getByLabelText(/Reset code/), { target: { value: 'stale-token' } })
-    fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one!' } })
+    fireEvent.change(screen.getByLabelText(/New password/), { target: { value: 'a new one 2!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set new password' }))
 
     await waitFor(() =>

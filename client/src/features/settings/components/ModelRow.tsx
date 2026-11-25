@@ -10,7 +10,7 @@ import { SettingBlock } from './SettingBlock'
 type Props = {
   row: ModelRowData
   canEdit: boolean
-  // True in the "Not used yet" section: greyed out and not changeable, nothing reads it yet.
+  // True in the "Can't be changed yet" section: greyed out, since no service reads the choice yet.
   unused?: boolean
   // A line for under the title, e.g. the "Set by an admin" chip when this one is read-only.
   note?: React.ReactNode

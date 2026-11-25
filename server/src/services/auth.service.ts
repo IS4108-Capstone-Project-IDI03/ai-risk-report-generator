@@ -51,6 +51,31 @@ export function revokeSession(token: string): void {
 
 export type SessionUser = { id: string; role: UserRole; name: string }
 
+// The current role, name and active flag of accounts, by ID: every account at boot
+// (loadAccounts) and each one an admin saves after that (updateUser). A session token carries
+// the role it was signed with and slides on every request (F-07), so without this a deactivated
+// account kept working, and a changed role kept its old permissions, for as long as its owner
+// stayed active. An ID not in here (a test's made-up account) keeps the token's own claims.
+// shortcut: in memory like revokedTokens, so one gateway instance; move to Redis behind several.
+const accounts = new Map<string, { role: UserRole; name: string; active: boolean }>()
+
+/** Records an account's current role, name and active flag for the session check. */
+export function rememberAccount(user: {
+  _id: unknown
+  role: UserRole
+  name: string
+  active: boolean
+}): void {
+  accounts.set(String(user._id), { role: user.role, name: user.name, active: user.active })
+}
+
+/** Loads every account's current access at boot; returns how many were loaded. */
+export async function loadAccounts(): Promise<number> {
+  const users = await UserModel.find().select('role name active').lean()
+  users.forEach(rememberAccount)
+  return users.length
+}
+
 // Verifies credentials and returns a signed session token plus the account.
 // Never distinguishes "no such email" from "wrong password" — both are the
 // same generic error, so a login attempt can't be used to enumerate accounts.
@@ -97,7 +122,11 @@ function signPayload(sessionUser: SessionUser): string {
 
 export function verifySession(token: string): SessionUser {
   if (revokedTokens.has(token)) throw new Error('Session was signed out.')
-  return jwt.verify(token, config.jwtSecret) as SessionUser
+  const user = jwt.verify(token, config.jwtSecret) as SessionUser
+  const now = accounts.get(user.id)
+  if (!now) return user
+  if (!now.active) throw new Error('The account was deactivated.')
+  return { id: user.id, role: now.role, name: now.name }
 }
 
 function toSessionUser(user: IUser & { _id: unknown }): SessionUser {

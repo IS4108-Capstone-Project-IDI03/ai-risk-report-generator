@@ -7,7 +7,7 @@ type Props = {
   title?: string
   // A (?) help tip beside the title, for what would otherwise be a caption under it.
   tip?: ReactNode
-  // The title's heading level: 4 inside a group that has its own h3 title ("Not used yet").
+  // The title's heading level: 4 inside a group that has its own h3 title ("Can't be changed yet").
   titleLevel?: 3 | 4
   // Quiet helper text under the title (13 px, grey).
   help?: ReactNode

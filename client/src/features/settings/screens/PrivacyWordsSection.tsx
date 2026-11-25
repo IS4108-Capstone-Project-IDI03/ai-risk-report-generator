@@ -412,6 +412,8 @@ function AddWord({
       setKind('')
       setReason('')
       await onAdded()
+      // Without this the add was silent: the new word lands in its sorted place, often off screen.
+      toast.success(`${word.trim()} added to ${always ? 'Always masked' : 'Never masked'}`)
       wordField.current?.focus()
     } catch (error) {
       setProblems({ word: message(error, 'It was not added. Try again.') })

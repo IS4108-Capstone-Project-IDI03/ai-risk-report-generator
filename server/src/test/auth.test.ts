@@ -297,7 +297,7 @@ describe('POST /api/auth/reset (F-06)', () => {
 
     const resetRes = await request(app)
       .post('/api/auth/reset')
-      .send({ token, password: 'a whole new password' })
+      .send({ token, password: 'a whole new password 2' })
     expect(resetRes.status).toBe(200)
 
     const oldLogin = await request(app)
@@ -307,8 +307,21 @@ describe('POST /api/auth/reset (F-06)', () => {
 
     const newLogin = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'reset3@example.com', password: 'a whole new password' })
+      .send({ email: 'reset3@example.com', password: 'a whole new password 2' })
     expect(newLogin.status).toBe(200)
+  })
+
+  // Found live: a reset took "password", which Change password and an invitation refuse.
+  it('refuses a password without a letter and a number, and keeps the token usable', async () => {
+    await seedUser({ email: 'reset6@example.com' })
+    const token = await requestResetAndCaptureToken('reset6@example.com')
+
+    const weak = await request(app).post('/api/auth/reset').send({ token, password: 'password' })
+    expect(weak.status).toBe(400)
+    expect(weak.body.fields).toEqual({ password: 'Use at least one letter and one number.' })
+
+    const strong = await request(app).post('/api/auth/reset').send({ token, password: 'password1' })
+    expect(strong.status).toBe(200)
   })
 
   it('rejects an unknown or already-used token', async () => {
@@ -324,12 +337,12 @@ describe('POST /api/auth/reset (F-06)', () => {
 
     const first = await request(app)
       .post('/api/auth/reset')
-      .send({ token, password: 'first new password' })
+      .send({ token, password: 'first new password 1' })
     expect(first.status).toBe(200)
 
     const second = await request(app)
       .post('/api/auth/reset')
-      .send({ token, password: 'second new password' })
+      .send({ token, password: 'second new password 2' })
     expect(second.status).toBe(400)
   })
 
@@ -339,7 +352,9 @@ describe('POST /api/auth/reset (F-06)', () => {
     const token = await requestResetAndCaptureToken('reset5@example.com')
 
     vi.advanceTimersByTime(31 * 60 * 1000) // past the 30-minute expiry
-    const res = await request(app).post('/api/auth/reset').send({ token, password: 'too late now' })
+    const res = await request(app)
+      .post('/api/auth/reset')
+      .send({ token, password: 'too late now 1' })
     expect(res.status).toBe(400)
   })
 })
@@ -379,7 +394,7 @@ describe('Reset email over SMTP (F-06 AC1)', () => {
     // And the emailed code really resets the password.
     const reset = await request(app)
       .post('/api/auth/reset')
-      .send({ token: code, password: 'brand new password' })
+      .send({ token: code, password: 'brand new password 1' })
     expect(reset.status).toBe(200)
   })
 

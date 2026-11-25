@@ -327,6 +327,19 @@ describe('New Assessment by hand (CP-23)', () => {
     expect(end).toHaveAttribute('placeholder', 'dd/mm/yyyy')
   })
 
+  // Found live: a survey moved to 10 Dec kept its report due on 10 Dec, the old default.
+  it('moves the default report due with the survey start, but never a due date I typed', () => {
+    gateway({ 'GET /api/clients': () => json(200, []) })
+    open()
+    const one = visit(site(1), 1)
+    type(one.getByLabelText(/^Survey start/), '10/12/2026')
+    expect(one.getByLabelText(/^Report due/)).toHaveValue('24/12/2026')
+
+    type(one.getByLabelText(/^Report due/), '31/12/2026')
+    type(one.getByLabelText(/^Survey start/), '14/12/2026')
+    expect(one.getByLabelText(/^Report due/)).toHaveValue('31/12/2026')
+  })
+
   it('blocks an end or due date before the start, but not an equal one', async () => {
     gateway({ 'GET /api/clients': () => json(200, []) })
     open()

@@ -11,7 +11,7 @@ import {
 } from '../../../design-system'
 import { EngineerPicker } from '../../assignment/components/EngineerPicker'
 import { plural } from '../../clients/formatClient'
-import { TYPE_HELP, type FormAssessment } from '../form'
+import { defaultDue, TYPE_HELP, type FormAssessment } from '../form'
 import type { NewAssessmentForm } from '../useNewAssessment'
 import { useExit } from './Block'
 import { ContactsEditor } from './ContactsEditor'
@@ -66,7 +66,15 @@ export function AssessmentBlock({
               : undefined)
         }
         onChange={(iso, invalid) => {
-          f.setAssessment(i, j, { [k]: iso })
+          // Report due follows a new survey start while it is still the default two weeks after the
+          // old one; without this, moving the start to 10 Dec left the report due on 10 Dec too.
+          const follow =
+            k === 'siteVisitDate' &&
+            !!iso &&
+            !invalid &&
+            !!a.siteVisitDate &&
+            a.reportDueDate === defaultDue(a.siteVisitDate)
+          f.setAssessment(i, j, { [k]: iso, ...(follow && { reportDueDate: defaultDue(iso) }) })
           f.markTyped(path + k, invalid)
         }}
       />

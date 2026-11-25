@@ -381,7 +381,7 @@
   background: var(--graphite-300);
 }
 
-/* "Not used yet": a label band across the panel, then greyed rows. */
+/* "Can't be changed yet": a label band across the panel, then greyed rows. */
 .st-unused {
   display: flex;
   flex-direction: column;

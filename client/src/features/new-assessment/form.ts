@@ -76,6 +76,9 @@ function addDays(isoDay: string, days: number) {
   return day(d)
 }
 
+/** Returns the default report due date for a survey starting on `start`: two weeks later. */
+export const defaultDue = (start: string) => addDays(start, REPORT_DUE_DAYS)
+
 /** Returns an assessment starting today, or on `start` (CP-60), its report due two weeks later. */
 export function blankAssessment(start?: string): FormAssessment {
   const today = start || day()
@@ -85,7 +88,7 @@ export function blankAssessment(start?: string): FormAssessment {
     visitType: '',
     siteVisitDate: today,
     siteVisitEndDate: '',
-    reportDueDate: addDays(today, REPORT_DUE_DAYS),
+    reportDueDate: defaultDue(today),
     siteContacts: [],
     engineerId: '',
   }

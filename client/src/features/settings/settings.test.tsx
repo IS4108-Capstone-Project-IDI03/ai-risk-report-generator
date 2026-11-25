@@ -358,7 +358,7 @@ describe('Settings Chat and voice', () => {
 })
 
 describe('Settings: tasks nothing reads yet', () => {
-  it('puts them in their own greyed-out section at the bottom, labelled Not used yet', async () => {
+  it("puts them in their own greyed-out section at the bottom, labelled Can't be changed yet", async () => {
     mock({
       ...data(true),
       models: [
@@ -369,8 +369,8 @@ describe('Settings: tasks nothing reads yet', () => {
     })
     render(<Settings />)
     open('Models')
-    const heading = await screen.findByRole('heading', { name: 'Not used yet' })
-    expect(screen.getAllByText(/Not used yet/)).toHaveLength(1)
+    const heading = await screen.findByRole('heading', { name: "Can't be changed yet" })
+    expect(screen.getAllByText(/Can't be changed yet/)).toHaveLength(1)
     const before = (el: HTMLElement) =>
       Boolean(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)
     // The working task is above the heading; the unused ones are below it, disabled.
@@ -383,12 +383,12 @@ describe('Settings: tasks nothing reads yet', () => {
     expect(isGreyed(screen.getByRole('combobox', { name: 'Drafting' }))).toBe(false)
   })
 
-  it('shows no Not used yet section when every task is in use', async () => {
+  it("shows no Can't be changed yet section when every task is in use", async () => {
     mock({ ...data(true), models: [row('Drafting')] })
     render(<Settings />)
     open('Models')
     await screen.findByRole('combobox', { name: 'Drafting' })
-    expect(screen.queryByRole('heading', { name: 'Not used yet' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: "Can't be changed yet" })).toBeNull()
   })
 })
 

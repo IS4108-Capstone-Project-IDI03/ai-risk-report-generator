@@ -12,6 +12,7 @@ import {
   ReportDue,
   StatusPill,
 } from '../../../design-system'
+import { visitStage } from '../../assessments/format'
 import { assessmentType } from '../../clients/formatClient'
 import {
   canReschedule,
@@ -19,6 +20,7 @@ import {
   dueOf,
   formatDay,
   formatSpan,
+  isFinished,
   type CalendarItem,
   type DueState,
   type EntryKind,
@@ -80,7 +82,7 @@ function describe(item: CalendarItem, kind: EntryKind, ctx: EntryContext) {
       : due.state === 'late'
         ? due.note
         : due.state === 'done'
-          ? 'Finalised'
+          ? due.note[0].toUpperCase() + due.note.slice(1)
           : `Due ${due.note}`,
     spoken: [
       'Report due',
@@ -114,7 +116,7 @@ function EntryDetails({ item, ctx }: { item: CalendarItem; ctx: EntryContext }) 
         <dd>{type}</dd>
         <dt>{'Status'}</dt>
         <dd>
-          <StatusPill status={item.status} />
+          <StatusPill status={visitStage(item)} />
         </dd>
         <dt>{'Survey'}</dt>
         <dd className="cal-details-date">
@@ -125,7 +127,7 @@ function EntryDetails({ item, ctx }: { item: CalendarItem; ctx: EntryContext }) 
           <ReportDue
             date={item.due}
             today={new Date(ctx.today + 'T00:00:00')}
-            plain={item.status === 'finalised'}
+            plain={isFinished(item)}
           />
         </dd>
         {ctx.team && (

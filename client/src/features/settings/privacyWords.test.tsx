@@ -98,7 +98,12 @@ describe('Privacy words (PV-09)', () => {
       if (url === '/api/settings/privacy-words') return reply(200, current)
       return null
     })
-    render(<Settings />)
+    render(
+      <>
+        <Settings />
+        <Toaster />
+      </>,
+    )
     const panel = await openPrivacyWords()
 
     fireEvent.change(within(panel).getByLabelText(/^Word/), { target: { value: 'Hosereel' } })
@@ -113,6 +118,7 @@ describe('Privacy words (PV-09)', () => {
       reason: 'equipment',
     })
     expect(within(panel).getByLabelText(/^Word/)).toHaveValue('')
+    expect(await screen.findByText('Hosereel added to Never masked')).toBeInTheDocument()
   })
 
   it('asks for a reason before sending anything', async () => {

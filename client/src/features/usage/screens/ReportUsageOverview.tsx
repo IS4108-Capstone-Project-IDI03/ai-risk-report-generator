@@ -31,6 +31,9 @@ const matches = (g: OverviewGroup, search: string) =>
     t?.toLowerCase().includes(search.toLowerCase()),
   )
 
+const plural = (n: number, word: string) =>
+  `${n.toLocaleString('en-US')} ${n === 1 ? word : `${word}s`}`
+
 export function ReportUsageOverview({
   isAdmin,
   onOpen,
@@ -68,7 +71,19 @@ export function ReportUsageOverview({
   const shown = error ? null : data
   // The table's rows: an engineer view lists everyone, the assessment view what the search finds.
   const rows = (shown?.groups ?? []).filter((g) => groupBy === 'engineer' || matches(g, search))
-  const noun = groupBy === 'engineer' ? 'engineers' : 'assessments'
+  // By assessment, chat, walkthroughs and knowledge base searches are bars too, so they are not
+  // counted as assessments ("Showing all 9 assessments" with 6 of them was wrong).
+  const noun = groupBy === 'engineer' ? 'engineers' : 'bars'
+  const assessed = rows.filter((g) => g.reference).length
+  const footer =
+    groupBy === 'engineer'
+      ? plural(rows.length, 'engineer')
+      : [
+          plural(assessed, 'assessment'),
+          rows.length > assessed && plural(rows.length - assessed, 'other use'),
+        ]
+          .filter(Boolean)
+          .join(' · ')
   // F-12: ready once the figures have loaded; held back (no offer) when there is nothing to point at.
   useWalkthroughScreen('usage', !loading, !shown || shown.totals.calls === 0)
 
@@ -170,7 +185,7 @@ export function ReportUsageOverview({
               onOpen={onOpen}
               onOpenChat={onOpenChat}
               onChooseEngineer={(g) => g.engineerId && chooseEngineer(g.engineerId)}
-              footer={`${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? noun.slice(0, -1) : noun}`}
+              footer={footer}
               toolbar={
                 groupBy === 'assessment' ? (
                   <>
