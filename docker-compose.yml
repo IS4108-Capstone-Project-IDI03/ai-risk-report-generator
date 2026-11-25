@@ -104,7 +104,7 @@ services:
     environment:
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: ${QDRANT_DOCKER_URL:-http://qdrant:6333}
       PRIVACY_SERVICE_URL: http://privacy-service:8004
       # Table/formula OCR goes to OCR_PROVIDER (from .env). For self-hosted
       # GLM-OCR add docker-compose.local-ocr.yml (and docker-compose.gpu.yml).
@@ -130,7 +130,7 @@ services:
       REDIS_URL: redis://redis:6379
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: ${QDRANT_DOCKER_URL:-http://qdrant:6333}
       # Inside the network the gateway is the `server` service, not localhost
       # (CLAUDE.md pitfall: environment: beats env_file:). The worker posts
       # ingestion notifications (IN-10) and AI-call usage (EV-03) here.
@@ -179,7 +179,7 @@ services:
     environment:
       CHROMA_HOST: chroma
       CHROMA_PORT: 8000
-      QDRANT_URL: http://qdrant:6333
+      QDRANT_URL: ${QDRANT_DOCKER_URL:-http://qdrant:6333}
       PRIVACY_SERVICE_URL: http://privacy-service:8004
     depends_on:
       chroma:

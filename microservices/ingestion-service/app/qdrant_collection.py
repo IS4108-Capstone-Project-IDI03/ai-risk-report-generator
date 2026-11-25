@@ -7,6 +7,7 @@ ingestion-service each ship this file (tests/test_qdrant_collection.py checks th
 """
 
 import uuid
+import weakref
 
 from qdrant_client import QdrantClient, models
 
@@ -23,22 +24,18 @@ def point_id(chroma_id: str) -> str:
     return str(uuid.uuid5(_NAMESPACE, chroma_id))
 
 
-def _present(key: str) -> models.Condition:
-    return models.IsEmptyCondition(is_empty=models.PayloadField(key=key))
-
-
 def _field(key: str, op: str, value) -> models.Filter | models.Condition:
     match op:
         case "$eq":
             return models.FieldCondition(key=key, match=models.MatchValue(value=value))
         case "$in":
             return models.FieldCondition(key=key, match=models.MatchAny(any=list(value)))
-        # Chroma's $ne and $nin never match a passage that lacks the key. Without the "missing"
-        # guard, a passage whose labels the admin has not filled in yet (IN-05) would reach search.
+        # As in Chroma 1.5.5, $ne and $nin also match a passage without the key: a passage
+        # indexed before the status label existed stays searchable (retriever.label_filter).
         case "$ne":
-            return models.Filter(must_not=[_present(key), _field(key, "$eq", value)])
+            return models.Filter(must_not=[_field(key, "$eq", value)])
         case "$nin":
-            return models.Filter(must_not=[_present(key), _field(key, "$in", value)])
+            return models.Filter(must_not=[_field(key, "$in", value)])
         case _ if op in _RANGES:
             return models.FieldCondition(key=key, range=models.Range(**{_RANGES[op]: value}))
     # Never drop a filter it cannot read: a withdrawn document would then be searchable.
@@ -62,22 +59,38 @@ def to_filter(where: dict | None) -> models.Filter | None:
     return models.Filter(must=must)
 
 
-def ensure_collection(client: QdrantClient, name: str, dimension: int) -> None:
-    """Creates the collection (cosine, like Chroma's) if it does not exist yet."""
+# The labels every search filters on. Indexed so filters stay fast, and because a Qdrant Cloud
+# cluster in strict mode refuses a filter on a field with no index.
+_INDEXED = ("doc_id", "status", "source_type", "jurisdiction", "facility_type", "section")
+# Collections already checked, per client. Weak, so a closed client's entry goes with it (an
+# id() could be reused by a new client and skip its check).
+_ready: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _ensure(client: QdrantClient, name: str, dimension: int) -> None:
+    """Creates the collection (cosine, like Chroma's) and its label indexes, once per process.
+
+    Without the once-only check every search would cost a round trip to ask if it exists.
+    """
+    if name in _ready.get(client, ()):
+        return
     if not client.collection_exists(name):
         client.create_collection(
             name,
             vectors_config=models.VectorParams(size=dimension, distance=models.Distance.COSINE),
         )
-        # An index on doc_id keeps relabel, withdraw and delete (all "by document") fast.
-        client.create_payload_index(name, "doc_id", models.PayloadSchemaType.KEYWORD)
+    for field in _INDEXED:
+        # `position` is an integer: retriever._around matches neighbours by number.
+        client.create_payload_index(name, field, models.PayloadSchemaType.KEYWORD)
+    client.create_payload_index(name, "position", models.PayloadSchemaType.INTEGER)
+    _ready.setdefault(client, set()).add(name)
 
 
 class QdrantCollection:
     """A Qdrant collection answering the Chroma Collection calls this codebase makes."""
 
     def __init__(self, client: QdrantClient, name: str, dimension: int = 1024):
-        ensure_collection(client, name, dimension)
+        _ensure(client, name, dimension)
         self.client, self.name = client, name
         # Chroma pages by number (offset=300); Qdrant by the last point read. The next page's
         # point is remembered per filter, so reading every page is one pass, not a rescan each time.
@@ -87,24 +100,31 @@ class QdrantCollection:
     def upsert(self, ids, embeddings, documents=None, metadatas=None):
         """Adds or replaces passages by id (safe to repeat)."""
         documents = documents or [None] * len(ids)
-        metadatas = metadatas or [{}] * len(ids)
+        metadatas = [m or {} for m in metadatas or [None] * len(ids)]
         points = [
             models.PointStruct(
                 id=point_id(i),
                 vector=list(vector),
-                payload={**(meta or {}), _ID: i, _DOC: doc},
+                payload={**meta, _ID: i, _DOC: doc},
             )
             for i, vector, doc, meta in zip(ids, embeddings, documents, metadatas)
         ]
         self.client.upsert(self.name, points=points, wait=True)
 
     def update(self, ids, metadatas):
-        """Merges new metadata into each passage, as Chroma does; the vector is kept."""
+        """Merges new metadata into each passage, as Chroma does; the vector is kept.
+
+        Selected by filter, not by id, so a passage deleted meanwhile is skipped as Chroma skips
+        it; by id, Qdrant would fail the whole relabel.
+        """
         self.client.batch_update_points(
             self.name,
             [
                 models.SetPayloadOperation(
-                    set_payload=models.SetPayload(payload=meta, points=[point_id(i)])
+                    set_payload=models.SetPayload(
+                        payload=meta,
+                        filter=models.Filter(must=[models.HasIdCondition(has_id=[point_id(i)])]),
+                    )
                 )
                 for i, meta in zip(ids, metadatas)
             ],

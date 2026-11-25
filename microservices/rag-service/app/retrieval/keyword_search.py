@@ -89,6 +89,8 @@ def _document_passages(collection, doc_id: str) -> list[dict]:
                     "headings": headings,
                     "pageStart": meta.get("page_start"),
                     "pageEnd": meta.get("page_end"),
+                    # Reading order, since a store may return passages in any order (QD-01).
+                    "_position": meta.get("position", 0),
                     # Its words, counted once here rather than on every search.
                     "_words": Counter(words("\n".join([*headings, text]))),
                 }
@@ -96,6 +98,7 @@ def _document_passages(collection, doc_id: str) -> list[dict]:
         if len(page["ids"]) < PAGE:
             break
         offset += PAGE
+    passages.sort(key=lambda p: p["_position"])  # stable: equal positions keep the store's order
     _cache[doc_id] = (now, passages)
     while len(_cache) > CACHE_DOCUMENTS:
         del _cache[min(_cache, key=lambda d: _cache[d][0])]

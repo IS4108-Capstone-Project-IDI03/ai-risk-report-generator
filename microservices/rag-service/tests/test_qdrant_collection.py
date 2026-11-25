@@ -29,7 +29,7 @@ def store():
             {"doc_id": "a", "status": "approved", "page_start": 3},
             {"doc_id": "a", "status": "approved", "page_start": 9},
             {"doc_id": "b", "status": "withdrawn", "page_start": 1},
-            # No status yet: an admin has not filled its labels in (IN-05).
+            # No status label: indexed before the label existed.
             {"doc_id": "c"},
         ],
     )
@@ -60,9 +60,12 @@ def test_filters_match_chroma_including_missing_keys(store):
 
     assert ids({"doc_id": "a"}) == ["a:1", "a:2"]
     assert ids({"status": {"$in": ["withdrawn"]}}) == ["b:1"]
-    # $ne and $nin never match a passage without the key, as in Chroma.
-    assert ids({"status": {"$ne": "withdrawn"}}) == ["a:1", "a:2"]
-    assert ids({"status": {"$nin": ["withdrawn", "needs_review"]}}) == ["a:1", "a:2"]
+    # As in Chroma 1.5.5, $ne and $nin also match a passage without the key, so passages
+    # indexed before the status label existed stay searchable (retriever.label_filter).
+    assert ids({"status": {"$ne": "withdrawn"}}) == ["a:1", "a:2", "c:1"]
+    assert ids({"status": {"$nin": ["withdrawn", "needs_review"]}}) == ["a:1", "a:2", "c:1"]
+    # A positive match never does.
+    assert ids({"status": "approved"}) == ["a:1", "a:2"]
     assert ids({"$and": [{"doc_id": "a"}, {"page_start": {"$gte": 5}}]}) == ["a:2"]
     assert ids({"$or": [{"doc_id": "b"}, {"doc_id": "c"}]}) == ["b:1", "c:1"]
     withdrawn_left_out = store.query(
@@ -110,3 +113,12 @@ def test_point_ids_are_stable_and_the_two_services_ship_the_same_adapter():
     here = Path(__file__).resolve().parents[1] / "app" / "qdrant_collection.py"
     there = here.parents[2] / "ingestion-service" / "app" / "qdrant_collection.py"
     assert here.read_text() == there.read_text()
+
+
+def test_update_skips_a_passage_deleted_meanwhile(store):
+    # As Chroma does: relabelling a document mid-delete must not fail.
+    store.delete(ids=["a:2"])
+    store.update(ids=["a:1", "a:2"], metadatas=[{"status": "withdrawn"}, {"status": "withdrawn"}])
+    assert store.get(ids=["a:1", "a:2"])["metadatas"] == [
+        {"doc_id": "a", "status": "withdrawn", "page_start": 3}
+    ]

@@ -125,3 +125,11 @@ def test_words_keep_clause_numbers_and_drop_plurals():
         "8.3.1",
         "glass",
     ]
+
+
+def test_ties_keep_reading_order_whatever_order_the_store_returns(monkeypatch):
+    # QD-01: Qdrant returns passages in id-hash order, not as indexed; `position` is the order.
+    later = ("d:2", "Hose reels shall be inspected.", {"doc_id": "d", "position": 2})
+    first = ("d:1", "Hose reels shall be inspected.", {"doc_id": "d", "position": 1})
+    fake_chroma(monkeypatch, [later, first])
+    assert [r["id"] for r in search("hose reels", ["d"]).json()["results"]] == ["d:1", "d:2"]
