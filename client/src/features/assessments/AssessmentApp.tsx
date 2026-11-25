@@ -469,7 +469,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         reference={reference}
                         assessment={v.liveRecord}
                         canExport={v.canExportReport}
-                        onReview={() => v.setTab('review')}
+                        // A blocker opens its own section in Review, as Generation's tasks do.
+                        onReview={(section) => {
+                          v.setTab('review')
+                          if (section) setGoTo({ tab: 'review', params: { section } })
+                        }}
                         onGenerate={() => v.setTab('generate')}
                       />
                     )}

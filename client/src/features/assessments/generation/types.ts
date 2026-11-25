@@ -15,7 +15,8 @@ export const RUN_ORDER = [...STEP_ONE_PARTS, ...STEP_THREE_PARTS]
 export type OutOfDate =
   | { why: 'observations' | 'figures' | 'scope' }
   // Section 2 only: a section it summarises changed or is about to be redrafted.
-  | { why: 'section'; section: string }
+  // `sections`: every one that changed, when known (as the Export tab lists them).
+  | { why: 'section'; section: string; sections?: string[] }
 
 export interface GenerationPart {
   id: string

@@ -32,6 +32,11 @@
   margin-left: 0;
   margin-right: 0;
 }
+/* The comments list or Ask open where the margin would fit: the page keeps
+   clear of it (its 380px, as .cm-panel, and a 16px gap). */
+.dm-canvas.has-panel {
+  padding-right: 396px;
+}
 
 /* A thread's passage: amber while the thread is open, stronger for the
    thread being looked at and for a new one's passage. */

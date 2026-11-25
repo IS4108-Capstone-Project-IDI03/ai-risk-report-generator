@@ -197,7 +197,7 @@ it('lists what is left to finish, and offers no export until the report is compl
   fireEvent.click(screen.getByRole('button', { name: 'Open Generation for 2. Executive Summary' }))
   expect(opened.generate).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Open review for 7. Construction' }))
-  expect(opened.review).toHaveBeenCalled()
+  expect(opened.review).toHaveBeenCalledWith('7')
 })
 
 it('shows what is left when the gateway refuses the export (AC1)', async () => {

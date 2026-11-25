@@ -1066,9 +1066,11 @@ mark.rv-ai-unsupported {
   width: auto;
 }
 
-.rv-ofi-table input {
-  width: 100%;
-  min-width: 80px;
+/* The box, not the input: the Input sets min-width 0 on its own input inline. Wide
+   enough for an 8-digit amount beside the number arrows, or 2500000 shows as "25";
+   the table scrolls sideways in its box when the row no longer fits. */
+.rv-ofi-table .ds-field {
+  min-width: 112px;
 }
 
 /* The report's charts (GN-12): Marsh's graphical summaries under Sections 3 and 4.
@@ -1123,7 +1125,7 @@ mark.rv-ai-unsupported {
 }
 .rv-chart-value {
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .rv-chart-swatch {
   width: 10px;

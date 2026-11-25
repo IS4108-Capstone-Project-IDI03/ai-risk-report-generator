@@ -103,8 +103,9 @@ export function ReportExport({
   assessment: Assessment | null
   // The assigned engineer, with the export permission (AC2).
   canExport: boolean
-  // Open the review workspace and Generation, where what is left is finished.
-  onReview: () => void
+  // Open the review workspace (on a blocker's own section) and Generation,
+  // where what is left is finished.
+  onReview: (section?: string) => void
   onGenerate: () => void
 }) {
   const [blockers, setBlockers] = useState<ExportBlocker[] | null>(null)
@@ -282,7 +283,7 @@ export function ReportExport({
               tone="info"
               title={`${openThreads} comment thread${openThreads === 1 ? ' is' : 's are'} still open`}
               actions={
-                <Button variant="secondary" size="sm" onClick={onReview}>
+                <Button variant="secondary" size="sm" onClick={() => onReview()}>
                   Open review
                 </Button>
               }
@@ -307,7 +308,9 @@ export function ReportExport({
                           ? `Open Generation for ${b.title}`
                           : `Open review for ${b.title}`
                       }
-                      onClick={b.where === 'generation' ? onGenerate : onReview}
+                      onClick={() =>
+                        b.where === 'generation' ? onGenerate() : onReview(b.sectionId)
+                      }
                     >
                       <Icon name="triangle-alert" size={16} color="var(--status-moderate-fg)" />
                       <span className="ex-item-body">

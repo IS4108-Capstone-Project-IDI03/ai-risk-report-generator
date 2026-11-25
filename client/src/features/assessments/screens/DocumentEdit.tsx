@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Button, Callout, Dialog, HelpTip, IconRegistry, toast } from '../../../design-system'
@@ -237,12 +237,29 @@ function DocumentBody({
   const room =
     mainWidth === 0 || mainWidth >= (pageMode ? MARGIN_ROOM.page : MARGIN_ROOM.continuous)
   const inMargin = room && comments.panel === null
+  // Ask open takes the margin's place too (startComment and a clicked thread close
+  // Ask first, so they test inMargin alone): the margin would push the page under Ask.
   const marginShown =
     inMargin &&
+    !(askOpen && ask) &&
     (comments.active === DRAFT ||
       comments.entries.some(
         (e) => e.range && (e.thread.status === 'open' || e.thread.id === comments.active),
       ))
+  // The page beside the comment margin, or beside the comments list or Ask when
+  // either is open: it keeps their room, or the panel would cover its right edge.
+  const canvasClass = marginShown
+    ? 'dm-canvas has-margin'
+    : room && (comments.panel || (askOpen && ask))
+      ? 'dm-canvas has-panel'
+      : 'dm-canvas'
+  // Changing it narrows or widens the page, so the text reflows: the text that
+  // was at the top of the view (noted on each scroll, below) is put back there,
+  // or opening Comments jumped sections.
+  const seen = useRef<Place | null>(null)
+  useLayoutEffect(() => {
+    if (editor && seen.current) restorePlace(editor.view, seen.current, bottomOf(header.current))
+  }, [canvasClass, editor])
   // A new thread on the selected text (AC1): in the margin, or in the
   // comments list's place where there is no margin.
   const startComment = () => {
@@ -409,9 +426,29 @@ function DocumentBody({
     reopen: comments.reopen,
   }
 
-  // Opens on the section being reviewed.
+  // Opens on the section being reviewed. The parts above it (figures, charts,
+  // OFIs) load after it and push it down, so it is kept at the top while the page
+  // grows, until the engineer scrolls, clicks or types, or 4 s pass. Without this,
+  // opening on Section 11 landed in Section 5.
   useEffect(() => {
-    document.getElementById(`dm-section-${startAt}`)?.scrollIntoView?.({ block: 'start' })
+    const pin = () =>
+      document.getElementById(`dm-section-${startAt}`)?.scrollIntoView?.({ block: 'start' })
+    pin()
+    const page = document.getElementById(`dm-section-${startAt}`)?.parentElement
+    if (!page || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(pin)
+    observer.observe(page)
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+    const stop = () => {
+      observer.disconnect()
+      events.forEach((e) => window.removeEventListener(e, stop, true))
+    }
+    events.forEach((e) => window.addEventListener(e, stop, { capture: true, passive: true }))
+    const timer = setTimeout(stop, 4000)
+    return () => {
+      clearTimeout(timer)
+      stop()
+    }
   }, [startAt])
 
   // The section in view, for the outline and Return to review, until the
@@ -419,6 +456,7 @@ function DocumentBody({
   // the workspace below 1080px), measured from under the sticky header.
   useEffect(() => {
     const follow = () => {
+      if (editor) seen.current = placeOf(editor.view, bottomOf(header.current))
       if (!editor || editor.isFocused) return
       const top = (header.current?.getBoundingClientRect().bottom ?? 0) + 24
       let inView = report.parts[0].id
@@ -707,7 +745,7 @@ function DocumentBody({
           )}
           <div className="dm-viewport">
             <div className="om-scroll dm-scroll">
-              <div className={marginShown ? 'dm-canvas has-margin' : 'dm-canvas'}>
+              <div className={canvasClass}>
                 {/* The editor keeps its place in the tree in either view, so
                     switching never remounts it (RV-12). */}
                 <div className={pageMode ? 'dm-sheet is-page' : 'dm-sheet'}>
