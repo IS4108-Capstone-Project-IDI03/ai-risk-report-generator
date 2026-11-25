@@ -46,6 +46,32 @@ _DANGLING = {
 }
 
 
+def _lowered(text: str) -> str:
+    """The text with its first word lower-cased, unless it is a name: acronyms and tags
+    (CCTV, FM, NFPA13) and proper nouns ("Singapore Civil Defence") stay as written."""
+    words = text.split(" ", 2)
+    first = words[0]
+    acronym = sum(c.isupper() for c in first) > 1 or any(c.isdigit() for c in first)
+    # A capitalised next word (not an acronym: "Is CCTV ...") marks a name.
+    proper = len(words) > 1 and words[1][:1].isupper() and not words[1].isupper()
+    return text if acronym or proper else text[:1].lower() + text[1:]
+
+
+def _shortened(text: str, limit: int) -> str:
+    """The text in `limit` words or fewer: its first clause, else its first `limit` words."""
+    if len(text.split()) <= limit:
+        return text
+    # A clause ends at [.;:] before a capital, so "e.g. wet pipe" is never a cut point.
+    text = re.split(r"(?<=[.;:])\s+(?=[A-Z])|,\s", text, maxsplit=1)[0]
+    words = text.split()
+    if len(words) > limit:
+        words = words[:limit]
+        while words and words[-1].lower().strip(",;:") in _DANGLING:
+            words.pop()
+        text = " ".join(words)
+    return text.rstrip(".,;: ") + "."
+
+
 def verb_led(text: str) -> str:
     """The item text as one short instruction: it starts with a verb, in about 20 words or fewer.
 
@@ -53,21 +79,9 @@ def verb_led(text: str) -> str:
     would show headings, not things to do. Only the wording changes, never a citation or quote.
     """
     text = re.sub(r"\s+", " ", text).strip()
-    first = text.split(" ", 1)[0]
-    if first.strip(".,:;").lower() not in _VERBS:
-        # Keep acronyms and tags (CCTV, FM, NFPA13) as written; lower-case other first words.
-        keep = sum(c.isupper() for c in first) > 1 or any(c.isdigit() for c in first)
-        text = "Check " + (text if keep else text[:1].lower() + text[1:])
-    if len(text.split()) > 20:
-        text = re.split(r"(?<=[.;:])\s|,\s", text, maxsplit=1)[0]
-        words = text.split()
-        if len(words) > 24:
-            words = words[:20]
-            while words and words[-1].lower().strip(",;:") in _DANGLING:
-                words.pop()
-            text = " ".join(words)
-        text = text.rstrip(".,;: ") + "."
-    return text
+    if text.split(" ", 1)[0].strip(".,:;").lower() in _VERBS:
+        return _shortened(text, 20)
+    return "Check " + _lowered(_shortened(text, 19))
 
 
 def check_led(text: str) -> str:
@@ -77,10 +91,14 @@ def check_led(text: str) -> str:
     those, so every past-report row reads like the rest of the checklist (CP-37).
     """
     text = re.sub(r"\s+", " ", text).strip()
-    if text.split(" ", 1)[0].lower() != "check":
-        keep = sum(c.isupper() for c in text.split(" ", 1)[0]) > 1
-        text = "Check: " + (text if keep else text[:1].lower() + text[1:])
-    return verb_led(text)
+    if text.split(" ", 1)[0].lower() == "check":
+        return _shortened(text, 20)
+    # Shortened before the prefix: "Check:" as a cut point left only "Check.".
+    body = _shortened(text, 19)
+    # A question cut short keeps its question mark.
+    if text.endswith("?") and body.endswith("."):
+        body = body[:-1] + "?"
+    return "Check: " + _lowered(body)
 
 
 def named_standard(name: str) -> tuple[str, str]:

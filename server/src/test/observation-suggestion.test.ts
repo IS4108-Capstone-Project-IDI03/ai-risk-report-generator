@@ -381,6 +381,22 @@ describe('the reading job (seam 2)', () => {
     expect(rate).toHaveBeenCalledTimes(2)
   })
 
+  it('rates a note tagged only Recommendation from its whole note, so it can be drafted (CP-36)', async () => {
+    const done = await saved({ note: NOTE, kinds: ['recommendation'] })
+    expect(rate.mock.calls[0][0].text).toBe(NOTE)
+    expect(done.copeDimensions).toEqual(['Protection'])
+  })
+
+  it('never rates a note that is only a request for the client (CP-36)', async () => {
+    await saved({ note: NOTE, kinds: ['info_request'] })
+    expect(rate).not.toHaveBeenCalled()
+  })
+
+  it('sends no Note with the photos when the note is only a request (CP-36)', async () => {
+    await saved({ note: NOTE, kinds: ['info_request'] }, { photos: 1 })
+    expect(describePhotos.mock.calls[0][0].texts).toEqual([])
+  })
+
   it('tries a failure again, then stores it as failed, and Try again reads anew (AC13)', async () => {
     setInlineAttempts(2)
     rate.mockImplementation(() => json(500, { detail: 'Classifier down.' }))

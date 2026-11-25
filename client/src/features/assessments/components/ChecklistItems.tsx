@@ -2,7 +2,7 @@
 // rows, at most 8 shown with "Show more". Shown on the Checklist tab, in the site-walk pane and in
 // the phone sheet. Called by screens/Checklist.tsx and ChecklistSheet.tsx. Calls the mark, edit,
 // remove and add endpoints in api.ts; an observation for a difference goes through AnswerDialog.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { toast } from '../../../design-system'
 import {
   GatewayError,
@@ -53,42 +53,33 @@ const byRank = (items: ChecklistItem[]) =>
     })
     .map((x) => x.item)
 
-// The same view with one item's importance replaced, to show it before the gateway answers.
-function withImportant(view: ChecklistView, itemId: string, on: boolean): ChecklistView {
+// The same view with one item's fields replaced, the other rows left as they are.
+function withItem(view: ChecklistView, itemId: string, change: Partial<ChecklistItem>) {
   const checklist = view.checklist!
   return {
     ...view,
     checklist: {
       ...checklist,
-      items: checklist.items.map((i) =>
-        i.id === itemId ? { ...i, important: on ? { at: new Date().toISOString() } : null } : i,
-      ),
+      items: checklist.items.map((i) => (i.id === itemId ? { ...i, ...change } : i)),
     },
   }
 }
 
+// The same view with one item's importance replaced, to show it before the gateway answers.
+const withImportant = (view: ChecklistView, itemId: string, on: boolean) =>
+  withItem(view, itemId, { important: on ? { at: new Date().toISOString() } : null })
+
 // The same view with one item's check replaced, to show a mark before the gateway answers.
-function withMark(view: ChecklistView, itemId: string, mark: Mark | null): ChecklistView {
-  const checklist = view.checklist!
-  return {
-    ...view,
-    checklist: {
-      ...checklist,
-      items: checklist.items.map((i) =>
-        i.id !== itemId
-          ? i
-          : {
-              ...i,
-              check: mark && {
-                result: mark,
-                at: new Date().toISOString(),
-                by: '',
-                observation: null,
-              },
-            },
-      ),
-    },
-  }
+const withMark = (view: ChecklistView, itemId: string, mark: Mark | null) =>
+  withItem(view, itemId, {
+    check: mark && { result: mark, at: new Date().toISOString(), by: '', observation: null },
+  })
+
+// The current view with only this item taken from the gateway's answer: taking the whole answer
+// would overwrite another row's newer change that is still saving.
+const withSaved = (view: ChecklistView, saved: ChecklistView, itemId: string) => {
+  const item = saved.checklist?.items.find((i) => i.id === itemId)
+  return item ? withItem(view, itemId, item) : view
 }
 
 /** Returns the checklist's sections and rows, with the Add item form after them. */
@@ -109,7 +100,8 @@ export function ChecklistItems({
   view: ChecklistView & { checklist: NonNullable<ChecklistView['checklist']> }
   // Kept for the callers that still pass it; the plain list does not show drafting needs.
   sections?: ReportSection[] | null
-  setView: (view: ChecklistView) => void
+  // A state setter, so a late answer can update the latest view rather than an old copy.
+  setView: Dispatch<SetStateAction<ChecklistView | null>>
   reload: () => Promise<void>
   answering: ChecklistAnswering | null
   regenerateHint: string
@@ -160,25 +152,27 @@ export function ChecklistItems({
     toast.error(title, { description: e instanceof GatewayError ? e.message : 'Try again.' })
 
   // Optimistic: the box changes at once; if the gateway refuses, it goes back and says so.
+  // Each update reads the latest view and touches only this row, so a slow failure never undoes
+  // another row's change made meanwhile.
   const mark = async (item: ChecklistItem, next: Mark | null) => {
-    const before = view
-    setView(withMark(view, item.id, next))
+    setView((v) => v && withMark(v, item.id, next))
     try {
-      setView(await markChecklistItem(reference, item.id, next))
+      const saved = await markChecklistItem(reference, item.id, next)
+      setView((v) => v && withSaved(v, saved, item.id))
     } catch (e: unknown) {
-      setView(before)
+      setView((v) => v && withItem(v, item.id, { check: item.check }))
       failed("Couldn't save the mark", e)
     }
   }
   // Optimistic like a mark: the star shows at once and the row moves up; a refusal puts it back.
   const toggleImportant = async (item: ChecklistItem) => {
-    const before = view
     const on = !item.important
-    setView(withImportant(view, item.id, on))
+    setView((v) => v && withImportant(v, item.id, on))
     try {
-      setView(await editChecklistItem(reference, item.id, { important: on }))
+      const saved = await editChecklistItem(reference, item.id, { important: on })
+      setView((v) => v && withSaved(v, saved, item.id))
     } catch (e: unknown) {
-      setView(before)
+      setView((v) => v && withItem(v, item.id, { important: item.important }))
       failed("Couldn't change the importance", e)
     }
   }

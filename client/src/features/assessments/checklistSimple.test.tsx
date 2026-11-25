@@ -334,6 +334,33 @@ it('puts important items on top, oldest mark first, and marks one with a rollbac
   await waitFor(() => expect(order()[0]).toBe('Delta'))
 })
 
+it("a failed star undoes only its own row, not another row's tick saved meanwhile", async () => {
+  mock(base(checklist([item({ id: 'a', text: 'Alpha' }), item({ id: 'b', text: 'Bravo' })])))
+  showAnswering()
+  await screen.findByRole('listitem', { name: 'Alpha' })
+  // The star's request fails, but only after Bravo's tick has saved.
+  let failStar = () => {}
+  const ticked = base(
+    checklist([item({ id: 'a', text: 'Alpha' }), marked('b', 'Bravo', 'confirmed')]),
+  )
+  vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+    if (init.method === 'PATCH')
+      return new Promise((done) => (failStar = () => done(json({ message: 'no' }, 500))))
+    if (init.method === 'PUT') return json(ticked)
+    return json(view)
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'More actions for Alpha' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as important' }))
+  fireEvent.click(within(rowOf('Bravo')).getByRole('button', { name: /press to change/ }))
+  const box = () => rowOf('Bravo').querySelector('.cl-state')
+  await waitFor(() => expect(box()).toHaveAttribute('data-mark', 'confirmed'))
+  failStar()
+  await waitFor(() =>
+    expect(within(rowOf('Alpha')).queryByRole('img', { name: 'Important' })).toBeNull(),
+  )
+  expect(box()).toHaveAttribute('data-mark', 'confirmed')
+})
+
 it('shows a muted "from" line for standards and past reports, and the fixed tag inline', async () => {
   mock(
     base(

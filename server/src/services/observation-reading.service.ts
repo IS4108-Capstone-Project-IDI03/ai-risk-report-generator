@@ -182,7 +182,8 @@ async function startDescription(o: StoredObservation): Promise<boolean> {
 async function describePhotos(id: string): Promise<void> {
   const observation = await ObservationModel.findById(
     id,
-    'assessment photos note location interpretation',
+    // kinds tells observationFacts whether the note states a fact (CP-36).
+    'assessment photos note location interpretation kinds',
   )
     .lean<StoredObservation>()
     .catch(() => null)
@@ -458,8 +459,9 @@ const maskingUnavailable = (error: unknown) =>
 function textOf(o: StoredObservation): string {
   const photos = photoReadingOf(o)
   return [
-    // A split note is read by its fact parts only (CP-35): a request is never rated as a finding.
-    observationFacts(o)?.trim() ? observationFacts(o) : null,
+    // The whole note (CP-36): a recommendation-only note must still be categorised to reach
+    // drafting. A note that is only a request for the client is never rated as a finding.
+    o.kinds?.length && o.kinds.every((k) => k === 'info_request') ? null : o.note,
     ...kept(o.recordings).map((r) => readableText(r.transcription)),
     ...kept(o.pages ?? []).map((p) => readableText(p.transcription)),
     photos?.status === 'interpreted' && !photosOutOfDate(o) ? photos.description : null,
