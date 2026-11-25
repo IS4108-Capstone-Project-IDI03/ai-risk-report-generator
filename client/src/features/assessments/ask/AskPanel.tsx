@@ -34,7 +34,7 @@ import type {
   TemplatePart,
 } from './api'
 import { quotedWords, type AskPassage } from './passage'
-import type { AskItem, AskWorkflow } from './useAsk'
+import { STOPPED, type AskItem, type AskWorkflow } from './useAsk'
 import './ask.css'
 
 const MAX_QUESTION = 1000
@@ -281,10 +281,13 @@ function Answer({
         </p>
       ))}
       {item.failure && (
-        <div role="alert">
+        // The engineer's own Stop is no error, so it isn't shown in red or announced as one.
+        <div role={item.failure.cause === STOPPED ? 'status' : 'alert'}>
           <Callout
-            tone="danger"
-            title="The answer stopped"
+            tone={item.failure.cause === STOPPED ? 'info' : 'danger'}
+            title={
+              item.failure.cause === STOPPED ? 'You stopped this answer' : 'The answer stopped'
+            }
             actions={
               canAsk ? (
                 <Button
@@ -486,8 +489,12 @@ function ProposalCard({
         </p>
       ))}
       {item.failure && (
-        <div role="alert">
-          <Callout tone="danger" title="The text stopped" actions={redraft}>
+        <div role={item.failure.cause === STOPPED ? 'status' : 'alert'}>
+          <Callout
+            tone={item.failure.cause === STOPPED ? 'info' : 'danger'}
+            title={item.failure.cause === STOPPED ? 'You stopped this text' : 'The text stopped'}
+            actions={redraft}
+          >
             Text stopped at {failedAt}: {item.failure.cause}. {item.failure.next}
           </Callout>
         </div>
@@ -1018,10 +1025,16 @@ export function AskPanel({
   const count = ask?.items.length ?? 0
   const last = ask?.items.at(-1)
   const progress = `${count}:${last?.statements.length ?? 0}:${last?.missing.length ?? 0}:${last?.status}`
-  // Keeps the newest answer in view as it is written.
+  // The question box, sticky at the foot of the panel.
+  const composer = useRef<HTMLFormElement>(null)
+  // Keeps the newest answer in view as it is written. The margin is the sticky
+  // question box's height: without it "nearest" parks the answer's end (a
+  // stopped answer's Ask again, a card's Insert) behind the box.
   useEffect(() => {
-    const list = thread.current
-    list?.lastElementChild?.scrollIntoView?.({ block: 'nearest' })
+    const item = thread.current?.lastElementChild as HTMLElement | null | undefined
+    if (!item) return
+    item.style.scrollMarginBottom = `${composer.current?.offsetHeight ?? 0}px`
+    item.scrollIntoView?.({ block: 'nearest' })
   }, [progress])
   useEffect(() => {
     if (autoFocus) box.current?.querySelector('textarea')?.focus()
@@ -1267,6 +1280,7 @@ export function AskPanel({
             </div>
           )}
           <form
+            ref={composer}
             className="ask-composer"
             aria-label="Ask a question"
             data-walk="ask.composer"

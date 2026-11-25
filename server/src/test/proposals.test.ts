@@ -335,13 +335,16 @@ describe('asking for text (AC1, AC4)', () => {
     const proposal = await draftSeven(seeded)
 
     const [body] = sent as [Record<string, unknown>]
-    expect(body.propose).toEqual({
+    const { section_text: sectionWords, ...propose } = body.propose as Record<string, unknown>
+    expect(propose).toEqual({
       kind: 'draft',
       section_id: '7',
       section_title: '7. Construction',
       // A table takes no text.
       subsections: [{ index: 0, heading: 'Construction Narrative' }],
     })
+    // What the section says now, so the draft adds to it instead of repeating it.
+    for (const words of [RISER, FRAME, ROOF]) expect(sectionWords).toContain(words)
     expect(body.standard_ids).toEqual([seeded.inSet])
     // No past report is named to the model, nor a standard outside the set (AC4).
     expect(body.documents).toEqual([{ id: seeded.inSet, name: 'FM Global 1-21 (2026)' }])

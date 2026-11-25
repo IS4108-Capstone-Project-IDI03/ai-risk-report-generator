@@ -270,3 +270,26 @@ def test_no_model_is_asked_when_nothing_in_scope_is_relevant(monkeypatch):
     assert sent["stream"] == []
     assert result["statements"] == []
     assert result["missing"] == [proposing.nothing_found(0, 0)]
+
+
+def test_a_draft_is_shown_the_section_as_it_reads_now_masked(monkeypatch, fake_privacy):
+    # Without the section's text the model repeated what it already said (live, 26 Nov).
+    request = {
+        **REQUEST,
+        "privacy": {"enabled": True, "known_entities": [{"type": "CLIENT", "names": ["Acme"]}]},
+        "propose": {**REQUEST["propose"], "section_text": "Acme's basement flooded in 2024."},
+    }
+    _, sent = run(
+        monkeypatch,
+        ["Subsection: Natural Hazards", "The site is 2 m above the canal. [O2]"],
+        request,
+    )
+    prompt = sent["prompts"][0]
+    assert "<section_text>\n[CLIENT_1]'s basement flooded in 2024.\n</section_text>" in prompt
+    assert "Acme" not in prompt
+    assert "Do not repeat what it already says" in prompt
+
+
+def test_a_draft_of_an_empty_section_says_so(monkeypatch):
+    _, sent = run(monkeypatch, ["Subsection: Natural Hazards", "The site is 2 m up. [O2]"])
+    assert "<section_text>\n(empty)\n</section_text>" in sent["prompts"][0]

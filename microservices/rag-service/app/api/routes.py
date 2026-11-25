@@ -820,6 +820,9 @@ class AskPropose(BaseModel):
     section_id: Annotated[str, StringConstraints(pattern=r"^(1[0-2]|[4-9])$")]
     section_title: Annotated[str, StringConstraints(max_length=200)]
     subsections: Annotated[list[AskSubsection], Field(max_length=50)] = []
+    # A draft's section as it reads now (client text, masked before the model sees it), so the
+    # draft adds to it instead of repeating it. The gateway caps it at 20,000 characters.
+    section_text: Annotated[str, StringConstraints(max_length=20_000)] = ""
 
 
 # Writing guidance for one of Sections 4 to 12 instead of an answer (AS-08): what the section

@@ -5,6 +5,7 @@ import { reportDrafted } from '../generation/fixtures'
 import type { ReviewSection, SourcePassage } from '../api'
 import { ReviewWorkspace } from '../screens/ReviewWorkspace'
 import type { AskAnswer } from './api'
+import { STOPPED } from './useAsk'
 
 // AS-01: the Ask tab beside the evidence panel. The gateway is a stubbed fetch;
 // an answer arrives as the server-sent events it streams.
@@ -428,6 +429,33 @@ describe('failures (AC7, AC8)', () => {
     // What was answered before it stopped stays.
     expect(within(panel).getByText(STATEMENTS[0].text)).toBeInTheDocument()
     expect(within(alert).getByRole('button', { name: 'Ask again' })).toBeInTheDocument()
+  })
+
+  it('shows an answer the engineer stopped as a quiet note, not an error', async () => {
+    gateway({
+      answer: () =>
+        sse(
+          { type: 'question', id: 'q4', question: 'Valve?', askedAt: ANSWER.askedAt },
+          {
+            type: 'result',
+            answer: {
+              ...ANSWER,
+              id: 'q4',
+              question: 'Valve?',
+              status: 'stopped',
+              statements: [],
+              error: { step: 'generate', cause: STOPPED, at: new Date().toISOString() },
+            },
+          },
+        ),
+    })
+    const panel = await openAsk()
+    ask(panel, 'Valve?')
+    const title = await within(panel).findByText('You stopped this answer')
+    const note = title.closest<HTMLElement>('[role="status"]')!
+    expect(note).toHaveTextContent('the answer was stopped before it finished')
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(note).getByRole('button', { name: 'Ask again' })).toBeInTheDocument()
   })
 
   it('states a refusal over the question limits with its next step', async () => {

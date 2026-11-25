@@ -303,6 +303,14 @@ export async function proposalContext(
     section_id: sectionId,
     section_title: label,
     subsections: input.kind === 'draft' ? choices : [],
+    // What the section says now, so a draft adds to it instead of repeating it.
+    // Must fit S4's AskPropose.section_text (rag-service app/api/routes.py).
+    ...(input.kind === 'draft' && {
+      section_text: sectionText(now.document)
+        .blocks.map((b) => plainText(b.content))
+        .join('\n')
+        .slice(0, 20_000),
+    }),
   }
   if (input.kind === 'draft')
     return {

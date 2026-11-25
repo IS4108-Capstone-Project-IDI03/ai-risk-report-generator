@@ -1016,6 +1016,8 @@ def ask(
         # section's findings (AS-02), so one mapping covers the answer.
         ids = sorted(names)
         findings = passage.findings if passage else []
+        # A draft's section as it reads now (AS-04), so the draft doesn't repeat it.
+        existing = propose.section_text if drafting else ""
         masked_obs, [masked_question, *rest] = _mask_evidence(
             protection,
             usable,
@@ -1024,8 +1026,10 @@ def ask(
                 *(names[i] for i in ids),
                 *([passage.text] if passage else []),
                 *(f.text for f in findings),
+                *([existing] if existing else []),
             ],
         )
+        masked_existing = rest.pop() if existing else None
         shown_names = dict(zip(ids, rest[: len(ids)], strict=True))
         rest = rest[len(ids) :]
         masked_passage, masked_findings = (rest[0], rest[1:]) if passage else (None, [])
@@ -1122,6 +1126,7 @@ def ask(
                 shown_names,
                 None if drafting else masked_passage,
                 cited,
+                masked_existing,
             )
             finished("assemble")
 
@@ -1157,6 +1162,8 @@ def ask(
                 opening = False
                 kind, words = asking.line_kind(real)
                 text, cites = asking.parse_words(words)
+                # A label named in the words ("O1 records ...") means nothing to the engineer.
+                text = asking.plain_labels(text, labels)
                 if unknown:
                     dropped.append({"text": text, "reason": "placeholder"})
                 elif kind == "missing":
@@ -1218,6 +1225,8 @@ def ask(
                 real, unknown = protection.unmask(line)
                 kind, words = asking.line_kind(real)
                 text, cites = asking.parse_words(words)
+                # A label named in the words ("O1 records ...") means nothing to the engineer.
+                text = asking.plain_labels(text, labels)
                 if unknown:
                     dropped.append({"text": text, "reason": "placeholder"})
                 elif kind == "missing":
@@ -1445,6 +1454,8 @@ def cover(
                 real, unknown = protection.unmask(line)
                 kind, words = asking.line_kind(real)
                 text, cites = asking.parse_words(words)
+                # A label named in the words ("O1 records ...") means nothing to the engineer.
+                text = asking.plain_labels(text, labels)
                 if unknown:
                     dropped.append({"text": text, "reason": "placeholder"})
                 elif kind == "missing":

@@ -49,6 +49,9 @@ export const READ_ONLY: Reason = {
 }
 
 const NEXT = 'Ask again.'
+// The cause when the engineer stopped the answer (Stop, or leaving): the
+// gateway saves the same words (assessment-ask.service.ts), so a reload shows it alike.
+export const STOPPED = 'the answer was stopped before it finished'
 
 // A question the gateway refused before answering, as a cause and next step
 // (AC8): "Answer stopped at 14:02: <cause>. <next step>"
@@ -352,7 +355,7 @@ export function useAsk(reference: string, enabled: boolean) {
         // Only after every line was checked and the result arrived (the walkthrough's wait ends here).
         else if (!propose) signal('ask-answer-finished')
       } catch (error: unknown) {
-        if (controller.signal.aborted) fail('the answer was stopped before it finished')
+        if (controller.signal.aborted) fail(STOPPED)
         else if (error instanceof AskRefusedError) fail(error.reason, error.next, error.at)
         else if (error instanceof GatewayError && error.status === null)
           fail("the server can't be reached")

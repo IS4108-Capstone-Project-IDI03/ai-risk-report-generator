@@ -122,6 +122,14 @@
   font-weight: var(--weight-semibold);
   cursor: pointer;
 }
+/* 44px tap target on a phone (Go to the passage, Go to section). */
+@media (max-width: 767px) {
+  .ask-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
 .ask-link:hover {
   text-decoration: underline;
 }
@@ -434,6 +442,10 @@
 }
 .rv-ask-offer-buttons > * {
   box-shadow: var(--shadow-popover);
+  /* An opaque base: a greyed-out button is see-through, and the offer floats over the
+     draft's text, which then showed through its label (archived assessment). */
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
 }
 .rv-ask-hint {
   margin: 0;
