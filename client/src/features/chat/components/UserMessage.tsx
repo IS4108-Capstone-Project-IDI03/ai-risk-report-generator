@@ -3,7 +3,7 @@
 import type { UserMessage as Message } from '@openuidev/react-headless'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useVersions } from '../useVersions'
-import { IconButton } from '../../../design-system'
+import { Button, IconButton } from '../../../design-system'
 import { useSentPdfs, useSentPhotos } from '../photoStore'
 import { MessagePdf } from './MessagePdf'
 import { MessagePhotos } from './MessagePhotos'
@@ -57,17 +57,12 @@ export function UserMessage({ message }: { message: Message }) {
             onKeyDown={keys}
           />
           <div className="question-edit__actions">
-            <button type="button" className="pill" onClick={() => setDraft(null)}>
+            <Button pill variant="secondary" onClick={() => setDraft(null)}>
               Cancel
-            </button>
-            <button
-              type="button"
-              className="pill pill--primary"
-              onClick={send}
-              disabled={!draft.trim() || running}
-            >
+            </Button>
+            <Button pill variant="primary" onClick={send} disabled={!draft.trim() || running}>
               Send
-            </button>
+            </Button>
           </div>
         </div>
       </div>

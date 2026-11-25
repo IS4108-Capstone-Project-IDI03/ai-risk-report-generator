@@ -33,12 +33,15 @@ export function ChatThreadRow({ id, title }: Props) {
           icon="pencil"
           size="sm"
           label={`Rename ${title}`}
+          tooltip="Rename chat"
           onClick={() => setDialog('rename')}
         />
         <IconButton
           icon="trash-2"
           size="sm"
           label={`Delete ${title}`}
+          tooltip="Delete chat"
+          style={{ color: 'var(--red-600)' }}
           onClick={() => setDialog('delete')}
         />
       </span>

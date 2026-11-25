@@ -10,7 +10,7 @@
 .knowledge-assistant {
   /* The app's system font stack (design-system/tokens/fonts.css). */
   --chat-font: var(--font-sans);
-  --chat-sidebar: #f2f6fc; /* between --ink-50 and white */
+  --chat-sidebar: color-mix(in srgb, var(--ink-50) 55%, var(--surface-card));
   --chat-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
   --chat-selected: rgb(0 15 71 / 0.07); /* --marsh-navy at 7% */
   --chat-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
@@ -19,9 +19,9 @@
   /* One column for questions, answers and the composer, so their edges line up. */
   --chat-column: 768px;
   /* Quoted words in the source panel (CB-02): a highlighter yellow, chosen by Jesper on 17 Oct
-     over the ink blues, which were hard to tell apart. Lighter than the amber that marks an
-     unsupported claim (--amber-100), and not a design-system token yet. */
-  --chat-highlight: #fde68a;
+     over the ink blues, which were hard to tell apart. A tint of --amber-100, lighter than the
+     amber that marks an unsupported claim. */
+  --chat-highlight: color-mix(in srgb, var(--amber-100) 70%, var(--surface-card));
 
   position: relative; /* the source panel covers the chat on narrow screens */
   display: grid;
@@ -75,7 +75,7 @@
 .knowledge-assistant .openui-agent-sidebar-header__logo {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--radius-tile);
   box-shadow: var(--chat-shadow-sm);
 }
 .knowledge-assistant .openui-agent-sidebar-header__agent-name,
@@ -91,7 +91,7 @@
 }
 /* New chat: OpenUI's sidebar row (ChatSidebar.tsx), quiet like MikeOSS's items. */
 .knowledge-assistant .openui-agent-sidebar-item {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
@@ -146,7 +146,7 @@
   display: none;
 }
 .knowledge-assistant .openui-agent-thread-button {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   transition: background-color 120ms var(--chat-ease);
 }
 .knowledge-assistant .openui-agent-thread-button-title {
@@ -182,7 +182,7 @@
   text-align: center;
 }
 .chat-welcome img {
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   box-shadow: var(--chat-shadow-md);
 }
 .chat-welcome h2 {
@@ -219,7 +219,7 @@
   min-height: 48px;
   padding: 10px 14px;
   border: 1px solid var(--ink-100);
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   background: var(--chat-sidebar);
   color: var(--ink-800);
   font-size: 14px;
@@ -256,7 +256,7 @@
 /* A question: a quiet bubble in a faint Marsh light blue (MikeOSS's shape). */
 .knowledge-assistant .openui-shell-thread-message-user__content {
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-popover);
   background: var(--ink-50);
   color: var(--text-primary);
   font-size: 15px;
@@ -348,118 +348,12 @@
   justify-items: start;
   gap: 4px;
 }
-.chat-decline .chat-button {
+.chat-decline > button {
   margin-top: 12px;
 }
 
-/* ---- Chat buttons and the request dialog (CB-07): Apple-style pills in Marsh navy ---- */
+/* ---- The request dialog (CB-07): a v2 Dialog (design-system kit.css); only its contents are styled here ---- */
 
-.chat-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--marsh-navy);
-  font: 600 14.5px/1 var(--chat-font);
-  letter-spacing: -0.01em;
-  cursor: pointer;
-  transition:
-    background-color 120ms var(--chat-ease),
-    transform 120ms var(--chat-ease);
-}
-.chat-button:hover:not(:disabled) {
-  background: var(--chat-hover);
-}
-/* Feedback on the press itself, not the release (apple-design §1). */
-.chat-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-.chat-button:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-.chat-button:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-/* The app sidebar's navy (Jesper, 21 Oct), in every state: hover deepens the shadow instead
-   of lightening the fill, and the press still scales it down. */
-.chat-button--primary,
-.chat-button--primary:hover:not(:disabled) {
-  background: var(--surface-nav);
-  color: #fff;
-  box-shadow: var(--chat-shadow-sm);
-}
-.chat-button--primary:hover:not(:disabled) {
-  box-shadow: var(--chat-shadow-md);
-}
-.chat-button--primary:focus-visible {
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 0 4px var(--ink-600);
-}
-/* Sent: a calm tinted pill with a tick, readable at full strength (not faded). */
-.chat-button--done:disabled {
-  opacity: 1;
-  background: var(--ink-50);
-  color: var(--ink-700);
-}
-
-/* The dialog is a native <dialog> inside the chat, so it takes the chat's font; these rules
-   swap the design system's square card for a rounder Apple sheet. */
-.chat-dialog.ds-dialog {
-  border: 0;
-  border-radius: 18px;
-  box-shadow:
-    0 24px 64px rgb(0 15 71 / 0.18),
-    0 2px 8px rgb(0 15 71 / 0.08);
-  font-family: var(--chat-font);
-  color: var(--text-body);
-}
-.chat-dialog[open] {
-  animation: chat-dialog-in 220ms var(--chat-ease);
-}
-@keyframes chat-dialog-in {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-}
-.chat-dialog .ds-dialog-header {
-  padding: 22px 22px 0 24px;
-}
-.chat-dialog h2 {
-  font-size: 19px;
-  line-height: 1.3;
-  font-weight: 600;
-  letter-spacing: -0.018em;
-  color: var(--marsh-navy);
-}
-.chat-dialog .ds-dialog-header p {
-  margin-top: 6px;
-  font-size: 14.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  text-wrap: pretty;
-}
-/* A round grey close button, like an Apple sheet's. */
-.chat-dialog .ds-dialog-header button {
-  border-radius: 50%;
-  background: rgb(0 15 71 / 0.05);
-}
-.chat-dialog .ds-dialog-body {
-  padding: 20px 24px 4px;
-}
-.chat-dialog .ds-dialog-footer {
-  gap: 8px;
-  padding: 16px 20px 20px;
-  border: 0;
-  background: transparent;
-}
 .chat-request-dialog {
   display: grid;
   gap: 18px;
@@ -468,63 +362,23 @@
   display: grid;
   gap: 8px;
 }
+/* Same as the label Textarea draws, so the two fields read alike. */
 .chat-dialog-label {
   margin: 0;
-  color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-}
-.chat-dialog-label span {
-  margin-left: 4px;
-  color: var(--text-muted);
-  font-weight: 400;
+  color: var(--graphite-700);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
 }
 /* The question, quoted exactly as it was asked, in the same bubble as in the thread. */
 .chat-request-question {
   margin: 0;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-popover);
   background: var(--ink-50);
   color: var(--text-primary);
   font-size: 15px;
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-.chat-dialog-textarea {
-  width: 100%;
-  min-height: 96px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-default);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--text-primary);
-  font: 15px/1.5 var(--chat-font);
-  resize: vertical;
-  transition:
-    border-color 120ms var(--chat-ease),
-    box-shadow 120ms var(--chat-ease);
-}
-.chat-dialog-textarea::placeholder {
-  color: var(--text-muted);
-}
-.chat-dialog-textarea:focus {
-  outline: none;
-  /* --graphite-500 is about 4.5:1 on white, matching the composer's focus. */
-  border-color: var(--graphite-500);
-  box-shadow: var(--focus-ring);
-}
-.chat-dialog-problem {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--red-50);
-  color: var(--red-600);
-  font-size: 14px;
-  line-height: 1.45;
 }
 /* Each word of an answer fades in as it is revealed (smoothAdapter.ts paces them). */
 .chat-ch {
@@ -539,17 +393,6 @@
   .chat-ch {
     animation: none;
   }
-  .chat-dialog[open] {
-    animation-name: chat-fade-in;
-  }
-  .chat-button:active:not(:disabled) {
-    transform: none;
-  }
-}
-@keyframes chat-fade-in {
-  from {
-    opacity: 0;
-  }
 }
 
 /* Comparison table (AC7): plain rows under a faint light-blue header (MikeOSS's layout). */
@@ -557,7 +400,7 @@
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--ink-100);
-  border-radius: 10px;
+  border-radius: var(--radius-field);
 }
 .chat-table {
   width: 100%;
@@ -595,7 +438,7 @@
   cursor: pointer;
   position: relative;
   top: -0.1em;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border-color: var(--ink-200);
   background: var(--ink-50);
   color: var(--ink-700);
@@ -629,12 +472,16 @@
 /* ---- Composer: a translucent sheet floating over the conversation ---- */
 
 .knowledge-assistant .openui-agent-composer-slot {
-  background: linear-gradient(to bottom, rgb(255 255 255 / 0), var(--surface-card) 40%);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface-card) 0%, transparent),
+    var(--surface-card) 40%
+  );
 }
 .knowledge-assistant .openui-agent-thread-composer__input-wrapper {
   border: 1px solid var(--border-default);
-  border-radius: 18px;
-  background: rgb(255 255 255 / 0.9);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 4px 12px rgb(15 23 42 / 0.06);
   transition:
@@ -664,6 +511,27 @@
 }
 .knowledge-assistant .openui-agent-thread-composer__submit-button:active {
   transform: scale(0.97);
+}
+/* Phones and touch screens: Send reaches 44px, and the mic beside it moves over to keep clear. */
+@media (max-width: 767px), (pointer: coarse) {
+  .knowledge-assistant .openui-agent-thread-composer__submit-button {
+    width: 44px;
+    height: 44px;
+  }
+  .knowledge-assistant .voice-input {
+    right: 64px;
+  }
+  /* Level with the taller Send. */
+  .knowledge-assistant .photo-attach,
+  .knowledge-assistant .pdf-attach,
+  .knowledge-assistant .voice-input {
+    bottom: 13px;
+  }
+  /* OpenUI's phone header: the chats button and New chat. */
+  .knowledge-assistant .openui-agent-mobile-header .openui-icon-button {
+    width: 44px;
+    height: 44px;
+  }
 }
 /* The "latest message" arrow is gone: the thread now follows the answer as it
    streams (scrollVariant="always"), and the arrow confused more than it helped. */
@@ -846,7 +714,7 @@
   gap: 10px;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: none;
   cursor: pointer;
   /* Takes the name's old place: it grows, so the collapse button stays at the far edge. */
@@ -941,7 +809,7 @@
 /* The quoted words wear a highlighter yellow, in the passage and on the PDF page. */
 .chat-source mark {
   padding: 0 1px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--chat-highlight);
   color: var(--text-body);
 }
@@ -1033,12 +901,10 @@
   font-size: var(--text-caption-size);
   text-align: left;
 }
-.chat-pdf-return {
-  cursor: pointer;
-  color: var(--text-link);
-}
-.chat-pdf-return:hover {
-  text-decoration: underline;
+@media (pointer: coarse) {
+  .chat-pdf-note button {
+    min-height: 44px;
+  }
 }
 /* Must match GUTTER in PdfViewer.tsx (16px each side). */
 .chat-pdf-scroll {
@@ -1068,14 +934,14 @@
   position: absolute;
   box-sizing: border-box;
   border: 1.5px solid var(--marsh-navy);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   pointer-events: none;
 }
 /* Quoted words on the page (quoteRects.ts): a highlighter wash multiplied into the drawn
    page, so the black text stays crisp under the yellow. */
 .chat-pdf-mark {
   position: absolute;
-  border-radius: 1px;
+  border-radius: var(--radius-xs);
   background: var(--chat-highlight);
   mix-blend-mode: multiply;
   pointer-events: none;
@@ -1097,7 +963,7 @@
 .chat-thread-row {
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   transition: background-color 120ms var(--chat-ease);
 }
 .chat-thread-row:hover,
@@ -1147,10 +1013,10 @@
   display: none;
 }
 
-/* The footer buttons sit side by side like a Dialog's own footer. */
+/* A wrapper only so the delete dialog can focus Cancel (DeleteChatDialog.tsx); the buttons
+   still lay out as the Dialog's own footer. */
 .chat-dialog-actions {
-  display: flex;
-  gap: 8px;
+  display: contents;
 }
 /* Touch screens: the row and its two icon buttons reach 44 px, the smallest comfortable tap
    target. !important because the shared IconButton sets its size inline. */
@@ -1176,7 +1042,7 @@
   align-items: center;
   gap: 2px;
   font-size: 0.8125rem;
-  color: var(--text-secondary, #5b6573);
+  color: var(--text-secondary);
 }
 .message-actions {
   justify-content: flex-end;
@@ -1189,10 +1055,6 @@
 .knowledge-assistant .openui-shell-thread-message-assistant__content {
   flex-direction: column;
   align-items: flex-start;
-}
-.pill:focus-visible {
-  outline: 2px solid var(--marsh-navy, #000f47);
-  outline-offset: 2px;
 }
 .version-switcher {
   display: inline-flex;
@@ -1213,12 +1075,12 @@
   box-sizing: border-box;
   width: min(100%, 44rem);
   padding: 12px 16px;
-  border-radius: 16px;
-  background: rgb(233 242 254);
-  color: rgb(26 31 38);
+  border-radius: var(--radius-popover);
+  background: var(--ink-50);
+  color: var(--text-primary);
 }
 .question-edit:focus-within {
-  outline: 2px solid var(--marsh-navy, #000f47);
+  outline: 2px solid var(--marsh-navy);
   outline-offset: 2px;
 }
 .question-edit textarea,
@@ -1246,33 +1108,6 @@
   gap: 8px;
   margin-top: 12px;
 }
-.pill {
-  min-height: 36px;
-  padding: 0 16px;
-  border: 1px solid rgb(0 15 71 / 0.2);
-  border-radius: 999px;
-  background: #fff;
-  color: rgb(26 31 38);
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-.pill:hover:not(:disabled) {
-  background: var(--chat-hover);
-}
-.pill--primary {
-  border-color: transparent;
-  background: var(--marsh-navy, #000f47);
-  color: #fff;
-}
-.pill--primary:hover:not(:disabled) {
-  background: rgb(0 15 71 / 0.88);
-}
-.pill:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 /* On a touch screen the controls this feature adds are at least 44px, the touch-target minimum. */
 @media (pointer: coarse) {
   .message-actions button,
@@ -1281,9 +1116,6 @@
   .fact-row__actions button,
   .version-switcher button {
     min-width: 44px;
-    min-height: 44px;
-  }
-  .pill {
     min-height: 44px;
   }
 }
@@ -1296,6 +1128,11 @@
 }
 
 /* Ask by voice (CB-10): the mic inside the chat box beside Send, and the voice settings popover. */
+.voice-input__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .openui-agent-thread-composer__input-wrapper {
   position: relative;
 }
@@ -1340,7 +1177,7 @@
   height: 4px;
   margin-left: var(--space-4);
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
 }
 .voice-input__meter i {
@@ -1412,15 +1249,15 @@
   gap: var(--space-4);
   padding: var(--space-3);
   border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card, 16px);
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
   animation: voice-settings-in var(--duration-base) var(--ease-out);
 }
 .photo-tray__item img {
   width: 56px;
   height: 56px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
 }
 .face-choice {
   display: grid;
@@ -1441,7 +1278,7 @@
   height: 90px;
   object-fit: cover;
   border: 1px solid var(--graphite-200);
-  border-radius: 12px;
+  border-radius: var(--radius-field);
 }
 @media (pointer: coarse) {
   .photo-attach button {
@@ -1483,7 +1320,7 @@
   margin: 0;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--amber-600);
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--amber-50);
   color: var(--graphite-700);
   font-size: var(--text-caption-size);
@@ -1499,8 +1336,8 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
   border: 1px solid var(--graphite-200);
-  border-radius: 999px;
-  background: #fff;
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
   font-size: var(--text-caption-size);
 }
 .message-pdf[data-flagged] {

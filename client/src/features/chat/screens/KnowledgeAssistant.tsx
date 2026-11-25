@@ -102,8 +102,8 @@ export function KnowledgeAssistant({
                     <img src={marshbot} alt="" width={64} height={64} />
                     <h2>Hi, I'm MarshBot</h2>
                     <p>
-                      Ask me about the FM Global and NFPA standards or Marsh's past reports. Every
-                      answer cites the page it came from.
+                      Ask me about the FM Global and NFPA standards or Marsh's past reports, and
+                      every answer cites its page.
                     </p>
                   </div>
                 </AgentInterface.Welcome>

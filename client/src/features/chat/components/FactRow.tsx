@@ -55,11 +55,14 @@ export function FactRow({ fact, max, onSave, onDelete }: Props) {
         <IconButton
           icon="pencil"
           label={`Edit: ${short(fact.text)}`}
+          tooltip="Edit fact"
           onClick={() => setEditing(true)}
         />
         <IconButton
           icon="trash-2"
           label={`Delete: ${short(fact.text)}`}
+          tooltip="Delete fact"
+          style={{ color: 'var(--red-600)' }}
           onClick={() => onDelete(fact.id)}
         />
       </div>

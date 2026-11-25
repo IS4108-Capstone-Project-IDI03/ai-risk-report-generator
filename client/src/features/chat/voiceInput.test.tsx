@@ -117,9 +117,12 @@ describe('ask by voice (CB-10)', () => {
 
   it('shows the hands-free switch at once, and says what it does', async () => {
     render(<VoiceInput />)
-    expect(await screen.findByText(/Off: you check each question/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'About hands-free' })).toBeInTheDocument()
+    expect(screen.queryByText(/Tap the mic and ask/)).toBeNull()
     fireEvent.click(screen.getByRole('switch', { name: 'Hands-free' }))
     expect(screen.getByText(/Say “stop” to end/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'About hands-free' }))
+    expect(screen.getByText(/Off, you check each question/)).toBeInTheDocument()
   })
 
   it('sends the question without checking it, and says it is searching', async () => {

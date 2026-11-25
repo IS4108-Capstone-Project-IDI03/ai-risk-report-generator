@@ -1,8 +1,8 @@
 // The dialog behind "Ask an admin to add it" (CB-07): says what the admins will get (the
-// question, quoted, and an optional message), then sends the request. Chat look, not the
-// design system's (CLAUDE.local.md). Opened by components/DeclinedReply.tsx; calls ../api.ts.
-import { useId, useState } from 'react'
-import { Dialog, Icon } from '../../../design-system'
+// question, quoted, and an optional message), then sends the request. A v2 Dialog.
+// Opened by components/DeclinedReply.tsx; calls ../api.ts.
+import { useState } from 'react'
+import { Button, Callout, Dialog, Textarea } from '../../../design-system'
 import { askAdminToAdd } from '../api'
 
 /** Returns the send-request dialog for one declined question. */
@@ -18,7 +18,6 @@ export function RequestDialog({
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const messageId = useId()
 
   const send = async () => {
     setBusy(true)
@@ -34,53 +33,40 @@ export function RequestDialog({
 
   return (
     <Dialog
-      className="chat-dialog ds-dialog-sheet"
+      className="ds-dialog-sheet"
       title="Ask an admin to add a document"
       description="Your knowledge admins get your question and your message, so they can add the document that answers it."
       width={520}
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <button type="button" className="chat-button" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="chat-button chat-button--primary"
-            disabled={busy}
-            aria-busy={busy}
-            onClick={send}
-          >
-            {busy ? 'Sending…' : 'Send request'}
-          </button>
+          </Button>
+          <Button pill variant="primary" loading={busy} aria-busy={busy} onClick={send}>
+            Send request
+          </Button>
         </>
       }
     >
       <div className="chat-request-dialog">
         {problem && (
-          <p className="chat-dialog-problem" role="alert">
-            <Icon name="circle-alert" size={16} />
-            {problem}
-          </p>
+          <div role="alert">
+            <Callout tone="danger">{problem}</Callout>
+          </div>
         )}
         <section className="chat-dialog-field">
           <h3 className="chat-dialog-label">Your question</h3>
           <blockquote className="chat-request-question">{question}</blockquote>
         </section>
-        <section className="chat-dialog-field">
-          <label className="chat-dialog-label" htmlFor={messageId}>
-            Message to your admins <span>(Optional)</span>
-          </label>
-          <textarea
-            id={messageId}
-            className="chat-dialog-textarea"
-            rows={4}
-            maxLength={1000}
-            placeholder="Which document, or what detail, would help answer this?"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-        </section>
+        <Textarea
+          label="Message to your admins (optional)"
+          rows={4}
+          maxLength={1000}
+          placeholder="Which document, or what detail, would help answer this?"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
       </div>
     </Dialog>
   )

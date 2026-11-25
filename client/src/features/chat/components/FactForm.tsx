@@ -58,11 +58,17 @@ export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCa
       </p>
       <div className="fact-form__actions">
         {onCancel && (
-          <Button variant="secondary" onClick={onCancel}>
+          <Button pill variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button disabled={!clean || busy} onClick={() => void save()}>
+        <Button
+          pill
+          variant="primary"
+          disabled={!clean || busy}
+          loading={busy}
+          onClick={() => void save()}
+        >
           {submitLabel}
         </Button>
       </div>

@@ -3,7 +3,7 @@
 // documents. Rendered by the Answer in ../library.tsx under the reply when Meta says gap.
 import { useContext, useState } from 'react'
 import { useMessage, useThread } from '@openuidev/react-headless'
-import { Icon } from '../../../design-system'
+import { Button } from '../../../design-system'
 import { openKnowledgeTab } from '../../knowledge-base/openTab'
 import { DeclineContext } from './declineContext'
 import { RequestDialog } from './RequestDialog'
@@ -32,20 +32,20 @@ function AskAdmin() {
     <>
       {sent ? (
         // A quiet confirmation in place of the button, so the request can't be sent twice.
-        <button type="button" className="chat-button chat-button--done" disabled>
-          <Icon name="check" size={15} />
+        // Disabled but read at full strength: it is a result, not a blocked action.
+        <Button pill variant="tonal" iconLeft="check" disabled style={{ opacity: 1 }}>
           Request sent
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
-          className="chat-button chat-button--primary"
+        <Button
+          pill
+          variant="primary"
+          iconLeft="send"
           disabled={!question}
           onClick={() => setOpen(true)}
         >
-          <Icon name="send" size={15} />
           Ask an admin to add it
-        </button>
+        </Button>
       )}
       {open && (
         <RequestDialog
@@ -68,14 +68,9 @@ export function DeclinedReply() {
   return (
     <div className="chat-decline">
       {isAdmin ? (
-        <button
-          type="button"
-          className="chat-button chat-button--primary"
-          onClick={() => openKnowledgeTab('add')}
-        >
-          <Icon name="file-plus" size={15} />
+        <Button pill variant="primary" iconLeft="file-plus" onClick={() => openKnowledgeTab('add')}>
           Add documents
-        </button>
+        </Button>
       ) : (
         <AskAdmin />
       )}

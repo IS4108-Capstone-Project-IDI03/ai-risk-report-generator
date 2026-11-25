@@ -6,7 +6,7 @@
 import { useThread } from '@openuidev/react-headless'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, IconButton, Switch } from '../../../design-system'
+import { HelpTip, Icon, IconButton, Switch } from '../../../design-system'
 import { useRecorder } from '../../assessments/dictation/useRecorder'
 import { transcribeQuestion } from '../api'
 import { answerSpoken, handsFreeTurn, isStopWord, useVoiceSettings } from '../speech'
@@ -118,10 +118,9 @@ export function VoiceInput() {
               : after === 'speaking'
                 ? 'Reading the answer. The mic opens again when it ends.'
                 : ''
-  // Hands-free is always one switch away, with a line saying what it does or what it is doing.
-  const hint = settings.handsFree
-    ? 'Tap the mic and ask. Your question is sent, the answer is read aloud, then I listen again. Say “stop” to end.'
-    : 'Off: you check each question before it is sent.'
+  // Hands-free is always one switch away. Its explanation sits behind a (?); once it is on, one
+  // short line says what to do next.
+  const hint = settings.handsFree ? 'Tap the mic and ask. Say “stop” to end.' : ''
   const message = (
     <>
       {note && (
@@ -132,11 +131,19 @@ export function VoiceInput() {
         </p>
       )}
       <div className="voice-input__panel">
-        <Switch
-          label="Hands-free"
-          checked={settings.handsFree}
-          onChange={(on) => change({ handsFree: on })}
-        />
+        <span className="voice-input__switch">
+          <Switch
+            label="Hands-free"
+            checked={settings.handsFree}
+            onChange={(on) => change({ handsFree: on })}
+          />
+          <HelpTip label="About hands-free">
+            <p>
+              Off, you check each question before it is sent. On, your question is sent as you speak
+              it, the answer is read aloud, and the mic opens again. Say “stop” to end.
+            </p>
+          </HelpTip>
+        </span>
         <p className="voice-input__state" role="status">
           {step || hint}
           {live && metered && (

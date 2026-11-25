@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page } from 'react-pdf'
 import type { PDFDocumentProxy, PDFPageProxy, TextItem } from 'pdfjs-dist/types/src/display/api'
-import { Icon, IconButton } from '../../../design-system'
+import { Button, Icon, IconButton } from '../../../design-system'
 import type { Passage } from '../api'
 import { PDF_OPTIONS } from './pdfSetup'
 import { openPdfSource } from './pdfSource'
@@ -312,13 +312,11 @@ export function PdfViewer({ fileUrl, passage, quote, shown, expanded, onToggleEx
         </p>
       )}
       {page !== cited && (
-        <button
-          type="button"
-          className="chat-pdf-note chat-pdf-return"
-          onClick={() => setPage(cited)}
-        >
-          Back to the cited page ({cited})
-        </button>
+        <div className="chat-pdf-note">
+          <Button variant="link" size="xs" iconLeft="corner-up-left" onClick={() => setPage(cited)}>
+            Back to the cited page ({cited})
+          </Button>
+        </div>
       )}
       <div
         className="chat-pdf-scroll"
