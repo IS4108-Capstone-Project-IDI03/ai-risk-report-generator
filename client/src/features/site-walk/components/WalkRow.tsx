@@ -5,8 +5,7 @@
 // line up down the list. The whole row opens the
 // walk; a ready one says whether it can be added as it is or what is left to
 // fix, the same words its review shows. Rendered by screens/SiteWalks.tsx.
-import { Icon } from '../../../design-system'
-import { RowAction } from '../../clients/components/RowAction'
+import { Icon, IconAction } from '../../../design-system'
 import { plural } from '../../assessments/reviewDisplay'
 import type { SiteWalk } from '../api'
 import { incompleteWords, lacksValue } from '../proposal'
@@ -100,13 +99,13 @@ export function WalkRow({
       </div>
       <div className="wr-actions">
         {status === 'failed' && onRetry && (
-          <RowAction icon="rotate-ccw" label={'Retry ' + name} tooltip="Retry" onClick={onRetry} />
+          <IconAction icon="rotate-ccw" label={'Retry ' + name} tooltip="Retry" onClick={onRetry} />
         )}
         {status !== 'created' && onDelete && (
-          <RowAction
+          <IconAction
             icon="trash-2"
             label={'Delete ' + name}
-            tooltip="Delete proposal"
+            tooltip={status === 'ready' ? 'Delete proposal' : 'Delete site walk'}
             danger
             onClick={onDelete}
           />

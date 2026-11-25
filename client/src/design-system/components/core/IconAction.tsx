@@ -1,7 +1,8 @@
 // A round icon action with its tooltip (v2 section 2, "Icons first for actions"): a 32 px round
 // icon button that names its action on hover and focus, or, when blocked, greys out and explains
 // why in a reason box instead. With `href` it is the same button as a link that opens in a new
-// tab. AS-06's Details panel uses it for close, directions, add (shaded) and edit.
+// tab. The one round icon action in the app: rows, cards and panels all use it (the clients'
+// RowAction and the knowledge base's RowIconButton were merged into it).
 // Called by feature screens. Calls IconButton, Icon, Tooltip.
 import type * as React from 'react'
 import { Icon } from './Icon'
@@ -21,6 +22,8 @@ export type IconActionProps = {
   // A soft grey disc behind the icon, for an action that must read as a button on its own (an
   // add beside a heading). Plain ones stay bare until hovered.
   shaded?: boolean
+  // Red, for a bin (v2: bins are red, every other icon is quiet grey).
+  danger?: boolean
   disabled?: boolean
   // Blocked but focusable: the reason box replaces the tooltip.
   disabledReason?: Reason
@@ -30,6 +33,8 @@ export type IconActionProps = {
   // A link that opens in a new tab (Directions) in place of a button.
   href?: string
   onClick?: () => void
+  // A walkthrough target (F-12), set on the button or link itself.
+  'data-walk'?: string
   className?: string
   style?: React.CSSProperties
 }
@@ -42,25 +47,34 @@ export function IconAction({
   placement = 'top',
   size = 'sm',
   shaded = false,
+  danger = false,
   disabled,
   disabledReason,
   loading = false,
   href,
   onClick,
+  'data-walk': walk,
   className,
   style,
 }: IconActionProps) {
   // `shaded` is a class, on the button and on the link form alike.
   const classes = `${shaded ? 'ds-icon-button--shaded ' : ''}${className ?? ''}`.trim()
+  // v2 "Muted": icon buttons are --graphite-600; a caller's style still wins.
+  const tone = { color: danger ? 'var(--red-600)' : 'var(--graphite-600)', ...style }
+  // Stopped here, so a row that opens on click doesn't also open from its own icon. The
+  // walkthrough listens in the capture phase, so it still sees the press.
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
   const link = href ? (
     <a
       className={`ds-icon-button ds-icon-link${classes ? ' ' + classes : ''}`}
       data-ghost=""
+      data-walk={walk}
       href={href}
       target="_blank"
       rel="noreferrer"
-      aria-label={label}
-      style={style}
+      aria-label={label + ', opens in a new tab'}
+      onClick={stop}
+      style={tone}
     >
       <Icon name={icon} size={14} />
     </a>
@@ -75,11 +89,15 @@ export function IconAction({
       aria-disabled={loading || disabledReason ? true : undefined}
       aria-busy={loading || undefined}
       disabledReason={disabledReason}
-      onClick={loading ? undefined : onClick}
+      data-walk={walk}
+      onClick={(e) => {
+        stop(e)
+        if (!loading) onClick?.()
+      }}
       // Clears the native title so it never stacks on the tooltip.
       title={undefined}
       className={classes || undefined}
-      style={{ borderRadius: 999, ...style }}
+      style={{ borderRadius: 999, ...tone }}
     />
   )
   // A reason box already explains a blocked control; a tooltip on top would double it.

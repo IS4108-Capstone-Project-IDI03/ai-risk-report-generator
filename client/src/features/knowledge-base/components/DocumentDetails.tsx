@@ -8,7 +8,7 @@
 // and Delete draft: its details, history and passages wait until it is published.
 // Used by components/DocumentRow.tsx.
 import { useState, type ReactNode } from 'react'
-import { Button, IconRegistry } from '../../../design-system'
+import { Button, IconAction, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import {
   calendarDate,
@@ -23,7 +23,6 @@ import {
 import { TIER_LABELS } from '../../settings/tiers'
 import { Tip } from '../../help/Tip'
 import { DetailText } from './DetailText'
-import { RowIconButton } from './RowIconButton'
 
 /** Returns one document's details and actions. */
 export function DocumentDetails({
@@ -158,7 +157,7 @@ export function DocumentDetails({
             </Button>
           )}
           {canManage && !draft && !d.withdrawn && !needsReview(d) && (
-            <RowIconButton
+            <IconAction
               icon={IconRegistry.action.edit}
               label="Edit details"
               data-walk="knowledge.edit"
@@ -167,13 +166,13 @@ export function DocumentDetails({
           )}
           {!draft && (
             <>
-              <RowIconButton
+              <IconAction
                 icon={IconRegistry.object.history}
                 label="Edit history"
                 data-walk="knowledge.history"
                 onClick={onHistory}
               />
-              <RowIconButton
+              <IconAction
                 icon="list"
                 label="View passages"
                 data-walk="knowledge.passages"
@@ -182,7 +181,7 @@ export function DocumentDetails({
             </>
           )}
           {canManage && d.withdrawn && (
-            <RowIconButton
+            <IconAction
               icon={IconRegistry.action.reinstate}
               label="Reinstate"
               // Off while another edition is active: two are never active at once.
@@ -198,7 +197,7 @@ export function DocumentDetails({
             />
           )}
           {canManage && !draft && !d.withdrawn && (
-            <RowIconButton
+            <IconAction
               icon={IconRegistry.action.withdraw}
               label="Withdraw"
               data-walk="knowledge.withdraw"
@@ -208,7 +207,7 @@ export function DocumentDetails({
           {/* Last, set apart: Delete. Not while it is being read: Stop covers that. A cited
               document gets a locked Delete that explains instead (IN-12). */}
           {canManage && d.status !== 'queued' && d.status !== 'processing' && (
-            <RowIconButton
+            <IconAction
               className="kb-delete"
               icon={d.cited ? 'lock' : IconRegistry.action.discard}
               label={d.cited ? 'Delete (cited by a report)' : draft ? 'Delete draft' : 'Delete'}

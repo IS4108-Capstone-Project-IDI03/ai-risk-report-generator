@@ -161,7 +161,7 @@
   }
 }
 
-/* ---- Retry and Delete: round icon buttons (RowAction) above the row's stretched open button ---- */
+/* ---- Retry and Delete: round icon buttons (IconAction) above the row's stretched open button ---- */
 .wr-actions {
   position: relative;
   z-index: 1;

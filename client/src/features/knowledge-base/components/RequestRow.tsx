@@ -2,10 +2,9 @@
 // engineer's message as a quote, the two ways to close it, and uploading a document for it
 // (F-11), so the engineer can follow that document's ingestion. Used by screens/Requests.tsx.
 import { useRef } from 'react'
-import { Button } from '../../../design-system'
+import { Button, IconAction } from '../../../design-system'
 import { formatWhen } from '../../notifications/formatWhen'
 import type { KnowledgeGapRequest } from '../api'
-import { RowIconButton } from './RowIconButton'
 
 /** Returns the list item for one open request; `focused` marks the one a notification opened. */
 export function RequestRow({
@@ -66,7 +65,7 @@ export function RequestRow({
         >
           Dismiss
         </Button>
-        <RowIconButton
+        <IconAction
           icon="upload"
           label="Upload a document"
           tooltip="Upload a document"

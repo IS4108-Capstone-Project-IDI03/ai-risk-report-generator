@@ -2,12 +2,11 @@
 // priority mark, AS-07) over a grey second line, Type, Survey date, Stage, Report due and a chevron
 // that opens the assessment. Called by SiteCard (one site) and screens/OpenWorkTab (all sites: the
 // second line names the site). Rows open the assessment through onOpen.
-import { AssessmentTypeTile, ReportDue, StatusPill } from '../../../design-system'
+import { AssessmentTypeTile, IconAction, ReportDue, StatusPill } from '../../../design-system'
 import { PriorityMark } from '../../marshbot/PriorityMark'
 import { visitStage } from '../../assessments/format'
 import type { ClientVisit } from '../api'
 import { assessmentType, day } from '../formatClient'
-import { RowAction } from './RowAction'
 
 export type AssessmentRow = { visit: ClientVisit; site: string }
 
@@ -48,7 +47,11 @@ export function AssessmentTable({
       <tbody>
         {rows.map(({ visit, site }) => {
           const type = assessmentType(visit.surveyType)
-          const settled = visit.status === 'archived' || visit.status === 'finalised'
+          // Finished work shows its due date alone, never "late"; an exported report is finished.
+          const settled =
+            visit.status === 'archived' ||
+            visit.status === 'finalised' ||
+            visit.stage === 'exported'
           return (
             <tr
               key={visit.reference}
@@ -89,7 +92,7 @@ export function AssessmentTable({
               </td>
               <td className="cl-cell-actions">
                 <span className="cl-row-actions cl-row-actions--always">
-                  <RowAction
+                  <IconAction
                     icon="chevron-right"
                     label={[`Open ${visit.reference}`, visit.priority?.text]
                       .filter(Boolean)

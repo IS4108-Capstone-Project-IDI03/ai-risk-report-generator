@@ -4,8 +4,7 @@
 // details. The title is the disclosure button; the rest of the row also opens
 // it, as an observation's row does, while its actions keep their job. Used by
 // components/DocumentGroup.tsx.
-import { Chip, Icon, IconRegistry, StatusPill } from '../../../design-system'
-import { RowAction } from '../../clients/components/RowAction'
+import { Chip, Icon, IconAction, IconRegistry, StatusPill } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { calendarDate, isDraft, needsReview, reviewReasons } from '../display'
 import { DocumentDetails } from './DocumentDetails'
@@ -128,7 +127,7 @@ export function DocumentRow({
           <span className="cl-row-actions cl-row-actions--always">
             {/* A manual document has no file to open (IN-18). */}
             {d.fileUrl && (
-              <RowAction
+              <IconAction
                 icon={IconRegistry.action.openExternal}
                 label={`View original of ${d.title}`}
                 tooltip="View original"

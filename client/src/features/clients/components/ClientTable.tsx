@@ -4,14 +4,22 @@
 // reason when it isn't allowed). Called by ClientList. On a phone each row is a short
 // card with one More button that opens a Sheet (clients.css).
 import { useState } from 'react'
-import { Badge, Chip, Icon, IconButton, ReportDue, Sheet, useIsPhone } from '../../../design-system'
+import {
+  Badge,
+  Chip,
+  Icon,
+  IconAction,
+  IconButton,
+  ReportDue,
+  Sheet,
+  useIsPhone,
+} from '../../../design-system'
 import { PriorityMark } from '../../marshbot/PriorityMark'
 import type { Priority } from '../../marshbot/types'
 import type { Allowed } from '../api'
 import type { ClientFacts } from '../clientFacts'
 import { country } from '../formatClient'
 import { ClientAvatar } from './ClientAvatar'
-import { RowAction } from './RowAction'
 
 export type ClientRow = {
   id: string
@@ -70,15 +78,13 @@ function RuleAction({
 }) {
   if (!rule || rule.allowed)
     return (
-      <RowAction icon={icon} label={label} tooltip={tooltip} danger={danger} onClick={onClick} />
+      <IconAction icon={icon} label={label} tooltip={tooltip} danger={danger} onClick={onClick} />
     )
   return (
-    <IconButton
+    <IconAction
       icon={icon}
       label={label}
-      title={undefined}
-      size="sm"
-      style={{ borderRadius: 999, color: 'var(--graphite-400)' }}
+      style={{ color: 'var(--graphite-400)' }}
       disabledReason={{
         title: danger ? "Can't remove yet" : "Can't rename yet",
         text: rule.reason || 'Not allowed.',
@@ -202,7 +208,7 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                       className="cl-row-actions"
                       data-walk={i === 0 ? 'clients.row-1.actions' : undefined}
                     >
-                      <RowAction
+                      <IconAction
                         icon="plus"
                         label={`New assessment for ${c.name}`}
                         tooltip="New assessment"

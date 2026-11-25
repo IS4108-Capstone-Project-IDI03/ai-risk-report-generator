@@ -221,20 +221,6 @@
     opacity: 1;
   }
 }
-.cl-icon-link {
-  display: inline-grid;
-  place-items: center;
-  width: var(--control-height-sm);
-  height: var(--control-height-sm);
-  /* The global link underline (a { border-bottom }) would curve round the pill like a ring. */
-  border: 0;
-  border-radius: var(--radius-pill);
-}
-@media (hover: hover) and (pointer: fine) {
-  .cl-icon-link:hover {
-    background: var(--surface-hover);
-  }
-}
 @media (max-width: 767px), (pointer: coarse) {
   .cl-row-actions :is(button, a),
   /* Icon actions only: without this the Restore pill is squeezed into a 44 px circle. */

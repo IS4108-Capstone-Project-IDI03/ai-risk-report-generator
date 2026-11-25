@@ -1,8 +1,7 @@
 // One recent upload's row (IN-01): title and details, when it was uploaded, its status, and its
 // icon actions (Retry for a failed or cancelled one, Stop while it is queued or processing, and
 // the original). Used by components/UploadedDocuments.tsx. Calls UploadStatus.
-import { IconRegistry } from '../../../design-system'
-import { RowAction } from '../../clients/components/RowAction'
+import { IconAction, IconRegistry } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import {
   calendarDate,
@@ -12,7 +11,6 @@ import {
   reviewReasons,
   SOURCE_LABELS,
 } from '../display'
-import { RowIconButton } from './RowIconButton'
 import { UploadStatus } from './UploadStatus'
 
 /** Returns the table row for one recent upload. */
@@ -81,13 +79,13 @@ export function UploadedRow({
       <td className="cl-cell-actions">
         <span className="cl-row-actions cl-row-actions--always">
           {(d.status === 'failed' || d.status === 'cancelled') && (
-            <RowIconButton icon="rotate-ccw" label="Retry" disabled={retrying} onClick={onRetry} />
+            <IconAction icon="rotate-ccw" label="Retry" disabled={retrying} onClick={onRetry} />
           )}
           {(d.status === 'queued' || d.status === 'processing') && (
-            <RowIconButton icon="x" label="Stop" disabled={cancelling} onClick={onStop} />
+            <IconAction icon="x" label="Stop" disabled={cancelling} onClick={onStop} />
           )}
           {d.fileUrl && (
-            <RowAction
+            <IconAction
               icon={IconRegistry.action.openExternal}
               label={`View original of ${d.title}`}
               tooltip="View original"

@@ -2,12 +2,11 @@
 // name, address and chips, its New assessment / Edit / Remove (or Restore)
 // icons, and a table of the engineer's assessments there. Called by
 // screens/SitesTab. Opens the client dialogs through the callbacks.
-import { Button, Chip, Badge, Icon, IconRegistry } from '../../../design-system'
+import { Button, Chip, Badge, Icon, IconAction, IconRegistry } from '../../../design-system'
 import type { ClientPageSite, ClientVisit } from '../api'
 import { country, stampText } from '../formatClient'
 import { AssessmentTable } from './AssessmentTable'
 import { Note } from './Note'
-import { RowAction } from './RowAction'
 
 export function SiteCard({
   site,
@@ -79,7 +78,7 @@ export function SiteCard({
             <>
               {/* No + per site (Jesper, round 7): the page header's New assessment starts one. */}
               {site.change.allowed && (
-                <RowAction
+                <IconAction
                   icon="pencil"
                   label={`Edit ${site.name}`}
                   tooltip="Edit site"
@@ -88,7 +87,7 @@ export function SiteCard({
               )}
               {/* Takes the site out of use, as Remove does a recording on the Observations tab (CP-08). */}
               {site.remove.allowed && (
-                <RowAction
+                <IconAction
                   icon={IconRegistry.action.discard}
                   label={`Remove ${site.name}`}
                   tooltip="Remove site"

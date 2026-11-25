@@ -2,10 +2,9 @@
 // worst first, each with the reasons it sits there. Choosing a site keeps it lit
 // in the grid and the change chart; the chevron opens the assessment its figures
 // come from. Called by screens/InsightsTab.
-import { Icon, IconRegistry } from '../../../design-system'
+import { Icon, IconAction, IconRegistry } from '../../../design-system'
 import type { InsightSite } from '../api'
 import { country } from '../formatClient'
-import { RowAction } from './RowAction'
 
 export function AttentionList({
   sites,
@@ -49,7 +48,7 @@ export function AttentionList({
                 </span>
               </span>
             </button>
-            <RowAction
+            <IconAction
               icon="chevron-right"
               label={`Open ${site.reference} at ${site.name}`}
               tooltip="Open assessment"

@@ -236,7 +236,9 @@ describe('the site map in the panel', () => {
   it('gives a pinned place its coordinates and three icon buttons, an unpinned one a single Pin button', () => {
     open()
     expect(row('Site').getByText('1.4521, 103.9012')).toBeInTheDocument()
-    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toBeInTheDocument()
+    expect(
+      row('Site').getByRole('link', { name: 'Directions to Site, opens in a new tab' }),
+    ).toBeInTheDocument()
     for (const name of ['Move Pin for Site', 'Remove Pin for Site'])
       expect(row('Site').getByRole('button', { name })).toBeInTheDocument()
     expect(
@@ -428,10 +430,9 @@ describe('the site map in the panel', () => {
 
   it('shows directions but no changes to someone who may not edit', () => {
     open({ canEdit: false })
-    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toHaveAttribute(
-      'href',
-      'https://www.google.com/maps/dir/?api=1&destination=1.4521,103.9012',
-    )
+    expect(
+      row('Site').getByRole('link', { name: 'Directions to Site, opens in a new tab' }),
+    ).toHaveAttribute('href', 'https://www.google.com/maps/dir/?api=1&destination=1.4521,103.9012')
     expect(
       screen.queryByRole('button', { name: /Move Pin|Remove Pin|Pin on the Map/ }),
     ).not.toBeInTheDocument()
