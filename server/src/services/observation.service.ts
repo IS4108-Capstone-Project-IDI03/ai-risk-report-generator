@@ -288,6 +288,8 @@ type RecordingDto = {
     correction: (StampDto & { text: string }) | null
     error: string | null
     attempts: number
+    // When the latest attempt began (F-11: how long a transcription has run).
+    startedAt: Date | null
   }
   // Who added it after the observation was saved (CP-08).
   added: StampDto | null
@@ -327,6 +329,8 @@ type PageDto = {
     uncertain: [number, number][]
     error: string | null
     attempts: number
+    // When the latest attempt began (F-11: how long a transcription has run).
+    startedAt: Date | null
     // The model that wrote it.
     model: string | null
     // The engineer's correction, which drafting uses (CP-20).
@@ -372,6 +376,8 @@ export type ObservationDto = {
       hazardType: string | null
       error: string | null
       attempts: number
+      // When the latest attempt began (F-11: how long a description has run).
+      startedAt: Date | null
       model: string | null
       // The photos it describes, removed ones included.
       photoIds: string[]
@@ -437,6 +443,7 @@ function interpretationDto(o: StoredObservation): ObservationDto['interpretation
       hazardType: photos.hazardType ?? null,
       error: interpretationFailureReason(photos.error),
       attempts: photos.attempts.length,
+      startedAt: photos.attempts.at(-1)?.startedAt ?? null,
       model: photos.provenance?.model ?? null,
       photoIds: photos.photoIds.map(String),
       outOfDate: photosOutOfDate(o),
@@ -487,6 +494,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
         : null,
       error: transcriptionFailureReason(r.transcription.error),
       attempts: r.transcription.attempts.length,
+      startedAt: r.transcription.attempts.at(-1)?.startedAt ?? null,
     },
     added: stampDto(r.added),
     ...(r.clip && {
@@ -522,6 +530,7 @@ function toDto(o: StoredObservation, locations: ILocation[]): ObservationDto {
       uncertain: p.transcription.uncertain ?? [],
       error: pageFailureReason(p.transcription.error),
       attempts: p.transcription.attempts.length,
+      startedAt: p.transcription.attempts.at(-1)?.startedAt ?? null,
       model: p.transcription.provenance?.model ?? null,
       correction: p.transcription.correction
         ? { text: p.transcription.correction.text, ...stampDto(p.transcription.correction)! }

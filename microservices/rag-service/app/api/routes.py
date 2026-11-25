@@ -21,6 +21,7 @@ from app.chat.answer import answer_events
 from app.chat.passages import get_passage
 from app.client_insights.summary import summarise_client
 from app.client_intake.read import read_client_intake
+from app.comparison.compare import compare_reports
 from app.generation import llm
 from app.generation.generator import TEMPLATE
 from app.generation.llm import GenerationFailed
@@ -578,6 +579,41 @@ def client_insights_summary_route(request: ClientInsightsSummaryRequest) -> dict
         return summarise_client(
             request.client, request.figures, request.observations, _privacy(request)
         )
+    # 503, not 502: the gateway tells the engineer client details couldn't be protected.
+    except PrivacyUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+    except GenerationFailed as error:
+        raise HTTPException(502, str(error)) from error
+
+
+# One previous report item, or one piece of current evidence, as the comparison (RV-13) is
+# given it: cited by `label` (P1 for the previous report; O1, F1, R1 for the current
+# assessment's observations, draft findings and draft recommendations).
+class ComparedItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str
+    kind: Literal["finding", "recommendation", "observation"]
+    section: str
+    title: str | None = None
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    severity: str | None = None
+    priority: str | None = None
+    categories: list[str] = []
+    location: str | None = None
+
+
+class CompareReportsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    previous: Annotated[list[ComparedItem], Field(min_length=1)]
+    current: Annotated[list[ComparedItem], Field(min_length=1)]
+    privacy: Privacy | None = None
+
+
+@router.post("/comparison/compare")
+def compare_reports_route(request: CompareReportsRequest) -> dict:
+    """Suggest an outcome for each previous report item (RV-13); the gateway decides the rest."""
+    try:
+        return compare_reports(request.previous, request.current, _privacy(request))
     # 503, not 502: the gateway tells the engineer client details couldn't be protected.
     except PrivacyUnavailable as error:
         raise HTTPException(503, str(error)) from error

@@ -14,10 +14,16 @@ import {
 } from '../../design-system'
 import type { Session } from '../auth/api'
 import { can } from '../auth/access'
+import { ActivityButton } from '../background-work/components/ActivityButton'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { useNotificationCounts } from '../notifications/useNotificationCounts'
 import { Inbox } from '../inbox/screens/Inbox'
-import { assessmentOpen, assessmentsStale } from './openAssessment'
+import {
+  assessmentOpen,
+  assessmentPlace,
+  assessmentsStale,
+  type AssessmentPlace,
+} from './openAssessment'
 import type { AssessmentWorkflow } from './useAssessmentWorkflow'
 import { guardLeave } from './leaveGuard'
 import { ScreenMotion } from './ScreenMotion'
@@ -38,6 +44,7 @@ import { ReviewWorkspace } from './screens/ReviewWorkspace'
 import { Review } from './screens/Review'
 import { ReportExport } from './screens/ReportExport'
 import { ValidationExport } from './screens/ValidationExport'
+import { ComparisonTab } from './comparison/ComparisonTab'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { Recordings } from './screens/Recordings'
@@ -97,11 +104,19 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     const openOverview = (e: Event) =>
       guardLeave(() => v.openOverviewOf((e as CustomEvent<{ reference: string }>).detail.reference))
     window.addEventListener(assessmentOpen.event, openOverview)
+    // An activity row (F-11) opens an observation, or drafting, the same way.
+    const openPlace = (e: Event) => {
+      const { reference, ...place } = (e as CustomEvent<{ reference: string } & AssessmentPlace>)
+        .detail
+      guardLeave(() => v.openPlaceOf(reference, place))
+    }
+    window.addEventListener(assessmentPlace.event, openPlace)
     window.addEventListener(assessmentsStale.event, v.refreshList)
     return () => {
       window.removeEventListener(assessmentsStale.event, v.refreshList)
       window.removeEventListener(siteWalkReview.event, open)
       window.removeEventListener(assessmentOpen.event, openOverview)
+      window.removeEventListener(assessmentPlace.event, openPlace)
     }
   })
   // Each screen opens at the top, not where the last one was scrolled to. A
@@ -162,7 +177,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                   logoSrc={marshLogo}
                   onMenu={v.toggleNav}
                   alert={{ count: inboxTodo, label: `${inboxTodo} to do in Inbox` }}
-                  bell={<NotificationBell tone="dark" />}
+                  bell={
+                    <>
+                      <ActivityButton tone="dark" />
+                      <NotificationBell tone="dark" />
+                    </>
+                  }
                   back={
                     captureOnPhone
                       ? {
@@ -338,7 +358,12 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {/* Desktop has no top bar, so the bell lives in the page
                         header. On phones the navy bar carries it instead, so
                         this copy is suppressed to avoid a second one. */}
-                        {!v.showTopBar && !v.routeBlocked && <NotificationBell />}
+                        {!v.showTopBar && !v.routeBlocked && (
+                          <>
+                            <ActivityButton />
+                            <NotificationBell />
+                          </>
+                        )}
                       </div>
                     </div>
                     {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
@@ -393,7 +418,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             : 'Administration'
                         }
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -401,7 +433,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <Dashboard
                         v={v}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -413,7 +452,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         onCreated={v.newAssessment.onCreated}
                         onView={v.newAssessment.onView}
                         onLeave={v.cancelForm}
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -426,7 +472,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {...v.clientList}
                         onStart={v.canEdit ? v.goCreate : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -435,7 +488,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         {...v.calendar}
                         onStart={v.canEdit ? v.calendar.onStart : undefined}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -443,7 +503,14 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <ClientPage
                         {...v.clientPage}
                         // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={!v.showTopBar && <NotificationBell />}
+                        bell={
+                          !v.showTopBar && (
+                            <>
+                              <ActivityButton />
+                              <NotificationBell />
+                            </>
+                          )
+                        }
                       />
                     )}
 
@@ -548,6 +615,30 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         />
                       ) : (
                         <Review v={v} />
+                      ))}
+
+                    {v.isComparison &&
+                      (v.liveReference ? (
+                        <ComparisonTab
+                          reference={v.liveReference}
+                          // An observation or a section opens past an unsaved document's leave
+                          // guard, as the tabs do.
+                          onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
+                          onOpenSection={(section) =>
+                            guardLeave(() => {
+                              v.setTab('review')
+                              setGoTo({ tab: 'review', params: { section } })
+                            })
+                          }
+                        />
+                      ) : (
+                        <div style={{ padding: '24px' }}>
+                          <EmptyState
+                            icon="git-compare"
+                            title="Comparison is unavailable with sample data"
+                            description="A comparison needs saved reports from the gateway. Open a saved assessment from the dashboard to compare it with the previous report for its site."
+                          />
+                        </div>
                       ))}
 
                     {v.isExport &&

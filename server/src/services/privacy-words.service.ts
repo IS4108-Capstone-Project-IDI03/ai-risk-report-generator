@@ -249,7 +249,7 @@ async function defaultsSeeded() {
     if (await seedPrivacyWords()) forgetPrivacyWords()
   } catch {
     throw new SettingsInputError(
-      "The shipped Never masked words couldn't be loaded because the privacy service didn't answer. Try again shortly.",
+      "The default Never masked words couldn't be loaded because the privacy service didn't answer. Try again shortly.",
       503,
     )
   }

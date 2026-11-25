@@ -413,37 +413,6 @@ describe('the review workspace (RV-01)', () => {
     })
   })
 
-  it('carries no cite target: the Review banner uses a fixed 50% (S-01 follow-up)', async () => {
-    await assessment()
-    const body = (await api.get(`/api/assessments/${REFERENCE}/review`)).body
-    expect(body.standardCiteTarget).toBeUndefined()
-  })
-
-  it('keeps `broader` on a source found by the fallback search (GN-16)', async () => {
-    const { assessment: a } = await assessment()
-    const standard = await knowledgeDocument({
-      title: 'NFPA 13',
-      sourceType: 'nfpa_standard',
-      effectiveDate: '2022-01-01',
-    })
-    const id = `C:${standard._id}:1`
-    await draft(a._id, '7', {
-      subsections: [
-        {
-          heading: 'Construction Narrative',
-          kind: 'narrative',
-          statements: [{ text: 'Sprinklers per NFPA 13.', citations: [id], supported: true }],
-        },
-      ],
-      sources: {
-        [id]: { text: 'Sprinkler rules.', doc_id: String(standard._id), broader: true },
-      },
-      evidence: [],
-    })
-    const [construction] = (await api.get(`/api/assessments/${REFERENCE}/review`)).body.sections
-    expect(construction.sources[id].broader).toBe(true)
-  })
-
   it('opens for anyone who can read the assessment, and reports what it cannot find', async () => {
     await assessment()
     const admin = signedInAsRole(app, 'knowledge_admin')

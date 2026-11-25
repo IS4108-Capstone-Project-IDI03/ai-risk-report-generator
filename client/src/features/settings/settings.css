@@ -660,6 +660,17 @@
 .st-pw-filters > :only-child {
   grid-column: 1 / -1;
 }
+/* The lists' tables: every cell may wrap, so a table fits its card at any width rather than
+   being clipped by it. */
+.st-pw-table td {
+  overflow-wrap: anywhere;
+}
+.st-pw-added {
+  color: var(--graphite-600);
+}
+.st-pw-unit {
+  display: none;
+}
 .st-pw-warn {
   font-size: var(--text-caption-size, 13px);
 }
@@ -679,5 +690,48 @@
   .st-pw-fields > button {
     margin-top: 0;
     justify-self: start;
+  }
+  /* Tables reflow: each row stacks the word over its details, with its action at the right.
+     The header stays for screen readers only. Table's cells set padding and alignment inline. */
+  .st-pw-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .st-pw-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 10px 12px;
+  }
+  .st-pw-table td {
+    display: block;
+    grid-column: 1;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  .st-pw-table td:not(:first-child, :last-child) {
+    color: var(--text-muted);
+    font-size: var(--text-small-size);
+  }
+  .st-pw-table td:last-child:not(:only-child) {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: center;
+  }
+  .st-pw-table td:last-child button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .st-pw-table td:only-child {
+    padding: var(--space-9) !important;
+    text-align: center !important;
+  }
+  .st-pw-unit {
+    display: inline;
   }
 }

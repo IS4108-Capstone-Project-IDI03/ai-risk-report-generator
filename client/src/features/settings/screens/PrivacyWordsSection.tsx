@@ -173,13 +173,11 @@ function WordList({
   onRemove: (w: PrivacyWord) => void
 }) {
   const [filter, setFilter] = useState('')
-  // '' is everyone, 'default' the words shipped with the app, otherwise an admin's id.
+  // '' is everyone, 'default' the app's default words, otherwise an admin's id.
   const [addedBy, setAddedBy] = useState('')
   const origin = (w: PrivacyWord) => (w.source === 'default' ? 'default' : (w.addedBy?.id ?? ''))
   const origins = [
-    ...(words.some((w) => w.source === 'default')
-      ? [{ value: 'default', label: 'Shipped with the app' }]
-      : []),
+    ...(words.some((w) => w.source === 'default') ? [{ value: 'default', label: 'Default' }] : []),
     ...[...new Map(words.flatMap((w) => (w.addedBy ? [[w.addedBy.id, w.addedBy.name]] : [])))]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label)),
@@ -222,44 +220,46 @@ function WordList({
           )}
         </div>
       )}
-      <Table
-        dense
-        emptyMessage={
-          filter || addedBy
-            ? 'Nothing matches.'
-            : list === 'never'
-              ? 'No words yet.'
-              : 'No names yet.'
-        }
-        columns={[
-          { key: 'word', header: list === 'never' ? 'Word' : 'Name' },
-          ...(list === 'always' ? [{ key: 'kind', header: 'Masked as' }] : []),
-          { key: 'reason', header: 'Reason' },
-          { key: 'added', header: 'Added' },
-          { key: 'remove', header: '', align: 'right' as const, width: 48 },
-        ]}
-        rows={shown.map((w) => ({
-          word: <strong>{w.word}</strong>,
-          kind: kindLabel(w.kind),
-          reason: w.reason,
-          added: (
-            <span className="st-muted">
-              {w.source === 'default'
-                ? 'Shipped with the app'
-                : `${w.addedBy?.name ?? 'An admin'} · ${day(w.at)}`}
-            </span>
-          ),
-          remove: (
-            <IconButton
-              icon="x"
-              size="sm"
-              label={`Remove ${w.word}`}
-              tooltip="Remove"
-              onClick={() => onRemove(w)}
-            />
-          ),
-        }))}
-      />
+      <div className="st-pw-table">
+        <Table
+          dense
+          emptyMessage={
+            filter || addedBy
+              ? 'Nothing matches.'
+              : list === 'never'
+                ? 'No words yet.'
+                : 'No names yet.'
+          }
+          columns={[
+            { key: 'word', header: list === 'never' ? 'Word' : 'Name' },
+            ...(list === 'always' ? [{ key: 'kind', header: 'Masked as' }] : []),
+            { key: 'reason', header: 'Reason' },
+            { key: 'added', header: 'Added' },
+            { key: 'remove', header: '', align: 'right' as const, width: 48 },
+          ]}
+          rows={shown.map((w) => ({
+            word: <strong>{w.word}</strong>,
+            kind: kindLabel(w.kind),
+            reason: w.reason,
+            added: (
+              <span className="st-pw-added">
+                {w.source === 'default'
+                  ? 'Default'
+                  : `${w.addedBy?.name ?? 'An admin'} · ${day(w.at)}`}
+              </span>
+            ),
+            remove: (
+              <IconButton
+                icon="x"
+                size="sm"
+                label={`Remove ${w.word}`}
+                tooltip="Remove"
+                onClick={() => onRemove(w)}
+              />
+            ),
+          }))}
+        />
+      </div>
     </>
   )
 }
@@ -284,33 +284,41 @@ function MaskedInReports({ onNeverMask }: { onNeverMask: (word: string) => void 
         mistake, such as a floor code read as a person, can be moved to Never masked. Reports
         already indexed keep their masking until they are run again.
       </p>
-      <Table
-        dense
-        emptyMessage="No past report has been masked yet."
-        columns={[
-          { key: 'word', header: 'Word' },
-          { key: 'kind', header: 'Masked as' },
-          { key: 'reports', header: 'Reports', align: 'right' as const },
-          { key: 'action', header: '', align: 'right' as const },
-        ]}
-        rows={words.map((w) => ({
-          word: <strong>{w.word}</strong>,
-          kind: kindLabel(w.kind),
-          reports: <span className="st-num">{w.reports}</span>,
-          action: w.neverMasked ? (
-            <span className="st-muted">Never masked</span>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={`Never mask ${w.word}`}
-              onClick={() => onNeverMask(w.word)}
-            >
-              Never mask
-            </Button>
-          ),
-        }))}
-      />
+      <div className="st-pw-table">
+        <Table
+          dense
+          emptyMessage="No past report has been masked yet."
+          columns={[
+            { key: 'word', header: 'Word' },
+            { key: 'kind', header: 'Masked as' },
+            { key: 'reports', header: 'Reports', align: 'right' as const },
+            { key: 'action', header: '', align: 'right' as const },
+          ]}
+          rows={words.map((w) => ({
+            word: <strong>{w.word}</strong>,
+            kind: kindLabel(w.kind),
+            reports: (
+              <>
+                <span className="st-num">{w.reports}</span>
+                {/* The header says Reports; on a phone the header is hidden, so the word shows. */}
+                <span className="st-pw-unit"> {w.reports === 1 ? 'report' : 'reports'}</span>
+              </>
+            ),
+            action: w.neverMasked ? (
+              <span className="st-muted">Never masked</span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Never mask ${w.word}`}
+                onClick={() => onNeverMask(w.word)}
+              >
+                Never mask
+              </Button>
+            ),
+          }))}
+        />
+      </div>
     </>
   )
 }

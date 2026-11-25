@@ -1,0 +1,927 @@
+// Background work (F-11) through GET /api/background-work: which of the user's
+// long-running jobs are listed, with what state and progress, and where each
+// row links to.
+import { Types } from 'mongoose'
+import { describe, expect, it } from 'vitest'
+import request from 'supertest'
+import app from '../index'
+import { AssessmentModel } from '../models/assessment.model'
+import { DraftingRunModel } from '../models/drafting-run.model'
+import { IngestionJobModel } from '../models/ingestion-job.model'
+import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
+import { KnowledgeGapRequestModel } from '../models/knowledge-gap-request.model'
+import { ObservationModel } from '../models/observation.model'
+import { SiteWalkModel } from '../models/site-walk.model'
+import { UserModel } from '../models/user.model'
+import { signedInAs } from './auth-test-helpers'
+import { REF, assessment, observation, people } from './generation-fixtures'
+import { useMemoryMongo } from './memory-mongo'
+
+useMemoryMongo()
+
+const recording = (seq: number, status: string) => ({
+  seq,
+  key: `walks/${seq}.webm`,
+  contentType: 'audio/webm',
+  size: 1000,
+  durationSec: 60,
+  transcription: { status, segments: [] },
+})
+
+function walk(assessmentId: Types.ObjectId, engineerId: Types.ObjectId, fields: object) {
+  return SiteWalkModel.create({
+    assessment: assessmentId,
+    engineerId,
+    metadata: {
+      source_type: 'site_walk',
+      jurisdiction: 'SG',
+      facility_type: 'Warehouse',
+      COPE_dimension: null,
+      effective_date: new Date(),
+    },
+    ...fields,
+  })
+}
+
+const upload = (title: string, fields: object = {}) =>
+  KnowledgeDocumentModel.create({
+    title,
+    issuingBody: 'FM Global',
+    fileName: `${title}.pdf`,
+    file: { key: `k/${title}.pdf`, contentType: 'application/pdf', size: 1, sha256: title },
+    status: 'processing',
+    unconfirmed: [],
+    metadata: {
+      source_type: 'fm_standard',
+      jurisdiction: 'all',
+      facility_type: 'all',
+      effective_date: new Date('2026-01-01'),
+    },
+    ...fields,
+  })
+
+describe('site walks', () => {
+  it('an engineer sees their walk recordings being transcribed', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    const created = await walk(assessmentId, engineer._id, {
+      status: 'transcribing',
+      name: 'Morning walk',
+      recordings: [recording(1, 'transcribed'), recording(2, 'transcribing')],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'walk',
+        state: 'running',
+        title: 'Morning walk',
+        context: { label: 'Jurong Cold Store', reference: REF },
+        progress: {
+          type: 'stages',
+          current: 1,
+          total: 2,
+          unit: 'recordings',
+          segments: ['done', 'working'],
+        },
+        href: `/assessment?ref=${REF}&tab=observations&walk=${created._id}`,
+      }),
+    ])
+  })
+
+  it('a walk being proposed shows as one AI call, timed from when proposing began', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    const created = await walk(assessmentId, engineer._id, {
+      status: 'proposing',
+      recordings: [recording(1, 'transcribed')],
+    })
+    // The walk's last change is the move to proposing.
+    const proposingSince = new Date('2026-11-23T09:00:00Z')
+    await SiteWalkModel.collection.updateOne(
+      { _id: created._id },
+      { $set: { updatedAt: proposingSince } },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'running',
+        title: 'Site walk',
+        progress: { type: 'working', stage: 'Proposing observations' },
+        startedAt: proposingSince.toISOString(),
+      }),
+    ])
+  })
+
+  it('a failed walk shows its reason and how to try again', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    const created = await walk(assessmentId, engineer._id, {
+      status: 'failed',
+      error: 'A recording could not be transcribed.',
+      recordings: [recording(1, 'failed')],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'failed',
+        error: 'A recording could not be transcribed.',
+        retry: {
+          method: 'POST',
+          url: `/api/assessments/${REF}/site-walks/${created._id}/retry`,
+        },
+      }),
+    ])
+  })
+
+  it("a walk's recordings show which are transcribed, under way, failed or still to come", async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    await walk(assessmentId, engineer._id, {
+      status: 'failed',
+      error: 'A recording could not be transcribed.',
+      recordings: [
+        recording(1, 'transcribed'),
+        recording(2, 'failed'),
+        recording(3, 'transcribing'),
+        recording(4, 'queued'),
+      ],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toEqual({
+      type: 'stages',
+      current: 1,
+      total: 4,
+      unit: 'recordings',
+      segments: ['done', 'failed', 'working', 'empty'],
+    })
+  })
+
+  // Regression: passed from the start, since only working or failed walks are read.
+  it('walks being recorded, ready to review or created are not listed', async () => {
+    const { engineer } = await people()
+    const { id: assessmentId } = await assessment(engineer._id)
+    for (const status of ['recording', 'ready', 'created'])
+      await walk(assessmentId, engineer._id, { status })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+})
+
+describe('observations', () => {
+  it('a voice note being transcribed shows as one AI call, timed from its attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      { $set: { 'recordings.0.transcription.attempts.0.startedAt': since } },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'voice-note',
+        state: 'running',
+        title: 'Voice note',
+        context: { label: 'Jurong Cold Store', reference: REF },
+        progress: { type: 'working', stage: 'Transcribing' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  it('a voice note whose transcription failed shows the reason and how to try again', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          'recordings.0.transcription.status': 'failed',
+          'recordings.0.transcription.error': 'The recording has no speech in it.',
+        },
+      },
+    )
+    const recordingId = saved.recordings[0]._id
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'voice-note',
+        state: 'failed',
+        error: expect.any(String),
+        retry: {
+          method: 'POST',
+          url: `/api/observations/${saved._id}/recordings/${recordingId}/transcription/retry`,
+        },
+      }),
+    ])
+  })
+
+  it('a handwritten page being transcribed shows as one AI call, timed from its attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          pages: [
+            {
+              _id: new Types.ObjectId(),
+              name: 'Page 1',
+              key: 'pages/p1.jpg',
+              contentType: 'image/jpeg',
+              size: 3,
+              transcription: { status: 'transcribing', attempts: [{ startedAt: since }] },
+            },
+          ],
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'handwriting',
+        state: 'running',
+        title: 'Page 1',
+        progress: { type: 'working', stage: 'Reading handwriting' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since listObservationsOf leaves drafts out (CP-24).
+  it("a draft observation's voice note is not listed", async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'], { transcribing: true })
+    await ObservationModel.collection.updateOne({ _id: saved._id }, { $set: { draft: true } })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+})
+
+describe('reading an observation (CP-24)', () => {
+  it('photos being described show as one AI call, timed from the attempt', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    const since = new Date('2026-11-23T09:00:00Z')
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          interpretation: {
+            photoReading: {
+              status: 'interpreting',
+              attempts: [{ startedAt: since }],
+              photoIds: [],
+            },
+          },
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'reading',
+        state: 'running',
+        title: 'Observation',
+        progress: { type: 'working', stage: 'Describing photos' },
+        startedAt: since.toISOString(),
+        href: `/assessment?ref=${REF}&tab=observations&obs=${saved._id}`,
+      }),
+    ])
+  })
+
+  it('a failed suggestion shows its reason and how to try again', async () => {
+    const { engineer } = await people()
+    const ids = await assessment(engineer._id)
+    const saved = await observation(ids, ['Protection'])
+    await ObservationModel.collection.updateOne(
+      { _id: saved._id },
+      {
+        $set: {
+          suggestion: {
+            status: 'failed',
+            error: 'The category and severity could not be suggested.',
+            attempts: 2,
+            category: null,
+            severity: null,
+            run: 1,
+          },
+        },
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'reading',
+        state: 'failed',
+        error: 'The category and severity could not be suggested.',
+        retry: { method: 'POST', url: `/api/observations/${saved._id}/suggestion/retry` },
+      }),
+    ])
+  })
+})
+
+describe('drafting (GN-13)', () => {
+  const job = (status: string, fields: object = {}) => ({
+    status,
+    action: 'draft',
+    instruction: null,
+    attempts: 0,
+    error: null,
+    requestedBy: { id: 'x', role: 'risk_engineer', name: 'Alex Rowe' },
+    requestedAt: new Date('2026-11-23T09:00:00Z'),
+    finishedAt: null,
+    ...fields,
+  })
+
+  function draftingRun(
+    assessmentId: Types.ObjectId,
+    parts: Record<string, object>,
+    run?: { parts: string[]; startedAt: Date; finishedAt: Date | null },
+  ) {
+    return DraftingRunModel.create({
+      assessment: assessmentId,
+      reference: REF,
+      parts,
+      ...(run && { run: { ...run, startedBy: { id: 'x', name: 'Alex Rowe' } } }),
+      metadata: {
+        source_type: 'drafting_run',
+        jurisdiction: 'SG',
+        facility_type: 'Warehouse',
+        COPE_dimension: 'all',
+        effective_date: new Date(),
+      },
+    })
+  }
+
+  it('a drafting run under way shows the parts drafted of the run', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const startedAt = new Date('2026-11-23T09:00:00Z')
+    await draftingRun(
+      id,
+      { '3': job('done'), '6': job('done'), '7': job('drafting'), '8': job('queued') },
+      { parts: ['3', '6', '7', '8'], startedAt, finishedAt: null },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'drafting',
+        state: 'running',
+        title: 'Drafting the report',
+        context: { label: 'Jurong Cold Store', reference: REF },
+        progress: {
+          type: 'stages',
+          current: 2,
+          total: 4,
+          unit: 'parts',
+          segments: ['done', 'done', 'working', 'empty'],
+        },
+        startedAt: startedAt.toISOString(),
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
+  })
+
+  it('a section that fails while the run goes on shows where it fell, before the run is over', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      { '3': job('done'), '6': job('failed', { error: 'No evidence.' }), '7': job('drafting') },
+      { parts: ['3', '6', '7'], startedAt: new Date(), finishedAt: null },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0]).toMatchObject({
+      state: 'running',
+      progress: { segments: ['done', 'failed', 'working'] },
+    })
+  })
+
+  it('a section that failed, once the run is over, shows its reason and where to draft it again', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      {
+        '3': job('done'),
+        '7': job('failed', { error: 'Section 7 could not be drafted.', attempts: 3 }),
+      },
+      {
+        parts: ['3', '7'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'drafting',
+        state: 'failed',
+        title: 'Drafting the report',
+        error: 'Section 7 could not be drafted.',
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
+    // Drafting it again is the drafting tab's choice: a new run drafts what its checkpoint offers.
+    expect(res.body.rows[0].retry).toBeUndefined()
+  })
+
+  it('sections that failed fold into one row for their assessment, not one row each', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const notEnough = 'Not enough evidence to draft this section: 0 of 1 usable observation needed.'
+    await draftingRun(
+      id,
+      {
+        '3': job('done'),
+        '8': job('failed', { error: notEnough }),
+        '9': job('failed', { error: notEnough }),
+        '10': job('failed', { error: notEnough }),
+      },
+      {
+        parts: ['3', '8', '9', '10'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        id: `drafting:${REF}:failed`,
+        state: 'failed',
+        title: 'Drafting the report',
+        error: '3 sections not drafted',
+        href: `/assessment?ref=${REF}&tab=generate`,
+      }),
+    ])
+  })
+
+  it("a run's failed sections show where they fall among those drafted, in run order", async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await draftingRun(
+      id,
+      {
+        '10': job('failed', { error: 'No evidence.' }),
+        '3': job('done'),
+        '6': job('failed', { error: 'No evidence.' }),
+        '8': job('done'),
+      },
+      {
+        parts: ['3', '6', '8', '10'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toEqual({
+      type: 'stages',
+      current: 2,
+      total: 4,
+      unit: 'parts',
+      segments: ['done', 'failed', 'done', 'failed'],
+    })
+  })
+
+  it('a part redrafted from Review shows as one AI call, timed from the request', async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    const requestedAt = new Date('2026-11-23T10:00:00Z')
+    await draftingRun(
+      id,
+      { '7': job('drafting', { action: 'regenerate', requestedAt }), '9': job('queued') },
+      {
+        parts: ['7', '9'],
+        startedAt: new Date('2026-11-23T09:00:00Z'),
+        finishedAt: new Date('2026-11-23T09:05:00Z'),
+      },
+    )
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        state: 'running',
+        title: 'Section 7',
+        progress: { type: 'working', stage: 'Drafting' },
+        startedAt: requestedAt.toISOString(),
+      }),
+      expect.objectContaining({ state: 'queued', title: 'Section 9' }),
+    ])
+  })
+})
+
+describe('who sees what', () => {
+  const transcribing = { status: 'transcribing', recordings: [recording(1, 'transcribing')] }
+
+  it("an archived assessment's work is not listed", async () => {
+    const { engineer } = await people()
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, transcribing)
+    await AssessmentModel.updateOne({ _id: id }, { archivedAt: new Date() })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start, since only the user's assigned assessments are read.
+  it("an engineer never sees another engineer's work", async () => {
+    const { engineer } = await people()
+    const other = await UserModel.create({
+      staffId: 'T-3',
+      name: 'Jide Okafor',
+      email: 'jide@example.com',
+      role: 'risk_engineer',
+    })
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, transcribing)
+
+    const res = await signedInAs(app, other).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start, from requireAuthNoRefresh.
+  it('answers 401 when signed out', async () => {
+    await request(app).get('/api/background-work').expect(401)
+  })
+
+  // Regression: passed from the start. Polling must not keep an idle session alive (F-07).
+  it('reading it does not extend the session', async () => {
+    const { engineer } = await people()
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+})
+
+describe('knowledge admins', () => {
+  // Regression: passed from the start, since every role reads only its own assigned assessments.
+  it("an admin sees work on assessments assigned to them, not on an engineer's", async () => {
+    const { engineer, admin } = await people()
+    const { id } = await assessment(engineer._id)
+    await walk(id, engineer._id, {
+      status: 'transcribing',
+      recordings: [recording(1, 'transcribing')],
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  it('a document being ingested shows its stages, the one under way, and the pages done in it', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9')
+    const stageStarted = new Date('2026-11-23T09:02:00Z')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      pageCurrent: 12,
+      pageTotal: 40,
+      ocrCurrent: null,
+      ocrTotal: null,
+      stageLog: [
+        { stage: 'parsing', startedAt: new Date('2026-11-23T09:00:00Z'), durationMs: 120000 },
+      ],
+      currentStageStartedAt: stageStarted,
+      startedAt: new Date('2026-11-23T09:00:00Z'),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'running',
+        title: 'FM 8-9',
+        context: { label: 'Knowledge base' },
+        progress: {
+          type: 'count',
+          current: 12,
+          total: 40,
+          unit: 'pages',
+          stage: 'Chunking',
+          step: 2,
+          steps: 3,
+          segments: ['done', 'working', 'empty'],
+        },
+        startedAt: stageStarted.toISOString(),
+        href: '/admin/knowledge-base',
+      }),
+    ])
+  })
+
+  it('a document waiting for the ingestion worker says queued, timed from its upload', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 2-0', { status: 'queued' })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'queued',
+        title: 'FM 2-0',
+        progress: { type: 'working', stage: 'Queued' },
+        startedAt: document.createdAt.toISOString(),
+      }),
+    ])
+  })
+
+  it('a document tried again says queued since the retry, not since its upload', async () => {
+    const { admin } = await people()
+    const retriedAt = new Date(Date.now() - 2 * 60_000)
+    await upload('FM 2-0', {
+      status: 'queued',
+      createdAt: new Date(Date.now() - 4 * 24 * 3600_000),
+      handled: { at: retriedAt, by: { id: 'a1', name: 'Sana Patel' } },
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0]).toMatchObject({ state: 'queued', startedAt: retriedAt.toISOString() })
+  })
+
+  it("chunking's OCR pass counts the table and formula regions read", async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      pageCurrent: 40,
+      pageTotal: 40,
+      ocrCurrent: 3,
+      ocrTotal: 8,
+      stageLog: [],
+      currentStageStartedAt: new Date(),
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toMatchObject({
+      type: 'count',
+      current: 3,
+      total: 8,
+      unit: 'regions',
+      stage: 'Chunking',
+    })
+  })
+
+  it('a failed ingestion shows its reason and how to try again', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'failed',
+      error: 'The PDF could not be read.',
+      finishedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'ingestion',
+        state: 'failed',
+        error: 'The PDF could not be read.',
+        retry: { method: 'POST', url: `/api/knowledge-documents/${document._id}/retry` },
+      }),
+    ])
+  })
+
+  it('a failed ingestion shows the stages done and the stage it failed in', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'failed',
+      error: 'The PDF could not be read.',
+      finishedAt: new Date(),
+    })
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'chunking',
+      failedStage: 'chunking',
+      pageCurrent: 12,
+      pageTotal: 40,
+      stageLog: [
+        { stage: 'anonymising', startedAt: new Date(), durationMs: 1000 },
+        { stage: 'parsing', startedAt: new Date(), durationMs: 1000 },
+      ],
+      currentStageStartedAt: new Date(),
+      startedAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).toMatchObject({
+      stage: 'Chunking',
+      step: 3,
+      steps: 4,
+      segments: ['done', 'done', 'failed', 'empty'],
+    })
+  })
+
+  it('a failed ingestion with no record of its stage shows no stages', async () => {
+    const { admin } = await people()
+    await upload('FM 8-9', { status: 'failed', error: 'Lost.', finishedAt: new Date() })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows[0].progress).not.toHaveProperty('segments')
+  })
+
+  // Regression: passed from the start, since only queued or processing uploads become rows.
+  it('complete and cancelled documents are not listed', async () => {
+    const { admin } = await people()
+    await upload('FM 8-9', { status: 'complete', finishedAt: new Date() })
+    await upload('FM 2-0', { status: 'cancelled', cancelledAt: new Date() })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  // Regression: passed from the start. Uploads are the admins' (knowledge:manage).
+  it('an engineer sees no uploads', async () => {
+    const { engineer } = await people()
+    await upload('FM 8-9', { status: 'queued' })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+
+  it('a document whose source type could not be told is waiting on the admin', async () => {
+    const { admin } = await people()
+    const document = await upload('Site guide', { status: 'awaiting_type' })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'document-decision',
+        state: 'waiting_on_you',
+        title: 'Site guide',
+        progress: { type: 'working', stage: 'Choose its source type' },
+        href: '/admin/knowledge-base',
+      }),
+    ])
+    expect(res.body.rows[0].id).toBe(`document-decision:${document._id}`)
+  })
+
+  it('an ingested document with unconfirmed details is waiting on the admin, however old', async () => {
+    const { admin } = await people()
+    const document = await upload('FM 8-9', {
+      status: 'complete',
+      finishedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000),
+      unconfirmed: ['effective_date'],
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        kind: 'document-decision',
+        state: 'waiting_on_you',
+        progress: { type: 'working', stage: 'Confirm its details' },
+        href: `/admin/knowledge-base/review/${document._id}`,
+      }),
+    ])
+  })
+
+  // Regression: written after the code it covers (F-11 T12), so it passed from the start.
+  it('an ingested document matching a stored one is waiting on the admin to decide', async () => {
+    const { admin } = await people()
+    const stored = await upload('FM 8-9 (2024)', { status: 'complete', finishedAt: new Date() })
+    await upload('FM 8-9', {
+      status: 'complete',
+      finishedAt: new Date(),
+      match: {
+        kind: 'possible_copy',
+        documentId: stored._id,
+        newMatched: 40,
+        newTotal: 40,
+        storedMatched: 40,
+        storedTotal: 40,
+      },
+    })
+
+    const res = await signedInAs(app, admin).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        title: 'FM 8-9',
+        state: 'waiting_on_you',
+        progress: { type: 'working', stage: 'Decide on the match' },
+      }),
+    ])
+  })
+})
+
+describe('knowledge requests (CB-07)', () => {
+  it("an engineer's open request shows the ingestion of a document uploaded for it", async () => {
+    const { engineer } = await people()
+    const document = await upload('FM 8-9')
+    await IngestionJobModel.create({
+      documentId: document._id,
+      currentStage: 'parsing',
+      pageCurrent: 20,
+      pageTotal: 40,
+      ocrCurrent: null,
+      ocrTotal: null,
+      stageLog: [],
+      currentStageStartedAt: new Date('2026-11-23T09:00:00Z'),
+      startedAt: new Date('2026-11-23T09:00:00Z'),
+      updatedAt: new Date(),
+    })
+    const asked = await KnowledgeGapRequestModel.create({
+      question: 'What sprinkler density for cold stores?',
+      askedBy: engineer._id,
+      status: 'open',
+      incomingDocumentIds: [document._id],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([
+      expect.objectContaining({
+        id: `request:${asked._id}:${document._id}`,
+        kind: 'request',
+        state: 'running',
+        title: 'FM 8-9',
+        context: { label: 'Your request: What sprinkler density for cold stores?' },
+        progress: {
+          type: 'count',
+          current: 20,
+          total: 40,
+          unit: 'pages',
+          stage: 'Parsing',
+          step: 1,
+          steps: 3,
+          segments: ['working', 'empty', 'empty'],
+        },
+      }),
+    ])
+  })
+
+  // Regression: passed from the start, since only the user's own requests are read.
+  it("another engineer's request is not shown", async () => {
+    const { engineer } = await people()
+    const document = await upload('FM 8-9', { status: 'queued' })
+    await KnowledgeGapRequestModel.create({
+      question: 'What sprinkler density for cold stores?',
+      askedBy: new Types.ObjectId(),
+      status: 'open',
+      incomingDocumentIds: [document._id],
+    })
+
+    const res = await signedInAs(app, engineer).get('/api/background-work').expect(200)
+
+    expect(res.body.rows).toEqual([])
+  })
+})

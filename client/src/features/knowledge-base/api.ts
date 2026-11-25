@@ -7,6 +7,7 @@
 import { request } from '../accounts/api'
 import { GatewayError, reportSessionEnded } from '../assessments/api'
 import type { TierId } from '../settings/tiers'
+import { started } from '../background-work/started'
 
 // A gateway call that returns no body (e.g. the 202 from retry). The shared
 // `request` always parses JSON, which an empty 202 cannot provide, so these
@@ -389,20 +390,21 @@ export function reinstateDocument(id: string): Promise<KnowledgeDocument> {
 // retryable (someone retried it already), 404 if gone, 503 if the queue is
 // unreachable.
 export function retryIngestion(id: string): Promise<void> {
-  return send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+  return started(
+    send(`/api/knowledge-documents/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+  )
 }
 
 // Chooses the source type of a document awaiting one and starts its ingestion
 // (IN-19); returns the document, now queued. Rejects with the gateway's
 // reason: 409 if it no longer awaits a type, 503 if the queue is unreachable.
 export function chooseSourceType(id: string, sourceType: SourceType): Promise<KnowledgeDocument> {
-  return request<KnowledgeDocument>(
-    `/api/knowledge-documents/${encodeURIComponent(id)}/source-type`,
-    {
+  return started(
+    request<KnowledgeDocument>(`/api/knowledge-documents/${encodeURIComponent(id)}/source-type`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceType }),
-    },
+    }),
   )
 }
 
@@ -416,19 +418,24 @@ export function cancelIngestion(id: string): Promise<void> {
 // Sends one file (a PDF, or a Word, PowerPoint, RTF or ODT file the gateway
 // converts to one) with its details and returns the queued document. The body is
 // the raw file and the details go in the URL's query string, so the gateway
-// needs no multipart-form library.
+// needs no multipart-form library. `requestId` names the open knowledge request it is
+// uploaded for (F-11), so the engineer who asked can follow its ingestion.
 export function uploadKnowledgeDocument(
   file: File,
   details: DocumentDetails = EMPTY_DETAILS,
+  requestId?: string,
 ): Promise<KnowledgeDocument> {
   const query = new URLSearchParams([['fileName', file.name], ...filled(details)])
-  return request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
-    method: 'POST',
-    // The gateway reads the type from the file's bytes, but reads no body
-    // without a Content-Type, so a file the browser can't name goes as bytes.
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  })
+  if (requestId) query.set('requestId', requestId)
+  return started(
+    request<KnowledgeDocument>(`/api/knowledge-documents?${query}`, {
+      method: 'POST',
+      // The gateway reads the type from the file's bytes, but reads no body
+      // without a Content-Type, so a file the browser can't name goes as bytes.
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    }),
+  )
 }
 
 // One passage of a document as the knowledge base lists it (IN-17). `position` is its

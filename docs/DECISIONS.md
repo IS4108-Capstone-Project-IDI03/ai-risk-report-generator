@@ -2825,3 +2825,48 @@ Rejected:
 - Sending observations with "what should this section cover?": the answer would start describing the site; what the observations lack is "what is missing"'s job.
 
 Stories: AS-08, AS-01, AS-03, AS-04, EX-01, GN-03, CP-24.
+
+## 2026-11-24 — RV-13: the model suggests each outcome, the gateway's rules decide what it may be, and the engineer confirms
+
+Chose:
+- (RV-13) A Comparison tab in the assessment workspace, between Review and Export. The previous report is the latest earlier assessment of the same site whose `reportStatus` is `finalised` and that is not archived, earlier by site visit date (else by creation); the engineer can pick another such report. AC1 (choosing a known site) was already CP-23's listed site.
+- What is compared: every paragraph and list item of the previous report's Sections 4 to 12 as the report reads it (its current text, built by `currentDocument`, so edits and the engineer's own words are in, rejected findings out), and each accepted OFI (its recommendation quoted, its Observation column beside it). Section 2 is left out: it summarises the others, so its sentences would duplicate them. The current side is the assessment's observations with words (note facts, transcripts, handwriting, else the photo description), its draft findings as reviewed and its accepted OFIs. A suggested severity not yet confirmed is not compared (`toCheck`), as drafting leaves it out.
+- S4 (`app/comparison/compare.py`, `rv13-v1`, `COMPARISON_MODEL` and `COMPARISON_EFFORT` on `LLM_PROVIDER`) suggests an outcome, its sources, a clear or partial match, disagreeing sources, possible matches, a reason or the missing evidence, and figures copied as written. Everything is masked in one `/mask` call first. A long report is compared 40 items per call, each call with all the current evidence.
+- The gateway decides the rest in code (`report-comparison-rules.ts`, `rv13-rules-v1`): an outcome other than Not checked with no current source becomes Not checked (silence is not a fix); a pair whose severities differ (or OFI priorities, Priority 1 the most urgent) is Worse or Improved whatever the model said; two or more disagreeing sources leave the outcome null for the engineer and cap confidence at Medium; a figure is kept only when both values appear in their texts exactly as copied, and its difference is worked out on the written digits (no floating point), or left out with a reason when the units differ. Confidence is worked out from these checks, never asked: Low when a rule changed the model's outcome, Medium for a partial match, possible matches, a dropped figure or disagreement, High otherwise.
+- New items are worked out on every read: current findings no previous item is compared with. A draft finding or OFI stands for the observations it cites, so an observation it cites is never New on its own.
+- The engineer's decisions are appended to the comparison, each recording the item's whole state with who and when; the latest is what the item reads. Fixed with no current source needs a note. A New item is paired from the previous item it matches. Dismissing hides an item from the counts and can be undone.
+- Out of date: each current source is kept with a hash of its words and of its tags (category, severity, location). Reading the tab compares them with now and names what was added, deleted, retagged or edited. Compare again copies the decisions whose sources are unchanged onto the new comparison (with their original name and time) and flags the rest, and any item whose evidence changed, with the reason.
+- The suggested outcome is shown in AI violet with a sparkle, a decided one in neutral grey with a tick: the story asks for an AI marking that turns neutral, an exception to design system v2's "no made by AI labels".
+- Kept in `report_comparisons`, one document per run, a failed one with its reason and time; nothing in the export, the review log or the sections reads or writes it, and it does not trigger MarshBot's re-check.
+
+Reason: an engineer must be able to trust that "Fixed" rests on something seen this time and that a measured change is arithmetic, not prose. Letting the model judge similarity and the code enforce the rules keeps both.
+
+Rejected:
+- Letting the model give confidence or differences: it can't be checked, and the story requires the difference in code.
+- Comparing against the previous report's draft findings only: the finalised report is what the client read, edits included.
+- Copying the engineer's decisions onto the AI's items in place (changing the comparison): a decision log keeps who and when, and Compare again can tell what to keep.
+- Treating every unpaired observation as New when a draft finding already covers it: one issue would be listed twice.
+
+Stories: RV-13, CP-23, RV-02, RV-08, GN-05, PV-02, CP-24.
+
+## 2026-11-24 — Background work is one gateway list, polled by an activity icon beside the bell, showing only measured progress
+
+- (F-11) Engineers and admins see their long-running jobs in one place: site walk transcription and proposals, voice notes and handwritten pages, photo readings and suggestions, drafting, ingestion, documents waiting on an admin, and documents uploaded for their own knowledge request. An activity icon beside the bell appears only while something is queued, running, failed or waiting on them, and opens a popover of rows; each row opens its job.
+- **One gateway list, read from MongoDB.** Every job already records its state in its own collection, and BullMQ removes a job from Redis once it finishes, so Redis can't say what ran. `background-work.service.ts` reads each collection once per poll and gives every job the same row shape.
+- **Progress only where it is measured.** An ingestion's stages, recordings and drafting parts are one segment each, the gateway marking each done, under way, failed or still to come, so a failure shows where it fell (the stage an ingestion failed in, a failed recording, a section that failed mid-run); an ingestion's pages are words under its stages, one bar a row. Other pages and OCR regions are a bar with the real count; a single AI call (a proposal, a description, a transcription, one section) is a working mark with its minutes. Nothing shows an estimated percentage.
+- **Polled, not pushed.** The ingestion worker writes its progress straight to MongoDB, so the gateway never hears of it; a push would mean every job, the Python worker included, telling the gateway. The icon reads every 5 seconds while work runs and every 30 seconds otherwise, not while the tab is hidden, on a route that does not refresh the session (F-07). The plan's "ride the bell's 10-second tick" was dropped: that tick fires only when a notification count moves, and new work usually starts from the person's own action. For the same reason, a call that starts a job (a drafting run, Regenerate, finishing a walk, saving media, an upload, any Try again) announces it once the gateway accepts it (`background-work/started.ts`), and the icon reads at once: a 4-second Regenerate would otherwise be over before the next 30-second read.
+- **No queue position.** Showing one would mean reading BullMQ's waiting lists for the gateway's queues and the ingestion worker's, which `job-queue.service.ts` doesn't expose; a queued row says how long it has waited instead.
+- **A document can be uploaded for a request.** The asking engineer could not see that an admin had started on it: a request only gained documents when filled, after ingestion. Uploading from the request records the document in the request's `incomingDocumentIds` and leaves it open; the engineer's row shows its ingestion.
+- **A popover, not a page.** A row is a link to where the job lives, which fits a popover; the bell already sets the pattern. No count badge, since red counts are the Inbox's and the bell's.
+- **Drafting has no Try again in the popover.** Drafting a failed part again means a new run, which drafts what the drafting tab's checkpoint offers; the row opens that tab.
+- **A failed segment is solid red in the popover.** The design system's lighter failed mark (a red outline on `--red-50`) read as pink beside the grey still to come at the popover's glance; the drafting screen keeps it, beside its section list.
+- **Failures don't flood it.** A finished run's failed sections fold into one row per assessment ("3 sections not drafted"), and every failure's reason is one line, its whole text a tooltip and on the job's own page. A failure for missing evidence is the engineer's input, not a broken job: the popover says drafting stopped and points to the drafting tab, which with MarshBot explains why.
+
+Rejected:
+- A server-sent-events channel per user: needs every job type, the ingestion worker included, to publish.
+- One combined bar for all work: pages, recordings and parts can't be added together.
+- A full page listing every engineer's work for admins: a glance is what's needed; Assessments already lists every engineer's assessments.
+
+Known limits: a job whose worker died still shows as running; an ingestion that failed before `failedStage` was recorded shows no stages; a walk's proposal is timed from the walk's last change; a failed transcription or photo description stays listed until it is tried again or removed; an upload made outside the Requests tab is not linked to a request.
+
+Stories: F-11, F-10, F-07, CP-22, CP-24, GN-13, CB-07.
