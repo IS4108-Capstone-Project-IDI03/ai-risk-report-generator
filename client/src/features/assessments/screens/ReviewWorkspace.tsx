@@ -1,5 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Button, Callout, EmptyState, IconRegistry, toast } from '../../../design-system'
+import {
+  Button,
+  Callout,
+  EmptyState,
+  IconAction,
+  IconRegistry,
+  toast,
+} from '../../../design-system'
 import {
   bulkAccept,
   decideFinding,
@@ -577,22 +584,36 @@ export function ReviewWorkspace({
   // Edit document (RV-08), or Open document to comment on (RV-03 AC7), at the right of each
   // part's title bar: it opens the whole report at the part being read. Its last changes still
   // being read back, it waits, so it opens on them.
-  const documentButton = canOpenDocument ? (
+  const documentLabel = canReview ? 'Edit document' : 'Open document'
+  const documentWaits = returnedFrom !== null && workspace.asOf === returnedFrom && !loadError
+  const openDocument = () => {
+    setHistoryOpen(false)
+    setDocumentAt(selected ?? saved?.id ?? '1')
+  }
+  // On a phone Edit document is a round icon, so a part's tools fit one row (PartBar).
+  const documentButton = !canOpenDocument ? undefined : phone ? (
+    <IconAction
+      icon={IconRegistry.object.report}
+      label={documentLabel}
+      placement="bottom"
+      shaded
+      disabled={documentWaits}
+      data-walk="review.edit-document"
+      onClick={openDocument}
+    />
+  ) : (
     <Button
       pill
       variant="secondary"
       size="sm"
       iconLeft={IconRegistry.object.report}
-      disabled={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
+      disabled={documentWaits}
       data-walk="review.edit-document"
-      onClick={() => {
-        setHistoryOpen(false)
-        setDocumentAt(selected ?? saved?.id ?? '1')
-      }}
+      onClick={openDocument}
     >
-      {canReview ? 'Edit document' : 'Open document'}
+      {documentLabel}
     </Button>
-  ) : undefined
+  )
   const last = sections[sections.length - 1]
   // Every part of the report in order, for "Draft editor · N of M": Sections 1, 2 and 3,
   // the drafted sections (4-12), then Appendix A. Sections 1 and 2 and Appendix A are

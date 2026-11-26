@@ -393,6 +393,30 @@
     z-index: 40;
   }
 }
+/* Over the page (document/PanelOverlay.tsx): the panel and a dimming scrim start under the
+   editor's bar, so Return to review, Page layout and Save are never covered. */
+.dm-overlay > .cm-panel {
+  position: fixed;
+  top: var(--dm-overlay-top, 0px);
+  z-index: 40;
+}
+.dm-scrim {
+  position: fixed;
+  inset: var(--dm-overlay-top, 0px) 0 0 0;
+  z-index: 39;
+  background: rgb(0 15 71 / 0.24);
+  animation: dmScrimIn var(--duration-slow) var(--ease-out);
+}
+@keyframes dmScrimIn {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-scrim {
+    animation: none;
+  }
+}
 @media (max-width: 767px) {
   .cm-panel {
     width: 100%;

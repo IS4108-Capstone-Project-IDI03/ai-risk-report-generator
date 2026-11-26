@@ -234,15 +234,26 @@
   min-width: 0;
   min-height: 36px;
 }
-/* On a phone the tools take their own row under the title, spread across it. */
-@media (max-width: 759px) {
+/* Stacked (tablet and phone): the title has its own line and the tools one row under it, the
+   "5 of 10" stepper at the left and the part's actions at the right, the same on every part.
+   On a phone Redraft and Edit document are round icons (PartBar's callers), so the row fits. */
+@media (max-width: 1079px) {
+  .rv-heading-title {
+    flex-basis: 100%;
+  }
   .rv-part-tools {
     flex: 1 1 100%;
-    gap: 4px;
+    flex-wrap: nowrap;
     margin-left: 0;
   }
-  .rv-part-tools > button:last-child {
-    margin-left: auto;
+  .rv-part-tools > .rs {
+    order: -1;
+    margin-right: auto;
+  }
+}
+@media (max-width: 759px) {
+  .rv-part-tools {
+    gap: 4px;
   }
 }
 .rv-editor h2 {
@@ -1143,6 +1154,47 @@ mark.rv-ai-unsupported {
   gap: 8px;
   margin-left: auto;
 }
+/* Stacked (tablet and phone): "Findings" and its (?) over the counts on one line, the buttons
+   at the right; on a phone the buttons take a row of their own, sharing its width. */
+@media (max-width: 1079px) {
+  .rv-review-what {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    column-gap: 4px;
+  }
+  .rv-review-counts {
+    display: contents;
+  }
+  /* The (?) beside "Findings", above the counts. */
+  .rv-review-what > :not(.rv-review-counts) {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .rv-review-counts > :last-child {
+    grid-column: 1 / -1;
+    color: var(--graphite-900);
+    font-variant-numeric: tabular-nums;
+  }
+}
+@media (max-width: 759px) {
+  .rv-review-bar > .rv-review-row:first-child {
+    row-gap: 12px;
+  }
+  .rv-review-what {
+    flex: 1 1 100%;
+  }
+  .rv-review-bar > .rv-review-row:first-child > .rv-review-actions {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .rv-review-bar > .rv-review-row:first-child > .rv-review-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
 .rv-replacement-row {
   margin-top: 12px;
 }
@@ -1970,6 +2022,18 @@ mark.rv-ai-unsupported {
 }
 .rv-version-top > .rv-version-restore {
   margin-left: auto;
+}
+/* Phone: Restore this version takes the row under the title, its (?) after it, rather than
+   wrapping to the right of a stray line. */
+@media (max-width: 759px) {
+  .rv-version-top > .rv-version-restore {
+    flex: 1 1 100%;
+    gap: 8px;
+  }
+  .rv-version-restore > button {
+    order: -1;
+    flex: 1 1 auto;
+  }
 }
 /* The version shown and what it is compared with, on one line over the comparison. */
 .rv-version-head {

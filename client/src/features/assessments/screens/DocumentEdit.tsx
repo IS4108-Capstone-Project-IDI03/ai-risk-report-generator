@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import {
+  BackButton,
   Button,
   Callout,
   Dialog,
@@ -10,6 +11,7 @@ import {
   IconRegistry,
   SectionRow,
   toast,
+  useIsPhone,
 } from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
@@ -30,6 +32,7 @@ import { DRAFT, useComments } from '../comments/useComments'
 import { toEditorJSON } from '../document/convert'
 import { toggleSubheading } from '../document/commands'
 import { DocumentToolbar } from '../document/DocumentToolbar'
+import { PanelOverlay } from '../document/PanelOverlay'
 import { FindBar } from '../document/FindBar'
 import { FindReplace } from '../document/findReplace'
 import { DocumentPartsContext } from '../document/parts'
@@ -261,6 +264,19 @@ function DocumentBody({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+  // The sticky bar's height, so a part scrolled to (scroll-margin, document.css) starts under
+  // it. Without this its heading was hidden under the bar's rows on a phone.
+  useEffect(() => {
+    const bar = header.current
+    if (!bar || typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(() =>
+      main.current?.style.setProperty('--dm-head-h', `${bar.offsetHeight}px`),
+    )
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [])
+  // On a phone Return to review and Page layout are round icons, so the bar is two rows.
+  const phone = useIsPhone()
   const room =
     mainWidth === 0 || mainWidth >= (pageMode ? MARGIN_ROOM.page : MARGIN_ROOM.continuous)
   const inMargin = room && comments.panel === null
@@ -380,6 +396,15 @@ function DocumentBody({
           },
         }
       : undefined
+  // Closing Ask clears the passage it marked; closing Comments drops an unposted comment.
+  const closeAsk = () => {
+    setAskOpen(false)
+    if (editor) setAskMarks(editor.view, { shown: null })
+  }
+  const closeComments = () => {
+    if (comments.active === DRAFT) comments.cancelDraft()
+    comments.setPanel(null)
+  }
   // Back to a passage asked about (AC3): marked and scrolled to; the panel
   // steps aside where it covers the text.
   const showAsked = (passage: AskPassage) => {
@@ -665,15 +690,19 @@ function DocumentBody({
                   onClick={toggleOutline}
                 />
               </span>
-              <Button
-                pill
-                variant="ghost"
-                size="sm"
-                iconLeft="chevron-left"
-                onClick={returnToReview}
-              >
-                Return to review
-              </Button>
+              {phone ? (
+                <BackButton label="Return to review" onClick={returnToReview} />
+              ) : (
+                <Button
+                  pill
+                  variant="ghost"
+                  size="sm"
+                  iconLeft="chevron-left"
+                  onClick={returnToReview}
+                >
+                  Return to review
+                </Button>
+              )}
               <DocumentToolbar
                 editor={editor}
                 onFind={() => setFindOpen(true)}
@@ -726,16 +755,27 @@ function DocumentBody({
                   </p>
                   <Tip id="document.save-status" />
                 </div>
-                <Button
-                  pill
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
-                  data-walk="document.page-layout"
-                  onClick={switchView}
-                >
-                  {pageMode ? 'Continuous view' : 'Page layout'}
-                </Button>
+                {phone ? (
+                  <IconAction
+                    icon={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                    label={pageMode ? 'Continuous view' : 'Page layout'}
+                    placement="bottom"
+                    shaded
+                    data-walk="document.page-layout"
+                    onClick={switchView}
+                  />
+                ) : (
+                  <Button
+                    pill
+                    variant="secondary"
+                    size="sm"
+                    iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                    data-walk="document.page-layout"
+                    onClick={switchView}
+                  >
+                    {pageMode ? 'Continuous view' : 'Page layout'}
+                  </Button>
+                )}
                 {!readOnly && (
                   <Button
                     pill
@@ -830,38 +870,37 @@ function DocumentBody({
                 )}
               </div>
             </div>
-            {/* Questions about the assessment and the passages asked about (AS-02). */}
+            {/* Questions about the assessment and the passages asked about (AS-02). Where the
+                page has no room beside it, over a scrim under the bar (PanelOverlay). */}
             {askOpen && ask && !comments.panel && (
-              <DocumentAsk
-                editor={editor}
-                ask={ask}
-                overlay={!room}
-                onShowPassage={showAsked}
-                drafting={drafting}
-                guidance={guidance}
-                onClose={() => {
-                  setAskOpen(false)
-                  setAskMarks(editor.view, { shown: null })
-                }}
-              />
+              <PanelOverlay overlay={!room} bar={header} onClose={closeAsk}>
+                <DocumentAsk
+                  editor={editor}
+                  ask={ask}
+                  overlay={!room}
+                  onShowPassage={showAsked}
+                  drafting={drafting}
+                  guidance={guidance}
+                  onClose={closeAsk}
+                />
+              </PanelOverlay>
             )}
             {/* The comments list (AC8), and threads where there is no margin. */}
             {comments.panel && (
-              <DictationScope reference={reference}>
-                <CommentsPanel
-                  comments={comments}
-                  parts={report.parts}
-                  me={me}
-                  canComment={canComment}
-                  actions={actions}
-                  marginShown={room}
-                  overlay={!room}
-                  onClose={() => {
-                    if (comments.active === DRAFT) comments.cancelDraft()
-                    comments.setPanel(null)
-                  }}
-                />
-              </DictationScope>
+              <PanelOverlay overlay={!room} bar={header} onClose={closeComments}>
+                <DictationScope reference={reference}>
+                  <CommentsPanel
+                    comments={comments}
+                    parts={report.parts}
+                    me={me}
+                    canComment={canComment}
+                    actions={actions}
+                    marginShown={room}
+                    overlay={!room}
+                    onClose={closeComments}
+                  />
+                </DictationScope>
+              </PanelOverlay>
             )}
           </div>
         </section>

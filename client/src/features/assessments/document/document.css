@@ -110,30 +110,20 @@
   padding-right: 0;
   margin-right: 0;
 }
-/* Phone: Return and Save on the first row, the save state and Page layout on the second, then
-   the tools, so no label wraps inside a squeezed slot. */
+/* Phone: two rows, like an app's navigation bar. Back (Return to review), the save state, and
+   Page layout and Save as round icon and pill on the first; the tools on the second. */
 @media (max-width: 767px) {
+  .dm-bar {
+    column-gap: 8px;
+  }
   .dm-bar-end {
-    display: contents;
-  }
-  .dm-bar-end > button:last-child {
-    order: 1;
-    margin-left: auto;
-  }
-  .dm-bar-end > .dm-save-row {
-    order: 2;
-  }
-  .dm-bar-end > button:not(:last-child) {
-    order: 3;
-  }
-  .dm-bar > .dm-tools {
-    order: 4;
+    flex: 1 1 auto;
   }
 }
-/* Phone: the tools are one row you swipe along, not three rows that leave the text a third of
-   the screen. A blocked tool's reason box is placed against the window (ReasonBox.tsx), since
+/* Narrow or touch: the tools are one row you swipe along, not rows that leave the text a third
+   of the screen. A blocked tool's reason box is placed against the window (ReasonBox.tsx), since
    the row would cut it off. */
-@media (max-width: 767px) {
+@media (max-width: 1023px), (max-width: 1079px) and (pointer: coarse) {
   .dm-tools {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -419,8 +409,10 @@
 .dm-locked-bar .rv-label {
   flex: 0 1 auto;
 }
+/* One line always: short of room it moves under the label, never "Not edited / here". */
 .dm-locked-note {
-  flex: 1;
+  flex: 1 1 auto;
+  white-space: nowrap;
   font-size: var(--text-caption-size);
   color: var(--text-muted);
 }
@@ -484,9 +476,10 @@
   .dm-scroll {
     overflow: visible;
   }
-  /* The page scrolls with the workspace, under the sticky save bar and toolbar. */
+  /* The page scrolls with the workspace, under the sticky bar: its height is measured
+     (DocumentEdit sets --dm-head-h), so a part's heading is never under it. */
   .dm-section {
-    scroll-margin-top: 128px;
+    scroll-margin-top: calc(var(--dm-head-h, 112px) + 12px);
   }
   .dm-find-fields {
     grid-template-columns: minmax(0, 1fr);
@@ -513,14 +506,16 @@
 .dm-save-row .dm-save-status {
   flex: 0 1 auto;
 }
-/* On a phone the status and its (?) keep their own width and wrap to the next line with the buttons,
-   not squeezed into the gap between them (the words ran under the (?) there). */
+/* On a phone the status shares the first row with Back and the buttons: it fills the room
+   between them, cut short with an ellipsis rather than wrapping, its (?) right after it. */
 @media (max-width: 767px) {
   .dm-save-row {
     flex: 1 1 auto;
   }
   .dm-save-row .dm-save-status {
-    min-width: max-content;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   /* The time is left out on a phone so the state and Page layout share a row. */
   .dm-save-time {
