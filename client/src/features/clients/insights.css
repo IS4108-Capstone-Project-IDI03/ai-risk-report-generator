@@ -1,39 +1,26 @@
-/* The client page's Insights tab (CP-29). Used by screens/InsightsTab and the
-   components it calls. Cards, tables and the screen-reader class are
-   clients.css's. Design-system tokens only (docs/areas/design-system-v2.md): the
-   grid's shades are the ink ramp, one blue from light to dark. */
+/* The client page's Insights tab (CP-29). Used by screens/InsightsTab and the components it
+   calls. Cards are the shared Panel, figures the shared FigureTile; this file lays them out and
+   draws what is the tab's own (rows, the shaded grid, the change chart). Design-system tokens
+   only (docs/areas/design-system-v2.md): the grid's shades are the ink ramp, one blue light to
+   dark. The tab is its own size container ("ci"), so its layout follows the room it has, whether
+   or not a details panel sits beside it. */
 
+/* ---- The page: one column of blocks in reading order ---- */
 .ci {
+  container: ci / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
-.ci-basis,
-.ci-sub {
+.ci-basis {
   margin: 0;
   color: var(--graphite-600);
-  font: 400 13px/1.4 var(--font-sans);
-}
-.ci-sub {
-  font-size: 12px;
-}
-.ci-part {
-  white-space: nowrap;
-}
-.ci-h {
-  margin: 0;
-  color: var(--marsh-navy);
-  font: 700 16px/1.3 var(--font-sans);
+  font: 400 13px/1.45 var(--font-sans);
 }
 .ci-label {
   margin: 0;
   color: var(--graphite-700);
   font: 600 12px/1.3 var(--font-sans);
-}
-.ci-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 .ci-link {
   align-self: flex-start;
@@ -41,141 +28,119 @@
 .ci-cite:focus-visible,
 .ci-cell:focus-visible,
 .ci-rank-site:focus-visible {
-  outline: 2px solid var(--marsh-navy);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
-/* ---- Headline figures ---- */
+/* Two panels side by side on one grid: the wider column holds the "what", the narrower the
+   "where", so both pairs share the same column line. Stacked where there is no room. */
+.ci-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@container ci (min-width: 900px) {
+  .ci-pair {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+/* The charts need more room than two lists (the grid's five headed columns), so they pair
+   later. */
+@container ci (min-width: 900px) and (max-width: 1099px) {
+  .ci-pair--charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* One panel alone (nothing stands out) takes the whole row. */
+.ci-pair > :only-child {
+  grid-column: 1 / -1;
+}
+
+/* ---- Headline figures: five even FigureTiles ---- */
 .ci-tiles {
   display: grid;
-  /* 136 px: all five figures share one row from a 736 px page (1024 px, sidebar open), where at
-     170 px the fifth sat alone on a second row. */
-  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
-  gap: 12px;
-  margin: 0;
-}
-.ci-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 16px 18px;
-}
-.ci-tile dt {
-  color: var(--graphite-700);
-  font: 600 12px/1.3 var(--font-sans);
-}
-.ci-tile dd {
-  margin: 0;
-}
-.ci-tile-value {
-  color: var(--marsh-navy);
-  font: 700 28px/34px var(--font-sans);
-  letter-spacing: -0.01em;
-}
-.ci-tile-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--graphite-600);
-  font: 500 12px/1.4 var(--font-sans);
-}
-.ci-tile-note[data-tone='danger'] {
-  color: var(--red-600);
-}
-.ci-tile-note[data-tone='warn'] {
-  color: var(--amber-600);
-}
-
-/* ---- A 32 px icon tile, and the tones a finding or reason takes ---- */
-.ci-tile-icon {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  background: var(--graphite-100);
-  color: var(--graphite-600);
-}
-.ci-tile-icon[data-tone='neutral'] {
-  background: var(--ink-50);
-  color: var(--ink-600);
-}
-.ci-tile-icon[data-tone='danger'],
-.ci-reason[data-tone='danger'] {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-.ci-tile-icon[data-tone='good'],
-.ci-reason[data-tone='good'] {
-  background: var(--green-50);
-  color: var(--green-600);
-}
-.ci-reasons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.ci-reason {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
-  border-radius: var(--radius-pill);
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-  font: 600 12px/1.5 var(--font-sans);
-  white-space: nowrap;
-}
-.ci-reason[data-tone='warn'] {
-  background: var(--amber-50);
-  color: var(--amber-600);
-}
-
-/* ---- What stands out ---- */
-.ci-findings {
-  display: grid;
-  /* auto-fit: two findings share the row on a wide screen instead of leaving empty columns. */
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* A single finding keeps a card's width (560 px at most), not the whole row with a stretched meter. */
-.ci-findings:has(> :only-child) {
-  grid-template-columns: minmax(0, 560px);
+.ci-tile {
+  display: flex;
+  min-width: 0;
 }
-.ci-finding {
+/* Every tile the row's height (the shared tile already aligns its count to the top). */
+.ci-tile .ds-figure {
+  height: 100%;
+}
+/* Tablet: three over two, every tile still the same height. */
+@container ci (max-width: 899px) {
+  .ci-tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .ci-tile:nth-child(-n + 3) {
+    grid-column: span 2;
+  }
+  .ci-tile:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+}
+/* Phone: two to a row; the odd one out takes the whole row. */
+@container ci (max-width: 559px) {
+  .ci-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .ci-tile:nth-child(n) {
+    grid-column: auto;
+  }
+  .ci-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---- Rows: what stands out and the sites needing attention share one row look ---- */
+.ci-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  padding: 18px;
+  margin: -8px -8px -12px;
+  padding: 0;
+  list-style: none;
 }
-.ci-finding-head {
+.ci-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
+  padding: 14px 8px;
+  border-top: 1px solid var(--border-subtle);
 }
-.ci-finding h3 {
+.ci-item:first-child {
+  border-top: 0;
+}
+.ci-item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ci-item-title {
   margin: 0;
   color: var(--graphite-900);
-  font: 600 15px/1.35 var(--font-sans);
+  font: 600 14px/1.4 var(--font-sans);
+  overflow-wrap: anywhere;
 }
-.ci-finding p {
-  margin: 0;
+.ci-item-sub {
   color: var(--graphite-600);
   font: 400 13px/1.45 var(--font-sans);
 }
-.ci-finding .ci-link {
-  margin-top: auto;
-}
+/* A 32 px tile, in the finding's tone. */
 /* A share: the fill on a lighter step of the same blue. */
 .ci-meter {
   display: block;
+  max-width: 320px;
   height: 8px;
+  margin-top: 6px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background: var(--ink-100);
@@ -188,87 +153,101 @@
 }
 .ci-move {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
-  color: var(--graphite-600);
-  font: 700 20px/1.2 var(--font-sans);
+  gap: 2px 6px;
+  margin-top: 2px;
+  color: var(--graphite-700);
+  font: 600 14px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .ci-move strong {
   color: var(--marsh-navy);
-  font-size: 24px;
 }
-
-/* ---- Two blocks side by side, stacked where there is no room ---- */
-.ci-row {
+.ci-reasons {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 16px;
+  gap: 6px;
+  margin-top: 4px;
 }
-.ci-col {
-  flex: 1 1 380px;
+
+/* The ranked list: the row itself is the toggle; the chevron at its end opens the assessment. */
+.ci-rank .ci-item {
+  gap: 4px;
+  padding: 0 4px 0 0;
+  border-radius: var(--radius-field);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+.ci-rank .ci-item[data-on] {
+  background: var(--ink-50);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ci-rank .ci-item:not([data-on]):hover {
+    background: var(--graphite-50);
+  }
+}
+.ci-rank-site {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
+  padding: 14px 8px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.ci-col--wide {
-  flex: 3 1 460px;
+.ci-rank-n {
+  flex: 0 0 14px;
+  color: var(--graphite-600);
+  font: 600 13px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-/* The grid needs room for five headed columns, so it takes the larger share,
-   and the two stack before a heading would be cut short. */
-.ci-col--grid {
-  flex: 1.25 1 560px;
+/* A site chosen in the list dims the others, here and in the two charts. */
+.ci [data-dim] {
+  opacity: 0.38;
 }
-.ci-col--change {
-  flex: 1 1 420px;
-}
-.ci-card {
+
+/* ---- The written summary: statements at a reading measure, then their sources in an even grid
+   (every source card in a row the same height) ---- */
+.ci-summary-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-sizing: border-box;
-  padding: 20px;
+  gap: 20px;
 }
-.ci-card-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-}
-.ci-card-head .ci-h {
-  flex: 0 1 auto;
-}
-/* The heading and its help tip (F-13) fill the row, so the tip sits beside the heading and nothing else moves. */
-.ci-h-tip {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 4px;
-}
-.ci-card-head .ci-link {
-  align-self: center;
-}
-
-/* ---- The written summary ---- */
-.ci-written,
-.ci-unwritten,
+.ci-statements,
 .ci-writing,
 .ci-sources-block {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
-.ci-unwritten {
-  align-items: flex-start;
+.ci-statement-cols {
+  /* At most two: three short columns on a 1920 px screen read as scraps. */
+  columns: 2 420px;
+  column-gap: 40px;
 }
-.ci-unwritten p,
+.ci-statement-cols > * {
+  break-inside: avoid;
+}
+.ci-part {
+  white-space: nowrap;
+}
 .ci-statement,
-.ci-missing {
-  max-width: 72ch;
+.ci-missing,
+.ci-unwritten p {
+  max-width: 68ch;
   margin: 0;
   color: var(--graphite-900);
   font: 400 14px/1.65 var(--font-sans);
-}
-.ci-unwritten p {
-  color: var(--graphite-700);
 }
 .ci-missing {
   padding: 10px 12px;
@@ -276,6 +255,21 @@
   background: var(--graphite-50);
   color: var(--graphite-700);
   font-size: 13px;
+}
+.ci-statement-cols > :not(:last-child) {
+  margin-bottom: 12px;
+}
+/* Unwritten: the sentence, and Write summary at the end of the line (under it on a phone). */
+.ci-unwritten {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.ci-unwritten p {
+  flex: 1 1 320px;
+  color: var(--graphite-700);
 }
 .ci-cite {
   min-width: 20px;
@@ -290,6 +284,7 @@
   font-variant-numeric: tabular-nums;
   vertical-align: 1px;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 .ci-cite[aria-pressed='true'] {
   background: var(--ai-fg);
@@ -297,57 +292,38 @@
 }
 .ci-sources {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 6px;
+  /* One, two or three across, so the six shown always fill whole rows. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ci-sources li {
+@container ds-panel (min-width: 620px) {
+  .ci-sources {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container ds-panel (min-width: 960px) {
+  .ci-sources {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.ci-sources > li {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-field);
-  background: var(--graphite-50);
-  transition: background-color var(--duration-fast) var(--ease-out);
-}
-.ci-sources li[data-on] {
-  background: var(--ai-bg);
-  box-shadow: inset 0 0 0 1px var(--ai-border);
-}
-.ci-source-n {
-  flex: 0 0 auto;
-  min-width: 20px;
-  border-radius: var(--radius-pill);
-  background: var(--ai-bg);
-  color: var(--ai-fg);
-  font: 700 12px/20px var(--font-sans);
-  text-align: center;
-}
-.ci-sources li[data-on] .ci-source-n {
-  background: var(--ai-fg);
-  color: var(--text-inverse);
-}
-.ci-source-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   min-width: 0;
 }
-.ci-source-title {
-  color: var(--graphite-900);
-  font: 600 13px/1.4 var(--font-sans);
+.ci-sources > li > * {
+  box-sizing: border-box;
+  width: 100%;
 }
+/* Two lines of a source's own words; the rest is in the observation. */
 .ci-source-quote {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  color: var(--graphite-700);
-  font: 400 13px/1.45 var(--font-sans);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .ci-writing-line {
   display: flex;
@@ -367,6 +343,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-width: 68ch;
 }
 .ci-skeleton span {
   height: 12px;
@@ -387,72 +364,6 @@
     opacity: 0.35;
     transform: scale(0.8);
   }
-}
-
-/* ---- Sites needing attention ---- */
-.ci-rank {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0 -8px -8px;
-  padding: 0;
-  list-style: none;
-}
-.ci-rank li {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding-right: 4px;
-  border-radius: var(--radius-field);
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    opacity var(--duration-base) var(--ease-out);
-}
-.ci-rank li[data-on] {
-  background: var(--ink-50);
-}
-.ci-rank-site {
-  display: flex;
-  flex: 1;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-  padding: 12px 8px;
-  border: 0;
-  border-radius: var(--radius-field);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ci-rank li:not([data-on]):hover {
-    background: var(--graphite-50);
-  }
-}
-.ci-rank-n {
-  flex: 0 0 16px;
-  padding-top: 7px;
-  color: var(--graphite-600);
-  font: 600 13px/1.4 var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-.ci-rank-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.ci-rank-name {
-  color: var(--graphite-900);
-  font: 600 14px/1.35 var(--font-sans);
-}
-/* A site chosen in the list dims the others, here and in the two charts. */
-.ci [data-dim] {
-  opacity: 0.38;
 }
 
 /* ---- Where the findings are ---- */
@@ -479,7 +390,7 @@
 .ci-grid thead th:first-child,
 .ci-grid tbody th,
 .ci-grid tfoot th {
-  width: 22%;
+  width: 24%;
   text-align: left;
 }
 .ci-grid thead th[data-on] {
@@ -554,6 +465,13 @@
     inset 0 0 0 2px var(--marsh-navy),
     inset 0 0 0 4px var(--surface-card);
 }
+/* The key and the readout share one line under the grid on a wide panel. */
+.ci-grid-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
 .ci-scale {
   display: flex;
   align-items: center;
@@ -589,6 +507,13 @@
 }
 
 /* ---- Change between visits ---- */
+.ci-change-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
 .ci-legend {
   display: flex;
   flex-wrap: wrap;
@@ -613,15 +538,18 @@
 }
 .ci-change th,
 .ci-change td {
-  padding: 10px 0;
-  border-top: 1px solid var(--graphite-100);
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
   vertical-align: middle;
+}
+.ci-change tbody tr:first-child > * {
+  border-top: 0;
 }
 .ci-change-site {
   width: 34%;
 }
 .ci-change-figures {
-  width: 124px;
+  width: 116px;
 }
 .ci-change tbody th {
   padding-right: 12px;
@@ -633,21 +561,18 @@
 .ci-change tbody tr {
   transition: opacity var(--duration-base) var(--ease-out);
 }
-/* A long chip ("No observations yet") wraps inside the figures column rather than past it. */
-.ci-change .ci-reason {
-  max-width: 100%;
-  box-sizing: border-box;
-  padding-inline: 8px;
-  text-align: center;
-  white-space: normal;
-}
 .ci-change-name {
   display: block;
   overflow: hidden;
   color: var(--graphite-900);
-  font: 500 13px/1.35 var(--font-sans);
+  font: 600 13px/1.35 var(--font-sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ci-change-period {
+  display: block;
+  color: var(--graphite-600);
+  font: 400 12px/1.4 var(--font-sans);
 }
 .ci-change-values {
   display: block;
@@ -712,7 +637,7 @@
 }
 .ci-change tfoot td {
   padding: 6px 0 0;
-  border-top-color: var(--graphite-200);
+  border-top: 1px solid var(--graphite-200);
 }
 .ci-ticks {
   height: 16px;
@@ -725,25 +650,22 @@
   transform: translateX(-50%);
 }
 
-/* Phone: room is short, so the cards lose some padding and the change table
-   gives its chart less of the row. */
+/* The two chart panels fill the row's height, so the grid's key and readout sit at the foot. */
+.ci-panel {
+  height: 100%;
+}
+
+/* ---- Phone ---- */
 @media (max-width: 767px) {
-  .ci-card {
-    padding: 16px;
+  .ci {
+    gap: 16px;
   }
-  /* Two figures to a row. */
-  .ci-tiles {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 8px;
-  }
-  .ci-tile {
-    padding: 14px 16px;
-  }
-  .ci-change-site {
-    width: 34%;
+  /* A text link is a 44 px target (the Button's own height is inline, so min-height wins). */
+  .ci .ci-link {
+    min-height: 44px;
   }
   .ci-change-figures {
-    width: 112px;
+    width: 104px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -751,7 +673,8 @@
     animation: none;
   }
   .ci-span,
-  .ci-dot {
+  .ci-dot,
+  .ci-rank .ci-item {
     transition: none;
   }
 }
@@ -760,35 +683,8 @@
    walkthrough lights them (they carry data-walk-on), each shows only its heading and its one-line
    note, so all three fit above MarshBot's sheet. The next step shows them whole again. */
 @media (max-width: 767px) {
-  .ci-card[data-walk-on] > :not(.ci-card-head, .ci-h, .ci-sub) {
+  .ci .ds-panel[data-walk-on] > :not(.ds-panel-head) {
     display: none;
-  }
-}
-
-/* A text link on a phone is a 44 px target (the Button's own height is inline, so min-height wins). */
-@media (max-width: 767px) {
-  .ci .ci-link {
-    min-height: 44px;
-  }
-}
-
-/* Two figures to a row on a phone; an odd one out takes the whole row. */
-@media (max-width: 767px) {
-  .ci-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .ci-tile:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-}
-
-/* The same two to a row when the page is narrow beside the open sidebar (a 768 px tablet). */
-@container cl-content (max-width: 700px) {
-  .ci-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .ci-tile:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
   }
 }
 
@@ -801,15 +697,20 @@
   .ci-cite::after {
     content: '';
     position: absolute;
-    inset: -12px -2px;
+    /* 44 x 44 round the numeral's centre, whatever its width (a neighbour's may overlap it). */
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
 
-/* "Where the findings are" on a narrow page scrolls sideways inside its card: wide enough that no
-   category name is cut ("Constructi…" before), the site names held in view at the left, and a
-   fade at the right edge where more columns wait. The 24 px of padding is what the fade covers
-   once the grid is scrolled to its end, so the last column never fades. */
-@container cl-content (max-width: 700px) {
+/* "Where the findings are" on a narrow panel scrolls sideways inside it: wide enough that no
+   category name is cut, the site names held in view at the left, and a fade at the right edge
+   where more columns wait. The 24 px of padding is what the fade covers once the grid is
+   scrolled to its end, so the last column never fades. */
+@container ds-panel (max-width: 660px) {
   .ci-scroll {
     padding-right: 24px;
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
@@ -827,21 +728,23 @@
 }
 
 /* The summary's heading on a phone: Write again stays on the heading's row at the right and the
-   confidence takes the line under it. Wrapping as it came left Write again alone on a second row. */
-@container cl-content (max-width: 600px) {
-  .ci-summary-head > .ds-icon-button {
-    order: 1;
-    margin-left: auto;
+   confidence takes the line under it, rather than both dropping to a second row. */
+@container ds-panel (max-width: 440px) {
+  .ci-summary .ds-panel-actions {
+    display: contents;
   }
-  .ci-summary-head > :not(.ci-h-tip, .ds-icon-button) {
+  .ci-summary .ds-panel-actions > :last-child {
+    order: 1;
+  }
+  .ci-summary .ds-panel-actions > :first-child:not(:last-child) {
     order: 2;
     flex-basis: 100%;
   }
 }
 
-/* "Change between visits" on a phone: a site's name wraps (up to three lines) instead of cutting
-   to "Pandan Distr…" in the narrow site column. */
-@container cl-content (max-width: 600px) {
+/* "Change between visits" on a narrow panel: a site's name wraps (up to three lines) instead of
+   cutting to "Pandan Distr…" in the narrow site column. */
+@container ds-panel (max-width: 520px) {
   .ci-change-name {
     display: -webkit-box;
     -webkit-box-orient: vertical;

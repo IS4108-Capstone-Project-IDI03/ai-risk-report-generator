@@ -9,6 +9,14 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const monthOf = (day: string | null) =>
   day ? `${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}` : null
 
+// A reason or change chip's tone as the shared Badge draws it: amber for "warn", green for "good".
+export const BADGE_TONE: Record<InsightTone, string> = {
+  danger: 'danger',
+  warn: 'moderate',
+  good: 'low',
+  neutral: 'neutral',
+}
+
 /** Returns a category's name as the grid heads it. */
 export const categoryName = (category: string | null) => category ?? 'Uncategorised'
 
