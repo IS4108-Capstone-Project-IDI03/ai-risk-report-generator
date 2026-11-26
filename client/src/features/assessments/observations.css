@@ -1195,36 +1195,102 @@ span.ob-pt-thumb {
 .ob-pt-cat .ob-cat {
   flex: none;
 }
-/* A phone: each row stacks beside its thumbnail, no sideways scroll. */
+/* A phone: the thumbnail on the left; the observation over one quiet line of where and what
+   (location left, category right), no sideways scroll. */
 @media (max-width: 639px) {
   .ob-pt-head {
     display: none;
   }
-  .ob-pt-where {
-    text-align: left;
-  }
-  .ob-pt-where > *,
-  .ob-pt-cat {
-    justify-content: flex-start;
-  }
   .ob-pt-grid {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 4px 12px;
-    padding: 0 12px;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'thumb main main'
+      'thumb where cat';
+    align-items: start;
+    gap: 6px 12px;
+    padding: 0 16px;
   }
   .ob-pt-row {
+    min-height: 0;
     padding-top: 12px;
     padding-bottom: 12px;
   }
+  .ob-pt-row > :first-child {
+    grid-area: thumb;
+  }
   .ob-pt-thumb {
-    grid-row: 1 / span 3;
-    width: 72px;
-    height: 72px;
-    align-self: start;
+    width: 64px;
+    height: 64px;
+  }
+  .ob-pt-main,
+  .ob-pt-row > .ob-pt-text {
+    grid-area: main;
   }
   .ob-pt-text {
-    min-height: 44px;
-    align-content: center;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+  .ob-pt-where {
+    grid-area: where;
+    align-self: center;
+    min-width: 0;
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  /* One line, cut with an ellipsis: the full path is on the observation. */
+  .ob-pt-where > .location-path {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ob-pt-where .location-path-part {
+    display: inline;
+  }
+  .ob-pt-where .location-path-arrow {
+    margin: 0 2px;
+    vertical-align: -1px;
+  }
+  .ob-pt-cat {
+    grid-area: cat;
+    align-self: center;
+    justify-content: flex-end;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .ob-pt-cat > span:last-child {
+    max-width: 112px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ob-pt-cat .ob-cat {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+  .ob-pt-cat .ob-cat svg {
+    width: 13px;
+    height: 13px;
+  }
+  /* The file name and its Description toggle share one line; the toggle keeps a 44 px tap area
+     without pushing the line apart. */
+  .ob-pt-row .ob-pt-meta {
+    flex-wrap: nowrap;
+  }
+  .ob-pt-row .ob-pt-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+  }
+  .ob-pt-row .ob-pt-meta .ob-pt-toggle {
+    flex: none;
+    min-height: 28px;
+    margin-block: -8px;
+    padding-block: 8px;
+    box-sizing: content-box;
   }
   .ob-pt-go {
     display: none;
@@ -1610,7 +1676,7 @@ span.ob-pt-thumb {
   }
 }
 /* A phone: Add observation across the top (44 px, with its whole name), the search on its own
-   row, the filters two to a row. */
+   row, then the filters as one row of pills that scrolls sideways. */
 @media (max-width: 767px) {
   .ob-bar {
     display: grid;
@@ -1629,27 +1695,24 @@ span.ob-pt-thumb {
     font-size: 16px;
   }
   .ob-bar-pills {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
     order: 1;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
   }
-  .ob-bar-pills > .ob-button {
-    grid-column: 1 / -1;
+  .ob-bar-pills::-webkit-scrollbar {
+    display: none;
   }
-  .ob-fp {
-    display: flex;
-    min-width: 0;
-  }
-  .ob-fp > :first-child,
-  .ob-fp > :first-child > :first-child {
-    display: flex;
-    flex: 1 1 auto;
-    min-width: 0;
+  .ob-bar-pills > * {
+    flex: none;
   }
   .ob-fp .ds-filter-pill {
-    width: 100%;
     height: 44px;
-    justify-content: space-between;
   }
   .ob-bar-add .cpo-more {
     display: inline;
