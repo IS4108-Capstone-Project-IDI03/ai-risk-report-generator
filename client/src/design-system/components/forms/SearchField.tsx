@@ -39,12 +39,19 @@ export type FilterPillProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>
   // Current filter text, e.g. "Status" or "Draft".
   label: string
   icon?: string
+  // A filter is chosen: the pill takes the ink tint, so a set filter reads at a glance.
+  active?: boolean
 }
 
-/** Returns a grey pill button with a chevron; the host opens its menu from onClick. */
-export function FilterPill({ label, icon, ...rest }: FilterPillProps) {
+/** Returns a grey pill button with a chevron (ink when `active`); the host opens its menu from onClick. */
+export function FilterPill({ label, icon, active, ...rest }: FilterPillProps) {
   return (
-    <button type="button" className="ds-filter-pill" {...rest}>
+    <button
+      type="button"
+      className="ds-filter-pill"
+      data-active={active ? '' : undefined}
+      {...rest}
+    >
       {icon && <Icon name={icon} size={16} />}
       {label}
       <Icon name="chevron-down" size={16} />

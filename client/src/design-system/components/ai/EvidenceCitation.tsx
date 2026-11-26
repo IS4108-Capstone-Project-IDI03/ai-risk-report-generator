@@ -3,7 +3,8 @@ import { Icon } from '../core/Icon'
 export type EvidenceCitationProps = {
   kind?: string
   source?: React.ReactNode
-  locator?: string
+  // A short grey line after the source (a string, or parts kept whole).
+  locator?: React.ReactNode
   excerpt?: React.ReactNode
   index?: number
   onOpen?: () => void
@@ -46,6 +47,13 @@ const KIND: Record<string, { icon: string; label: string; fg: string; bg: string
     label: 'AI insight',
     fg: 'var(--ai-fg)',
     bg: 'var(--ai-bg)',
+  },
+  // A figure the gateway counted (CP-29's summary cites them beside observations).
+  figure: {
+    icon: 'chart-column',
+    label: 'Counted figure',
+    fg: 'var(--ink-600)',
+    bg: 'var(--ink-50)',
   },
   // The report template's definition of a section or one of its parts (AS-08).
   template: {
@@ -156,11 +164,13 @@ function EvidenceCitation({
             {(KIND[kind] || KIND.report).label}
           </span>
         </div>
+        {/* The locator wraps under a long source rather than squeezing it into a narrow column. */}
         <div
           style={{
             display: 'flex',
+            flexWrap: 'wrap',
             alignItems: 'baseline',
-            gap: 'var(--space-4)',
+            gap: '0 var(--space-4)',
           }}
         >
           <span

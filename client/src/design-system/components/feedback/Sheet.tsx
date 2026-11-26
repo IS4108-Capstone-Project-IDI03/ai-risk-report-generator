@@ -37,6 +37,10 @@ export type SheetProps = {
   className?: string
   // Content mode: a control beside the title, before the close tick (MarshBot's Edit details).
   headerAction?: ReactNode
+  // A walkthrough tag (F-12) on the close tick, so a walkthrough can close the sheet.
+  closeWalk?: string
+  // Unsaved edits in the sheet: Esc and a tap on the scrim do nothing; the close tick still closes.
+  unsaved?: boolean
 }
 
 const EXIT_MS = 200
@@ -80,6 +84,8 @@ export function Sheet({
   cancel,
   className,
   headerAction,
+  closeWalk,
+  unsaved = false,
 }: SheetProps) {
   const panel = useRef<HTMLDivElement>(null)
   // Keep it mounted for the exit motion; jsdom cannot animate, so it unmounts at once there.
@@ -100,8 +106,10 @@ export function Sheet({
 
   // onClose lives in a ref so a new function each render cannot re-run the focus effect.
   const closeRef = useRef(onClose)
+  const unsavedRef = useRef(unsaved)
   useEffect(() => {
     closeRef.current = onClose
+    unsavedRef.current = unsaved
   })
   // The host is fixed when the sheet opens: worked out on every render, a dialog opened from
   // inside the sheet would become its host, and the move would unmount the sheet and that dialog.
@@ -126,7 +134,8 @@ export function Sheet({
       if (e.key === 'Escape') {
         // Cancelled, so a dialog the sheet is over does not close on the same press.
         e.preventDefault()
-        return closeRef.current()
+        if (!unsavedRef.current) closeRef.current()
+        return
       }
       if (e.key !== 'Tab') return
       const items = [...(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
@@ -150,7 +159,7 @@ export function Sheet({
       data-state={open ? 'open' : 'closed'}
       data-centred={centred ? '' : undefined}
     >
-      <div className="ds-sheet-scrim" onClick={onClose} />
+      <div className="ds-sheet-scrim" onClick={unsaved ? undefined : onClose} />
       <div ref={panel} className="ds-sheet" role="dialog" aria-modal="true" aria-label={title}>
         <span className="ds-sheet-grabber" aria-hidden="true" />
         <div className="ds-sheet-head">
@@ -162,6 +171,7 @@ export function Sheet({
               label="Close"
               size="lg"
               style={{ color: 'var(--marsh-navy)' }}
+              data-walk={closeWalk}
               onClick={onClose}
             />
           )}

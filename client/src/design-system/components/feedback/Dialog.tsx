@@ -12,6 +12,9 @@ export type DialogProps = {
   footer?: ReactNode
   width?: number
   onClose?: () => void
+  // Unsaved edits in the dialog: Esc and a backdrop click do nothing, so a stray press can't
+  // throw them away; the Close button and the caller's Cancel still close.
+  unsaved?: boolean
   children?: ReactNode
   style?: CSSProperties
 }
@@ -60,6 +63,7 @@ export function Dialog({
   footer,
   width = 480,
   onClose,
+  unsaved = false,
   children,
   style,
 }: DialogProps) {
@@ -108,10 +112,11 @@ export function Dialog({
       aria-describedby={description ? descriptionId : undefined}
       // No way to close: the browser mustn't close it either. Chrome lets a second Esc through
       // however `cancel` answers, which would leave React thinking it's still open.
-      closedby={onClose ? undefined : 'none'}
+      // Unsaved edits: Esc mustn't close it either.
+      closedby={onClose && !unsaved ? undefined : 'none'}
       onCancel={(event) => {
         event.preventDefault()
-        onClose?.()
+        if (!unsaved) onClose?.()
       }}
       // A click on the backdrop closes it, as Esc does (IN-17 follow-up). The backdrop is the
       // <dialog> itself outside its box: a gap between the card's parts is inside the box.
@@ -119,7 +124,7 @@ export function Dialog({
         pressedOutside.current = isBackdrop(event)
       }}
       onClick={(event) => {
-        if (onClose && pressedOutside.current && isBackdrop(event)) onClose()
+        if (onClose && !unsaved && pressedOutside.current && isBackdrop(event)) onClose()
         pressedOutside.current = false
       }}
       style={{ width, ...style }}

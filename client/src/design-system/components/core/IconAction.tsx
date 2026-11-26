@@ -35,6 +35,9 @@ export type IconActionProps = {
   onClick?: () => void
   // A walkthrough target (F-12), set on the button or link itself.
   'data-walk'?: string
+  // A show/hide toggle: whether its region is shown, and that region's id (button form only).
+  'aria-expanded'?: boolean
+  'aria-controls'?: string
   className?: string
   style?: React.CSSProperties
 }
@@ -54,6 +57,8 @@ export function IconAction({
   href,
   onClick,
   'data-walk': walk,
+  'aria-expanded': expanded,
+  'aria-controls': controls,
   className,
   style,
 }: IconActionProps) {
@@ -88,6 +93,8 @@ export function IconAction({
       // Spread after the button's own, so it repeats the blocked state a reason box sets.
       aria-disabled={loading || disabledReason ? true : undefined}
       aria-busy={loading || undefined}
+      aria-expanded={expanded}
+      aria-controls={controls}
       disabledReason={disabledReason}
       data-walk={walk}
       onClick={(e) => {

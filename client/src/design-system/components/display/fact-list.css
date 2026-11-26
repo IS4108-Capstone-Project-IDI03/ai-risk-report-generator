@@ -1,0 +1,36 @@
+/* Fact list (FactList.tsx): label over value, two to a row; the label is the small caps one of the
+   client facts (client-record.css .cl-fact) and the Details panel (marshbot.css .mb-label). */
+.ds-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 16px;
+  margin: 0;
+}
+.ds-facts[data-columns='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ds-fact[data-wide] {
+  grid-column: 1 / -1;
+}
+.ds-fact dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 16px;
+  margin: 0 0 6px;
+  color: var(--graphite-600);
+  font: 700 11px/13px var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ds-fact dd {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 400 14px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* A (?) beside a caps label is a 32 px button: pull it in so the label line keeps its height. */
+.ds-fact dt > * {
+  margin-block: -8px;
+}

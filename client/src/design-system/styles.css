@@ -396,13 +396,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ds-sidenav .user-footer .user-avatar {
-  width: 32px;
-  height: 32px;
-  background: var(--ink-100);
-  color: var(--marsh-navy);
-  font-weight: 700;
-}
 .ds-sidenav :focus-visible {
   outline: 2px solid #fff;
   outline-offset: -2px;

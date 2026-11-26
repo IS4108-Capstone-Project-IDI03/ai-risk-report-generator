@@ -1,0 +1,157 @@
+/* Side panel (SidePanel.tsx): the assessment's Details panel look (AS-06 board 06), shared. A modal
+   <dialog> that covers the window; its panel floats 16 px in from the top, right and bottom edges
+   with the Dialog's radius and shadow, as tall as its content (up to the window, then the body
+   scrolls) so a short record leaves no empty column, and slides in 24 px as it fades. */
+.ds-side-panel {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+}
+.ds-side-panel::backdrop {
+  background: rgb(10 20 50 / 0.18);
+  animation: ds-side-fade var(--duration-slow) var(--ease-out);
+}
+.ds-side-panel-card {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: min(var(--ds-side-panel-w, 400px), calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--surface-card);
+  /* The Dialog's shadow (kit.css .ds-dialog--v2). */
+  box-shadow:
+    0 24px 64px rgb(0 15 71 / 0.18),
+    0 2px 8px rgb(0 15 71 / 0.08);
+  animation: ds-side-in var(--duration-slow) var(--ease-out);
+}
+.ds-side-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 12px;
+}
+/* The lead (a client's avatar, a file tile, a person's initials) is one 40 px size in every panel. */
+.ds-side-panel-lead {
+  display: inline-flex;
+  flex: none;
+}
+.ds-side-panel-head .ds-side-panel-lead > * {
+  width: 40px;
+  height: 40px;
+}
+.ds-side-panel-titles {
+  flex: 1;
+  min-width: 0;
+}
+.ds-side-panel-titles h2 {
+  margin: 0;
+  /* At most two lines, then cut: a long document title never pushes the body down a third. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--marsh-navy);
+  font: 600 19px/25px var(--font-sans);
+}
+.ds-side-panel-titles p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--graphite-600);
+  font: 400 13px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-side-panel-tools {
+  display: flex;
+  flex: none;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+}
+/* Its content's height, shrinking (and scrolling) only once the panel reaches the window's. */
+.ds-side-panel-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 20px 24px;
+}
+/* The record's actions: a hairline above, straight under the content (the panel's foot). */
+.ds-side-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--graphite-200);
+  background: var(--surface-card);
+}
+.ds-side-panel :focus-visible,
+.ds-side-sheet :focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+/* Toasts raised while the panel is open sit centred at the panel's foot, not under the dimmed page. */
+.ds-side-panel-toaster.ds-side-panel-toaster[data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
+  left: auto !important;
+  right: min(calc(var(--ds-side-panel-w, 400px) / 2 + 16px), 50%) !important;
+  bottom: 16px !important;
+  transform: translateX(50%) !important;
+}
+
+/* The Back button leads the title, in the phone sheet's header too (its title comes first there). */
+.ds-side-panel-back {
+  order: -1;
+  display: inline-flex;
+}
+
+/* A phone: the bottom sheet. Its header's icon actions keep 6 px apart, so one's 44 px tap area
+   ends where the next one's begins instead of covering its edge. */
+.ds-side-sheet .ds-sheet-head {
+  gap: 6px;
+}
+/* The footer stays pinned under the content while it scrolls. */
+.ds-side-sheet .ds-side-panel-foot {
+  position: sticky;
+  bottom: -8px;
+  margin: 8px 0 -8px;
+  padding: 12px 0;
+}
+/* Touch: the header's icon actions (Edit, Close) are 44 px targets. */
+@media (max-width: 767px), (pointer: coarse) {
+  .ds-side-panel-tools .ds-icon-button,
+  .ds-side-sheet .ds-sheet-head .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+@keyframes ds-side-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ds-side-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-side-panel-card {
+    animation-name: ds-side-fade;
+  }
+}

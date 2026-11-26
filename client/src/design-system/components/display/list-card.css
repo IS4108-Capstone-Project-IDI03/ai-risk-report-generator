@@ -1,0 +1,206 @@
+/* List card and list toolbar (ListCard.tsx, ListToolbar.tsx; v2 section 2 "One list frame").
+   The card: white, radius 16, 1 px --graphite-200, its footer above a hairline. It is the size
+   container "ds-list": a list's columns and its toolbar reflow by the card's width, so a collapsed
+   sidebar counts. The toolbar: 64 px, 12 px in, 8 px gaps. Tokens only. */
+.ds-list-card {
+  container: ds-list / inline-size;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  font-family: var(--font-sans);
+}
+.ds-list-card > .ds-table-footer {
+  border-top: 1px solid var(--graphite-200);
+}
+/* A card of flush rows opens with its title, and maybe a note (Export's Left to finish). */
+.ds-list-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 20px 10px;
+}
+.ds-list-card-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/24px var(--font-sans);
+}
+.ds-list-card-note {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 400 13px/1.45 var(--font-sans);
+}
+@media (max-width: 767px) {
+  .ds-list-card-head {
+    padding-inline: 16px;
+  }
+  /* Edge to edge on a phone: rows with dividers, no bordered card (board 21). A Panel beside the
+     list takes the same look (the Calendar's side cards). */
+  :is(.ds-list-card, .ds-panel)[data-bleed] {
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
+}
+
+/* ---- Toolbar: search, pills, sort, then the end ---- */
+.ds-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: 12px;
+}
+.ds-list-toolbar > .ds-search {
+  flex: 0 1 300px;
+  min-width: 200px;
+}
+/* Wide: the pills are items of the toolbar's own row. */
+.ds-list-toolbar-pills {
+  display: contents;
+}
+.ds-list-toolbar-sort {
+  display: inline-flex;
+  margin-left: auto;
+}
+.ds-list-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+/* Sort already pushes the end right. */
+.ds-list-toolbar-pills:has(> .ds-list-toolbar-sort) ~ .ds-list-toolbar-end {
+  margin-left: 0;
+}
+
+/* A tablet card is too narrow for one row of several pills: without this the search shrank to
+   its icon and the main button ran off the card. The search and the end take the first row, the
+   pills the second. A single pill (a client's Documents) keeps one row. */
+@container ds-list (min-width: 601px) and (max-width: 960px) {
+  .ds-list-toolbar:has(> .ds-list-toolbar-pills > :nth-child(2)) > .ds-search {
+    order: -2;
+    flex: 1 1 320px;
+    min-width: 0;
+    max-width: none;
+  }
+  .ds-list-toolbar:has(> .ds-list-toolbar-pills > :nth-child(2)) > .ds-list-toolbar-end {
+    order: -1;
+  }
+  .ds-list-toolbar > .ds-list-toolbar-pills:has(> :nth-child(2)) {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+/* A phone, or a card under 600 px (a tablet with the sidebar open): the search on its own row,
+   the pills one row that scrolls and fades at the edge, the end a full row; 44 px to tap.
+   The same rules twice: a toolbar can sit on the page, outside any card. */
+@media (max-width: 767px) {
+  .ds-list-toolbar {
+    padding-inline: 16px;
+  }
+  .ds-list-toolbar > .ds-search {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .ds-list-toolbar > .ds-search,
+  .ds-list-toolbar .ds-filter-pill,
+  .ds-list-toolbar-end :is(button, .ds-segmented) {
+    min-height: 44px;
+  }
+  .ds-list-toolbar-pills {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 8px;
+    margin: -3px;
+    padding: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .ds-list-toolbar-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .ds-list-toolbar-pills > * {
+    flex: none;
+  }
+  .ds-list-toolbar-sort {
+    margin-left: 0;
+  }
+  .ds-list-toolbar-end {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .ds-list-toolbar-end > * {
+    flex: 1 1 auto;
+  }
+  /* One pill shares the search's row (a client's Sites and Documents, board 22). */
+  .ds-list-toolbar:has(> .ds-list-toolbar-pills > :only-child) > .ds-search {
+    flex: 1 1 0;
+  }
+  .ds-list-toolbar-pills:has(> :only-child) {
+    flex: none;
+  }
+}
+@container ds-list (max-width: 600px) {
+  .ds-list-toolbar {
+    padding-inline: 16px;
+  }
+  .ds-list-toolbar > .ds-search {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .ds-list-toolbar > .ds-search,
+  .ds-list-toolbar .ds-filter-pill,
+  .ds-list-toolbar-end :is(button, .ds-segmented) {
+    min-height: 44px;
+  }
+  .ds-list-toolbar-pills {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 8px;
+    margin: -3px;
+    padding: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .ds-list-toolbar-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .ds-list-toolbar-pills > * {
+    flex: none;
+  }
+  .ds-list-toolbar-sort {
+    margin-left: 0;
+  }
+  .ds-list-toolbar-end {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .ds-list-toolbar-end > * {
+    flex: 1 1 auto;
+  }
+  /* One pill shares the search's row (a client's Sites and Documents, board 22). */
+  .ds-list-toolbar:has(> .ds-list-toolbar-pills > :only-child) > .ds-search {
+    flex: 1 1 0;
+  }
+  .ds-list-toolbar-pills:has(> :only-child) {
+    flex: none;
+  }
+}

@@ -1,0 +1,45 @@
+/* Icon tile (IconTile.tsx): 32 px, radius 9 (--radius-tile), one 16 px icon in its tone.
+   Tokens only (v2 sections 3 and 5). */
+.ds-icon-tile {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-tile, 9px);
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.ds-icon-tile[data-tone='ink'] {
+  background: var(--ink-50);
+  color: var(--ink-600);
+}
+.ds-icon-tile[data-tone='navy'] {
+  background: var(--ink-50);
+  color: var(--report-navy);
+}
+.ds-icon-tile[data-tone='violet'] {
+  background: var(--violet-50);
+  color: var(--violet-600);
+}
+.ds-icon-tile[data-tone='danger'] {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+.ds-icon-tile[data-tone='warn'] {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.ds-icon-tile[data-tone='good'] {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+.ds-icon-tile[data-tone='outline'] {
+  border: 1px solid var(--graphite-200);
+  background: var(--surface-card);
+  color: var(--marsh-navy);
+}

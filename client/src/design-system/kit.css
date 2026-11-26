@@ -493,6 +493,16 @@
     background: var(--graphite-200);
   }
 }
+/* A pill with a filter chosen (FilterPill `active`): the ink tint with navy words. */
+.ds-filter-pill[data-active] {
+  background: var(--ink-50);
+  color: var(--marsh-navy);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-filter-pill[data-active]:hover {
+    background: var(--ink-100);
+  }
+}
 
 /* Dashed add row */
 .ds-add-row {
@@ -560,6 +570,14 @@
   line-height: 18px;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+.ds-count-pill[data-tone='ink'] {
+  background: var(--ink-100);
+  color: var(--report-navy);
+}
+.ds-count-pill[data-tone='danger'] {
+  background: var(--red-50);
+  color: var(--red-600);
 }
 
 /* Table footer */
@@ -777,6 +795,11 @@
   .ds-filter-pill,
   .ds-tabs [role='tab'] {
     min-height: 44px;
+  }
+  /* A pill or toolbar toggle squeezed to its icon (Sort, By client | All) stays 44 wide. */
+  .ds-filter-pill,
+  .ds-list-toolbar .ds-segmented button {
+    min-width: 44px;
   }
   .ds-icon-button {
     min-width: 44px;

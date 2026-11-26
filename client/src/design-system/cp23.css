@@ -666,6 +666,10 @@
   .ds-datepicker-field {
     height: 44px !important;
   }
+  /* The date's text box reaches over the field's 1 px borders, so its input is 44 tall too. */
+  .ds-datepicker-text {
+    margin-block: -1px;
+  }
   .ds-field-input,
   .ds-search input,
   .ds-datepicker-field input,
