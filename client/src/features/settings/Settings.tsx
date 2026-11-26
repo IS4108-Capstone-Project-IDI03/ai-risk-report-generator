@@ -92,7 +92,7 @@ const ADMIN: Section[] = [
     icon: 'list-checks',
     label: 'Checklist',
     walk: 'settings.menu.checklist',
-    render: needs((s) => <ChecklistSection canEdit={s.canEditGlobal} />),
+    render: needs((s, _f, end) => <ChecklistSection canEdit={s.canEditGlobal} titleEnd={end} />),
   },
   {
     id: 'privacy-words',

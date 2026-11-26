@@ -28,9 +28,27 @@ import { useFixedItems } from '../useFixedItems'
 const message = (error: unknown, fallback: string) =>
   error instanceof GatewayError && error.message ? error.message : fallback
 
-export function ChecklistSection({ canEdit }: { canEdit: boolean }) {
-  if (!canEdit) return <SetByAdmin />
+type Props = { canEdit: boolean; titleEnd: HTMLElement | null }
+
+export function ChecklistSection({ canEdit, titleEnd }: Props) {
+  if (!canEdit) return <ReadOnly titleEnd={titleEnd} />
   return <Editor />
+}
+
+// An engineer can't read the admin's list (the gateway keeps it to knowledge admins), so this
+// says what the setting does and where its questions show up, with the chip in the title bar.
+function ReadOnly({ titleEnd }: { titleEnd: HTMLElement | null }) {
+  return (
+    <>
+      <SettingBlock wide>
+        <p className="st-note">
+          A knowledge admin sets the fixed questions that every checklist gets for each site type.
+          They appear on each assessment's Checklist tab.
+        </p>
+      </SettingBlock>
+      <SetByAdmin into={titleEnd} />
+    </>
+  )
 }
 
 function Editor() {

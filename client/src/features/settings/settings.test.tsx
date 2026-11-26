@@ -235,6 +235,15 @@ describe('Settings', () => {
     expect(document.querySelector('.st-titlebar-end')).toHaveTextContent('Set by an admin')
   })
 
+  it('tells an engineer what Checklist sets, with the chip in the title bar', async () => {
+    mock(data(false))
+    render(<Settings />)
+    open('Checklist')
+    expect(await screen.findByText(/sets the fixed questions/)).toBeInTheDocument()
+    expect(screen.getAllByText('Set by an admin')).toHaveLength(1)
+    expect(document.querySelector('.st-titlebar-end')).toHaveTextContent('Set by an admin')
+  })
+
   it('points aria-controls at the list only while it is open', async () => {
     mock(data(true))
     render(<Settings />)
