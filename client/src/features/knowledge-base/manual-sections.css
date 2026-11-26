@@ -160,6 +160,15 @@
   align-items: flex-end;
   gap: 8px 12px;
 }
+/* Touch: the small kind select and Add screenshot reach 44 px (the select's height is inline). */
+@media (pointer: coarse) {
+  .kb-shot-add .ds-field {
+    height: 44px !important;
+  }
+  .kb-shot-add .kb-pick {
+    height: 44px;
+  }
+}
 .kb-shot-add .kb-pick[aria-disabled] {
   pointer-events: none;
   opacity: 0.6;

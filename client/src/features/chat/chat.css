@@ -117,6 +117,8 @@
    New chat sat flush against the edge. */
 .knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-primary-actions {
   padding: 8px 16px 0;
+  /* OpenUI's drawer puts 24px between New chat and My preferences; they are one group. */
+  gap: 0;
 }
 /* Our "Chats" heading replaces OpenUI's hardcoded "Threads" group label. */
 .knowledge-assistant .openui-agent-thread-list-group {
@@ -322,6 +324,8 @@
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
+  /* A long file name breaks rather than running past the column. */
+  overflow-wrap: break-word;
   font-size: 15.5px;
   line-height: 1.7;
   letter-spacing: -0.008em;
@@ -456,6 +460,13 @@
   position: absolute;
   inset: -4px;
 }
+/* Touch: a 44 px tall tap area, still without making the line taller. It widens only by the
+   default 4px, so it never covers the marker beside it ("1 2"). */
+@media (pointer: coarse) {
+  .chat-cite::after {
+    inset: -16px -4px;
+  }
+}
 .chat-cites {
   white-space: nowrap;
 }
@@ -517,6 +528,14 @@
   .knowledge-assistant .openui-agent-thread-composer__submit-button {
     width: 44px;
     height: 44px;
+  }
+  /* 16 px text stops iOS zooming the page when the chat box is focused. */
+  .knowledge-assistant .openui-agent-thread-composer__input {
+    font-size: 16px;
+  }
+  /* The logo and name (new chat) reach 44 px like the rows under them. */
+  .knowledge-assistant .chat-brand {
+    min-height: 44px;
   }
   .knowledge-assistant .voice-input {
     right: 64px;
@@ -625,6 +644,11 @@
 }
 .chat-source-back {
   margin-left: -8px;
+}
+@media (pointer: coarse) {
+  .chat-source-back {
+    min-height: 44px;
+  }
 }
 /* The design-system buttons set display inline, hence !important to hide them. Expand is
    docked-only: covering the chat, the panel already has all the room. */
@@ -1031,8 +1055,18 @@
 /* Touch screens: the row and its two icon buttons reach 44 px, the smallest comfortable tap
    target. !important because the shared IconButton sets its size inline. */
 @media (hover: none) {
+  /* The always-shown icons leave little room, and a touch screen has no hover to show the full
+     name, so it takes two lines before the ellipsis. */
   .chat-thread-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     min-height: 44px;
+    /* Space as a clear border, not padding: overflow clips at the padding edge, so with padding
+       a third line peeked out under the second. */
+    padding-block: 0;
+    border-block: 12px solid transparent;
+    white-space: normal;
   }
   .chat-thread-actions button {
     width: 44px !important;
@@ -1065,6 +1099,11 @@
 .knowledge-assistant .openui-shell-thread-message-assistant__content {
   flex-direction: column;
   align-items: flex-start;
+}
+/* Capped at the column: without it a wide table sized the answer to the table, so on a phone
+   and tablet the text ran off the right edge instead of the table scrolling in its box. */
+.knowledge-assistant .openui-shell-thread-message-assistant__content > * {
+  max-width: 100%;
 }
 .version-switcher {
   display: inline-flex;

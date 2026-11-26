@@ -72,6 +72,24 @@
   text-align: left;
   cursor: pointer;
 }
+/* Touch: the title button and the Needs review pill reach a 44 px tap area without growing the
+   row (the row's padding holds it). */
+@media (pointer: coarse) {
+  .kb-toggle,
+  .kb-review-badge {
+    position: relative;
+  }
+  .kb-toggle::after {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
+  }
+  .kb-review-badge::after {
+    content: '';
+    position: absolute;
+    inset: -10px -4px;
+  }
+}
 .kb-toggle:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 4px;

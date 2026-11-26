@@ -11,11 +11,16 @@ import { Icon } from '../../../design-system'
 import marshbot from '../marshbot.svg'
 import { ChatSearch } from './ChatSearch'
 import { ChatThreadList } from './ChatThreadList'
+import { closeChatsDrawer } from '../chatsDrawer'
 import { PreferencesPanel } from './PreferencesPanel'
 
 /** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
 export function ChatSidebar() {
-  const startNewChat = useThreadList((s) => s.switchToNewThread)
+  const switchToNewThread = useThreadList((s) => s.switchToNewThread)
+  const startNewChat = () => {
+    switchToNewThread()
+    closeChatsDrawer()
+  }
   const hasChats = useThreadList((s) => s.threads.length > 0)
   const [words, setWords] = useState('')
   const [preferencesOpen, setPreferencesOpen] = useState(false)

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { IconButton } from '../../../design-system'
 import { DeleteChatDialog } from './DeleteChatDialog'
 import { RenameChatDialog } from './RenameChatDialog'
+import { closeChatsDrawer } from '../chatsDrawer'
 
 type Props = { id: string; title: string }
 
@@ -24,7 +25,10 @@ export function ChatThreadRow({ id, title }: Props) {
         aria-current={selected ? 'true' : undefined}
         // A long name is cut short with an ellipsis; this shows it in full on hover.
         title={title}
-        onClick={() => select(id)}
+        onClick={() => {
+          select(id)
+          closeChatsDrawer()
+        }}
       >
         {title}
       </button>

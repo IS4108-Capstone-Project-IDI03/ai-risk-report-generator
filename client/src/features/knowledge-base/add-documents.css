@@ -143,6 +143,16 @@
 .kb-uploads .kb-col-state {
   width: 300px;
 }
+/* A tablet's width: narrower Uploaded and Status columns, so Document isn't squeezed into breaking
+   short titles mid-word. */
+@container kb-content (max-width: 760px) {
+  .kb-uploads .kb-col-when {
+    width: 104px;
+  }
+  .kb-uploads .kb-col-state {
+    width: 220px;
+  }
+}
 .kb-uploads :is(th, td):nth-child(2),
 .kb-uploads :is(th, td):nth-child(3) {
   text-align: left;
@@ -165,6 +175,11 @@
   min-width: 0;
 }
 .kb-doc strong {
+  /* At most two lines, then an ellipsis; the full title is in its title attribute. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   overflow-wrap: anywhere;
   color: var(--graphite-900);
   font-weight: 600;
@@ -206,6 +221,15 @@
   align-items: center;
   gap: 8px;
   margin-top: 4px;
+}
+/* Touch: the small select and its button reach 44 px (the select's height is set inline). */
+@media (pointer: coarse) {
+  .kb-choose-type .ds-field {
+    height: 44px !important;
+  }
+  .kb-choose-type .ds-press {
+    min-height: 44px;
+  }
 }
 
 /* A phone: the panel's button drops under its words, and each upload is a card row. */

@@ -19,9 +19,10 @@
 }
 /* The search field and its Words | Meaning switch take the room the dropdowns leave; "Press Enter
    to search" sits under the field while a search by meaning waits for it. */
+/* Its own row: beside the dropdowns, Meaning's placeholder was cut mid-word at every width. */
 .kb-psearch {
   display: flex;
-  flex: 1 1 340px;
+  flex: 1 1 100%;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -139,6 +140,17 @@
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+}
+/* Touch: a 44 px tap area round the one-line heading, inside the row's padding. */
+@media (pointer: coarse) {
+  .kb-ptoggle {
+    position: relative;
+  }
+  .kb-ptoggle::after {
+    content: '';
+    position: absolute;
+    inset: -10px -4px;
+  }
 }
 .kb-ptoggle > span:first-child {
   flex: none;
