@@ -639,6 +639,8 @@
 .ds-dialog.inbox-handled .ds-dialog-header {
   order: 2;
   padding: 0;
+  /* No padding to give back (kit.css), or the pinned footer would cover the time. */
+  margin-bottom: 0;
 }
 .ds-dialog.inbox-handled h2 {
   padding-right: 0; /* the v2 title keeps room for an X this dialog doesn't have */

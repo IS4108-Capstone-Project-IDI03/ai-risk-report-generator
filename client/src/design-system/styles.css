@@ -93,7 +93,12 @@
 .ds-dialog-body {
   padding: 0 var(--space-7) var(--space-7);
 }
+/* The footer stays at the bottom while a long dialog scrolls, so its buttons never scroll
+   away; a hairline shows while content is under it (kit.css, ds-dialog-rule-up). */
 .ds-dialog-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
@@ -421,6 +426,9 @@
   .ds-sidenav-icon-button {
     min-width: 44px;
   }
+  .ds-sidenav[data-collapsed] .ds-sidenav-item {
+    width: 44px;
+  }
 }
 
 /* ChipInput (IN-18, NEW pattern): a field of bubbles, like a mail app's To field. The
@@ -529,6 +537,8 @@
   cursor: pointer;
 }
 .ds-chip-remove {
+  /* flex: none: a long chip in a narrow field squeezed it to 10 px wide. */
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -581,14 +591,18 @@
     min-height: 44px;
   }
   .ds-chip {
-    height: 36px;
+    height: 44px;
+  }
+  /* The text fills the bubble's height, so the whole bubble takes the edit tap. */
+  .ds-chip-text {
+    align-self: stretch;
   }
   .ds-chip-remove {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
   }
   .ds-chip-box {
-    height: 36px;
+    height: 44px;
     font-size: 16px;
   }
 }

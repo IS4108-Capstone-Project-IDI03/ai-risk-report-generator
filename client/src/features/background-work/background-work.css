@@ -108,6 +108,13 @@
   font: inherit;
   cursor: pointer;
 }
+/* A finger's 44 px (v2 "Phone"): a row's two lines are a little shorter. */
+@media (max-width: 767px), (pointer: coarse) {
+  .bgw-row__open {
+    min-height: 44px;
+    justify-content: center;
+  }
+}
 .bgw-row__open:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 4px;

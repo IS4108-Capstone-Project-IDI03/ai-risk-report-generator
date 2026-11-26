@@ -147,6 +147,8 @@ function AIDraftBlock({
         {onShowEvidence ? (
           <button
             type={'button'}
+            // kit.css gives it a 44 px tap area on touch, as it does a .text-link.
+            className={'ds-ai-evidence'}
             onClick={onShowEvidence}
             style={{
               display: 'inline-flex',

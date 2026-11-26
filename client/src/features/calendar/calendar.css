@@ -58,9 +58,11 @@
   margin-left: auto;
 }
 
-/* The grid: weekday names, then one grid per week. --cal-lane is an entry's height. */
+/* The grid: weekday names, then one grid per week. --cal-lane is an entry's height,
+   --cal-date-row the row holding each day's date and + button. */
 .cal-grid {
   --cal-lane: 24px;
+  --cal-date-row: 30px;
   border-top: 1px solid var(--graphite-100);
 }
 .cal-grid[data-view='week'] {
@@ -149,6 +151,44 @@ button.cal-date {
 @media (hover: none) {
   .cal-add {
     opacity: 1 !important;
+  }
+}
+
+/* A finger on a tablet (v2 "Phone": 44 px targets): the date row fits the 44 px + button,
+   month entries grow to 36 px with 8 px between them, and invisible boxes make each date
+   and entry 44 px tall, so neighbours never share a tap. */
+@media (pointer: coarse) {
+  .cal-grid {
+    --cal-date-row: 48px;
+  }
+  /* A lane takes room only when an entry is in it, so an empty week stays short. */
+  .cal-grid[data-view='month'] {
+    --cal-lane: auto;
+  }
+  .cal-grid[data-view='month'] :is(.cal-chip, .cal-more) {
+    min-height: 36px;
+  }
+  .cal-week {
+    row-gap: 8px;
+  }
+  .cal-date,
+  .cal-chip,
+  .cal-more {
+    position: relative;
+  }
+  button.cal-date::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -4px;
+    width: max(calc(100% + 8px), 44px);
+    height: 44px;
+  }
+  .cal-chip::after,
+  .cal-more::after {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
   }
 }
 

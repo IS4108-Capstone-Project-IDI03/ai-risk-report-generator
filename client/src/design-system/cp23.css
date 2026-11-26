@@ -237,6 +237,11 @@
 .ds-sheet-row[data-described] {
   min-height: 64px;
 }
+/* A row with a disabled reason under its label: room above and below, so the two lines never
+   touch the next row's label. */
+.ds-sheet-row:has(small) {
+  padding-block: 8px;
+}
 .ds-sheet-row:active:not([aria-disabled='true']) {
   background: var(--graphite-100);
 }
@@ -649,10 +654,14 @@
   .ds-toast-close::after {
     inset: -8px;
   }
+  /* The calendar's month and year choosers (a tablet; a phone's are in the block below). */
+  .ds-cal-head-pick {
+    min-height: 44px;
+  }
 }
 
-/* Phones: 44 px fields, 16 px text (stops iOS zooming on focus), chip-size status pill */
-@media (max-width: 767px) {
+/* Phones and touch tablets: 44 px fields and 16 px text (stops iOS and iPadOS zooming on focus). */
+@media (max-width: 767px), (pointer: coarse) {
   .ds-field,
   .ds-datepicker-field {
     height: 44px !important;
@@ -663,6 +672,24 @@
   .ds-datepicker-mask {
     font-size: 16px !important;
   }
+  .ds-search:not(.has-end) {
+    height: 44px;
+  }
+  /* The combobox's Show suggestions toggle: 44 px wide (its width and the input's room for it
+     are inline in Combobox.tsx, hence !important). */
+  .ds-combo-toggle {
+    width: 44px !important;
+  }
+  .ds-field:has(.ds-combo-toggle) .ds-field-input {
+    padding-right: 44px !important;
+  }
+  /* A Radio or Checkbox row (its label takes the tap): 44 px tall, not the 24 px of its text. */
+  label:has(> .ds-choice) {
+    min-height: 44px;
+  }
+}
+/* Phones: chip-size status pill and the rest */
+@media (max-width: 767px) {
   textarea.ds-field-input {
     min-height: 88px;
   }

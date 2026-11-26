@@ -16,6 +16,27 @@ export function ReasonBox({
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return
+    // Set to position: fixed by a feature's CSS where a scrolling row round the control would cut
+    // the box off (the phone editor's swipe toolbar): placed against the window from its control,
+    // below it or above when the window has no room, and kept there as anything scrolls.
+    if (getComputedStyle(el).position === 'fixed') {
+      const place = () => {
+        const control = el.parentElement?.getBoundingClientRect()
+        if (!control) return
+        const room = document.documentElement.clientWidth - 8 - el.offsetWidth
+        el.style.left = `${Math.max(8, Math.min(control.left, room))}px`
+        const below = control.bottom + 8
+        const up = below + el.offsetHeight > window.innerHeight - 8
+        el.style.top = `${up ? control.top - 8 - el.offsetHeight : below}px`
+      }
+      place()
+      window.addEventListener('scroll', place, true)
+      window.addEventListener('resize', place)
+      return () => {
+        window.removeEventListener('scroll', place, true)
+        window.removeEventListener('resize', place)
+      }
+    }
     // A dialog scrolls and clips what sticks out of it (a Save button in its footer), so the box
     // must fit inside the dialog too, not just the window.
     const room = el.closest('dialog')?.getBoundingClientRect()

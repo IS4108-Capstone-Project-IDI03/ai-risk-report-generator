@@ -75,7 +75,7 @@ export function CalendarGrid({
             key={week.start}
             className="cal-week"
             style={{
-              gridTemplateRows: `30px repeat(${lanes}, var(--cal-lane)) minmax(8px, 1fr)`,
+              gridTemplateRows: `var(--cal-date-row) repeat(${lanes}, var(--cal-lane)) minmax(8px, 1fr)`,
             }}
           >
             {week.days.map((day, i) => {

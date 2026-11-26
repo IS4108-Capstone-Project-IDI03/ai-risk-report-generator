@@ -195,6 +195,13 @@
   right: auto;
   width: 40px;
 }
+/* The rail's 44 px touch items (styles.css) take a 44 px highlight. */
+@media (pointer: coarse), (max-width: 767px) {
+  .ds-sidenav[data-collapsed] .ds-sidenav-glide {
+    left: calc(50% - 22px);
+    width: 44px;
+  }
+}
 .ds-sidenav-body[data-glide] .ds-sidenav-item[aria-current='page'] {
   background: transparent;
 }

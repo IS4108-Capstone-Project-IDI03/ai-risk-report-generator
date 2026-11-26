@@ -177,10 +177,14 @@ export function Popover({
       if (!width) return
       const margin = 8
       const room = document.documentElement.clientWidth - margin
+      // Inside the main area, its left edge is the limit: the window's let a right-aligned
+      // surface open under the sidebar rail at 768 (the Focus list).
+      const main = anchor.current?.closest('main')?.getBoundingClientRect().left ?? 0
+      const minLeft = main + margin
       // Unscaled left edge: the anchor's left plus the surface's offset inside it.
       const left = (el.offsetParent?.getBoundingClientRect().left ?? 0) + el.offsetLeft
       const right = left + width
-      const shift = left < margin ? margin - left : right > room ? room - right : 0
+      const shift = left < minLeft ? minLeft - left : right > room ? room - right : 0
       if (shift) el.style.transform = `translateX(${shift}px)`
       // Vertical: stay above a sticky bottom bar and the window edge. Flip above the trigger
       // when there is more room there, else cap the height and scroll.

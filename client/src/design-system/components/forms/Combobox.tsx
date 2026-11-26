@@ -159,6 +159,7 @@ function Combobox({
             // Lists every suggestion; the keyboard has the arrow keys instead.
             <button
               type="button"
+              className="ds-combo-toggle"
               tabIndex={-1}
               aria-label={shown ? 'Hide suggestions' : 'Show suggestions'}
               aria-expanded={shown}

@@ -107,6 +107,8 @@ function Input({
             fontFamily: 'inherit',
             fontSize: 'var(--text-small-size)',
             color: 'var(--text-primary)',
+            // A value or hint too long for a phone's field ends in "…" rather than a cut letter.
+            textOverflow: 'ellipsis',
           }}
           {...rest}
         />

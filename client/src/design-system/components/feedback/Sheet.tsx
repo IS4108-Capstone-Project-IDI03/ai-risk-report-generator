@@ -103,7 +103,13 @@ export function Sheet({
   useEffect(() => {
     closeRef.current = onClose
   })
-  const host = open || leaving ? sheetHost() : document.body
+  // The host is fixed when the sheet opens: worked out on every render, a dialog opened from
+  // inside the sheet would become its host, and the move would unmount the sheet and that dialog.
+  const showing = open || leaving
+  const [pinned, setPinned] = useState<HTMLElement | null>(null)
+  if (showing && !pinned) setPinned(sheetHost())
+  if (!showing && pinned) setPinned(null)
+  const host = showing ? (pinned ?? sheetHost()) : document.body
   // Over a modal dialog, the dialog already makes the page behind inert; locking the app root
   // as well would make the dialog, and the sheet inside it, inert too.
   const isTop = useOverlayStack(open, host === document.body)
