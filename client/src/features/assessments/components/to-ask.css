@@ -35,17 +35,8 @@
   color: var(--marsh-navy);
 }
 /* The count pill (design-system-v2: counts on --ink-100). */
-.ta-count {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--ink-100);
-  color: var(--ink-600);
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+/* "2 of 5 asked" stays on one line. */
+.ta-head .ds-count-pill {
   white-space: nowrap;
 }
 .ta-list {

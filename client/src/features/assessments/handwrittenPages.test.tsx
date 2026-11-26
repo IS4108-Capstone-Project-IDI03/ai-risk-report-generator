@@ -751,7 +751,8 @@ describe('The Scans view (CP-19)', () => {
     const row = (name: string) =>
       within(view)
         .getAllByRole('listitem')
-        .find((li) => within(li).queryByText(name, { selector: '.ob-pt-name' }))!
+        // By the thumbnail's screen-reader name: the row no longer shows the page's name (redesign round 2).
+        .find((li) => li.querySelector(`.ob-pt-thumb[aria-label="Open ${name}"]`))!
     expect(screen.getByText('5 pages')).toBeInTheDocument()
 
     // Still transcribing, or failed with Retry: no text to open yet.
@@ -834,7 +835,7 @@ describe('Searching the Scans view (CP-13)', () => {
     expect(screen.getByText('No pages match “hydrnt”')).toBeInTheDocument()
     search('seized')
     const [corrected] = within(view).getAllByRole('listitem')
-    expect(corrected).toHaveTextContent('Page 4')
+    expect(corrected.querySelector('.ob-pt-thumb')).toHaveAttribute('aria-label', 'Open Page 4')
     expect(corrected.querySelector('mark.ob-hit')).toHaveTextContent('seized')
 
     // One still transcribing is found by its observation's text.
@@ -870,7 +871,12 @@ describe('Filtering the Scans view (CP-13)', () => {
     const names = () =>
       within(view)
         .getAllByRole('listitem')
-        .map((li) => li.querySelector('.ob-pt-name')!.textContent)
+        .map((li) =>
+          li
+            .querySelector('.ob-pt-thumb')!
+            .getAttribute('aria-label')!
+            .replace(/^Open /, ''),
+        )
     const status = (option: string) => {
       fireEvent.click(screen.getByRole('button', { name: /^Status(:|$)/ }))
       fireEvent.click(

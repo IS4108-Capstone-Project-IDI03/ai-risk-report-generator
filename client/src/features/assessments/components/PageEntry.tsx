@@ -4,7 +4,7 @@
 // name and state, the icon tools, and the chevron last. Open, the text sits in the recording
 // transcript's own box. Rendered by screens/ObservationPage.tsx. Calls Icon, PageText.
 import { useEffect, useRef, useState } from 'react'
-import { Icon, IconRegistry } from '../../../design-system'
+import { Icon, IconAction, IconRegistry } from '../../../design-system'
 import { transcriptName } from '../../site-walk/walkItems'
 import type { ObservationPage } from '../types'
 import { PageText } from './PageText'
@@ -127,49 +127,38 @@ export function PageEntry({ page: p, onView }: { page: PageView; onView: () => v
       <div className="sw-item-tools">
         {/* Edit, transcribe again and the bin sit together, before the chevron. */}
         {opens && !!p.correct && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label={'Edit text of ' + p.name}
-            title="Correct text"
+          <IconAction
+            icon="pencil"
+            label={'Edit text of ' + p.name}
+            tooltip="Correct text"
             onClick={p.correct}
-          >
-            <Icon name="pencil" size={18} />
-          </button>
+          />
         )}
         {!!p.again && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label={'Transcribe ' + p.name + ' again'}
-            title="Transcribe again"
+          <IconAction
+            icon="rotate-ccw"
+            label={'Transcribe ' + p.name + ' again'}
+            tooltip="Transcribe again"
             onClick={p.again}
-          >
-            <Icon name="rotate-ccw" size={18} />
-          </button>
+          />
         )}
         {failed && !!p.retry && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label={'Try transcribing ' + p.name + ' again'}
-            title="Try again"
+          <IconAction
+            icon="rotate-ccw"
+            label={'Try transcribing ' + p.name + ' again'}
+            tooltip="Try again"
             onClick={p.retry}
-          >
-            <Icon name="rotate-ccw" size={18} />
-          </button>
+          />
         )}
         {/* Kept to restore, never deleted (CP-20). */}
         {!!p.remove && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button sw-button--danger"
-            aria-label={'Remove ' + p.name}
-            title="Remove page"
+          <IconAction
+            icon="trash-2"
+            label={'Remove ' + p.name}
+            tooltip="Remove page"
+            danger
             onClick={p.remove}
-          >
-            <Icon name="trash-2" size={18} />
-          </button>
+          />
         )}
       </div>
       {opens && (

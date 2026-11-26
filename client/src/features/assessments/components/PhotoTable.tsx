@@ -8,8 +8,10 @@
 // site walk proposal's ProposalMedia.tsx.
 //
 // A row given an `item` also shows, under the observation's text, the item's
-// own line (CP-12): its name, where its transcription stands, with Retry, and
-// its transcript or description, opened with a toggle. A site walk
+// own line (CP-12): where its transcription stands, with Retry, and its
+// transcript or description, opened with a toggle. The file's name is not
+// shown (redesign round 2: it told the engineer nothing); it stays in the
+// controls' screen-reader names, which tell one row from another, and a search still finds it. A site walk
 // proposal's rows have none, so they stay as they were.
 //
 // Given a `search` (CP-13), the toolbar has a search box: only the rows whose
@@ -229,7 +231,6 @@ export function PhotoTable<R extends PhotoRow>({
                   <ItemLine
                     rowKey={r.key}
                     name={r.name}
-                    words={words}
                     item={r.item}
                     open={open.has(r.key)}
                     onToggle={() => toggle(r.key)}
@@ -270,28 +271,26 @@ export function PhotoTable<R extends PhotoRow>({
 
 const detailId = (key: string) => 'ob-pt-detail-' + key.replace(/[^\w-]/g, '-')
 
-// The item's own line: its name, where its transcription stands (with Retry
-// after a failure), and the toggle for its text.
+// The item's own line: where its transcription stands (with Retry after a
+// failure), and the toggle for its text. Nothing to say: no line, so the text sits alone.
 function ItemLine({
   rowKey,
   name,
-  words,
   item,
   open,
   onToggle,
 }: {
   rowKey: string
+  // Heard only: the toggle's screen-reader name says whose text it opens.
   name: string
-  words: readonly string[]
   item: RowItem
   open: boolean
   onToggle: () => void
 }) {
+  const busy = item.status === 'transcribing' || item.status === 'failed'
+  if (!busy && !item.detail) return null
   return (
     <p className="ob-pt-meta">
-      <span className="ob-pt-name">
-        <HitText text={name} words={words} />
-      </span>
       {item.status === 'transcribing' && (
         <span className="ob-pt-state">
           <Icon name="loader-circle" size={14} className="ob-spin" />

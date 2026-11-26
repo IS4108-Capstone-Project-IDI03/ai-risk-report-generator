@@ -339,6 +339,13 @@ async function openObservations() {
     await screen.findByRole('button', { name: new RegExp(listed[0].note ?? FAILED) })
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+// What a photo row says, its controls' screen-reader names included: the photo's file name is
+// only there now (redesign round 2 took it out of the row's text).
+const said = (li: Element) =>
+  [
+    li.textContent,
+    ...[...li.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')),
+  ].join(' ')
 // An observation's row, by the start of its summary.
 const row = (summary: string) =>
   screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) })
@@ -1216,13 +1223,13 @@ describe('Site photographs (CP-04)', () => {
     const rowOf = (...texts: string[]) =>
       within(view)
         .getAllByRole('listitem')
-        .find((li) => texts.every((t) => li.textContent?.includes(t)))!
+        .find((li) => texts.every((t) => said(li).includes(t)))!
     const first = rowOf(PROPOSAL, 'IMG_0460.jpg')
     const later = rowOf(PROPOSAL, 'IMG_0470.jpg')
     const unread = rowOf(UNREAD)
 
-    // Each row names its photo; the text stays closed until asked for.
-    expect(first).toHaveTextContent('IMG_0460.jpg')
+    // A row no longer shows its photo's file name (redesign round 2); the text stays closed until asked for.
+    expect(first).not.toHaveTextContent('IMG_0460.jpg')
     expect(within(view).queryByText(PROPOSED)).not.toBeInTheDocument()
     // Nothing written yet, nothing to open.
     expect(within(unread).queryByRole('button', { name: /^Description/ })).toBeNull()
@@ -1264,7 +1271,7 @@ describe('Site photographs (CP-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
     const first = within(screen.getByRole('group', { name: 'Site photographs' }))
       .getAllByRole('listitem')
-      .find((li) => li.textContent?.includes('IMG_0460.jpg'))!
+      .find((li) => said(li).includes('IMG_0460.jpg'))!
     fireEvent.click(within(first).getByRole('button', { name: 'Description of IMG_0460.jpg' }))
 
     expect(first).toHaveTextContent('Describes this photo and 1 other. Its evidence changed since.')
@@ -1518,10 +1525,7 @@ describe('Filtering All Photos (CP-13)', () => {
     await openObservations()
     fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
     const view = screen.getByRole('group', { name: 'Site photographs' })
-    const shownRows = () =>
-      within(view)
-        .getAllByRole('listitem')
-        .map((li) => li.textContent)
+    const shownRows = () => within(view).getAllByRole('listitem').map(said)
 
     filter('Description', 'Not described')
     // IMG_0470.jpg, which carries no description.

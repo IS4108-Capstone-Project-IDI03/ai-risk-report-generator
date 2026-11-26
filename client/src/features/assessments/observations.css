@@ -1274,22 +1274,13 @@ span.ob-pt-thumb {
     width: 13px;
     height: 13px;
   }
-  /* The file name and its Description toggle share one line; the toggle keeps a 44 px tap area
-     without pushing the line apart. */
-  .ob-pt-row .ob-pt-meta {
-    flex-wrap: nowrap;
-  }
-  .ob-pt-row .ob-pt-name {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow-wrap: normal;
-  }
+  /* The toggle keeps a 44 px tap area without pushing the line apart. Its extra 16 px all hang
+     below the word: spread evenly, the top 8 px covered the observation's text button above. */
   .ob-pt-row .ob-pt-meta .ob-pt-toggle {
     flex: none;
     min-height: 28px;
-    margin-block: -8px;
-    padding-block: 8px;
+    margin-block: -2px -14px;
+    padding-block: 2px 14px;
     box-sizing: content-box;
   }
   .ob-pt-go {
@@ -1298,7 +1289,7 @@ span.ob-pt-thumb {
 }
 
 /* All Recordings (CP-12): the photo table's rows, with a play tile for the
-   thumbnail and the recording's name, state and player under the text. */
+   thumbnail and the recording's state and player under the text. */
 .ob-pt-play {
   position: relative;
   z-index: 1;
@@ -1344,17 +1335,13 @@ span.ob-pt-thumb {
   color: var(--red-600);
   font-weight: 600;
 }
-.ob-pt-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* "Transcript ⌄" / "Description ⌄": a quiet text button at the line's end. */
+/* "Transcript ⌄" / "Description ⌄": a quiet text button after the state, its word
+   lined up with the observation's text above when it starts the line. */
 .ob-pt-toggle {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   min-height: 28px;
-  margin-left: auto;
   padding: 0 8px;
   border: 0;
   border-radius: 999px;
@@ -1363,6 +1350,9 @@ span.ob-pt-thumb {
   font: 600 13px/1 var(--ob-font);
   cursor: pointer;
   transition: background-color 120ms var(--ob-ease);
+}
+.ob-pt-toggle:first-child {
+  margin-left: -8px;
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-pt-toggle:hover {

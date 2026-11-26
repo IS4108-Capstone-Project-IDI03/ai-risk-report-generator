@@ -178,10 +178,12 @@ async function openRecordings() {
   return screen.getByRole('group', { name: 'Recordings' })
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+// A row by its recording's name, which only its play button's screen-reader name carries now
+// (redesign round 2: the name is no longer shown in the row).
 const rowOf = (view: HTMLElement, name: string) =>
   within(view)
     .getAllByRole('listitem')
-    .find((li) => within(li).queryByText(name))!
+    .find((li) => li.querySelector(`.ob-pt-play[aria-label$=" ${name}"]`))!
 const player = () => document.querySelector('audio')!
 // The browser has read the file's header: its length is known.
 async function loaded(duration: number) {
@@ -486,10 +488,10 @@ describe('Searching All Recordings (CP-13)', () => {
     search('recording 4')
     const [failed] = within(view).getAllByRole('listitem')
     expect(within(view).getAllByRole('listitem')).toHaveLength(1)
-    expect(failed).toHaveTextContent('Recording 4')
+    expect(failed).toBe(rowOf(view, 'Recording 4'))
     expect(failed).toHaveTextContent('Couldn’t transcribe')
-    // Its name's words are marked, each on its own.
-    expect(marks(failed)).toEqual(['Recording', '4'])
+    // Its name is no longer shown in the row (redesign round 2), so nothing is marked.
+    expect(marks(failed)).toEqual([])
   })
 
   it('says when none match, never finding words in a recording with no speech', async () => {
@@ -586,7 +588,9 @@ describe('Filtering All Recordings (CP-13)', () => {
   const names = (view: HTMLElement) =>
     within(view)
       .getAllByRole('listitem')
-      .map((li) => li.querySelector('.ob-pt-name')!.textContent)
+      .map((li) =>
+        li.querySelector('.ob-pt-play')!.getAttribute('aria-label')!.replace(/^\S+ /, ''),
+      )
 
   it('narrows by status, location, category and severity, and Clear all clears them with the search', async () => {
     listed = [VALVE_OBS, PERMIT_OBS, RISER_OBS]

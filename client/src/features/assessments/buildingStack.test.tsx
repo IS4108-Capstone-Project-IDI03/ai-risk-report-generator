@@ -358,6 +358,8 @@ describe('The Observations tab as buildings (CP-61)', () => {
     expect(
       screen.getByText('5 locations · 2 with nothing recorded · 1 of 4 observations'),
     ).toBeVisible()
+    // The colour key opens from its pill (redesign round 2: one line, the list in a popover).
+    fireEvent.click(screen.getByRole('button', { name: 'Colour key' }))
     expect(
       within(screen.getByRole('list', { name: /^Worst severity/ })).getByText('No match'),
     ).toBeVisible()

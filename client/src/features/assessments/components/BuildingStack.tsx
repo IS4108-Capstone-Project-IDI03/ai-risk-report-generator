@@ -5,7 +5,7 @@
 // no room), with Add observation here. The same values are offered as a
 // table. Rendered by screens/Observations.tsx; the shapes and wording are in
 // ../buildingStack.ts, the locations and filters in useAssessmentWorkflow.tsx.
-import { useId, useState, type CSSProperties, type ReactNode, type Ref } from 'react'
+import { useState, type CSSProperties, type ReactNode, type Ref } from 'react'
 import {
   Button,
   Dialog,
@@ -15,18 +15,12 @@ import {
   IconRegistry,
   TableFooter,
 } from '../../../design-system'
-import {
-  buildingStack,
-  cellLine,
-  cellSummary,
-  cellWhere,
-  stackKey,
-  type StackCell,
-} from '../buildingStack'
+import { buildingStack, cellLine, cellSummary, cellWhere, type StackCell } from '../buildingStack'
 import { ELSEWHERE } from '../locations'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useCompact } from '../useCompact'
 import { CategoryMark, SeverityMark } from './ObservationMarks'
+import { StackKey } from './StackKey'
 import '../building-stack.css'
 
 type Location = AssessmentWorkflow['obsStack'][number]
@@ -55,7 +49,6 @@ export function BuildingStack({
   onUnplaced: () => void
 }) {
   const [table, setTable] = useState(false)
-  const keyId = useId()
   // Room for the panel beside the stacks; else a chosen location opens over them.
   const side = !useCompact(1099)
   const stack = buildingStack(v.obsStack)
@@ -105,20 +98,7 @@ export function BuildingStack({
             </div>
           ) : (
             <>
-              <div className="bs-key">
-                <span className="bs-key-title" id={keyId}>
-                  {'Worst severity at each location'}
-                </span>
-                <ul aria-labelledby={keyId}>
-                  {stackKey(stack.cells).map((k) => (
-                    <li key={k.tone}>
-                      <span className="bs-swatch" data-tone={k.tone} aria-hidden="true" />
-                      {k.label}
-                      <b>{k.count}</b>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <StackKey cells={stack.cells} />
               {stack.buildings.length > 0 && (
                 <div className="bs-scroll">
                   <div className="bs-site" style={{ gridTemplateColumns: columns }}>
