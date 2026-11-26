@@ -8,6 +8,7 @@ import {
   Button,
   EmptyState,
   Icon,
+  ListCard,
   TableFooter,
   TopBar,
   toast,
@@ -106,8 +107,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         }
       />
       <div className="at-content">
-        <div className="at-card">
-          <WorkToolbar v={v} compact={compact} />
+        <ListCard bleed toolbar={<WorkToolbar v={v} compact={compact} />}>
           <div
             className="at-list"
             data-grouped={grouped || undefined}
@@ -248,7 +248,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               {plural(v.filteredRows.length, 'assessment')}
             </TableFooter>
           )}
-        </div>
+        </ListCard>
       </div>
       {held && (
         <ReassignDialog

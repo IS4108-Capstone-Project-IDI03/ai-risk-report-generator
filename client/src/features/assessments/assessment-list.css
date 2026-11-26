@@ -25,71 +25,21 @@
     padding: 0 0 24px;
   }
 }
-.at-card {
-  container: at / inline-size;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
-}
-@media (max-width: 767px) {
-  .at-card {
-    border-width: 1px 0 0;
-    border-radius: 0;
-  }
-}
-.at-card > .at-list {
+/* The list card is the shared ListCard (edge to edge on a phone); it fills the page's height. */
+.at-content > .ds-list-card {
   flex: 1;
 }
-/* A footer line sits at the card's foot, above its own hairline. */
-.at-card > .ds-table-footer {
-  border-top: 1px solid var(--graphite-200);
+.ds-list-card > .at-list {
+  flex: 1;
 }
 
-/* ---- Toolbar ---- */
-.at-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px;
-}
-.at-search {
-  flex: 1 1 140px;
-  max-width: 300px;
-  min-width: 140px;
-}
-.at-pills,
-.at-filters {
-  display: contents;
-}
-/* Wide: search and the three pills, then By client | All, Sort and New assessment on the right. */
-.at-tools {
-  display: contents;
-}
-.at-tools .ds-segmented {
-  order: 1;
-  margin-left: auto;
-}
-.at-sort-anchor {
-  order: 2;
-}
-.at-tools .nab-anchor {
-  order: 3;
-}
+/* ---- Toolbar: the shared ListToolbar; below are only this list's own extras ---- */
 .at-sort {
   max-width: 100%;
 }
 .at-sort-label {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.at-pills .ds-filter-pill[data-set] {
-  background: var(--ink-50);
-  color: var(--marsh-navy);
 }
 /* ---- Table: header, group headers and rows share these columns ---- */
 .at-list {
@@ -388,21 +338,28 @@
 .at-sort-short {
   display: none;
 }
-@container at (max-width: 1200px) {
-  .at-search {
+/* A wide card short of room keeps one row: the search gives way, By client | All goes to icons,
+   then Sort to the words before its comma. */
+@container ds-list (min-width: 961px) and (max-width: 1200px) {
+  .at-toolbar > .at-search {
     flex: 1 1 232px;
+    min-width: 140px;
   }
-  .at-tools .ds-segmented button {
+}
+@container ds-list (max-width: 1200px) {
+  .at-toolbar .ds-segmented button {
     width: 40px;
     padding: 0;
     justify-content: center;
     font-size: 0;
   }
 }
-@container at (max-width: 1100px) {
-  .at-search {
+@container ds-list (min-width: 961px) and (max-width: 1100px) {
+  .at-toolbar > .at-search {
     flex: 1 1 180px;
   }
+}
+@container ds-list (max-width: 1100px) {
   .at-sort-label {
     display: none;
   }
@@ -414,7 +371,7 @@
 
 /* ---- An admin's list (RV-11) has one more column, so from 1100 px down the card folds Type and
    Survey date under the ID, as the tablet card does; the Engineer column stays. ---- */
-@container at (max-width: 1100px) {
+@container ds-list (max-width: 1100px) {
   .at-list[data-engineer] {
     --at-cols: minmax(0, 1fr) 148px 140px 168px 88px;
   }
@@ -469,7 +426,7 @@
 
 /* ---- Tablet card: still a table (board 25): Assessment (with its type and survey date
    under the ID), Status and Report due. ---- */
-@container at (max-width: 960px) {
+@container ds-list (max-width: 960px) {
   .at-list {
     --at-cols: minmax(0, 1fr) 124px 136px 56px;
   }
@@ -525,30 +482,7 @@
   .at-group-head {
     padding-inline: 12px;
   }
-  /* Toolbar on one row (board 25): the three filters, Sort and the icon-only By client | All
-     keep their size and stay in view; the search takes what is left. */
-  .at-toolbar {
-    flex-wrap: nowrap;
-  }
-  .at-search {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: none;
-  }
-  .at-pills,
-  .at-filters {
-    display: flex;
-    flex: none;
-    gap: 8px;
-  }
-  .at-pills > :not(.at-filters),
-  .at-filters > * {
-    flex: none;
-  }
-  .at-tools .ds-segmented {
-    margin-left: 0;
-  }
-  .at-tools .ds-segmented button {
+  .at-toolbar .ds-segmented button {
     width: 40px;
     padding: 0;
     justify-content: center;
@@ -590,7 +524,7 @@
 
 /* A narrow card (sidebar open on a tablet) drops the date to its own line, where a "·" would
    start the line. */
-@container at (min-width: 601px) and (max-width: 640px) {
+@container ds-list (min-width: 601px) and (max-width: 640px) {
   .at-date::before,
   .at-list[data-engineer] .at-date::before {
     content: none;
@@ -600,7 +534,7 @@
 /* Tablet rows (item 18): the tile floats on the row's middle line with the text lines beside it,
    and the date sits at the right of its column, nearer the buttons and away from the status pill.
    Not on a phone, whose grid holds the tile in its own column. */
-@container at (min-width: 601px) and (max-width: 960px) {
+@container ds-list (min-width: 601px) and (max-width: 960px) {
   .at-row {
     position: relative;
   }
@@ -618,29 +552,9 @@
   }
 }
 
-/* A tablet card is too narrow for one toolbar row: without this the search shrank to its icon
-   and New assessment ran off the card. The search and New assessment take the first row, the
-   filters, Sort and By client | All the second. */
-@container at (min-width: 601px) and (max-width: 960px) {
-  .at-toolbar {
-    flex-wrap: wrap;
-  }
-  .at-search {
-    order: -2;
-    flex: 1 1 320px;
-    min-width: 0;
-  }
-  .at-tools .nab-anchor {
-    order: -1;
-  }
-  .at-tools .ds-segmented {
-    margin-left: auto;
-  }
-}
-
 /* A narrow tablet card: Sort keeps its short label while the search can stay 96 px wide; below
    that it is its icon alone (name in the tooltip and aria-label), as on the Clients list. */
-@container at (min-width: 601px) and (max-width: 706px) {
+@container ds-list (min-width: 601px) and (max-width: 706px) {
   .at-sort {
     width: 40px;
     padding: 0;
@@ -653,79 +567,23 @@
 
 /* ---- Phone card: each row is tile, ID, status, due and Archive (board 21); 44px taps.
    The tile, ID and pill sit on one grid, so the pill's left edge is the ID's. ---- */
-@container at (max-width: 600px) {
-  .at-toolbar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding-inline: 16px;
-  }
-  .at-search {
-    flex: 1 1 100%;
-  }
-  .at-tools .ds-segmented button {
-    width: auto;
-    padding: revert;
-    font-size: inherit;
-  }
-  .at-pills {
-    flex: 1 1 100%;
-  }
-  .at-search {
-    flex: 1 1 100%;
-    max-width: none;
-  }
-  .at-search,
-  .ds-filter-pill,
-  .at-card .ds-segmented button {
-    height: 44px;
-  }
-  /* Filters and Sort share one scrolling row that fades at the edge. */
-  .at-pills {
-    display: flex;
-    flex: 1 1 100%;
-    gap: 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-  }
-  .at-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .at-pills > *,
-  .at-pills .ds-filter-pill {
-    flex: none;
-  }
-  .at-pills {
-    padding: 3px;
-    margin: -3px;
-  }
-  /* On a phone the filters are not their own scroller: the whole pill row is. */
-  .at-filters {
-    display: contents;
-    overflow: visible;
-    padding: 0;
-    margin: 0;
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-  /* The phone's pill row scrolls, so Sort keeps its whole order. */
+@container ds-list (max-width: 600px) {
+  /* The phone's pill row scrolls, so Sort keeps its whole order; By client | All takes the full
+     row with its words. */
   .at-sort-label {
     display: block;
   }
   .at-sort-short {
     display: none;
   }
-  .at-tools {
-    display: flex;
-    flex: 1 1 100%;
-  }
-  .at-tools .ds-segmented {
+  .at-toolbar .ds-segmented {
     flex: 1;
-    margin-left: 0;
   }
-  .at-tools .ds-segmented button {
+  .at-toolbar .ds-segmented button {
     flex: 1;
+    width: auto;
+    padding: revert;
+    font-size: inherit;
   }
   .at-head {
     display: none;

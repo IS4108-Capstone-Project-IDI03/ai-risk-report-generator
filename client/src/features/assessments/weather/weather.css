@@ -252,7 +252,7 @@
 }
 /* A phone's row is a grid of named areas: the line takes the first free band under them,
    from the reference to the right gutter. */
-@container at (max-width: 600px) {
+@container ds-list (max-width: 600px) {
   .at-row .wx-rowline {
     grid-column: 2 / -1;
     margin-right: 12px;

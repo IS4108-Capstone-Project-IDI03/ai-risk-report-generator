@@ -1,8 +1,7 @@
 // One client › site group on the By client list (CP-23, board 03): a header row
 // (initials, client name linking to its page, chevron, site, address, hover "+")
 // and that site's assessments. Used by screens/Dashboard. Calls WorkRow.
-import { Icon, IconButton, Tooltip } from '../../../design-system'
-import { ClientAvatar } from '../../clients/components/ClientAvatar'
+import { Avatar, Icon, IconAction } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { WorkRow, type AssignControls, type WorkRowData } from './WorkRow'
 
@@ -42,7 +41,7 @@ export function ClientGroup({
       {/* The column headings are hidden on a narrow list, so the first group's header stands in
           for them in the walkthrough (the first visible element with a tag is the one used). */}
       <div className="at-group-head ds-on-grey" data-walk={first ? 'assessments.head' : undefined}>
-        <ClientAvatar name={client.title} small />
+        <Avatar kind="client" name={client.title} size={32} />
         {/* Client › site, then the address; the address drops under them on a phone. */}
         <div className="at-group-text">
           {client.viewClient ? (
@@ -64,15 +63,13 @@ export function ClientGroup({
         {!!site.newVisit && (
           <span className="at-add">
             {/* The tooltip names the action only; a screen reader still hears the site (v2 section 2). */}
-            <Tooltip label="New assessment" placement="top-end">
-              <IconButton
-                icon="plus"
-                label={'New assessment for ' + site.name}
-                title={undefined}
-                style={{ borderRadius: 999 }}
-                onClick={site.newVisit}
-              />
-            </Tooltip>
+            <IconAction
+              icon="plus"
+              label={'New assessment for ' + site.name}
+              tooltip="New assessment"
+              placement="top-end"
+              onClick={site.newVisit}
+            />
           </span>
         )}
       </div>

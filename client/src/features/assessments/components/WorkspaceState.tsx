@@ -1,7 +1,7 @@
 // What an assessment's workspace shows instead of its tabs while it is not on the work list:
 // grey rows while the list loads, the error with Try again when it can't be read, or that the
 // assessment isn't on the engineer's list. Rendered by AssessmentApp from v.workspaceGate.
-import { Button, EmptyState } from '../../../design-system'
+import { Button, EmptyState, ListCard } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { WorkSkeleton } from './WorkSkeleton'
 import '../assessment-list.css'
@@ -11,9 +11,9 @@ export function WorkspaceState({ v }: { v: AssessmentWorkflow }) {
   return (
     <div style={{ padding: '24px clamp(16px, 4vw, var(--page-gutter)) 40px' }}>
       {gate === 'loading' && (
-        <div className="at-card">
+        <ListCard>
           <WorkSkeleton label="Loading assessment" />
-        </div>
+        </ListCard>
       )}
       {gate === 'failed' && (
         <div role="alert">

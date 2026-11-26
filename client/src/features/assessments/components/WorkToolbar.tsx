@@ -4,6 +4,7 @@
 import {
   ASSESSMENT_TYPES,
   FilterPill,
+  ListToolbar,
   SearchField,
   SegmentedControl,
   statusLook,
@@ -54,7 +55,7 @@ function Filter({
         <FilterPill
           label={chosen ? chosen.label : name}
           aria-label={chosen ? name + ': ' + chosen.label : name}
-          data-set={chosen ? '' : undefined}
+          active={!!chosen}
           data-walk={walk}
           onClick={toggle}
         />
@@ -69,18 +70,20 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
   const phone = useIsPhone()
   const tablet = compact && !phone
   return (
-    <div className="at-toolbar">
-      <SearchField
-        className="at-search"
-        label="Search assessments"
-        walk="assessments.search"
-        placeholder={tablet ? 'Search' : 'Search site, client or report ID'}
-        value={v.q}
-        onChange={v.setQ}
-      />
-      <div className="at-pills">
-        {/* Own wrapper so a tablet can scroll the filters while Sort stays in view. */}
-        <div className="at-filters">
+    <ListToolbar
+      className="at-toolbar"
+      search={
+        <SearchField
+          className="at-search"
+          label="Search assessments"
+          walk="assessments.search"
+          placeholder={tablet ? 'Search' : 'Search site, client or report ID'}
+          value={v.q}
+          onChange={v.setQ}
+        />
+      }
+      filters={
+        <>
           <Filter
             name="Stage"
             walk="assessments.filter-stage"
@@ -114,11 +117,12 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
             value={v.visitType}
             onChoose={v.setVisitType}
           />
-        </div>
+        </>
+      }
+      sort={
         <ChoiceMenu
           label="Sort assessments"
           align="right"
-          className="at-sort-anchor"
           choices={v.sortOptions.map((value, i) => ({
             value,
             label: value,
@@ -130,21 +134,23 @@ export function WorkToolbar({ v, compact }: { v: AssessmentWorkflow; compact: bo
             <SortPill name="Sort assessments" label={v.workSort} onClick={toggle} />
           )}
         />
-      </div>
-      <div className="at-tools">
-        <SegmentedControl
-          ariaLabel="Group assessments"
-          options={[
-            { value: 'client', label: 'By client', icon: 'layers' },
-            { value: 'all', label: 'All', icon: 'list' },
-          ]}
-          value={v.workByClient ? 'client' : 'all'}
-          onChange={(value) =>
-            value === (v.workByClient ? 'all' : 'client') && v.toggleWorkByClient()
-          }
-        />
-        {!!v.canEdit && !compact && <NewAssessmentButton onStart={v.goCreate} />}
-      </div>
-    </div>
+      }
+      end={
+        <>
+          <SegmentedControl
+            ariaLabel="Group assessments"
+            options={[
+              { value: 'client', label: 'By client', icon: 'layers' },
+              { value: 'all', label: 'All', icon: 'list' },
+            ]}
+            value={v.workByClient ? 'client' : 'all'}
+            onChange={(value) =>
+              value === (v.workByClient ? 'all' : 'client') && v.toggleWorkByClient()
+            }
+          />
+          {!!v.canEdit && !compact && <NewAssessmentButton onStart={v.goCreate} />}
+        </>
+      }
+    />
   )
 }
