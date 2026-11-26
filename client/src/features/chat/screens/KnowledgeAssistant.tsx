@@ -1,9 +1,8 @@
 // The knowledge assistant screen (CB-01): ask the knowledge base in a conversation and
 // get cited answers, with the opened citation's source in a panel beside the chat.
-// OpenUI's AgentInterface draws the conversation list, scrolling and composer; the messages are
-// the Overview MarshBot's shared conversation pieces (design-system BotTurn, SpeechBubble,
-// EngineerBubble, TypingDots, ReplyButton). Answers stream from the gateway via ../api.ts and
-// render with ../library.tsx (OpenUI Lang 1.x) in components/AnswerTurn.tsx.
+// OpenUI's AgentInterface draws the conversation list, messages and composer; answers stream
+// from the gateway via ../api.ts and render with ../library.tsx (OpenUI Lang 1.x) in
+// components/AnswerTurn.tsx.
 // Rendered by AssessmentApp for the 'chat' screen, loaded on first open.
 import { AgentInterface } from '@openuidev/react-ui'
 import '@openuidev/react-ui/components.css'
@@ -20,16 +19,15 @@ import { CloseOnChatChange } from '../components/CloseOnChatChange'
 import { CitationSelectionContext, type SelectedCitation } from '../components/citationSelection'
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
-import { Starters } from '../components/Starters'
 import { PdfAttach } from '../components/PdfAttach'
 import { QuestionFromLink } from '../components/QuestionFromLink'
 import { PhotoAttach } from '../components/PhotoAttach'
 import { UserMessage } from '../components/UserMessage'
 import { VoiceInput } from '../components/VoiceInput'
 import marshbot from '../marshbot.svg'
+import { starters } from '../starters'
 import { VersionsContext } from '../useVersions'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
-import { BotTurn, SpeechBubble } from '../../../design-system'
 import type { Versions } from '../api'
 import { chatTheme } from '../theme'
 import '../chat.css'
@@ -79,14 +77,11 @@ export function KnowledgeAssistant({
       <VersionsContext.Provider value={versionState}>
         <DocumentsContext.Provider value={documents}>
           <CitationSelectionContext.Provider value={selection}>
-            {/* mbt-convo: the conversation's text and button sizes, as on the Overview. */}
-            <div
-              className="knowledge-assistant mbt-convo"
-              data-source-open={selected ? '' : undefined}
-            >
+            <div className="knowledge-assistant" data-source-open={selected ? '' : undefined}>
               <AgentInterface
                 llm={chatLLM}
                 storage={chatStorage}
+                // AnswerTurn renders answers with OpenUI Lang 1.x; OpenUI's own answer can't.
                 components={{
                   AssistantMessage: AnswerTurn,
                   ToolCallTimeline: SearchStep,
@@ -94,6 +89,9 @@ export function KnowledgeAssistant({
                 }}
                 agentName="MarshBot"
                 logoUrl={marshbot}
+                starters={starters}
+                // Stacked, so all four fit; the default carousel cut off the last one.
+                starterVariant="long"
                 // Follows the answer down as it streams. The default pinned the question to the
                 // top by padding the answer with a screen of blank space, and its "latest" arrow
                 // then scrolled into that blank space, hiding the answer.
@@ -103,23 +101,16 @@ export function KnowledgeAssistant({
                 <AgentInterface.Sidebar>
                   <ChatSidebar />
                 </AgentInterface.Sidebar>
-                {/* MarshBot's greeting as its first turn, with the starters as reply pills, as
-                the Overview opens. Given children, OpenUI drops its own welcome composer (whose
-                placeholder can't be changed) and keeps the one below. */}
+                {/* A greeting only: given children, OpenUI drops its own welcome composer (whose
+                placeholder can't be changed) and keeps the one below, with the starters. */}
                 <AgentInterface.Welcome>
-                  <div className="chat-welcome">
-                    <BotTurn mood="idle" named>
-                      <div data-walk="chat.welcome">
-                        <SpeechBubble tone="normal" tail>
-                          <p>
-                            Hi, I'm MarshBot. Ask me about the <b>FM Global</b> and <b>NFPA</b>{' '}
-                            standards or Marsh's <b>past reports</b>, and every answer cites its
-                            page.
-                          </p>
-                        </SpeechBubble>
-                      </div>
-                      <Starters />
-                    </BotTurn>
+                  <div className="chat-welcome" data-walk="chat.welcome">
+                    <img src={marshbot} alt="" width={64} height={64} />
+                    <h2>Hi, I'm MarshBot</h2>
+                    <p>
+                      Ask me about the FM Global and NFPA standards or Marsh's past reports, and
+                      every answer cites its page.
+                    </p>
                   </div>
                 </AgentInterface.Welcome>
                 <AgentInterface.Composer placeholder="Ask about a standard or a past report" />

@@ -6,7 +6,6 @@ import { createLibrary, defineComponent } from 'openui-lang-v1'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
 import { createContext, useContext } from 'react'
-import { SpeechBubble } from '../../design-system'
 import { DeclinedReply } from './components/DeclinedReply'
 import { CitationMarker } from './components/CitationMarker'
 import { withBold } from './components/bold'
@@ -92,7 +91,8 @@ const CitedTable = defineComponent({
   description: 'A comparison table. Every cell is a Cell with its own citations.',
   props: z.object({ headers: z.array(z.string()), rows: z.array(z.array(Cell.ref)) }),
   component: ({ props, renderNode }) => (
-    // Its container scrolls sideways on a phone instead of widening the conversation.
+    // Above 600 px a table; on a phone each row stacks as a record, every cell under its
+    // column's name (data-label, chat.css), so nothing scrolls sideways.
     <Table className="chat-table" containerClassName="chat-table-wrap">
       <TableHeader>
         <TableRow>
@@ -105,7 +105,9 @@ const CitedTable = defineComponent({
         {props.rows.map((row, r) => (
           <TableRow key={r}>
             {row.map((cell, c) => (
-              <TableCell key={c}>{renderNode(cell)}</TableCell>
+              <TableCell key={c} data-label={props.headers[c]}>
+                {renderNode(cell)}
+              </TableCell>
             ))}
           </TableRow>
         ))}
@@ -184,12 +186,10 @@ const Answer = defineComponent({
     return (
       <CitationCheckContext.Provider value={check}>
         <CitationNumbersContext.Provider value={citationNumbers(props.blocks)}>
-          {/* One speech bubble per answer, as each Overview turn is one message; the declined
-              reply's next step sits under it, like the Overview's reply pills. */}
-          <SpeechBubble tone="normal" tail>
-            <div className="chat-answer">{renderNode(props.blocks)}</div>
-          </SpeechBubble>
-          {meta?.gap && <DeclinedReply />}
+          <div className="chat-answer">
+            {renderNode(props.blocks)}
+            {meta?.gap && <DeclinedReply />}
+          </div>
         </CitationNumbersContext.Provider>
       </CitationCheckContext.Provider>
     )

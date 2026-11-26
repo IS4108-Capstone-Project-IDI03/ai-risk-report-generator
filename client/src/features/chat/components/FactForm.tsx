@@ -14,8 +14,6 @@ type Props = {
   // Saves the text; a thrown error's message is shown under the box.
   onSubmit: (text: string) => Promise<void>
   onCancel?: () => void
-  // Shown in the box while it is empty (the add box's example fact).
-  placeholder?: string
   // A short line beside the buttons (the privacy note).
   note?: string
 }
@@ -28,7 +26,6 @@ export function FactForm({
   submitLabel,
   onSubmit,
   onCancel,
-  placeholder,
   note,
 }: Props) {
   const [text, setText] = useState(initial)
@@ -53,8 +50,7 @@ export function FactForm({
     <div className="fact-form">
       <Textarea
         label={label}
-        rows={2}
-        placeholder={placeholder}
+        rows={3}
         // Editing a fact puts the cursor in the box; the add box keeps the dialog's own focus.
         autoFocus={!!initial}
         value={text}

@@ -9,15 +9,17 @@ import { PlayAnswer } from './PlayAnswer'
 import { VersionSwitcher } from './VersionSwitcher'
 
 const ROOT = '.knowledge-assistant'
-// An answer's body in its MarshBot turn (AnswerTurn.tsx).
-const ANSWER = `${ROOT} .chat-answer-body`
+// OpenUI draws a generated-UI answer in the "shell" message, not the plain-markdown one.
+const ANSWER = `${ROOT} .openui-shell-thread-message-assistant`
 
-// The last answer's body, or null. The bar is drawn into it, so it sits under the answer's bubble
-// and scrolls with it; left where AgentInterface puts its children, it became a column beside
-// the chat.
+// The last answer's text area in OpenUI's chat, or null. The bar is drawn into it, so it sits
+// under the answer and scrolls with it; left where AgentInterface puts its children, it became a
+// column beside the chat.
 const lastAnswer = () => {
   const all = document.querySelectorAll(ANSWER)
-  return all[all.length - 1] ?? null
+  return (
+    all[all.length - 1]?.querySelector('.openui-shell-thread-message-assistant__content') ?? null
+  )
 }
 // Re-checks whenever the chat's DOM changes (answers stream in, versions switch), so the bar
 // never points at a message OpenUI has since replaced.

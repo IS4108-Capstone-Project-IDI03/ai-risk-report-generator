@@ -11,18 +11,10 @@
   align-items: center;
   gap: var(--space-3);
 }
-.preferences .fact-form__note {
+.fact-form__note {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: var(--text-small-size);
-  color: var(--text-muted);
-}
-/* No facts yet: one quiet line under a hairline, where the list will be. */
-.preferences .preferences__empty {
-  margin: 0;
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border-default);
   font-size: var(--text-small-size);
   color: var(--text-muted);
 }
