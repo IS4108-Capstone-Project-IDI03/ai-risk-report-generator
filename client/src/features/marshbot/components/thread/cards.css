@@ -79,32 +79,6 @@
 .mbt-row[data-link]:focus-within {
   background: var(--graphite-50);
 }
-.mbt-tile {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--graphite-100);
-  color: var(--graphite-600);
-}
-.mbt-tile[data-tone='violet'] {
-  background: var(--violet-50);
-  color: var(--violet-600);
-}
-.mbt-tile[data-tone='amber'] {
-  background: var(--amber-50);
-  color: var(--amber-600);
-}
-.mbt-tile[data-tone='red'] {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-.mbt-tile[data-tone='green'] {
-  background: var(--green-50);
-  color: var(--green-600);
-}
 .mbt-row-text {
   min-width: 0;
   display: flex;

@@ -2,7 +2,7 @@
 // See All, and a way to add one to this assessment. Called by DetailsContent.tsx. Calls
 // clients/api.ts getClientDocuments and uploadClientDocuments.
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { AddRow, FileTile, IconAction, toast } from '../../../design-system'
+import { AddRow, EmptyNote, FileTile, IconAction, toast } from '../../../design-system'
 import type { Assessment } from '../../assessments/api'
 import { formatDay } from '../../assessments/format'
 import { getClientDocuments, uploadClientDocuments, type ClientDocument } from '../../clients/api'
@@ -124,7 +124,7 @@ export function DetailsDocuments({
     return (
       <section>
         <DetailsHeading>Client Documents</DetailsHeading>
-        <p className="mb-none">Couldn’t load the client’s documents.</p>
+        <EmptyNote>Couldn’t load the client’s documents.</EmptyNote>
       </section>
     )
   const more = docs.length - shown
@@ -197,7 +197,7 @@ export function DetailsDocuments({
             Add Document
           </AddRow>
         ) : (
-          <p className="mb-none">None yet</p>
+          <EmptyNote>None yet</EmptyNote>
         ))}
       {shown > 0 && (
         <ul className="mb-docs">

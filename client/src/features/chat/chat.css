@@ -3,8 +3,9 @@
    panel reuse assessments/review.css.
    Apple-style trial (Jesper, 15 Oct), this screen only: the system font and rounder
    corners over the design system's Marsh navy and ink-blue colours
-   (docs/areas/design-system-v2.md). Bubble, steps, composer and table follow MikeOSS's quiet
-   chat look (Jesper, 15 Oct: colour only where it carries meaning). */
+   (docs/areas/design-system-v2.md). The turns, bubbles, typing dots and reply pills are the
+   Overview MarshBot's own (design-system/components/conversation); composer and table keep
+   MikeOSS's quiet chat look (Jesper, 15 Oct: colour only where it carries meaning). */
 
 /* Screen-wide values. Each is a design-system token or a tint of one. */
 .knowledge-assistant {
@@ -75,8 +76,13 @@
 .knowledge-assistant .openui-agent-sidebar-header__logo {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-tile);
-  box-shadow: var(--chat-shadow-sm);
+  flex: none;
+  /* Round like the face beside every MarshBot turn (OpenUI squares its logo). */
+  border-radius: 50%;
+}
+.knowledge-assistant .openui-agent-sidebar-header__logo .mb-face-svg {
+  width: 26px;
+  height: 26px;
 }
 .knowledge-assistant .openui-agent-sidebar-header__agent-name,
 .knowledge-assistant .openui-agent-mobile-header-agent-name {
@@ -167,117 +173,159 @@
   font-weight: 500;
 }
 
-/* ---- Welcome (an empty chat) ---- */
+/* ---- The conversation: the Overview MarshBot's pieces (design-system conversation.css) ---- */
 
-.knowledge-assistant .openui-agent-welcome-screen {
-  display: grid;
-  place-items: end center;
-  height: 100%;
-  padding-bottom: 8px;
-}
-.chat-welcome {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px 16px;
-  text-align: center;
-}
-.chat-welcome img {
-  border-radius: var(--radius-card);
-  box-shadow: var(--chat-shadow-md);
-}
-.chat-welcome h2 {
-  margin: 20px 0 8px;
-  color: var(--marsh-navy);
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-}
-.chat-welcome p {
-  max-width: 46ch;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 15px;
-  line-height: 1.5;
-  text-wrap: balance;
-}
-/* Starters: a 2 x 2 grid of soft cards above the composer (one column on phones). */
-.knowledge-assistant .openui-agent-conversation-starter--long {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-@media (max-width: 600px) {
-  .knowledge-assistant .openui-agent-conversation-starter--long {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.knowledge-assistant .openui-agent-conversation-starter__separator {
-  display: none;
-}
-.knowledge-assistant .openui-agent-conversation-starter-item-long {
-  min-height: 48px;
-  padding: 10px 14px;
-  border: 1px solid var(--ink-100);
-  border-radius: var(--radius-popover);
-  background: var(--chat-sidebar);
-  color: var(--ink-800);
-  font-size: 14px;
-  text-align: left;
-  transition:
-    background-color 120ms var(--chat-ease),
-    border-color 120ms var(--chat-ease),
-    transform 120ms var(--chat-ease);
-}
-.knowledge-assistant .openui-agent-conversation-starter-item-long:hover {
-  border-color: var(--ink-200);
-  background: var(--ink-50);
-}
-.knowledge-assistant .openui-agent-conversation-starter-item-long:active {
-  transform: scale(0.98);
-}
-.knowledge-assistant .openui-agent-conversation-starter-item-long__icon {
-  color: var(--ink-500);
-}
-
-/* ---- Conversation ---- */
-
-/* The scrollbar's space on both sides keeps the messages centred over the composer;
-   on one side only, they sat 5px left of it. */
-.knowledge-assistant .openui-agent-thread-scroll-area {
-  scrollbar-gutter: stable both-edges;
-}
+/* One column for the greeting, questions, answers and the composer, so their edges line up. */
 .knowledge-assistant .openui-agent-thread-messages,
-.knowledge-assistant .openui-agent-thread-composer {
+.knowledge-assistant .openui-agent-thread-composer,
+.chat-welcome {
   width: 100%;
   max-width: calc(var(--chat-column) + 32px);
   margin-inline: auto;
 }
-/* A question: a quiet bubble in a faint Marsh light blue (MikeOSS's shape). */
-.knowledge-assistant .openui-shell-thread-message-user__content {
-  padding: 10px 14px;
-  border-radius: var(--radius-popover);
-  background: var(--ink-50);
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.5;
+/* Turns sit 16 px apart, as the Overview's do (OpenUI spaced them 36 px). */
+.knowledge-assistant .openui-agent-thread-messages {
+  gap: 16px;
 }
-/* The search step: one line of muted text, tight above the answer it led to (the
-   negative margin cancels most of OpenUI's 36px gap between messages). Done, it opens
-   to list each step, like MikeOSS's agent steps. */
+/* The scrollbar's space on both sides keeps the messages centred over the composer;
+   on one side only, they sat 5px left of it. The top padding clears OpenUI's fade at the top
+   edge, which greyed the first question's top. */
+.knowledge-assistant .openui-agent-thread-scroll-area {
+  scrollbar-gutter: stable both-edges;
+  padding-top: 24px;
+  /* OpenUI pads the foot for a composer floating over the thread; ours sits under it, so the
+     extra 112 px only pushed a phone's question off the top. */
+  padding-bottom: 24px;
+}
+/* OpenUI's own "working" dot matrix: MarshBot's typing turn shows instead (ThinkingTurn.tsx). */
+.knowledge-assistant .openui-agent-thread-message-loading {
+  display: none;
+}
+
+/* ---- Welcome: MarshBot's greeting as its first turn, the starters as reply pills ---- */
+
+/* The greeting opens the chat at the top of the column, where the Overview's thread starts and
+   where the first question will appear; a short window scrolls the greeting, never the composer. */
+.knowledge-assistant .openui-agent-welcome-screen {
+  justify-content: flex-start;
+  min-height: 0;
+  max-width: none;
+  overflow-y: auto;
+  padding: 24px 0 8px;
+}
+/* Padded like OpenUI's message list, so the greeting lines up with the composer under it. */
+.chat-welcome {
+  box-sizing: border-box;
+  padding-inline: var(--openui-space-m-l);
+}
+.chat-welcome .mbt-bubble p {
+  margin: 0;
+}
+@media (max-width: 767px) {
+  .knowledge-assistant .openui-agent-welcome-screen {
+    padding-top: 12px;
+  }
+}
+/* The starters: the Overview's action slot, 8 px under the bubble, wrapping. */
+.chat-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* ---- Questions: the engineer's navy bubble on the right, its tools under it ---- */
+
+.knowledge-assistant .openui-agent-thread-message-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.knowledge-assistant .openui-agent-thread-message-user .mbt-me {
+  max-width: min(560px, 85%);
+  white-space: pre-wrap;
+}
+
+/* ---- Answers: a MarshBot turn, one bubble, its tools under it ---- */
+
+.chat-answer-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+/* Answers run longer than the Overview's turns, so their bubble may use the whole column. */
+.chat-answer-body .mbt-bubble {
+  max-width: 100%;
+}
+/* A table answer takes the full column, so the table scrolls in its own box on a phone. */
+.chat-answer-body .mbt-bubble:has(.chat-table-wrap) {
+  width: 100%;
+}
+.chat-answer {
+  display: grid;
+  gap: 8px;
+}
+.mbt-bubble .chat-answer p {
+  margin: 0;
+}
+.chat-statement,
+.chat-followup {
+  color: var(--graphite-900);
+}
+/* Document names, bolded by the model, carry the Marsh navy. */
+.chat-statement strong,
+.chat-table strong {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+/* A declined answer (CB-07): the bubble holds the reply's sentences; its one next step sits
+   under it like the Overview's reply pills. */
+.chat-decline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* ---- MarshBot working: typing dots in its turn, then the search line ---- */
+
+.chat-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The search step: one quiet line in the bubbles' column under MarshBot's name, above the answer
+   it led to. Done, it opens to list each step, like MikeOSS's agent steps. */
 .chat-search {
-  margin: 0 0 -26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 52px; /* the face's 40 px column and its 12 px gap (conversation.css) */
   color: var(--text-muted);
   font-size: 13px;
 }
-.chat-search[role='status']:not(:has(details)) {
-  animation: chat-pulse 1.6s ease-in-out infinite;
+/* The answer carries on the turn the search line began: no second name, tucked up under it. */
+.chat-step:has(.chat-search) + .chat-turn {
+  margin-top: -8px;
 }
-@keyframes chat-pulse {
-  50% {
-    opacity: 0.45;
+.chat-step:has(.chat-search) + .chat-turn .mbt-who {
+  display: none;
+}
+.chat-step:has(.chat-search) + .chat-turn .mbt-face,
+.chat-search + .chat-thinking .mbt-face {
+  margin-top: 0;
+}
+/* The typing turn under the search line is the same turn too. */
+.chat-search + .chat-thinking .mbt-who {
+  display: none;
+}
+@media (max-width: 767px) {
+  .chat-search {
+    padding-left: 40px;
   }
 }
 .chat-search summary {
@@ -318,44 +366,6 @@
   list-style: none;
 }
 
-/* An answer: prose across the full column, Apple body size and leading. */
-.chat-answer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  /* A long file name breaks rather than running past the column. */
-  overflow-wrap: break-word;
-  font-size: 15.5px;
-  line-height: 1.7;
-  letter-spacing: -0.008em;
-}
-.chat-statement {
-  margin: 0;
-  color: var(--text-body);
-}
-/* The follow-up question reads as the answer's last line, not a button or a chip. */
-.chat-followup {
-  margin: 0;
-  color: var(--text-body);
-}
-/* Document names, bolded by the model, carry the Marsh navy. */
-.chat-statement strong,
-.chat-table strong {
-  color: var(--marsh-navy);
-  font-weight: 600;
-}
-/* A declined answer (CB-07): the reply's two sentences, then one clear next step. */
-.chat-decline {
-  max-width: 68ch;
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-}
-.chat-decline > button {
-  margin-top: 12px;
-}
-
 /* ---- The request dialog (CB-07): a v2 Dialog (design-system kit.css); only its contents are styled here ---- */
 
 .chat-request-dialog {
@@ -373,7 +383,7 @@
   font-size: var(--text-label-size);
   font-weight: var(--text-label-weight);
 }
-/* The question, quoted exactly as it was asked, in the same bubble as in the thread. */
+/* The question, quoted exactly as it was asked, in a quiet tinted box. */
 .chat-request-question {
   margin: 0;
   padding: 10px 14px;
@@ -409,12 +419,19 @@
 .chat-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
-  line-height: 1.55;
+  /* The conversation's one text size (design-system v2 section 4). */
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
   font-variant-numeric: tabular-nums;
 }
 .chat-table th,
 .chat-table td {
+  /* Long cells wrap inside the answer's bubble (OpenUI's cells don't), each column at least
+     8rem, so only a many-column table scrolls sideways. */
+  min-width: 8rem;
+  white-space: normal;
+  /* The bubble's `anywhere` would split words ("quarter|ly"); break only a word too long to fit. */
+  overflow-wrap: break-word;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-subtle);
   text-align: left;
@@ -546,11 +563,31 @@
   .knowledge-assistant .voice-input {
     bottom: 13px;
   }
-  /* OpenUI's phone header: the chats button and New chat. */
-  .knowledge-assistant .openui-agent-mobile-header .openui-icon-button {
-    width: 44px;
-    height: 44px;
+}
+/* OpenUI's narrow-screen header (phones and tablets): the chats button and New chat, as round
+   shaded icon actions (design system v2). Its "MarshBot" name goes: the page title right above
+   already says it, and the room goes to the conversation. */
+.knowledge-assistant .openui-agent-mobile-header {
+  padding: 8px 16px;
+}
+.knowledge-assistant .openui-agent-mobile-header-logo-container {
+  visibility: hidden;
+}
+.knowledge-assistant .openui-agent-mobile-header .openui-icon-button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--graphite-100);
+  color: var(--graphite-700);
+}
+@media (hover: hover) and (pointer: fine) {
+  .knowledge-assistant .openui-agent-mobile-header .openui-icon-button:hover {
+    background: var(--graphite-200);
   }
+}
+.knowledge-assistant .openui-agent-mobile-header .openui-icon-button:active {
+  background: var(--graphite-200);
 }
 /* The "latest message" arrow is gone: the thread now follows the answer as it
    streams (scrollVariant="always"), and the arrow confused more than it helped. */
@@ -583,28 +620,6 @@
 .knowledge-assistant .chat-source :not(code, pre, kbd, samp, .rv-mono) {
   font-family: var(--chat-font);
 }
-/* Phones: the empty chat's greeting shrinks so the composer stays on screen;
-   without the scroll, the composer was pushed below the screen and unreachable. */
-@media (max-width: 600px) {
-  .knowledge-assistant .openui-agent-thread-chat-panel {
-    overflow-y: auto;
-  }
-  .chat-welcome {
-    padding-block: 12px;
-  }
-  /* The MarshBot header right above already shows the mark. */
-  .chat-welcome img {
-    display: none;
-  }
-  .chat-welcome h2 {
-    margin-top: 0;
-    font-size: 24px;
-  }
-  .chat-welcome p {
-    font-size: 15px;
-  }
-}
-
 /* The source panel (CB-02). Docked beside the chat when the chat area is 900px or wider:
    a flush column, its width a share of the room (useSplitWidth.ts sets --chat-panel-width),
    with a drag handle on its left edge. Narrower, or expanded on the PDF tab, it covers the
@@ -1090,20 +1105,6 @@
 }
 .message-actions {
   justify-content: flex-end;
-  margin-top: 4px;
-}
-.answer-bar {
-  margin-top: 8px;
-}
-/* OpenUI lays an answer out in a row; the bar goes under the text, not beside it. */
-.knowledge-assistant .openui-shell-thread-message-assistant__content {
-  flex-direction: column;
-  align-items: flex-start;
-}
-/* Capped at the column: without it a wide table sized the answer to the table, so on a phone
-   and tablet the text ran off the right edge instead of the table scrolling in its box. */
-.knowledge-assistant .openui-shell-thread-message-assistant__content > * {
-  max-width: 100%;
 }
 .version-switcher {
   display: inline-flex;
@@ -1114,23 +1115,21 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* The question's buttons go under its bubble, not beside it (beside it they squeezed the bubble). */
-.openui-agent-thread-message-user.has-actions {
-  flex-direction: column;
-  align-items: flex-end;
-}
-/* The editor replaces the bubble: same colour and corner, wide enough to write in. */
+/* The editor replaces the bubble: a field like the composer, wide enough to write in. */
 .question-edit {
   box-sizing: border-box;
   width: min(100%, 44rem);
   padding: 12px 16px;
-  border-radius: var(--radius-popover);
-  background: var(--ink-50);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
   color: var(--text-primary);
+  font-size: var(--mbt-size);
+  transition: border-color 120ms var(--chat-ease);
 }
 .question-edit:focus-within {
-  outline: 2px solid var(--marsh-navy);
-  outline-offset: 2px;
+  /* --graphite-500 is about 4.5:1 on white, as the composer's focused border. */
+  border-color: var(--graphite-500);
 }
 .question-edit textarea,
 .question-edit textarea:hover,

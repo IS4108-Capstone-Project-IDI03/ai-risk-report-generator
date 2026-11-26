@@ -1,14 +1,14 @@
-// The assessment's Details (AS-06 boards 06, D1, D3): a side panel from the right over a dimmed
-// page on a computer, a bottom sheet on a phone. Its Edit Details icon opens the dialog; Edit
-// Site sits by the site; Open Map swaps the content to the site map, and a back arrow returns.
-// Opened by the header's Details button and the rail's client card (AssessmentApp.tsx).
-import { useEffect, useId, useRef, useState } from 'react'
-import { BackButton, IconAction, Sheet, useIsPhone } from '../../../design-system'
+// The assessment's Details (AS-06 boards 06, D1, D3) in the design system's SidePanel: from the
+// right over a dimmed page on a computer, a bottom sheet on a phone. Its Edit Details icon opens
+// the dialog; Edit Site sits by the site; Open Map swaps the content to the site map, and the
+// panel's Back returns. Opened by the header's Details button and the rail's client card
+// (AssessmentApp.tsx).
+import { useState } from 'react'
+import { IconAction, SidePanel, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
-import { DetailsToaster } from './DetailsToaster'
 import { DETAILS_TOASTER } from './detailsToast'
 import { SiteMapPanel } from './SiteMapPanel'
 import '../marshbot.css'
@@ -32,21 +32,11 @@ export function DetailsPanel({
     setView('details')
     close()
   }
-  const titleId = useId()
-  const pressedOnBackdrop = useRef(false)
-  // What had focus when the panel opened. The panel unmounts rather than closing, so the
-  // browser doesn't return focus by itself: without this it would drop to the page's top.
-  const opener = useRef<HTMLElement | null>(null)
-  useEffect(() => {
-    if (open || !opener.current) return
-    opener.current.focus?.()
-    opener.current = null
-  }, [open])
   const record = v.liveRecord as DetailedRecord | null
   if (!record) return null
   const edit = v.ovEdit
   // On a computer the panel is a modal <dialog> in the top layer, which covers the app's toaster:
-  // its toasts go to a toaster inside it. A phone's sheet isn't in the top layer, so it keeps the app's.
+  // its toasts go to the panel's own (SidePanel `toaster`). A phone's sheet keeps the app's.
   const toasterId = phone ? undefined : DETAILS_TOASTER
   const mapping = view === 'map' && !!v.ovMap
   const title = mapping ? 'Site Map' : 'Details'
@@ -65,12 +55,6 @@ export function DetailsPanel({
       toasterId={toasterId}
     />
   )
-  // The round Back button, left of the title (on a phone the sheet puts it after, so `order` moves it).
-  const back = (
-    <span className="mb-back">
-      <BackButton label="Back to Details" onClick={() => setView('details')} />
-    </span>
-  )
   // The way in to the details dialog: the same icon button as Edit Site (round 10), named by its
   // tooltip. `bottom`: it sits at the panel's top edge.
   const editDetails = edit && (
@@ -84,72 +68,17 @@ export function DetailsPanel({
   )
   return (
     <>
-      {phone ? (
-        <Sheet
-          open={open}
-          onClose={onClose}
-          title={title}
-          className={mapping ? 'mb-details-sheet mb-details-map' : 'mb-details-sheet'}
-          headerAction={mapping ? back : editDetails}
-        >
-          {content}
-        </Sheet>
-      ) : (
-        open && (
-          <dialog
-            // Opens modally as soon as it exists: the page behind dims and can't be tabbed into.
-            ref={(el) => {
-              if (el && !el.open) {
-                opener.current = document.activeElement as HTMLElement | null
-                el.showModal?.()
-              }
-            }}
-            className="mb-panel-dialog"
-            aria-labelledby={titleId}
-            onCancel={(e) => {
-              e.preventDefault()
-              onClose()
-            }}
-            // Escape closes a list open over the panel (the Popover hears it too), not the panel:
-            // without this one press would close both.
-            onKeyDown={(e) =>
-              e.key === 'Escape' &&
-              e.currentTarget.querySelector('.ds-popover') &&
-              e.preventDefault()
-            }
-            // A click on the dimmed backdrop (the dialog's own box, outside the panel) closes it,
-            // but only when the press began there too: without this a text selection dragged out
-            // of the panel would close it on release.
-            onPointerDown={(e) => (pressedOnBackdrop.current = e.target === e.currentTarget)}
-            // A press on the backdrop released inside the panel still clicks the dialog itself
-            // (the two share only that ancestor), so the release must be on the backdrop too.
-            onPointerUp={(e) => {
-              if (e.target !== e.currentTarget) pressedOnBackdrop.current = false
-            }}
-            onClick={(e) => e.target === e.currentTarget && pressedOnBackdrop.current && onClose()}
-          >
-            <div className="mb-panel-sheet">
-              <header className="mb-panel-head">
-                {mapping && back}
-                <h2 id={titleId}>{title}</h2>
-                <span>
-                  {!mapping && editDetails}
-                  <IconAction
-                    icon="x"
-                    label="Close"
-                    size="md"
-                    placement="bottom"
-                    className="mb-hit"
-                    onClick={onClose}
-                  />
-                </span>
-              </header>
-              <div className="mb-panel-body">{content}</div>
-            </div>
-            <DetailsToaster />
-          </dialog>
-        )
-      )}
+      <SidePanel
+        open={open}
+        onClose={onClose}
+        title={title}
+        className={mapping ? 'mb-details-panel mb-details-map' : 'mb-details-panel'}
+        actions={mapping ? undefined : editDetails}
+        back={mapping ? { label: 'Back to Details', onClick: () => setView('details') } : undefined}
+        toaster={DETAILS_TOASTER}
+      >
+        {content}
+      </SidePanel>
       {dialog === 'site' && edit && (
         <EditSiteDialog
           site={edit.record.site}

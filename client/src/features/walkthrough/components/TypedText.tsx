@@ -3,7 +3,7 @@
 // paragraph or bullet, capped at 2.4 s; a bullet's dot comes with its own first letter.
 // Called by WalkthroughBubble. Calls TypingDots. The whole message is read out once (sr-only copy).
 import { useEffect, useState, type CSSProperties } from 'react'
-import { TypingDots } from '../../marshbot/components/TypingDots'
+import { TypingDots } from '../../../design-system'
 import { blocksOf, plainOf, type Block } from './words'
 
 const GAP_MS = 14

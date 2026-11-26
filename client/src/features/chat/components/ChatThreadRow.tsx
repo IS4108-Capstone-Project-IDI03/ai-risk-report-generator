@@ -2,7 +2,7 @@
 // Used by ChatThreadList. OpenUI's own row deletes at once and cannot rename, so this replaces it.
 import { useThreadList } from '@openuidev/react-headless'
 import { useState } from 'react'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import { DeleteChatDialog } from './DeleteChatDialog'
 import { RenameChatDialog } from './RenameChatDialog'
 import { closeChatsDrawer } from '../chatsDrawer'
@@ -33,19 +33,17 @@ export function ChatThreadRow({ id, title }: Props) {
         {title}
       </button>
       <span className="chat-thread-actions">
-        <IconButton
+        <IconAction
           icon="pencil"
-          size="sm"
           label={`Rename ${title}`}
           tooltip="Rename chat"
           onClick={() => setDialog('rename')}
         />
-        <IconButton
+        <IconAction
           icon="trash-2"
-          size="sm"
+          danger
           label={`Delete ${title}`}
           tooltip="Delete chat"
-          style={{ color: 'var(--red-600)' }}
           onClick={() => setDialog('delete')}
         />
       </span>

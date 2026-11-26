@@ -4,7 +4,7 @@
 // tick list or a numbered list. A name wrapped in **…** shows bold, and opens the thing it names when one of the
 // turn's cards lists it. Drawn by Flow.tsx for library.tsx's Lead, Say, Ticks and Steps, by Alert.tsx,
 // and for TurnBody's fallback.
-import { useContext, type ReactNode } from 'react'
+import { useContext } from 'react'
 import { Icon } from '../../../../design-system'
 import { MarshBotContext, TurnContext } from '../../context'
 import type { Card, ItemLink } from '../../types'
@@ -113,19 +113,5 @@ export function StepList({ items }: { items: string[] }) {
   )
 }
 
-/** Returns one speech bubble round `children`. */
-export function Bubble({
-  tone,
-  tail,
-  children,
-}: {
-  tone: 'normal' | 'good' | 'alert'
-  tail: boolean
-  children: ReactNode
-}) {
-  return (
-    <div className="mbt-bubble mbt-in" data-tone={tone} data-tail={tail || undefined}>
-      {children}
-    </div>
-  )
-}
+// The bubble itself is the design system's, shared with the knowledge chat's answers.
+export { SpeechBubble as Bubble } from '../../../../design-system'

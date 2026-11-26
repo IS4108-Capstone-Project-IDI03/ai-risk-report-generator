@@ -2,10 +2,11 @@
 // (one `name = Component(...)` per line); OpenUI renders it as it streams.
 // Registered on the chat screen (screens/KnowledgeAssistant.tsx); the rag-service builds
 // its answer prompt from the same names, so they must match microservices/rag-service/app/chat/.
-import { createLibrary, defineComponent } from '@openuidev/react-lang'
+import { createLibrary, defineComponent } from 'openui-lang-v1'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
 import { createContext, useContext } from 'react'
+import { SpeechBubble } from '../../design-system'
 import { DeclinedReply } from './components/DeclinedReply'
 import { CitationMarker } from './components/CitationMarker'
 import { withBold } from './components/bold'
@@ -183,10 +184,12 @@ const Answer = defineComponent({
     return (
       <CitationCheckContext.Provider value={check}>
         <CitationNumbersContext.Provider value={citationNumbers(props.blocks)}>
-          <div className="chat-answer">
-            {renderNode(props.blocks)}
-            {meta?.gap && <DeclinedReply />}
-          </div>
+          {/* One speech bubble per answer, as each Overview turn is one message; the declined
+              reply's next step sits under it, like the Overview's reply pills. */}
+          <SpeechBubble tone="normal" tail>
+            <div className="chat-answer">{renderNode(props.blocks)}</div>
+          </SpeechBubble>
+          {meta?.gap && <DeclinedReply />}
         </CitationNumbersContext.Provider>
       </CitationCheckContext.Provider>
     )

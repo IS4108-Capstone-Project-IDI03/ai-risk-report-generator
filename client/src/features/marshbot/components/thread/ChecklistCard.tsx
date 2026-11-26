@@ -2,7 +2,8 @@
 // is still open (a few, then "+N more" and See all), and the areas that are fine as one even
 // row of ticks with their bars. The columns stack on a phone. Used by CardView.tsx.
 import { useContext } from 'react'
-import { Icon } from '../../../../design-system'
+import { Icon, IconTile } from '../../../../design-system'
+import { tileTone } from './tileTone'
 import { TurnContext, useMarshBot } from '../../context'
 import type { Card } from '../../types'
 import { CardShell } from './CardShell'
@@ -24,9 +25,7 @@ export function ChecklistCard({ card }: { card: Extract<Card, { type: 'checklist
           {card.gaps.map((g) => (
             <div key={g.area} className="mbt-gap" role="group" aria-label={g.area}>
               <header>
-                <span className="mbt-tile" data-tone={g.tone} aria-hidden="true">
-                  <Icon name={g.icon} size={16} />
-                </span>
+                <IconTile className="mbt-tile" icon={g.icon} tone={tileTone(g.tone)} />
                 <span>
                   <b>{g.area}</b>
                   <small data-tone={g.tone}>{`${g.covered} of ${g.total}`}</small>

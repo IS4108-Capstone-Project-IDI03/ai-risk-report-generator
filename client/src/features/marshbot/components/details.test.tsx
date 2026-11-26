@@ -9,7 +9,6 @@ import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
 import { DetailsPanel } from './DetailsPanel'
 import { toast, Toaster } from '../../../design-system'
-import { DetailsToaster } from './DetailsToaster'
 import { DETAILS_TOASTER } from './detailsToast'
 import { PlacingBar } from './PlacingBar'
 import { SiteMapPanel } from './SiteMapPanel'
@@ -510,7 +509,7 @@ describe('toasts raised from the panel', () => {
       <>
         <Toaster />
         <dialog open data-testid="panel">
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
         </dialog>
       </>,
     )
@@ -613,7 +612,7 @@ describe('adding a client document from the panel', () => {
     render(
       <>
         <dialog open>
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
           <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
         </dialog>
       </>,
@@ -746,7 +745,7 @@ describe('adding a client document from the panel', () => {
       <>
         <Toaster />
         <dialog open>
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
           <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
         </dialog>
       </>,

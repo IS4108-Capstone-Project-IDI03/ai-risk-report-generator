@@ -149,9 +149,9 @@ describe('Knowledge assistant (CB-01)', () => {
       fireEvent.change(again, { target: { value: 'Where are sprinklers needed?' } })
       fireEvent.keyDown(again, { key: 'Enter' })
       await screen.findByText(phrase(/Sprinklers are needed throughout\./), {}, { timeout: 5000 })
-      expect(screen.queryByText("Hi, I'm MarshBot")).toBeNull()
+      expect(screen.queryByText(/Hi, I'm MarshBot/)).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'MarshBot, new chat' }))
-      expect(await screen.findByText("Hi, I'm MarshBot")).toBeInTheDocument()
+      expect(await screen.findByText(/Hi, I'm MarshBot/)).toBeInTheDocument()
     },
   )
 })

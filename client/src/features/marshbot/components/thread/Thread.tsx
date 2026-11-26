@@ -6,13 +6,10 @@
 // their very end. Scrolled away, the slot's buttons wait in a sticky bar (ScrolledAway.tsx).
 // Called by screens/MarshBotOverview.tsx.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Icon, useIsPhone } from '../../../../design-system'
+import { BotTurn, EngineerBubble, Icon, TypingDots, useIsPhone } from '../../../../design-system'
 import { RevealContext } from '../../context'
 import { weekDay } from '../../format'
 import type { AssistantThread } from '../../types'
-import { TypingDots } from '../TypingDots'
-import { BotTurn } from './BotTurn'
-import { EngineerBubble } from './EngineerBubble'
 import { ScrolledAway } from './ScrolledAway'
 import { SessionTurns } from './SessionTurns'
 import type { Reveal } from './useReveal'

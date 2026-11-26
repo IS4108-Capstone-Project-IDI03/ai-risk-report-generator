@@ -1,9 +1,9 @@
 // One saved fact in "My preferences" (CB-05): its text, the date it was added, and Edit and
 // Delete. Used by components/PreferencesPanel.tsx.
 import { useEffect, useRef, useState } from 'react'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import type { Fact } from '../api'
-import { FactForm } from './FactForm'
+import { FactForm, PRIVACY_NOTE } from './FactForm'
 
 type Props = {
   fact: Fact
@@ -37,6 +37,7 @@ export function FactRow({ fact, max, onSave, onDelete }: Props) {
           max={max}
           label="Edit fact"
           submitLabel="Save"
+          note={PRIVACY_NOTE}
           onSubmit={async (text) => {
             await onSave(fact.id, text)
             setEditing(false)
@@ -52,17 +53,19 @@ export function FactRow({ fact, max, onSave, onDelete }: Props) {
         <span className="fact-row__date">Added {added(fact.createdAt)}</span>
       </div>
       <div className="fact-row__actions">
-        <IconButton
+        <IconAction
+          size="md"
           icon="pencil"
           label={`Edit: ${short(fact.text)}`}
           tooltip="Edit fact"
           onClick={() => setEditing(true)}
         />
-        <IconButton
+        <IconAction
+          size="md"
           icon="trash-2"
+          danger
           label={`Delete: ${short(fact.text)}`}
           tooltip="Delete fact"
-          style={{ color: 'var(--red-600)' }}
           onClick={() => onDelete(fact.id)}
         />
       </div>

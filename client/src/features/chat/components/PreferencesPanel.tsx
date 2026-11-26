@@ -1,11 +1,13 @@
 // The "My preferences" panel (CB-05): the engineer's lasting facts for the knowledge assistant,
 // with add, edit, delete and a memory on/off switch. A light dialog opened from the chat
-// sidebar (components/ChatSidebar.tsx). Calls ../api.ts, which calls /api/chat/memory.
+// sidebar (components/ChatSidebar.tsx), kept compact so its buttons show without scrolling: the
+// switch, the add box (its privacy note beside Add fact), then the facts. Calls ../api.ts, which
+// calls /api/chat/memory.
 import { useEffect, useRef, useState } from 'react'
-import { Button, Callout, Dialog, EmptyState, HelpTip, Switch } from '../../../design-system'
+import { Button, Callout, Dialog, HelpTip, Switch } from '../../../design-system'
 import { addFact, fetchMemory, removeFact, saveFact, setMemoryEnabled, type Memory } from '../api'
 import '../preferences.css'
-import { FactForm } from './FactForm'
+import { FactForm, PRIVACY_NOTE } from './FactForm'
 import { FactRow } from './FactRow'
 
 /** Loads the memory when opened, then shows the switch, the add box and the list of facts. */
@@ -92,14 +94,17 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
             </HelpTip>
           </div>
           {problem && <Callout tone="warning">{problem}</Callout>}
-          <p className="preferences__note">Do not type client names or site details.</p>
           {facts.length >= maxFacts ? (
-            <Callout tone="info">You have {maxFacts} facts. Delete one to add another.</Callout>
+            <Callout tone="info">
+              You have {maxFacts} facts. Delete one to add another. {PRIVACY_NOTE}
+            </Callout>
           ) : (
             <FactForm
               max={maxChars}
               label="Add a fact"
               submitLabel="Add fact"
+              placeholder="For example: I mostly survey Singapore offices."
+              note={PRIVACY_NOTE}
               onSubmit={async (text) => {
                 const added = await addFact(text)
                 change((m) => ({ ...m, facts: [...m.facts, added] }))
@@ -107,41 +112,40 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
               }}
             />
           )}
-          {facts.length > 0 && (
-            <h3 className="preferences__count">
-              {facts.length} of {maxFacts} facts
-            </h3>
-          )}
           {facts.length === 0 ? (
-            <EmptyState
-              icon="brain"
-              title="No facts yet"
-              description="For example: I mostly survey Singapore offices."
-            />
+            <p className="preferences__empty">No facts yet</p>
           ) : (
-            <ul className={memory.enabled ? 'fact-list' : 'fact-list fact-list--off'}>
-              {facts.map((fact) => (
-                <FactRow
-                  key={fact.id}
-                  fact={fact}
-                  max={maxChars}
-                  onSave={async (id, text) => {
-                    const saved = await saveFact(id, text)
-                    change((m) => ({ ...m, facts: m.facts.map((f) => (f.id === id ? saved : f)) }))
-                    setNotice('Fact saved')
-                  }}
-                  onDelete={(id) =>
-                    attempt(async () => {
-                      await removeFact(id)
-                      change((m) => ({ ...m, facts: m.facts.filter((f) => f.id !== id) }))
-                      setNotice('Fact deleted')
-                      // The deleted row had focus; without this it would be lost to the page.
-                      panel.current?.querySelector('textarea')?.focus()
-                    })
-                  }
-                />
-              ))}
-            </ul>
+            <>
+              <h3 className="preferences__count">
+                {facts.length} of {maxFacts} facts
+              </h3>
+              <ul className={memory.enabled ? 'fact-list' : 'fact-list fact-list--off'}>
+                {facts.map((fact) => (
+                  <FactRow
+                    key={fact.id}
+                    fact={fact}
+                    max={maxChars}
+                    onSave={async (id, text) => {
+                      const saved = await saveFact(id, text)
+                      change((m) => ({
+                        ...m,
+                        facts: m.facts.map((f) => (f.id === id ? saved : f)),
+                      }))
+                      setNotice('Fact saved')
+                    }}
+                    onDelete={(id) =>
+                      attempt(async () => {
+                        await removeFact(id)
+                        change((m) => ({ ...m, facts: m.facts.filter((f) => f.id !== id) }))
+                        setNotice('Fact deleted')
+                        // The deleted row had focus; without this it would be lost to the page.
+                        panel.current?.querySelector('textarea')?.focus()
+                      })
+                    }
+                  />
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}

@@ -2,10 +2,9 @@
 // (a card's `cta`, e.g. Open Generation), then the choices MarshBot offers. Drawn under the
 // newest turn's last bubble and, while that is scrolled out of view, in the sticky bar.
 // Built by screens/MarshBotOverview.tsx; placed by Thread.tsx.
-import { Icon } from '../../../../design-system'
+import { Icon, ReplyButton } from '../../../../design-system'
 import type { ItemLink, Reply } from '../../types'
 import { DateReply } from './DateReply'
-import { ReplyButton } from './ReplyButton'
 
 /** Returns the next step and the choices, in that order. */
 export function Actions({

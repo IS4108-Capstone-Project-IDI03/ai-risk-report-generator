@@ -95,6 +95,8 @@ describe('My preferences panel (CB-05)', () => {
     gateway()
     await open()
     fireEvent.click(screen.getByRole('button', { name: /^Edit: / }))
+    // The privacy note shows in the edit box as well as the add box.
+    expect(screen.getAllByText(/Do not type client names or site details/)).toHaveLength(2)
     fireEvent.change(screen.getByRole('textbox', { name: /Edit fact/ }), {
       target: { value: 'I survey SG offices' },
     })
@@ -124,6 +126,7 @@ describe('My preferences panel (CB-05)', () => {
     gateway(Array.from({ length: 20 }, (_, i) => fact(i + 1)))
     await open()
     expect(screen.getByText(/You have 20 facts/)).toBeInTheDocument()
+    expect(screen.getByText(/Do not type client names or site details/)).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /Add a fact/ })).toBeNull()
     expect(within(screen.getAllByRole('list')[0]).getAllByRole('listitem')).toHaveLength(20)
   })

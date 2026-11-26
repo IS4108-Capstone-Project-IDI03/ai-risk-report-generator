@@ -7,8 +7,7 @@
 import { useThreadList } from '@openuidev/react-headless'
 import { AgentInterface } from '@openuidev/react-ui'
 import { useState } from 'react'
-import { Icon } from '../../../design-system'
-import marshbot from '../marshbot.svg'
+import { Icon, MarshBotFace } from '../../../design-system'
 import { ChatSearch } from './ChatSearch'
 import { ChatThreadList } from './ChatThreadList'
 import { closeChatsDrawer } from '../chatsDrawer'
@@ -37,7 +36,10 @@ export function ChatSidebar() {
               aria-label="MarshBot, new chat"
               onClick={startNewChat}
             >
-              <img src={marshbot} alt="" className="openui-agent-sidebar-header__logo" />
+              {/* MarshBot's own face, as on the Overview, in its round tile. */}
+              <span className="mbt-face openui-agent-sidebar-header__logo" aria-hidden="true">
+                <MarshBotFace mood="idle" decorative />
+              </span>
               <span className="openui-agent-sidebar-header__agent-name">MarshBot</span>
             </button>
           }

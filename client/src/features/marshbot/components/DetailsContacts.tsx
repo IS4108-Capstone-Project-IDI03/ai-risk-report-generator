@@ -1,8 +1,7 @@
 // The Details panel's Site contacts block (AS-06, boards D1, D2): the first few, and See all
 // (only when there are more) opens a small list over the panel. Called by DetailsContent.tsx.
 import { useState } from 'react'
-import { Popover } from '../../../design-system'
-import { initials } from '../../clients/components/ClientAvatar'
+import { Avatar, EmptyNote, Popover } from '../../../design-system'
 import { DetailsHeading, DetailsLink } from './DetailsHeading'
 
 type Contact = { name: string; role: string | null }
@@ -11,9 +10,7 @@ type Contact = { name: string; role: string | null }
 function Person({ c }: { c: Contact }) {
   return (
     <span className="mb-person">
-      <span className="cl-contact-dot" aria-hidden="true">
-        {initials(c.name)}
-      </span>
+      <Avatar name={c.name} />
       <span>
         {c.name}
         {c.role && <span className="mb-muted">{` · ${c.role}`}</span>}
@@ -72,7 +69,7 @@ export function DetailsContacts({
     <section>
       <DetailsHeading link={seeAll}>Site Contacts</DetailsHeading>
       {contacts.length === 0 ? (
-        <p className="mb-none">None yet</p>
+        <EmptyNote>None yet</EmptyNote>
       ) : (
         <ul className="mb-people">
           {contacts.slice(0, shown).map((c, i) => (

@@ -1,9 +1,8 @@
 // The client card pinned at the foot of MarshBot's rail (AS-06 canvas P6): the client's avatar,
 // name and the assessment's reference, each on one line ending in "…", with both in full in its
 // tooltip; a real button with a chevron that opens Details (board 06).
-// Called by Rail.tsx. Reuses the client page's ClientAvatar.
-import { Icon, Tooltip } from '../../../design-system'
-import { ClientAvatar } from '../../clients/components/ClientAvatar'
+// Called by Rail.tsx. Reuses the design system's client Avatar.
+import { Avatar, Icon, Tooltip } from '../../../design-system'
 
 /** Returns the clickable client card. */
 export function ClientCard({
@@ -33,7 +32,7 @@ export function ClientCard({
         onClick={onOpen}
         aria-label={`${name}, ${reference}. Open assessment details`}
       >
-        <ClientAvatar name={name} />
+        <Avatar kind="client" name={name} size={32} />
         <span className="mb-client-text">
           <span className="mb-client-name">{name}</span>
           <span className="mb-client-ref">{reference}</span>

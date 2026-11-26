@@ -10,8 +10,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react'
-import { Button, IconAction, StepBar } from '../../../design-system'
-import { MarshBotFace } from '../../marshbot/components/MarshBotFace'
+import { Button, IconAction, MarshBotFace, StepBar } from '../../../design-system'
 import type { BubbleView } from '../state'
 import { TypedText } from './TypedText'
 

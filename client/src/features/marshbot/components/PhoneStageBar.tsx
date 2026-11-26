@@ -2,12 +2,11 @@
 // Stage 3 of 8", a segmented bar, MarshBot's status pill with the survey and due dates, and a
 // chevron that opens Details. Called by screens/MarshBotOverview.tsx on a phone, in a short window
 // and when the Overview is too narrow for the rail (useNarrowArea.ts).
-import { Icon } from '../../../design-system'
+import { Icon, MarshBotFace } from '../../../design-system'
 import { STAGE_LABEL } from '../../assessments/format'
 import { dateTone, shortDay } from '../format'
 import { STAGES, type AssistantThread } from '../types'
 import { BotStatus } from './BotStatus'
-import { MarshBotFace } from './MarshBotFace'
 
 /** Returns the phone's stage bar; pressing it opens the assessment's details. */
 export function PhoneStageBar({ thread, onOpen }: { thread: AssistantThread; onOpen: () => void }) {
