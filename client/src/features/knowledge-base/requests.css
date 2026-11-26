@@ -122,6 +122,9 @@
 }
 .kb-request-picker {
   display: grid;
+  /* Without this, a list taller than its box squeezes each row to its 44 px touch minimum and
+     the two-line titles run over the dates below them. */
+  grid-auto-rows: max-content;
   max-height: min(50vh, 420px);
   overflow-y: auto;
   border: 1px solid var(--graphite-200);
