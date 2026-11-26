@@ -4,7 +4,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ComparisonItem, ComparisonPage, CurrentSource } from './api'
 import { SeverityShift } from './ComparisonDetail'
 import { ComparisonTab } from './ComparisonTab'
-import { filterItems, NO_FILTERS, outcomePill, shownLine } from './comparisonDisplay'
+import {
+  confirmedCount,
+  filterItems,
+  measuredChanges,
+  NO_FILTERS,
+  outcomePill,
+  shownLine,
+} from './comparisonDisplay'
 
 // RV-13: the Comparison tab, from the gateway's answers (a stubbed fetch).
 
@@ -475,5 +482,19 @@ describe('Comparison display rules', () => {
     ).toBe('neutral')
     expect(outcomePill({ ...WORSE, outcome: null }).label).toBe('Sources disagree')
     expect(shownLine(1, 1)).toBe('Showing 1 item')
+  })
+
+  it('sums up measured figures once each, and counts confirmed outcomes', () => {
+    const twin = { ...WORSE, key: 'P:4:0.0' }
+    const decided = {
+      ...NEW,
+      decided: { action: 'accept', by: { id: 'u', name: 'A' }, at: '', note: null, carried: false },
+    }
+    expect(measuredChanges([WORSE, twin, NOT_CHECKED]).map((m) => m.item.key)).toEqual(['P:9:0.0'])
+    expect(measuredChanges([{ ...WORSE, dismissed: true }])).toEqual([])
+    expect(confirmedCount([WORSE, decided, { ...NOT_CHECKED, dismissed: true }])).toEqual({
+      done: 1,
+      of: 2,
+    })
   })
 })

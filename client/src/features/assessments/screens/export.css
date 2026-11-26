@@ -1,7 +1,10 @@
-/* The Export tab (EX-01, screens/ReportExport.tsx): what blocks the export
-   beside the export's choices.
-   Design-system v2 tokens only. */
+/* The Export tab (EX-01, screens/ReportExport.tsx, components/ExportChecklist.tsx and
+   ExportOptions.tsx): the checkpoint header across the top, then what is left to finish beside
+   the export's choices. Design-system v2 tokens only. */
 .ex-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: 24px var(--page-gutter) 40px;
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
   font-family: var(--font-sans);
@@ -23,89 +26,41 @@
   position: sticky;
   top: 16px;
 }
+/* The cards are the shared ListCard; their corners clip the task rows' tints. */
 .ex-card {
   overflow: hidden;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
 }
-.ex-card-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 16px 20px 0;
+/* The task rows sit flush in the card; the card's own corners clip them. */
+.ex-card .ds-task {
+  padding-inline: 20px;
 }
-.ex-card-title {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-  color: var(--marsh-navy);
-  font: 700 16px/24px var(--font-sans);
+.ex-card > .ds-task:first-child {
+  border-top: 0;
 }
-.ex-card > .ex-card-title {
-  padding: 16px 20px 8px;
-}
-/* One row per thing left to finish; the whole row opens where it is finished. */
-.ex-items {
+
+/* ---- Left to finish: one group per section, its tasks under its name ---- */
+.ex-groups {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ex-items > li + li {
-  border-top: 1px solid var(--graphite-100);
+.ex-group {
+  border-top: 1px solid var(--border-subtle);
 }
-.ex-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 56px;
-  padding: 12px 20px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-@media (hover: hover) {
-  .ex-item:hover {
-    background: var(--hover-bg);
-  }
-}
-.ex-item:focus-visible {
-  outline: 2px solid var(--marsh-navy);
-  outline-offset: -2px;
-}
-.ex-item > .ds-icon {
-  flex: 0 0 auto;
-}
-.ex-item-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
-}
-.ex-item-title {
-  color: var(--graphite-900);
-  font: 600 14px/1.35 var(--font-sans);
-}
-.ex-item-reason {
-  max-width: 72ch;
-  color: var(--graphite-600);
-  font: 400 13px/1.45 var(--font-sans);
-}
-.ex-empty {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.ex-group-title {
   margin: 0;
-  padding: 8px 20px 20px;
-  color: var(--graphite-700);
-  font: 500 14px/1.4 var(--font-sans);
+  padding: 14px 20px 4px;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
 }
+.ex-group .ds-task {
+  border-top: 0;
+}
+.ex-group .ds-task-name small {
+  margin-top: 1px;
+}
+
+/* ---- The export card ---- */
 .ex-muted {
   margin: 0;
   color: var(--graphite-600);
@@ -118,12 +73,13 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 16px 20px 20px;
+  /* 6 px under the card's heading, which keeps 10 px of its own. */
+  padding: 6px 20px 20px;
 }
 .ex-fieldset {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -131,18 +87,48 @@
 }
 /* A label, as design system v2 sets one: 12 / 600. */
 .ex-label {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 0;
   color: var(--graphite-700);
   font-size: 12px;
   font-weight: 600;
+}
+/* A format as a choice card: the radio and its words, the file's tile at the right. */
+.ex-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.ex-choice[data-on] {
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
+  box-shadow: inset 0 0 0 1px var(--marsh-navy);
+}
+@media (hover: hover) {
+  .ex-choice:not([data-on]):hover {
+    background: var(--graphite-50);
+  }
+}
+.ex-fieldset:disabled .ex-choice {
+  opacity: 0.7;
+}
+.ex-choice:has(:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 .ex-foot {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 16px 20px 20px;
-  border-top: 1px solid var(--graphite-100);
+  border-top: 1px solid var(--border-subtle);
 }
 .ex-mono {
   font-variant-numeric: tabular-nums;
@@ -160,14 +146,16 @@
 }
 @media (max-width: 759px) {
   .ex-wrap {
+    gap: 12px;
     padding: 16px 16px 32px;
   }
-  .ex-item {
-    min-height: 64px;
-    padding: 12px 16px;
+  .ex-grid {
+    gap: 12px;
   }
-  .ex-card > .ex-card-title,
-  .ex-card-head {
+  .ex-group-title {
+    padding-inline: 16px;
+  }
+  .ex-card .ds-task {
     padding-inline: 16px;
   }
   .ex-body,
@@ -180,8 +168,4 @@
 .ex-item--static {
   cursor: default;
   font: 400 14px/1.4 var(--font-sans);
-}
-.ex-card-title .ex-muted {
-  margin-left: auto;
-  font-weight: 400;
 }

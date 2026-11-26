@@ -1,8 +1,8 @@
-/* The Comparison tab (RV-13). Used by ComparisonTab, ComparisonDetail and
-   DecisionDialogs. Design-system tokens only (docs/areas/design-system-v2.md): white
-   cards on the pale page, navy titles, colour only where it means something.
-   The list and the open item sit side by side from 1080 px, stack below it,
-   and below 760 px an item opens in a bottom sheet (ComparisonTab). */
+/* The Comparison tab (RV-13). Used by ComparisonTab, ComparisonSummary, ComparisonRow,
+   ComparisonDetail, DecisionBar and DecisionDialogs. Design-system v2 tokens only
+   (docs/areas/design-system-v2.md): white cards on the pale page, navy titles, colour only
+   where it means something. The list and the open item sit side by side from 1080 px, stack
+   below it, and below 760 px an item opens in a bottom sheet (ComparisonTab). */
 
 .cmp {
   container-type: inline-size;
@@ -23,11 +23,16 @@
   border-radius: var(--radius-card);
   background: var(--surface-card);
 }
+.cmp-title {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/24px var(--font-sans);
+}
 .cmp-label {
   margin: 0;
   padding: 0;
   color: var(--graphite-700);
-  font: 600 12px/1.3 var(--font-sans);
+  font: 600 12px/16px var(--font-sans);
 }
 .cmp-sub {
   margin: 0;
@@ -40,17 +45,31 @@
   font: 400 13px/1.4 var(--font-sans);
 }
 
-/* ---- Header: the report compared with, and the one action ---- */
-.cmp-head {
+/* ---- Summary card: the report compared with, then what changed ---- */
+.cmp-summary {
   display: flex;
+  flex-direction: column;
+}
+.cmp-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  column-gap: 16px;
+  padding: 20px 24px;
+}
+.cmp-head-tile {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--ink-50);
+  color: var(--marsh-navy);
 }
 .cmp-head-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   max-width: 720px;
 }
@@ -58,27 +77,158 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  min-height: 24px;
 }
 .cmp-facts {
   margin: 0;
-  color: var(--graphite-900);
-  font: 600 15px/1.4 var(--font-sans);
+  color: var(--marsh-navy);
+  font: 700 16px/22px var(--font-sans);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .cmp-head-actions {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
 }
+.cmp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.cmp-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.cmp-confirmed {
+  font-variant-numeric: tabular-nums;
+}
+.cmp-confirmed strong {
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.cmp-tiles > li {
+  display: flex;
+}
+.cmp-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Every figure the gateway measured: name, previous → now, the difference, and a chevron. */
+.cmp-measured {
+  display: grid;
+  /* At most two columns: a third would wrap the longer figure names. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(400px, calc(50% - 12px))), 1fr));
+  column-gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cmp-measured > li {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cmp-measure {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 88px 16px;
+  align-items: center;
+  column-gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--graphite-900);
+  font: 400 14px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .cmp-measure:hover {
+    background: var(--hover-bg);
+  }
+}
+.cmp-measure:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+.cmp-measure-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cmp-measured .cmp-measure-name::first-letter {
+  text-transform: uppercase;
+}
+.cmp-measure-values {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--graphite-700);
+  white-space: nowrap;
+}
+.cmp-measure-diff {
+  color: var(--graphite-900);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
 @container (max-width: 640px) {
   .cmp-head {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 40px minmax(0, 1fr);
+    row-gap: 14px;
+    padding: 16px;
   }
-  .cmp-head-actions > .ds-btn,
-  .cmp-head-actions > button {
+  .cmp-head-tile {
+    width: 40px;
+    height: 40px;
+  }
+  .cmp-head-actions {
+    grid-column: 1 / -1;
+  }
+  .cmp-head-actions > * {
+    flex: 1;
+  }
+  .cmp-head-actions .ds-btn,
+  .cmp-head-actions button {
     width: 100%;
+  }
+  .cmp-block {
+    padding: 14px 16px 16px;
+  }
+  .cmp-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* The name over its values: a narrow row has no room for both on one line. */
+  .cmp-measure {
+    grid-template-columns: minmax(0, 1fr) auto 16px;
+    grid-template-areas: 'name diff chev' 'values values chev';
+    row-gap: 2px;
+    padding: 10px 8px;
+  }
+  .cmp-measure-name {
+    grid-area: name;
+  }
+  .cmp-measure-values {
+    grid-area: values;
+    font-size: 13px;
+  }
+  .cmp-measure-diff {
+    grid-area: diff;
+  }
+  .cmp-measure > [aria-hidden='true']:last-child {
+    grid-area: chev;
   }
 }
 
@@ -129,10 +279,10 @@
   overflow-wrap: anywhere;
 }
 
-/* ---- The list card: outcome chips and filters on top, the rows, the count under ---- */
+/* ---- The list card beside the open item ---- */
 .cmp-body {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  grid-template-columns: minmax(320px, 2fr) minmax(0, 3fr);
   align-items: start;
   gap: 16px;
 }
@@ -142,83 +292,28 @@
 .cmp-listcard {
   overflow: hidden;
 }
+.cmp-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  padding: 14px 16px 0;
+}
 .cmp-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--graphite-100);
-}
-.cmp-chips {
-  display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
 }
-/* An outcome with its count; pressed it filters the list to that outcome. */
-.cmp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-  font: 500 13px/1 var(--font-sans);
-  cursor: pointer;
-  transition: background-color var(--duration-fast, 120ms) ease-out;
-}
-.cmp-chip-n {
-  color: var(--graphite-900);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.cmp-chip[aria-pressed='true'] {
-  background: var(--ink-100);
-  color: var(--marsh-navy);
-}
-.cmp-chip[aria-pressed='true'] .cmp-chip-n {
-  color: var(--marsh-navy);
-}
-@media (hover: hover) {
-  .cmp-chip:not([aria-pressed='true']):hover {
-    background: var(--graphite-200);
-  }
-}
-.cmp-chip:active {
-  transform: scale(0.97);
-}
-.cmp-chip:focus-visible,
-.cmp-row:focus-visible {
-  outline: 2px solid var(--marsh-navy);
-  outline-offset: 2px;
-}
-.cmp-row:focus-visible {
-  outline-offset: -2px;
-}
-.cmp-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-@media (max-width: 759px), (pointer: coarse) {
-  .cmp-chip {
-    height: 44px;
-    padding: 0 16px;
-  }
-}
-
 .cmp-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .cmp-list > li + li {
-  border-top: 1px solid var(--graphite-100);
+  border-top: 1px solid var(--border-subtle);
 }
 .cmp-none {
   padding: 24px 16px;
@@ -227,10 +322,12 @@
   text-align: center;
 }
 .cmp-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
   width: 100%;
+  min-height: 44px;
   padding: 12px 16px;
   border: 0;
   background: none;
@@ -238,6 +335,7 @@
   font-family: var(--font-sans);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 @media (hover: hover) {
   .cmp-row:hover {
@@ -246,29 +344,27 @@
 }
 .cmp-row[aria-current='true'] {
   background: var(--ink-50);
-  box-shadow: inset 3px 0 0 var(--marsh-navy);
+}
+.cmp-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 .cmp-row[data-dismissed] {
   color: var(--graphite-600);
 }
-.cmp-row-head {
+.cmp-row-main {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 .cmp-row-title {
-  min-width: 0;
-  color: var(--marsh-navy);
+  color: var(--graphite-900);
   font: 600 14px/1.35 var(--font-sans);
   overflow-wrap: anywhere;
 }
-.cmp-row-badges {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
+.cmp-row[aria-current='true'] .cmp-row-title {
+  color: var(--marsh-navy);
 }
 .cmp-row-text {
   display: -webkit-box;
@@ -276,18 +372,25 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  font: 400 14px/1.45 var(--font-sans);
+  color: var(--graphite-700);
+  font: 400 13px/1.45 var(--font-sans);
   overflow-wrap: anywhere;
 }
 .cmp-row-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 2px 12px;
   color: var(--graphite-600);
   font: 500 12px/1.4 var(--font-sans);
 }
 .cmp-row-meta:empty {
   display: none;
+}
+.cmp-row-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 /* The count under the list, as a table's footer is (v2: counts live in the footer). */
 .cmp-foot {
@@ -297,15 +400,17 @@
   gap: 4px 16px;
   margin: 0;
   padding: 12px 16px;
-  border-top: 1px solid var(--graphite-100);
+  border-top: 1px solid var(--border-subtle);
   color: var(--graphite-600);
   font: 500 13px/1.3 var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .cmp-panel {
   position: sticky;
   top: 16px;
   max-height: calc(100vh - 32px);
   overflow: auto;
+  container-type: inline-size;
 }
 .cmp-body[data-stacked] .cmp-panel {
   position: static;
@@ -316,17 +421,53 @@
 .cmp-detail {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px 20px;
+  gap: 16px;
+  padding: 20px 24px 24px;
 }
 .cmp-sheet .cmp-detail {
   padding: 4px 0 8px;
 }
 .cmp-detail-head {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cmp-detail-title {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 20px/26px var(--font-sans);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.cmp-detail-tags {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: 8px 12px;
+}
+/* The decision bar: where the outcome stands, then the actions, on the sunken surface. */
+.cmp-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--graphite-50);
+}
+.cmp-decision-line {
+  display: flex;
+  min-width: 0;
+  padding-top: 0;
+  align-items: flex-start;
   gap: 8px;
+  margin: 0;
+  color: var(--graphite-900);
+  font: 500 14px/20px var(--font-sans);
+}
+.cmp-decision-line > [aria-hidden='true'] {
+  margin-top: 2px;
 }
 .cmp-note {
   margin: 0;
@@ -337,50 +478,34 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
-.cmp-side {
+.cmp-decision-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cmp-actions-icons {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  margin: -6px -6px -6px 0;
+}
+/* What changed: the severity move and the figures. */
+.cmp-changed {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--graphite-100);
-}
-.cmp-where {
-  margin: 0;
-  color: var(--graphite-600);
-  font: 500 13px/1.3 var(--font-sans);
-}
-.cmp-quote {
-  margin: 0;
-  padding: 10px 14px;
-  border-left: 2px solid var(--border-strong);
-  border-radius: 0 var(--radius-tile) var(--radius-tile) 0;
-  background: var(--graphite-50);
-  color: var(--graphite-900);
-  font: 400 14px/1.55 var(--font-serif);
-  overflow-wrap: anywhere;
-}
-.cmp-context,
-.cmp-reason,
-.cmp-missing,
-.cmp-empty {
-  margin: 0;
-  color: var(--graphite-900);
-  font: 400 14px/1.5 var(--font-sans);
-}
-.cmp-empty {
-  color: var(--graphite-600);
 }
 .cmp-severity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  color: var(--graphite-900);
-  font: 600 14px/1.4 var(--font-sans);
 }
 /* The figures: name left, the rest centred (v2 tables); a long name wraps, never widens. */
-.cmp-figures-wrap {
-  overflow-x: auto;
-}
 .cmp-figures {
   width: 100%;
   border-collapse: collapse;
@@ -390,7 +515,7 @@
 .cmp-figures th,
 .cmp-figures td {
   padding: 8px;
-  border-bottom: 1px solid var(--graphite-100);
+  border-bottom: 1px solid var(--border-subtle);
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -409,11 +534,81 @@
 .cmp-figures tbody th {
   font-weight: 500;
 }
+.cmp-figures-diff {
+  font-weight: 600;
+}
 /* Headings and values stay whole ("Previous", "7.5 bar"); only the figure's name wraps. */
 .cmp-figures thead th,
 .cmp-figures td {
   white-space: nowrap;
   overflow-wrap: normal;
+}
+/* The evidence, previous beside current: two columns with a hairline between. */
+.cmp-evidence {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+.cmp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+}
+.cmp-col + .cmp-col {
+  border-left: 1px solid var(--border-subtle);
+}
+.cmp-col-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--graphite-700);
+  font: 600 12px/16px var(--font-sans);
+}
+.cmp-where {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 500 13px/1.35 var(--font-sans);
+}
+.cmp-quote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--graphite-900);
+  font: 400 15px/1.55 var(--font-serif);
+  overflow-wrap: anywhere;
+}
+.cmp-context,
+.cmp-reason,
+.cmp-empty {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 400 14px/1.5 var(--font-sans);
+}
+.cmp-empty {
+  color: var(--graphite-600);
+}
+.cmp-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--graphite-50);
+  color: var(--graphite-900);
+  font: 400 14px/1.5 var(--font-sans);
+}
+.cmp-missing > [aria-hidden='true'] {
+  margin-top: 3px;
+}
+.cmp-possible {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .cmp-sources {
   display: flex;
@@ -426,10 +621,10 @@
 .cmp-source {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-field);
+  gap: 4px;
+  padding: 10px 6px 10px 12px;
+  border-radius: 10px;
+  background: var(--graphite-50);
 }
 .cmp-source-text {
   display: flex;
@@ -455,6 +650,73 @@
   gap: 2px;
 }
 
+/* A narrow panel (stacked, or a small window): the evidence one column under the other. */
+@container (max-width: 600px) {
+  .cmp-detail {
+    padding: 16px;
+  }
+  .cmp-evidence {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cmp-col + .cmp-col {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+/* On a phone the actions fill the row as 44 px pills, the icons after them. */
+@media (max-width: 759px), (pointer: coarse) {
+  .cmp-actions > .ds-btn,
+  .cmp-actions > button {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+}
+/* In the sheet the decision bar and evidence boxes reach the sheet's edges cleanly. */
+.cmp-sheet .cmp-evidence {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cmp-sheet .cmp-col + .cmp-col {
+  border-left: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+/* The figures on a phone: each figure a block, its three values labelled under the name. */
+@media (max-width: 759px) {
+  .cmp-figures thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .cmp-figures tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .cmp-figures tr:last-child {
+    border-bottom: 0;
+  }
+  .cmp-figures tbody th {
+    grid-column: 1 / -1;
+    padding: 0;
+    border: 0;
+  }
+  .cmp-figures td {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  .cmp-figures td::before {
+    content: attr(data-label);
+    color: var(--graphite-600);
+    font: 600 12px/16px var(--font-sans);
+  }
+}
+
 /* ---- Dialogs ---- */
 .cmp-choices {
   display: flex;
@@ -473,5 +735,18 @@
   .cmp-pick {
     max-height: none;
     overflow: visible;
+  }
+}
+.cmp-figures tbody th::first-letter {
+  text-transform: uppercase;
+}
+/* On a phone the filters sit two to a row in even columns (v2 search marks). */
+@media (max-width: 759px) {
+  .cmp-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cmp-toolbar > * {
+    width: 100%;
   }
 }

@@ -1,40 +1,25 @@
 // The assessment workspace's Comparison tab (RV-13): this assessment compared
-// with the previous finalised report for the same site. It names the report
-// compared against (reference, site visit date, lead engineer) and lets the
-// engineer pick another; Compare with previous report drafts an outcome for
-// every previous finding and recommendation, with New items; outcome chips with
-// exact counts filter the list;
-// each item opens beside the list (under it below 1080 px, in a bottom sheet
-// below 760 px). Nothing here changes the report or its export. Called by
-// AssessmentApp; data from useComparison.
+// with the previous finalised report for the same site. The top card names the
+// report compared against and sums up what changed (outcome tiles that filter,
+// measured figures); under it the items list sits beside the open item (under
+// it below 1080 px, in a bottom sheet below 760 px). Nothing here changes the
+// report or its export. Called by AssessmentApp; data from useComparison.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Badge,
-  Button,
-  Callout,
-  EmptyState,
-  HelpTip,
-  Select,
-  Sheet,
-  ViewOnlyChip,
-} from '../../../design-system'
+import { Button, Callout, EmptyState, Sheet } from '../../../design-system'
 import { PillFilter } from '../components/ObservationFilters'
-import { formatDayYearTime } from '../format'
 import { useCompact } from '../useCompact'
 import { scrollParent } from '../document/page/measure'
-import type { ComparisonItem, CurrentSource } from './api'
-import { ComparisonDetail, SeverityShift } from './ComparisonDetail'
+import type { CurrentSource } from './api'
+import { ComparisonDetail } from './ComparisonDetail'
+import { ComparisonRow } from './ComparisonRow'
+import { ComparisonSummary } from './ComparisonSummary'
 import {
   ALL,
   countTiles,
   filterChoices,
   filterItems,
-  itemText,
   itemTitle,
   NO_FILTERS,
-  outcomePill,
-  reportLine,
-  SEVERITY_LABEL,
   shownLine,
   type Filters,
 } from './comparisonDisplay'
@@ -144,6 +129,10 @@ export function ComparisonTab({
   const running = c.running || page.running
   const noObservation = page.observations === 0
 
+  const outcomeTile = comparison
+    ? countTiles(comparison.counts).find((t) => t.key === filters.outcome)
+    : undefined
+
   // Filters hold "all" when unset; the pills hold '' (PillFilter clears to '').
   const choices = comparison ? filterChoices(comparison.items) : null
   const pill = (name: string, key: 'category' | 'severity' | 'location') => (
@@ -158,73 +147,22 @@ export function ComparisonTab({
   return (
     <div className="cmp">
       {page.previous && (
-        <section className="cmp-head" aria-label="Report compared with">
-          <div className="cmp-head-text">
-            <span className="cmp-label-row">
-              <span className="cmp-label">{'Compared with'}</span>
-              <HelpTip label="About this comparison">
-                <p>
-                  {
-                    'Each finding and recommendation in the earlier report is checked against this assessment’s observations and draft findings. Every outcome is a suggestion for you to confirm.'
-                  }
-                </p>
-                <p>
-                  {'Nothing here changes the report or its export.'}
-                  {comparison?.privacy?.enabled
-                    ? ' Client details were masked before anything was sent.'
-                    : ''}
-                </p>
-              </HelpTip>
-            </span>
-            {page.previousReports.length > 1 ? (
-              <Select
-                aria-label="Compared with"
-                size="sm"
-                value={page.previous.reference}
-                disabled={running}
-                options={page.previousReports.map((r) => ({
-                  value: r.reference,
-                  label: reportLine(r),
-                }))}
-                onChange={(e) => c.pick(e.target.value)}
-              />
-            ) : (
-              <p className="cmp-facts">{reportLine(page.previous)}</p>
-            )}
-            {comparison && (
-              <p className="cmp-sub">
-                {`Compared ${formatDayYearTime(new Date(comparison.ranAt))} by ${comparison.ranBy.name}`}
-              </p>
-            )}
-          </div>
-          <div className="cmp-head-actions">
-            {!page.canChange && (
-              <ViewOnlyChip>
-                {page.readOnly === 'archived' ? 'Archived · view only' : 'View only'}
-              </ViewOnlyChip>
-            )}
-            {page.canChange && (
-              <Button
-                variant="primary"
-                pill
-                iconLeft={comparison ? 'refresh-cw' : 'sparkles'}
-                loading={running}
-                disabled={running}
-                disabledReason={
-                  noObservation
-                    ? {
-                        title: 'Can’t compare yet',
-                        text: 'Save at least one observation, then you can compare with the previous report.',
-                      }
-                    : undefined
-                }
-                onClick={() => void c.run()}
-              >
-                {comparison ? 'Compare again' : 'Compare with previous report'}
-              </Button>
-            )}
-          </div>
-        </section>
+        <ComparisonSummary
+          page={page}
+          comparison={comparison}
+          running={running}
+          outcome={filters.outcome}
+          onOutcome={(key) =>
+            setFilters((f) => ({ ...f, outcome: f.outcome === key ? NO_FILTERS.outcome : key }))
+          }
+          onRun={() => void c.run()}
+          onPick={c.pick}
+          onOpenItem={(key) => {
+            // A measured figure's item may be filtered out: clear the filters so it shows.
+            setFilters(NO_FILTERS)
+            setOpenKey(key)
+          }}
+        />
       )}
 
       {!page.previous && (
@@ -303,40 +241,30 @@ export function ComparisonTab({
 
           <div className="cmp-body" data-stacked={stacked || undefined}>
             <section className="cmp-card cmp-listcard" aria-label="Comparison items">
+              <div className="cmp-list-head">
+                <h2 className="cmp-title">{outcomeTile?.label ?? 'All items'}</h2>
+                {outcomeTile && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    pill
+                    onClick={() => setFilters((f) => ({ ...f, outcome: ALL }))}
+                  >
+                    {'Show all'}
+                  </Button>
+                )}
+              </div>
               <div className="cmp-toolbar" role="group" aria-label="Filter the items">
-                <ul className="cmp-chips">
-                  {countTiles(comparison.counts).map((t) => (
-                    <li key={t.key}>
-                      <button
-                        type="button"
-                        className="cmp-chip"
-                        aria-label={`${t.n} ${t.label}`}
-                        aria-pressed={filters.outcome === t.key}
-                        onClick={() =>
-                          setFilters((f) => ({
-                            ...f,
-                            outcome: f.outcome === t.key ? NO_FILTERS.outcome : t.key,
-                          }))
-                        }
-                      >
-                        <span className="cmp-chip-n">{t.n}</span>
-                        {t.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="cmp-pills">
-                  {pill('Category', 'category')}
-                  {pill('Severity', 'severity')}
-                  {pill('Location', 'location')}
-                </div>
+                {pill('Category', 'category')}
+                {pill('Severity', 'severity')}
+                {pill('Location', 'location')}
               </div>
               <ol className="cmp-list" aria-label="Comparison items">
                 {shown.length === 0 && (
                   <li className="cmp-none">{'No item matches these filters.'}</li>
                 )}
                 {shown.map((item) => (
-                  <Row
+                  <ComparisonRow
                     key={item.key}
                     item={item}
                     sources={sources}
@@ -402,51 +330,3 @@ const CHANGE_WORD = {
   edited: 'Edited',
   changed: 'Draft finding changed',
 } as const
-
-function Row({
-  item,
-  sources,
-  open,
-  onOpen,
-}: {
-  item: ComparisonItem
-  sources: ReadonlyMap<string, CurrentSource>
-  open: boolean
-  onOpen: () => void
-}) {
-  const pill = outcomePill(item)
-  const level = item.severity ? null : item.level && SEVERITY_LABEL[item.level]
-  return (
-    <li>
-      <button
-        type="button"
-        className="cmp-row"
-        aria-current={open || undefined}
-        data-dismissed={item.dismissed || undefined}
-        onClick={onOpen}
-      >
-        <span className="cmp-row-head">
-          <span className="cmp-row-title">{itemTitle(item, sources)}</span>
-          <span className="cmp-row-badges">
-            {item.recheck && (
-              <Badge tone="moderate" icon="rotate-ccw">
-                {'Look again'}
-              </Badge>
-            )}
-            <Badge tone={pill.tone} icon={pill.icon}>
-              {pill.label}
-            </Badge>
-          </span>
-        </span>
-        <span className="cmp-row-text" dir="auto">
-          {itemText(item, sources)}
-        </span>
-        <span className="cmp-row-meta">
-          {item.previous && <span>{item.previous.section}</span>}
-          {item.severity && <SeverityShift severity={item.severity} />}
-          {level && <span>{level}</span>}
-        </span>
-      </button>
-    </li>
-  )
-}

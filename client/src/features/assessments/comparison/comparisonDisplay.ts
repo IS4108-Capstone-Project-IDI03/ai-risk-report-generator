@@ -3,6 +3,7 @@
 // "Showing 8 of 15 items" line, and each current source's label. Pure, so
 // comparison.test.tsx checks it directly. Called by ComparisonTab and
 // ComparisonDetail.
+import type { FigureTone } from '../../../design-system'
 import { formatDay } from '../format'
 import type {
   ComparisonCounts,
@@ -162,7 +163,20 @@ export function decidedLine(decided: NonNullable<ComparisonItem['decided']>) {
   return `${verb} by ${decided.by.name} on ${when}${decided.carried ? ', kept from the last comparison' : ''}`
 }
 
-/** Returns the outcome chips above the list: each outcome that has items, the ones still to decide first. */
+// Each outcome tile's icon and tone: red for worse, amber where the engineer must choose,
+// green for new, improved and fixed (v2: green = done or new), grey otherwise.
+const TILE_LOOK: Record<string, { icon: string; tone: FigureTone }> = {
+  [TO_DECIDE]: { icon: 'triangle-alert', tone: 'warn' },
+  worse: { icon: 'trending-down', tone: 'danger' },
+  new: { icon: 'circle-plus', tone: 'good' },
+  not_checked: { icon: 'circle-dashed', tone: 'neutral' },
+  unchanged: { icon: 'equal', tone: 'neutral' },
+  improved: { icon: 'trending-up', tone: 'good' },
+  fixed: { icon: 'circle-check', tone: 'good' },
+  [DISMISSED]: { icon: 'archive', tone: 'neutral' },
+}
+
+/** Returns the outcome tiles above the list: each outcome that has items, the ones still to decide first. */
 export function countTiles(counts: ComparisonCounts) {
   return [
     { key: TO_DECIDE, label: 'Sources disagree', n: counts.undecided },
@@ -172,5 +186,28 @@ export function countTiles(counts: ComparisonCounts) {
       n: counts[o],
     })),
     { key: DISMISSED, label: 'Dismissed', n: counts.dismissed },
-  ].filter((t) => t.n > 0)
+  ]
+    .filter((t) => t.n > 0)
+    .map((t) => ({ ...t, ...TILE_LOOK[t.key] }))
+}
+
+/** Returns how many items still shown have the engineer's decision, of how many. */
+export function confirmedCount(items: ComparisonItem[]) {
+  const live = items.filter((i) => !i.dismissed)
+  return { done: live.filter((i) => i.decided).length, of: live.length }
+}
+
+/**
+ * Returns every figure the gateway measured, once each, with the first item it belongs to
+ * (dismissed left out): two items citing one reading show it once.
+ */
+export function measuredChanges(items: ComparisonItem[]) {
+  const seen = new Set<string>()
+  return items
+    .filter((i) => !i.dismissed)
+    .flatMap((item) => item.figures.map((figure) => ({ item, figure })))
+    .filter(({ figure: f }) => {
+      const key = [f.name.toLowerCase(), f.previous, f.current].join('|')
+      return !seen.has(key) && !!seen.add(key)
+    })
 }
