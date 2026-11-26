@@ -205,7 +205,7 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-@media (max-width: 759px) {
+@media (max-width: 759px), (pointer: coarse) {
   .cmp-chip {
     height: 44px;
     padding: 0 16px;

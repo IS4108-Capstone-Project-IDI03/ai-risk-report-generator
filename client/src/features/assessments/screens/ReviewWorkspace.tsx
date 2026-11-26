@@ -65,6 +65,7 @@ import { useOfis } from '../useOfis'
 import { useReview } from '../useReview'
 import { useSummary } from '../useSummary'
 import { useCompact } from '../useCompact'
+import { scrollParent } from '../document/page/measure'
 import '../review.css'
 // Loaded on first open: the document editor brings TipTap, which the rest of
 // the workspace can skip.
@@ -248,6 +249,22 @@ export function ReviewWorkspace({
   const [askSheet, setAskSheet] = useState(false)
   // Below 760px the Ask tab is a bottom sheet (AS-01 AC1).
   const phone = useCompact(759)
+  // Under 1080 px the rail, the part and its panel stack (useAssessmentWorkflow's `narrow`).
+  const stacked = useCompact(1079)
+  const [reveal, setReveal] = useState(0)
+  useEffect(() => {
+    if (!reveal) return
+    // Scrolls only the workspace's scroller: scrollIntoView would also move the app frame.
+    const part = document.querySelector<HTMLElement>('.rv-editor')
+    if (!part) return
+    const scroller = scrollParent(part)
+    scroller.scrollTo?.({
+      top:
+        scroller.scrollTop +
+        part.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top,
+    })
+  }, [reveal])
   // The source last opened from an answer, for the parts with no draft (1, 2, 3, A).
   const [askedRef, setAskedRef] = useState<string | null>(null)
   // The passage an answer last went back to, marked in the draft (AS-02 AC3).
@@ -377,9 +394,17 @@ export function ReviewWorkspace({
     setProblem(null)
     setRestored(null)
   }
+  // A part chosen from the rail, the stepper or Version history. Stacked (under 1080 px) the
+  // part sits below the whole section list, so it is brought up; without this a tap on a
+  // section seemed to do nothing on a phone or tablet.
+  const choose = (id: string) => {
+    select(id)
+    if (stacked) setReveal((n) => n + 1)
+  }
   const openHistory = () => {
     setHistoryOpen(true)
     setRestored(null)
+    if (stacked) setReveal((n) => n + 1)
   }
   const cite = (citation: string | null, statement: string | null) =>
     setFocus({ citation, statement })
@@ -552,7 +577,7 @@ export function ReviewWorkspace({
       hideOpening={openingHidden}
       draftedParts={generation?.drafted}
       selected={railId}
-      onSelect={select}
+      onSelect={choose}
       inReport={accepted.length}
       executiveSummary={summary?.executiveSummary ?? null}
       onEditDocument={
@@ -713,7 +738,7 @@ export function ReviewWorkspace({
       PART_TITLES['1'],
       <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
       'Filled in from the assessment and site details, so it always matches them.',
-      { onNext: () => select('2') },
+      { onNext: () => choose('2') },
     )
   if (selected === '2')
     return part(
@@ -729,7 +754,7 @@ export function ReviewWorkspace({
         />
       </>,
       'Drafted from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
-      { onPrevious: () => select('1'), onNext: () => select('3') },
+      { onPrevious: () => choose('1'), onNext: () => choose('3') },
       redraftButton('2'),
     )
   if (selected === 'A')
@@ -738,7 +763,7 @@ export function ReviewWorkspace({
       PART_TITLES.A,
       <AppendixPhotos reference={reference} canEdit={canReview} />,
       'The report shows only these photos, in this order, with their captions.',
-      { onPrevious: last && (() => select(last.id)) },
+      { onPrevious: last && (() => choose(last.id)) },
     )
 
   // Nothing drafted yet: the rail stays, so Sections 1 and 2 and Appendix A
@@ -775,8 +800,8 @@ export function ReviewWorkspace({
             <PartBar
               title={PART_TITLES['3']}
               position={positionOf('3')}
-              onPrevious={openingHidden ? undefined : () => select('2')}
-              onNext={sections.length ? () => select(sections[0].id) : undefined}
+              onPrevious={openingHidden ? undefined : () => choose('2')}
+              onNext={sections.length ? () => choose(sections[0].id) : undefined}
               onHistory={openHistory}
               action={redraftButton('3')}
             />
@@ -936,9 +961,9 @@ export function ReviewWorkspace({
       <DraftEditor
         section={section}
         position={positionOf(saved.id)}
-        onPrevious={() => select(previous ? previous.id : '3')}
+        onPrevious={() => choose(previous ? previous.id : '3')}
         // The last section leads on to Appendix A, once that is shown.
-        onNext={next || !openingHidden ? () => select(next ? next.id : 'A') : undefined}
+        onNext={next || !openingHidden ? () => choose(next ? next.id : 'A') : undefined}
         onGenerate={onGenerate}
         onHistory={openHistory}
         notice={restoredNotice(saved.id)}

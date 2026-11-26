@@ -44,6 +44,8 @@
 }
 .dm-tool-group {
   display: flex;
+  /* Centres the 32 px help (?) on the row of tools, not on their top edge. */
+  align-items: center;
   gap: 2px;
   padding-right: 4px;
   margin-right: 4px;
@@ -51,6 +53,25 @@
 }
 .dm-tool-group:last-child {
   border-right: none;
+}
+/* Phone: the tools are one row you swipe along, not three rows that leave the text a third of
+   the screen. A blocked tool's reason box is placed against the window (ReasonBox.tsx), since
+   the row would cut it off. */
+@media (max-width: 767px) {
+  .dm-tools {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .dm-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .dm-tool-group {
+    flex: none;
+  }
+  .dm-tools .ds-reason-box {
+    position: fixed;
+  }
 }
 .dm-find {
   display: flex;

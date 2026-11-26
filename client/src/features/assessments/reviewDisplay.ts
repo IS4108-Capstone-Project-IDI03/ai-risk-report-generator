@@ -135,9 +135,12 @@ export const FINDING_BADGE: Record<FindingState, BadgeLook> = {
 
 // "2 accepted · 1 edited · 1 rejected · 3 pending", leaving out none.
 export function findingCountsLabel(counts: FindingCounts) {
-  return (['accepted', 'edited', 'rejected', 'pending'] as const)
-    .map((state) => `${counts[state]} ${state}`)
-    .join(' · ')
+  return (
+    (['accepted', 'edited', 'rejected', 'pending'] as const)
+      // A non-breaking space keeps each count on the line with its word.
+      .map((state) => `${counts[state]}\u00a0${state}`)
+      .join(' · ')
+  )
 }
 
 // What a review history entry records, in words. `inDocument`: made in the

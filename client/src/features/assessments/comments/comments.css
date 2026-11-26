@@ -312,6 +312,9 @@
   color: var(--text-muted);
 }
 .cm-panel-body {
+  /* Holds its absolutely placed children (the Ask tab's screen-reader labels): placed from the
+     panel instead, they hung below it and made the workspace scroll, leaving a blank band. */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;

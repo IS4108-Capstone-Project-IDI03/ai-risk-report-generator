@@ -278,8 +278,9 @@ export function GroupedBarChart({
         <BarChart
           data={data}
           maxBarSize={MAX_BAR_PX}
-          // A turned label reaches left of its group; leave the first one room.
-          margin={{ top: 16, right: 8, left: 24 }}
+          // A turned label reaches left of its group; leave the first one room. 48, not less:
+          // on a phone or the 1280 px review column "External Exposure" lost its first letter.
+          margin={{ top: 16, right: 8, left: 48 }}
         >
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
           <XAxis

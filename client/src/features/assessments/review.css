@@ -248,6 +248,28 @@
   background: var(--ai-fg);
   color: var(--text-inverse);
 }
+/* Touch: an invisible 44 px box round the numeral takes the tap, so the prose keeps its line
+   height (as kit.css does for a footer link). The "Drafted text" and "How the score…" toggles
+   and a claim in the Evidence panel get a 44 px row. */
+@media (max-width: 767px), (pointer: coarse) {
+  .rv-cite {
+    position: relative;
+  }
+  .rv-cite::after {
+    content: '';
+    position: absolute;
+    inset: -14px -10px;
+  }
+  /* Padding, not flex: a flex summary loses its disclosure triangle. */
+  .rv-editor details > summary {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding-top: 12px;
+  }
+  .rv-claim-text {
+    min-height: 44px;
+  }
+}
 .rv-subsection-note {
   padding: 16px 20px;
   background: var(--surface-card);

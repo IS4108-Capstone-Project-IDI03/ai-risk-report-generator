@@ -21,6 +21,7 @@ import {
 import { PillFilter } from '../components/ObservationFilters'
 import { formatDayYearTime } from '../format'
 import { useCompact } from '../useCompact'
+import { scrollParent } from '../document/page/measure'
 import type { ComparisonItem, CurrentSource } from './api'
 import { ComparisonDetail, SeverityShift } from './ComparisonDetail'
 import {
@@ -106,7 +107,16 @@ export function ComparisonTab({
   useEffect(() => {
     if (!openKey || !stacked || phone) return
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    panel.current?.scrollIntoView?.({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+    // Scrolls only the list's own scroller: scrollIntoView also moved the app frame round it
+    // (overflow hidden), shifting the sidebar and header up and leaving a blank band below.
+    const el = panel.current
+    if (!el) return
+    const scroller = scrollParent(el)
+    scroller.scrollTo?.({
+      top:
+        scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top,
+      behavior: still ? 'auto' : 'smooth',
+    })
   }, [openKey, stacked, phone])
 
   const openSource = (s: CurrentSource) => {

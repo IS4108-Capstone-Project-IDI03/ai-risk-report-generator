@@ -22,8 +22,8 @@
 .ask-conversation-pick select {
   text-overflow: ellipsis;
 }
-/* 44px tap targets on a phone. */
-@media (max-width: 767px) {
+/* 44px tap targets on a phone or a touch screen. */
+@media (max-width: 767px), (pointer: coarse) {
   .ask-conversations .ds-icon-button {
     width: 44px !important;
     height: 44px !important;
@@ -122,8 +122,8 @@
   font-weight: var(--weight-semibold);
   cursor: pointer;
 }
-/* 44px tap target on a phone (Go to the passage, Go to section). */
-@media (max-width: 767px) {
+/* 44px tap target on a phone or a touch screen (Go to the passage, Go to section). */
+@media (max-width: 767px), (pointer: coarse) {
   .ask-link {
     display: inline-flex;
     align-items: center;
@@ -484,6 +484,12 @@
 .dm-ask .ask-panel {
   padding: 0;
 }
+/* A sticky box stops at the scroller's padding (.cm-panel-body, 16 px at the bottom), so the
+   answers showed through under it: reach the edge and keep the gap as its own padding. */
+.dm-ask .ask-composer {
+  bottom: -16px;
+  padding-bottom: 16px;
+}
 .dm-ask-source {
   margin-bottom: var(--space-6);
 }
@@ -589,6 +595,7 @@
 }
 .ask-gaps-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -596,6 +603,9 @@
   flex: 1;
 }
 .ask-gaps-title {
+  /* Below about 14em beside the date, the date drops under it instead of squeezing the
+     title into a narrow column (the 344 px Evidence panel). */
+  flex: 1 1 14em;
   color: var(--text-primary);
   font-size: var(--text-label-size);
   font-weight: var(--weight-semibold);
