@@ -5,7 +5,7 @@
 // (the gateway shows only those a saved clause holds). Used by
 // screens/ManualSections.tsx; uploads through api.ts.
 import { useEffect, useRef, useState } from 'react'
-import { Icon, IconButton, Select, Textarea, toast } from '../../../design-system'
+import { Icon, IconAction, Select, Textarea, toast } from '../../../design-system'
 import { screenshotUrl, uploadScreenshot, type ManualImage, type ManualImageKind } from '../api'
 
 const KINDS: { value: ManualImageKind; label: string }[] = [
@@ -79,12 +79,11 @@ export function ClauseScreenshots({
                 )
               }
             />
-            <IconButton
+            <IconAction
               icon="trash-2"
-              size="sm"
               label={`Remove ${name.toLowerCase()}`}
               tooltip="Remove screenshot"
-              style={{ color: 'var(--red-600)' }}
+              danger
               onClick={() => onChange((list) => list.filter((m) => m.key !== image.key))}
             />
           </div>

@@ -2,13 +2,13 @@
 // review shows the Needs review pill (the way into its Review page) instead of Complete. A
 // document waiting on its source type also holds the picker that starts it (IN-19).
 // Used by components/UploadedRow.tsx. Calls components/ChooseSourceType.tsx.
+import { Badge } from '../../../design-system'
 import type { IngestionStage, IngestionStatus, KnowledgeDocument } from '../api'
 import { formatDuration, needsReview } from '../display'
 import { ChooseSourceType } from './ChooseSourceType'
 import { ReviewBadge } from './ReviewBadge'
-import { TonePill, type Tone } from './TonePill'
 
-const STATUS: Record<IngestionStatus, { label: string; tone: Tone; icon: string }> = {
+const STATUS: Record<IngestionStatus, { label: string; tone: string; icon: string }> = {
   // Waits for the admin to choose a source type before it is read (IN-19).
   awaiting_type: { label: 'Type needed', tone: 'amber', icon: 'triangle-alert' },
   // Recent uploads never lists a manual draft (IN-18); listed so every status has a label.
@@ -83,9 +83,9 @@ export function UploadStatus({
           walk={walk.review ? 'knowledge-add.needs-review' : undefined}
         />
       ) : (
-        <TonePill tone={badge.tone} icon={badge.icon || undefined}>
+        <Badge tone={badge.tone} icon={badge.icon || undefined}>
           {stage ?? badge.label}
-        </TonePill>
+        </Badge>
       )}
       {p && (
         <span className="kb-stage-detail">

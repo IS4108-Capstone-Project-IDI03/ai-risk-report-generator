@@ -16,10 +16,6 @@
 }
 
 /* The clause list: one card, a row per clause. */
-.kb-manual-list {
-  display: flex;
-  flex-direction: column;
-}
 .kb-manual-list-head {
   display: flex;
   align-items: center;
@@ -98,16 +94,9 @@
 }
 
 /* The editor: one full-width column, its actions at the end. */
+/* The editor is a Panel inside the form. */
 .kb-manual-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-}
-.kb-manual-editor h3 {
-  margin: 0;
-  color: var(--marsh-navy);
-  font: 700 16px/1.3 var(--font-sans);
+  min-width: 0;
 }
 .kb-manual-actions {
   display: flex;
@@ -212,9 +201,6 @@
   }
 }
 @media (max-width: 767px) {
-  .kb-manual-editor {
-    padding: 16px;
-  }
   .kb-manual-actions > * {
     flex: 1;
   }

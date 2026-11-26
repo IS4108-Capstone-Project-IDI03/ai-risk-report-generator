@@ -119,22 +119,6 @@
   }
 }
 
-/* Each step is one card, like the Documents list. */
-.kb-step-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  background: var(--surface-card);
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card);
-  container-type: inline-size;
-}
-.kb-step-panel h3 {
-  margin: 0;
-  color: var(--marsh-navy);
-  font: 700 16px/1.3 var(--font-sans);
-}
 .kb-review-form {
   display: flex;
   flex-direction: column;
@@ -165,13 +149,6 @@
 
 /* The comparison: two aligned columns. A differing passage has a 2px rule on its left and the
    amber tint; matching passages stay quiet. */
-.kb-cmp-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-}
 .kb-cmp-body {
   display: flex;
   flex-direction: column;
@@ -270,12 +247,12 @@
     display: none;
   }
   /* A row with nothing on the shown side is the other tab's news. */
-  .kb-cmp[data-pane='new'] tr:has(> td[data-col='new'] .kb-cmp-empty),
-  .kb-cmp[data-pane='stored'] tr:has(> td[data-col='stored'] .kb-cmp-empty) {
+  .kb-cmp-body[data-pane='new'] tr:has(> td[data-col='new'] .kb-cmp-empty),
+  .kb-cmp-body[data-pane='stored'] tr:has(> td[data-col='stored'] .kb-cmp-empty) {
     display: none;
   }
-  .kb-cmp[data-pane='stored'] [data-col='new'],
-  .kb-cmp[data-pane='new'] [data-col='stored'] {
+  .kb-cmp-body[data-pane='stored'] [data-col='new'],
+  .kb-cmp-body[data-pane='new'] [data-col='stored'] {
     display: none;
   }
   /* The shown column takes the full width (a fixed layout would keep it at half). */

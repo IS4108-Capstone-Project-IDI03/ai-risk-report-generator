@@ -5,7 +5,7 @@
 // /admin/knowledge-base/review/<id> from a Needs review row or the review
 // banner; shown by KnowledgeBase.tsx. Calls api.ts.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, Callout, TopBar, useIsPhone } from '../../../design-system'
+import { Button, Callout, EmptyNote, Panel, TopBar, useIsPhone } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import {
   decide,
@@ -142,9 +142,9 @@ export function ReviewDocument({
       />
       <div className="kb-content">
         {!doc && loadState === 'loading' && (
-          <p className="cl-empty-title" role="status">
+          <EmptyNote centred status>
             Loading the document…
-          </p>
+          </EmptyNote>
         )}
         {loadState === 'gone' && !doc && (
           <Callout tone="info" title="This document is no longer in the knowledge base">
@@ -198,7 +198,7 @@ export function ReviewDocument({
               )}
               {doc.match && !locked && comparison && <ComparisonTable rows={comparison.rows} />}
               {doc.match && !locked && !comparison && (
-                <section className="kb-step-panel" aria-label="Passages">
+                <Panel title="Passages">
                   {comparisonProblem ? (
                     <Callout
                       tone="warning"
@@ -217,11 +217,11 @@ export function ReviewDocument({
                       {comparisonProblem}
                     </Callout>
                   ) : (
-                    <p className="cl-empty-title" role="status">
+                    <EmptyNote centred status>
                       Loading the passages…
-                    </p>
+                    </EmptyNote>
                   )}
-                </section>
+                </Panel>
               )}
             </div>
             <aside className="kb-review-panel" aria-label="Decision">

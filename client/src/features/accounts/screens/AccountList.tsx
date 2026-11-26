@@ -1,24 +1,28 @@
 // The User accounts list (F-03, F-05): one white card holding the standard table, or on a phone
-// a stack of rows. Opening a name shows that person's profile. Called by UserAccounts.tsx.
-// Anyone not Active carries a badge beside their name; Active, the usual case, says nothing.
-import { Badge, Chip, EmptyState, TableFooter } from '../../../design-system'
+// a stack of rows. Opening a name shows that person's profile in a side panel; their row keeps
+// the selected tint while it is open. Called by UserAccounts.tsx.
+// Anyone not Active carries a status pill beside their name; Active, the usual case, says nothing.
+import { Avatar, Chip, EmptyState, ListCard, StatusPill, TableFooter } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { roleLabel, type UserAccount } from '../api'
-import { accountStatus, initials, officeLabel } from '../accountFormat'
+import { accountStatus, officeLabel } from '../accountFormat'
 
 // The name's badge, left out for an Active account.
 function StatusBadge({ user }: { user: UserAccount }) {
   const status = accountStatus(user)
-  return status.label === 'Active' ? null : <Badge tone={status.tone}>{status.label}</Badge>
+  return status === 'account_active' ? null : <StatusPill status={status} />
 }
 
 export function AccountList({
   users,
   narrow,
+  openId,
   onOpen,
 }: {
   users: UserAccount[]
   narrow: boolean
+  // The account whose panel is open.
+  openId: string | null
   onOpen: (id: string) => void
 }) {
   if (users.length === 0)
@@ -38,20 +42,23 @@ export function AccountList({
 
   if (narrow)
     return (
-      <div className="accounts-list">
+      <ListCard className="accounts-list">
         <ul className="accounts-stack" aria-label="User accounts">
           {users.map((user, i) => (
-            <li key={user.id} data-walk={i === 0 ? 'accounts.row-1' : undefined}>
+            <li
+              key={user.id}
+              data-walk={i === 0 ? 'accounts.row-1' : undefined}
+              data-open={user.id === openId || undefined}
+            >
               <button
                 type="button"
                 className="accounts-stack-item"
                 aria-label={`Open profile for ${user.name}`}
+                aria-haspopup="dialog"
                 data-walk={i === 0 ? 'accounts.row-1.name' : undefined}
                 onClick={() => onOpen(user.id)}
               >
-                <span className="accounts-avatar" aria-hidden="true">
-                  {initials(user.name)}
-                </span>
+                <Avatar name={user.name} size={32} />
                 {/* A narrow list has no headings (F-12): its "headings" tag sits inside row 1, so the highlight is row 1 alone. */}
                 <span
                   className="accounts-stack-text"
@@ -68,11 +75,11 @@ export function AccountList({
           ))}
         </ul>
         {footer}
-      </div>
+      </ListCard>
     )
 
   return (
-    <div className="accounts-list">
+    <ListCard className="accounts-list">
       <table className="accounts-table" aria-label="User accounts">
         <colgroup>
           <col />
@@ -97,16 +104,19 @@ export function AccountList({
         </thead>
         <tbody>
           {users.map((user, i) => (
-            <tr key={user.id} data-walk={i === 0 ? 'accounts.row-1' : undefined}>
+            <tr
+              key={user.id}
+              data-walk={i === 0 ? 'accounts.row-1' : undefined}
+              data-open={user.id === openId || undefined}
+            >
               <th scope="row">
                 <span className="accounts-name">
-                  <span className="accounts-avatar" aria-hidden="true">
-                    {initials(user.name)}
-                  </span>
+                  <Avatar name={user.name} size={32} />
                   <button
                     type="button"
                     className="accounts-link"
                     aria-label={`Open profile for ${user.name}`}
+                    aria-haspopup="dialog"
                     data-walk={i === 0 ? 'accounts.row-1.name' : undefined}
                     onClick={() => onOpen(user.id)}
                   >
@@ -132,6 +142,6 @@ export function AccountList({
         </tbody>
       </table>
       {footer}
-    </div>
+    </ListCard>
   )
 }

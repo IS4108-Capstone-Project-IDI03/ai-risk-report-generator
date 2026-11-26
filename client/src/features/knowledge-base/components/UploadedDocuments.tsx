@@ -6,8 +6,10 @@ import { useEffect, useState } from 'react'
 import {
   Button,
   Callout,
+  EmptyNote,
   EmptyState,
   HelpTip,
+  ListCard,
   TableFooter,
   useIsPhone,
 } from '../../../design-system'
@@ -158,12 +160,12 @@ export function UploadedDocuments({
           then try again.
         </Callout>
       )}
-      <div className="cl-card kb-card">
+      <ListCard>
         {documents === null ? (
           !unreachable && (
-            <p className="cl-empty-title" role="status">
+            <EmptyNote centred status>
               Loading recent uploads…
-            </p>
+            </EmptyNote>
           )
         ) : documents.length === 0 ? (
           <EmptyState
@@ -217,7 +219,7 @@ export function UploadedDocuments({
             <TableFooter>{plural(documents.length, 'upload')}</TableFooter>
           </>
         )}
-      </div>
+      </ListCard>
     </section>
   )
 }

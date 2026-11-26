@@ -2,7 +2,7 @@
 // replaced, newest first, each with Restore (AC10). A bottom sheet on phones,
 // like Edit details. Opened by screens/KnowledgeDocuments.tsx, which hands a
 // restored version to components/EditDetailsDialog.tsx.
-import { Button, Dialog } from '../../../design-system'
+import { Button, Dialog, EmptyNote } from '../../../design-system'
 import type { DocumentVersion, KnowledgeDocument, StoredDetails } from '../api'
 import { calendarDate, countryName, dateTime, facilityName, sourceLabel } from '../display'
 
@@ -30,7 +30,7 @@ export function EditHistoryDialog({
       }
     >
       {d.history.length === 0 ? (
-        <p className="kb-versions-none">No corrections yet.</p>
+        <EmptyNote>No corrections yet.</EmptyNote>
       ) : (
         <ul className="kb-versions">
           {d.history.map((version, i) => (

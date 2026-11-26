@@ -99,7 +99,7 @@ const row = async (title: string) =>
   (await screen.findByRole('button', { name: new RegExp(`^${title}`) })).closest('tr')!
 async function open(title: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  return screen.getByRole('region', { name: `Details of ${title}` })
+  return screen.getByRole('dialog', { name: title })
 }
 
 beforeAll(() => {

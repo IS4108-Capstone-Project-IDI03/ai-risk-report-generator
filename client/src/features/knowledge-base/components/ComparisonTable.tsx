@@ -4,7 +4,7 @@
 // "N matching passages". Below 1080px the columns become Stored / New tabs (the CSS
 // hides the other column). Used by screens/ReviewDocument.tsx.
 import { useMemo, useState } from 'react'
-import { Icon, IconRegistry, Switch, Tabs } from '../../../design-system'
+import { Icon, IconRegistry, Panel, Switch, Tabs } from '../../../design-system'
 import type { ComparisonRow, Passage } from '../api'
 
 type Pane = 'stored' | 'new'
@@ -68,9 +68,10 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
     )
 
   return (
-    <section className="kb-step-panel kb-cmp" data-pane={pane} aria-labelledby="kb-cmp-title">
-      <div className="kb-cmp-head">
-        <h3 id="kb-cmp-title">Passages</h3>
+    <Panel
+      className="kb-cmp"
+      title="Passages"
+      actions={
         <div className="kb-cmp-tools" data-walk="knowledge-review.differences">
           <Switch
             label="Differences only"
@@ -78,8 +79,9 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
             onChange={setDifferencesOnly}
           />
         </div>
-      </div>
-      <div className="kb-cmp-body">
+      }
+    >
+      <div className="kb-cmp-body" data-pane={pane}>
         {/* The Stored | New choice: these tabs on a narrow screen, the table's headings on a wide one (F-12). */}
         <div className="kb-cmp-tabs" data-walk="knowledge-review.sides">
           <Tabs
@@ -139,6 +141,6 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Panel>
   )
 }

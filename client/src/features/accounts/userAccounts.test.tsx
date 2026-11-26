@@ -126,7 +126,7 @@ describe('User accounts (F-03)', () => {
       active: true,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to accounts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     const reopened = await openJide()
 
     expect(fetchMock).toHaveBeenCalledTimes(5)
@@ -252,8 +252,15 @@ describe('New accounts (F-08)', () => {
   async function openNewAccount() {
     await openAccounts()
     fireEvent.click(await screen.findByRole('button', { name: 'Add account' }))
-    return screen.findByRole('region', { name: 'Add account' })
+    return screen.findByRole('dialog', { name: 'Add account' })
   }
+  // The dialog's own Add account (the list's button of the same name stays behind it).
+  const submit = () =>
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Add account' })).getByRole('button', {
+        name: 'Add account',
+      }),
+    )
 
   it('saves the account and shows it as active in the account list', async () => {
     const fetchMock = mockGateway(
@@ -266,7 +273,7 @@ describe('New accounts (F-08)', () => {
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
     fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    submit()
 
     expect(await screen.findByText('Account created for Priya Nair')).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[1]
@@ -305,7 +312,7 @@ describe('New accounts (F-08)', () => {
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
     fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    submit()
 
     expect(
       await screen.findByText('Account created for Priya Nair, but no invitation sent'),
@@ -345,7 +352,7 @@ describe('New accounts (F-08)', () => {
     await openNewAccount()
 
     fireEvent.change(field(/^Email/), { target: { value: 'priya' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    submit()
 
     expect(
       await screen.findByText('Correct the highlighted fields, then add the account again.'),
@@ -357,7 +364,7 @@ describe('New accounts (F-08)', () => {
     expect(field(/^Role/)).toHaveAttribute('aria-invalid', 'true')
     expect(field(/^Job title/)).toHaveAttribute('aria-invalid', 'false')
     expect(field(/^Name/)).toHaveFocus()
-    expect(screen.getByRole('region', { name: 'Add account' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Add account' })).toBeInTheDocument()
     expect(screen.queryByText(/Account created/)).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
@@ -376,7 +383,7 @@ describe('New accounts (F-08)', () => {
     fireEvent.change(field(/^Name/), { target: { value: 'Jide Okafor' } })
     fireEvent.change(field(/^Email/), { target: { value: 'jide.okafor@example.com' } })
     fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    submit()
 
     expect(await screen.findByText('Another account already uses this email.')).toBeVisible()
     expect(field(/^Email/)).toHaveAttribute('aria-invalid', 'true')

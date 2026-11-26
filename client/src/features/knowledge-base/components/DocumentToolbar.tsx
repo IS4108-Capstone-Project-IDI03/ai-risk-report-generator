@@ -1,8 +1,9 @@
 // The Documents list's toolbar (KB-01, IN-17): search, then one filter pill each for source
-// type, country, facility type, status and entry, and Clear filters once any is set. The pills
+// type, country, facility type, status and entry, Clear filters once any is set, and Add
+// documents at the right end for an admin (v2 "one list frame"). The pills
 // are the Clients and Assessments lists' (FilterMenu), so a filter reads the same everywhere.
 // Used by screens/KnowledgeDocuments.tsx; filters live in documentFilters.ts.
-import { Button, SearchField } from '../../../design-system'
+import { Button, ListToolbar, SearchField } from '../../../design-system'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { Tip } from '../../help/Tip'
 import { FilterMenu } from '../../clients/components/FilterMenu'
@@ -43,70 +44,85 @@ export function DocumentToolbar({
   filters,
   filtering,
   onChange,
+  onAdd,
 }: {
   filters: Filters
   filtering: boolean
   onChange: (filters: Filters) => void
+  // Opens the Add documents tab; left out for a risk engineer (IN-17).
+  onAdd?: () => void
 }) {
   const set = (change: Partial<Filters>) => onChange({ ...filters, ...change })
   return (
-    <div className="cl-toolbar kb-toolbar">
-      <SearchField
-        label="Search titles"
-        placeholder="Search titles"
-        value={filters.title}
-        onChange={(e) => set({ title: e.target.value })}
-      />
-      <div className="cl-pills">
-        {/* The spans carry the walkthrough's tags (F-12): a pill has none of its own. */}
-        <span className="kb-pill" data-walk="knowledge.filter.source">
-          <FilterMenu
-            name="Source type"
-            choices={SOURCE}
-            value={filters.sourceType}
-            onChange={(sourceType) => set({ sourceType })}
-          />
-        </span>
-        <span className="kb-pill" data-walk="knowledge.filter.country">
-          <FilterMenu
-            name="Country"
-            icon="globe"
-            choices={COUNTRY}
-            value={filters.jurisdiction}
-            onChange={(jurisdiction) => set({ jurisdiction })}
-          />
-        </span>
-        <span className="kb-pill" data-walk="knowledge.filter.facility">
-          <FilterMenu
-            name="Facility type"
-            icon="building-2"
-            choices={FACILITY}
-            value={filters.facilityType}
-            onChange={(facilityType) => set({ facilityType })}
-          />
-        </span>
-        {/* The status tip (F-13) sits beside its filter. */}
-        <span className="kb-pill" data-walk="knowledge.filter.status">
-          <FilterMenu
-            name="Status"
-            choices={STATUS}
-            value={filters.status}
-            onChange={(status) => set({ status })}
-          />
-          <Tip id="knowledge.status" />
-        </span>
-        <FilterMenu
-          name="Entry"
-          choices={ENTRY}
-          value={filters.entry}
-          onChange={(entry) => set({ entry })}
+    <ListToolbar
+      className="kb-toolbar"
+      search={
+        <SearchField
+          label="Search titles"
+          placeholder="Search titles"
+          value={filters.title}
+          onChange={(e) => set({ title: e.target.value })}
         />
-        {filtering && (
-          <Button variant="ghost" pill onClick={() => onChange(NO_FILTERS)}>
-            Clear filters
+      }
+      filters={
+        <>
+          {/* The spans carry the walkthrough's tags (F-12): a pill has none of its own. */}
+          <span className="kb-pill" data-walk="knowledge.filter.source">
+            <FilterMenu
+              name="Source type"
+              choices={SOURCE}
+              value={filters.sourceType}
+              onChange={(sourceType) => set({ sourceType })}
+            />
+          </span>
+          <span className="kb-pill" data-walk="knowledge.filter.country">
+            <FilterMenu
+              name="Country"
+              icon="globe"
+              choices={COUNTRY}
+              value={filters.jurisdiction}
+              onChange={(jurisdiction) => set({ jurisdiction })}
+            />
+          </span>
+          <span className="kb-pill" data-walk="knowledge.filter.facility">
+            <FilterMenu
+              name="Facility type"
+              icon="building-2"
+              choices={FACILITY}
+              value={filters.facilityType}
+              onChange={(facilityType) => set({ facilityType })}
+            />
+          </span>
+          {/* The status tip (F-13) sits beside its filter. */}
+          <span className="kb-pill" data-walk="knowledge.filter.status">
+            <FilterMenu
+              name="Status"
+              choices={STATUS}
+              value={filters.status}
+              onChange={(status) => set({ status })}
+            />
+            <Tip id="knowledge.status" />
+          </span>
+          <FilterMenu
+            name="Entry"
+            choices={ENTRY}
+            value={filters.entry}
+            onChange={(entry) => set({ entry })}
+          />
+          {filtering && (
+            <Button variant="ghost" pill onClick={() => onChange(NO_FILTERS)}>
+              Clear filters
+            </Button>
+          )}
+        </>
+      }
+      end={
+        onAdd && (
+          <Button variant="create" iconLeft="upload" onClick={onAdd}>
+            Add documents
           </Button>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   )
 }

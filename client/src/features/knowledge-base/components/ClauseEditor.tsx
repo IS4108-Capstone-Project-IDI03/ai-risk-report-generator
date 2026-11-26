@@ -5,10 +5,10 @@ import {
   Button,
   Callout,
   ChipInput,
-  IconButton,
+  IconAction,
   Input,
+  Panel,
   Textarea,
-  Tooltip,
 } from '../../../design-system'
 import type { ManualSection } from '../api'
 import { headingsAt, type Form } from '../manualClauses'
@@ -46,7 +46,7 @@ export function ClauseEditor({
   const label = selected ? `Clause ${selected.clause}` : 'New clause'
   return (
     <form
-      className="kb-manual-editor cl-card"
+      className="kb-manual-editor"
       aria-label={label}
       noValidate
       onSubmit={(event) => {
@@ -54,79 +54,77 @@ export function ClauseEditor({
         onSave()
       }}
     >
-      <h3>{label}</h3>
-      {selected?.copiedFrom && (
-        <p className="kb-edit-note">
-          Copied from an earlier edition. Check it against this edition, then save.
-        </p>
-      )}
-      {problem && (
-        <div role="alert">
-          <Callout tone="warning" title="Clause not saved">
-            {problem}
-          </Callout>
-        </div>
-      )}
-      <Input
-        label="Clause number"
-        required
-        placeholder="e.g. 8.6.1"
-        hint="This clause's own number, e.g. 8.6.1. Put its title, if it has one, as the last heading in the trail."
-        value={form.clause}
-        error={errors.clause}
-        onChange={(e) => onChange((f) => ({ ...f, clause: e.target.value }))}
-      />
-      <ChipInput
-        label="Heading trail"
-        itemName="heading"
-        placeholder="Type a heading and press Enter"
-        hint="Press Enter after each heading to add it. One per level, outermost first, e.g. Chapter 8 Installation, then 8.6 Hangers."
-        value={form.headings}
-        onChange={(headings) => onChange((f) => ({ ...f, headings }))}
-        // The other clauses' headings; the clause being edited doesn't suggest its own.
-        suggest={(level, before) =>
-          headingsAt(
-            sections.filter((s) => s.id !== selected?.id),
-            level,
-            before,
-          )
-        }
-      />
-      <Textarea
-        label="Text"
-        required
-        rows={10}
-        value={form.text}
-        error={errors.text}
-        onChange={(e) => onChange((f) => ({ ...f, text: e.target.value }))}
-      />
-      <ClauseScreenshots
-        documentId={documentId}
-        images={form.images}
-        context={form.headings.join(' > ')}
-        onChange={(change) => onChange((f) => ({ ...f, images: change(f.images) }))}
-      />
-      <div className="kb-manual-actions">
-        {selected && (
-          <Tooltip label="Delete clause">
-            <IconButton
+      <Panel title={label}>
+        {selected?.copiedFrom && (
+          <p className="kb-edit-note">
+            Copied from an earlier edition. Check it against this edition, then save.
+          </p>
+        )}
+        {problem && (
+          <div role="alert">
+            <Callout tone="warning" title="Clause not saved">
+              {problem}
+            </Callout>
+          </div>
+        )}
+        <Input
+          label="Clause number"
+          required
+          placeholder="e.g. 8.6.1"
+          hint="This clause's own number, e.g. 8.6.1. Put its title, if it has one, as the last heading in the trail."
+          value={form.clause}
+          error={errors.clause}
+          onChange={(e) => onChange((f) => ({ ...f, clause: e.target.value }))}
+        />
+        <ChipInput
+          label="Heading trail"
+          itemName="heading"
+          placeholder="Type a heading and press Enter"
+          hint="Press Enter after each heading to add it. One per level, outermost first, e.g. Chapter 8 Installation, then 8.6 Hangers."
+          value={form.headings}
+          onChange={(headings) => onChange((f) => ({ ...f, headings }))}
+          // The other clauses' headings; the clause being edited doesn't suggest its own.
+          suggest={(level, before) =>
+            headingsAt(
+              sections.filter((s) => s.id !== selected?.id),
+              level,
+              before,
+            )
+          }
+        />
+        <Textarea
+          label="Text"
+          required
+          rows={10}
+          value={form.text}
+          error={errors.text}
+          onChange={(e) => onChange((f) => ({ ...f, text: e.target.value }))}
+        />
+        <ClauseScreenshots
+          documentId={documentId}
+          images={form.images}
+          context={form.headings.join(' > ')}
+          onChange={(change) => onChange((f) => ({ ...f, images: change(f.images) }))}
+        />
+        <div className="kb-manual-actions">
+          {selected && (
+            <IconAction
               icon="trash-2"
               label="Delete clause"
-              title={undefined}
-              variant="outline"
-              style={{ borderRadius: 999, color: 'var(--red-600)' }}
+              size="md"
+              danger
               disabled={busy}
               onClick={onDelete}
             />
-          </Tooltip>
-        )}
-        <Button variant="secondary" pill disabled={busy || !dirty} onClick={onUndo}>
-          Undo changes
-        </Button>
-        <Button type="submit" variant="primary" pill loading={busy}>
-          Save clause
-        </Button>
-      </div>
+          )}
+          <Button variant="secondary" pill disabled={busy || !dirty} onClick={onUndo}>
+            Undo changes
+          </Button>
+          <Button type="submit" variant="primary" pill loading={busy}>
+            Save clause
+          </Button>
+        </div>
+      </Panel>
     </form>
   )
 }

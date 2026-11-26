@@ -5,7 +5,7 @@
 // create or change the match (AC5), so the page takes the refreshed document.
 // Used by screens/ReviewDocument.tsx.
 import { useState } from 'react'
-import { Button, Callout, IconRegistry } from '../../../design-system'
+import { Button, Callout, IconRegistry, Panel } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { countryName, facilityName, sourceLabel } from '../display'
 import { useDetailsForm } from '../useDetailsForm'
@@ -65,12 +65,7 @@ export function ConfirmDetailsStep({
     onSaved(updated)
   }
   return (
-    <section
-      className="kb-step-panel"
-      aria-labelledby="kb-step-confirm"
-      data-walk="knowledge-review.confirm"
-    >
-      <h3 id="kb-step-confirm">Confirm details</h3>
+    <Panel title="Confirm details" data-walk="knowledge-review.confirm">
       {open ? (
         <Form
           document={d}
@@ -102,6 +97,6 @@ export function ConfirmDetailsStep({
           </Button>
         </div>
       )}
-    </section>
+    </Panel>
   )
 }

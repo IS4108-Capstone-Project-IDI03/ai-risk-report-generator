@@ -161,7 +161,7 @@ const listings = () =>
 // Opens a document's details, then its passages.
 async function openPassages(title: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: 'View passages' }))
   return screen.getByRole('dialog', { name: 'Passages' })
 }
@@ -198,7 +198,7 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /^NFPA 13 sprinkler standard/ }))
 
-    const details = screen.getByRole('region', { name: 'Details of NFPA 13 sprinkler standard' })
+    const details = screen.getByRole('dialog', { name: 'NFPA 13 sprinkler standard' })
     expect(within(details).getByText('2022')).toBeVisible()
     for (const action of ['Edit details', 'Withdraw', 'Delete']) {
       expect(within(details).queryByRole('button', { name: action })).not.toBeInTheDocument()

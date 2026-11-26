@@ -1,7 +1,7 @@
 // One passage's row in the Passages dialog (IN-17), and beneath it when open, the passage in
 // full: the region of the page a table, formula or picture was read from, a manual clause's
 // screenshots (IN-18), then its text. Used by components/PassagesDialog.tsx.
-import { Icon, IconRegistry } from '../../../design-system'
+import { Badge, Icon, IconRegistry } from '../../../design-system'
 import { screenshotUrl, type DocumentPassage } from '../api'
 import { KINDS, pages } from '../passageText'
 import { CitedImage } from '../../sources/CitedImage'
@@ -9,7 +9,6 @@ import { CitedRegion } from '../../sources/CitedRegion'
 import { PassageBody } from '../../sources/PassageBody'
 import { useFoldedText } from '../../sources/useFoldedText'
 import { usePassage } from '../../sources/usePassage'
-import { TonePill } from './TonePill'
 
 /** One passage's row, and beneath it when open, the passage in full. */
 export function PassageRow({
@@ -58,7 +57,7 @@ export function PassageRow({
         <td className="kb-pcol-kind">
           <span className="kb-pkind">
             {KINDS[p.kind]}
-            {p.generated && <TonePill tone="violet">Generated</TonePill>}
+            {p.generated && <Badge tone="violet">Generated</Badge>}
           </span>
         </td>
         <td className="kb-pcol-pages">{pages(p)}</td>

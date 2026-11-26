@@ -95,3 +95,13 @@ export function dateTime(iso: string): string {
   const time = date.toTimeString().slice(0, 5)
   return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${time}`
 }
+
+/** Returns a document's second line: "NFPA 13 · 2022 Edition", or a past report's date. */
+export function editionLine(d: KnowledgeDocument): string {
+  // "NFPA 13", or just the issuing body while the number is unknown.
+  const standard = [d.issuingBody, d.standardNumber].filter(Boolean).join(' ')
+  if (d.edition) return [standard, `${d.edition} Edition`].filter(Boolean).join(' · ')
+  return d.sourceType === 'marsh_report'
+    ? `Report date ${calendarDate(d.effectiveDate)}`
+    : 'Edition unconfirmed'
+}

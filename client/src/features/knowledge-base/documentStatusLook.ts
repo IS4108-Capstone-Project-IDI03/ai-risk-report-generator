@@ -1,25 +1,20 @@
-// Each document status's word, icon and colour: the status pill (components/DocumentStatus.tsx)
-// and the Status filter's options (components/DocumentToolbar.tsx) wear the same ones.
-import { IconRegistry } from '../../design-system'
-import type { Tone } from './components/TonePill'
+// Each document status's word, icon and colour, read from the design system's StatusPill: the
+// status pill (components/DocumentStatus.tsx) and the Status filter's options
+// (components/DocumentToolbar.tsx) wear the same ones.
+import { statusLook } from '../../design-system'
 
 export type DocumentStatusKind = 'active' | 'needs_review' | 'withdrawn'
 
-export const STATUS_LOOK: Record<
-  DocumentStatusKind,
-  { label: string; icon: string; tone: Tone; fg: string }
-> = {
-  active: { label: 'Active', icon: 'circle-check', tone: 'green', fg: 'var(--green-600)' },
-  needs_review: {
-    label: 'Needs review',
-    icon: IconRegistry.status.flagged.icon,
-    tone: 'amber',
-    fg: 'var(--amber-600)',
-  },
-  withdrawn: {
-    label: 'Withdrawn',
-    icon: IconRegistry.action.withdraw,
-    tone: 'red',
-    fg: 'var(--red-600)',
-  },
+// The StatusPill key for each status (StatusPill.tsx: document_active, needs_review, withdrawn).
+export const PILL_KEY: Record<DocumentStatusKind, string> = {
+  active: 'document_active',
+  needs_review: 'needs_review',
+  withdrawn: 'withdrawn',
 }
+
+export const STATUS_LOOK = Object.fromEntries(
+  (Object.keys(PILL_KEY) as DocumentStatusKind[]).map((kind) => {
+    const { label, icon, fg } = statusLook(PILL_KEY[kind])
+    return [kind, { label, icon, fg }]
+  }),
+) as Record<DocumentStatusKind, { label: string; icon: string; fg: string }>

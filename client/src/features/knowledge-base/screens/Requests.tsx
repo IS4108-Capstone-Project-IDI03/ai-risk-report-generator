@@ -2,7 +2,14 @@
 // question the chatbot could not answer. Mark filled and Dismiss each open a dialog and, on
 // success, the request leaves the list. Shown by KnowledgeBase.tsx; talks to api.ts.
 import { useCallback, useEffect, useState } from 'react'
-import { Callout, EmptyState, TableFooter, toast } from '../../../design-system'
+import {
+  Callout,
+  EmptyNote,
+  EmptyState,
+  ListCard,
+  TableFooter,
+  toast,
+} from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { listKnowledgeRequests, uploadKnowledgeDocument, type KnowledgeGapRequest } from '../api'
 import { DismissRequestDialog } from '../components/DismissRequestDialog'
@@ -83,12 +90,12 @@ export function Requests({
           </Callout>
         </div>
       )}
-      <section aria-label="Open requests" className="cl-card kb-card">
+      <ListCard as="section" label="Open requests">
         {requests === null ? (
           !unreachable && (
-            <p className="cl-empty-title" role="status">
+            <EmptyNote centred status>
               Loading requests…
-            </p>
+            </EmptyNote>
           )
         ) : requests.length === 0 ? (
           <EmptyState
@@ -114,7 +121,7 @@ export function Requests({
             <TableFooter>{plural(requests.length, 'open request')}</TableFooter>
           </>
         )}
-      </section>
+      </ListCard>
       {filling && (
         <FillRequestDialog
           request={filling}

@@ -1,30 +1,29 @@
 // The clauses page's list (IN-18): one card with New clause and a filter on top, then a row per
 // clause with where it stands (Ready, To check, Not searchable) and a Try again for the last.
 // Used by screens/ManualSections.tsx.
-import { Button, IconButton, Tooltip } from '../../../design-system'
+import { Badge, Button, IconAction, ListCard } from '../../../design-system'
 import { FilterMenu } from '../../clients/components/FilterMenu'
 import type { ManualSection } from '../api'
 import { SHOWN, type Show } from '../manualClauses'
-import { TonePill } from './TonePill'
 
 // Where a clause stands: in search as saved, copied and not yet checked, or not in search.
 function ClauseState({ section: s }: { section: ManualSection }) {
   if (!s.indexed)
     return (
-      <TonePill tone="red" icon="octagon-alert">
+      <Badge tone="red" icon="octagon-alert">
         Not searchable
-      </TonePill>
+      </Badge>
     )
   if (!s.checked)
     return (
-      <TonePill tone="amber" icon="triangle-alert">
+      <Badge tone="amber" icon="triangle-alert">
         To check
-      </TonePill>
+      </Badge>
     )
   return (
-    <TonePill tone="green" icon="circle-check">
+    <Badge tone="green" icon="circle-check">
       Ready
-    </TonePill>
+    </Badge>
   )
 }
 
@@ -52,7 +51,7 @@ export function ClauseList({
 }) {
   const shown = sections.filter(SHOWN[show])
   return (
-    <section className="kb-manual-list cl-card" aria-label="Clauses">
+    <ListCard as="section" className="kb-manual-list" label="Clauses">
       <div className="kb-manual-list-head">
         <Button
           variant="secondary"
@@ -103,22 +102,18 @@ export function ClauseList({
               <span className="kb-manual-state">
                 <ClauseState section={s} />
                 {!s.indexed && (
-                  <Tooltip label="Try again">
-                    <IconButton
-                      icon="rotate-ccw"
-                      size="sm"
-                      label={`Try ${s.clause} again`}
-                      title={undefined}
-                      style={{ borderRadius: 999, color: 'var(--graphite-600)' }}
-                      onClick={() => onRetry(s)}
-                    />
-                  </Tooltip>
+                  <IconAction
+                    icon="rotate-ccw"
+                    label={`Try ${s.clause} again`}
+                    tooltip="Try again"
+                    onClick={() => onRetry(s)}
+                  />
                 )}
               </span>
             </li>
           ))}
         </ol>
       )}
-    </section>
+    </ListCard>
   )
 }

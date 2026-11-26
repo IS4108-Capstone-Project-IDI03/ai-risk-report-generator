@@ -133,7 +133,7 @@ const group = (name: string) => screen.findByRole('rowgroup', { name })
 // Opens a document's Edit details dialog, from its details (the open row).
 async function edit(title: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: 'Edit details' }))
   return screen.getByRole('dialog', { name: 'Edit details' })
 }
@@ -151,6 +151,8 @@ const line = (text: string) => (_: string, el: Element | null) =>
   el?.tagName === 'P' && el.textContent === text
 // The Needs review banner (IN-05).
 const reviewBanner = () => screen.findByRole('status', { name: 'Documents to review' })
+// The dialog on top: a confirmation opens over the document's details panel, which stays.
+const topDialog = () => screen.getAllByRole('dialog').at(-1)!
 // The table footer's count ("2 documents", "2 of 3 documents").
 const count = (text: string) => screen.getByText(text)
 
@@ -186,7 +188,7 @@ describe('Local standards', () => {
     mockGateway([LOCAL])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+    const details = screen.getByRole('dialog', { name: LOCAL.title })
 
     expect(within(details).getByText('Local standard')).toBeInTheDocument()
     expect(within(details).getByText('Singapore Standards Council')).toBeInTheDocument()
@@ -197,7 +199,7 @@ describe('Local standards', () => {
     mockGateway([{ ...LOCAL, issuingBody: null }])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+    const details = screen.getByRole('dialog', { name: LOCAL.title })
 
     expect(within(details).getByText('None')).toBeInTheDocument()
   })
@@ -267,7 +269,7 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(count('2 documents')).toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     expect(within(details).getByText('Malaysia')).toBeInTheDocument()
     expect(within(details).getByText('Cold store')).toBeInTheDocument()
   })
@@ -341,11 +343,9 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(
-      await within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).findByText(
-        'Singapore',
-      ),
+      await within(screen.getByRole('dialog', { name: REPORT.title })).findByText('Singapore'),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(puts).toEqual([
       {
         id: 'report',
@@ -406,9 +406,7 @@ describe('Knowledge base documents (KB-01)', () => {
       await within(dialog).findByText('Choose a facility type from the list.'),
     ).toBeInTheDocument()
     expect(
-      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
-        'Cold store',
-      ),
+      within(screen.getByRole('dialog', { name: REPORT.title })).getByText('Cold store'),
     ).toBeInTheDocument()
   })
 
@@ -448,7 +446,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
 
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     expect(within(details).getByText('Marsh report')).toBeInTheDocument()
     // The file's size and upload time sit beside the actions; its name is left out,
     // since the title and View original already stand for the file (Jesper, 16 Oct).
@@ -494,7 +492,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     // Hidden until asked for, as the assessment's Version history is.
     expect(within(details).queryByText('Sana Patel', { exact: false })).not.toBeInTheDocument()
 
@@ -513,7 +511,7 @@ describe('Knowledge base documents (KB-01)', () => {
     const puts = mockGateway([CORRECTED], (id, body) => json(200, { ...CORRECTED, ...body, id }))
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     fireEvent.click(within(details).getByRole('button', { name: 'Edit history' }))
     const history = screen.getByRole('dialog', { name: 'Edit history' })
 
@@ -535,12 +533,10 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(puts).toEqual([])
     expect(
-      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
-        'Malaysia',
-      ),
+      within(screen.getByRole('dialog', { name: REPORT.title })).getByText('Malaysia'),
     ).toBeInTheDocument()
   })
 
@@ -551,7 +547,7 @@ describe('Knowledge base documents (KB-01)', () => {
   }
   const open = async (title: string) => {
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-    return screen.getByRole('region', { name: `Details of ${title}` })
+    return screen.getByRole('dialog', { name: title })
   }
 
   it('withdraws an active document after confirming, and shows it as Withdrawn (AC12)', async () => {
@@ -565,7 +561,7 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
     expect(await within(await row(REPORT.title)).findByText('Withdrawn')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual(['report/withdraw'])
     expect(screen.getByText(`${REPORT.title} withdrawn.`)).toBeInTheDocument()
   })
@@ -625,10 +621,8 @@ describe('Knowledge base documents (KB-01)', () => {
 
     expect(await screen.findByText(`${REPORT.title} deleted.`)).toBeInTheDocument()
     expect(deletes).toEqual(['report'])
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('region', { name: `Details of ${REPORT.title}` }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+    expect(screen.queryByRole('dialog', { name: REPORT.title })).not.toBeInTheDocument()
     expect(screen.queryByText(REPORT.title, { selector: 'strong' })).not.toBeInTheDocument()
   })
 
@@ -680,9 +674,9 @@ describe('Knowledge base documents (KB-01)', () => {
       await openKnowledgeBase()
       const dialog = await openCited()
 
-      const remove = within(
-        screen.getByRole('region', { name: `Details of ${CITED.title}` }),
-      ).getByRole('button', { name: 'Delete (cited by a report)' })
+      const remove = within(screen.getByRole('dialog', { name: CITED.title })).getByRole('button', {
+        name: 'Delete (cited by a report)',
+      })
       expect(remove.style.color).toBe('var(--graphite-600)')
       expect(dialog).toHaveTextContent("A report cites this document, so it can't be deleted.")
       expect(within(dialog).queryByLabelText('Document title')).not.toBeInTheDocument()
@@ -708,7 +702,7 @@ describe('Knowledge base documents (KB-01)', () => {
       expect(dialog).toHaveTextContent('It is already withdrawn.')
       expect(within(dialog).queryByRole('button', { name: 'Withdraw instead' })).toBeNull()
       fireEvent.click(within(dialog).getAllByRole('button', { name: 'Close' }).at(-1)!)
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
     })
   })
 
@@ -718,9 +712,9 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(topDialog()).getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual([])
     expect(within(await row(REPORT.title)).getByText('Active')).toBeInTheDocument()
   })
@@ -731,7 +725,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const details = await open(REPORT.title)
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
@@ -746,7 +740,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const details = await open(REPORT.title)
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
@@ -813,7 +807,7 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
 
     expect(await within(await row(REPORT.title)).findByText('Active')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual(['report/reinstate'])
     expect(screen.getByText(`${REPORT.title} reinstated.`)).toBeInTheDocument()
   })
@@ -826,9 +820,9 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reinstate' }))
+    fireEvent.click(within(topDialog()).getByRole('button', { name: 'Reinstate' }))
     fireEvent.click(await within(details).findByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
     expect(await within(details).findByRole('button', { name: 'Reinstate' })).toBeEnabled()
@@ -842,7 +836,7 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
 
     const alert = await within(dialog).findByRole('alert')
@@ -1016,7 +1010,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     const unread = await row(UNREAD.title)
     expect(within(unread).getByText('Needs review')).toBeInTheDocument()
     fireEvent.click(within(unread).getByRole('button', { name: new RegExp(`^${UNREAD.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${UNREAD.title}` })
+    const details = screen.getByRole('dialog', { name: UNREAD.title })
     const flags = within(details).getAllByText('Unconfirmed')
     expect(flags.length).toBeGreaterThan(1)
     for (const flag of flags) expect(flag.querySelector('[role="presentation"]')).toBeTruthy()
@@ -1094,7 +1088,7 @@ describe('Source tier (RT-04)', () => {
     mockGateway([d])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${FM.title}`) }))
-    return screen.getByRole('region', { name: `Details of ${FM.title}` })
+    return screen.getByRole('dialog', { name: FM.title })
   }
 
   it('shows a tier set by an admin, a suggested one, and Unranked', async () => {

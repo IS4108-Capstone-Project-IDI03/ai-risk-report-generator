@@ -1,18 +1,20 @@
 // The User accounts screen: knowledge admins add team members' accounts (F-08), view and update
 // their details (F-03) and assign each one's role (F-05). Shown by features/assessments/AssessmentApp.tsx.
-// Holds the loading and the choice of screen; each screen is in screens/. Every open reads the
-// account from the gateway, so saved changes show on reopening. currentUserId is the signed-in
-// admin, who cannot change their own role or deactivate themselves.
+// Holds the loading; the list is always the screen (screens/AccountList.tsx), an account opens in
+// a side panel over it (components/AccountPanel.tsx) and Add account in a dialog
+// (components/NewAccountDialog.tsx). Every open reads the account from the gateway, so saved
+// changes show on reopening. currentUserId is the signed-in admin, who cannot change their own
+// role or deactivate themselves.
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, Callout } from '../../design-system'
+import { Button, Callout, toast } from '../../design-system'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
 import { getUser, listUsers, roleLabel, type UserAccount } from './api'
 import { formatWhen, problem } from './accountFormat'
+import { AccountPanel } from './components/AccountPanel'
 import { AccountsHeader } from './components/AccountsHeader'
+import { NewAccountDialog } from './components/NewAccountDialog'
 import { AccountList } from './screens/AccountList'
-import { AccountProfile } from './screens/AccountProfile'
-import { NewAccount } from './screens/NewAccount'
 import './accounts.css'
 
 type Loaded<T> = { key: string; data: T } | { key: string; error: string }
@@ -64,7 +66,8 @@ export function UserAccounts({
     setCreated(null)
     setSelected((s) => ({ id, version: (s?.version ?? 0) + 1 }))
   }
-  const back = () => {
+  // Closing the panel reloads the list, so an edit shows in its row.
+  const close = () => {
     setSelected(null)
     setListVersion((v) => v + 1)
   }
@@ -72,66 +75,58 @@ export function UserAccounts({
     setCreated(null)
     setCreating(true)
   }
-  // Back to the list, reloaded so it includes the new account.
+  // Back to the list, reloaded so it includes the new account. A sent invitation is a toast;
+  // one that failed stays as a warning on the list, since it needs Resend invitation.
   const finishCreating = (user: UserAccount | null) => {
     setCreating(false)
-    setCreated(user)
-    if (user) setListVersion((v) => v + 1)
+    if (!user) return
+    setListVersion((v) => v + 1)
+    if (user.invitationExpiresAt)
+      toast.success(`Account created for ${user.name}`, {
+        description: `${user.staffId} is active as a ${roleLabel(user.role).toLowerCase()}. An invitation to set a password was emailed to ${user.email}; its link works until ${formatWhen(user.invitationExpiresAt)}.`,
+      })
+    else setCreated(user)
   }
 
   // F-12: ready once the list has loaded; held back (no offer) while a profile or the new-account form is open.
   const loaded = list?.key === listKey && 'data' in list ? list.data : null
   useWalkthroughScreen('accounts', !!loaded, creating || !!selected || loaded?.length === 0)
 
-  if (creating)
-    return (
-      <NewAccount onCreated={finishCreating} onCancel={() => finishCreating(null)} bell={bell} />
-    )
+  // The open account: loaded, failed, or still loading (null). One panel (keyed by the account)
+  // stays mounted through all three, so closing it returns focus to the row that opened it.
+  const current = selected && profile?.key === profileKey ? profile : null
+  const panel = selected && (
+    <AccountPanel
+      key={selected.id}
+      user={current && 'data' in current ? current.data : null}
+      pending={
+        !current ? (
+          <p className="accounts-loading" role="status">
+            Loading profile…
+          </p>
+        ) : (
+          <Callout
+            tone="danger"
+            title="Profile not loaded"
+            actions={
+              <Button variant="secondary" size="sm" pill onClick={() => open(selected.id)}>
+                Try again
+              </Button>
+            }
+          >
+            {'error' in current ? current.error : ''}
+          </Callout>
+        )
+      }
+      isSelf={selected.id === currentUserId}
+      onSaved={(user) => profileKey && setProfile({ key: profileKey, data: user })}
+      onClose={close}
+    />
+  )
 
-  if (selected) {
-    const current = profile?.key === profileKey ? profile : null
-    if (current && 'data' in current)
-      return (
-        <AccountProfile
-          key={current.key}
-          user={current.data}
-          isSelf={current.data.id === currentUserId}
-          onSaved={(user) => setProfile({ key: current.key, data: user })}
-          onBack={back}
-          bell={bell}
-        />
-      )
-    return (
-      <>
-        <AccountsHeader
-          title="Profile"
-          back={{ label: 'Back to accounts', onClick: back }}
-          bell={bell}
-        />
-        <div className="accounts">
-          {!current ? (
-            <p className="accounts-loading" role="status">
-              Loading profile…
-            </p>
-          ) : (
-            <Callout
-              tone="danger"
-              title="Profile not loaded"
-              actions={
-                <Button variant="secondary" size="sm" pill onClick={() => open(selected.id)}>
-                  Try again
-                </Button>
-              }
-            >
-              {'error' in current ? current.error : ''}
-            </Callout>
-          )}
-        </div>
-      </>
-    )
-  }
-
-  const currentList = list?.key === listKey ? list : null
+  // While the list reloads (after a panel closes) the previous rows stay, so the row that opened
+  // the panel is still there to take focus back.
+  const currentList = list && (list.key === listKey || 'data' in list) ? list : null
   return (
     <>
       <AccountsHeader
@@ -147,18 +142,12 @@ export function UserAccounts({
       <div className="accounts">
         {created && (
           <div role="status">
-            {created.invitationExpiresAt ? (
-              <Callout tone="success" title={`Account created for ${created.name}`}>
-                {`${created.staffId} is active as a ${roleLabel(created.role).toLowerCase()}. An invitation to set a password was emailed to ${created.email}; its link works until ${formatWhen(created.invitationExpiresAt)}.`}
-              </Callout>
-            ) : (
-              <Callout
-                tone="warning"
-                title={`Account created for ${created.name}, but no invitation sent`}
-              >
-                {`The invitation email to ${created.email} could not be sent, so they cannot set a password yet. Open their profile and choose Resend invitation to try again.`}
-              </Callout>
-            )}
+            <Callout
+              tone="warning"
+              title={`Account created for ${created.name}, but no invitation sent`}
+            >
+              {`The invitation email to ${created.email} could not be sent, so they cannot set a password yet. Open their profile and choose Resend invitation to try again.`}
+            </Callout>
           </div>
         )}
         {!currentList ? (
@@ -183,9 +172,18 @@ export function UserAccounts({
             {currentList.error}
           </Callout>
         ) : (
-          <AccountList users={currentList.data} narrow={narrow} onOpen={open} />
+          <AccountList
+            users={currentList.data}
+            narrow={narrow}
+            openId={selected?.id ?? null}
+            onOpen={open}
+          />
         )}
       </div>
+      {panel}
+      {creating && (
+        <NewAccountDialog onCreated={finishCreating} onCancel={() => finishCreating(null)} />
+      )}
     </>
   )
 }

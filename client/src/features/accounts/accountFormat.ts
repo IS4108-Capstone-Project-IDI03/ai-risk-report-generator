@@ -26,13 +26,15 @@ export const EMPTY_ACCOUNT: NewUserAccount = {
   office: '',
 }
 
-/** Returns what the account list and profile say about an account: its label and Badge tone.
+/** Returns the account's StatusPill key for the account list and profile.
  * Deactivated comes first, since such an account cannot sign in whether or not a password is set.
  * Until the owner sets a password from their invitation (F-08), the account is pending. */
-export function accountStatus(user: UserAccount): { label: string; tone: string } {
-  if (!user.active) return { label: 'Deactivated', tone: 'neutral' }
-  if (!user.passwordSet) return { label: 'Invitation pending', tone: 'info' }
-  return { label: 'Active', tone: 'low' }
+export function accountStatus(
+  user: UserAccount,
+): 'account_active' | 'invitation_pending' | 'deactivated' {
+  if (!user.active) return 'deactivated'
+  if (!user.passwordSet) return 'invitation_pending'
+  return 'account_active'
 }
 
 /** Returns a time such as "25 Oct 2026, 09:30", in the viewer's time zone. */
@@ -50,16 +52,6 @@ export function formatWhen(iso: string) {
 export function officeLabel(code: string | null) {
   if (!code) return 'Not set'
   return JURISDICTIONS.find((j) => j.value === code)?.label ?? code
-}
-
-/** Returns up to two capital letters of a name. */
-export function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('')
 }
 
 /** Returns the sentence for a failed call: the cause, then the fix. */

@@ -65,6 +65,8 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: 'When you open a row, the icons at the bottom let you:\n- **Edit details** to correct them.\n- **Edit history** to see what has changed.\n- **View passages** to read its text.\n- **Withdraw** it, which keeps the file but stops new reports from using it.',
       },
       {
+        // Closes the details panel the step before opened, so the filters show (F-12).
+        open: ['knowledge.details-close'],
         target: [
           'knowledge.filter.source',
           'knowledge.filter.country',

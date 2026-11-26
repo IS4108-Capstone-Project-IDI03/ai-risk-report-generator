@@ -1,5 +1,6 @@
 // The account fields shared by adding (F-08) and editing (F-03) an account. Each shows the
-// gateway's problem with it, if any. Called by screens/AccountProfile.tsx and screens/NewAccount.tsx.
+// gateway's problem with it, if any. Called by components/AccountPanel.tsx and
+// components/NewAccountDialog.tsx. Name takes focus as the form opens.
 import { Input, Select } from '../../../design-system'
 import type { UserProfile, UserRole } from '../api'
 import { OFFICE_OPTIONS, ROLE_OPTIONS } from '../accountFormat'
@@ -32,6 +33,7 @@ export function AccountFields({
         value={values.name}
         error={errors.name}
         autoComplete="off"
+        autoFocus
         onChange={(e) => onChange('name', e.target.value)}
       />
       <Input

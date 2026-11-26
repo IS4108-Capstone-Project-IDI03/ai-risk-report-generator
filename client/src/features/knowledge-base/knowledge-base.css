@@ -100,10 +100,6 @@
 
 /* Edit history dialog: each entry leads with when, then who; each change reads field, old value,
    then the new value in semibold. */
-.kb-versions-none {
-  margin: 0;
-  color: var(--graphite-600);
-}
 .kb-versions {
   display: flex;
   flex-direction: column;
@@ -113,7 +109,7 @@
 }
 .kb-versions > li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;

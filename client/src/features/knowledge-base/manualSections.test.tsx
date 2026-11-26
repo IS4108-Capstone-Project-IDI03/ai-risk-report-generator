@@ -158,7 +158,7 @@ async function openKnowledgeBase() {
 async function openClauses(title: string, action = 'Continue editing') {
   await openKnowledgeBase()
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: action }))
   return screen.findByRole('region', { name: 'Clauses' })
 }
@@ -278,7 +278,7 @@ describe('the clauses page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
 
     fireEvent.click(await screen.findByRole('button', { name: /^NFPA 25/ }))
-    const details = screen.getByRole('region', { name: `Details of ${UPLOADED.title}` })
+    const details = screen.getByRole('dialog', { name: UPLOADED.title })
     expect(within(details).queryByRole('button', { name: /clauses/i })).not.toBeInTheDocument()
     expect(
       within(details).queryByRole('button', { name: 'Continue editing' }),

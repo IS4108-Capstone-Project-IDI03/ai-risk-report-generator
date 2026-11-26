@@ -1,14 +1,8 @@
-// A document's details panel (KB-01): every detail, then its actions.
-// Active: Edit details, Edit history (AC9) and Withdraw. Needs review: no Edit
-// details, since the row's Review button covers it (IN-07). Withdrawn: who and
-// when (AC14), Reinstate and Edit history, but no Edit details (AC15);
-// Reinstate is off while another edition is active (IN-07 AC15). Withdraw and
-// Reinstate both open components/StatusChangeDialog.tsx. Delete (IN-12) opens
-// components/DeleteDocumentDialog.tsx. A manual draft (IN-18) has only Publish
-// and Delete draft: its details, history and passages wait until it is published.
-// Used by components/DocumentRow.tsx.
-import { useState, type ReactNode } from 'react'
-import { Button, IconAction, IconRegistry } from '../../../design-system'
+// A document's details, the body of its details panel (KB-01): its status, why it needs review
+// (with the way into Review), then every detail as label and value pairs in two columns, and the
+// file's facts. A withdrawn document adds who withdrew it and when (AC14). Its actions are in
+// components/DocumentActions.tsx, the panel's footer. Used by components/DocumentPanel.tsx.
+import { Button, Callout, Chip, Fact, FactList, StatusPill } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import {
   calendarDate,
@@ -18,55 +12,65 @@ import {
   fileSize,
   isDraft,
   needsReview,
+  reviewReasons,
   sourceLabel,
 } from '../display'
 import { TIER_LABELS } from '../../settings/tiers'
 import { Tip } from '../../help/Tip'
 import { DetailText } from './DetailText'
+import { DocumentStatus } from './DocumentStatus'
 
-/** Returns one document's details and actions. */
+/** Returns one document's details. */
 export function DocumentDetails({
-  id,
   document: d,
-  onEdit,
-  onHistory,
-  onChangeStatus,
-  onDelete,
-  onPassages,
-  onPublish,
-  onClauses,
+  onReview,
   canManage,
 }: {
-  id: string
   document: KnowledgeDocument
-  onEdit: () => void
-  onHistory: () => void
-  onChangeStatus: () => void
-  onDelete: () => void
-  // Opens the document's passages (IN-17); for everyone.
-  onPassages: () => void
-  // Publishes a manual draft (IN-18); settles once the gateway has answered.
-  onPublish: () => Promise<void>
-  // Opens a manual document's clauses (IN-18).
-  onClauses: () => void
-  // Off for a risk engineer: the details show, no action that changes them (IN-17).
+  // Opens its Review page (IN-07); admins only.
+  onReview: () => void
+  // Off for a risk engineer: no way into Review (IN-17).
   canManage: boolean
 }) {
   const standard = d.sourceType !== 'marsh_report'
   const draft = isDraft(d)
-  const [publishing, setPublishing] = useState(false)
-  const publish = () => {
-    setPublishing(true)
-    onPublish().finally(() => setPublishing(false))
-  }
   return (
     <section
-      id={id}
       className="kb-details"
       aria-label={`Details of ${d.title}`}
       data-walk="knowledge.details"
     >
-      <dl className="kb-facts">
+      <div className="kb-details-status">
+        {d.withdrawn ? (
+          <DocumentStatus status="withdrawn" />
+        ) : draft ? (
+          <StatusPill status="manual_draft" />
+        ) : needsReview(d) ? (
+          <DocumentStatus status="needs_review" />
+        ) : (
+          <DocumentStatus status="active" />
+        )}
+        {d.entryMethod === 'manual' && <Chip kind="code">Manual entry</Chip>}
+      </div>
+
+      {/* Why it is kept out of search, and the one way to fix that (IN-07). */}
+      {needsReview(d) && (
+        <Callout
+          tone="warning"
+          title="Not used until it is reviewed"
+          actions={
+            canManage ? (
+              <Button variant="secondary" size="sm" pill onClick={onReview}>
+                Review
+              </Button>
+            ) : undefined
+          }
+        >
+          {reviewReasons(d).join(' · ')}
+        </Callout>
+      )}
+
+      <FactList>
         <Fact label="Source type">
           <DetailText text={sourceLabel(d.sourceType)} />
         </Fact>
@@ -98,145 +102,46 @@ export function DocumentDetails({
           <DetailText text={calendarDate(d.effectiveDate)} />
         </Fact>
         <Fact label="Country">
-          <DetailText text={countryName(d.jurisdiction)} />
+          {d.jurisdiction === null ? (
+            <DetailText text={null} />
+          ) : (
+            <Chip kind="jurisdiction">{countryName(d.jurisdiction)}</Chip>
+          )}
         </Fact>
         <Fact label="Facility type">
-          <DetailText text={facilityName(d.facilityType)} />
+          {d.facilityType === null ? (
+            <DetailText text={null} />
+          ) : (
+            <Chip kind="facility">{facilityName(d.facilityType)}</Chip>
+          )}
         </Fact>
-        {d.withdrawn && d.newerEdition && (
-          <Fact label="Newer edition">{d.newerEdition.edition ?? d.newerEdition.title}</Fact>
-        )}
-        {d.withdrawn && (
+      </FactList>
+
+      {d.withdrawn && (
+        <FactList>
+          <Fact label="Withdrawn">{dateTime(d.withdrawn.at)}</Fact>
+          <Fact label="Withdrawn by">{d.withdrawn.by.name}</Fact>
+          {d.newerEdition && (
+            <Fact label="Newer edition" wide>
+              {d.newerEdition.edition ?? d.newerEdition.title}
+            </Fact>
+          )}
+        </FactList>
+      )}
+
+      {/* The file's facts, quiet, last (IN-12). A manual entry has no file to size (IN-18). */}
+      <p className="kb-file-line">
+        {d.entryMethod === 'manual' ? (
           <>
-            <Fact label="Withdrawn">{dateTime(d.withdrawn.at)}</Fact>
-            <Fact label="Withdrawn by">{d.withdrawn.by.name}</Fact>
+            {draft ? 'Started' : 'Entered'} {dateTime(d.uploadedAt)}
+          </>
+        ) : (
+          <>
+            {d.size !== null && <span className="kb-file-size">{fileSize(d.size)} · </span>}
+            Uploaded {dateTime(d.uploadedAt)}
           </>
         )}
-      </dl>
-      <div className="kb-details-actions">
-        {/* The file's facts, quiet, at the start; its name stays in the tooltip of View
-            original's row, so a long name never pushes the actions around (IN-12). */}
-        <span className="kb-file-line">
-          {d.entryMethod === 'manual' ? (
-            // No file to size: a manual entry was started, then published (IN-18).
-            <>
-              {draft ? 'Started' : 'Entered'} {dateTime(d.uploadedAt)}
-            </>
-          ) : (
-            <>
-              {d.size !== null && <span className="kb-file-size">{fileSize(d.size)} · </span>}
-              Uploaded {dateTime(d.uploadedAt)}
-            </>
-          )}
-        </span>
-        <span className="kb-details-buttons">
-          {/* A manual entry's clauses: still being entered, or amended once published (IN-18).
-              Not once withdrawn: its PDF replaced it. These are the draft's main actions, so
-              they keep their words. */}
-          {canManage && d.entryMethod === 'manual' && !d.withdrawn && (
-            <Button
-              variant={draft ? 'secondary' : 'tonal'}
-              size="sm"
-              pill
-              iconLeft={IconRegistry.action.edit}
-              onClick={onClauses}
-            >
-              {draft ? 'Continue editing' : 'Edit clauses'}
-            </Button>
-          )}
-          {canManage && draft && (
-            <Button
-              variant="primary"
-              size="sm"
-              pill
-              iconLeft="check"
-              loading={publishing}
-              onClick={publish}
-            >
-              Publish
-            </Button>
-          )}
-          {canManage && !draft && !d.withdrawn && !needsReview(d) && (
-            <IconAction
-              icon={IconRegistry.action.edit}
-              label="Edit details"
-              data-walk="knowledge.edit"
-              onClick={onEdit}
-            />
-          )}
-          {!draft && (
-            <>
-              <IconAction
-                icon={IconRegistry.object.history}
-                label="Edit history"
-                data-walk="knowledge.history"
-                onClick={onHistory}
-              />
-              <IconAction
-                icon="list"
-                label="View passages"
-                data-walk="knowledge.passages"
-                onClick={onPassages}
-              />
-            </>
-          )}
-          {canManage && d.withdrawn && (
-            <IconAction
-              icon={IconRegistry.action.reinstate}
-              label="Reinstate"
-              // Off while another edition is active: two are never active at once.
-              disabledReason={
-                d.reinstateBlockedBy
-                  ? {
-                      title: "Can't reinstate yet",
-                      text: 'Another edition of this document is active. Withdraw it first.',
-                    }
-                  : undefined
-              }
-              onClick={onChangeStatus}
-            />
-          )}
-          {canManage && !draft && !d.withdrawn && (
-            <IconAction
-              icon={IconRegistry.action.withdraw}
-              label="Withdraw"
-              data-walk="knowledge.withdraw"
-              onClick={onChangeStatus}
-            />
-          )}
-          {/* Last, set apart: Delete. Not while it is being read: Stop covers that. A cited
-              document gets a locked Delete that explains instead (IN-12). */}
-          {canManage && d.status !== 'queued' && d.status !== 'processing' && (
-            <IconAction
-              className="kb-delete"
-              icon={d.cited ? 'lock' : IconRegistry.action.discard}
-              label={d.cited ? 'Delete (cited by a report)' : draft ? 'Delete draft' : 'Delete'}
-              tooltip={d.cited ? 'Delete (cited by a report)' : draft ? 'Delete draft' : 'Delete'}
-              danger={!d.cited}
-              onClick={onDelete}
-            />
-          )}
-        </span>
-      </div>
+      </p>
     </section>
-  )
-}
-
-// `help` is a help tip (F-13) shown beside the label.
-function Fact({ label, help, children }: { label: string; help?: ReactNode; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="kb-label">
-        {help ? (
-          <span className="kb-label-row">
-            {label}
-            {help}
-          </span>
-        ) : (
-          label
-        )}
-      </dt>
-      <dd>{children}</dd>
-    </div>
   )
 }

@@ -4,12 +4,11 @@
 // (DiscardDialog). Used by components/ReviewPanel.tsx; the page applies the
 // decision.
 import { useState } from 'react'
-import { Button, Callout, Radio } from '../../../design-system'
+import { Badge, Button, Callout, Radio } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import type { DecisionChoice, KnowledgeDocument } from '../api'
 import { choicesFor } from '../decisions'
 import { DiscardDialog } from './DiscardDialog'
-import { TonePill } from './TonePill'
 
 /** Returns the choices and the button that applies the chosen one. */
 export function DecisionPanel({
@@ -60,7 +59,7 @@ export function DecisionPanel({
               label={
                 <span className="kb-choice-label">
                   {c.label}
-                  {c.usual && <TonePill tone="blue">Usual choice</TonePill>}
+                  {c.usual && <Badge tone="blue">Usual choice</Badge>}
                 </span>
               }
               description={c.consequence}

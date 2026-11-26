@@ -1,16 +1,19 @@
 // The knowledge base's Documents tab (KB-01, IN-05, IN-07): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
-// Opening a document's title shows its details; Edit details and Restore open
-// one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
+// Opening a row shows its details in a side panel (DocumentPanel); Edit details and Restore
+// open one dialog over it; Withdraw and Reinstate both ask first (StatusChangeDialog).
 // Shown by KnowledgeBase.tsx; talks to the gateway through api.ts.
 import { useEffect, useState } from 'react'
 import {
   Button,
   Callout,
+  EmptyNote,
   EmptyState,
   IconRegistry,
+  ListCard,
   TableFooter,
   toast,
+  useIsPhone,
 } from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import {
@@ -23,6 +26,7 @@ import { isDraft, needsReview } from '../display'
 import { CitedDeleteDialog } from '../components/CitedDeleteDialog'
 import { DeleteDocumentDialog } from '../components/DeleteDocumentDialog'
 import { DocumentGroup } from '../components/DocumentGroup'
+import { DOCUMENT_TOASTER, DocumentPanel } from '../components/DocumentPanel'
 import { DocumentToolbar } from '../components/DocumentToolbar'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
@@ -79,6 +83,7 @@ export function KnowledgeDocuments({
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
   const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
   const [passagesOf, setPassagesOf] = useState<KnowledgeDocument | null>(null)
+  const phone = useIsPhone()
   // F-12: ready once the list has loaded; held while it is empty, since the walkthroughs point at rows.
   useWalkthroughScreen('knowledge-base', documents !== null, documents?.length === 0)
 
@@ -103,6 +108,13 @@ export function KnowledgeDocuments({
   }, [documents, focused])
 
   const needReview = (documents ?? []).filter(needsReview)
+  const openDocument = documents?.find((d) => d.id === openId) ?? null
+  // While the panel is open on a computer it covers the app's toaster (a modal dialog in the top
+  // layer), so its toasts show inside it; otherwise the app's own notice.
+  const say = (message: string) =>
+    openDocument && !phone
+      ? toast.success(message, { toasterId: DOCUMENT_TOASTER })
+      : notify(message)
   // Loads and saves both change the list, so the tab's count follows it.
   useEffect(() => {
     if (documents) onNeedReview(needReview.length)
@@ -122,14 +134,14 @@ export function KnowledgeDocuments({
     setEditing(null)
     // Without this, a corrected document that no longer matches the filters
     // would just vanish, with no sign the save worked.
-    notify(`Details saved for ${updated.title}.`)
+    say(`Details saved for ${updated.title}.`)
   }
   // Withdraw and reinstate (KB-01). The notice matters under a Status filter,
   // where the row leaves the list.
   const statusChanged = (updated: KnowledgeDocument) => {
     replaced(updated)
     setChangingStatus(null)
-    notify(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
+    say(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
   }
   // Delete (IN-12): the row goes at once, and its open panel with it. The list is
   // then reloaded, since a document that matched the deleted one is matched again.
@@ -145,10 +157,11 @@ export function KnowledgeDocuments({
   const publish = async (draft: KnowledgeDocument) => {
     try {
       replaced(await publishManualDocument(draft.id))
-      notify(`${draft.title} published.`)
+      say(`${draft.title} published.`)
     } catch (error: unknown) {
       toast.error("Can't publish yet", {
         description: error instanceof Error ? error.message : 'Try again shortly.',
+        toasterId: openDocument && !phone ? DOCUMENT_TOASTER : undefined,
       })
     }
   }
@@ -161,7 +174,6 @@ export function KnowledgeDocuments({
     review: (needReview.find((d) => d.match) ?? needReview[0])?.id,
   }
   const clearFilters = () => setFilters(NO_FILTERS)
-  const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
 
   return (
     <div className="kb-content">
@@ -190,14 +202,19 @@ export function KnowledgeDocuments({
         </div>
       )}
 
-      <section aria-label="Documents" className="cl-card kb-card">
-        <DocumentToolbar filters={filters} filtering={filtering} onChange={setFilters} />
+      <ListCard as="section" label="Documents">
+        <DocumentToolbar
+          filters={filters}
+          filtering={filtering}
+          onChange={setFilters}
+          onAdd={canManage ? onAdd : undefined}
+        />
 
         {documents === null ? (
           !unreachable && (
-            <p className="cl-empty-title" role="status">
+            <EmptyNote centred status>
               Loading the knowledge base…
-            </p>
+            </EmptyNote>
           )
         ) : filtering && shown.length === 0 ? (
           <EmptyState
@@ -228,16 +245,12 @@ export function KnowledgeDocuments({
             {/* A real table, so every header sits over its own column. */}
             <table className="cl-table kb-table" aria-label="Documents">
               <colgroup>
-                <col className="kb-col-toggle" />
                 <col />
                 <col className="kb-col-status" />
-                <col className="cl-col-actions-1" />
+                <col className="kb-col-actions" />
               </colgroup>
               <thead data-walk="knowledge.head">
                 <tr>
-                  <th scope="col">
-                    <span className="kb-sr">Open details</span>
-                  </th>
                   <th scope="col">Document</th>
                   <th scope="col" data-walk="knowledge.status.head">
                     Status
@@ -259,15 +272,8 @@ export function KnowledgeDocuments({
                     documents={rows}
                     openId={openId}
                     focused={focused}
-                    onToggle={toggle}
-                    onEdit={(document) => setEditing({ document })}
-                    onHistory={setHistoryOf}
-                    onChangeStatus={setChangingStatus}
-                    onDelete={setDeleting}
+                    onOpen={(document) => setOpenId(document.id)}
                     onReview={(document) => onReview(document.id, filters)}
-                    onPassages={setPassagesOf}
-                    onPublish={publish}
-                    onClauses={(document) => onClauses(document.id, filters)}
                     canManage={canManage}
                     walk={walk}
                   />
@@ -285,7 +291,21 @@ export function KnowledgeDocuments({
             </TableFooter>
           </>
         )}
-      </section>
+      </ListCard>
+
+      <DocumentPanel
+        document={openDocument}
+        onClose={() => setOpenId(null)}
+        onReview={() => openDocument && onReview(openDocument.id, filters)}
+        onEdit={() => openDocument && setEditing({ document: openDocument })}
+        onHistory={() => setHistoryOf(openDocument)}
+        onChangeStatus={() => setChangingStatus(openDocument)}
+        onDelete={() => setDeleting(openDocument)}
+        onPassages={() => setPassagesOf(openDocument)}
+        onPublish={() => (openDocument ? publish(openDocument) : Promise.resolve())}
+        onClauses={() => openDocument && onClauses(openDocument.id, filters)}
+        canManage={canManage}
+      />
 
       {passagesOf && <PassagesDialog document={passagesOf} onClose={() => setPassagesOf(null)} />}
       {historyOf && (

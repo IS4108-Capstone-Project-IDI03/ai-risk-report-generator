@@ -1,5 +1,5 @@
 /* The Requests tab (CB-07): the open requests in one list card, and the quoted question at the top
-   of the fill and dismiss dialogs. Frame and footer are clients.css (cl-card). */
+   of the fill and dismiss dialogs. Frame and footer are the shared ListCard. */
 .kb-request-list {
   margin: 0;
   padding: 0;
@@ -8,7 +8,7 @@
 /* One request: who and when, the question, the engineer's words, and the actions on the right. */
 .kb-request {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px 24px;
   padding: 16px 20px;
