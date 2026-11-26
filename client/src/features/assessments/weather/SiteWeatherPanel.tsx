@@ -3,8 +3,8 @@
 // applies (AC3), the source and that it is advisory (AC4), when it was last updated in the
 // site's own time (AC6), and a 44 px Refresh (AC7). It blocks nothing: an engineer may be
 // recording at their desk. A bar across the top of the Overview's conversation
-// (marshbot/screens/MarshBotOverview.tsx) and a card above New Observation's form
-// (screens/SiteObservation.tsx). Calls useSiteWeather.ts.
+// (marshbot/screens/MarshBotOverview.tsx) and a slim card in New Observation's header, above its
+// form on a phone (screens/SiteObservation.tsx). Calls useSiteWeather.ts.
 import { Icon, IconButton } from '../../../design-system'
 import type { SiteWeather, WeatherReading, WeatherSource } from './api'
 import { useSiteWeather } from './useSiteWeather'

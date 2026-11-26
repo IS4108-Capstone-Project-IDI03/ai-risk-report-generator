@@ -16,7 +16,10 @@ export function ChecklistPane({ v }: { v: AssessmentWorkflow }) {
           Rebuild it on the Checklist tab
         </Button>
       </div>
-      <p className="cap-checklist-pane-note">{answerPlace(v.currentLocation)}</p>
+      {/* Only once a place is chosen: where answers go. Before that the form's Location says it. */}
+      {v.currentLocation && (
+        <p className="cap-checklist-pane-note">{answerPlace(v.currentLocation)}</p>
+      )}
       <div className="cap-checklist-pane-body cl-cards">
         {/* Keyed so it reads the checklist again once a difference is recorded and saved. */}
         <ChecklistBody key={v.fChecklistItem?.id ?? 'none'} v={v} link={false} />

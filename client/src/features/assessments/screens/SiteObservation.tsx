@@ -1,8 +1,8 @@
-// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). One form card in the
-// left half (location, what was seen as a note, voice, photos or pages, then categories, severity,
-// tags, Cancel and Save) under the site's weather (CP-62); the checklist in the right half (CP-37),
-// the Checklist tab's own cards, never shorter than the form and scrolling inside itself past the
-// window's bottom edge. One column on a phone, with Cancel and Save in the bar at the bottom of
+// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). The site's weather
+// (CP-62) in the header; one form card in the left half (location, what was seen as a note, voice,
+// photos or pages, then categories, severity, tags, Cancel and Save) that fits a laptop's window;
+// the checklist in the right half (CP-37), the Checklist tab's own cards, never shorter than the
+// form and scrolling inside itself past the window's bottom edge. One column on a phone, with Cancel and Save in the bar at the bottom of
 // the screen. Split into the Capture* components. Called by AssessmentApp.
 import { useEffect, useId, useState } from 'react'
 import { Button, Dialog, Icon } from '../../../design-system'
@@ -30,7 +30,7 @@ import { useNewObservationWalk } from '../newObservationWalk'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../capture.css'
 
-// The one line under the title: what to do, and what happens to what is left blank.
+// The one line under a phone's top bar: what to do, and what happens to what is left blank.
 const HELPER =
   "Choose a location and add what you saw. Leave category and severity blank and they'll be suggested once you save."
 
@@ -65,6 +65,10 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [unsaved])
+  // The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may be
+  // recording at their desk. A slim card at the header's right end, so the form below fits the
+  // window; a phone has no header here, so it tops the form.
+  const weather = <SiteWeatherPanel reference={v.liveReference} layout="card" />
   return (
     <>
       <div className="cap-page cap-page--v2">
@@ -74,18 +78,21 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         ) : (
           <ScreenHeader
             title="New Observation"
-            // For a site walk proposal, where it will be added, once a location is chosen.
+            // For a site walk proposal, where it will be added, once a location is chosen. A plain
+            // observation has no line: the form says what it needs (Location's *, the category
+            // (?) tip), so the whole form fits under the header on a laptop.
             detail={
               v.proposalCapture
                 ? v.locationLabel
                   ? 'Adds to the site walk at ' + v.locationLabel
                   : 'Pick a location, add what you saw, then add it'
-                : HELPER
+                : undefined
             }
             back={v.proposalCapture ? 'Site walk proposal' : 'Observations'}
             onBack={v.leaveCapture}
             // F-12: "Add an observation" presses Back (the phone bar's ← carries the same tag).
             backWalk="new-observation.back"
+            actions={weather}
           />
         )}
         {v.captureFailed && (
@@ -95,9 +102,7 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         )}
         <div ref={grid} className="cap-layout" data-pane={pane ? '' : undefined}>
           <div className="cap-main">
-            {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer
-                may be recording at their desk. */}
-            <SiteWeatherPanel reference={v.liveReference} layout="card" />
+            {v.phone && weather}
             <section aria-label="Details" className="cap-panel cap-form">
               {/* a. Where, and what was seen. */}
               <div className="cap-group">

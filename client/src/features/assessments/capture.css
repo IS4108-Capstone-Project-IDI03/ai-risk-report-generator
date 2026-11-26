@@ -538,8 +538,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin: 24px -24px -24px;
-  padding: 16px 24px;
+  margin: 12px -20px -16px;
+  padding: 10px 20px;
   border-top: 1px solid var(--graphite-100);
   border-radius: 0 0 16px 16px;
   background: var(--surface-card);
@@ -570,21 +570,27 @@
 .cap-main {
   min-width: 0;
 }
-/* The form card. Two groups (where and what; how to file it) split by a hairline, fields 24 px
-   apart; its width decides how many categories sit in a row. */
+/* The form card. Two groups (where and what; how to file it) split by a hairline, fields 12 px
+   apart and groups 16, so the whole form fits a 1280 x 800 laptop without scrolling; its width
+   decides how many categories sit in a row. */
 .cap-form {
   container: cap-form / inline-size;
-  padding: 24px;
+  padding: 16px 20px;
+}
+/* The groups and the foot set their own space; without this the Add location form's 16 px gap
+   was added on top, so the hairline sat 32 px under the note and 16 over the categories. */
+.cap-panel.cap-form {
+  gap: 0;
 }
 .cap-group {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
   min-width: 0;
 }
 .cap-group + .cap-group {
-  margin-top: 24px;
-  padding-top: 24px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--graphite-100);
 }
 .cap-form .cap-saw {
@@ -593,17 +599,63 @@
 .cap-saw .cap-label {
   margin-bottom: 0;
 }
-@container cap-form (min-width: 600px) {
+/* Four across in one row once the card has room (a laptop's left half); two by two narrower. */
+@container cap-form (min-width: 420px) {
   .cap-cats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cap-form .cap-cat {
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+  .cap-form .cap-cat > svg,
+  .cap-form .cap-cat > .ds-icon {
+    flex: none;
+  }
+}
+/* A narrow card (a 1280 px laptop with the sidebar open): the four keep one row by dropping their
+   icons, words centred; the chosen one still takes its category's colour. Without this,
+   "Construction" ran into its tile's edge. */
+@container cap-form (min-width: 420px) and (max-width: 519px) {
+  .cap-form .cap-cat {
+    justify-content: center;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
+  /* !important: Icon sets its display inline. */
+  .cap-form .cap-cat > :not(input) {
+    display: none !important;
+  }
+}
+/* A mouse needs no 44 px target: the 40 px field height, as the modes and severity above. */
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+  .cap-form .cap-cat {
+    min-height: 40px;
   }
 }
 .cap-modes {
   margin: 0;
 }
+/* The header with no line under its title: Back's height, so the form starts higher. The site
+   weather sits at its right end, left-aligned in its slim card; under 820 px it goes under the
+   title (screen-header.css). */
+.cap-page--v2 > .sh .sh-in {
+  min-height: 44px;
+}
+.cap-page--v2 > .sh .sh-actions .wx {
+  flex: 0 1 auto;
+  max-width: 400px;
+  margin: 0;
+  text-align: left;
+}
 @media (max-width: 767px) {
   .cap-form {
     padding: 20px 16px;
+  }
+  .cap-foot {
+    margin: 16px -16px -20px;
+    padding: 12px 16px;
   }
   .cap-group {
     gap: 20px;
@@ -613,15 +665,15 @@
     padding-top: 20px;
   }
 }
-/* The note grows with its words (5 lines at least); the dictate mic, and any dictation error to
-   its left, sit in a strip kept free at the box's foot. */
+/* The note grows with its words (2 lines at least, 5 on a phone); the dictate mic, and any
+   dictation error to its left, sit in a strip kept free at the box's foot. */
 .cap-note {
   position: relative;
 }
 /* !important: the shared Textarea sets its padding and resize inline. */
 .cap-note textarea {
-  min-height: 148px;
-  padding-bottom: 48px !important;
+  min-height: 96px;
+  padding-bottom: 44px !important;
   resize: none !important;
   field-sizing: content;
 }
@@ -643,6 +695,9 @@
 @media (max-width: 767px) {
   .cap-media textarea {
     font-size: 16px !important;
+  }
+  .cap-note textarea {
+    min-height: 148px;
   }
 }
 
@@ -667,6 +722,36 @@
   font: 700 25px/31px var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
+/* Wider than a phone: two lines, the bars beside the clock, then Start recording beside Upload,
+   so the Voice tab fits the form in a laptop's window as the note does. The ::before is a line
+   break (order 2) that keeps the buttons on their own line however wide the card. */
+@media (min-width: 768px) {
+  .cap-rec {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0 16px;
+    padding: 12px 16px;
+  }
+  .cap-rec::before {
+    content: '';
+    flex-basis: 100%;
+    order: 2;
+  }
+  .cap-rec-bars {
+    height: 28px;
+  }
+  .cap-rec > button {
+    flex: 1 1 0;
+    order: 3;
+    margin-top: 10px;
+  }
+  .cap-rec > .cap-pick {
+    order: 4;
+    margin-top: 10px;
+    height: 40px;
+  }
+}
 /* The clips sit in the walk list's grey rounded panel (boards 05 to 12f). The Record screen's own
    sheet (site-walk/recording.css) makes .sw-list a white card, so the panel is stated here, as
    observation-page.css does for .cpp-list; the list also carries the --sw-* values the row reads. */
@@ -681,6 +766,16 @@
 }
 .cap-media-fill .cap-hint {
   text-align: center;
+}
+/* The Photo and Scan tabs' hints a step smaller and closer, so the form still fits a laptop. */
+@media (min-width: 768px) {
+  .cap-media-fill.cap-pickers {
+    gap: 6px;
+  }
+  .cap-media-fill .cap-hint {
+    font-size: 13px;
+    line-height: 18px;
+  }
 }
 /* The pickers as v2 pills (a grey pill, or the quiet navy link), 40 px, 44 px on touch. */
 .cap-pick {
@@ -745,6 +840,11 @@
   white-space: nowrap;
   overflow: hidden;
 }
+/* No Confirm or Change here, so the label line is the label's own height (the shared one keeps
+   28 px for them). */
+.cap-loc-field .cpf-label {
+  min-height: 20px;
+}
 /* The place's own name gives way first, with an ellipsis: without it a long name was cut
    mid-word under the chevron ("Racking aisl"). */
 .cap-loc-field .location-path-part:last-child {
@@ -771,6 +871,7 @@
 .cap-checklist-pane {
   display: flex;
   flex-direction: column;
+  gap: 12px;
   min-width: 0;
   min-height: 0;
 }
@@ -803,7 +904,7 @@
   letter-spacing: -0.01em;
 }
 .cap-checklist-pane-note {
-  margin: 4px 0 16px;
+  margin: -8px 0 0;
   color: var(--text-muted);
   font: 400 13px/18px var(--font-sans);
 }

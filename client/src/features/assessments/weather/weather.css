@@ -1,5 +1,5 @@
 /* Site weather (CP-62, NEW pattern): the panel (a bar across the Overview's conversation, a
-   card above New Observation's form), its one warning, and a dashboard row's weather line.
+   slim card in New Observation's header), its one warning, and a dashboard row's weather line.
    Red is a storm or rain now (do not proceed), amber is rain expected, the ink blue is dry. */
 
 .wx {
@@ -28,15 +28,48 @@
   margin-inline: auto;
   padding: 10px 32px 10px 24px;
 }
-/* New Observation: a card above the two cards of the form. */
+/* New Observation: a slim card at its header's right end (above the form on a phone), its lines
+   run on as one where they fit (a 28 px tile, 32 px Refresh with a mouse), so the form below
+   fits a laptop's window. Only New Observation uses this layout; the Overview's bar is untouched. */
 .wx[data-layout='card'] {
   margin-bottom: 12px;
   background: var(--surface-card);
   border: 1px solid var(--graphite-200);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 .wx[data-layout='card'] .wx-in {
-  padding: 12px 12px 12px 16px;
+  gap: 8px;
+  padding: 6px 6px 6px 8px;
+}
+.wx[data-layout='card'] .wx-banner {
+  margin: 2px 2px 0 0;
+}
+.wx[data-layout='card'] .wx-row {
+  gap: 10px;
+}
+.wx[data-layout='card'] .wx-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.wx[data-layout='card'] .wx-tile > * {
+  width: 16px;
+  height: 16px;
+}
+.wx[data-layout='card'] .wx-text {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+}
+.wx[data-layout='card'] .wx-next {
+  row-gap: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .wx[data-layout='card'] .wx-refresh {
+    width: 32px !important;
+    height: 32px !important;
+  }
 }
 
 .wx-row {

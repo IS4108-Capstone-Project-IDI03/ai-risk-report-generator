@@ -58,6 +58,9 @@ export function ChecklistBody({ v, link = true }: { v: AssessmentWorkflow; link?
             : null
         }
         regenerateHint="Regenerate it on the Checklist tab."
+        // The checklist's notes ("No past Marsh reports match...") stay on the Checklist tab, so
+        // the questions come first where they are answered.
+        notes={false}
         onViewObservation={v.showObservation}
       />
     </div>
