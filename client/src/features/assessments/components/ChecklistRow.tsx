@@ -119,7 +119,7 @@ export function ChecklistRow({
           aria-label={state.label}
           data-mark={item.check?.result ?? 'none'}
         >
-          {state.icon && <Icon name={state.icon} size={16} />}
+          {state.icon && <Icon name={state.icon} size={13} />}
         </span>
       ) : (
         <button
@@ -129,7 +129,7 @@ export function ChecklistRow({
           aria-label={`${title}: ${state.label}, press to change`}
           onClick={() => onMark(nextMark(item.check?.result))}
         >
-          {state.icon && <Icon name={state.icon} size={16} />}
+          {state.icon && <Icon name={state.icon} size={13} />}
         </button>
       )}
       {editing ? (

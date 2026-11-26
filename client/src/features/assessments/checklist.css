@@ -272,8 +272,10 @@
   }
 }
 
-/* ---- The state mark: a round 32 px button that cycles (44 px on a phone) ---- */
+/* ---- The state mark: a 22 px ring inside a 32 px button (44 px under a finger), so the tap
+   area stays full size while the mark stays small, like a Reminders circle ---- */
 .cl-state {
+  position: relative;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -281,15 +283,32 @@
   width: var(--control-height-sm);
   height: var(--control-height-sm);
   padding: 0;
-  background: var(--surface-card);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
   cursor: pointer;
+  color: var(--text-secondary);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.cl-state::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
   border: 1.5px solid var(--graphite-400);
   border-radius: var(--radius-pill);
-  color: var(--text-secondary);
+  background: var(--surface-card);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    border-color var(--duration-fast) var(--ease-standard);
+}
+/* The tick or cross sits on the ring. */
+.cl-state > * {
+  position: relative;
 }
 button.cl-state:active {
   transform: scale(0.92);
@@ -309,19 +328,37 @@ button.cl-state:active {
 }
 .cl-state[data-mark='confirmed'] {
   color: var(--green-600);
+}
+.cl-state[data-mark='confirmed']::before {
   border-color: var(--green-600);
   background: var(--green-50);
 }
 .cl-state[data-mark='differs'] {
   color: var(--red-600);
+}
+.cl-state[data-mark='differs']::before {
   border-color: var(--red-600);
   background: var(--red-50);
 }
 .cl-state[data-mark='not_seen'],
 .cl-state[data-mark='not_applicable'] {
   color: var(--text-muted);
+}
+.cl-state[data-mark='not_seen']::before,
+.cl-state[data-mark='not_applicable']::before {
   border-color: var(--graphite-400);
   background: var(--surface-active);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.cl-state[data-mark='none']:hover::before {
+    border-color: var(--graphite-600);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-state,
+  .cl-state::before {
+    transition: none;
+  }
 }
 .cl-state[disabled],
 span.cl-state {
