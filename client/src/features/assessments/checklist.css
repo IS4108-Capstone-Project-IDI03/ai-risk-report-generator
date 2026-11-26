@@ -54,8 +54,9 @@
   color: var(--red-600);
 }
 
-/* ---- A report section: its title and count, then its rows. Flat in the site-walk pane and the
-   phone sheet (already a card or sheet); a card of its own on the tab (.ck-page). ---- */
+/* ---- A report section: its title and count, then its rows. A white card of its own wherever
+   the list sits on the grey page (.cl-cards: the tab and New Observation's checklist column), so
+   both read as the same checklist; flat in the phone sheet, which is already a surface. ---- */
 .cl-section {
   margin: 0 0 24px;
 }
@@ -69,13 +70,13 @@
   box-sizing: border-box;
   border-bottom: 1px solid var(--border-subtle);
 }
-.ck-page .cl-section {
+.cl-cards .cl-section {
   margin-bottom: 16px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
 }
-.ck-page .cl-head {
+.cl-cards .cl-head {
   min-height: 52px;
   padding: 12px 16px;
 }
@@ -99,9 +100,11 @@
   margin: 0;
   padding: 0;
 }
+/* v2: a row's leading marker (here the state ring) is centred on the row's height, however many
+   lines its words take. */
 .cl-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   margin: 0;
   padding: 10px 4px;
@@ -113,13 +116,13 @@
 .cl-row {
   border-radius: var(--radius-field);
 }
-.ck-page .cl-row {
+.cl-cards .cl-row {
   padding: 10px 12px 10px 16px;
   border-radius: 0;
 }
 /* The card has no overflow clip (its menus open past it), so the last row rounds itself. */
-.ck-page .cl-section > .cl-rows:last-child > .cl-row:last-child,
-.ck-page .cl-show-more {
+.cl-cards .cl-section > .cl-rows:last-child > .cl-row:last-child,
+.cl-cards .cl-show-more {
   border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -150,7 +153,7 @@
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.ck-page .cl-show-more {
+.cl-cards .cl-show-more {
   padding: 0 16px;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -167,7 +170,7 @@
   /* One set of metrics, so the editor sits exactly where the text was. */
   box-sizing: border-box;
   margin: 0;
-  /* (mark height - line height) / 2 puts the first line's middle level with the mark's middle. */
+  /* (mark height - line height) / 2: a one-line row is exactly the mark's height. */
   padding: calc((var(--control-height-sm) - var(--text-body-lh)) / 2) 0;
   font: inherit;
   font-size: var(--text-body-size);
@@ -424,7 +427,7 @@ span.cl-state {
   flex-direction: column;
   gap: 12px;
 }
-.ck-page .cl-add-form {
+.cl-cards .cl-add-form {
   padding: 20px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
@@ -670,11 +673,11 @@ span.cl-state {
   .cl-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: start;
+    align-items: center;
     column-gap: 8px;
     padding: 6px 0;
   }
-  .ck-page .cl-row {
+  .cl-cards .cl-row {
     padding: 6px 4px 6px 12px;
   }
   .cl-state {
@@ -707,7 +710,7 @@ span.cl-state {
     min-height: 32px;
   }
   .cl-build > section,
-  .ck-page .cl-add-form {
+  .cl-cards .cl-add-form {
     padding: 16px;
   }
   .cl-pick-btn,

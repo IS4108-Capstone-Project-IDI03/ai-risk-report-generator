@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Callout, EmptyState, IconButton, toast } from '../../../design-system'
+import { Button, Callout, EmptyState, IconAction, toast } from '../../../design-system'
 import { downloadChecklistPdf, generateChecklist, GatewayError, type ChecklistChoice } from '../api'
 import { ChecklistBuild } from '../components/ChecklistBuild'
 import { ChecklistItems, type ChecklistAnswering } from '../components/ChecklistItems'
@@ -64,7 +64,7 @@ export function Checklist({
 
   if (loadError) {
     return (
-      <div className="ck-page">
+      <div className="ck-page cl-cards">
         <Callout tone="danger" title="The checklist could not be loaded">
           {loadError}
         </Callout>
@@ -127,7 +127,7 @@ export function Checklist({
   // Before any checklist, and when Regenerate is pressed, the engineer builds one.
   const building = canGenerate && (!view.checklist || rebuilding)
   return (
-    <div className="ck-page">
+    <div className="ck-page cl-cards">
       {!building && (
         <div className="cl-top">
           <div className="cl-top-title">
@@ -137,12 +137,11 @@ export function Checklist({
           </div>
           <div className="cl-top-actions">
             {view.checklist && (
-              <IconButton
+              <IconAction
                 icon="download"
                 label="Download checklist PDF"
                 tooltip="Download PDF"
-                className="ds-icon-button--shaded"
-                style={{ borderRadius: 'var(--radius-pill)' }}
+                shaded
                 data-walk="checklist.download"
                 disabled={downloading}
                 onClick={() => void downloadPdf()}

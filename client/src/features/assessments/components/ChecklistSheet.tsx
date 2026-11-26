@@ -10,7 +10,8 @@ import { ChecklistItems } from './ChecklistItems'
 // the tab. It loads each time it opens, so it shows the checklist as it is now.
 // ChecklistBody is shared with ChecklistPane, the same list beside the recording (CP-37).
 /** Returns the checklist as it is answered on site: loading, error, empty or the items. */
-export function ChecklistBody({ v }: { v: AssessmentWorkflow }) {
+// `link` false leaves out the way to the tab, for a caller that shows it in its own header.
+export function ChecklistBody({ v, link = true }: { v: AssessmentWorkflow; link?: boolean }) {
   const reference = v.captureRef
   const { view, setView, loadError, reload } = useChecklist(reference)
   const location = v.currentLocation
@@ -30,15 +31,17 @@ export function ChecklistBody({ v }: { v: AssessmentWorkflow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {/* Building and regenerating stay on the tab; this is the way there. */}
-      <Button
-        variant="link"
-        size="sm"
-        iconRight="arrow-right"
-        style={{ alignSelf: 'flex-start' }}
-        onClick={v.goToChecklistTab}
-      >
-        Rebuild it on the Checklist tab
-      </Button>
+      {link && (
+        <Button
+          variant="link"
+          size="sm"
+          iconRight="arrow-right"
+          style={{ alignSelf: 'flex-start' }}
+          onClick={v.goToChecklistTab}
+        >
+          Rebuild it on the Checklist tab
+        </Button>
+      )}
       <ChecklistItems
         key={view.checklist.id}
         reference={reference}

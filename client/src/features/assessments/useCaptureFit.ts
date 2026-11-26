@@ -1,9 +1,9 @@
-// Fits New Observation's two cards to the screen (CP-24): the right card may grow to the window's
-// bottom edge and no further, and is never shorter than the left card. Used by
-// screens/SiteObservation.tsx; capture.css reads the --cap-room it sets, from 1080px up.
+// Fits New Observation's two halves to the screen (CP-24, CP-37): the checklist on the right may
+// grow to the window's bottom edge and no further, and is never shorter than the form on the left.
+// Used by screens/SiteObservation.tsx; capture.css reads the --cap-room it sets.
 import { useLayoutEffect, useRef } from 'react'
 
-// Returns the ref for the cards' grid. --cap-room is the room from the grid's top to the bottom
+// Returns the ref for the halves' grid. --cap-room is the room from the grid's top to the bottom
 // of the area that scrolls (the workspace's om-scroll), less the 16 px kept under the cards; but
 // never less than the left card, so a short window scrolls the page instead of shrinking it.
 export function useCaptureFit<T extends HTMLElement>() {

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { Kind } from '../api'
 import { KindBadges } from './KindBadges'
 import { KindPicker } from './KindPicker'
+import { RecordCard } from './RecordCard'
 
 type Change = { kinds?: Kind[] | null; labels?: string[] | null }
 
@@ -41,14 +42,13 @@ export function ObservationKinds({
   }
   if (!canChange)
     return (
-      <section className="cpp-card" aria-label="Tags">
-        <h3 className="cpp-card-title">{'Tags'}</h3>
+      <RecordCard title="Tags">
         {kinds?.length || labels?.length ? (
           <KindBadges kinds={kinds} labels={labels} />
         ) : (
           <p className="cpp-note-text">{'None (a Fact).'}</p>
         )}
-      </section>
+      </RecordCard>
     )
   return (
     <section className="cpp-card" aria-label="Tags">

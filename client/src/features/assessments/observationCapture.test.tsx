@@ -1027,8 +1027,8 @@ describe('Recordings are transcribed before Save (CP-24 AC1-3)', () => {
 })
 
 describe('Capture layout', () => {
-  // The details panel: the location, tags and (on a wide screen) Save.
-  const tagsCard = () => screen.getByRole('region', { name: 'Details' }).parentElement!
+  // The one form card: the location, what was seen, categories, severity, tags and (wide) Save.
+  const tagsCard = () => screen.getByRole('region', { name: 'Details' })
   async function atWidth(width: number, test: () => Promise<void>) {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -1039,17 +1039,16 @@ describe('Capture layout', () => {
     }
   }
 
-  it('puts the tags and Save in a panel beside the form on a wide screen', () =>
+  it('puts what was seen, the tags and Save in one form card on a wide screen', () =>
     atWidth(1280, async () => {
       await openCapture()
 
       const panel = tagsCard()
       expect(within(panel).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
       expect(within(panel).getByRole('radiogroup', { name: 'Severity' })).toBeInTheDocument()
-      expect(within(panel).queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
-      // The media panel sits beside it, and the back button is above both.
+      // What was seen is a group inside the same card, and the back button is above it.
       expect(
-        within(screen.getByRole('region', { name: 'What you saw' })).getByRole('textbox', {
+        within(within(panel).getByRole('region', { name: 'What you saw' })).getByRole('textbox', {
           name: 'Note',
         }),
       ).toBeInTheDocument()

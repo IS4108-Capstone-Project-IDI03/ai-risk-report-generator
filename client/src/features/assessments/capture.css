@@ -89,17 +89,7 @@
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
-/* Stacked on a phone. data-split (set from the workflow's captureSplit) puts
-   them side by side; stretch makes the media panel as tall as the details one. */
-.cap-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-.cap-grid[data-split] {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-}
+/* New Observation's one form card: white, radius 16, its fields in two groups under a hairline. */
 .cap-panel {
   display: flex;
   flex-direction: column;
@@ -110,35 +100,17 @@
     0 1px 2px rgb(0 15 71 / 0.06),
     0 0 0 1px var(--cap-line);
 }
-.cap-panel-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 20px;
-  min-width: 0;
-}
-.cap-panel-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-secondary);
-}
-/* The media panel's content grows to fill the panel; an empty mode is centred in it. */
+/* What was seen: a note, or the Voice, Photo and Scan panels, as tall as their content. */
 .cap-media {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 0 20px 20px;
+  gap: 12px;
   min-width: 0;
 }
 .cap-media > * {
   min-width: 0;
 }
 .cap-media-fill {
-  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -511,9 +483,6 @@
   /* Its width decides whether the checklist fits beside the two cards (below). */
   container: cap-page / inline-size;
 }
-.cap-page--v2 .cap-grid {
-  margin-bottom: 16px;
-}
 .cap-phone-helper {
   margin: 0 0 12px;
   color: var(--text-secondary);
@@ -523,14 +492,14 @@
   padding: 0 clamp(16px, 2vw, 28px) 12px;
 }
 
-/* Fields in the details card: the v2 label (12 / 600), as the Location field draws it. */
-.cap-panel-body .cap-label {
+/* Fields in the form card: the v2 label (12 / 600), as the Location field draws it. */
+.cap-form .cap-label {
   padding: 0;
   margin: 0 0 4px;
   color: var(--graphite-700);
   font: 600 12px/1.3 var(--font-sans);
 }
-.cap-panel-body .cap-field {
+.cap-form .cap-field {
   gap: 0;
 }
 .cap-sev .ds-segmented,
@@ -560,14 +529,20 @@
   }
 }
 
-/* Cancel and Save observation: under Severity, right-aligned, above a hairline, 40 px tall. */
+/* Cancel and Save observation: under the tags, right-aligned, above a hairline, 40 px tall. While
+   the card runs past the window, they stay pinned to its bottom edge, so Save is always in reach. */
 .cap-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 4px;
-  padding-top: 16px;
+  margin: 24px -24px -24px;
+  padding: 16px 24px;
   border-top: 1px solid var(--graphite-100);
+  border-radius: 0 0 16px 16px;
+  background: var(--surface-card);
 }
 .cap-foot-buttons {
   display: flex;
@@ -580,31 +555,89 @@
   gap: 8px;
 }
 
-/* The two cards. The left keeps its own height; the right is never shorter than it (a short note
-   fills down to its bottom edge) and, from 1080 px, stops at the window's bottom edge, its
-   contents scrolling inside it under the switch. --cap-room comes from useCaptureFit.ts. */
-.cap-grid[data-split] > :first-child {
-  align-self: start;
+/* The page: the form in the left half, the checklist in the right (data-pane). Without the
+   checklist beside it (a narrower window, or no checklist yet) the form is one readable column. */
+.cap-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  max-width: 760px;
+  margin: 0 auto 16px;
 }
-.cap-grid[data-split] > .cap-panel--media {
-  max-height: var(--cap-room, none);
-  min-height: 0;
+.cap-layout[data-pane] {
+  max-width: none;
 }
-.cap-grid[data-split] .cap-media {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.cap-main {
+  min-width: 0;
 }
-.cap-modes {
-  margin: 16px 20px;
+/* The form card. Two groups (where and what; how to file it) split by a hairline, fields 24 px
+   apart; its width decides how many categories sit in a row. */
+.cap-form {
+  container: cap-form / inline-size;
+  padding: 24px;
 }
-.cap-media > label:has(textarea) {
-  flex: 1;
+.cap-group {
   display: flex;
   flex-direction: column;
+  gap: 24px;
+  min-width: 0;
 }
-.cap-media textarea {
-  flex: 1;
+.cap-group + .cap-group {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--graphite-100);
+}
+.cap-form .cap-saw {
+  gap: 8px;
+}
+.cap-saw .cap-label {
+  margin-bottom: 0;
+}
+@container cap-form (min-width: 600px) {
+  .cap-cats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cap-modes {
+  margin: 0;
+}
+@media (max-width: 767px) {
+  .cap-form {
+    padding: 20px 16px;
+  }
+  .cap-group {
+    gap: 20px;
+  }
+  .cap-group + .cap-group {
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+}
+/* The note grows with its words (5 lines at least); the dictate mic, and any dictation error to
+   its left, sit in a strip kept free at the box's foot. */
+.cap-note {
+  position: relative;
+}
+/* !important: the shared Textarea sets its padding and resize inline. */
+.cap-note textarea {
+  min-height: 148px;
+  padding-bottom: 48px !important;
+  resize: none !important;
+  field-sizing: content;
+}
+.cap-note > .dictate {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  left: 12px;
+  flex-direction: row-reverse;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  /* The strip still takes clicks into the box; only the mic and the error take their own. */
+  pointer-events: none;
+}
+.cap-note > .dictate > * {
+  pointer-events: auto;
 }
 /* 16 px so iOS does not zoom the page when the note is focused (the design system's own is 14). */
 @media (max-width: 767px) {
@@ -732,58 +765,53 @@
   }
 }
 
-/* ---- The checklist beside the recording (CP-37 AC2) ----
-   From 1100 px the cards and the checklist sit side by side; the checklist scrolls by itself. */
-.cap-with-pane {
-  min-width: 0;
-}
-.cap-with-pane[data-pane] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
-  gap: 16px;
-  align-items: start;
-}
-/* Too narrow for three columns (a laptop with the sidebar open): the checklist goes under the two
-   cards, full width, instead of squeezing them until Save and the mode switch were cut off. */
-@container cap-page (max-width: 1079px) {
-  .cap-with-pane[data-pane] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cap-with-pane[data-pane] .cap-checklist-pane {
-    position: static;
-    max-height: none;
-  }
-}
+/* ---- The checklist beside the form (CP-37 AC2) ----
+   Halves once the page is 880 px wide; narrower, it goes under the form. Its title and place stay
+   put while its cards scroll, and it never ends above the form (--cap-room, useCaptureFit.ts). */
 .cap-checklist-pane {
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 16px;
-  border-radius: 16px;
-  background: var(--surface-card);
-  box-shadow:
-    0 1px 2px rgb(0 15 71 / 0.06),
-    0 0 0 1px var(--cap-line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
+@container cap-page (min-width: 880px) {
+  .cap-layout[data-pane] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .cap-layout[data-pane] > .cap-checklist-pane {
+    max-height: var(--cap-room, none);
+  }
+  .cap-checklist-pane-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.cap-checklist-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+/* The column's title, a step above its sections' card titles (16 / 700). */
 .cap-checklist-pane-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  color: var(--marsh-navy);
+  font: 700 20px/1.25 var(--font-sans);
+  letter-spacing: -0.01em;
 }
 .cap-checklist-pane-note {
-  margin: 4px 0 12px;
-  color: var(--text-secondary);
-  font: 400 13px/1.35 var(--font-sans);
+  margin: 4px 0 16px;
+  color: var(--text-muted);
+  font: 400 13px/18px var(--font-sans);
+}
+/* The last card's own bottom margin would leave a gap under the scroll. */
+.cap-checklist-pane-body .cl-section:last-child {
+  margin-bottom: 0;
 }
 
-/* ---- Checklist type scale (CP-37): area title > item text > one muted meta line ---- */
-.cap-checklist-pane-title {
-  color: var(--marsh-navy);
-  font-size: 16px;
-  font-weight: 700;
-}
 /* Answer buttons: 44 px to tap on a phone. */
 @media (max-width: 767px) {
   .cl-answers button {

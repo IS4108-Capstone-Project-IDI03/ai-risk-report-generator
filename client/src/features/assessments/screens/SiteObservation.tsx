@@ -1,10 +1,10 @@
-// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). Two cards: the details
-// on the left (location, categories, severity, Cancel and Save) and the media on the right (note,
-// voice, photos, pages). The left card keeps its own height; the right is never shorter, and past
-// the window's bottom edge scrolls inside itself. Stacked on a phone, with Cancel and Save in the
-// bar at the bottom of the screen. The site's weather sits above the cards (CP-62). Split into
-// the Capture* components. Called by AssessmentApp.
-import { useEffect, useState } from 'react'
+// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). One form card in the
+// left half (location, what was seen as a note, voice, photos or pages, then categories, severity,
+// tags, Cancel and Save) under the site's weather (CP-62); the checklist in the right half (CP-37),
+// the Checklist tab's own cards, never shorter than the form and scrolling inside itself past the
+// window's bottom edge. One column on a phone, with Cancel and Save in the bar at the bottom of
+// the screen. Split into the Capture* components. Called by AssessmentApp.
+import { useEffect, useId, useState } from 'react'
 import { Button, Dialog, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { CaptureActions } from '../components/CaptureActions'
@@ -37,7 +37,9 @@ const HELPER =
 export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   // A waiting photo or page, open full size.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
+  // The two halves: the checklist never ends above the form (useCaptureFit's --cap-room).
   const grid = useCaptureFit<HTMLDivElement>()
+  const sawId = useId()
   const split = v.captureSplit
   // Wide: the checklist stays beside the recording (CP-37); narrower, it opens as a sheet.
   const pane = useWideCapture() && v.canOpenChecklist
@@ -86,21 +88,44 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
             backWalk="new-observation.back"
           />
         )}
-        {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may
-            be recording at their desk. */}
-        <SiteWeatherPanel reference={v.liveReference} layout="card" />
         {v.captureFailed && (
           <div className="cap-top">
             <CaptureSessionNotice capture={v.capture} onRetry={v.retryCapture} />
           </div>
         )}
-        <div className="cap-with-pane" data-pane={pane ? '' : undefined}>
-          <div ref={grid} className="cap-grid" data-split={split ? '' : undefined}>
-            {/* a. The details: where, which categories, how severe, then Cancel and Save. */}
-            <div className="cap-panel">
-              <section aria-label="Details" className="cap-panel-body">
+        <div ref={grid} className="cap-layout" data-pane={pane ? '' : undefined}>
+          <div className="cap-main">
+            {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer
+                may be recording at their desk. */}
+            <SiteWeatherPanel reference={v.liveReference} layout="card" />
+            <section aria-label="Details" className="cap-panel cap-form">
+              {/* a. Where, and what was seen. */}
+              <div className="cap-group">
                 <LocationPicker v={v} />
                 {v.canOpenChecklist && (!pane || v.fChecklistItem) && <ChecklistBar v={v} />}
+                <section aria-labelledby={sawId} className="cap-field cap-saw">
+                  <span id={sawId} className="cap-label">
+                    {'What you saw'}
+                  </span>
+                  <CaptureModeSwitcher v={v} />
+                  <div className="cap-media">
+                    {!!v.isNoteMode && (
+                      <CaptureNoteBox
+                        value={v.fNote}
+                        onChange={v.setFNote}
+                        phone={!!v.phone}
+                        reference={v.liveVoice ? v.captureRef : null}
+                        onBlur={setBlurred}
+                      />
+                    )}
+                    {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}
+                    {!!v.isPhotoMode && <CapturePhotoPanel v={v} onView={setViewing} />}
+                    {!!v.isScanMode && <CaptureScanPanel v={v} onView={setViewing} />}
+                  </div>
+                </section>
+              </div>
+              {/* b. How to file it: all optional, suggested after Save when left blank. */}
+              <div className="cap-group">
                 <CategoryPicker
                   cats={v.fCats}
                   onToggle={v.toggleFCat}
@@ -127,28 +152,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   blurred={blurred}
                   disabled={v.fSaving}
                 />
-                {split && <CaptureActions v={v} pinned={false} />}
-              </section>
-            </div>
-            {/* b. The media: never shorter than the details, scrolling inside itself past the window. */}
-            <section aria-label="What you saw" className="cap-panel cap-panel--media">
-              <CaptureModeSwitcher v={v} />
-              <div className="cap-media">
-                {!!v.isNoteMode && (
-                  <>
-                    <CaptureNoteBox
-                      value={v.fNote}
-                      onChange={v.setFNote}
-                      phone={!!v.phone}
-                      reference={v.liveVoice ? v.captureRef : null}
-                      onBlur={setBlurred}
-                    />
-                  </>
-                )}
-                {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}
-                {!!v.isPhotoMode && <CapturePhotoPanel v={v} onView={setViewing} />}
-                {!!v.isScanMode && <CaptureScanPanel v={v} onView={setViewing} />}
               </div>
+              {split && <CaptureActions v={v} pinned={false} />}
             </section>
           </div>
           {pane && <ChecklistPane v={v} />}

@@ -22,19 +22,18 @@ export function CaptureNoteBox({
 }) {
   // Holds the text box, for dictation to find: the shared Textarea takes no ref.
   const box = useRef<HTMLDivElement>(null)
+  // The mic sits in the box's bottom-right corner, as in a message composer, so it costs no row.
   return (
-    <>
-      <div ref={box} data-walk="new-observation.note">
-        <Textarea
-          aria-label="Note"
-          maxLength={5000}
-          rows={phone ? 6 : 8}
-          placeholder="What did you see? Write as you would for the record."
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={(event) => onBlur?.(event.target.value)}
-        />
-      </div>
+    <div ref={box} className="cap-note" data-walk="new-observation.note">
+      <Textarea
+        aria-label="Note"
+        maxLength={5000}
+        rows={phone ? 6 : 5}
+        placeholder="What did you see? Write as you would for the record."
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onBlur?.(event.target.value)}
+      />
       {reference && (
         <DictateButton
           reference={reference}
@@ -42,6 +41,6 @@ export function CaptureNoteBox({
           onChange={onChange}
         />
       )}
-    </>
+    </div>
   )
 }
