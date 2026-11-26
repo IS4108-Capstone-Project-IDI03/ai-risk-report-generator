@@ -5,7 +5,18 @@ import { GatewayError } from '../assessments/api'
 import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
 import { meetsRule, PASSWORD_RULE } from './passwordRule'
 import { SetPassword } from './SetPassword'
+import marshLogo from '../../assets/marsh-logo.png'
 import './sign-in.css'
+
+// The Marsh logo over the product name, as the sidebar shows them, but larger.
+function SignInBrand() {
+  return (
+    <div className="sign-in-brand">
+      <img src={marshLogo} alt="Marsh" />
+      <span>Risk Report Generator</span>
+    </div>
+  )
+}
 
 // Why a sign-in attempt failed. Wrong credentials always read the same, so the
 // message never reveals whether the email has an account (F-04).
@@ -126,10 +137,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   if (mode === 'reset-request' || mode === 'reset-confirm') {
     return (
       <main className="sign-in">
-        <div className="sign-in-brand">
-          <strong>Marsh</strong>
-          <span>Risk Report Generator</span>
-        </div>
+        <SignInBrand />
         <section className="sign-in-card" aria-labelledby="sign-in-title">
           <header>
             <h1 id="sign-in-title">Reset your password</h1>
@@ -209,10 +217,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
 
   return (
     <main className="sign-in">
-      <div className="sign-in-brand">
-        <strong>Marsh</strong>
-        <span>Risk Report Generator</span>
-      </div>
+      <SignInBrand />
       <section className="sign-in-card" aria-labelledby="sign-in-title">
         <header>
           <h1 id="sign-in-title">Sign in</h1>

@@ -5,29 +5,29 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 88px 24px 48px;
-  position: relative;
+  padding: 48px 24px;
 }
 .sign-in-brand {
-  position: absolute;
-  top: 28px;
-  left: 32px;
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
   color: var(--text-inverse);
 }
-.sign-in-brand strong {
-  font-size: 19px;
-  line-height: 26px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+/* The logo file is navy; this turns it white, as in the sidebar (.ds-sidenav-logo). */
+.sign-in-brand img {
+  display: block;
+  width: 200px;
+  height: auto;
+  filter: brightness(0) invert(1) drop-shadow(0 0 0.5px #fff);
 }
 .sign-in-brand span {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 22px;
-  color: rgba(255, 255, 255, 0.62);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.72);
 }
 .sign-in-card {
   width: 100%;
@@ -100,7 +100,9 @@
     padding: 28px 20px;
   }
   .sign-in-brand {
-    left: 20px;
-    right: 20px;
+    margin-bottom: 24px;
+  }
+  .sign-in-brand img {
+    width: 168px;
   }
 }
