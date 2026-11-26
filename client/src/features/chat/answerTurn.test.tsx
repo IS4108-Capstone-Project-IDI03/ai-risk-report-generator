@@ -11,8 +11,9 @@ const processMessage = vi.fn()
 let isRunning = false
 vi.mock('@openuidev/react-headless', async (original) => ({
   ...(await original<object>()),
-  useThread: (pick: (s: { processMessage: typeof processMessage; isRunning: boolean }) => unknown) =>
-    pick({ processMessage, isRunning }),
+  useThread: (
+    pick: (s: { processMessage: typeof processMessage; isRunning: boolean }) => unknown,
+  ) => pick({ processMessage, isRunning }),
 }))
 
 afterEach(() => {

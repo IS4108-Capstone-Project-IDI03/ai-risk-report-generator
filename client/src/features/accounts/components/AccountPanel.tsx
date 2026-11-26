@@ -108,8 +108,7 @@ export function AccountPanel({
     )
   const status = accountStatus(user)
   // Changed fields not yet saved: Esc and the backdrop then leave the panel open (Cancel, Close discard).
-  const unsaved =
-    editing && !!draft && JSON.stringify(draft) !== JSON.stringify(toProfile(user))
+  const unsaved = editing && !!draft && JSON.stringify(draft) !== JSON.stringify(toProfile(user))
   return (
     <SidePanel
       open
