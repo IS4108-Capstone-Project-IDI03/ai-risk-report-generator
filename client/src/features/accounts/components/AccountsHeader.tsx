@@ -10,6 +10,7 @@ export function AccountsHeader({
   lead,
   action,
   bell,
+  stack,
 }: {
   title: string
   helper?: string
@@ -18,6 +19,8 @@ export function AccountsHeader({
   lead?: ReactNode
   action?: ReactNode
   bell?: ReactNode
+  // On a phone the action wraps under the title (TopBar `stack`), so a long name keeps its line.
+  stack?: boolean
 }) {
   const phone = useIsPhone()
   return (
@@ -29,6 +32,7 @@ export function AccountsHeader({
       lead={lead}
       action={action}
       bell={bell}
+      stack={stack}
     />
   )
 }

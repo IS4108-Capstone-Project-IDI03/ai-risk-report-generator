@@ -5,7 +5,7 @@
 // the screen lists every group in a table below, so no value is chart-only.
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Select } from '../../../design-system'
+import { Select, useIsPhone } from '../../../design-system'
 import { toStackedSeries, type ChartSort, type CostGroup, type Series } from '../chart'
 import { formatAxisMoney, formatMoney } from '../format'
 
@@ -34,6 +34,10 @@ const TURNED_AXIS_PX = 96
 const shortLabel = (label: string) =>
   label.length > MAX_LABEL_CHARS ? `${label.slice(0, MAX_LABEL_CHARS - 1).trimEnd()}…` : label
 const AXIS_PX = 80
+// About a phone card's plot width (375 px less the page's and the card's padding).
+const PHONE_PLOT_PX = 300
+// A phone's turned labels need less: 36 px apart they still clear each other at 35 degrees.
+const PHONE_SLOT_PX = 36
 
 type Props = {
   // Names the chart and its table, e.g. "Cost by assessment".
@@ -59,6 +63,7 @@ export function StackedCostChart({
 }: Props) {
   const [sort, setSort] = useState<ChartSort>('cost')
   const [limit, setLimit] = useState<number | typeof ALL>(DEFAULT_BAR_LIMIT)
+  const phone = useIsPhone()
 
   if (!groups.length) return <p className="uc-chart-empty">No costs recorded in this period.</p>
 
@@ -67,9 +72,13 @@ export function StackedCostChart({
     limit: inOrder || !controls || limit === ALL ? groups.length : limit,
   })
   const topSeries = series[series.length - 1]?.key
-  const turned = bars.length > TURN_LABELS_AFTER
   const longest = Math.max(...bars.map((b) => shortLabel(b.label).length))
-  const slot = turned ? MIN_SLOT_PX : Math.max(MIN_SLOT_PX, longest * LABEL_CHAR_PX + 12)
+  const wide = Math.max(MIN_SLOT_PX, longest * LABEL_CHAR_PX + 12)
+  // On a phone the labels also turn when level ones would push bars past the card's edge, so a
+  // few bars fit without scrolling; only a long run of bars scrolls sideways.
+  const turned =
+    bars.length > TURN_LABELS_AFTER || (phone && bars.length * wide + AXIS_PX > PHONE_PLOT_PX)
+  const slot = turned ? (phone ? PHONE_SLOT_PX : MIN_SLOT_PX) : wide
 
   return (
     <figure className="uc-chart" aria-label={title}>

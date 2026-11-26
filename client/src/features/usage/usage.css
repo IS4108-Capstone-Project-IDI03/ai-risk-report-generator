@@ -60,6 +60,12 @@
   white-space: nowrap;
   transition: background var(--duration-fast) var(--ease-out);
 }
+/* A touch screen (phone or tablet) gets the 44 px tap height. */
+@media (max-width: 767px), (pointer: coarse) {
+  .uc-export {
+    height: 44px;
+  }
+}
 .uc-export:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -333,7 +339,6 @@
   .uc-toolbar .uc-export {
     flex: 1 1 100%;
     justify-content: center;
-    height: 44px;
   }
   .uc-totals-card {
     padding: 16px;

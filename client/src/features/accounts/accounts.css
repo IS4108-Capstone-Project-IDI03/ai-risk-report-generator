@@ -33,6 +33,11 @@
   .accounts {
     padding: 16px 16px 32px;
   }
+  /* On a phone the profile's avatar goes (it repeats the name), as on a client's page, so the
+     name keeps the row beside Back and Edit profile wraps under it. */
+  .ds-topbar > .accounts-avatar-lg {
+    display: none;
+  }
 }
 
 /* ---- One card: the list, a profile, a form ---- */

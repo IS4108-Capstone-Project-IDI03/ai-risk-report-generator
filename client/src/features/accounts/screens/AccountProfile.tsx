@@ -88,6 +88,7 @@ export function AccountProfile({
       }
       action={action}
       bell={bell}
+      stack
     />
   )
 

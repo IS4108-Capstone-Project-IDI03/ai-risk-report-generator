@@ -224,6 +224,10 @@
   color: var(--graphite-600);
   font: 400 13px/18px var(--font-sans);
 }
+/* A note wraps at a readable length on a wide window, not across a 1,300 px panel. */
+.st-note {
+  max-width: 65ch;
+}
 .st-err {
   margin: 0;
   display: inline-flex;
@@ -500,6 +504,13 @@
   .st-tier-grip {
     display: none;
   }
+  /* A tablet held upright is touch too: the menu and model boxes take a phone's 44 px. */
+  .st-menu-item {
+    min-height: 44px;
+  }
+  .st-select-button {
+    height: 44px;
+  }
 }
 .st-tier-name {
   flex: 1;
@@ -515,6 +526,8 @@
   list-style: none;
 }
 .st-history li {
+  /* A change reads as one sentence: on a wide window it wraps at a readable length, not 1,000 px. */
+  max-width: 65ch;
   padding: 10px 0;
   border-top: 1px solid var(--graphite-100);
   color: var(--graphite-700);
