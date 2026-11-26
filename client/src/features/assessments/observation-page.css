@@ -236,6 +236,12 @@
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 8px;
 }
+/* On touch the tiles are 96 px at least, so Remove's 44 px tap area stays off the photo's middle. */
+@media (pointer: coarse) {
+  .cpp-card .cap-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+}
 .cpp-card .cap-tile {
   border-radius: 14px;
   box-shadow: inset 0 0 0 1px var(--ob-line);

@@ -632,6 +632,13 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
+/* On touch, a taller tap area: vertical padding on an inline box adds no height to its line,
+   so the text stays where it is while the 17 px name takes a 44 px tap. */
+@media (pointer: coarse) {
+  .mbt-name {
+    padding-block: 14px;
+  }
+}
 .mbt-session[data-past] .mbt-lead {
   color: var(--graphite-600);
 }

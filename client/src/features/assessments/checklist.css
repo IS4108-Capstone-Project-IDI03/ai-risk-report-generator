@@ -175,6 +175,11 @@
   color: var(--text-primary);
   text-wrap: pretty;
 }
+/* A readable line on a wide screen; the row menus stay at the row's right end. */
+.cl-row-text {
+  max-width: 80ch;
+  margin-right: auto;
+}
 .cl-fade {
   animation: cl-fade-in var(--duration-base) var(--ease-out);
 }
@@ -321,6 +326,22 @@ button.cl-state:active {
 .cl-state[disabled],
 span.cl-state {
   cursor: default;
+}
+
+/* A touch tablet keeps its row layout but takes the phone's 44 px marks and row menus (v2 section 2). */
+@media (pointer: coarse) {
+  .cl-state {
+    width: 44px;
+    height: 44px;
+  }
+  .cl-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .cl-row-text,
+  .cl-edit {
+    padding-block: calc((44px - var(--text-body-lh)) / 2);
+  }
 }
 
 /* ---- Row menus: round 32 px icon buttons, shown on hover or focus where a pointer can hover ---- */

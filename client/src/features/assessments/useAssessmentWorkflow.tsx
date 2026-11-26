@@ -2735,7 +2735,8 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
           } as React.CSSProperties)
         : ({
             flex: '0 0 auto',
-            width: '344px',
+            // Narrower at 1280 with the sidebar open, so the editor beside it keeps room; 344 from 1440.
+            width: 'clamp(296px, 24vw, 344px)',
             overflow: 'auto',
             background: 'var(--surface-card)',
             borderLeft: '1px solid var(--border-default)',

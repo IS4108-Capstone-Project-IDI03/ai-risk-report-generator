@@ -303,18 +303,23 @@
 }
 
 /* --- Checklist: the areas that need more, opened up side by side --- */
+/* The hairlines between areas are each area's own right and bottom edge, drawn into the 1 px gap,
+   so a row an area short ends in white, not a grey hole. */
 .mbt-gaps {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 1px;
   border-top: 1px solid var(--graphite-100);
-  background: var(--graphite-100);
+  background: var(--surface-card);
 }
 .mbt-gap {
   min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface-card);
+  box-shadow:
+    1px 0 0 var(--graphite-100),
+    0 1px 0 var(--graphite-100);
 }
 .mbt-gap header {
   display: grid;
@@ -348,19 +353,23 @@
   padding: 0 0 4px;
   list-style: none;
 }
+/* The dot sits on an item's first line, so a question that wraps (a tablet's narrow column)
+   still reads as one item; a one-line item stays centred in its 34 px row. */
 .mbt-gap li {
   display: grid;
   grid-template-columns: 6px minmax(0, 1fr);
   column-gap: 12px;
-  align-items: center;
+  align-items: start;
+  box-sizing: border-box;
   min-height: 34px;
-  padding: 0 16px 0 20px;
+  padding: calc((34px - var(--mbt-leading)) / 2) 16px calc((34px - var(--mbt-leading)) / 2) 20px;
   font-size: var(--mbt-size);
   line-height: var(--mbt-leading);
   color: var(--graphite-900);
 }
 .mbt-gap li::before {
   content: '';
+  margin-top: calc((var(--mbt-leading) - 5px) / 2);
   width: 5px;
   height: 5px;
   border-radius: 50%;

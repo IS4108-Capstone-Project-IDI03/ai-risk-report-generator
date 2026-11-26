@@ -34,17 +34,20 @@ export function ScreenHeader({
   actions?: ReactNode
 }) {
   return (
+    // The header measures its own width (screen-header.css), so the row inside it can stack.
     <header className="sh">
-      <BackButton label={'Back to ' + back} onClick={onBack} walk={backWalk} />
-      <div className="sh-text">
-        {!!badge && <div className="sh-badge">{badge}</div>}
-        <h2 className="sh-title">
-          {title}
-          {titleAction}
-        </h2>
-        {detail != null && <p className="sh-detail">{detail}</p>}
+      <div className="sh-in">
+        <BackButton label={'Back to ' + back} onClick={onBack} walk={backWalk} />
+        <div className="sh-text">
+          {!!badge && <div className="sh-badge">{badge}</div>}
+          <h2 className="sh-title">
+            {title}
+            {titleAction}
+          </h2>
+          {detail != null && <p className="sh-detail">{detail}</p>}
+        </div>
+        {actions && <div className="sh-actions">{actions}</div>}
       </div>
-      {actions && <div className="sh-actions">{actions}</div>}
     </header>
   )
 }

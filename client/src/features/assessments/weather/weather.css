@@ -89,8 +89,11 @@
 .wx-lead b {
   font-weight: 600;
 }
+/* Each part moves to the next line whole; one longer than the line (a long condition) wraps
+   inside itself rather than run off the panel. */
 .wx-part {
-  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
 }
 
 /* The next 2 hours: a small pill an hour, amber when rain is expected in it. */

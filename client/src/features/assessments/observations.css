@@ -696,6 +696,9 @@
   font-size: 14px;
   line-height: 1.4;
   color: var(--text-body);
+  /* A readable line on a wide screen: at 1920 a note ran to about 110 characters. 70ch (the
+     width of 70 zeros) holds about 80 of this text's characters. */
+  max-width: 70ch;
 }
 .ob-row-cat {
   display: flex;

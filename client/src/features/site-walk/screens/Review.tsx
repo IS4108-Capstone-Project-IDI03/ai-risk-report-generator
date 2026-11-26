@@ -13,6 +13,7 @@ import { ScreenHeader } from '../../assessments/components/ScreenHeader'
 import { setLeaveGuard } from '../../assessments/leaveGuard'
 import { PhotoDialog, type ViewedPhoto } from '../../assessments/components/PhotoReferences'
 import { useFitPane } from '../../assessments/useFitPane'
+import { useNarrowPane } from '../useNarrowPane'
 import { ExistingLocationDialog } from '../components/ExistingLocationDialog'
 import { LocationForm } from '../components/LocationForm'
 import { ProposalHeader } from '../components/ProposalHeader'
@@ -101,6 +102,8 @@ export function SiteWalkReview({
   const [naming, setNaming] = useState<{ busy: boolean; problem: string | null } | null>(null)
   // The navigator and table stay put; only the table scrolls (round 3).
   const pane = useFitPane<HTMLDivElement>()
+  // Too narrow for the navigator beside the table: it becomes the phone's button and sheet.
+  const [narrow, watchPane] = useNarrowPane(pane)
   const [matching, setMatching] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
@@ -300,12 +303,17 @@ export function SiteWalkReview({
               onRestore={readOnly ? undefined : restore}
             />
           ) : (
-            <div ref={pane} className="ob-layout" data-fit="">
+            <div
+              ref={watchPane}
+              className="ob-layout"
+              data-fit={narrow ? undefined : ''}
+              style={narrow ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
+            >
               <ProposalNavigator
                 proposal={p}
                 selected={selected}
                 title={title}
-                phone={phone}
+                phone={phone || narrow}
                 onPick={pick}
                 onAdd={readOnly ? undefined : () => setForm({ kind: 'add' })}
                 onPhotos={() => setScreen('photos')}

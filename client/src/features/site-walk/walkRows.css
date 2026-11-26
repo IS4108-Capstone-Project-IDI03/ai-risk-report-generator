@@ -176,7 +176,7 @@
 
 /* A narrow list (a phone): the name and chevron on the first line, then the
    status, photos and actions on the second. */
-@container (max-width: 639px) {
+@container (max-width: 839px) {
   .wr {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     grid-template-areas:

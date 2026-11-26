@@ -476,6 +476,14 @@
   right: 0;
   bottom: auto;
 }
+/* With a mouse a 32 px area is enough; the 44 px one reached past a small tile's middle, so a click
+   on the photo to open it landed on Remove. */
+@media (hover: hover) and (pointer: fine) {
+  .cap-tile-remove {
+    width: 32px;
+    height: 32px;
+  }
+}
 
 /* Marking the area of a photo that matters (CP-10), in the photo popup's toolbar. */
 .photo-mark-actions {
@@ -781,4 +789,10 @@
   .cl-answers button {
     min-height: 44px;
   }
+}
+
+/* A photo's description keeps a readable line on a wide screen (observation-page.css .cpp-desc);
+   Copy into note then sits at its end. */
+.cpp-desc {
+  max-width: 80ch;
 }
