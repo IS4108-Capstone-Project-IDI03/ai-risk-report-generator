@@ -330,3 +330,41 @@
     padding: 9px 14px;
   }
 }
+
+/* ---- Compact: a conversation in a narrow panel (the review workspace's Ask tab, about 320 px) ----
+   Opt in with .mbt-compact beside .mbt-convo: a 28 px face and 8 px gap give the bubbles the
+   column. Same 14 / 20 text. Two classes, so it wins over the
+   phone rules above at every width. */
+.mbt-compact .mbt-turn {
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 8px;
+}
+.mbt-compact .mbt-face {
+  width: 28px;
+  height: 28px;
+}
+.mbt-compact .mbt-face .mb-face-svg {
+  width: 22px;
+  height: 22px;
+}
+.mbt-compact .mbt-bubble {
+  padding: 8px 12px;
+}
+/* The tail points at the smaller face's centre (14 px down). */
+.mbt-compact .mbt-bubble[data-tail]::before {
+  top: 8px;
+}
+.mbt-compact .mbt-me {
+  max-width: min(420px, 88%);
+  padding: 8px 12px;
+}
+/* A long step name wraps beside the dots, which stay level with its first line. */
+.mbt-compact .mb-typing {
+  align-items: flex-start;
+  padding: 9px 12px;
+  line-height: 18px;
+}
+.mbt-compact .mb-dots {
+  height: 18px;
+  align-items: center;
+}

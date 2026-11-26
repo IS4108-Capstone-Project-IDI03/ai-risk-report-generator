@@ -1,5 +1,5 @@
-/* The review workspace's Ask tab (AS-01). Answers sit in AI violet: they are
-   machine-written and provisional until the engineer checks their sources. */
+/* The review workspace's Ask tab (AS-01): a conversation with MarshBot, drawn with the design
+   system's conversation pieces like the Overview and the knowledge chat. */
 .ask-panel {
   display: flex;
   flex-direction: column;
@@ -29,45 +29,118 @@
     height: 44px !important;
   }
 }
-.ask-intro .rv-label {
-  margin: 0 0 var(--space-2);
+/* The conversation (AS-01): MarshBot's greeting, then each question as the engineer's navy
+   bubble and its answer as a MarshBot turn, drawn with the design system's conversation pieces
+   (conversation.css, .mbt-convo .mbt-compact for the narrow inspector). */
+.ask-convo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
-.ask-intro p,
-.ask-empty {
+/* The greeting's first line is a div, not a <p>: its help (?) holds a div. The (?) sits at the
+   end of its sentence (F-13). */
+.ask-scope {
   margin: 0;
+}
+.ask-scope + p {
+  margin-top: 8px;
+}
+.ask-scope > :last-child {
+  display: inline-block;
+  height: 20px;
+  vertical-align: top;
+}
+.ask-scope .ds-help {
+  margin: -6px -6px -6px -4px;
+}
+.ask-note {
+  margin: 0 0 0 36px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 20px;
 }
 .ask-thread {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
+  gap: 20px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* One exchange: the passage asked about and the question on the right, MarshBot's turn under. */
 .ask-item {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 8px;
 }
-/* The engineer's own words: plain, right-leaning, never violet. */
-.ask-question {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.ask-item > .mbt-me {
+  white-space: pre-line;
+}
+.ask-item > .ask-passage {
   align-self: flex-end;
-  max-width: 92%;
-  margin: 0;
-  padding: var(--space-4) var(--space-5);
+  max-width: 88%;
+  padding: 8px 12px;
   border-radius: var(--radius-card);
   background: var(--surface-sunken);
-  color: var(--text-primary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
-  overflow-wrap: anywhere;
 }
-.ask-question-text {
+/* A turn's stack: words, then what sits under them (confidence, actions, sources). */
+.ask-turn .mbt-stack {
+  gap: 8px;
+}
+.ask-convo .mbt-bubble p {
   margin: 0;
-  white-space: pre-line;
+}
+/* In the phone sheet the dialog styles every <p> as grey body text (.ds-dialog p); MarshBot's
+   words keep the conversation's one size and ink. A paragraph with its own look below names
+   .mbt-bubble too, so it still wins. */
+.ds-dialog .ask-convo p {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.ask-convo .mbt-bubble > :not(:first-child) {
+  margin-top: 8px;
+}
+/* A turn's own heading inside its bubble ("Proposed text · 9. Fire Protection"). */
+.ask-convo .mbt-bubble .ask-turn-title {
+  font-weight: 600;
+  color: var(--marsh-navy);
+}
+/* Quiet facts under a bubble: the confidence and its help, when a gap list was made. */
+.ask-turn-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 0 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+/* A stopped turn: the amber bubble, its way on as a reply pill under it. */
+.ask-turn-problem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Citation numbers in MarshBot's words are the knowledge chat's ink pills (chat.css .chat-cite),
+   not the draft's violet. */
+.ask-convo .rv-cite {
+  margin-left: 3px;
+  border-color: var(--ink-200);
+  background: var(--ink-50);
+  color: var(--ink-700);
+  vertical-align: 1px;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.ask-convo .rv-cite:hover,
+.ask-convo .rv-cite[aria-current='true'] {
+  border-color: var(--ink-600);
+  background: var(--ink-600);
+  color: var(--text-inverse);
 }
 /* A passage selected in the draft (AS-02): quoted verbatim behind a 2px rule,
    under the section it is in, in the question and in the question box. */
@@ -144,70 +217,15 @@
   border-radius: var(--radius-field);
   background: var(--surface-sunken);
 }
-.ask-answer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--ai-border);
-  border-left: 3px solid var(--ai-fg);
-  border-radius: var(--radius-field);
-  background: var(--surface-card);
-}
-.ask-answer-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.ask-answer-head > span:empty {
-  flex: 1;
-}
-.ask-answer-title {
-  color: var(--ai-fg);
-  font-size: var(--text-label-size);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.02em;
-}
-.ask-step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: 0;
-  color: var(--ai-fg);
-  font-size: var(--text-caption-size);
-}
-.ask-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ai-fg);
-  animation: askPulse 1.2s ease-in-out infinite;
-}
-@keyframes askPulse {
-  50% {
-    opacity: 0.3;
-  }
-}
-.ask-statements {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
 .ask-statement {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
   overflow-wrap: anywhere;
   animation: askIn 180ms cubic-bezier(0.2, 0, 0.2, 1);
-}
-.ask-statement .rv-cite {
-  margin-left: 2px;
 }
 /* Where the sources behind a passage disagree (AS-02 AC4): both figures, neither
    chosen, so the line is marked but not coloured as a warning. */
 .ask-differs {
-  padding: var(--space-3) var(--space-4);
+  margin-inline: -4px;
+  padding: 6px 8px;
   border-radius: var(--radius-field);
   background: var(--surface-sunken);
 }
@@ -218,6 +236,7 @@
   color: var(--text-secondary);
   font-weight: var(--weight-semibold);
   vertical-align: -2px;
+  margin-right: 4px;
 }
 @keyframes askIn {
   from {
@@ -227,16 +246,15 @@
 }
 .ask-missing {
   display: flex;
-  gap: var(--space-3);
-  margin: 0;
-  padding: var(--space-4) var(--space-5);
+  gap: 8px;
+  margin-inline: -4px;
+  padding: 6px 8px;
   border-radius: var(--radius-field);
   background: var(--surface-sunken);
   color: var(--text-secondary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
 }
-.ask-missing > span:first-child {
+.ask-missing > :first-child {
+  flex: none;
   margin-top: 3px;
 }
 .ask-missing-label {
@@ -252,38 +270,32 @@
   gap: var(--space-2);
   margin: 0;
 }
-.ask-before-label {
+.ask-convo .mbt-bubble .ask-before-label {
   margin: 0;
-  color: var(--graphite-600);
-  font-size: 12px;
-  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 .ask-before-text {
   margin: 0;
-  padding-left: var(--space-4);
+  padding-left: 12px;
   border-left: 2px solid var(--border-strong);
   color: var(--text-secondary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
 .ask-proposed {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 8px;
 }
-.ask-proposed-text {
+.ask-convo .mbt-bubble .ask-proposed-text {
   margin: 0;
   color: var(--text-primary);
   font-family: var(--font-serif);
-  font-size: var(--text-body-size);
-  line-height: var(--text-body-lh);
+  font-size: 15px;
+  line-height: 24px;
   overflow-wrap: anywhere;
   animation: askIn 180ms cubic-bezier(0.2, 0, 0.2, 1);
-}
-.ask-proposed-text .rv-cite {
-  margin-left: 2px;
 }
 .ask-unsupported {
   text-decoration: underline;
@@ -295,11 +307,8 @@
   margin-left: var(--space-2);
   vertical-align: 1px;
 }
-.ask-proposal-note {
-  margin: 0;
+.ask-convo .mbt-bubble .ask-proposal-note {
   color: var(--status-moderate-fg);
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
 }
 .ask-proposal-actions {
   display: flex;
@@ -309,27 +318,27 @@
 }
 .ask-proposal-into {
   min-width: 0;
-  flex: 1 1 160px;
+  flex: 1 1 140px;
 }
 .ask-proposal-where {
-  font-size: var(--text-caption-size);
-}
-.ask-proposal-gap {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 18px;
 }
 .ask-proposal-status {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  margin: 0;
+  gap: 4px 8px;
+  margin: 0 0 0 2px;
   color: var(--text-secondary);
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+  font-size: 12px;
+  line-height: 16px;
 }
 .ask-proposal-status > span:nth-child(2) {
-  flex: 1;
-  min-width: 160px;
+  flex: 1 1 160px;
 }
 @media (prefers-reduced-motion: reduce) {
   .ask-proposed-text {
@@ -337,30 +346,84 @@
   }
 }
 .ask-sources {
+  max-width: 660px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--ai-border);
+  gap: 6px;
+  margin-top: 4px;
 }
 .ask-sources .rv-label {
   margin: 0;
 }
+/* The question box, pinned to the panel's foot like the knowledge chat's composer: the page
+   fades in above it so answers slide under, then one rounded box holding the question and its
+   buttons. The textarea's own border and ring move to the box (the shared Textarea draws them
+   inline, hence !important). */
 .ask-composer {
   position: sticky;
   bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
+  gap: 6px;
+  padding: 12px 0 12px;
+  background: linear-gradient(to bottom, transparent, var(--surface-card) 12px);
+}
+.ask-composer-box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.ask-composer-box:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.ask-composer-box textarea {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 10px 14px 2px !important;
+  resize: none !important;
+}
+/* The box needs no "Question" heading (its placeholder asks); screen readers still hear it. */
+.ask-composer-box label > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ask-composer-box label > span:last-child:not(:first-child) {
+  padding: 0 14px 4px;
 }
 .ask-composer-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-4);
+  gap: 0;
+  padding: 2px 2px 4px 4px;
+}
+/* With a mouse the mic is the (?)'s 32 px, so Draft text and Ask keep one row in the 1280 px
+   inspector; a touch screen keeps its 44 px. */
+@media (pointer: fine) {
+  .ask-composer-actions .dictate .ds-icon-button {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+.ask-composer-actions > .ds-press + .ds-press {
+  margin-left: 4px;
+}
+/* Dictate sits at the box's left, the rest at its right. */
+.ask-composer-actions > .dictate {
+  margin-right: auto;
 }
 /* While MarshBot points at the composer (F-12, "Ask about an assessment"), only the box and Ask can
    be pressed: Dictate, Draft text and the help (?) stay in view but do nothing. */
@@ -370,11 +433,9 @@
 .ask-composer[data-walk-on] .ask-composer-actions button[type='submit'] {
   pointer-events: auto;
 }
-/* The keyboard hint is one quiet line of its own under the box, so the buttons keep a row to
-   themselves instead of squeezing it into a tall sliver (F-13). */
+/* The keyboard hint: one quiet line under the box (F-13). */
 .ask-hint {
-  flex: 1 0 100%;
-  order: -1;
+  margin: 0 0 0 4px;
   font-size: 12px;
   line-height: 16px;
   color: var(--graphite-600);
@@ -427,7 +488,6 @@
   padding: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ask-dot,
   .ask-statement {
     animation: none;
   }
@@ -551,16 +611,6 @@
   gap: var(--space-3);
 }
 
-/* The line saying what a question searches, with its help (?) beside it (F-13). */
-.ask-scope {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-.ask-scope p {
-  flex: 1;
-  min-width: 0;
-}
 /* Writing guidance (AS-08): two questions about the part open, asked by button
    above the question box. */
 .ask-guide {
@@ -592,67 +642,35 @@
   flex-wrap: wrap;
   gap: var(--space-3);
 }
-/* What is missing from a section: listed by the gateway with no AI, so a grey
-   card, never AI violet. What blocks the export comes first, as the Export tab
-   lists it. */
-.ask-gaps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--border-default);
-  border-left: 3px solid var(--border-strong);
-  border-radius: var(--radius-field);
-  background: var(--surface-card);
-}
-.ask-gaps-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-.ask-gaps-top > span:empty {
-  flex: 1;
-}
-.ask-gaps-title {
-  /* Below about 14em beside the date, the date drops under it instead of squeezing the
-     title into a narrow column (the 344 px Evidence panel). */
-  flex: 1 1 14em;
-  color: var(--text-primary);
-  font-size: var(--text-label-size);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.02em;
-  overflow-wrap: anywhere;
-}
-.ask-gaps-at,
-.ask-gaps-note,
-.ask-gaps-checking {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-}
-.ask-gaps-none {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
+/* A narrow inspector (1080 to 1300 px windows): a long question wraps inside its pill, hugging
+   its words, instead of running past the panel's edge. The Button sets height and no-wrap inline. */
+.ask-guide-buttons > button {
+  max-width: 100%;
+  height: auto !important;
+  padding-block: 7px !important;
+  line-height: 18px !important;
+  white-space: normal !important;
+  text-align: left;
 }
 .ask-gap-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 6px;
 }
 .ask-gap-head {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   margin: 0;
+  font-size: var(--mbt-size);
+  line-height: var(--mbt-leading);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .ask-gap-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -660,12 +678,10 @@
 .ask-gap {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding-left: var(--space-4);
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 10px;
   border-left: 2px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: var(--text-small-size);
-  line-height: var(--text-small-lh);
   overflow-wrap: anywhere;
 }
 /* Blocks the export: marked by a red rule only. */
