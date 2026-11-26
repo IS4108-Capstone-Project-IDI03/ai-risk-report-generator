@@ -48,7 +48,9 @@
 /* ---- Headline figures ---- */
 .ci-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  /* 136 px: all five figures share one row from a 736 px page (1024 px, sidebar open), where at
+     170 px the fifth sat alone on a second row. */
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
   gap: 12px;
   margin: 0;
 }
@@ -134,11 +136,16 @@
 /* ---- What stands out ---- */
 .ci-findings {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* auto-fit: two findings share the row on a wide screen instead of leaving empty columns. */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+/* A single finding keeps a card's width (560 px at most), not the whole row with a stretched meter. */
+.ci-findings:has(> :only-child) {
+  grid-template-columns: minmax(0, 560px);
 }
 .ci-finding {
   display: flex;
@@ -772,5 +779,73 @@
   }
   .ci-tile:last-child:nth-child(odd) {
     grid-column: 1 / -1;
+  }
+}
+
+/* The same two to a row when the page is narrow beside the open sidebar (a 768 px tablet). */
+@container cl-content (max-width: 700px) {
+  .ci-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ci-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A source number sits in a line of text, so it keeps its 20 px look; an invisible 44 px tall box
+   around it takes the tap (as kit.css does for the table footer's link). */
+@media (max-width: 767px), (pointer: coarse) {
+  .ci-cite {
+    position: relative;
+  }
+  .ci-cite::after {
+    content: '';
+    position: absolute;
+    inset: -12px -2px;
+  }
+}
+
+/* "Where the findings are" on a narrow page scrolls sideways inside its card: wide enough that no
+   category name is cut ("Constructi…" before), the site names held in view at the left, and a
+   fade at the right edge where more columns wait. The 24 px of padding is what the fade covers
+   once the grid is scrolled to its end, so the last column never fades. */
+@container cl-content (max-width: 700px) {
+  .ci-scroll {
+    padding-right: 24px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .ci-grid {
+    min-width: 600px;
+  }
+  .ci-grid :is(thead th:first-child, tbody th, tfoot th) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface-card);
+  }
+}
+
+/* The summary's heading on a phone: Write again stays on the heading's row at the right and the
+   confidence takes the line under it. Wrapping as it came left Write again alone on a second row. */
+@container cl-content (max-width: 600px) {
+  .ci-summary-head > .ds-icon-button {
+    order: 1;
+    margin-left: auto;
+  }
+  .ci-summary-head > :not(.ci-h-tip, .ds-icon-button) {
+    order: 2;
+    flex-basis: 100%;
+  }
+}
+
+/* "Change between visits" on a phone: a site's name wraps (up to three lines) instead of cutting
+   to "Pandan Distr…" in the narrow site column. */
+@container cl-content (max-width: 600px) {
+  .ci-change-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    white-space: normal;
   }
 }

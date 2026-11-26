@@ -469,7 +469,7 @@
 
 /* ---- Tablet card: still a table (board 25): Assessment (with its type and survey date
    under the ID), Status and Report due. ---- */
-@container at (max-width: 860px) {
+@container at (max-width: 960px) {
   .at-list {
     --at-cols: minmax(0, 1fr) 124px 136px 56px;
   }
@@ -600,7 +600,7 @@
 /* Tablet rows (item 18): the tile floats on the row's middle line with the text lines beside it,
    and the date sits at the right of its column, nearer the buttons and away from the status pill.
    Not on a phone, whose grid holds the tile in its own column. */
-@container at (min-width: 601px) and (max-width: 860px) {
+@container at (min-width: 601px) and (max-width: 960px) {
   .at-row {
     position: relative;
   }
@@ -615,6 +615,26 @@
   }
   .at-list .at-due {
     justify-self: end;
+  }
+}
+
+/* A tablet card is too narrow for one toolbar row: without this the search shrank to its icon
+   and New assessment ran off the card. The search and New assessment take the first row, the
+   filters, Sort and By client | All the second. */
+@container at (min-width: 601px) and (max-width: 960px) {
+  .at-toolbar {
+    flex-wrap: wrap;
+  }
+  .at-search {
+    order: -2;
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+  .at-tools .nab-anchor {
+    order: -1;
+  }
+  .at-tools .ds-segmented {
+    margin-left: auto;
   }
 }
 
@@ -741,6 +761,22 @@
     font-size: 14px;
     line-height: 18px;
   }
+  /* An ID with its priority mark (AS-07) is wider than the ID column at 375 px: a closer, smaller
+     mark keeps it off the Report due icon, which it ran into before. */
+  .at-ref {
+    gap: 4px;
+  }
+  .at-ref .mb-mark {
+    width: 20px;
+    height: 20px;
+  }
+  /* A phone's 13 px date line is at most 107 px wide, so its column gives the ID 4 px more
+     (the 768 px tablet card keeps 112: its 14 px dates need it). */
+  @media (max-width: 767px) {
+    .at-row {
+      grid-template-columns: 32px minmax(0, 1fr) 108px 44px;
+    }
+  }
   .at-meta {
     display: none;
   }
@@ -863,10 +899,13 @@
     min-height: 0;
     padding-block: 0;
   }
+  /* 44 px tall, ending at the group head's foot (its 4 px padding), so it never takes a tap
+     meant for the row below; it covers the site name above, which is not a control. */
   .at-client.at-link::after {
     content: '';
     position: absolute;
-    inset: -10px 0;
+    inset: auto 0 -4px;
+    height: 44px;
   }
   .at-group-text > [aria-hidden] {
     display: none !important; /* the › between client and site (an inline-styled icon) */
@@ -875,13 +914,16 @@
     display: none;
   }
 }
-/* The New assessment button beside the bell: a round + on a phone. The button's own
-   styles are inline, so these need !important. */
+/* The New assessment button beside the bell: a round + on a phone and a narrow tablet (under
+   820 px, as the client page's header), where the labelled button left the open sidebar's page
+   title a few letters. The button's own styles are inline, so these need !important. */
 @media (max-width: 767px) {
   /* Level with the eyebrow and title on every list, however many lines the helper takes (board 21). */
   .at-topnew {
     align-self: flex-start;
   }
+}
+@media (max-width: 819px) {
   .at-topnew button[aria-haspopup] {
     width: 44px !important;
     height: 44px !important;

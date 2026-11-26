@@ -398,8 +398,9 @@
 /* ---- Phone assessment rows (board 22): each assessment is its own card. The tile spans two
    lines; the reference and its second line (the site, or the type) sit beside it, the stage on
    the first line at the right and the report due under it, then a chevron. The survey date is
-   on the assessment itself. ---- */
-@media (max-width: 767px) {
+   on the assessment itself. By the content's width, not the screen's: a tablet with the sidebar
+   open (768 px) leaves under 600 px, where the table's fixed columns left the reference none. ---- */
+@container cl-content (max-width: 600px) {
   .cl-assess colgroup,
   .cl-assess thead {
     display: none;
@@ -523,23 +524,32 @@
     border: 1px solid var(--graphite-200);
     border-radius: var(--radius-card);
   }
+  /* Indented 12 px (not the board's 24) with closer columns and a 20 px priority mark: at 375 px
+     a reference with its mark (RPT-2026-0004 !) was cut to "RPT-2026-…". */
   .cl-sites .cl-assess {
     position: relative;
-    width: calc(100% - 24px);
-    margin: 8px 0 0 24px;
+    width: calc(100% - 12px);
+    margin: 8px 0 0 12px;
     border-top: 0;
+  }
+  .cl-sites .cl-assess tr {
+    column-gap: 4px;
+  }
+  .cl-assess .cl-line-1 .mb-mark {
+    width: 20px;
+    height: 20px;
   }
   .cl-sites .cl-assess::before {
     content: '';
     position: absolute;
     top: 0;
     bottom: 0;
-    left: -12px;
+    left: -7px;
     width: 2px;
     background: var(--ink-100);
   }
   .cl-sites .cl-site-note {
-    padding: 8px 0 0 24px;
+    padding: 8px 0 0 12px;
   }
 }
 
@@ -563,6 +573,60 @@
     min-height: 72px;
     padding: 12px 4px 12px 16px;
     border: 0;
+  }
+}
+
+/* A tablet with the sidebar open (768 px) gives the documents card under 600 px, too narrow for
+   five fixed columns: the name's column shrank to nothing and the headings ran together. Each row
+   becomes two lines instead: the file, then its tag, date and size, with the row's actions at the
+   end. A phone keeps its own row (DocumentRow's phone layout). */
+@container cl-card (max-width: 600px) {
+  @media (min-width: 768px) {
+    .cl-docs colgroup,
+    .cl-docs thead {
+      display: none;
+    }
+    .cl-docs,
+    .cl-docs tbody {
+      display: block;
+    }
+    .cl-docs tr {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        'main main main actions'
+        'tag added size actions';
+      align-items: center;
+      gap: 8px 16px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--graphite-100);
+    }
+    .cl-docs tbody tr:first-child {
+      border-top: 0;
+    }
+    .cl-docs td {
+      display: block;
+      height: auto;
+      padding: 0 !important;
+      border: 0;
+      text-align: left !important;
+    }
+    .cl-docs td.cl-cell-main {
+      grid-area: main;
+    }
+    .cl-docs td[data-label='Tag'] {
+      grid-area: tag;
+      min-width: 0;
+    }
+    .cl-docs td[data-label='Added'] {
+      grid-area: added;
+    }
+    .cl-docs td[data-label='Size'] {
+      grid-area: size;
+    }
+    .cl-docs td.cl-cell-actions {
+      grid-area: actions;
+    }
   }
 }
 

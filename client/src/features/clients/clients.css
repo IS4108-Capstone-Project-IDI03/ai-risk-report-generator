@@ -228,6 +228,10 @@
     width: 44px !important;
     height: 44px !important;
   }
+  /* The client's name button is the row's only way in, so it takes the 44 px too. */
+  .cl-open {
+    min-height: 44px;
+  }
 }
 
 /* ---- Cell content ---- */
@@ -383,6 +387,43 @@
   .cl-toolbar .ds-search {
     flex: 1 1 140px;
     min-width: 140px;
+  }
+}
+
+/* A tablet with the sidebar open (768 px) leaves the card under 600 px: Next survey goes too, or
+   the client's name column shrank to nothing and its heading ran over Open's. */
+@container cl-card (max-width: 600px) {
+  .cl-clients :is(th, td):nth-child(5),
+  .cl-clients col:nth-child(5) {
+    display: none;
+  }
+  /* A name wraps rather than cut to a few letters in the narrow column. */
+  .cl-clients :is(.cl-line-1, .cl-ellip) {
+    white-space: normal;
+  }
+  /* Not on a phone, whose card layout keeps it: the avatar gives its room to the name. */
+  @media (min-width: 768px) {
+    .cl-clients .cl-open > :first-child {
+      display: none;
+    }
+  }
+}
+
+/* A tablet card is too narrow for the list's toolbar on one row: New assessment wrapped alone
+   under it. The search and New assessment take the first row, the filters and Sort the second. */
+@container cl-card (min-width: 601px) and (max-width: 960px) {
+  .cl-toolbar:has(> .cl-pills) .ds-search {
+    order: -2;
+    flex: 1 1 320px;
+  }
+  .cl-toolbar:has(> .cl-pills) .cl-toolbar-end {
+    order: -1;
+  }
+  .cl-toolbar > .cl-pills {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
   }
 }
 

@@ -1117,6 +1117,56 @@
   }
 }
 
+/* A narrow tablet (the sidebar open at 768 px leaves the form about 480 px): three fields to a row
+   cut "Singapore" and the dates ("26/11/20"). The client's and site's names take their own rows,
+   Jurisdiction and Facility type share one, the dates go two to a row and each contact takes a row. */
+@media (min-width: 768px) and (max-width: 899px) {
+  .na-grid--2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .na-site-row,
+  .na-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .na-site-row > :first-child {
+    grid-column: 1 / -1;
+  }
+  /* A contact's Name and Role need the row's width too. */
+  .na-contact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Documents and Rejected open under their row of pills, as wide as it: kept on a button's edge
+     they opened under the open sidebar. (Popover sets the anchor and the surface's size inline,
+     hence !important.) */
+  .na-card-head:has(.na-rejected-btn) .na-card-actions {
+    position: relative;
+  }
+  .na-card-head:has(.na-rejected-btn) .na-docs-anchor {
+    position: static !important;
+  }
+  .na-card-head:has(.na-rejected-btn) :is(.na-docs-menu, .na-rejected-menu) {
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important; /* over the tablet's 560 px below */
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  /* In that narrower popover a document's tag gives up width so its name isn't cut to "Reque…". */
+  .na-doc {
+    grid-template-columns: 32px minmax(0, 1fr) minmax(120px, 160px) auto;
+  }
+  /* While reading, "Drop more files here" keeps one line and its buttons share the row under it. */
+  .na-drop--slim {
+    flex-wrap: wrap;
+  }
+  .na-drop--slim .na-drop-actions {
+    width: 100%;
+  }
+  .na-drop--slim .na-drop-actions > * {
+    flex: 1;
+  }
+}
+
 /* Tablet: the popover keeps its right edge on the button and stays inside the page. */
 @media (min-width: 768px) and (max-width: 1023px) {
   .na-docs-menu {
@@ -1292,7 +1342,7 @@
   .na .ds-datepicker-mask {
     font-size: 16px !important;
   }
-  .na :is(button[title], .na-docs-btn, .na-contact-text) {
+  .na :is(button[title], .na-docs-btn, .na-contact-text, .na-text-btn) {
     min-height: 44px;
   }
   .na button[title] {
@@ -1301,8 +1351,9 @@
 }
 
 /* ---- A phone with a Rejected pill: the two pills share a row below "Client",
-   44 px tall, no chevrons (Sprint 4 fixes AC26). Without the pill nothing changes. ---- */
-@media (max-width: 559px) {
+   44 px tall, no chevrons (Sprint 4 fixes AC26). Without the pill nothing changes. So does a
+   narrow tablet (768-899 px, sidebar open), where beside the pills "Client" broke to "Cli ent". ---- */
+@media (max-width: 559px), (min-width: 768px) and (max-width: 899px) {
   .na-card-head:has(.na-rejected-btn) {
     flex-wrap: wrap;
   }

@@ -4,7 +4,7 @@
 // Address, then its optional Coordinates and map (CP-26); then each assessment and "Add assessment". Used by
 // screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
-import { AddRow, Icon, IconButton, NewBadge, toast } from '../../../design-system'
+import { AddRow, Icon, IconButton, NewBadge, toast, useIsPhone } from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { MyLocationButton } from '../../assessments/components/MyLocationButton'
@@ -38,6 +38,8 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
   const title = existing ? site.name.trim() || listed?.name || 'New site' : 'Site ' + (i + 1)
   // A site with anything in it asks first; an empty one goes at once.
   const [asking, setAsking] = useState(false)
+  // A phone's field is too narrow for the whole hint, so it keeps only the example.
+  const phone = useIsPhone()
   const exit = useExit()
   const placed = docsOn(form, site)
   const filled = !!(site.name.trim() || site.address.trim() || placed)
@@ -112,7 +114,9 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
           <TextField
             label="Coordinates"
             iconLeft="crosshair"
-            placeholder="Click the map, or paste e.g. 1.2966, 103.8520"
+            placeholder={
+              phone ? 'e.g. 1.2966, 103.8520' : 'Click the map, or paste e.g. 1.2966, 103.8520'
+            }
             value={site.coordinates}
             error={f.errors[path + 'coordinates']}
             onChange={(e) => f.setSite(i, { coordinates: e.target.value })}

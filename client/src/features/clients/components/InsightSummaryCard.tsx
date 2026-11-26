@@ -46,7 +46,7 @@ export function InsightSummaryCard({
 
   return (
     <section className="cl-card ci-card" aria-labelledby="ci-summary" data-walk="insights.summary">
-      <div className="ci-card-head">
+      <div className="ci-card-head ci-summary-head">
         <span className="ci-h-tip">
           <h2 id="ci-summary" className="ci-h">
             {'Summary'}

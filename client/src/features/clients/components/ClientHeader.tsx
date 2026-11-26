@@ -153,11 +153,27 @@ export function ClientHeader({
         <span className="cl-header-actions">
           {rename && pill(rename, 'Rename client', 'pencil', "Can't rename yet")}
           {remove && pill(remove, 'Remove client', 'trash-2', "Can't remove yet", true)}
-          {onNewAssessment && (
-            <Button variant="primary" pill iconLeft="plus" onClick={onNewAssessment}>
-              {'New assessment'}
-            </Button>
-          )}
+          {onNewAssessment &&
+            (tablet ? (
+              // Round on a narrow tablet too: labelled, it left the name a few letters beside the open sidebar.
+              <Tooltip label="New assessment">
+                <IconButton
+                  icon="plus"
+                  label="New assessment"
+                  title={undefined}
+                  onClick={onNewAssessment}
+                  style={{
+                    background: 'var(--marsh-navy)',
+                    color: 'var(--text-inverse)',
+                    borderRadius: 999,
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Button variant="primary" pill iconLeft="plus" onClick={onNewAssessment}>
+                {'New assessment'}
+              </Button>
+            ))}
         </span>
       }
       bell={bell}
