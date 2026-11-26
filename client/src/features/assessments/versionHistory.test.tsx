@@ -423,16 +423,7 @@ it('stays open as another section is chosen, and opens from the assessment’s h
 
 it('shows the history without Restore to whoever may not change the section', async () => {
   mockGateway()
-  render(
-    <ReviewWorkspaceScreen
-      reference={REF}
-      canReview={false}
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspaceScreen reference={REF} canReview={false} onGenerate={() => {}} />)
   const editor = await screen.findByRole('region', { name: 'Draft editor' })
   fireEvent.click(within(editor).getByRole('button', { name: 'Version history' }))
   await within(versions()).findAllByRole('button')

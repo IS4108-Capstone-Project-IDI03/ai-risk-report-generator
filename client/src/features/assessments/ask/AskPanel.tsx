@@ -4,6 +4,7 @@ import {
   Button,
   Callout,
   ConfidenceIndicator,
+  CountPill,
   Dialog,
   EmptyState,
   EvidenceCitation,
@@ -159,7 +160,7 @@ function PassageQuote({
       <figcaption className="ask-passage-head">
         <span className="ask-passage-from">{heading}</span>
         {found === false ? (
-          <span className="ask-tag">Text deleted</span>
+          <Badge>Text deleted</Badge>
         ) : (
           found &&
           onShow && (
@@ -715,7 +716,7 @@ function GapGroup({
   return (
     <section className="ask-gap-group" aria-label={title}>
       <h4 className="rv-label ask-gap-head">
-        {title} <span className="ask-gap-count">{gaps.length}</span>
+        {title} <CountPill>{gaps.length}</CountPill>
       </h4>
       <ul className="ask-gap-list">
         {gaps.map((gap, i) => (

@@ -138,12 +138,6 @@
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
-.ask-tag {
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-}
 .ask-composer .ask-passage {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-subtle);
@@ -407,6 +401,24 @@
   padding: var(--space-5) var(--space-7) 0;
   background: var(--surface-card);
 }
+/* The Ask tab reads like a conversation: the panel fills the inspector's height, so writing
+   guidance and the question box sit at its foot, under the answers, not halfway down. */
+.rv-side:has(> [role='tabpanel']) {
+  display: flex;
+  flex-direction: column;
+}
+.rv-side > [role='tabpanel'] {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+.rv-side > [role='tabpanel'] > .ask-panel {
+  flex: 1 0 auto;
+}
+.ask-panel > .ask-guide,
+.ask-panel > .ask-composer:not(.ask-guide + .ask-composer) {
+  margin-top: auto;
+}
 /* Below 760px the Ask tab opens as a bottom sheet from this button. */
 .rv-inspector-ask {
   padding: var(--space-5) var(--space-7) 0;
@@ -636,13 +648,6 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-}
-.ask-gap-count {
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-  font-weight: var(--weight-semibold);
 }
 .ask-gap-list {
   display: flex;

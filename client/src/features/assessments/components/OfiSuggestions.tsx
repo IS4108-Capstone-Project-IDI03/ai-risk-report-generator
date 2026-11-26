@@ -1,14 +1,15 @@
-// Section 3 Opportunities for Improvement (GN-05): one OFI in the AI draft box (OfiBlock,
-// used by OfiReviewPanel in Review) and the accepted ones as the report has them (OfisInReport,
+// Section 3 Opportunities for Improvement (GN-05): one OFI as a block of the report's page
+// (OfiBlock, used by OfiReviewPanel in Review) and the accepted ones as the report has them (OfisInReport,
 // used by Review and the document's ReportParts). Calls api.ts.
 import { Fragment, useState } from 'react'
 import type * as React from 'react'
 import {
-  AIDraftBlock,
   Badge,
   Button,
   Callout,
   EvidenceCitation,
+  Icon,
+  IconRegistry,
   Input,
 } from '../../../design-system'
 import { OFI_CATEGORIES as CATEGORIES } from '../reviewDisplay'
@@ -149,22 +150,13 @@ export function OfiBlock({
           </Badge>
         </div>
       )}
-      <AIDraftBlock
-        heading={ofi.category}
-        status="draft"
-        // No status badge or confidence meter: every OFI here is AI drafted (Miya, 15 Oct).
-        quiet
-        evidenceCount={count}
-        onShowEvidence={withSources ? () => setShowSources((open) => !open) : undefined}
-        onAccept={onAccept}
-        acceptLabel={`Accept ${ofi.title}`}
-        acceptDisabled={busy}
-        headWalk={walk?.header}
-        cardWalk={walk?.card}
-        acceptWalk={walk?.accept}
-        // A table, not prose: as wide as an OFI in the report (OfisInReport).
-        fullWidth
-      >
+      {/* The OFI on the report's page: its category, Marsh's table, then its sources and, while
+          it is a suggestion, Accept at the right (as a finding's decision sits). A suggestion is
+          on the AI tint until accepted. */}
+      <article className={'rv-ofi' + (onAccept ? ' is-pending' : '')} data-walk={walk?.card}>
+        <div className="rv-ofi-head" data-walk={walk?.header}>
+          <h4 className="rv-ofi-category">{ofi.category}</h4>
+        </div>
         <OfiTable
           number={number}
           title={ofi.title}
@@ -175,7 +167,38 @@ export function OfiBlock({
           disabled={busy}
           walk={walk?.tableRow}
         />
-      </AIDraftBlock>
+        {(withSources || onAccept) && (
+          <div className="rv-finding-bar rv-ofi-foot">
+            {withSources && (
+              <button
+                type="button"
+                className="rv-sub-sources"
+                aria-expanded={showSources}
+                onClick={() => setShowSources((open) => !open)}
+              >
+                <Icon name="link" size={13} />
+                {count + (count === 1 ? ' source' : ' sources')}
+              </button>
+            )}
+            {onAccept && (
+              <span className="rv-finding-actions">
+                <Button
+                  pill
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={IconRegistry.action.accept}
+                  aria-label={`Accept ${ofi.title}`}
+                  data-walk={walk?.accept}
+                  disabled={busy}
+                  onClick={onAccept}
+                >
+                  Accept
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
+      </article>
       {onSaveLossValues && ofi.category !== 'Management Programs' && (
         <div className="rv-figures-actions">
           <span className="rv-muted">Amounts in US$. Totals update when saved.</span>
@@ -262,8 +285,9 @@ function OfiTable({
     1,
     rows.findIndex((cells) => cells.some(([, value]) => value === OPEN)),
   )
+  // 8 px each side, so the loss rows' seven cells fit Review's page column without scrolling.
   const cell = {
-    padding: '8px 12px',
+    padding: '8px',
     border: '1px solid var(--border-subtle)',
     verticalAlign: 'top',
     textAlign: 'left',

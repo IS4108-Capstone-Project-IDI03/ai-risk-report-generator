@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef } from 'react'
 import {
-  AIDraftBlock,
   Badge,
   Button,
   Callout,
   EmptyState,
+  Icon,
   IconRegistry,
   type Reason,
 } from '../../../design-system'
@@ -476,29 +476,26 @@ function DraftSubsection({
       <Finding claim={claim} actions={actions} content={content} heading={heading} {...citing} />
     ) : null
   }
-  if (sub.kind === 'table' || (!sub.statements.length && !written && !claims.length)) {
-    return (
-      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
-        <strong>{sub.heading}</strong>
-        <p className="rv-muted">
-          {sub.kind === 'table'
-            ? 'This table is completed from measured values, so it is not drafted.'
-            : 'No evidence covers this subsection, so it was left empty.'}
-        </p>
-      </div>
+  // A subsection with nothing to review is its heading and one quiet line saying why.
+  const note = (words: string) => (
+    <section className="rv-sub is-empty" id={subsectionId(citing.sectionId, index)}>
+      <h3 className="rv-sub-heading">{sub.heading}</h3>
+      <p className="rv-sub-note">
+        <Icon name="info" size={14} />
+        <span>{words}</span>
+      </p>
+    </section>
+  )
+  if (sub.kind === 'table' || (!sub.statements.length && !written && !claims.length))
+    return note(
+      sub.kind === 'table'
+        ? 'This table is completed from measured values, so it is not drafted.'
+        : 'No evidence covers this subsection, so it was left empty.',
     )
-  }
-  if (!claims.length && !written) {
-    return (
-      <div className="rv-subsection-note" id={subsectionId(citing.sectionId, index)}>
-        <strong>{sub.heading}</strong>
-        <p className="rv-muted">
-          Every finding in this subsection was rejected, so it is left out of the report. The review
-          history keeps them.
-        </p>
-      </div>
+  if (!claims.length && !written)
+    return note(
+      'Every finding in this subsection was rejected, so it is left out of the report. The review history keeps them.',
     )
-  }
   // Section 6's programs are Marsh's two tables (GN-11); each row is still a finding.
   if (citing.sectionId === '6' && sub.heading === 'Management Programs') {
     const { entries, unplaced } = maturityEntries(
@@ -543,38 +540,41 @@ function DraftSubsection({
   const pending = claims.filter((c) => c.review.state === 'pending')
   const unsupported = pending.some((c) => !c.supported) || aiIds.some((id) => flaggedAi.has(id))
   return (
-    <AIDraftBlock
-      heading={sub.heading}
-      // AI chrome while a finding waits for a decision; neutral once the
-      // engineer has accepted or edited every one (the words are theirs).
-      status={
-        pending.length || aiIds.length
-          ? unsupported
-            ? 'flagged'
-            : 'draft'
-          : written || claims.some((c) => c.review.state === 'edited')
-            ? 'edited'
-            : 'accepted'
-      }
-      // No status badge or confidence meter: the box marks AI text, each finding
-      // its decision, and Unsupported its exception (Miya, 15 Oct).
-      quiet
-      evidenceCount={cited.length}
-      // Opens the subsection's first source beside the draft.
-      onShowEvidence={() => citing.onCite(cited[0] ?? null, null)}
+    // One subsection of the report's page: its heading, its sources at the right, then its
+    // findings and text. Findings still to decide carry the violet tint themselves.
+    <section
+      className="rv-sub"
+      id={subsectionId(citing.sectionId, index)}
+      data-flagged={unsupported ? '' : undefined}
     >
-      {/* Marsh's lead-in to Section 4's positive points (GN-03): fixed, so not drafted. */}
-      {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
-        <p className="rv-muted">The positive points from the visit are the following:</p>
-      )}
-      <WrittenBlocks
-        blocks={blocks}
-        cite={citeMark(citing, null)}
-        finding={finding}
-        ai={ai}
-        attrs={blockAttrs(citing.askText)}
-      />
-    </AIDraftBlock>
+      <div className="rv-sub-head">
+        <h3 className="rv-sub-heading">{sub.heading}</h3>
+        {cited.length > 0 && (
+          // Opens the subsection's first source beside the draft.
+          <button
+            type="button"
+            className="rv-sub-sources"
+            onClick={() => citing.onCite(cited[0] ?? null, null)}
+          >
+            <Icon name="link" size={13} />
+            {plural(cited.length, 'source')}
+          </button>
+        )}
+      </div>
+      <div className="rv-sub-body">
+        {/* Marsh's lead-in to Section 4's positive points (GN-03): fixed, so not drafted. */}
+        {citing.sectionId === '4' && sub.heading === 'Positive Points' && (
+          <p className="rv-muted">The positive points from the visit are the following:</p>
+        )}
+        <WrittenBlocks
+          blocks={blocks}
+          cite={citeMark(citing, null)}
+          finding={finding}
+          ai={ai}
+          attrs={blockAttrs(citing.askText)}
+        />
+      </div>
+    </section>
   )
 }
 
@@ -596,6 +596,7 @@ export function DraftEditor({
   onNext,
   onGenerate,
   onHistory,
+  documentAction,
   notice,
   actions,
   header,
@@ -612,6 +613,8 @@ export function DraftEditor({
   onGenerate: () => void
   // Opens the section's version history (RV-06).
   onHistory?: () => void
+  // Edit document or Open document, at the right end of the title bar (RV-08).
+  documentAction?: React.ReactNode
   // Shown under the heading whatever the section holds, e.g. a restore just made.
   notice?: React.ReactNode
   actions?: FindingActions
@@ -766,8 +769,18 @@ export function DraftEditor({
           onPrevious={onPrevious}
           onNext={onNext}
           onHistory={onHistory}
+          documentAction={documentAction}
         />
+        {draft && (
+          <div className="rv-part-meta">
+            <p className="rv-provenance">
+              Drafted {formatDayTime(new Date(draft.provenance.generated_at))}
+            </p>
+            {documentLine}
+          </div>
+        )}
         {notice}
+        {draft && header}
         {placesFindings ? figures(drafted) : figures}
         {!draft && hasWritten(content.intro) ? (
           // Not drafted, but written in the document editor (RV-08 AC3).
@@ -793,11 +806,6 @@ export function DraftEditor({
           />
         ) : (
           <>
-            <p className="rv-provenance">
-              Drafted {formatDayTime(new Date(draft.provenance.generated_at))}
-            </p>
-            {documentLine}
-            {header}
             {setAside}
             {aiNotice}
             {review.changesSinceDraft > 0 && (
@@ -841,25 +849,33 @@ export function DraftEditor({
                 </ul>
               </Callout>
             )}
-            {hasWritten(content.intro) && (
-              <div className="rv-written-section">{blocksOf(content.intro)}</div>
+            {/* The section as one page of the report: what the engineer wrote above the
+                subsections, then each subsection under its heading. */}
+            {(hasWritten(content.intro) || !placesFindings) && (
+              <div className="rv-page">
+                {hasWritten(content.intro) && (
+                  <div className="rv-sub rv-sub-intro">
+                    <div className="rv-sub-body">{blocksOf(content.intro)}</div>
+                  </div>
+                )}
+                {!placesFindings &&
+                  draft.subsections.map((sub, i) => (
+                    <DraftSubsection
+                      key={sub.heading}
+                      sub={sub}
+                      index={i}
+                      blocks={content.subsections[i]?.blocks ?? []}
+                      claims={claims}
+                      actions={actions}
+                      ai={ai}
+                      flaggedAi={flaggedAi}
+                      sectionId={section.id}
+                      askText={askText}
+                      {...citing}
+                    />
+                  ))}
+              </div>
             )}
-            {!placesFindings &&
-              draft.subsections.map((sub, i) => (
-                <DraftSubsection
-                  key={sub.heading}
-                  sub={sub}
-                  index={i}
-                  blocks={content.subsections[i]?.blocks ?? []}
-                  claims={claims}
-                  actions={actions}
-                  ai={ai}
-                  flaggedAi={flaggedAi}
-                  sectionId={section.id}
-                  askText={askText}
-                  {...citing}
-                />
-              ))}
           </>
         )}
       </div>

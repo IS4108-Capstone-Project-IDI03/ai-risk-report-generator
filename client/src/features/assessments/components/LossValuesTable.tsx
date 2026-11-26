@@ -3,7 +3,7 @@
 // beside Time Element items, their totals, and the TIV. Rows start as the
 // template's; the engineer renames, adds or removes them to suit the site. Totals
 // are the gateway's, as last saved. Used by LossEstimateFigures.tsx.
-import { Button, IconButton, Input } from '../../../design-system'
+import { Button, IconAction, Input } from '../../../design-system'
 import { formatDay } from '../format'
 import { formatAmount } from '../reportFigures'
 
@@ -48,10 +48,10 @@ export function LossValuesTable({
               value={row.item}
               onChange={(e) => set({ item: e.target.value })}
             />
-            <IconButton
+            <IconAction
               icon="trash-2"
               label={`Remove ${name}`}
-              size="sm"
+              danger
               onClick={() => onChange({ [side]: rows.filter((_, j) => j !== i) })}
             />
           </div>

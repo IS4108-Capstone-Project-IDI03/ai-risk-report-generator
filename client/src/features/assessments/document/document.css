@@ -1,7 +1,35 @@
-/* The document edit view (RV-08): the outline beside one continuous page of
-   the report, with its save bar, formatting toolbar and find bar above it.
-   The rail's row styles (rv-rail-*) and labels come from review.css. */
+/* The document edit view (RV-08), redesigned with design system v2: the outline (the review
+   workspace's rows, review.css) beside the report as one page on the grey canvas, under one
+   white bar that holds Return to review, the tools and the save state. */
+.dm-outline.rv-rail {
+  flex-basis: 248px;
+}
+/* Hidden by its toggle at the left of the bar, so the page and its comment margin get the room.
+   Stacked (under 1080 px) the outline is a strip of parts and always shows, with no toggle. */
+.dm-outline[data-closed] {
+  display: none;
+}
+.dm-outline-toggle {
+  display: inline-flex;
+  margin-right: -4px;
+}
+@media (max-width: 1079px) {
+  /* Stacked, the 248 px is a height: the strip would leave a blank band under it. */
+  .dm-outline.rv-rail {
+    flex-basis: auto;
+  }
+  .dm-outline[data-closed] {
+    display: block;
+  }
+  .dm-outline-toggle {
+    display: none;
+  }
+}
+.dm-outline-head {
+  padding: 20px 20px 4px;
+}
 .dm-main {
+  container: dm-main / inline-size;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -16,12 +44,38 @@
   background: var(--surface-card);
   border-bottom: 1px solid var(--border-default);
 }
+/* Return at the left, the tools in the middle, the save state and buttons at the right: one
+   row on a wide editor; under 1140 px of editor the tools wrap to a row of their own. */
 .dm-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  padding: 10px clamp(16px, 2vw, 28px);
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 8px clamp(12px, 1.6vw, 20px);
+}
+.dm-bar > .dm-tools {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.dm-bar-end {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+@container dm-main (max-width: 1140px) {
+  .dm-bar > .dm-tools {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin: 0 calc(-1 * clamp(12px, 1.6vw, 20px)) -8px;
+    padding: 6px clamp(12px, 1.6vw, 20px);
+    border-top: 1px solid var(--border-subtle);
+  }
 }
 .dm-save-status {
   flex: 1;
@@ -38,21 +92,43 @@
 .dm-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px clamp(16px, 2vw, 28px);
-  border-top: 1px solid var(--border-subtle);
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
 }
 .dm-tool-group {
   display: flex;
   /* Centres the 32 px help (?) on the row of tools, not on their top edge. */
   align-items: center;
   gap: 2px;
-  padding-right: 4px;
-  margin-right: 4px;
+  padding-right: 6px;
+  margin-right: 6px;
   border-right: 1px solid var(--border-subtle);
 }
 .dm-tool-group:last-child {
   border-right: none;
+  padding-right: 0;
+  margin-right: 0;
+}
+/* Phone: Return and Save on the first row, the save state and Page layout on the second, then
+   the tools, so no label wraps inside a squeezed slot. */
+@media (max-width: 767px) {
+  .dm-bar-end {
+    display: contents;
+  }
+  .dm-bar-end > button:last-child {
+    order: 1;
+    margin-left: auto;
+  }
+  .dm-bar-end > .dm-save-row {
+    order: 2;
+  }
+  .dm-bar-end > button:not(:last-child) {
+    order: 3;
+  }
+  .dm-bar > .dm-tools {
+    order: 4;
+  }
 }
 /* Phone: the tools are one row you swipe along, not three rows that leave the text a third of
    the screen. A blocked tool's reason box is placed against the window (ReasonBox.tsx), since
@@ -108,10 +184,15 @@
   min-height: 0;
   overflow: auto;
 }
+/* The continuous view: the report as one white page with a reading measure, centred on the
+   canvas (the page layout draws Marsh's own pages instead, pages.css). */
 .dm-paper {
-  max-width: calc(var(--measure-prose) + 96px);
-  margin: 20px auto 48px;
-  padding: 0 clamp(16px, 2vw, 28px);
+  box-sizing: border-box;
+  max-width: 820px;
+  margin: 28px auto 64px;
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 
 /* The page itself */
@@ -125,15 +206,13 @@
 .dm-prose:focus-visible {
   outline: none;
 }
+/* Each part of the report on the one page, a hairline between parts. */
 .dm-section {
-  padding: 24px clamp(16px, 3vw, 40px) 28px;
-  background: var(--surface-card);
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card);
+  padding: 36px clamp(20px, 5cqi, 64px) 40px;
   scroll-margin-top: 16px;
 }
 .dm-section + .dm-section {
-  margin-top: 16px;
+  border-top: 1px solid var(--border-subtle);
 }
 .dm-fixed-heading {
   margin: 0;
@@ -362,42 +441,45 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
-.dm-outline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0 8px 24px;
-  list-style: none;
-}
 
-/* Below the stacked breakpoint the outline is a strip of sections above the
-   page, which then scrolls with the workspace. */
-@media (max-width: 1080px) {
-  .dm-outline .rv-rail-head {
+/* Below the stacked breakpoint the outline is a strip of parts above the page, which then
+   scrolls with the workspace: each a pill of its number tile and name, the open one ink. */
+@media (max-width: 1079px) {
+  .dm-outline .dm-outline-head {
     display: none;
   }
-  /* A strip of parts, each a pill with its number tile; the open one tinted ink. */
-  .dm-outline-list {
+  .rv-rail-list.dm-outline-list {
+    display: flex;
     flex-direction: row;
     gap: 4px;
     overflow-x: auto;
     padding: 8px 12px;
+    scrollbar-width: none;
+  }
+  .dm-outline-list::-webkit-scrollbar {
+    display: none;
   }
   .dm-outline-list li {
     flex: 0 0 auto;
     max-width: 240px;
   }
-  .dm-outline-list .rv-rail-row {
+  .dm-outline-list .ds-srow.ds-srow-nav {
     align-items: center;
+    min-height: 44px;
     padding: 6px 14px 6px 6px;
     border-radius: var(--radius-pill);
+    white-space: nowrap;
   }
-  .dm-outline-list .rv-rail-number {
+  .dm-outline-list .ds-srow-nav .ds-srow-num {
     border-radius: var(--radius-pill);
   }
-  .dm-outline-list .rv-rail-body {
+  .dm-outline-list .ds-srow-nav .ds-srow-name {
     padding-top: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dm-outline-list .ds-srow-nav .ds-srow-end {
+    display: none;
   }
   .dm-scroll {
     overflow: visible;
@@ -413,10 +495,10 @@
 }
 @media (max-width: 767px) {
   .dm-section {
-    padding: 18px 16px 20px;
+    padding: 22px 18px 24px;
   }
   .dm-paper {
-    padding: 0 12px;
+    margin: 12px 8px 32px;
   }
 }
 
@@ -438,7 +520,11 @@
     flex: 1 1 auto;
   }
   .dm-save-row .dm-save-status {
-    min-width: min-content;
+    min-width: max-content;
+  }
+  /* The time is left out on a phone so the state and Page layout share a row. */
+  .dm-save-time {
+    display: none;
   }
   .dm-save-row .ds-help {
     flex: none;

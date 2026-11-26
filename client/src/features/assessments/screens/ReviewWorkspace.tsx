@@ -147,9 +147,6 @@ export function ReviewWorkspace({
   canReview = false,
   canComment = false,
   me = null,
-  wrapStyle,
-  railStyle,
-  panelStyle,
   onGenerate,
   historyRequest = 0,
   openSection,
@@ -169,9 +166,6 @@ export function ReviewWorkspace({
   canComment?: boolean
   // Who is signed in, for their own comments (RV-03 AC3).
   me?: Stamp | null
-  wrapStyle: React.CSSProperties
-  railStyle: React.CSSProperties
-  panelStyle: React.CSSProperties
   onGenerate: () => void
   // Counts each time Version history is chosen from the assessment's ⋯ menu
   // (RV-06); a new count opens the version history. 0 for none.
@@ -362,8 +356,6 @@ export function ReviewWorkspace({
             reload()
             void reloadSummary()
           }}
-          wrapStyle={wrapStyle}
-          railStyle={railStyle}
         />
       </Suspense>
     )
@@ -580,19 +572,27 @@ export function ReviewWorkspace({
       onSelect={choose}
       inReport={accepted.length}
       executiveSummary={summary?.executiveSummary ?? null}
-      onEditDocument={
-        canOpenDocument
-          ? () => {
-              setHistoryOpen(false)
-              setDocumentAt(selected ?? saved?.id ?? '1')
-            }
-          : undefined
-      }
-      readOnly={!canReview}
-      editPending={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
-      style={railStyle}
     />
   )
+  // Edit document (RV-08), or Open document to comment on (RV-03 AC7), at the right of each
+  // part's title bar: it opens the whole report at the part being read. Its last changes still
+  // being read back, it waits, so it opens on them.
+  const documentButton = canOpenDocument ? (
+    <Button
+      pill
+      variant="secondary"
+      size="sm"
+      iconLeft={IconRegistry.object.report}
+      disabled={returnedFrom !== null && workspace.asOf === returnedFrom && !loadError}
+      data-walk="review.edit-document"
+      onClick={() => {
+        setHistoryOpen(false)
+        setDocumentAt(selected ?? saved?.id ?? '1')
+      }}
+    >
+      {canReview ? 'Edit document' : 'Open document'}
+    </Button>
+  ) : undefined
   const last = sections[sections.length - 1]
   // Every part of the report in order, for "Draft editor · N of M": Sections 1, 2 and 3,
   // the drafted sections (4-12), then Appendix A. Sections 1 and 2 and Appendix A are
@@ -619,7 +619,7 @@ export function ReviewWorkspace({
           ? sectionContent(listed)
           : partContent(workspace.parts?.[id as '1' | '3' | 'A'] ?? null)
     return (
-      <div style={wrapStyle}>
+      <div className="rv-ws">
         {rail}
         <VersionHistory
           key={id}
@@ -641,7 +641,6 @@ export function ReviewWorkspace({
             void reloadSummary()
           }}
           onStale={reload}
-          panelStyle={panelStyle}
         />
       </div>
     )
@@ -679,14 +678,19 @@ export function ReviewWorkspace({
     return (
       version &&
       hasWritten(blocks) && (
-        <div className="rv-written-section" aria-label="Written by you" role="group">
-          <p className="rv-label">Written by you</p>
-          <WrittenBlocks blocks={blocks} />
-          <p className="rv-provenance" style={{ margin: 0 }}>
+        // A subsection of the part's page, after its own content.
+        <section className="rv-sub" aria-label="Written by you" role="group">
+          <div className="rv-sub-head">
+            <h3 className="rv-sub-heading">Written by you</h3>
+          </div>
+          <div className="rv-sub-body">
+            <WrittenBlocks blocks={blocks} />
+          </div>
+          <p className="rv-sub-note rv-sub-foot">
             Last saved in the document {formatDayTime(new Date(version.savedAt))} by{' '}
             {version.savedBy.name}
           </p>
-        </div>
+        </section>
       )
     )
   }
@@ -708,21 +712,21 @@ export function ReviewWorkspace({
     nav: { onPrevious?: () => void; onNext?: () => void },
     action?: React.ReactNode,
   ) => (
-    <div style={wrapStyle}>
+    <div className="rv-ws">
       {rail}
       <ReportPart
         title={title}
         position={positionOf(id)}
         onHistory={openHistory}
         action={action}
+        documentAction={documentButton}
         help={id === '2' ? <Tip id="review.executive-summary" /> : undefined}
         {...nav}
       >
         {restoredNotice(id)}
         {body}
-        {(id === '1' || id === 'A') && writtenIn(id)}
       </ReportPart>
-      <ReviewInspector label={`${title} notes`} style={panelStyle} ask={inspector(askedRef)}>
+      <ReviewInspector label={`${title} notes`} ask={inspector(askedRef)}>
         {askedViewer()}
         <div className="rv-panel-section">
           <div className="rv-viewer is-empty">
@@ -736,7 +740,10 @@ export function ReviewWorkspace({
     return part(
       '1',
       PART_TITLES['1'],
-      <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} />,
+      <div className="rv-page">
+        <PurposeScope text={summary?.purposeAndScope ?? null} error={summaryError} page />
+        {writtenIn('1')}
+      </div>,
       'Filled in from the assessment and site details, so it always matches them.',
       { onNext: () => choose('2') },
     )
@@ -751,6 +758,7 @@ export function ReviewWorkspace({
           error={summaryError}
           onGenerate={onGenerate}
           document={workspace.parts?.['2'] ?? null}
+          page
         />
       </>,
       'Drafted from Sections 3 to 12 as they stand. Each statement names the sections it rests on.',
@@ -761,7 +769,7 @@ export function ReviewWorkspace({
     return part(
       'A',
       PART_TITLES.A,
-      <AppendixPhotos reference={reference} canEdit={canReview} />,
+      <AppendixPhotos reference={reference} canEdit={canReview} page after={writtenIn('A')} />,
       'The report shows only these photos, in this order, with their captions.',
       { onPrevious: last && (() => choose(last.id)) },
     )
@@ -770,9 +778,10 @@ export function ReviewWorkspace({
   // (which need no draft of 7-12) can still be opened (GN-07 AC1, AC5).
   if (!saved || !section || (!drafted.length && selected !== '3'))
     return (
-      <div style={wrapStyle}>
+      <div className="rv-ws">
         {rail}
         <section className="om-scroll rv-editor">
+          {documentButton && <div className="rv-editor-tools">{documentButton}</div>}
           <EmptyState
             icon="file-text"
             title="No sections drafted yet"
@@ -793,7 +802,7 @@ export function ReviewWorkspace({
   if (selected === '3') {
     const drafted = (accepted[0] ?? ofis?.suggestions?.[0])?.provenance
     return (
-      <div style={wrapStyle}>
+      <div className="rv-ws">
         {rail}
         <section aria-label="Draft editor" className="om-scroll rv-editor">
           <div className="rv-editor-inner">
@@ -804,45 +813,59 @@ export function ReviewWorkspace({
               onNext={sections.length ? () => choose(sections[0].id) : undefined}
               onHistory={openHistory}
               action={redraftButton('3')}
+              documentAction={documentButton}
             />
-            <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
-            {restoredNotice('3')}
-            {/* Marsh's matrix opens the section, drafted or not (GN-12 AC6). */}
-            <RiskMatrix help={<Tip id="review.ofi-matrix" />} />
-            {!drafted ? (
-              <EmptyState
-                icon="file-text"
-                title="No OFIs in the report yet"
-                description="Draft Opportunities for Improvement on the Generation tab, then accept them here."
-                action={
-                  <Button pill variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
-                    Go to Generation
-                  </Button>
-                }
-              />
-            ) : (
-              <>
+            {drafted && (
+              <div className="rv-part-meta">
                 <p className="rv-provenance">
                   Drafted {formatDayTime(new Date(drafted.generated_at))}
                 </p>
-                <OfiReviewPanel
-                  reference={reference}
-                  ofis={{ suggestions: ofis?.suggestions ?? [], accepted }}
-                  setOfis={setOfis}
-                  observations={observations ?? []}
-                  canAccept={canReview}
-                  onAccepted={() => void reloadSummary()}
-                />
-                {/* Drawn from the accepted OFIs above, so accepting one redraws them. */}
-                <ChartBoundary>
-                  <OfiCharts accepted={accepted} />
-                </ChartBoundary>
-              </>
+              </div>
             )}
-            {writtenIn('3')}
+            <PartJobNotice name="Section 3" failed={jobs.failedWith('3')} />
+            {restoredNotice('3')}
+            {/* Section 3 as one page of the report: Marsh's matrix (drafted or not, GN-12 AC6),
+                the suggestions and the OFIs in the report, their charts, and what was written. */}
+            <div className="rv-page">
+              <section className="rv-sub">
+                <RiskMatrix help={<Tip id="review.ofi-matrix" />} />
+              </section>
+              {!drafted ? (
+                <section className="rv-sub">
+                  <EmptyState
+                    icon="file-text"
+                    title="No OFIs in the report yet"
+                    description="Draft Opportunities for Improvement on the Generation tab, then accept them here."
+                    action={
+                      <Button pill variant="secondary" iconLeft="sparkles" onClick={onGenerate}>
+                        Go to Generation
+                      </Button>
+                    }
+                  />
+                </section>
+              ) : (
+                <>
+                  <OfiReviewPanel
+                    reference={reference}
+                    ofis={{ suggestions: ofis?.suggestions ?? [], accepted }}
+                    setOfis={setOfis}
+                    observations={observations ?? []}
+                    canAccept={canReview}
+                    onAccepted={() => void reloadSummary()}
+                  />
+                  {/* Drawn from the accepted OFIs above, so accepting one redraws them. */}
+                  <section className="rv-sub">
+                    <ChartBoundary>
+                      <OfiCharts accepted={accepted} />
+                    </ChartBoundary>
+                  </section>
+                </>
+              )}
+              {writtenIn('3')}
+            </div>
           </div>
         </section>
-        <ReviewInspector label="Section 3 suggestions" style={panelStyle} ask={inspector(askedRef)}>
+        <ReviewInspector label="Section 3 suggestions" ask={inspector(askedRef)}>
           {askedViewer()}
           <div className="rv-panel-section">
             <div className="rv-viewer is-empty">
@@ -956,7 +979,7 @@ export function ReviewWorkspace({
   )
 
   return (
-    <div style={wrapStyle}>
+    <div className="rv-ws">
       {rail}
       <DraftEditor
         section={section}
@@ -966,6 +989,7 @@ export function ReviewWorkspace({
         onNext={next || !openingHidden ? () => choose(next ? next.id : 'A') : undefined}
         onGenerate={onGenerate}
         onHistory={openHistory}
+        documentAction={documentButton}
         notice={restoredNotice(saved.id)}
         numbers={numbers}
         focus={focus}
@@ -1078,7 +1102,6 @@ export function ReviewWorkspace({
         describe={describe}
         onCite={cite}
         onShowClaim={(claim) => setFocus((f) => ({ ...f, statement: claim }))}
-        style={panelStyle}
         ask={inspector(focus.citation)}
         asked={asked}
       >

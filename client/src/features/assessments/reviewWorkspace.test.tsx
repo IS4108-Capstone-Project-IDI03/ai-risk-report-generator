@@ -1241,17 +1241,7 @@ it('words Section 3’s notes for Redraft once it is drafted, and for Generation
 
   generation = generationOf(0)
   mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
-  render(
-    <ReviewWorkspaceScreen
-      reference={REF}
-      canReview
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-      openSection="3"
-    />,
-  )
+  render(<ReviewWorkspaceScreen reference={REF} canReview onGenerate={() => {}} openSection="3" />)
   const before = await screen.findByRole('complementary', { name: 'Section 3 suggestions' })
   expect(before).toHaveTextContent("They're drafted on the Generation tab, then accepted here.")
   expect(within(before).getByRole('button', { name: 'Go to Generation' })).toBeInTheDocument()
@@ -1278,15 +1268,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
     generation = generationOf(8)
     mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
     render(
-      <ReviewWorkspaceScreen
-        reference={REF}
-        canReview
-        wrapStyle={{}}
-        railStyle={{}}
-        panelStyle={{}}
-        onGenerate={() => {}}
-        openSection="2"
-      />,
+      <ReviewWorkspaceScreen reference={REF} canReview onGenerate={() => {}} openSection="2" />,
     )
     expect(
       await within(await screen.findByRole('region', { name: 'Draft editor' })).findByRole(
@@ -1338,16 +1320,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
 
     generation = generationOf(11)
     mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
-    render(
-      <ReviewWorkspaceScreen
-        reference={REF}
-        wrapStyle={{}}
-        railStyle={{}}
-        panelStyle={{}}
-        onGenerate={() => {}}
-        openSection="3"
-      />,
-    )
+    render(<ReviewWorkspaceScreen reference={REF} onGenerate={() => {}} openSection="3" />)
     await screen.findByRole('heading', { name: '3. Opportunities for Improvement' })
     expect(screen.queryByRole('button', { name: 'Redraft' })).toBeNull()
   })
@@ -1355,16 +1328,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
 
 it('shows decisions without the actions to whoever may not decide', async () => {
   mockGateway(reply([WAITING, FIRE, EXPOSURES]))
-  render(
-    <ReviewWorkspaceScreen
-      reference={REF}
-      canReview={false}
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspaceScreen reference={REF} canReview={false} onGenerate={() => {}} />)
   await screen.findByRole('region', { name: 'Draft editor' })
   expect(within(findingOf(1)).queryByText('Accepted')).toBeNull()
   expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()

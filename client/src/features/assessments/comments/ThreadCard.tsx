@@ -4,30 +4,14 @@
 // offered Edit and Delete on it (AC3). Folded in the margin until chosen, it
 // shows its first comment and how many replies follow.
 import { useState } from 'react'
-import { Button, Icon, IconButton } from '../../../design-system'
+import { Avatar, Button, Icon, IconAction } from '../../../design-system'
 import { formatDayTime } from '../format'
 import type { CommentInput, CommentThread, ReportComment, Stamp } from './api'
 import { CommentComposer } from './CommentComposer'
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join('')
-
 // A comment's words, line breaks kept.
 export function CommentBody({ body }: { body: string }) {
   return <p className="cm-body">{body}</p>
-}
-
-function Avatar({ name }: { name: string }) {
-  return (
-    <span className="cm-avatar" aria-hidden="true">
-      {initials(name)}
-    </span>
-  )
 }
 
 function Byline({ comment }: { comment: ReportComment }) {
@@ -73,17 +57,11 @@ function CommentItem({
         <Byline comment={comment} />
         {own && mode === 'read' && (
           <span className="cm-comment-actions">
-            <IconButton
-              icon="pencil"
-              size="sm"
-              label="Edit comment"
-              onClick={() => setMode('edit')}
-            />
-            <IconButton
+            <IconAction icon="pencil" label="Edit comment" onClick={() => setMode('edit')} />
+            <IconAction
               icon="trash-2"
-              size="sm"
               label="Delete comment"
-              style={{ color: 'var(--red-600)' }}
+              danger
               onClick={() => setMode('confirm')}
             />
           </span>
@@ -211,16 +189,14 @@ export function ThreadCard({
         )}
         {canComment &&
           (resolved ? (
-            <IconButton
+            <IconAction
               icon="rotate-ccw"
-              size="sm"
               label="Reopen thread"
               onClick={() => void actions.reopen(thread.id)}
             />
           ) : (
-            <IconButton
+            <IconAction
               icon="check"
-              size="sm"
               label="Resolve thread"
               onClick={() => void actions.resolve(thread.id)}
             />

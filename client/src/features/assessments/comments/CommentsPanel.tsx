@@ -4,7 +4,7 @@
 // beside the text where there is room, else here, in the list's place,
 // which is also where a thread whose text is gone is read. Where there is no
 // margin (a narrow window), new threads and chosen ones open here too.
-import { Button, EmptyState, IconButton, SegmentedControl } from '../../../design-system'
+import { Badge, Button, EmptyState, IconButton, SegmentedControl } from '../../../design-system'
 import type { DocumentPart } from '../document/sections'
 import { quoteOf } from './anchor'
 import type { Stamp } from './api'
@@ -167,8 +167,8 @@ export function CommentsPanel({
                     )}
                     <span className="cm-row-meta">
                       {replies > 0 && `${replies} ${replies === 1 ? 'reply' : 'replies'}`}
-                      {thread.status === 'resolved' && <span className="cm-tag">Resolved</span>}
-                      {!entry.range && <span className="cm-tag">Text deleted</span>}
+                      {thread.status === 'resolved' && <Badge>Resolved</Badge>}
+                      {!entry.range && <Badge>Text deleted</Badge>}
                     </span>
                   </button>
                 </li>

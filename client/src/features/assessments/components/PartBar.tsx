@@ -2,9 +2,9 @@
 // help and action (Redraft) beside it, then Version history and the stepper ("4 of 10" between
 // round chevrons, the record stepper's look) at the right. One row for every part, so moving
 // between them feels the same. Called by DraftEditor, ReportPart and ReviewWorkspace (Section 3).
-// Calls IconAction, IconButton, Tooltip.
+// Calls IconAction.
 import type { ReactNode } from 'react'
-import { IconAction, IconButton, IconRegistry, Tooltip } from '../../../design-system'
+import { IconAction, IconRegistry } from '../../../design-system'
 
 /** Returns the part's title row with its stepper and Version history. */
 export function PartBar({
@@ -15,6 +15,7 @@ export function PartBar({
   onHistory,
   help,
   action,
+  documentAction,
 }: {
   title: ReactNode
   // e.g. "4 of 10": this part among all of the report's.
@@ -26,6 +27,8 @@ export function PartBar({
   help?: ReactNode
   // Sits beside the tools, e.g. Redraft on Sections 2 and 3 (GN-13).
   action?: ReactNode
+  // The bar's main action at its right end: Edit document (RV-08) or Open document (RV-03).
+  documentAction?: ReactNode
 }) {
   return (
     <div className="rv-part-bar">
@@ -36,18 +39,13 @@ export function PartBar({
       <span className="rv-part-tools">
         {action}
         {onHistory && (
-          // A plain IconButton inside the tooltip, so the walkthrough's tag sits on the button it
-          // presses (F-12 opens Version history by clicking it).
-          <Tooltip label="Version history" placement="bottom" style={{ display: 'flex' }}>
-            <IconButton
-              icon={IconRegistry.object.history}
-              label="Version history"
-              title={undefined}
-              style={{ borderRadius: 999 }}
-              data-walk="review.version-history"
-              onClick={onHistory}
-            />
-          </Tooltip>
+          <IconAction
+            icon={IconRegistry.object.history}
+            label="Version history"
+            placement="bottom"
+            data-walk="review.version-history"
+            onClick={onHistory}
+          />
         )}
         <nav className="rs" aria-label="Parts of the report">
           <IconAction
@@ -72,6 +70,7 @@ export function PartBar({
             onClick={onNext}
           />
         </nav>
+        {documentAction}
       </span>
     </div>
   )

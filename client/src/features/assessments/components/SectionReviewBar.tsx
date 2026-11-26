@@ -42,11 +42,14 @@ export function SectionReviewBar({
     <div className="rv-review-bar">
       {view === 'saved' && (
         <div className="rv-review-row">
-          <p className="rv-review-counts">
-            <span className="rv-label">Findings</span>{' '}
-            <span>{findings.total ? findingCountsLabel(findings) : 'None in this draft'}</span>
-          </p>
-          {canReview && <Tip id="review.findings" />}
+          {/* The counts and their (?) stay together when the buttons wrap under them. */}
+          <div className="rv-review-what">
+            <p className="rv-review-counts">
+              <span className="rv-label">Findings</span>{' '}
+              <span>{findings.total ? findingCountsLabel(findings) : 'None in this draft'}</span>
+            </p>
+            {canReview && <Tip id="review.findings" />}
+          </div>
           {canReview && (
             <div className="rv-review-actions" data-walk="review.actions">
               <Button
@@ -75,9 +78,10 @@ export function SectionReviewBar({
               >
                 {regenerating ? 'Regenerating' : 'Regenerate'}
               </Button>
+              {/* Its (?) stays beside Regenerate when the row wraps. */}
+              <Tip id="review.regenerate" align="right" />
             </div>
           )}
-          {canReview && <Tip id="review.regenerate" align="right" />}
         </div>
       )}
       {regenerateProblem && (

@@ -3,7 +3,7 @@
 // engineer types each value's % damage and each time element's outage months and
 // % impacted; the losses are the gateway's, as last saved (AC7). Used by
 // LossEstimateFigures.tsx.
-import { Button, IconButton, Input } from '../../../design-system'
+import { Button, IconAction, Input } from '../../../design-system'
 import type { LossEstimates } from '../api'
 import { formatAmount, type LOSS_LEVELS } from '../reportFigures'
 import type { TypedValue } from './LossValuesTable'
@@ -148,9 +148,9 @@ export function LossLevelBlock({
                           }}
                         />,
                       )}
-                      <IconButton
+                      <IconAction
                         icon="trash-2"
-                        size="sm"
+                        danger
                         label={`Remove damage item ${i + 1} from Level ${meta.level}`}
                         onClick={() =>
                           onChange({

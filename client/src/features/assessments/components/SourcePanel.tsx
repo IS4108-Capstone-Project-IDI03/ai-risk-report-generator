@@ -1,7 +1,13 @@
 import { PhotoReferences } from './PhotoReferences'
 import type { SavedObservation } from '../api'
 import { useEffect, useRef } from 'react'
-import { Badge, EvidenceCitation, IconButton, IconRegistry } from '../../../design-system'
+import {
+  Badge,
+  CountPill,
+  EvidenceCitation,
+  IconButton,
+  IconRegistry,
+} from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { calendarDate } from '../../knowledge-base/display'
 import type { FieldObservation, ReviewSection, SourcePassage } from '../api'
@@ -295,7 +301,7 @@ export function SourcePanel({
   describe: (citation: string) => string
   onCite: (citation: string | null, statement: string | null) => void
   onShowClaim: (claim: string) => void
-  style: React.CSSProperties
+  style?: React.CSSProperties
   children?: React.ReactNode
   ask?: InspectorAsk
   asked?: { passages: SourcePassage[]; observations: FieldObservation[] }
@@ -394,7 +400,7 @@ export function SourcePanel({
             <h3 className="rv-label">Reference sources</h3>
             <Tip id="review.evidence" />
           </span>
-          <span className="rv-count">{passages.length}</span>
+          <CountPill>{passages.length}</CountPill>
         </div>
         {passages.length ? (
           <ul className="rv-panel-list">
@@ -431,7 +437,7 @@ export function SourcePanel({
       <section className="rv-panel-section" aria-label="Original observations">
         <div className="rv-panel-head">
           <h3 className="rv-label">Original observations</h3>
-          <span className="rv-count">{observations.length}</span>
+          <CountPill>{observations.length}</CountPill>
         </div>
         {observations.length ? (
           <ul className="rv-panel-list">
@@ -482,10 +488,9 @@ export function SourcePanel({
       <section className="rv-panel-section" aria-label="Claims">
         <div className="rv-panel-head">
           <h3 className="rv-label">Claims</h3>
-          <span className="rv-count">
-            {claims.length}
-            {unsupported ? ` · ${unsupported} unsupported` : ''}
-          </span>
+          <CountPill>
+            {`${claims.length}${unsupported ? ` · ${unsupported} unsupported` : ''}`}
+          </CountPill>
         </div>
         {claims.length ? (
           <ol className="rv-panel-list">

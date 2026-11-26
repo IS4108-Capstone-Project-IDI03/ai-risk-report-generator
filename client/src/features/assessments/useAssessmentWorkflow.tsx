@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type * as React from 'react'
-import { Icon, IconRegistry, toast as sonner } from '../../design-system'
+import { Avatar, Icon, IconRegistry, toast as sonner } from '../../design-system'
 import {
   archiveAssessment as requestArchive,
   createDraftRecordings,
@@ -987,15 +987,9 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
     }))
   }
   function userFooter() {
-    const initials = session.user.name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0].toUpperCase())
-      .join('')
     return (
       <div className="user-footer">
-        <span className="user-avatar">{initials}</span>
+        <Avatar name={session.user.name} size={32} className="user-avatar" />
         <div>
           <strong>{session.user.name}</strong>
           <small>{roleLabel(session.user.role)}</small>
@@ -2699,48 +2693,6 @@ export function useAssessmentWorkflow(onSignOut: () => void, session: Session) {
         }),
       wideTable: !narrow,
       stackTable: narrow,
-      reviewWrapStyle: narrow
-        ? ({
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: '0',
-            animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
-          } as React.CSSProperties)
-        : ({
-            display: 'flex',
-            height: '100%',
-            minHeight: '0',
-            animation: 'omFade 180ms cubic-bezier(.2,0,.2,1)',
-          } as React.CSSProperties),
-      reviewRailStyle: narrow
-        ? ({
-            flex: '0 0 auto',
-            width: '100%',
-            background: 'var(--surface-card)',
-            borderBottom: '1px solid var(--border-default)',
-          } as React.CSSProperties)
-        : ({
-            flex: '0 0 auto',
-            width: '264px',
-            overflow: 'auto',
-            background: 'var(--surface-card)',
-            borderRight: '1px solid var(--border-default)',
-          } as React.CSSProperties),
-      reviewEvidenceStyle: narrow
-        ? ({
-            flex: '0 0 auto',
-            width: '100%',
-            background: 'var(--surface-card)',
-            borderTop: '1px solid var(--border-default)',
-          } as React.CSSProperties)
-        : ({
-            flex: '0 0 auto',
-            // Narrower at 1280 with the sidebar open, so the editor beside it keeps room; 344 from 1440.
-            width: 'clamp(296px, 24vw, 344px)',
-            overflow: 'auto',
-            background: 'var(--surface-card)',
-            borderLeft: '1px solid var(--border-default)',
-          } as React.CSSProperties),
       go: (v: string) => {
         setState({
           ...navigateTo(v),

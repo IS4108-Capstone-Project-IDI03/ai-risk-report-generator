@@ -1,4 +1,4 @@
-import { Badge, Button, IconRegistry } from '../../../design-system'
+import { Badge, Button, CountPill, IconRegistry } from '../../../design-system'
 import type { ReviewHistoryEntry } from '../api'
 import { formatDayYearTime } from '../format'
 import { historyLabel } from '../reviewDisplay'
@@ -36,7 +36,7 @@ export function ReviewHistory({
     <section className="rv-panel-section" aria-label="Review history">
       <div className="rv-panel-head">
         <h3 className="rv-label">Review history</h3>
-        <span className="rv-count">{entries.length}</span>
+        <CountPill>{entries.length}</CountPill>
       </div>
       {!entries.length ? (
         <p className="rv-muted">No decisions yet.</p>

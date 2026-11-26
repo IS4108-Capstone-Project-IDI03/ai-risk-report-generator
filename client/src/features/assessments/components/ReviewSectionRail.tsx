@@ -1,17 +1,26 @@
-import { Badge, Button, HelpTip, Icon, IconRegistry, ProgressBar } from '../../../design-system'
+import { useEffect, useRef } from 'react'
+import {
+  Badge,
+  HelpTip,
+  IconRegistry,
+  ProgressBar,
+  RowMark,
+  SectionRow,
+} from '../../../design-system'
 import type { FindingCounts, ReviewSection, Summary } from '../api'
 import { completionLabel, plural, reportProgress, REVIEW_BADGE } from '../reviewDisplay'
 
-// F-12 walkthrough tags for the rows the Review walkthroughs open or point at (Section 3 has its own).
+// F-12 walkthrough tags for the rows the Review walkthroughs open or point at.
 const ROW_WALK: Record<string, string> = {
+  '3': 'review.rail.section-3',
   '4': 'review.rail.section-4',
   '5': 'review.rail.section-5',
   '7': 'review.rail.section-7',
   '9': 'review.rail.section-9',
 }
 
-// The review summary (RV-02 AC9): the saved drafts' findings across the
-// report by decision, as the gateway counted them from the saved decisions.
+// The review summary (RV-02 AC9): the saved drafts' findings across the report by decision, as
+// the gateway counted them from the saved decisions. Four quiet counts in one strip.
 function ReviewSummary({ summary }: { summary: FindingCounts }) {
   return (
     <section aria-label="Review summary" className="rv-summary">
@@ -24,13 +33,13 @@ function ReviewSummary({ summary }: { summary: FindingCounts }) {
             ['pending', 'Pending'],
           ] as const
         ).map(([state, label]) => (
-          <div key={state}>
+          <div key={state} data-state={state}>
             <dt>{label}</dt>
-            <dd>{summary[state]}</dd>
+            <dd data-zero={summary[state] ? undefined : ''}>{summary[state]}</dd>
           </div>
         ))}
       </dl>
-      <p className="rv-muted">
+      <p className="rv-summary-line">
         {summary.total
           ? `${summary.total - summary.pending} of ${plural(summary.total, 'finding')} decided`
           : 'No findings drafted yet'}
@@ -39,15 +48,11 @@ function ReviewSummary({ summary }: { summary: FindingCounts }) {
   )
 }
 
-// The section navigation of the review workspace (RV-01): sections 7-12, each
-// with how much of it the draft writes (AC5) and where it stands in review
-// (AC6), and the review summary above them (RV-02). Selecting one changes the
-// draft and the source panel together. Section 3's OFIs (GN-05) come first,
-// with how many are in the report.
-// Sections 1 and 2 lead the rail and Appendix A ends it (GN-07). Edit
-// document, for the assigned engineer, opens the whole report as one
-// document (RV-08); anyone else who can comment on it (a knowledge admin)
-// opens it read only, as Open document (RV-03 AC7).
+// The report outline of the review workspace (RV-01): where the report stands (drafted,
+// reviewed, findings decided), then every part as a row of its number, name and one line of
+// state. Selecting one changes the draft and the source panel together. Section 3's OFIs (GN-05)
+// show how many are in the report; Sections 1 and 2 lead and Appendix A ends it (GN-07).
+// The rows are the design system's section rows, as on Generation and in the document editor.
 export function ReviewSectionRail({
   sections,
   summary,
@@ -59,9 +64,6 @@ export function ReviewSectionRail({
   onSelect,
   inReport,
   executiveSummary,
-  onEditDocument,
-  readOnly = false,
-  editPending = false,
   style,
 }: {
   sections: ReviewSection[]
@@ -81,32 +83,20 @@ export function ReviewSectionRail({
   inReport: number
   // Section 2's state, for its row; null until loaded (GN-07).
   executiveSummary: Summary['executiveSummary'] | null
-  // Left out where the viewer may neither edit nor comment.
-  onEditDocument?: () => void
-  // The document opens read only, to comment on (RV-03).
-  readOnly?: boolean
-  // The document's last changes are still being read back: opening it again
-  // waits, so it opens on them.
-  editPending?: boolean
-  style: React.CSSProperties
+  // Extra layout from the host, if any; the rail's own look is `.rv-rail` (review.css).
+  style?: React.CSSProperties
 }) {
-  // One rail row: its number, title and state badges.
-  const row = (id: string, number: string, title: string, states: React.ReactNode) => (
-    <li key={id}>
-      <button
-        type="button"
-        className="rv-rail-row"
-        aria-current={selected === id ? 'true' : undefined}
-        onClick={() => onSelect(id)}
-      >
-        <span className="rv-rail-number">{number}</span>
-        <span className="rv-rail-body">
-          <span className="rv-rail-title">{title}</span>
-          <span className="rv-rail-states">{states}</span>
-        </span>
-      </button>
-    </li>
-  )
+  // The open part's row kept in view when the stepper moves past the rows shown. Only where the
+  // outline scrolls by itself: stacked under the draft, moving the page would pull it off the part.
+  const nav = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const box = nav.current
+    const row = box?.querySelector<HTMLElement>('[aria-current="true"]')
+    if (!box || !row || box.scrollHeight <= box.clientHeight) return
+    const top = row.offsetTop - box.offsetTop
+    if (top < box.scrollTop + 16 || top + row.offsetHeight > box.scrollTop + box.clientHeight - 16)
+      box.scrollTo?.({ top: top - box.clientHeight / 3 })
+  }, [selected])
   const drafted = sections.filter((s) => s.draft).length
   // Over the 11 counted parts (Sections 2-12), not only those with a draft of their own.
   const counted = reportProgress({
@@ -132,161 +122,132 @@ export function ReviewSectionRail({
           (s.replacement ? 1 : 0) ===
           0,
     ).length
+  // One row: the design system's section row as a button.
+  const row = (
+    id: string,
+    title: string,
+    note: React.ReactNode,
+    mark?: React.ReactNode,
+    flag?: 'warn',
+  ) => (
+    <li key={id}>
+      <SectionRow
+        number={id}
+        name={title}
+        note={note}
+        mark={mark}
+        flag={flag}
+        current={selected === id}
+        walk={ROW_WALK[id]}
+        onSelect={() => onSelect(id)}
+      />
+    </li>
+  )
+  const summaryBadge = !executiveSummary ? null : executiveSummary.staleSections.length ? (
+    <Badge tone="moderate" icon="triangle-alert">
+      Out of date
+    </Badge>
+  ) : executiveSummary.draft ? (
+    <Badge tone="ai" icon="sparkles">
+      AI draft
+    </Badge>
+  ) : (
+    <Badge tone="neutral" icon="circle-dashed">
+      {executiveSummary.missing.length
+        ? `Needs ${plural(executiveSummary.missing.length, 'section')}`
+        : 'Not drafted'}
+    </Badge>
+  )
   return (
-    <nav aria-label="Report sections" className="om-scroll" style={style}>
-      {onEditDocument && (
-        <div className="rv-rail-edit">
-          <Button
-            variant="tonal"
-            pill
-            iconLeft={IconRegistry.object.report}
-            fullWidth
-            disabled={editPending}
-            data-walk="review.edit-document"
-            onClick={onEditDocument}
-          >
-            {readOnly ? 'Open document' : 'Edit document'}
-          </Button>
+    <nav ref={nav} aria-label="Report sections" className="om-scroll rv-rail" style={style}>
+      <div className="rv-rail-top">
+        <div className="rv-rail-head">
+          <p className="rv-label">Report</p>
+          {/* What the review states mean, behind the (?) rather than under the list. */}
+          <HelpTip label="What the section states mean">
+            <p>
+              A section <strong>needs review</strong> when a statement is unsupported, a source it
+              cites was withdrawn, or observations changed after it was drafted.
+            </p>
+            <p>
+              It's <strong>reviewed</strong> once every finding is accepted, edited or rejected, and{' '}
+              <strong>edited by you</strong> once you change or write it in the document.
+            </p>
+          </HelpTip>
         </div>
-      )}
-      {summary && <ReviewSummary summary={summary} />}
-      <div className="rv-rail-head">
-        <p className="rv-label">Sections</p>
-        {/* What the review states mean, behind the (?) rather than under the list. */}
-        <HelpTip label="What the section states mean">
-          <p>
-            A section <strong>needs review</strong> when a statement is unsupported, a source it
-            cites was withdrawn, or observations changed after it was drafted.
-          </p>
-          <p>
-            It's <strong>reviewed</strong> once every finding is accepted, edited or rejected, and{' '}
-            <strong>edited by you</strong> once you change or write it in the document.
-          </p>
-        </HelpTip>
-      </div>
-      <div className="rv-rail-progress">
         <ProgressBar
           value={progress.percent}
           label={`${progress.done} of ${plural(progress.total, 'section')} drafted`}
           tone="primary"
         />
-        {reviewed > 0 && (
-          <p className="rv-muted">
-            {reviewed} of {progress.total} reviewed
+        {(reviewed > 0 || flagged > 0) && (
+          <p className="rv-rail-stats">
+            {reviewed > 0 && (
+              <span>
+                {reviewed} of {progress.total} reviewed
+              </span>
+            )}
+            {flagged > 0 && (
+              <span className="is-flagged">
+                {plural(flagged, 'section')} need{flagged === 1 ? 's' : ''} review
+              </span>
+            )}
           </p>
         )}
-        {flagged > 0 && (
-          <p className="rv-muted">
-            {plural(flagged, 'section')} need{flagged === 1 ? 's' : ''} review
-          </p>
-        )}
+        {summary && <ReviewSummary summary={summary} />}
       </div>
       <ul className="rv-rail-list">
-        {!hideOpening &&
-          row(
-            '1',
-            '1',
-            'Purpose and Scope',
+        {!hideOpening && row('1', 'Purpose and Scope', <span>From assessment details</span>)}
+        {!hideOpening && row('2', 'Executive Summary', summaryBadge)}
+        {row(
+          '3',
+          'Opportunities for Improvement',
+          inReport > 0 ? (
             <Badge tone="low" icon="check">
-              From assessment details
-            </Badge>,
-          )}
-        {!hideOpening &&
-          row(
-            '2',
-            '2',
-            'Executive Summary',
-            !executiveSummary ? null : executiveSummary.staleSections.length ? (
-              <Badge tone="moderate" icon="triangle-alert">
-                Out of date
-              </Badge>
-            ) : executiveSummary.draft ? (
-              <Badge tone="ai" icon="sparkles">
-                AI draft
-              </Badge>
-            ) : (
-              <Badge tone="neutral" icon="circle-dashed">
-                {executiveSummary.missing.length
-                  ? `Needs ${plural(executiveSummary.missing.length, 'section')}`
-                  : 'Not drafted'}
-              </Badge>
-            ),
-          )}
-        <li>
-          <button
-            type="button"
-            className="rv-rail-row"
-            aria-current={selected === '3' ? 'true' : undefined}
-            data-walk="review.rail.section-3"
-            onClick={() => onSelect('3')}
-          >
-            <span className="rv-rail-number">3</span>
-            <span className="rv-rail-body">
-              <span className="rv-rail-title">Opportunities for Improvement</span>
-              <span className="rv-rail-states">
-                {inReport > 0 ? (
-                  <Badge tone="low" icon="check">
-                    {inReport} in the report
-                  </Badge>
-                ) : (
-                  <Badge tone="neutral" icon="circle-dashed">
-                    None in the report
-                  </Badge>
-                )}
-              </span>
-            </span>
-          </button>
-        </li>
+              {inReport} in the report
+            </Badge>
+          ) : (
+            <Badge tone="neutral" icon="circle-dashed">
+              None in the report
+            </Badge>
+          ),
+        )}
         {sections.map((s) => {
           const badge = REVIEW_BADGE[s.review.state]
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                className="rv-rail-row"
-                aria-current={s.id === selected ? 'true' : undefined}
-                data-walk={ROW_WALK[s.id]}
-                onClick={() => onSelect(s.id)}
-              >
-                <span className="rv-rail-number">{s.id}</span>
-                <span className="rv-rail-body">
-                  <span className="rv-rail-title">{s.title}</span>
-                  <span className="rv-rail-states">
-                    <span className="rv-rail-completion">{completionLabel(s.completion)}</span>
-                    <Badge tone={badge.tone} icon={badge.icon}>
-                      {badge.label}
-                    </Badge>
-                    {/* Changed in the document while still flagged (RV-08 AC12). */}
-                    {s.review.editedInDocument && s.review.state !== 'edited' && (
-                      <Badge tone={REVIEW_BADGE.edited.tone} icon={REVIEW_BADGE.edited.icon}>
-                        {REVIEW_BADGE.edited.label}
-                      </Badge>
-                    )}
-                    {s.replacement && (
-                      <Badge tone="ai" icon={IconRegistry.action.regenerate}>
-                        Replacement ready
-                      </Badge>
-                    )}
-                    {/* Its own line under the badges; from the server's drafting state (GN-13). */}
-                    {regenerating.has(s.id) && (
-                      <span className="rv-rail-completion rv-rail-regenerating">
-                        <Icon name="loader-circle" size={14} className="ds-spin" />
-                        {/* A run's first draft of a section is not a redraft. */}
-                        {redrafting.has(s.id)
-                          ? s.draft
-                            ? 'Redrafting'
-                            : 'Drafting'
-                          : 'Regenerating'}
-                      </span>
-                    )}
-                  </span>
+          const working = regenerating.has(s.id)
+          return row(
+            s.id,
+            s.title,
+            <>
+              <Badge tone={badge.tone} icon={badge.icon}>
+                {badge.label}
+              </Badge>
+              {/* Changed in the document while still flagged (RV-08 AC12). */}
+              {s.review.editedInDocument && s.review.state !== 'edited' && (
+                <Badge tone={REVIEW_BADGE.edited.tone} icon={REVIEW_BADGE.edited.icon}>
+                  {REVIEW_BADGE.edited.label}
+                </Badge>
+              )}
+              {s.replacement && (
+                <Badge tone="ai" icon={IconRegistry.action.regenerate}>
+                  Replacement ready
+                </Badge>
+              )}
+              {/* How much of it is written (RV-01 AC5), on the badge's line. */}
+              <span className="rv-rail-completion">{completionLabel(s.completion)}</span>
+              {/* From the server's drafting state (GN-13); a run's first draft is not a redraft. */}
+              {working && (
+                <span className="rv-rail-completion rv-rail-regenerating">
+                  {redrafting.has(s.id) ? (s.draft ? 'Redrafting' : 'Drafting') : 'Regenerating'}
                 </span>
-              </button>
-            </li>
+              )}
+            </>,
+            working ? <RowMark kind="working" label="Working" /> : undefined,
+            // A section that needs another look is tinted amber, as flagged rows are on Generation.
+            s.review.state === 'needs_review' ? 'warn' : undefined,
           )
         })}
-        {!hideOpening &&
-          row('A', 'A', 'Site Photos', <span className="rv-rail-completion">Appendix A</span>)}
+        {!hideOpening && row('A', 'Site Photos', <span>Appendix A</span>)}
       </ul>
     </nav>
   )

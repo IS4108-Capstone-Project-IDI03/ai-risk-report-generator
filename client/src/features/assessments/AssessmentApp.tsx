@@ -433,9 +433,6 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         canReview={v.canDraftSections}
                         canComment={v.canComment}
                         me={{ id: session.user.id, name: session.user.name }}
-                        wrapStyle={v.reviewWrapStyle}
-                        railStyle={v.reviewRailStyle}
-                        panelStyle={v.reviewEvidenceStyle}
                         onGenerate={() => v.setTab('generate')}
                         historyRequest={v.reviewHistory}
                         openSection={goTo?.params?.section}

@@ -11,6 +11,7 @@ export function ReportPart({
   onNext,
   onHistory,
   action,
+  documentAction,
   help,
   children,
 }: {
@@ -22,6 +23,8 @@ export function ReportPart({
   onHistory?: () => void
   // Sits at the right of the heading, e.g. Redraft on Section 2 (GN-13).
   action?: React.ReactNode
+  // Edit document or Open document, at the bar's right end.
+  documentAction?: React.ReactNode
   // A help tip beside the heading (F-13), e.g. on Section 2.
   help?: React.ReactNode
   children: React.ReactNode
@@ -37,6 +40,7 @@ export function ReportPart({
           onHistory={onHistory}
           help={help}
           action={action}
+          documentAction={documentAction}
         />
         {children}
       </div>

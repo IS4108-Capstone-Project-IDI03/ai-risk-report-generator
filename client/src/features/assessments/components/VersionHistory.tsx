@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Callout,
+  CountPill,
   EmptyState,
   IconRegistry,
   SegmentedControl,
@@ -238,7 +239,6 @@ export function VersionHistory({
   onClose,
   onRestored,
   onStale,
-  panelStyle,
 }: {
   reference: string
   sectionId: string
@@ -255,7 +255,6 @@ export function VersionHistory({
   // A restore was refused as the section changed since: the workspace reads
   // it again.
   onStale: () => void
-  panelStyle: React.CSSProperties
 }) {
   const { history, loadError, reload } = useSectionHistory(reference, sectionId)
   // The walkthrough engine (F-12) hears the versions have loaded.
@@ -324,23 +323,15 @@ export function VersionHistory({
               <p className="rv-version-origin">{origin(selected, entries)}</p>
             )}
           </div>
-          {canRestore && (
-            <div className="rv-version-restore">
-              <Tip id="versions.restore" align="right" />
-              <Button
-                pill
-                variant="secondary"
-                size="sm"
-                iconLeft={IconRegistry.action.reinstate}
-                disabled={unchanged}
-                title={unchanged ? 'Its text is the current text.' : undefined}
-                data-walk="versions.restore"
-                onClick={() => setConfirming(true)}
-              >
-                Restore this version
-              </Button>
-            </div>
-          )}
+          <SegmentedControl
+            ariaLabel="Compare with"
+            value={showing}
+            onChange={setCompare}
+            options={[
+              { value: 'current', label: 'Current text' },
+              { value: 'previous', label: 'Version before', disabled: !before },
+            ]}
+          />
         </div>
         {!selected.onSavedDraft && (
           <Callout tone="info" title="Written on an earlier draft">
@@ -348,15 +339,6 @@ export function VersionHistory({
             the current draft as findings, and restores the rest of its text as your own.
           </Callout>
         )}
-        <SegmentedControl
-          ariaLabel="Compare with"
-          value={showing}
-          onChange={setCompare}
-          options={[
-            { value: 'current', label: 'Current text' },
-            { value: 'previous', label: 'Version before', disabled: !before },
-          ]}
-        />
         {showing === 'previous' && before ? (
           <Comparison
             older={before.document}
@@ -381,17 +363,35 @@ export function VersionHistory({
     <>
       <section aria-label="Version history" className="om-scroll rv-editor">
         <div className="rv-editor-inner">
+          {/* The screen's header: Back, which part, and its one action, Restore this version. */}
           <div className="rv-version-top">
             <BackButton label="Back to the draft" onClick={onClose} />
-            <div>
+            <div className="rv-version-heading">
               <p className="rv-version-eyebrow">Version history</p>
               <h2>{title}</h2>
             </div>
+            {canRestore && selected && history && current && (
+              <div className="rv-version-restore">
+                <Tip id="versions.restore" align="right" />
+                <Button
+                  pill
+                  variant="primary"
+                  size="sm"
+                  iconLeft={IconRegistry.action.reinstate}
+                  disabled={unchanged}
+                  title={unchanged ? 'Its text is the current text.' : undefined}
+                  data-walk="versions.restore"
+                  onClick={() => setConfirming(true)}
+                >
+                  Restore this version
+                </Button>
+              </div>
+            )}
           </div>
           {body}
         </div>
       </section>
-      <aside aria-label="Versions" className="om-scroll" style={panelStyle}>
+      <aside aria-label="Versions" className="om-scroll rv-side">
         <section
           className="rv-panel-section"
           aria-label="Section versions"
@@ -399,7 +399,7 @@ export function VersionHistory({
         >
           <div className="rv-panel-head">
             <h3 className="rv-label">Versions</h3>
-            {entries.length > 0 && <span className="rv-count">{entries.length}</span>}
+            {entries.length > 0 && <CountPill>{entries.length}</CountPill>}
           </div>
           {!history ? (
             <p className="rv-muted">{loadError ? 'Not loaded.' : 'Loading…'}</p>

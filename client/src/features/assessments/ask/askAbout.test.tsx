@@ -187,17 +187,7 @@ function gateway({
 }
 
 function open() {
-  render(
-    <ReviewWorkspace
-      reference={REF}
-      canReview
-      canAsk
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspace reference={REF} canReview canAsk onGenerate={() => {}} />)
 }
 const inspector = () => screen.getByRole('complementary', { name: 'Source panel' })
 const askTab = () => within(inspector()).getByRole('tabpanel', { name: 'Ask' })

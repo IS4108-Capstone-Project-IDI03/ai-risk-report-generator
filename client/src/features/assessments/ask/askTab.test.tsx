@@ -184,17 +184,7 @@ function gateway({
 }
 
 function open(canAsk = true) {
-  render(
-    <ReviewWorkspace
-      reference={REF}
-      canReview
-      canAsk={canAsk}
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspace reference={REF} canReview canAsk={canAsk} onGenerate={() => {}} />)
 }
 const inspector = () => screen.getByRole('complementary', { name: 'Source panel' })
 async function openAsk() {
