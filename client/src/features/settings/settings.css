@@ -545,11 +545,12 @@
 }
 
 /* ---- Phone (375 px up): the menu is a row that scrolls sideways; blocks stack ---- */
-@media (max-width: 767px) {
+/* Below 1200 px (a tablet, or 1024 beside the open sidebar) the menu is a row of pills above the
+   section, so the section gets the full width instead of sharing it with a menu column. */
+@media (max-width: 1199px) {
   .st {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-    padding: 16px;
   }
   .st-menu,
   .st-menu-group {
@@ -560,11 +561,10 @@
      strip was three small scrolling boxes and an item could sit half hidden inside one. */
   .st-menu {
     gap: 4px;
-    /* A fade at the right edge says the strip scrolls sideways; the room after the last item
-       keeps it clear of the fade. No scroll snap: it pulled the strip back from its end, and the
+    /* The edge with more items past it fades (.ds-scroll-fade, Settings.tsx), so the strip
+       reads as scrolling sideways. No scroll snap: it pulled the strip back from its end, and the
        last item (QA Eval) stayed cut off when opened. */
     padding-right: 24px;
-    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
   }
   .st-menu-group {
     flex: none;
@@ -582,6 +582,11 @@
     min-height: 44px;
     white-space: nowrap;
   }
+}
+@media (max-width: 767px) {
+  .st {
+    padding: 16px;
+  }
   /* "(recommended)" stays in the open list; the closed box keeps room for the model's name. */
   .st-rec--trim {
     display: none;
@@ -590,19 +595,14 @@
     padding: 12px 16px 0;
   }
   /* A list switch with three options is wider than a phone: it scrolls inside its own track. */
-  .st-content .ds-segmented {
+  .st-content .ds-segmented:not(.ds-segmented--wrap) {
     display: flex;
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .st-content .ds-segmented button {
+  .st-content .ds-segmented:not(.ds-segmented--wrap) button {
     flex: none;
     height: 44px;
-  }
-  /* A one-line note keeps its (?) beside it. */
-  .st-row-head:has(> .st-note) {
-    flex-wrap: nowrap;
-    align-items: flex-start;
   }
   .st-unused-head {
     margin: 0 -16px;
@@ -684,9 +684,9 @@
 .st-pw-filters > :only-child {
   grid-column: 1 / -1;
 }
-/* The lists' tables: every cell may wrap, so a table fits its card at any width rather than
-   being clipped by it. */
-.st-pw-table td {
+/* The lists' tables: only a word (the first column) too long for its card breaks inside; the
+   other cells wrap between words (.st-table), so "Default" never splits into "Defau / lt". */
+.st-pw-table td:first-child {
   overflow-wrap: anywhere;
 }
 .st-pw-added {
@@ -705,7 +705,17 @@
 .st-num {
   font-variant-numeric: tabular-nums;
 }
-@media (max-width: 720px) {
+/* A narrow section (a phone, or a tablet's column beside the menu) is measured, not the
+   window: at 768 px the card is a phone's width. */
+.st-stack {
+  container: st-section / inline-size;
+}
+@container st-section (max-width: 560px) {
+  /* A one-line note keeps its (?) beside it. */
+  .st-row-head:has(> .st-note) {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
   .st-pw-fields,
   .st-pw-fields:has(select),
   .st-pw-filters {
@@ -737,6 +747,14 @@
     grid-column: 1;
     padding: 0 !important;
     text-align: left !important;
+  }
+  /* A stacked row is one block with a rule under it, not three 52 px cells. */
+  .st-pw-table .st-table tbody td {
+    height: auto;
+    border-bottom: 0;
+  }
+  .st-pw-table tbody tr + tr {
+    border-top: 1px solid var(--graphite-100);
   }
   .st-pw-table td:not(:first-child, :last-child) {
     color: var(--text-muted);
@@ -851,7 +869,7 @@
   padding: 8px;
   text-align: center;
   vertical-align: middle;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .st-table :is(th, td):first-child {
   padding-left: 16px;

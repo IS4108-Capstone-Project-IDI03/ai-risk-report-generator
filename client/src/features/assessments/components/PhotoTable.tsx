@@ -29,6 +29,7 @@ import {
   IconRegistry,
   SearchField,
   TableFooter,
+  useScrollFade,
 } from '../../../design-system'
 import type { TranscriptionStatus } from '../api'
 import { filtersSet, type EvidenceFilters, type FilterMenu } from '../evidenceFilters'
@@ -109,6 +110,8 @@ export function PhotoTable<R extends PhotoRow>({
   filters?: RowFilters<R>
 }) {
   const words = searchWords(search?.query ?? '')
+  // On a phone the filter pills scroll sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLDivElement>()
   // Back with a search, the texts it found open again.
   const own = useOpenRows(() => textHits(rows, words))
   const { open, toggle, showAll } = openRows ?? own
@@ -138,7 +141,7 @@ export function PhotoTable<R extends PhotoRow>({
             />
           )}
           {filters && (
-            <div className="ob-bar-pills">
+            <div className="ob-bar-pills ds-scroll-fade" ref={fade}>
               {filters.menus.map((m) => (
                 <PillFilter
                   key={m.key}

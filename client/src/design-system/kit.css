@@ -360,14 +360,67 @@
     background: rgb(255 255 255 / 0.6);
   }
 }
+/* Wrapping (the `wrap` prop): options that don't fit on one line go onto more rows, each row
+   filling the width (data-rows). One row looks as before: its height caps the 22 px radius to a pill. */
+.ds-segmented--wrap {
+  flex-wrap: wrap;
+  border-radius: 22px;
+}
+.ds-segmented--wrap[data-rows] button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.ds-segmented--wrap .ds-seg-thumb[data-slide] {
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    top var(--duration-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-segmented--wrap .ds-seg-thumb[data-slide] {
+    transition: none;
+  }
+}
 .ds-segmented button:disabled {
-  opacity: 0.4;
+  /* Readable (graphite 600, 5.8:1 on the track), not faded to 0.4: a disabled option says
+     what exists. Its type colour and full icon go, so it still reads as unavailable. */
+  color: var(--graphite-600) !important;
+  font-weight: 400;
   cursor: not-allowed;
+}
+.ds-segmented button:disabled svg {
+  opacity: 0.5;
 }
 @media (pointer: coarse) {
   .ds-segmented button {
     height: 44px;
   }
+}
+
+/* Scroll fade (scrollFade.ts): a row that scrolls sideways fades each edge with more past it,
+   40 px, so it reads as scrollable; once scrolled to the end, that edge is sharp again. */
+.ds-scroll-fade[data-more='end'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.ds-scroll-fade[data-more='start'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.ds-scroll-fade[data-more='start end'] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
 }
 
 /* Search field and filter pill. 16 px text on touch stops iOS zooming the page when it is focused. */
@@ -1027,7 +1080,11 @@
   background: var(--surface-card);
 }
 @media (max-width: 767px) {
-  /* Thumb-sized, side by side and equal, like an iOS alert. */
+  /* Thumb-sized, side by side and equal, like an iOS alert; their edges line up with the
+     fields above (the body's 24 px), not 4 px outside them. */
+  .ds-dialog--v2 .ds-dialog-footer {
+    padding-inline: 24px;
+  }
   .ds-dialog--v2 .ds-dialog-footer button {
     flex: 1;
     min-height: 44px;

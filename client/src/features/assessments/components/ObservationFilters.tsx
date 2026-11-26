@@ -6,7 +6,7 @@
 // useAssessmentWorkflow.tsx. PillFilter is shared with All Photos, Pages and Recordings
 // (PhotoTable.tsx); FilterChip below is the older chip, still used by the site walk tables.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FilterPill, Icon, SearchField } from '../../../design-system'
+import { FilterPill, Icon, SearchField, useScrollFade } from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../filterChoices'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { ChoiceMenu, type Choice } from './ChoiceMenu'
@@ -47,6 +47,8 @@ export function ObservationFilters({
   // A search too narrow for its words (a laptop, sidebar open) says just "Search"; without
   // this the placeholder is cut mid-word. The field's aria-label stays whole.
   const bar = useRef<HTMLDivElement>(null)
+  // On a phone the pills scroll sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLDivElement>()
   const [narrow, setNarrow] = useState(false)
   useEffect(() => {
     const field = bar.current?.querySelector('.ob-bar-search')
@@ -65,7 +67,7 @@ export function ObservationFilters({
         value={v.obsFilters.q}
         onChange={(e) => v.setObsFilter('q', e.target.value)}
       />
-      <div className="ob-bar-pills">
+      <div className="ob-bar-pills ds-scroll-fade" ref={fade}>
         {menus.map(([key, name, choices]) => (
           <PillFilter
             key={key}

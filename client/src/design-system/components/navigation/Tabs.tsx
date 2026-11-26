@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
+import { markMore } from './scrollFade'
 export type TabsProps = {
   // `alert` turns the count into an amber pill that asks for attention, and is
   // read out after the label (e.g. "1 needs review").
@@ -24,16 +25,6 @@ export type TabsProps = {
   style?: React.CSSProperties
   // The whole row's data-walk tag (F-12).
   walk?: string
-}
-// Marks which sides of a scrolling row hold more tabs (data-more="start end"), so styles.css
-// fades that edge: without a hint, a phone's Export tab sat off the right edge unseen.
-function markMore(row: HTMLElement) {
-  const more = [
-    row.scrollLeft > 1 && 'start',
-    row.scrollLeft + row.clientWidth < row.scrollWidth - 1 && 'end',
-  ].filter(Boolean)
-  if (more.length) row.dataset.more = more.join(' ')
-  else delete row.dataset.more
 }
 function Tabs({ items = [], value, onChange, compact = false, style = {}, walk }: TabsProps) {
   // Scrolls a row too narrow for its tabs so the chosen one shows; without
@@ -61,7 +52,7 @@ function Tabs({ items = [], value, onChange, compact = false, style = {}, walk }
   return (
     <div
       ref={list}
-      className={compact ? 'ds-tabs ds-tabs-compact' : 'ds-tabs'}
+      className={compact ? 'ds-tabs ds-tabs-compact ds-scroll-fade' : 'ds-tabs ds-scroll-fade'}
       role="tablist"
       aria-label="View"
       data-walk={walk}

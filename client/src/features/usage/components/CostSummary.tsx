@@ -8,7 +8,11 @@ import type { Totals } from '../api'
 
 export function CostSummary({ totals }: { totals: Totals }) {
   return (
-    <section className="uc-totals-tiles" aria-label="Totals" data-walk="usage.totals">
+    <section
+      className="uc-totals-tiles ds-figure-grid"
+      aria-label="Totals"
+      data-walk="usage.totals"
+    >
       <FigureTile
         label="Total estimated cost"
         help={<Tip id="usage.total-cost" />}

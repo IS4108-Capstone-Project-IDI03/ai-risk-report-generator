@@ -25,6 +25,9 @@ export type SegmentedControlProps<T extends string> = {
   value: T
   onChange: (value: T) => void
   ariaLabel?: string
+  // Options that don't fit on one line wrap onto more rows, each row filling the width
+  // (Settings > Privacy words on a tablet or phone), instead of running past the edge.
+  wrap?: boolean
 }
 
 /** Returns a pill-shaped single-choice control (radiogroup) with an optional icon per option. */
@@ -33,6 +36,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   ariaLabel,
+  wrap = false,
 }: SegmentedControlProps<T>) {
   // Arrow keys move the choice, skipping disabled options; without this a keyboard user
   // would tab through every option.
@@ -52,33 +56,59 @@ export function SegmentedControl<T extends string>({
   // The white thumb slides to the chosen option (180 ms ease-out, board 17 · 5): its box
   // is measured from the chosen button. The first placement has no transition.
   const root = useRef<HTMLDivElement>(null)
-  const [thumb, setThumb] = useState<{ x: number; w: number; slide: boolean } | null>(null)
+  // `rows`: the options wrapped onto more than one row (the `wrap` prop), so each row fills.
+  type Thumb = { x: number; y: number; w: number; h: number; slide: boolean; rows: boolean }
+  const [thumb, setThumb] = useState<Thumb | null>(null)
   useLayoutEffect(() => {
     const at = options.findIndex((o) => o.value === value)
     const box = root.current
     const el = box?.querySelectorAll<HTMLElement>('button')[at]
     if (!box || !el) return setThumb(null)
-    const measure = () => setThumb((t) => ({ x: el.offsetLeft, w: el.offsetWidth, slide: !!t }))
+    const all = box.querySelectorAll<HTMLElement>('button')
+    const place = (slide: boolean) => ({
+      rows: wrap && all[all.length - 1].offsetTop > all[0].offsetTop,
+      x: el.offsetLeft,
+      y: el.offsetTop,
+      w: el.offsetWidth,
+      h: el.offsetHeight,
+      slide,
+    })
+    const measure = () => setThumb((t) => place(!!t))
     measure()
     // The thumb follows the chosen button when the control resizes (phone width, fonts loading),
-    // without sliding: a resize is not a choice. The observer's first call is the initial size.
+    // without sliding: a resize is not a choice. The observer's first call is the initial size,
+    // re-measured (a wrapped row may have filled out since) but keeping a slide under way.
     let first = true
     const follow = () => {
-      if (first) return void (first = false)
-      setThumb({ x: el.offsetLeft, w: el.offsetWidth, slide: false })
+      const keep = first
+      first = false
+      setThumb((t) => place(keep ? !!t?.slide : false))
     }
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(follow)
     ro?.observe(box)
+    // A wrapped row filling out moves the option without resizing the box.
+    if (wrap) ro?.observe(el)
     return () => ro?.disconnect()
-  }, [value, options.length, options.map((o) => o.label).join()])
+  }, [value, wrap, options.length, options.map((o) => o.label).join()])
   return (
-    <div className="ds-segmented" role="radiogroup" aria-label={ariaLabel} ref={root}>
+    <div
+      className={wrap ? 'ds-segmented ds-segmented--wrap' : 'ds-segmented'}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      data-rows={thumb?.rows ? '' : undefined}
+      ref={root}
+    >
       {thumb && (
         <span
           className="ds-seg-thumb"
           aria-hidden="true"
           data-slide={thumb.slide ? '' : undefined}
-          style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }}
+          style={{
+            width: thumb.w,
+            transform: `translateX(${thumb.x}px)`,
+            // A wrapped control has rows: the thumb also takes its option's row.
+            ...(wrap ? { top: thumb.y, bottom: 'auto', height: thumb.h } : {}),
+          }}
         />
       )}
       {options.map((o) => (

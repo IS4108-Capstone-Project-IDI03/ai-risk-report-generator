@@ -23,7 +23,13 @@ import {
 import { needsReview } from '../display'
 import { followList } from '../uploads'
 import { Tip } from '../../help/Tip'
+import { RichText } from '../../help/RichText'
+import { TIPS } from '../../help/tips'
 import { UploadedRow } from './UploadedRow'
+
+// How long an upload stays in this list (fixed help text).
+const KEEP_LINE =
+  'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.'
 
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
 // gateway leaves the last list showing.
@@ -123,13 +129,18 @@ export function UploadedDocuments({
       {/* On a phone there is no table: this heading stands in for its headings (F-12). */}
       <header className="kb-uploaded-head" data-walk={phone ? 'knowledge-add.head' : undefined}>
         <h2 id="kb-uploaded-title">Recent uploads</h2>
-        <HelpTip label="About recent uploads">
-          <p>
-            Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.
-          </p>
-        </HelpTip>
-        {/* The status tip (F-13): on a phone, which has no Status heading, it sits here. */}
-        {phone && <Tip id="knowledge-add.status" />}
+        {/* One (?) per heading: on a phone, which has no Status heading, the status tip (F-13)
+            takes this heading's place and carries the list's own line first. */}
+        {phone ? (
+          <Tip id="knowledge-add.status">
+            <p>{KEEP_LINE}</p>
+            <RichText text={TIPS['knowledge-add.status'].text ?? ''} />
+          </Tip>
+        ) : (
+          <HelpTip label="About recent uploads">
+            <p>{KEEP_LINE}</p>
+          </HelpTip>
+        )}
       </header>
       {retryError && (
         <Callout tone="danger" title="Retry not started">

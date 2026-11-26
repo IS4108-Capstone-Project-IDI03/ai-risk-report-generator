@@ -130,6 +130,7 @@ export function PrivacyWordsSection() {
       )}
       <SegmentedControl<View>
         ariaLabel="List"
+        wrap
         value={view}
         onChange={setView}
         options={[

@@ -369,3 +369,30 @@ main.om-scroll {
     padding: 0 12px !important;
   }
 }
+/* A tablet, or a laptop with the sidebar open: all seven tabs fit without scrolling, measured on
+   the tab row (900 px holds them with icons). Under that, 14 px labels without icons; under
+   632 px, icons with the chosen tab's label only. The phone's icon strip above stays as it is. */
+.ws-tabs {
+  container: ws-tabs / inline-size;
+}
+@media (min-width: 768px) {
+  @container ws-tabs (min-width: 632px) and (max-width: 899px) {
+    .ws-tabs [role='tab'] {
+      padding: 0 8px !important;
+      font-size: 14px !important;
+    }
+    /* The icon (Icon sets its display inline, hence !important). */
+    .ws-tabs [role='tab'] > span:first-child:not(.ds-tab-label) {
+      display: none !important;
+    }
+  }
+  @container ws-tabs (max-width: 631px) {
+    .ws-tabs [role='tab'] {
+      min-width: 44px;
+      padding: 0 12px !important;
+    }
+    .ws-tabs [role='tab']:not([aria-selected='true']) .ds-tab-label {
+      display: none;
+    }
+  }
+}

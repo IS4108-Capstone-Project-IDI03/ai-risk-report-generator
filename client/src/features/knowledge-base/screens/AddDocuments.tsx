@@ -68,11 +68,15 @@ export function AddDocuments({
             <Icon name="file-up" size={20} />
           </span>
           <div className="kb-drop-text">
-            <p className="kb-drop-title">Drop files here, or choose them</p>
-            <div className="kb-drop-sub">
-              PDF, Word, PowerPoint, RTF or ODT, up to 100 MB each.
-              <Tip id="knowledge-add.upload" />
+            {/* The (?) sits on the title line, so it never wraps onto a line of its own. */}
+            <div className="kb-drop-title">
+              Drop files here, or choose{' '}
+              <span className="kb-drop-last">
+                them
+                <Tip id="knowledge-add.upload" />
+              </span>
             </div>
+            <div className="kb-drop-sub">PDF, Word, PowerPoint, RTF or ODT, up to 100 MB each.</div>
           </div>
           <input
             ref={picker}

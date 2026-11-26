@@ -4,6 +4,7 @@
 // gives the search a full row, the pills one scrolling row and the end a full row, all 44 px.
 // Called by the Assessments, Clients, client tabs, Calendar and Knowledge base lists.
 import type { ReactNode } from 'react'
+import { useScrollFade } from '../navigation/scrollFade'
 import './list-card.css'
 
 export type ListToolbarProps = {
@@ -31,6 +32,8 @@ export function ListToolbar({
   className,
   'data-walk': walk,
 }: ListToolbarProps) {
+  // On a phone the pills scroll sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLDivElement>()
   return (
     <div
       className={className ? `ds-list-toolbar ${className}` : 'ds-list-toolbar'}
@@ -39,7 +42,7 @@ export function ListToolbar({
       {search}
       {children}
       {filters || sort ? (
-        <div className="ds-list-toolbar-pills">
+        <div className="ds-list-toolbar-pills ds-scroll-fade" ref={fade}>
           {filters}
           {sort ? <span className="ds-list-toolbar-sort">{sort}</span> : null}
         </div>

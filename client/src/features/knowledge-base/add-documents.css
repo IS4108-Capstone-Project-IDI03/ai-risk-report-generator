@@ -37,6 +37,16 @@
   color: var(--graphite-900);
   font-weight: 600;
 }
+/* The (?) follows the title's last word, even when the title wraps. */
+.kb-drop-last {
+  white-space: nowrap;
+}
+.kb-drop-last > * {
+  display: inline-flex;
+  margin-left: 4px;
+  vertical-align: middle;
+  white-space: normal;
+}
 .kb-drop-sub {
   display: flex;
   flex-wrap: wrap;

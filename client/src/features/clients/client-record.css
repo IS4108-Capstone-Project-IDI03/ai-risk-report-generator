@@ -236,6 +236,21 @@
   .cl-assess :is(th, td, col):nth-child(2) {
     display: none;
   }
+  /* Survey date, Stage and Report due keep only the room their content needs, so the reference
+     and its site keep theirs ("RPT-2026-…" at 768 px). */
+  .cl-assess col.cl-col-date {
+    width: 104px;
+  }
+  .cl-assess col.cl-col-status {
+    width: 120px;
+  }
+  .cl-assess col.cl-col-due {
+    width: 132px;
+  }
+  /* A long site name wraps under the reference instead of being cut. */
+  .cl-assess .cl-line-2.cl-ellip {
+    white-space: normal;
+  }
   .cl-assess:not([data-site]) .cl-lines > .cl-line-2 {
     display: block;
   }

@@ -72,6 +72,36 @@ button.ds-figure:focus-visible {
     min-height: 64px;
   }
 }
+
+/* A row of figure tiles (Usage and costs, the Comparison tab): --figure-cols tiles to a row
+   while each keeps --figure-min, so a long label ("Total estimated cost") never gets squeezed to
+   a word a line; when they don't fit, fewer and wider columns. Equal heights. On a phone, two
+   to a row, and an odd last tile takes the whole row instead of sitting alone at half width. */
+.ds-figure-grid {
+  --figure-track: max(
+    var(--figure-min, 200px),
+    (100% - (var(--figure-cols, 3) - 1) * var(--figure-gap, 12px)) / var(--figure-cols, 3)
+  );
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--figure-track)), 1fr));
+  gap: var(--figure-gap, 12px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-figure-grid > * {
+  display: flex;
+  min-width: 0;
+}
+@media (max-width: 599px) {
+  .ds-figure-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .ds-figure-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   button.ds-figure:active {
     transform: none;

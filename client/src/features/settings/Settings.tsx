@@ -1,7 +1,7 @@
 // The Settings screen (S-01): a menu of sections, each in its own file under screens/.
 // Shown by features/assessments/AssessmentApp.tsx for every signed-in user. Calls api.ts.
-import { useEffect, useRef, useState } from 'react'
-import { Icon, Panel, TopBar, useIsPhone } from '../../design-system'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Icon, Panel, TopBar, useIsPhone, useScrollFade } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { Tip } from '../help/Tip'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
@@ -127,6 +127,15 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
   // The right end of the title line, for the section that draws its main button there.
   const [titleEnd, setTitleEnd] = useState<HTMLElement | null>(null)
   const menu = useRef<HTMLElement>(null)
+  // On a phone the menu scrolls sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLElement>()
+  const menuRef = useCallback(
+    (el: HTMLElement | null) => {
+      menu.current = el
+      return fade(el)
+    },
+    [fade],
+  )
   const phone = useIsPhone()
   useWalkthroughScreen('settings', settings !== null)
 
@@ -154,7 +163,7 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
         bell={bell}
       />
       <div className="st">
-        <nav ref={menu} className="st-menu" aria-label="Settings sections">
+        <nav ref={menuRef} className="st-menu ds-scroll-fade" aria-label="Settings sections">
           {GROUPS.map((group, i) => (
             <div key={i} className="st-menu-group">
               {group.heading && <div className="st-menu-heading">{group.heading}</div>}

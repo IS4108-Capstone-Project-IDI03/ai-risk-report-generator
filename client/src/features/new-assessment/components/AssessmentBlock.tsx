@@ -84,7 +84,12 @@ export function AssessmentBlock({
   return (
     <section className="na-assessment" aria-label={'Assessment ' + (j + 1)}>
       <div className="na-assessment-head">
-        {type ? <AssessmentTypeTile type={type} size={32} /> : <IconTile />}
+        {/* Until a type is chosen, a quiet report tile instead of an empty square. */}
+        {type ? (
+          <AssessmentTypeTile type={type} size={32} />
+        ) : (
+          <IconTile icon="file-text" tone="outline" />
+        )}
         <h3>{'Assessment ' + (j + 1)}</h3>
         <span className="na-type">
           <Tip id="new-assessment.type" align="right">

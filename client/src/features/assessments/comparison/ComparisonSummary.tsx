@@ -2,6 +2,7 @@
 // one action (Compare again), then what changed at a glance: a tile per outcome that filters the
 // list, how many outcomes are confirmed, and every figure the gateway measured, each opening its
 // item. Called by ComparisonTab. Every count and difference comes from the gateway.
+import type { CSSProperties } from 'react'
 import { Button, FigureTile, HelpTip, Icon, Select, ViewOnlyChip } from '../../../design-system'
 import { formatDayYearTime } from '../format'
 import type { Comparison, ComparisonPage } from './api'
@@ -118,7 +119,12 @@ export function ComparisonSummary({
               </span>
             )}
           </div>
-          <ul className="cmp-tiles" role="group" aria-label="Filter by outcome">
+          <ul
+            className="cmp-tiles ds-figure-grid"
+            role="group"
+            aria-label="Filter by outcome"
+            style={{ '--figure-cols': tiles.length } as CSSProperties}
+          >
             {tiles.map((t) => (
               <li key={t.key}>
                 <FigureTile

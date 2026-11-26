@@ -301,12 +301,23 @@
   .cl-clients col:is(:nth-child(2), :nth-child(4)) {
     display: none;
   }
-  .cl-clients col.cl-col-survey,
+  /* Open, Next survey and Next report due keep only the room their content needs, giving
+     38 px to the client's name, which wraps onto a second line rather than being cut after a
+     few letters ("Glacier Bay Fro…"). 122 px still holds "Next report due" on one line. */
+  .cl-clients col.cl-col-num {
+    width: 44px;
+  }
+  .cl-clients col.cl-col-survey {
+    width: 108px;
+  }
   .cl-clients col.cl-col-due {
-    width: 128px;
+    width: 122px;
   }
   .cl-clients col.cl-col-actions-3 {
     width: 144px;
+  }
+  .cl-clients :is(.cl-line-1, .cl-ellip) {
+    white-space: normal;
   }
   .cl-clients :is(th, td) {
     padding-inline: 4px;

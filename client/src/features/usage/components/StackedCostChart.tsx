@@ -3,7 +3,7 @@
 // up its cost. Shown by the usage screens; data shaping is in ../chart.ts.
 // Every bar is also a row of the chart's own table, for screen readers, and
 // the screen lists every group in a table below, so no value is chart-only.
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Select, useIsPhone } from '../../../design-system'
 import { toStackedSeries, type ChartSort, type CostGroup, type Series } from '../chart'
@@ -31,8 +31,11 @@ const LABEL_CHAR_PX = 7
 const MAX_LABEL_CHARS = 22
 // Room under the plot for a turned label of MAX_LABEL_CHARS at 35 degrees.
 const TURNED_AXIS_PX = 96
-const shortLabel = (label: string) =>
-  label.length > MAX_LABEL_CHARS ? `${label.slice(0, MAX_LABEL_CHARS - 1).trimEnd()}…` : label
+// A level label is cut shorter to keep its bar's slot inside the plot, but never below this;
+// shorter than that, the labels turn instead.
+const MIN_LEVEL_CHARS = 12
+const shortLabel = (label: string, max = MAX_LABEL_CHARS) =>
+  label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label
 const AXIS_PX = 80
 // About a phone card's plot width (375 px less the page's and the card's padding).
 const PHONE_PLOT_PX = 300
@@ -64,6 +67,18 @@ export function StackedCostChart({
   const [sort, setSort] = useState<ChartSort>('cost')
   const [limit, setLimit] = useState<number | typeof ALL>(DEFAULT_BAR_LIMIT)
   const phone = useIsPhone()
+  // The plot's measured width: level labels turn when they would not fit it, so a tablet's
+  // last label is not cut at the frame's edge ("Cli…"). Unmeasured (tests), a phone's width.
+  const plot = useRef<HTMLDivElement>(null)
+  const [plotPx, setPlotPx] = useState<number | null>(null)
+  const drawn = groups.length > 0
+  useLayoutEffect(() => {
+    const el = plot.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setPlotPx(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [drawn])
 
   if (!groups.length) return <p className="uc-chart-empty">No costs recorded in this period.</p>
 
@@ -72,12 +87,17 @@ export function StackedCostChart({
     limit: inOrder || !controls || limit === ALL ? groups.length : limit,
   })
   const topSeries = series[series.length - 1]?.key
+  // Level labels are cut to what fits the plot's width per bar (whole up to MAX_LABEL_CHARS);
+  // when that is under MIN_LEVEL_CHARS they turn instead, so a few bars fit without scrolling
+  // and no label is cut by the frame's edge. Only a long run of bars scrolls sideways.
+  const room = plotPx ?? (phone ? PHONE_PLOT_PX : Infinity)
+  const fits = Math.floor(((room - AXIS_PX) / bars.length - 12) / LABEL_CHAR_PX)
+  const levelChars = Math.min(MAX_LABEL_CHARS, fits)
   const longest = Math.max(...bars.map((b) => shortLabel(b.label).length))
-  const wide = Math.max(MIN_SLOT_PX, longest * LABEL_CHAR_PX + 12)
-  // On a phone the labels also turn when level ones would push bars past the card's edge, so a
-  // few bars fit without scrolling; only a long run of bars scrolls sideways.
   const turned =
-    bars.length > TURN_LABELS_AFTER || (phone && bars.length * wide + AXIS_PX > PHONE_PLOT_PX)
+    bars.length > TURN_LABELS_AFTER || (longest > levelChars && levelChars < MIN_LEVEL_CHARS)
+  const labelChars = turned ? MAX_LABEL_CHARS : levelChars
+  const wide = Math.max(MIN_SLOT_PX, Math.min(longest, labelChars) * LABEL_CHAR_PX + 12)
   const slot = turned ? (phone ? PHONE_SLOT_PX : MIN_SLOT_PX) : wide
 
   return (
@@ -112,7 +132,7 @@ export function StackedCostChart({
         </div>
       )}
 
-      <div className="uc-chart-plot">
+      <div className="uc-chart-plot" ref={plot}>
         <div style={{ minWidth: bars.length * slot + AXIS_PX }}>
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
             <BarChart
@@ -124,7 +144,7 @@ export function StackedCostChart({
               <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
               <XAxis
                 dataKey="label"
-                tickFormatter={(label: string) => shortLabel(label)}
+                tickFormatter={(label: string) => shortLabel(label, labelChars)}
                 tickLine={false}
                 axisLine={{ stroke: 'var(--chart-axis)' }}
                 tick={{ fill: 'var(--text-muted)', fontSize: 12 }}

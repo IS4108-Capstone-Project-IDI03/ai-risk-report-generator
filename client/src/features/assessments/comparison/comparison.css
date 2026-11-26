@@ -112,16 +112,10 @@
   color: var(--graphite-900);
   font-weight: 600;
 }
-.cmp-tiles > li {
-  display: flex;
-}
+/* The shared tile row (.ds-figure-grid): every outcome on one row while each keeps 148 px. */
 .cmp-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  --figure-min: 148px;
+  --figure-gap: 8px;
 }
 /* Every figure the gateway measured: name, previous → now, the difference, and a chevron. */
 .cmp-measured {
@@ -206,9 +200,6 @@
   }
   .cmp-block {
     padding: 14px 16px 16px;
-  }
-  .cmp-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   /* The name over its values: a narrow row has no room for both on one line. */
   .cmp-measure {

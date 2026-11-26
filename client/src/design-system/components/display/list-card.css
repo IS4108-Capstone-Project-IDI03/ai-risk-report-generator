@@ -128,8 +128,7 @@
     padding: 3px;
     overflow-x: auto;
     scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    /* The edge with more pills past it fades (.ds-scroll-fade, ListToolbar). */
   }
   .ds-list-toolbar-pills::-webkit-scrollbar {
     display: none;
@@ -177,8 +176,7 @@
     padding: 3px;
     overflow-x: auto;
     scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    /* The edge with more pills past it fades (.ds-scroll-fade, ListToolbar). */
   }
   .ds-list-toolbar-pills::-webkit-scrollbar {
     display: none;
