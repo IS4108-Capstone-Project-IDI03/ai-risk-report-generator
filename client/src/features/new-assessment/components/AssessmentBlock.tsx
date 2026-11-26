@@ -5,7 +5,8 @@
 import {
   AssessmentTypeControl,
   AssessmentTypeTile,
-  IconButton,
+  IconAction,
+  IconTile,
   Switch,
   type AssessmentType,
 } from '../../../design-system'
@@ -83,11 +84,7 @@ export function AssessmentBlock({
   return (
     <section className="na-assessment" aria-label={'Assessment ' + (j + 1)}>
       <div className="na-assessment-head">
-        {type ? (
-          <AssessmentTypeTile type={type} size={32} />
-        ) : (
-          <span className="na-tile na-tile--empty" aria-hidden="true" />
-        )}
+        {type ? <AssessmentTypeTile type={type} size={32} /> : <IconTile />}
         <h3>{'Assessment ' + (j + 1)}</h3>
         <span className="na-type">
           <Tip id="new-assessment.type" align="right">
@@ -117,11 +114,15 @@ export function AssessmentBlock({
             />
           </span>
           {removable && (
-            <IconButton
-              icon="trash-2"
-              label={'Remove assessment ' + (j + 1)}
-              onClick={() => exit(() => f.removeAssessment(i, j))}
-            />
+            <span className="na-remove">
+              <IconAction
+                icon="trash-2"
+                label={'Remove assessment ' + (j + 1)}
+                tooltip="Remove assessment"
+                danger
+                onClick={() => exit(() => f.removeAssessment(i, j))}
+              />
+            </span>
           )}
         </span>
       </div>

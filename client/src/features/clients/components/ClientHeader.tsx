@@ -4,9 +4,16 @@
 // panel, not here. On a phone: no avatar, a round + and a ⋯ that opens the More sheet.
 // Called by screens/ClientRecord. Calls TopBar, Button, Sheet.
 import { useState, type ReactNode } from 'react'
-import { Button, IconButton, Sheet, Tooltip, TopBar, useIsPhone } from '../../../design-system'
+import {
+  Avatar,
+  Button,
+  IconButton,
+  Sheet,
+  Tooltip,
+  TopBar,
+  useIsPhone,
+} from '../../../design-system'
 import { useCompact } from '../../assessments/useCompact'
-import { ClientAvatar } from './ClientAvatar'
 
 // Rename or Remove: whether the engineer may, and if not why, and what opens it.
 export type HeaderAction = { allowed: boolean; reason: string | null; open: () => void }
@@ -146,7 +153,7 @@ export function ClientHeader({
   return (
     <TopBar
       back={back}
-      lead={<ClientAvatar name={name} />}
+      lead={<Avatar kind="client" name={name} size={44} />}
       eyebrow="Clients"
       title={<span title={name}>{name}</span>}
       action={

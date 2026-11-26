@@ -1,9 +1,9 @@
 // A native table with a caption, for the Usage and costs screen (EV-04), drawn as the app's
-// standard table (v2 section 2): one white card, an optional toolbar above and a count
-// footer below. The design-system Table has no caption, so screen readers could not name it.
+// standard table (v2 section 2): the shared ListCard, an optional ListToolbar above and a
+// count footer below. The design-system Table has no caption, so screen readers could not name it.
 // On a phone each row becomes a card; every figure carries its heading as `data-label` (usage.css).
 import type { ReactNode } from 'react'
-import { TableFooter } from '../../../design-system'
+import { ListCard, ListToolbar, TableFooter } from '../../../design-system'
 
 export type DataColumn<R> = { header: string; numeric?: boolean; cell: (row: R) => ReactNode }
 
@@ -30,8 +30,11 @@ export function DataTable<R extends { key: string }>({
 }) {
   const target = walk ? rows.find(walk.isRow) : undefined
   return (
-    <div className="uc-table-wrap">
-      {toolbar && <div className="uc-table-toolbar">{toolbar}</div>}
+    <ListCard
+      className="uc-card"
+      toolbar={toolbar && <ListToolbar className="uc-table-toolbar">{toolbar}</ListToolbar>}
+      footer={footer && <TableFooter>{footer}</TableFooter>}
+    >
       {empty && rows.length === 0 ? (
         <p className="uc-status" role="status">
           {empty}
@@ -73,7 +76,6 @@ export function DataTable<R extends { key: string }>({
           </table>
         </div>
       )}
-      {footer && <TableFooter>{footer}</TableFooter>}
-    </div>
+    </ListCard>
   )
 }

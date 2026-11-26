@@ -328,8 +328,7 @@
   background: rgb(255 255 255 / 0.12);
 }
 
-/* ---- Cards (v2 section 5): white, radius 16, a 1 px --graphite-200 edge, no shadow ---- */
-.sw-recording .sw-card,
+/* ---- Cards (v2 section 5): white, radius 16, a 1 px --graphite-200 edge, no shadow; Notes and Photos are the shared Panel ---- */
 .sw-recording .sw-record,
 .sw-recording .sw-list {
   border: 1px solid var(--graphite-200);
@@ -337,17 +336,9 @@
   background: var(--surface-card);
   box-shadow: none;
 }
-.sw-recording .sw-card {
-  padding: 20px;
-}
 /* A note's round mark on the white list card: the pale grey disc of the other round marks. */
 .sw-recording .sw-item-icon {
   background: var(--graphite-100);
-}
-.sw-card-title {
-  margin: 0 0 12px;
-  color: var(--marsh-navy);
-  font: 700 16px/1.3 var(--sw-font);
 }
 
 /* The recorder card: while recording it takes a red ring and tint, so the state shows from across

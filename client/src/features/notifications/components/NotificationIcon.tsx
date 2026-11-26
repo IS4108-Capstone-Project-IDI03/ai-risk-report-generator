@@ -1,7 +1,7 @@
-// The 32px tinted circle that shows what a notification is about. CB-07 UI polish.
+// The 32px tinted tile (the shared IconTile) that shows what a notification is about. CB-07 UI polish.
 // Used by NotificationRow. The glyph comes from the purpose, the colour from context.status,
 // so a failed upload and a failed transcription share a colour but not a shape.
-import { Icon } from '../../../design-system'
+import { IconTile } from '../../../design-system'
 import type { Notification } from '../api'
 import { toneFor } from './notificationTone'
 
@@ -30,14 +30,10 @@ export function NotificationIcon({ notification }: { notification: Notification 
       : drafting && notification.context?.status === 'ready'
         ? undefined
         : notification.context?.status
-  const { fg, bg } = toneFor(status)
+  const tone = toneFor(status)
   const icon =
     drafting && notification.context?.status === 'failed'
       ? 'circle-alert'
       : (ICON_FOR_PURPOSE[notification.purpose] ?? 'bell')
-  return (
-    <span className="notif-icon" data-icon={icon} style={{ color: fg, background: bg }}>
-      <Icon name={icon} size={16} />
-    </span>
-  )
+  return <IconTile icon={icon} tone={tone} className="notif-icon" data-icon={icon} />
 }

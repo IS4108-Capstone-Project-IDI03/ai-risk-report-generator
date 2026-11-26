@@ -103,9 +103,6 @@
 .sw-button--tinted {
   background: var(--sw-fill);
 }
-.sw-button--danger {
-  color: var(--red-600);
-}
 .sw-button--wide {
   width: 100%;
   min-height: 50px;

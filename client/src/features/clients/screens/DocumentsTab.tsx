@@ -5,7 +5,10 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
   Button,
+  EmptyNote,
   EmptyState,
+  ListCard,
+  ListToolbar,
   SearchField,
   TableFooter,
   TAG_GROUPS,
@@ -78,19 +81,19 @@ export function DocumentsTab({
 
   if (failed)
     return (
-      <div className="cl-card">
+      <ListCard>
         <EmptyState
           icon="file-warning"
           title="Documents could not be loaded"
           description="Check your connection and try again."
         />
-      </div>
+      </ListCard>
     )
   if (!documents)
     return (
-      <p role="status" className="cl-empty-title">
+      <EmptyNote centred status>
         {'Loading documents…'}
-      </p>
+      </EmptyNote>
     )
 
   const search = q.trim().toLowerCase()
@@ -99,25 +102,29 @@ export function DocumentsTab({
   )
   const pickFiles = () => picker.current?.click()
   const toolbar = (
-    <div className="cl-toolbar">
-      <SearchField
-        label="Search documents"
-        placeholder="Search documents"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <FilterMenu
-        name="Tag"
-        icon="tag"
-        choices={tags.map((t) => ({
-          value: t.label,
-          label: t.label,
-          icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
-        }))}
-        value={tag}
-        onChange={setTag}
-      />
-      <span className="cl-toolbar-end">
+    <ListToolbar
+      search={
+        <SearchField
+          label="Search documents"
+          placeholder="Search documents"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      }
+      filters={
+        <FilterMenu
+          name="Tag"
+          icon="tag"
+          choices={tags.map((t) => ({
+            value: t.label,
+            label: t.label,
+            icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
+          }))}
+          value={tag}
+          onChange={setTag}
+        />
+      }
+      end={
         <Button
           variant="create"
           iconLeft="upload"
@@ -127,8 +134,8 @@ export function DocumentsTab({
         >
           {'Upload'}
         </Button>
-      </span>
-    </div>
+      }
+    />
   )
   return (
     <>
@@ -143,8 +150,14 @@ export function DocumentsTab({
       />
       {/* On a phone the search, Tag and Upload sit on the page, above the card (board 22 F). */}
       {phone && documents.length > 0 && toolbar}
-      <div className="cl-card">
-        {!phone && documents.length > 0 && toolbar}
+      <ListCard
+        toolbar={!phone && documents.length > 0 ? toolbar : undefined}
+        footer={
+          documents.length > 0 ? (
+            <TableFooter>{plural(documents.length, 'document')}</TableFooter>
+          ) : undefined
+        }
+      >
         {documents.length === 0 ? (
           // Nothing to search or filter yet, so the one action is the empty state's own.
           <EmptyState
@@ -205,14 +218,13 @@ export function DocumentsTab({
               </tbody>
             </table>
             {shown.length === 0 && (
-              <p className="cl-empty-title" role="status">
+              <EmptyNote centred status>
                 {'No documents match'}
-              </p>
+              </EmptyNote>
             )}
-            <TableFooter>{plural(documents.length, 'document')}</TableFooter>
           </>
         )}
-      </div>
+      </ListCard>
       {deleting && (
         <DeleteDocumentDialog
           doc={deleting}

@@ -2,7 +2,7 @@
 // grid as wide as the recording box, newest last, a dashed Add photo tile at the end and a
 // remove button on each. Includes photos still only on this device. Used by screens/Recording.tsx.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Icon } from '../../../design-system'
+import { Icon, Panel } from '../../../design-system'
 import { PhotoDialog } from '../../assessments/components/PhotoReferences'
 import { PHOTO_ACCEPT } from '../uploadTypes'
 import '../photoStrip.css'
@@ -43,8 +43,11 @@ export function PhotoStrip({
   const picker = useRef<HTMLInputElement>(null)
 
   return (
-    <section className="sw-photostrip sw-card" aria-label="Photos in this walk">
-      <h2 className="sw-card-title">Photos{tiles.length ? ` · ${tiles.length}` : ''}</h2>
+    <Panel
+      className="sw-photostrip"
+      label="Photos in this walk"
+      title={`Photos${tiles.length ? ` · ${tiles.length}` : ''}`}
+    >
       <ul>
         {tiles.map((tile, i) => (
           <li key={tile.src}>
@@ -108,6 +111,6 @@ export function PhotoStrip({
           onClose={() => setShown(null)}
         />
       )}
-    </section>
+    </Panel>
   )
 }

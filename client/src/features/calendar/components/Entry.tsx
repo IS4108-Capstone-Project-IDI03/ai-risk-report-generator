@@ -1,13 +1,16 @@
 // One calendar entry and its details (CP-60): a survey or a report due date, as a
 // chip on the grid or a row in a list, each opening the same details (a popover,
 // or a sheet on a phone). Called by CalendarGrid, DayList and screens/Calendar.tsx.
-// Calls the design system's Popover, tiles, StatusPill and ReportDue.
+// Calls the design system's Popover, tiles, FactList, StatusPill and ReportDue.
 import type { CSSProperties, ReactNode } from 'react'
 import {
   ASSESSMENT_TYPES,
   AssessmentTypeTile,
   Button,
+  Fact,
+  FactList,
   Icon,
+  IconTile,
   Popover,
   ReportDue,
   StatusPill,
@@ -111,44 +114,30 @@ function EntryDetails({ item, ctx }: { item: CalendarItem; ctx: EntryContext }) 
           <span className="cal-details-ref">{item.reference}</span>
         </div>
       </div>
-      <dl>
-        <dt>{'Assessment type'}</dt>
-        <dd>{type}</dd>
-        <dt>{'Status'}</dt>
-        <dd>
+      <FactList>
+        <Fact label="Assessment type">{type}</Fact>
+        <Fact label="Status">
           <StatusPill status={visitStage(item)} />
-        </dd>
-        <dt>{'Survey'}</dt>
-        <dd className="cal-details-date">
-          {item.start ? formatSpan(item.start, item.end) : 'Not set'}
-        </dd>
-        <dt>{'Report due'}</dt>
-        <dd>
+        </Fact>
+        <Fact label="Survey">{item.start ? formatSpan(item.start, item.end) : 'Not set'}</Fact>
+        <Fact label="Report due">
           <ReportDue
             date={item.due}
             today={new Date(ctx.today + 'T00:00:00')}
             plain={isFinished(item)}
           />
-        </dd>
-        {ctx.team && (
-          <>
-            <dt>{'Engineer'}</dt>
-            <dd>{item.engineer?.name ?? 'Unassigned'}</dd>
-          </>
-        )}
+        </Fact>
+        {ctx.team && <Fact label="Engineer">{item.engineer?.name ?? 'Unassigned'}</Fact>}
         {item.contacts.length > 0 && (
-          <>
-            <dt>{item.contacts.length === 1 ? 'Site contact' : 'Site contacts'}</dt>
-            <dd>
-              {item.contacts.map((c) => (
-                <span key={c.name + (c.role ?? '')} className="cal-details-contact">
-                  {c.role ? `${c.name}, ${c.role}` : c.name}
-                </span>
-              ))}
-            </dd>
-          </>
+          <Fact label={item.contacts.length === 1 ? 'Site contact' : 'Site contacts'} wide>
+            {item.contacts.map((c) => (
+              <span key={c.name + (c.role ?? '')} className="cal-details-contact">
+                {c.role ? `${c.name}, ${c.role}` : c.name}
+              </span>
+            ))}
+          </Fact>
         )}
-      </dl>
+      </FactList>
       <div className="cal-details-actions">
         <Button variant="primary" pill onClick={() => ctx.onOpen(item)}>
           {'Open assessment'}
@@ -322,9 +311,11 @@ export function EntryRow({
       {kind === 'survey' ? (
         <AssessmentTypeTile type={d.type} />
       ) : (
-        <span className="cal-due-tile">
-          <Icon name={due?.icon ?? 'calendar'} size={16} color={due?.color} />
-        </span>
+        <IconTile
+          icon={due?.icon ?? 'calendar'}
+          tone="outline"
+          style={{ color: due?.color ?? 'var(--graphite-600)' }}
+        />
       )}
       <span className="cal-row-text">
         <span>{item.site}</span>

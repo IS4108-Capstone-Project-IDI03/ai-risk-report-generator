@@ -11,11 +11,6 @@
 }
 
 /* ---- Note composer: the design system's Textarea and a row of Dictate and Add note ---- */
-.sw-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 .sw-composer > label {
   display: block;
 }
@@ -161,12 +156,6 @@
   width: 36px;
   min-height: 36px;
   color: var(--graphite-600);
-}
-.sw-item .sw-icon-button.sw-button--danger {
-  color: var(--red-600);
-}
-.sw-item .sw-icon-button.sw-button--danger:hover:not(:disabled) {
-  background: var(--red-50);
 }
 .sw-item-actions {
   display: flex;

@@ -1,44 +1,32 @@
-// Totals card: estimated cost, number of calls, and any calls with no cost
-// (EV-04, AC1, AC7). "Estimated" marks a total that uses an estimated price.
+// Totals: estimated cost, number of calls, and any calls with no cost (EV-04, AC1, AC7), as a row
+// of the shared FigureTiles. "Estimated" marks a total that uses an estimated price.
 // Used by the overview, the ingestion tab and both detail pages.
-import { Badge } from '../../../design-system'
+import { Badge, FigureTile } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { formatMoney } from '../format'
 import type { Totals } from '../api'
 
-function Figure({ label, value, note }: { label: React.ReactNode; value: string; note?: string }) {
-  return (
-    <div className="uc-fig">
-      <span className="uc-fig-label">{label}</span>
-      <span className="uc-fig-value">{value}</span>
-      {note && <span className="uc-fig-note">{note}</span>}
-    </div>
-  )
-}
-
 export function CostSummary({ totals }: { totals: Totals }) {
   return (
-    <section className="uc-card uc-totals-card" aria-label="Totals" data-walk="usage.totals">
-      {totals.estimatedCalls > 0 && (
-        <span className="uc-estimated">
-          <Badge tone="warning">Estimated</Badge>
-        </span>
-      )}
-      <Figure
-        // A fragment, not a wrapper: the label stays one text element (usage.css puts the tip beside it).
-        label={
-          <>
-            {'Total estimated cost'}
-            <Tip id="usage.total-cost" />
-          </>
-        }
+    <section className="uc-totals-tiles" aria-label="Totals" data-walk="usage.totals">
+      <FigureTile
+        label="Total estimated cost"
+        help={<Tip id="usage.total-cost" />}
+        icon="coins"
         value={formatMoney(totals.estimatedCostUsd)}
-        note="US dollars"
+        note={
+          <span className="uc-fig-note">
+            {'US dollars'}
+            {totals.estimatedCalls > 0 && <Badge tone="warning">Estimated</Badge>}
+          </span>
+        }
       />
-      <Figure label="AI calls" value={totals.calls.toLocaleString('en-US')} />
+      <FigureTile label="AI calls" icon="sparkles" value={totals.calls.toLocaleString('en-US')} />
       {totals.callsWithoutCost > 0 && (
-        <Figure
+        <FigureTile
           label="Calls without cost"
+          icon="circle-dashed"
+          tone="warn"
           value={totals.callsWithoutCost.toLocaleString('en-US')}
           note="Not in the total"
         />

@@ -2,7 +2,7 @@
 // billing, so every column applies to every row in it. Each quantity carries
 // the rate stored with its calls when they were made, never today's price.
 // Used by screens/AssessmentUsageDetail.tsx and screens/DocumentUsageDetail.tsx.
-import { HelpTip } from '../../../design-system'
+import { HelpTip, ListCard } from '../../../design-system'
 import type { RatePart, RateCell, RateRow } from '../api'
 import { DASH, FEATURE_LABELS, formatDuration, formatMoney, formatRate } from '../format'
 
@@ -61,7 +61,7 @@ function RateTable({
   // Feature, Model, Calls, the quantities and Cost, with Time per call if shown.
   const width = 4 + billing.parts.length + (showTime ? 1 : 0)
   return (
-    <div className="uc-table-wrap">
+    <ListCard className="uc-card">
       <div className="uc-scroll">
         <table className="uc-table uc-rates">
           <caption>{`${billing.title}: usage and rates`}</caption>
@@ -126,7 +126,7 @@ function RateTable({
           </tfoot>
         </table>
       </div>
-    </div>
+    </ListCard>
   )
 }
 

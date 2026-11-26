@@ -60,7 +60,7 @@ export function ProposalFilterChips({
               <FilterPill
                 label={chosen ? chosen.label : name}
                 aria-label={chosen ? name + ': ' + chosen.label : name}
-                data-set={chosen ? '' : undefined}
+                active={!!chosen}
                 onClick={toggle}
               />
             )}

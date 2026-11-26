@@ -3,7 +3,7 @@
 // "Set by an admin" once in the title bar's end slot.
 // Calls saveSourcePriority in api.ts.
 import { useState } from 'react'
-import { Button } from '../../../design-system'
+import { Button, EmptyNote } from '../../../design-system'
 import { saveSourcePriority, type Settings } from '../api'
 import { SaveStatus } from '../components/SaveStatus'
 import { SetByAdmin } from '../components/SetByAdmin'
@@ -67,7 +67,7 @@ export function SourcePrioritySection({ settings, onSaved, titleEnd }: Props) {
       </SettingBlock>
       <SettingBlock title="History">
         {history.length === 0 ? (
-          <p className="st-note">No changes yet.</p>
+          <EmptyNote>No changes yet.</EmptyNote>
         ) : (
           <ul className="st-history">
             {history.map((h) => (

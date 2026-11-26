@@ -3,8 +3,7 @@
 // "Add contact" cell opens a cell to type into. A cell is edited in place and
 // shows as text once focus leaves it. Used by AssessmentBlock.tsx.
 import { useState, type FocusEvent } from 'react'
-import { AddRow, IconButton, Input } from '../../../design-system'
-import { initials } from '../../clients/components/ClientAvatar'
+import { AddRow, Avatar, IconButton, Input } from '../../../design-system'
 import type { Contact } from '../form'
 
 export function ContactsEditor({
@@ -54,9 +53,7 @@ export function ContactsEditor({
                 aria-label={'Edit contact ' + (k + 1) + ', ' + c.name}
                 onClick={() => setEditing(k)}
               >
-                <span className="na-avatar" aria-hidden="true">
-                  {initials(c.name)}
-                </span>
+                <Avatar name={c.name} />
                 <span>
                   <strong>{c.name}</strong>
                   {c.role && <small>{c.role}</small>}

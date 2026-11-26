@@ -221,34 +221,7 @@
   }
 }
 
-/* ---- The tile ---- */
-.inbox-tile {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  background: var(--ink-50);
-  color: var(--ink-600);
-  transition: var(--transition-control);
-}
-.inbox-tile[data-tone='violet'] {
-  background: var(--violet-50);
-  color: var(--violet-600);
-}
-.inbox-tile[data-tone='red'] {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-.inbox-tile[data-tone='amber'] {
-  background: var(--amber-50);
-  color: var(--amber-600);
-}
-.inbox-tile[data-tone='grey'] {
-  background: var(--graphite-100);
-  color: var(--graphite-600);
-}
+/* ---- The tile: the shared IconTile (RowTile.tsx) ---- */
 
 /* ---- Words ---- */
 /* The row's one pressable: its ::after covers the whole row (a stretched link), so the tick

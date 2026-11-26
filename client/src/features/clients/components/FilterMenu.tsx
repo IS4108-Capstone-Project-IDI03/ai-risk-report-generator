@@ -45,7 +45,7 @@ export function FilterMenu({
           label={chosen ? chosen.label : name}
           aria-label={chosen ? `${name}: ${chosen.label}` : name}
           aria-haspopup="listbox"
-          data-active={chosen ? '' : undefined}
+          active={!!chosen}
           onClick={() => setOpen(!open)}
         />
       }

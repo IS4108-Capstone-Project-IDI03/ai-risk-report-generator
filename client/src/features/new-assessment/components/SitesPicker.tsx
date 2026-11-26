@@ -2,7 +2,7 @@
 // recorded sites and the new ones on this form as checkbox cards, then
 // "+ New site". Used by screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
-import { AddRow, Icon } from '../../../design-system'
+import { AddRow, CountPill, IconTile, Panel } from '../../../design-system'
 import { day } from '../../clients/formatClient'
 import { docsOn, isNewSite, NEW_SITE } from '../form'
 import type { NewAssessmentForm } from '../useNewAssessment'
@@ -53,14 +53,12 @@ export function SitesPicker({ f }: { f: NewAssessmentForm }) {
   const chosen = form.sites.length
   const error = f.errors['sites']
   return (
-    <section className="na-card" aria-label="Sites">
-      <div className="na-card-head">
-        <span className="na-tile">
-          <Icon name="map" size={16} />
-        </span>
-        <h2>{'Sites'}</h2>
-        {chosen > 0 && <span className="na-count">{chosen}</span>}
-      </div>
+    <Panel
+      label="Sites"
+      title="Sites"
+      icon={<IconTile icon="map" tone="navy" />}
+      after={chosen > 0 ? <CountPill tone="ink">{chosen}</CountPill> : undefined}
+    >
       {f.sitesLoading ? (
         <p role="status" className="na-muted">
           {'Loading the client’s sites…'}
@@ -102,6 +100,6 @@ export function SitesPicker({ f }: { f: NewAssessmentForm }) {
           onClose={() => setAsking(null)}
         />
       )}
-    </section>
+    </Panel>
   )
 }

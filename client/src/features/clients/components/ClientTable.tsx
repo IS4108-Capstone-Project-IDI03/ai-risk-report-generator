@@ -5,6 +5,7 @@
 // card with one More button that opens a Sheet (clients.css).
 import { useState } from 'react'
 import {
+  Avatar,
   Badge,
   Chip,
   Icon,
@@ -19,7 +20,6 @@ import type { Priority } from '../../marshbot/types'
 import type { Allowed } from '../api'
 import type { ClientFacts } from '../clientFacts'
 import { country } from '../formatClient'
-import { ClientAvatar } from './ClientAvatar'
 
 export type ClientRow = {
   id: string
@@ -143,7 +143,7 @@ export function ClientTable({ rows, sort }: { rows: ClientRow[]; sort: string })
                   )}
                   onClick={c.open}
                 >
-                  <ClientAvatar name={c.name} small />
+                  <Avatar kind="client" name={c.name} size={32} />
                   <span className="cl-lines" data-walk={i === 0 ? 'clients.row-1.name' : undefined}>
                     <span className="cl-line-1">
                       <span className="cl-ellip" dir="auto" title={c.name}>

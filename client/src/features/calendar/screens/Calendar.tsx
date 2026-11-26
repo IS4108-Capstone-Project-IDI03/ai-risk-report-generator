@@ -8,12 +8,18 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   ASSESSMENT_TYPES,
   Button,
+  CountPill,
+  EmptyNote,
   EmptyState,
-  IconButton,
+  IconAction,
+  ListCard,
+  ListToolbar,
+  Panel,
+  PeriodStepper,
   SegmentedControl,
   TableFooter,
-  TopBar,
   toast,
+  TopBar,
   useIsPhone,
   type AssessmentType,
 } from '../../../design-system'
@@ -173,17 +179,55 @@ export function Calendar({
       />
       <div className="cl-content cl-content--list">
         <div className="cal-layout">
-          <section aria-label="Calendar" className="cl-card cal-card">
-            <div className="cl-toolbar cal-toolbar">
-              <div className="cal-stepper">
-                <IconButton
-                  icon="chevron-left"
-                  label={`Previous ${view}`}
-                  onClick={() => step(-1)}
-                />
-                <div className="cal-period">
+          <ListCard
+            as="section"
+            label="Calendar"
+            className="cal-card"
+            bleed
+            toolbar={
+              <ListToolbar
+                className="cal-toolbar"
+                filters={
+                  <>
+                    {/* F-12: the walkthrough names the view switch and this filter together. A phone
+                    has no switch (the month is listed), so there the same box carries both tags. */}
+                    <span className="cal-walk" data-walk={phone ? 'calendar.view' : undefined}>
+                      <span className="cal-walk" data-walk="calendar.dates">
+                        <FilterMenu
+                          name="All dates"
+                          anyLabel="All dates"
+                          choices={SHOWS}
+                          value={state.show}
+                          onChange={(show) => set({ show: show as Show })}
+                        />
+                      </span>
+                    </span>
+                    <FilterMenu
+                      name="Assessment type"
+                      choices={TYPES}
+                      value={state.type}
+                      onChange={(type) => set({ type })}
+                    />
+                    {team && (
+                      <FilterMenu
+                        name="Engineer"
+                        choices={engineers}
+                        value={engineer}
+                        onChange={(next) => set({ engineer: next })}
+                      />
+                    )}
+                  </>
+                }
+              >
+                <PeriodStepper
+                  className="cal-stepper"
+                  label={periodLabel(view, cursor)}
+                  unit={view}
+                  onPrevious={() => step(-1)}
+                  onNext={() => step(1)}
+                >
                   {/* In the month view the month and the year are buttons that choose
-                      another; the period is still read out from the hidden line. */}
+                    another; the period is still read out from the hidden line. */}
                   {view === 'month' && (
                     <PeriodPicker
                       year={+cursor.slice(0, 4)}
@@ -191,77 +235,52 @@ export function Calendar({
                       onGo={(y, m) => set({ day: `${y}-${String(m + 1).padStart(2, '0')}-01` })}
                     />
                   )}
-                  <strong
-                    role="status"
-                    aria-label="Period shown"
-                    className={view === 'month' ? 'ds-sr-only' : undefined}
-                  >
-                    {periodLabel(view, cursor)}
-                  </strong>
-                </div>
-                <IconButton icon="chevron-right" label={`Next ${view}`} onClick={() => step(1)} />
-              </div>
-              <Button variant="pill" pill onClick={() => set({ day: today })}>
-                {'Today'}
-              </Button>
-              {!phone && (
-                <span className="cal-walk" data-walk="calendar.view">
-                  <SegmentedControl
-                    ariaLabel="View"
-                    options={[
-                      { value: 'month', label: 'Month' },
-                      { value: 'week', label: 'Week' },
-                    ]}
-                    value={view}
-                    onChange={(next: View) =>
-                      set({
-                        view: next,
-                        // A month opens on today's week when it holds today, else on its first.
-                        day:
-                          next === 'week' && view === 'month'
-                            ? monthStart(today) === cursor
-                              ? today
-                              : cursor
-                            : state.day,
-                      })
-                    }
-                  />
-                </span>
-              )}
-              <div className="cl-pills cal-pills">
-                {/* F-12: the walkthrough names the view switch and this filter together. A phone
-                    has no switch (the month is listed), so there the same box carries both tags. */}
-                <span className="cal-walk" data-walk={phone ? 'calendar.view' : undefined}>
-                  <span className="cal-walk" data-walk="calendar.dates">
-                    <FilterMenu
-                      name="All dates"
-                      anyLabel="All dates"
-                      choices={SHOWS}
-                      value={state.show}
-                      onChange={(show) => set({ show: show as Show })}
+                </PeriodStepper>
+                <Button variant="pill" pill onClick={() => set({ day: today })}>
+                  {'Today'}
+                </Button>
+                {!phone && (
+                  <span className="cal-walk" data-walk="calendar.view">
+                    <SegmentedControl
+                      ariaLabel="View"
+                      options={[
+                        { value: 'month', label: 'Month' },
+                        { value: 'week', label: 'Week' },
+                      ]}
+                      value={view}
+                      onChange={(next: View) =>
+                        set({
+                          view: next,
+                          // A month opens on today's week when it holds today, else on its first.
+                          day:
+                            next === 'week' && view === 'month'
+                              ? monthStart(today) === cursor
+                                ? today
+                                : cursor
+                              : state.day,
+                        })
+                      }
                     />
                   </span>
-                </span>
-                <FilterMenu
-                  name="Assessment type"
-                  choices={TYPES}
-                  value={state.type}
-                  onChange={(type) => set({ type })}
-                />
-                {team && (
-                  <FilterMenu
-                    name="Engineer"
-                    choices={engineers}
-                    value={engineer}
-                    onChange={(next) => set({ engineer: next })}
-                  />
                 )}
-              </div>
-            </div>
+              </ListToolbar>
+            }
+            footer={
+              !loading && !failed ? (
+                <TableFooter
+                  late={late.length ? plural(late.length, 'report') + ' late' : undefined}
+                  // To the month of the report longest late, showing reports only.
+                  onLateClick={() => set({ view: 'month', day: late[0].due!, show: 'due' })}
+                >
+                  {plural(shown.length, 'assessment')}
+                </TableFooter>
+              ) : undefined
+            }
+          >
             {loading ? (
-              <p role="status" className="cl-empty-title">
+              <EmptyNote centred status>
                 {'Loading your calendar…'}
-              </p>
+              </EmptyNote>
             ) : failed ? (
               <EmptyState
                 icon="calendar"
@@ -287,29 +306,16 @@ export function Calendar({
                 onAdd={onStart ? (day) => onStart('form', day) : undefined}
               />
             )}
-            {!loading && !failed && (
-              <TableFooter
-                late={late.length ? plural(late.length, 'report') + ' late' : undefined}
-                // To the month of the report longest late, showing reports only.
-                onLateClick={() => set({ view: 'month', day: late[0].due!, show: 'due' })}
-              >
-                {plural(shown.length, 'assessment')}
-              </TableFooter>
-            )}
-          </section>
+          </ListCard>
           {!loading && !failed && (
             <aside className="cal-side" aria-label="Needs planning" data-walk="calendar.side">
-              <section
-                className="cl-card cal-side-card"
-                aria-labelledby="cal-late"
-                data-empty={late.length ? undefined : ''}
+              <Panel
+                // Edge to edge on a phone, like the calendar card, with a rule between.
+                bleed
+                className={`cal-side-card${late.length ? '' : ' cal-side-card--empty'}`}
+                title="Late reports"
+                after={<CountPill tone={late.length ? 'danger' : 'ink'}>{late.length}</CountPill>}
               >
-                <h2 id="cal-late">
-                  {'Late reports'}
-                  <span className="cal-count" data-late={late.length ? '' : undefined}>
-                    {late.length}
-                  </span>
-                </h2>
                 {late.length
                   ? late.map((item) => (
                       <EntryRow
@@ -324,16 +330,13 @@ export function Calendar({
                       />
                     ))
                   : null}
-              </section>
-              <section
-                className="cl-card cal-side-card"
-                aria-labelledby="cal-unscheduled"
-                data-empty={unscheduled.length ? undefined : ''}
+              </Panel>
+              <Panel
+                bleed
+                className={`cal-side-card${unscheduled.length ? '' : ' cal-side-card--empty'}`}
+                title="No survey date"
+                after={<CountPill tone="ink">{unscheduled.length}</CountPill>}
               >
-                <h2 id="cal-unscheduled">
-                  {'No survey date'}
-                  <span className="cal-count">{unscheduled.length}</span>
-                </h2>
                 {unscheduled.length
                   ? unscheduled.map((item) => (
                       <div key={item.reference} className="cal-side-row">
@@ -346,17 +349,18 @@ export function Calendar({
                           align="right"
                         />
                         {canReschedule(item, me.id) && (
-                          <IconButton
+                          <IconAction
                             icon="calendar-plus"
                             label={`Set dates for ${item.site}`}
                             tooltip="Set dates"
+                            size="md"
                             onClick={() => ctx.onReschedule(item)}
                           />
                         )}
                       </div>
                     ))
                   : null}
-              </section>
+              </Panel>
             </aside>
           )}
         </div>

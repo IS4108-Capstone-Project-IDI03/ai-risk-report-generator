@@ -4,7 +4,15 @@
 // Address, then its optional Coordinates and map (CP-26); then each assessment and "Add assessment". Used by
 // screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
-import { AddRow, Icon, IconButton, NewBadge, toast, useIsPhone } from '../../../design-system'
+import {
+  AddRow,
+  IconAction,
+  IconTile,
+  NewBadge,
+  Panel,
+  toast,
+  useIsPhone,
+} from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { MyLocationButton } from '../../assessments/components/MyLocationButton'
@@ -46,24 +54,24 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
   const copy = copyAt(form, site, f.sitesOf)
   const point = parseCoordinates(site.coordinates)
   return (
-    <section className="na-card" aria-label={'Site ' + (i + 1)}>
-      <div className="na-card-head">
-        <span className="na-tile">
-          <Icon name="map-pin" size={16} />
-        </span>
-        <h2 dir="auto">{title}</h2>
-        {existing && isNew && <NewBadge />}
-        {isNew && <Tip id="new-assessment.site-standards" />}
-        <span className="na-card-actions">
-          {form.sites.length > 1 && (
-            <IconButton
-              icon="trash-2"
-              label={'Remove site ' + (i + 1)}
-              onClick={() => (filled ? setAsking(true) : exit(() => f.removeSite(i)))}
-            />
-          )}
-        </span>
-      </div>
+    <Panel
+      label={'Site ' + (i + 1)}
+      title={<span dir="auto">{title}</span>}
+      icon={<IconTile icon="map-pin" tone="navy" />}
+      after={existing && isNew ? <NewBadge /> : undefined}
+      help={isNew ? <Tip id="new-assessment.site-standards" /> : undefined}
+      actions={
+        form.sites.length > 1 ? (
+          <IconAction
+            icon="trash-2"
+            label={'Remove site ' + (i + 1)}
+            tooltip="Remove site"
+            danger
+            onClick={() => (filled ? setAsking(true) : exit(() => f.removeSite(i)))}
+          />
+        ) : undefined
+      }
+    >
       {isNew && (
         <div className="na-site-fields">
           <div className="na-site-row" data-walk={i === 0 ? 'new-assessment.site-row' : undefined}>
@@ -181,6 +189,6 @@ export function SiteCard({ f, i, site }: { f: NewAssessmentForm; i: number; site
           onClose={() => setAsking(false)}
         />
       )}
-    </section>
+    </Panel>
   )
 }

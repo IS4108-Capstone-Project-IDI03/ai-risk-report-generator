@@ -26,16 +26,6 @@
   border-radius: 12px;
   background: var(--surface-card);
 }
-.wts-tile {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-}
 .wts-pname {
   display: flex;
   /* On a phone the three buttons wrap onto their own line instead of squeezing the words. */
@@ -68,7 +58,7 @@
     width: 44px !important;
     height: 44px !important;
   }
-  .st-titlebar .ds-press,
+  .st-panel .ds-panel-actions .ds-press,
   .wts-practice .ds-press {
     min-height: 44px;
   }

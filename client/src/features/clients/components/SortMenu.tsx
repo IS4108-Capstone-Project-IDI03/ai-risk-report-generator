@@ -21,7 +21,6 @@ export function SortMenu({
       onOpenChange={setOpen}
       ariaLabel="Sort clients"
       align="right"
-      className="cl-sort-anchor"
       surfaceClassName="cl-filter-menu"
       trigger={
         <SortPill

@@ -181,13 +181,6 @@
 }
 .notif-icon {
   position: relative;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-tile);
 }
 .notif-row__body {
   flex: 1;

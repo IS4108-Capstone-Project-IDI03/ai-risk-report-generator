@@ -4,12 +4,11 @@
 // not a native select, which can't draw avatars. Used by the New Assessment form's
 // AssessmentBlock and the Reassign dialog.
 import { useId } from 'react'
-import { Icon } from '../../../design-system'
+import { Avatar, Icon } from '../../../design-system'
 import { ChoiceMenu } from '../../assessments/components/ChoiceMenu'
 import { ErrorLine } from '../../new-assessment/components/Field'
 import type { Person } from '../api'
 import { pickable, roleWord } from '../people'
-import { PersonAvatar } from './PersonAvatar'
 
 const LABEL = 'Assigned engineer'
 
@@ -65,7 +64,7 @@ export function EngineerPicker({
         choices={list.map((p) => ({
           value: p.id,
           label: nameOf(p),
-          lead: <PersonAvatar name={p.name} />,
+          lead: <Avatar name={p.name} />,
           trail: roleWord(p.role),
         }))}
         selected={[value]}
@@ -80,7 +79,7 @@ export function EngineerPicker({
             aria-describedby={error || notice ? lineId : undefined}
             onClick={toggle}
           >
-            {chosen && <PersonAvatar name={chosen.name} size={24} />}
+            {chosen && <Avatar name={chosen.name} size={24} />}
             <span id={valueId} className="ap-value" data-empty={chosen ? undefined : ''}>
               {chosen ? (
                 <>

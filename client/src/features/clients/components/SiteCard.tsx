@@ -2,7 +2,15 @@
 // name, address and chips, its New assessment / Edit / Remove (or Restore)
 // icons, and a table of the engineer's assessments there. Called by
 // screens/SitesTab. Opens the client dialogs through the callbacks.
-import { Button, Chip, Badge, Icon, IconAction, IconRegistry } from '../../../design-system'
+import {
+  Button,
+  Chip,
+  Badge,
+  IconAction,
+  IconRegistry,
+  IconTile,
+  ListCard,
+} from '../../../design-system'
 import type { ClientPageSite, ClientVisit } from '../api'
 import { country, stampText } from '../formatClient'
 import { AssessmentTable } from './AssessmentTable'
@@ -27,11 +35,9 @@ export function SiteCard({
   onRestore: () => void
 }) {
   return (
-    <li className="cl-card cl-site" aria-label={site.name}>
+    <ListCard as="li" className="cl-site" label={site.name}>
       <div className="cl-site-head ds-on-grey">
-        <span className="cl-site-tile">
-          <Icon name={IconRegistry.object.site} size={18} />
-        </span>
+        <IconTile icon={IconRegistry.object.site} tone="outline" />
         <div className="cl-site-text">
           <h2>
             <span className="cl-site-name" dir="auto" title={site.name}>
@@ -110,6 +116,6 @@ export function SiteCard({
           <Note>{'All your assessments here are archived. Archived shows them.'}</Note>
         </div>
       )}
-    </li>
+    </ListCard>
   )
 }

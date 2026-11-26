@@ -2,7 +2,15 @@
 // filter, then a card per site with the engineer's assessments there. Called by
 // ClientRecord. Row actions go back to ClientRecord, which owns the dialogs.
 import { useState } from 'react'
-import { Button, EmptyState, IconRegistry, SearchField, statusLook } from '../../../design-system'
+import {
+  Button,
+  EmptyState,
+  IconRegistry,
+  ListCard,
+  ListToolbar,
+  SearchField,
+  statusLook,
+} from '../../../design-system'
 import { STAGE_LABEL, STATUS_LABEL, visitStage } from '../../assessments/format'
 import type { Stage } from '../../marshbot/types'
 import type { ClientPage as Page, ClientPageSite } from '../api'
@@ -63,40 +71,56 @@ export function SitesTab({
 
   return (
     <>
-      <div className="cl-card cl-toolbar">
-        <SearchField
-          label="Search sites by name or address"
-          placeholder="Search sites"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        {view === 'sites' && (
-          <FilterMenu name="Stage" choices={statusChoices} value={status} onChange={setStatus} />
-        )}
-        {(view !== 'sites' || archivedVisits > 0) && (
-          <Button
-            variant="pill"
-            aria-pressed={view === 'archived'}
-            iconLeft={view === 'archived' ? 'arrow-left' : IconRegistry.object.archive}
-            onClick={() => setView(view === 'archived' ? 'sites' : 'archived')}
-          >
-            {view === 'archived' ? 'Back to sites' : `Archived (${archivedVisits})`}
-          </Button>
-        )}
-        {(view === 'removed' || removed.length > 0) && (
-          <Button
-            variant="pill"
-            aria-pressed={view === 'removed'}
-            iconLeft={view === 'removed' ? 'arrow-left' : IconRegistry.action.discard}
-            onClick={() => setView(view === 'removed' ? 'sites' : 'removed')}
-          >
-            {view === 'removed' ? 'Back to sites' : `Removed sites (${removed.length})`}
-          </Button>
-        )}
-      </div>
+      <ListCard
+        className="cl-sites-bar"
+        toolbar={
+          <ListToolbar
+            search={
+              <SearchField
+                label="Search sites by name or address"
+                placeholder="Search sites"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            }
+            filters={
+              <>
+                {view === 'sites' && (
+                  <FilterMenu
+                    name="Stage"
+                    choices={statusChoices}
+                    value={status}
+                    onChange={setStatus}
+                  />
+                )}
+                {(view !== 'sites' || archivedVisits > 0) && (
+                  <Button
+                    variant="pill"
+                    aria-pressed={view === 'archived'}
+                    iconLeft={view === 'archived' ? 'arrow-left' : IconRegistry.object.archive}
+                    onClick={() => setView(view === 'archived' ? 'sites' : 'archived')}
+                  >
+                    {view === 'archived' ? 'Back to sites' : `Archived (${archivedVisits})`}
+                  </Button>
+                )}
+                {(view === 'removed' || removed.length > 0) && (
+                  <Button
+                    variant="pill"
+                    aria-pressed={view === 'removed'}
+                    iconLeft={view === 'removed' ? 'arrow-left' : IconRegistry.action.discard}
+                    onClick={() => setView(view === 'removed' ? 'sites' : 'removed')}
+                  >
+                    {view === 'removed' ? 'Back to sites' : `Removed sites (${removed.length})`}
+                  </Button>
+                )}
+              </>
+            }
+          />
+        }
+      />
 
       {shown.length === 0 ? (
-        <div className="cl-card">
+        <ListCard>
           <EmptyState
             icon={IconRegistry.object.site}
             title={
@@ -114,7 +138,7 @@ export function SitesTab({
                 : 'Change the search or the filters to see more.'
             }
           />
-        </div>
+        </ListCard>
       ) : (
         <ul aria-label="Sites" className="cl-sites">
           {shown.map((site) => (

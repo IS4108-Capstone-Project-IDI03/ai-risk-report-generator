@@ -4,7 +4,7 @@
 // the client and its sites. Called by ClientPage. Calls the tab screens;
 // restores and dialog saves reload the page, the work list and show a toast.
 import { useState, type ReactNode } from 'react'
-import { Sheet, Tabs, toast } from '../../../design-system'
+import { Avatar, SidePanel, Tabs, toast } from '../../../design-system'
 import { restoreClient, restoreSite, type ClientPage as Page, type ClientPageSite } from '../api'
 import { clientFacts, type FactVisit } from '../clientFacts'
 import {
@@ -186,8 +186,15 @@ export function ClientRecord({
         </div>
       </div>
 
-      {/* Phone: the facts panel is hidden; its content opens from the More sheet. */}
-      <Sheet open={details} onClose={() => setDetails(false)} title={page.name}>
+      {/* Phone: the facts card is hidden; its content opens from the More sheet in the shared
+          details panel (the assessment's Details look). */}
+      <SidePanel
+        open={details}
+        onClose={() => setDetails(false)}
+        title={page.name}
+        subtitle="Client details"
+        lead={<Avatar kind="client" name={page.name} size={40} />}
+      >
         <ClientFacts
           facts={facts}
           division={page.division}
@@ -195,7 +202,7 @@ export function ClientRecord({
           contacts={page.contacts}
           sheet
         />
-      </Sheet>
+      </SidePanel>
       {dialog === 'rename' && !page.removed && (
         <RenameClientDialog client={client} onClose={closeDialog} onSaved={changed} />
       )}

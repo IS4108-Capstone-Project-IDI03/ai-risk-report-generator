@@ -1,9 +1,11 @@
-import { Button, Callout, EmptyState } from '../../design-system'
-import { ActionButton } from './components/ActionButton'
+import { Button, Callout, EmptyState, IconAction } from '../../design-system'
 import { NotificationRow } from './NotificationRow'
 import type { UseNotifications } from './useNotifications'
 import type { Notification } from './api'
 import './notifications.css'
+
+// The thin header's buttons are 28 px (v2 "Thin popover header"); 44 px on touch (notifications.css).
+const HEADER_BUTTON = { width: 28, height: 28 }
 
 // The dropdown's body: a thin header with the two bulk actions, the list of rows,
 // and a Load more at the foot. Takes the hook's state and the activate handler;
@@ -23,15 +25,24 @@ export function NotificationList({
         <h2>Notifications</h2>
         <div className="notification-list__actions">
           {n.unread > 0 && (
-            <ActionButton
+            <IconAction
               icon="check-check"
               label="Mark all as read"
-              box={28}
+              placement="bottom"
+              className="notif-action"
+              style={HEADER_BUTTON}
               onClick={n.markAllRead}
             />
           )}
           {n.items.length > 0 && (
-            <ActionButton icon="trash-2" label="Dismiss all" box={28} onClick={n.dismissAll} />
+            <IconAction
+              icon="trash-2"
+              label="Dismiss all"
+              placement="bottom"
+              className="notif-action"
+              style={HEADER_BUTTON}
+              onClick={n.dismissAll}
+            />
           )}
         </div>
       </header>

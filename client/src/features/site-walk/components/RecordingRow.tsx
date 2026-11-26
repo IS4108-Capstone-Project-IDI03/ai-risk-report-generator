@@ -6,7 +6,7 @@
 // plays. The open transcript is its own line of the row (full width on a phone). Used by
 // components/WalkList.tsx (Record a site walk), New Observation and the observation page.
 import { useEffect, useRef, useState } from 'react'
-import { Icon } from '../../../design-system'
+import { Icon, IconAction } from '../../../design-system'
 import { minutes, transcriptName, type RecordingStatus, type WalkItem } from '../walkItems'
 import '../statusReason.css'
 
@@ -161,37 +161,29 @@ export function RecordingRow({
       {/* Retry, edit and the bin sit together, before the chevron. */}
       <div className="sw-item-tools">
         {item.status === 'failed' && onRetry && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label="Try transcribing again"
-            title="Try again"
+          <IconAction
+            icon="rotate-ccw"
+            label="Try transcribing again"
+            tooltip="Try again"
             onClick={onRetry}
-          >
-            <Icon name="rotate-ccw" size={18} />
-          </button>
+          />
         )}
         {onEdit && opens && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label="Correct the transcript"
-            title="Correct transcript"
+          <IconAction
+            icon="pencil"
+            label="Correct the transcript"
+            tooltip="Correct transcript"
             onClick={onEdit}
-          >
-            <Icon name="pencil" size={18} />
-          </button>
+          />
         )}
         {onRemove && (
-          <button
-            type="button"
-            className="sw-button sw-icon-button sw-button--danger"
-            aria-label={label ? 'Remove ' + label : 'Remove recording'}
-            title="Remove recording"
+          <IconAction
+            icon="trash-2"
+            label={label ? 'Remove ' + label : 'Remove recording'}
+            tooltip="Remove recording"
+            danger
             onClick={onRemove}
-          >
-            <Icon name="trash-2" size={18} />
-          </button>
+          />
         )}
       </div>
       {/* Always the last control. Without a transcript the cell stays empty on a wide screen. */}

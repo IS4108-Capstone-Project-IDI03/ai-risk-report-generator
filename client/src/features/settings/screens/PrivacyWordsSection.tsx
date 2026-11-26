@@ -9,6 +9,7 @@ import {
   Button,
   Callout,
   Dialog,
+  EmptyNote,
   HelpTip,
   Icon,
   IconAction,
@@ -346,7 +347,7 @@ function History({ changes }: { changes: PrivacyWords['history'] }) {
   return (
     <SettingBlock title="Changes" wide>
       {changes.length === 0 ? (
-        <p className="st-note">No changes yet.</p>
+        <EmptyNote>No changes yet.</EmptyNote>
       ) : (
         <ul className="st-history">
           {changes.map((h, i) => {

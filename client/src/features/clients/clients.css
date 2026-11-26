@@ -1,6 +1,6 @@
-/* The Clients list and what its tables share (CP-23, boards 05-07): one white card
-   with a toolbar, a table and a footer. Used by ClientList, ClientTable,
-   AssessmentTable, DocumentsTab. v2 tokens only (docs/areas/design-system-v2.md). */
+/* The Clients list and what its tables share (CP-23, boards 05-07): the shared ListCard with
+   its ListToolbar, a table and a footer. Used by ClientList, ClientTable, AssessmentTable,
+   DocumentsTab. v2 tokens only (docs/areas/design-system-v2.md). */
 
 .cl-page {
   min-height: 100%;
@@ -17,69 +17,16 @@
 .cl-page > header + .cl-content {
   padding-top: 24px;
 }
-.cl-card {
-  container: cl-card / inline-size;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
-}
 @media (max-width: 767px) {
   .cl-content {
     padding-inline: 16px;
   }
 }
 
-/* ---- Toolbar: search, filter pills, then sort and the main button at the end ---- */
-.cl-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-}
-.cl-toolbar .ds-search {
-  flex: 0 1 300px;
-  min-width: 200px;
-}
-.cl-toolbar-end {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-.ds-filter-pill[data-active] {
-  background: var(--ink-50);
-  color: var(--marsh-navy);
-}
 .cl-filter-menu {
   text-align: left;
   min-width: 220px !important;
 }
-.cl-sort {
-  display: inline-grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--graphite-100);
-  color: var(--graphite-900);
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  .cl-sort:hover {
-    background: var(--graphite-200);
-  }
-}
-@media (max-width: 767px) {
-  .cl-toolbar {
-    padding-inline: 16px;
-  }
-  .cl-toolbar .ds-search {
-    flex: 1 1 100%;
-  }
-}
-
 /* ---- The table: fixed columns, so a long value wraps and never widens one ---- */
 .cl-table {
   width: 100%;
@@ -108,7 +55,7 @@
   padding-left: 16px;
 }
 /* A table that opens its card has no heading rule above it: the card's border is enough. */
-.cl-card > .cl-table:first-child th {
+.ds-list-card > .cl-table:first-child th {
   border-top: 0;
 }
 .cl-table tbody tr:last-child td {
@@ -329,25 +276,13 @@
   font-size: 13px;
 }
 
-/* ---- Empty states and the footer ---- */
-.cl-empty-title {
-  margin: 0;
-  padding: 24px 16px;
-  color: var(--graphite-600);
-  font: 600 14px/1.3 var(--font-sans);
-  text-align: center;
-}
-.cl-card .ds-table-footer {
-  border-top: 1px solid var(--graphite-200);
-}
-
 /* A card-layout table that opens its card has no rule above its first row: the card's border is enough. */
-.cl-card > .cl-table:first-child tbody tr:first-child {
+.ds-list-card > .cl-table:first-child tbody tr:first-child {
   border-top: 0;
 }
 
 /* ---- Clients table, sidebar open at 1280: tighter fixed columns so the client's name keeps room ---- */
-@container cl-card (max-width: 1100px) {
+@container ds-list (max-width: 1100px) {
   .cl-clients col.cl-col-num {
     width: 56px;
   }
@@ -361,7 +296,7 @@
 }
 
 /* ---- Clients table: tablet drops Sites and Jurisdictions and stays a table (board 25) ---- */
-@container cl-card (max-width: 860px) {
+@container ds-list (max-width: 860px) {
   .cl-clients :is(th, td):is(:nth-child(2), :nth-child(4)),
   .cl-clients col:is(:nth-child(2), :nth-child(4)) {
     display: none;
@@ -384,15 +319,11 @@
     width: 44px !important;
     height: 44px !important;
   }
-  .cl-toolbar .ds-search {
-    flex: 1 1 140px;
-    min-width: 140px;
-  }
 }
 
 /* A tablet with the sidebar open (768 px) leaves the card under 600 px: Next survey goes too, or
    the client's name column shrank to nothing and its heading ran over Open's. */
-@container cl-card (max-width: 600px) {
+@container ds-list (max-width: 600px) {
   .cl-clients :is(th, td):nth-child(5),
   .cl-clients col:nth-child(5) {
     display: none;
@@ -406,24 +337,6 @@
     .cl-clients .cl-open > :first-child {
       display: none;
     }
-  }
-}
-
-/* A tablet card is too narrow for the list's toolbar on one row: New assessment wrapped alone
-   under it. The search and New assessment take the first row, the filters and Sort the second. */
-@container cl-card (min-width: 601px) and (max-width: 960px) {
-  .cl-toolbar:has(> .cl-pills) .ds-search {
-    order: -2;
-    flex: 1 1 320px;
-  }
-  .cl-toolbar:has(> .cl-pills) .cl-toolbar-end {
-    order: -1;
-  }
-  .cl-toolbar > .cl-pills {
-    display: flex;
-    flex: 1 1 100%;
-    align-items: center;
-    gap: 8px;
   }
 }
 
@@ -511,55 +424,14 @@
   }
 }
 
-/* Filters and Sort: inline on a wide card, one scrolling row on a phone (board 21). */
-.cl-pills {
-  display: contents;
-}
-.cl-sort-anchor {
-  margin-left: auto;
-}
-/* The Clients list's sort already pushes the button right; the Documents tab's Upload
-   has no sort, so it keeps margin-left: auto (round 13). */
-.cl-pills ~ .cl-toolbar-end {
-  margin-left: 0;
-}
+/* The Clients list and Calendar are full-bleed on a phone (board 21): the page loses its side
+   padding and the cards (ListCard and Panel with `bleed`) their side borders. */
 @media (max-width: 767px) {
-  .cl-pills {
-    display: flex;
-    flex: 1 1 100%;
-    gap: 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-  }
-  .cl-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .cl-pills > * {
-    flex: none;
-  }
-  .cl-sort-anchor {
-    margin-left: 0;
-  }
-  .cl-toolbar .ds-search,
-  .cl-pills .ds-filter-pill {
-    height: 44px;
-  }
-  .cl-pills {
-    padding: 3px;
-    margin: -3px;
-  }
-  /* The Clients list is full-bleed on a phone (board 21): rows with dividers, no bordered card. */
   .cl-content--list {
     padding-inline: 0;
   }
   .cl-page > header + .cl-content--list {
     padding-top: 0;
-  }
-  .cl-content--list .cl-card {
-    border-width: 1px 0 0;
-    border-radius: 0;
   }
 }
 

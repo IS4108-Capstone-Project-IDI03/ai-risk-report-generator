@@ -1,41 +1,6 @@
 /* The client page (CP-23, boards 06 and 07): avatar, site cards, the facts panel.
-   Used by ClientHeader, SiteCard, ClientFacts, ClientAvatar. Table and card
+   Used by ClientHeader, SiteCard, ClientFacts. Table and card
    basics are in clients.css. */
-
-/* ---- Avatar: initials on a colour picked from the name ---- */
-.client-avatar {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  /* 44 px: as tall as the eyebrow and title beside it, so the header reads as one line (round 17). */
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-field);
-  color: var(--text-inverse);
-  font: 700 15px/1 var(--font-sans);
-  letter-spacing: 0.02em;
-}
-.client-avatar--sm {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  font-size: 12px;
-}
-.client-avatar[data-tone='0'] {
-  background: var(--report-navy);
-}
-.client-avatar[data-tone='1'] {
-  background: var(--violet-600);
-}
-.client-avatar[data-tone='2'] {
-  background: var(--teal-600);
-}
-.client-avatar[data-tone='3'] {
-  background: var(--green-600);
-}
-.client-avatar[data-tone='4'] {
-  background: var(--amber-600);
-}
 
 /* ---- Body: the tab's content, with the facts panel beside it from wide screens ---- */
 .cl-body {
@@ -75,16 +40,9 @@
   border-radius: var(--radius-card) var(--radius-card) 0 0;
   background: var(--graphite-100);
 }
-.cl-site-tile {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-tile);
-  background: var(--surface-card);
-  color: var(--marsh-navy);
+/* The leading pin tile centres on the head's height, as every row marker does (v2 Inbox row). */
+.cl-site-head > .ds-icon-tile {
+  align-self: center;
 }
 .cl-site-text {
   flex: 1;
@@ -123,37 +81,19 @@
 
 /* ---- Facts panel ---- */
 .cl-facts {
-  padding: 16px 20px 4px;
+  padding: 16px 20px 20px;
   border: 1px solid var(--graphite-200);
   border-radius: var(--radius-card);
   background: var(--surface-card);
 }
-.cl-facts dl {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0 24px;
-  margin: 0;
+/* The card's facts: one column beside the tab, three across when folded above it (tablet). */
+.cl-facts:not(.cl-facts--sheet) .ds-facts {
+  gap: 16px 24px;
 }
 @container cl-content (min-width: 640px) and (max-width: 999px) {
-  .cl-facts dl {
+  .cl-facts .ds-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
-.cl-fact {
-  margin: 0 0 16px;
-}
-.cl-fact dt {
-  margin: 0 0 6px;
-  color: var(--graphite-600);
-  font: 700 11px/1.2 var(--font-sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.cl-fact dd {
-  margin: 0;
-  color: var(--graphite-900);
-  font: 400 14px/1.4 var(--font-sans);
-  overflow-wrap: anywhere;
 }
 .cl-contacts {
   display: flex;
@@ -167,17 +107,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.cl-contact-dot {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-pill);
-  background: var(--ink-100);
-  color: var(--ink-600);
-  font: 700 10px/1 var(--font-sans);
 }
 
 /* A site's name keeps to three lines; the badge beside it never shrinks. */
@@ -265,7 +194,7 @@
 
 /* Only on a phone does the avatar go (it repeats the name); a tablet keeps it (board 25 E). */
 @media (max-width: 767px) {
-  .cl-page .ds-topbar .client-avatar {
+  .cl-page .ds-topbar .ds-avatar {
     display: none;
   }
 }
@@ -303,7 +232,7 @@
 .cl-assess:not([data-site]) .cl-lines > .cl-line-2 {
   display: none;
 }
-@container cl-card (max-width: 800px) {
+@container ds-list (max-width: 800px) {
   .cl-assess :is(th, td, col):nth-child(2) {
     display: none;
   }
@@ -355,25 +284,14 @@
   overflow: visible;
 }
 @media (max-width: 767px) {
-  /* Upload gets its own full-width row under search and Tag (board 22 F); all 44 px. */
-  .cl-page .cl-toolbar-end {
-    flex: 1 1 100%;
-  }
-  .cl-page .cl-toolbar .ds-search,
-  .cl-page .cl-toolbar .ds-filter-pill,
-  .cl-page .cl-toolbar-end button {
-    min-height: 44px;
-  }
-  .cl-page .cl-toolbar .ds-search {
-    flex: 1 1 0;
-    min-width: 0;
-  }
   /* On the page (not in a card), the toolbar already has the page's 16 px gutter. */
-  .cl-panel > .cl-toolbar {
+  .cl-panel > .ds-list-toolbar,
+  .cl-sites-bar > .ds-list-toolbar {
+    min-height: 0;
     padding: 0;
   }
   /* The Sites tab's toolbar is a card on wider screens; on a phone it sits on the page too (board 22 D). */
-  .cl-panel > .cl-card.cl-toolbar {
+  .cl-panel > .cl-sites-bar {
     border: 0;
     border-radius: 0;
     background: none;
@@ -481,7 +399,7 @@
     margin-inline: -8px;
   }
   /* A card of cards: Open work's table needs no frame of its own. */
-  .cl-card:has(> .cl-assess[data-site]) {
+  .ds-list-card:has(> .cl-assess[data-site]) {
     border: 0;
     border-radius: 0;
     background: none;
@@ -580,7 +498,7 @@
    five fixed columns: the name's column shrank to nothing and the headings ran together. Each row
    becomes two lines instead: the file, then its tag, date and size, with the row's actions at the
    end. A phone keeps its own row (DocumentRow's phone layout). */
-@container cl-card (max-width: 600px) {
+@container ds-list (max-width: 600px) {
   @media (min-width: 768px) {
     .cl-docs colgroup,
     .cl-docs thead {
@@ -653,7 +571,7 @@
   .cl-page .ds-topbar {
     column-gap: 8px;
   }
-  .cl-page .ds-topbar > .client-avatar {
+  .cl-page .ds-topbar > .ds-avatar {
     align-self: center;
     margin-top: 0;
   }

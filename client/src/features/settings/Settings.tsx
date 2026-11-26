@@ -1,7 +1,7 @@
 // The Settings screen (S-01): a menu of sections, each in its own file under screens/.
 // Shown by features/assessments/AssessmentApp.tsx for every signed-in user. Calls api.ts.
 import { useEffect, useRef, useState } from 'react'
-import { Icon, TopBar, useIsPhone } from '../../design-system'
+import { Icon, Panel, TopBar, useIsPhone } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { Tip } from '../help/Tip'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
@@ -176,12 +176,14 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <section className="st-panel" aria-label={section.label}>
-          <div className="st-titlebar">
-            <h2 className="st-title">{section.label}</h2>
-            {section.tip}
-            <div className="st-titlebar-end" ref={setTitleEnd} />
-          </div>
+        {/* The open section: the shared titled card, its title line holding the help tip and
+            a slot for the section's one main button (F-12). */}
+        <Panel
+          className="st-panel"
+          title={section.label}
+          help={section.tip}
+          actions={<div className="st-titlebar-end" ref={setTitleEnd} />}
+        >
           {problem ? (
             <p className="st-err st-content" role="alert">
               <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}
@@ -189,7 +191,7 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
           ) : (
             <div className="st-content">{section.render(settings, setSettings, titleEnd)}</div>
           )}
-        </section>
+        </Panel>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
 // With the assessment's `reference` the note being edited can be dictated into (CP-27).
 // Used by components/WalkList.tsx.
 import { useId, useState } from 'react'
-import { Button, Icon, Textarea } from '../../../design-system'
+import { Button, Icon, IconAction, Textarea } from '../../../design-system'
 import { DictateButton } from '../../assessments/dictation/DictateButton'
 
 const LONG = 140
@@ -85,23 +85,14 @@ export function NoteRow({
       </div>
       {!legacy && (
         <div className="sw-item-tools">
-          <button
-            type="button"
-            className="sw-button sw-icon-button"
-            aria-label="Edit note"
-            onClick={() => setDraft(text)}
-          >
-            <Icon name="pencil" size={18} />
-          </button>
-          <button
-            type="button"
-            className="sw-button sw-icon-button sw-button--danger"
-            aria-label="Remove note"
-            title="Remove note"
+          <IconAction icon="pencil" label="Edit note" onClick={() => setDraft(text)} />
+          <IconAction
+            icon="trash-2"
+            label="Remove note"
+            tooltip="Remove note"
+            danger
             onClick={onRemove}
-          >
-            <Icon name="trash-2" size={18} />
-          </button>
+          />
         </div>
       )}
     </li>

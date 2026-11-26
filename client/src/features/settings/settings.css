@@ -85,39 +85,27 @@
   box-shadow: var(--focus-ring);
 }
 
-/* ---- The panel: one white card that fills the space beside the menu ---- */
-.st-panel {
-  min-width: 0;
-  border: 1px solid var(--graphite-200);
-  border-radius: 16px;
-  background: var(--surface-card);
+/* ---- The panel: the shared titled card (Panel) that fills the space beside the menu ---- */
+.st-panel.ds-panel {
+  gap: 0;
+  padding: 16px 24px 0;
 }
-/* The title line: 56 px (a 40 px button with 8 px above and below it), with a hairline under it. */
-.st-titlebar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-height: 56px;
-  box-sizing: border-box;
-  padding: 8px 24px;
-  border-bottom: 1px solid var(--graphite-100);
+/* The title line keeps room for a 40 px button at its end (Settings.tsx gives it a slot). */
+.st-panel .ds-panel-bar {
+  min-height: 40px;
 }
-.st-title {
-  margin: 0;
-  color: var(--marsh-navy);
-  font: 700 16px/24px var(--font-sans);
-}
-/* The right end of the title line: the section's one main button (Settings.tsx gives it a slot). */
-.st-titlebar-end {
-  margin-left: auto;
-}
-.st-content {
-  padding: 0 24px;
+.st-titlebar-end:empty {
+  display: none;
 }
 .st-content > .st-note,
 .st-content > .st-err {
-  margin: 24px 0;
+  margin: 16px 0 24px;
+}
+/* The first setting sits 16 px under the title line; the rest keep their 24 px rhythm. */
+.st-content > .st-block:first-child,
+.st-content > .st-stack:first-child,
+.st-content > :first-child > .st-block:first-child {
+  padding-top: 16px;
 }
 
 /* ---- A setting: name and helper at the left, controls at the right; stacked when narrow ---- */
@@ -457,15 +445,6 @@
     background: var(--surface-card);
   }
 }
-.st-tier-icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: var(--ink-50);
-}
 /* Read out for screen readers only. */
 .st-sr-only {
   position: absolute;
@@ -607,8 +586,8 @@
   .st-rec--trim {
     display: none;
   }
-  .st-titlebar {
-    padding: 8px 16px;
+  .st-panel.ds-panel {
+    padding: 12px 16px 0;
   }
   /* A list switch with three options is wider than a phone: it scrolls inside its own track. */
   .st-content .ds-segmented {
@@ -624,9 +603,6 @@
   .st-row-head:has(> .st-note) {
     flex-wrap: nowrap;
     align-items: flex-start;
-  }
-  .st-content {
-    padding: 0 16px;
   }
   .st-unused-head {
     margin: 0 -16px;

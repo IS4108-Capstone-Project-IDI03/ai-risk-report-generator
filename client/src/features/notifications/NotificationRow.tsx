@@ -1,11 +1,13 @@
 // One dropdown row: kind icon, message, time, and hover actions. Called by NotificationList.
 import { useState } from 'react'
-import { Icon } from '../../design-system'
+import { Icon, IconAction } from '../../design-system'
 import type { Notification } from './api'
 import { formatBellWhen } from './formatWhen'
 import { KnowledgeRequestDetails } from './KnowledgeRequestDetails'
-import { ActionButton } from './components/ActionButton'
 import { NotificationIcon } from './components/NotificationIcon'
+
+// A row's buttons: 32 px with a 16 px icon; 44 px on touch (notifications.css).
+const ROW_BUTTON = { width: 32, height: 32 }
 
 // Past this many characters the one line under the message is cut off, so Show more earns its place.
 const FITS_ONE_LINE = 44
@@ -91,17 +93,23 @@ export function NotificationRow({
       {/* Hidden until hover or focus on a mouse device; always shown on touch (notifications.css). */}
       <div className="notif-row__actions">
         {!notification.read && (
-          <ActionButton
+          <IconAction
             icon="check"
             label="Mark as read"
             placement="bottom"
+            size="md"
+            className="notif-action"
+            style={ROW_BUTTON}
             onClick={() => onMarkRead(notification.id)}
           />
         )}
-        <ActionButton
+        <IconAction
           icon="x"
           label="Dismiss"
           placement="bottom"
+          size="md"
+          className="notif-action"
+          style={ROW_BUTTON}
           onClick={() => onDismiss(notification.id)}
         />
       </div>

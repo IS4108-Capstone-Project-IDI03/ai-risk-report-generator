@@ -3,7 +3,7 @@
 // Used by screens/Recording.tsx. With the assessment's `reference` the note can be
 // dictated into (CP-27); the screen leaves it out while the walk itself is recording.
 import { useId } from 'react'
-import { Button, Textarea } from '../../../design-system'
+import { Button, Panel, Textarea } from '../../../design-system'
 import { DictateButton } from '../../assessments/dictation/DictateButton'
 export function NoteComposer({
   value,
@@ -18,8 +18,7 @@ export function NoteComposer({
 }) {
   const id = useId()
   return (
-    <section className="sw-composer sw-card" data-walk="site-walk.notes">
-      <h2 className="sw-card-title">Notes</h2>
+    <Panel className="sw-composer" title="Notes" data-walk="site-walk.notes">
       <Textarea
         id={id}
         aria-label="Add a note"
@@ -41,6 +40,6 @@ export function NoteComposer({
           Add note
         </Button>
       </div>
-    </section>
+    </Panel>
   )
 }

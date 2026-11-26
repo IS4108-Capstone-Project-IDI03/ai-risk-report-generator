@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react'
 import {
   AssessmentTypeTile,
-  Icon,
+  IconTile,
   NewBadge,
   useIsPhone,
   type AssessmentType,
@@ -16,11 +16,7 @@ import { FOUND_ROWS } from '../useIntake'
 
 type Item = { key: string; tile: ReactNode; text: string; isNew: boolean }
 
-const tile = (icon: string) => (
-  <span className="na-tile">
-    <Icon name={icon} size={16} />
-  </span>
-)
+const tile = (icon: string) => <IconTile icon={icon} tone="navy" />
 const typeOf = (v: string | null): AssessmentType | null =>
   v === 'Follow-up visit' || v === 'Follow-up' ? 'Follow-up' : (v as AssessmentType | null)
 

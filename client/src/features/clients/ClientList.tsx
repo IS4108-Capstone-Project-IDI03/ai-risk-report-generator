@@ -7,12 +7,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   Button,
+  EmptyNote,
   EmptyState,
   IconRegistry,
+  ListCard,
+  ListToolbar,
   SearchField,
   TableFooter,
-  TopBar,
   toast,
+  TopBar,
 } from '../../design-system'
 import {
   NewAssessmentButton,
@@ -154,44 +157,65 @@ export function ClientList({
         }
       />
       <div className="cl-content cl-content--list">
-        <section aria-label="Clients" className="cl-card">
-          <div className="cl-toolbar">
-            <SearchField
-              label="Search clients by name or site"
-              placeholder="Search clients"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+        <ListCard
+          as="section"
+          label="Clients"
+          bleed
+          toolbar={
+            <ListToolbar
+              search={
+                <SearchField
+                  label="Search clients by name or site"
+                  placeholder="Search clients"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              }
+              filters={
+                <>
+                  <FilterMenu
+                    name="Report due"
+                    choices={DUE_CHOICES}
+                    value={due}
+                    onChange={setDue}
+                  />
+                  <FilterMenu
+                    name="Jurisdiction"
+                    choices={jurisdictions}
+                    value={jurisdiction}
+                    onChange={setJurisdiction}
+                  />
+                  {(showRemoved || removed.length > 0) && (
+                    <Button
+                      variant="pill"
+                      aria-pressed={showRemoved}
+                      iconLeft={showRemoved ? 'arrow-left' : IconRegistry.action.discard}
+                      onClick={() => setShowRemoved(!showRemoved)}
+                    >
+                      {showRemoved ? 'Back to clients' : `Removed clients (${removed.length})`}
+                    </Button>
+                  )}
+                </>
+              }
+              sort={<SortMenu choices={SORTS} value={sort} onChange={setSort} />}
+              end={onStart && !compact ? <NewAssessmentButton onStart={onStart} /> : undefined}
             />
-            <div className="cl-pills">
-              <FilterMenu name="Report due" choices={DUE_CHOICES} value={due} onChange={setDue} />
-              <FilterMenu
-                name="Jurisdiction"
-                choices={jurisdictions}
-                value={jurisdiction}
-                onChange={setJurisdiction}
-              />
-              {(showRemoved || removed.length > 0) && (
-                <Button
-                  variant="pill"
-                  aria-pressed={showRemoved}
-                  iconLeft={showRemoved ? 'arrow-left' : IconRegistry.action.discard}
-                  onClick={() => setShowRemoved(!showRemoved)}
-                >
-                  {showRemoved ? 'Back to clients' : `Removed clients (${removed.length})`}
-                </Button>
-              )}
-              <SortMenu choices={SORTS} value={sort} onChange={setSort} />
-            </div>
-            {onStart && !compact && (
-              <span className="cl-toolbar-end">
-                <NewAssessmentButton onStart={onStart} />
-              </span>
-            )}
-          </div>
+          }
+          footer={
+            !loading && !failed && shown.length > 0 ? (
+              <TableFooter
+                late={late ? `${plural(late, 'report')} late` : undefined}
+                onLateClick={() => setDue('late')}
+              >
+                {plural(shown.length, 'client')}
+              </TableFooter>
+            ) : undefined
+          }
+        >
           {loading ? (
-            <p role="status" className="cl-empty-title">
+            <EmptyNote centred status>
               {'Loading your clients…'}
-            </p>
+            </EmptyNote>
           ) : failed || shown.length === 0 ? (
             <EmptyState
               icon={IconRegistry.object.client}
@@ -217,27 +241,19 @@ export function ClientList({
               }
             />
           ) : (
-            <>
-              <ClientTable
-                rows={shown.map((c) => ({
-                  ...c,
-                  division: info.get(c.id)?.division ?? null,
-                  rights: info.get(c.id) ?? null,
-                  newAssessment: () => onNewAssessment(c),
-                  rename: () => setDialog({ kind: 'rename', c }),
-                  remove: () => setDialog({ kind: 'remove', c }),
-                }))}
-                sort={sort}
-              />
-              <TableFooter
-                late={late ? `${plural(late, 'report')} late` : undefined}
-                onLateClick={() => setDue('late')}
-              >
-                {plural(shown.length, 'client')}
-              </TableFooter>
-            </>
+            <ClientTable
+              rows={shown.map((c) => ({
+                ...c,
+                division: info.get(c.id)?.division ?? null,
+                rights: info.get(c.id) ?? null,
+                newAssessment: () => onNewAssessment(c),
+                rename: () => setDialog({ kind: 'rename', c }),
+                remove: () => setDialog({ kind: 'remove', c }),
+              }))}
+              sort={sort}
+            />
           )}
-        </section>
+        </ListCard>
       </div>
       {dialog?.kind === 'rename' && (
         <RenameClientDialog client={dialog.c} onClose={() => setDialog(null)} onSaved={saved} />
