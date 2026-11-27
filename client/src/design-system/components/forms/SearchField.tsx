@@ -1,5 +1,6 @@
 // Search field and filter pill (CP-23, board 01): grey-fill controls for table toolbars.
 // Called by the Assessments, Clients and client tables. Calls Icon.
+import { useState } from 'react'
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
 
@@ -13,22 +14,37 @@ export type SearchFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>,
 }
 
 /** Returns a 40 px grey search input with a magnifier, and `end` inside its right end. */
-export function SearchField({ label, className, end, walk, ...rest }: SearchFieldProps) {
+export function SearchField({ label, className, end, walk, onBlur, ...rest }: SearchFieldProps) {
+  // Focus that came from a click or tap: kit.css then shows no ring (the keyboard keeps it).
+  const [pointer, setPointer] = useState(false)
   const field = (
     <>
       <Icon name="search" size={16} />
-      <input type="search" aria-label={label ?? rest.placeholder} {...rest} />
+      <input
+        type="search"
+        aria-label={label ?? rest.placeholder}
+        onBlur={(e) => {
+          setPointer(false)
+          onBlur?.(e)
+        }}
+        {...rest}
+      />
     </>
   )
+  const box = {
+    'data-walk': walk,
+    'data-pointer': pointer ? '' : undefined,
+    onPointerDown: () => setPointer(true),
+  }
   if (!end)
     return (
-      <label className={`ds-search ${className ?? ''}`} data-walk={walk}>
+      <label className={`ds-search ${className ?? ''}`} {...box}>
         {field}
       </label>
     )
   // The end's controls stay outside the label, so they are never part of the input's name.
   return (
-    <div className={`ds-search has-end ${className ?? ''}`} data-walk={walk}>
+    <div className={`ds-search has-end ${className ?? ''}`} {...box}>
       <label className="ds-search-input">{field}</label>
       <div className="ds-search-end">{end}</div>
     </div>
