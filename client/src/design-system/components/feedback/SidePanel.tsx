@@ -1,8 +1,9 @@
 // Side panel (v2, NEW pattern; the assessment's Details panel, AS-06, made shared): a record's
 // details in a full-height panel flush with the window's right edge over a dimmed page on a
 // computer, and a bottom sheet on a phone. Header: an optional Back, tile, the title and one grey
-// line, Close. The footer bar, pinned to the bottom edge, holds the record's actions: there is no
-// header slot for them, so a short record never shows its actions at the top over empty space. The one details
+// line, any icon tools, Close. The footer bar, pinned to the bottom edge, holds the record's actions,
+// so a short record never shows its actions at the top over empty space; the header takes only a
+// round icon link that opens something else (a document's View original). The one details
 // panel of the app: the assessment's Details, the client's details, a knowledge-base document and
 // a user account. Calls Sheet, BackButton, IconAction, Toaster.
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react'
@@ -22,6 +23,8 @@ export type SidePanelProps = {
   lead?: ReactNode
   // A bar pinned to the panel's foot: the record's actions.
   footer?: ReactNode
+  // Round icon actions (IconAction) in the header, just left of Close.
+  tools?: ReactNode
   children: ReactNode
   // Width on a computer.
   width?: number
@@ -45,6 +48,7 @@ export function SidePanel({
   subtitle,
   lead,
   footer,
+  tools,
   children,
   width = 400,
   toaster,
@@ -78,7 +82,14 @@ export function SidePanel({
         onClose={onClose}
         title={title}
         subtitle={typeof subtitle === 'string' ? subtitle : undefined}
-        headerAction={backButton || undefined}
+        headerAction={
+          backButton || tools ? (
+            <>
+              {backButton}
+              {tools}
+            </>
+          ) : undefined
+        }
         closeWalk={closeWalk}
         unsaved={unsaved}
         className={className ? `ds-side-sheet ${className}` : 'ds-side-sheet'}
@@ -131,6 +142,7 @@ export function SidePanel({
             {subtitle && <p>{subtitle}</p>}
           </div>
           <span className="ds-side-panel-tools">
+            {tools}
             <IconAction
               icon="x"
               label="Close"

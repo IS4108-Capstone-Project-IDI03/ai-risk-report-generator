@@ -3,7 +3,7 @@
 // components/PassagesDialog.tsx, PassageFilters.tsx and PassageRow.tsx.
 import type { DocumentPassage, OutlineEntry, PassageListing, PassageQuery, SearchMode } from './api'
 
-export const PAGE_SIZE = 25
+export const PAGE_SIZE = 10
 
 export const KINDS: Record<DocumentPassage['kind'], string> = {
   text: 'Text',

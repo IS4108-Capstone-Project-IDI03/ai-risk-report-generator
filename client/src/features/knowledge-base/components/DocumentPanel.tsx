@@ -1,8 +1,9 @@
 // A document's details panel (KB-01): the design system's SidePanel from the right (a sheet on a
-// phone), titled with the document, its details in the body and its actions in the footer.
+// phone), titled with the document, View original beside Close, its details in the body and its
+// actions in the footer.
 // Opened from a row of screens/KnowledgeDocuments.tsx. Calls DocumentDetails, DocumentActions.
 import { useState } from 'react'
-import { FileTile, SidePanel } from '../../../design-system'
+import { FileTile, IconAction, IconRegistry, SidePanel } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { editionLine } from '../display'
 import { DocumentActions } from './DocumentActions'
@@ -40,6 +41,19 @@ export function DocumentPanel({
       lead={<FileTile name={doc.fileName ?? undefined} kind={doc.fileName ? undefined : 'text'} />}
       toaster={DOCUMENT_TOASTER}
       closeWalk="knowledge.details-close"
+      // A manual entry has no file to open (IN-18).
+      tools={
+        doc.fileUrl && (
+          <IconAction
+            icon={IconRegistry.action.openExternal}
+            label={`View original of ${doc.title}`}
+            tooltip="View original"
+            placement="bottom"
+            size="md"
+            href={doc.fileUrl}
+          />
+        )
+      }
       footer={<DocumentActions document={doc} canManage={canManage} {...actions} />}
     >
       <DocumentDetails document={doc} onReview={onReview} canManage={canManage} />

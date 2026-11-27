@@ -10,6 +10,9 @@ export type DialogProps = {
   title?: ReactNode
   description?: ReactNode
   footer?: ReactNode
+  // Controls in the header, just left of Close (the passages' page range); a phone gives them
+  // their own row under the title.
+  headerAction?: ReactNode
   width?: number
   onClose?: () => void
   // Unsaved edits in the dialog: Esc and a backdrop click do nothing, so a stray press can't
@@ -61,6 +64,7 @@ export function Dialog({
   title,
   description,
   footer,
+  headerAction,
   width = 480,
   onClose,
   unsaved = false,
@@ -132,11 +136,15 @@ export function Dialog({
       {title || description ? (
         // Keyed by the title, so a step change (Edit site to its scope check) replays the
         // header's fade (.ds-dialog .ds-dialog-header in kit.css).
-        <header className="ds-dialog-header" key={typeof title === 'string' ? title : undefined}>
+        <header
+          className={headerAction ? 'ds-dialog-header has-action' : 'ds-dialog-header'}
+          key={typeof title === 'string' ? title : undefined}
+        >
           <div>
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
+          {headerAction && <div className="ds-dialog-header-action">{headerAction}</div>}
           {onClose && (
             <IconButton icon="x" label="Close" size="sm" style={closeSize} onClick={onClose} />
           )}

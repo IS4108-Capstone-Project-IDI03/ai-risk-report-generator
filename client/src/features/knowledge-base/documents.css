@@ -39,9 +39,9 @@
 .kb-table .kb-col-status {
   width: 184px;
 }
-/* View original (32 px) and the chevron, then the cell's 16 px right padding. */
+/* View original (32 px), the chevron and the cell's 16 px right padding (see .kb-chevron). */
 .kb-table .kb-col-actions {
-  width: 88px;
+  width: 120px;
 }
 /* Name column left, every other one centred (v2 section 2). */
 .kb-table :is(th, td):nth-child(2) {
@@ -55,8 +55,10 @@
   display: inline-flex;
   vertical-align: middle;
 }
+/* View original sits midway between the Status pill and the chevron, 54 px from each (an Active
+   pill, centred in its 184 px column), so it reads as its own action, not part of the chevron. */
 .kb-chevron {
-  margin-left: 8px;
+  margin-left: 54px;
   color: var(--graphite-400);
 }
 
@@ -159,6 +161,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
+/* An odd one out takes the whole row, so three actions never leave a hole beside the last. */
+.kb-actions-main > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .kb-actions-risk {
   display: flex;
   gap: 8px;
@@ -209,7 +215,7 @@
 }
 
 /* ---- A phone: each document is a row of tile, title lines and chevron, its status under the
-   title; View original moves into the details panel's footer. ---- */
+   title; View original is in the details panel's header. ---- */
 @media (max-width: 767px) {
   .kb-table.cl-table,
   .kb-table.cl-table tbody,

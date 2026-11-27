@@ -5,24 +5,19 @@
   flex-direction: column;
   gap: 16px;
 }
-/* Small controls on one line; the page range keeps its two fields together, and the range's error
-   drops under them without pushing the dropdowns down. */
+/* The search and its Words | Meaning switch take the row; the Chapter and Section menus (and Clear
+   filters) sit at its end, and drop under it when the dialog is too narrow for both. */
 .kb-ptoolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px 12px;
 }
-.kb-ptoolbar > label {
-  flex: 0 1 196px;
-  min-width: 150px;
-}
-/* The search field and its Words | Meaning switch take the room the dropdowns leave; "Press Enter
-   to search" sits under the field while a search by meaning waits for it. */
-/* Its own row: beside the dropdowns, Meaning's placeholder was cut mid-word at every width. */
+/* "Press Enter to search" sits under the field while a search by meaning waits for it. Wide
+   enough that Meaning's placeholder is never cut mid-word. */
 .kb-psearch {
   display: flex;
-  flex: 1 1 100%;
+  flex: 1 1 520px;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -42,17 +37,33 @@
   color: var(--graphite-600);
   font-size: 12px;
 }
+.kb-pmenus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* The page range, in the dialog's header (PassageRange.tsx): two short fields with a dash, and a
+   reversed range's error under the pair, at their right edge. */
 .kb-prange {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
 }
 .kb-prange > label {
-  width: 112px;
+  width: 108px;
 }
 .kb-prange > span {
-  line-height: var(--control-height-md);
   color: var(--graphite-600);
+}
+.ds-dialog .ds-dialog-header .kb-prange-error {
+  margin: 4px 0 0;
+  color: var(--action-danger);
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: right;
 }
 .kb-plist {
   background: var(--surface-card);
@@ -74,7 +85,7 @@
   opacity: 0.55;
 }
 .kb-ptable thead th {
-  height: 44px;
+  height: 32px;
   padding: 0 12px;
   border-bottom: 1px solid var(--graphite-200);
   color: var(--graphite-700);
@@ -83,7 +94,7 @@
   white-space: nowrap;
 }
 .kb-ptable td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   vertical-align: top;
 }
 .kb-ptable .kb-pcol-pos {
@@ -104,7 +115,7 @@
 }
 .kb-ptable td.kb-pcol-pos,
 .kb-ptable td.kb-pcol-pages {
-  padding-top: 11px;
+  padding-top: 9px;
   color: var(--graphite-600);
   font-size: 13px;
   white-space: nowrap;
@@ -229,14 +240,14 @@
   overflow-wrap: anywhere;
 }
 
+/* The count and the pager, across the dialog's pinned foot. */
 .kb-pfoot {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-right: 12px;
-  border-top: 1px solid var(--graphite-200);
 }
 
 /* While the first page loads: five rows of grey bars, gently pulsing. */
@@ -285,15 +296,7 @@
 /* A phone: each passage is a card. Its place and heading, then the excerpt, then its type and
    pages on one line. */
 @media (max-width: 767px) {
-  .kb-ptoolbar > label {
-    flex-basis: 100%;
-  }
-  .kb-prange {
-    flex-basis: 100%;
-  }
-  .kb-prange {
-    min-width: 0;
-  }
+  /* The page range takes its own row under the title (Dialog), its fields sharing it. */
   .kb-prange > label {
     flex: 1;
     width: auto;
@@ -301,6 +304,9 @@
   }
   .kb-prange input {
     min-width: 0;
+  }
+  .ds-dialog .ds-dialog-header .kb-prange-error {
+    text-align: left;
   }
   .kb-ptable,
   .kb-ptable tbody,
@@ -358,4 +364,46 @@
   .kb-pskeleton span:last-child {
     grid-column: 2;
   }
+}
+
+/* The dialog itself never scrolls: its title, page range, search and pinned pager stay put, and
+   only the list scrolls, and only when it must (an opened passage, or a phone's cards). On a
+   computer each row is one line, so a page of 10 fits without scrolling. */
+.ds-dialog.kb-passages[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.kb-passages .ds-dialog-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.kb-passages .kb-pbody {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.kb-passages .kb-plist {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.kb-passages .ds-dialog-footer {
+  padding-block: 10px;
+}
+@media (min-width: 768px) {
+  .kb-passages .kb-ptoggle > span:last-child,
+  .kb-passages .kb-pexcerpt {
+    -webkit-line-clamp: 1;
+  }
+}
+/* While the list scrolls (an opened passage), its column headings stay at the top of it. */
+.kb-passages .kb-ptable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-card);
 }

@@ -79,9 +79,10 @@ export function IconAction({
       rel="noreferrer"
       aria-label={label + ', opens in a new tab'}
       onClick={stop}
-      style={tone}
+      // `md` matches the 40 px button form (a panel header's Close beside it).
+      style={size === 'md' ? { width: 40, height: 40, ...tone } : tone}
     >
-      <Icon name={icon} size={14} />
+      <Icon name={icon} size={size === 'md' ? 16 : 14} />
     </a>
   ) : null
   const button = link ?? (

@@ -540,6 +540,15 @@
   font: 600 14px/1 var(--font-sans);
   white-space: nowrap;
   cursor: pointer;
+  max-width: 100%;
+}
+.ds-filter-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-filter-pill > [aria-hidden] {
+  flex: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .ds-filter-pill:hover {
@@ -555,6 +564,12 @@
   .ds-filter-pill[data-active]:hover {
     background: var(--ink-100);
   }
+}
+/* A pill that can't be used yet (the passages' Section until a chapter is chosen): faded, no hover. */
+.ds-filter-pill:disabled {
+  background: var(--graphite-100);
+  color: var(--graphite-400);
+  cursor: not-allowed;
 }
 
 /* Dashed add row */
@@ -1060,6 +1075,42 @@
   /* !important: IconButton sets its own radius inline, which would keep it square. */
   border-radius: 50% !important;
   background: rgb(0 15 71 / 0.05);
+}
+/* A header with controls (Dialog `headerAction`): title, the controls, then Close, in one row;
+   Close joins the row instead of floating. A phone moves the controls to a full row under it. */
+.ds-dialog--v2 .ds-dialog-header.has-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 12px;
+}
+.ds-dialog--v2 .ds-dialog-header.has-action > div:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.ds-dialog--v2 .ds-dialog-header.has-action > .ds-dialog-header-action {
+  flex: none;
+  /* Centres a 40 px control on the title's first line. */
+  margin-top: -8px;
+}
+.ds-dialog.ds-dialog--v2 .ds-dialog-header.has-action h2 {
+  padding-right: 0;
+}
+.ds-dialog--v2 .ds-dialog-header.has-action > button {
+  position: static;
+  flex: none;
+  margin-top: -4px;
+}
+@media (max-width: 767px) {
+  .ds-dialog--v2 .ds-dialog-header.has-action > .ds-dialog-header-action {
+    order: 1;
+    flex-basis: 100%;
+    min-width: 0;
+    margin-top: 0;
+  }
+  .ds-dialog--v2 .ds-dialog-header.has-action > button {
+    margin: -10px -12px 0 0;
+  }
 }
 .ds-dialog--v2 .ds-dialog-body {
   padding: 20px 24px 4px;

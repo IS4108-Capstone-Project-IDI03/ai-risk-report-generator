@@ -1,4 +1,5 @@
-// A document's actions, the footer of its details panel (KB-01). Active: Edit details, Edit
+// A document's actions, the footer of its details panel (KB-01; View original is in the panel's
+// header, DocumentPanel.tsx). Active: Edit details, Edit
 // history (AC9), View passages and Withdraw. Needs review: no Edit details, since Review covers it
 // (IN-07). Withdrawn: Reinstate and Edit history, but no Edit details (AC15); Reinstate is off
 // while another edition is active (IN-07 AC15). Withdraw and Delete (IN-12) sit apart on their
@@ -88,16 +89,6 @@ export function DocumentActions({
               View passages
             </Button>
           </>
-        )}
-        {d.fileUrl && (
-          <Button
-            pill
-            iconLeft={IconRegistry.action.openExternal}
-            href={d.fileUrl}
-            aria-label={`View original of ${d.title}, opens in a new tab`}
-          >
-            View original
-          </Button>
         )}
         {canManage && d.withdrawn && (
           <Button

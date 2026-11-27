@@ -3,7 +3,7 @@
 // Each row shows the passage's place in the document, its nearest heading, an excerpt,
 // what it was read from and its pages; opening it shows the passage in full. Read-only for
 // everyone. Opened by screens/KnowledgeDocuments.tsx from a document's details. Calls
-// PassageFilters and PassageRow; their words and labels are in passageText.ts.
+// PassageFilters, PassageRange (in the header) and PassageRow; their words are in passageText.ts.
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
@@ -31,6 +31,7 @@ import {
   type Filters,
 } from '../passageText'
 import { PassageFilters } from './PassageFilters'
+import { PassageRange } from './PassageRange'
 import { PassageRow } from './PassageRow'
 import '../passages.css'
 
@@ -109,6 +110,8 @@ export function PassagesDialog({
   const filtered = narrowed(filters)
   // All of a document's passages share its status, so one note says it, not a column.
   const outOfUse = d.withdrawn ? 'is withdrawn' : needsReview(d) ? 'needs review' : null
+  // The filters show once a listing is in, unless the document has no passages at all.
+  const filterable = !failed && !!listing && !(listing.total === 0 && !filtered)
 
   // Narrows the table; a new chapter, section or page range goes back to its first page.
   const narrow = (next: Filters) => {
@@ -125,15 +128,35 @@ export function PassagesDialog({
 
   return (
     <Dialog
-      className="ds-dialog-sheet"
+      className="ds-dialog-sheet kb-passages"
       title="Passages"
       description={d.edition ? `${d.title} · ${d.edition}` : d.title}
       width={1040}
       onClose={onClose}
+      headerAction={
+        filterable && <PassageRange filters={filters} reversed={reversed} onChange={narrow} />
+      }
+      // The count and the pager sit in the dialog's pinned foot, so Next is always in reach
+      // without scrolling past the page's passages. Before there is a list, the foot closes.
       footer={
-        <Button pill variant="secondary" onClick={onClose}>
-          Close
-        </Button>
+        listing && listing.total > 0 ? (
+          <div className="kb-pfoot">
+            <TableFooter>{shown(loaded.offset, listing, JSON.parse(loaded.key))}</TableFooter>
+            <Pagination
+              page={Math.floor(offset / PAGE_SIZE) + 1}
+              pageCount={Math.ceil(listing.total / PAGE_SIZE)}
+              onPage={(page) => {
+                setOffset((page - 1) * PAGE_SIZE)
+                // The new page starts at the top, under the dialog's header.
+                body.current?.closest('dialog')?.scrollTo?.({ top: 0 })
+              }}
+            />
+          </div>
+        ) : (
+          <Button pill variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        )
       }
     >
       {failed ? (
@@ -174,7 +197,6 @@ export function PassagesDialog({
           <PassageFilters
             outline={listing.outline}
             filters={filters}
-            reversed={reversed}
             searchable={!outOfUse}
             mode={mode}
             waiting={waiting}
@@ -224,18 +246,6 @@ export function PassagesDialog({
                   ))}
                 </tbody>
               </table>
-              <div className="kb-pfoot">
-                <TableFooter>{shown(loaded.offset, listing, JSON.parse(loaded.key))}</TableFooter>
-                <Pagination
-                  page={Math.floor(offset / PAGE_SIZE) + 1}
-                  pageCount={Math.ceil(listing.total / PAGE_SIZE)}
-                  onPage={(page) => {
-                    setOffset((page - 1) * PAGE_SIZE)
-                    // The new page starts at the top, under the dialog's header.
-                    body.current?.closest('dialog')?.scrollTo?.({ top: 0 })
-                  }}
-                />
-              </div>
             </div>
           )}
         </div>
