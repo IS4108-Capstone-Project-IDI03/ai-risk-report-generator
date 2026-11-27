@@ -3,18 +3,19 @@
 // Used by screens/Dashboard; the filtering itself is in useAssessmentWorkflow.tsx.
 import {
   ASSESSMENT_TYPES,
+  ChoiceMenu,
   FilterPill,
   ListToolbar,
   SearchField,
   SegmentedControl,
   statusLook,
   useIsPhone,
+  type Choice,
 } from '../../../design-system'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
 import type { DateFilter } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { typeName } from '../workList'
-import { ChoiceMenu, type Choice } from './ChoiceMenu'
 import { SortPill } from './SortPill'
 
 const DUE_CHOICES: Choice[] = [

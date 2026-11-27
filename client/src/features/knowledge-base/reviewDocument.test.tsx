@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { choose } from './filterTestHelpers'
+import { choose, pick } from './filterTestHelpers'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { reviewIdForPath } from '../auth/access'
@@ -256,7 +256,7 @@ describe('Review page (IN-07)', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirm details' })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText(/^Facility type/), { target: { value: '' } })
+    pick(document.body, 'Facility type', 'All facility types')
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
 
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
@@ -272,7 +272,8 @@ describe('Review page (IN-07)', () => {
     mockGateway([STORED, unconfirmed], { onPut: () => json(200, saved) })
     await openReviewPage()
 
-    fireEvent.change(await screen.findByLabelText(/^Facility type/), { target: { value: '' } })
+    await screen.findByRole('combobox', { name: /^Facility type/ })
+    pick(document.body, 'Facility type', 'All facility types')
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
     expect(await screen.findByText('New wording')).toBeInTheDocument()
 
@@ -290,8 +291,8 @@ describe('Review page (IN-07)', () => {
     })
     await openReviewPage('solo')
 
-    await screen.findByLabelText(/^Facility type/)
-    fireEvent.change(screen.getByLabelText(/^Facility type/), { target: { value: '' } })
+    await screen.findByRole('combobox', { name: /^Facility type/ })
+    pick(document.body, 'Facility type', 'All facility types')
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
     expect(
       await screen.findByText('Details saved. NFPA 13 (2019 edition) is now active.'),
@@ -510,8 +511,8 @@ describe('Review page (IN-07)', () => {
       failComparison: [2],
     })
     await openReviewPage()
-    await screen.findByLabelText(/^Facility type/)
-    fireEvent.change(screen.getByLabelText(/^Facility type/), { target: { value: '' } })
+    await screen.findByRole('combobox', { name: /^Facility type/ })
+    pick(document.body, 'Facility type', 'All facility types')
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
 
     await screen.findByText("Couldn't load the passages")

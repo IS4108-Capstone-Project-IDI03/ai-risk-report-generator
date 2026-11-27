@@ -149,11 +149,12 @@
   align-items: flex-end;
   gap: 8px 12px;
 }
-/* Touch: the small kind select and Add screenshot reach 44 px (the select's height is inline). */
+/* The kind's dropdown (Select) beside Add screenshot, bottoms aligned. */
+.kb-shot-add > .ds-select {
+  flex: 0 1 200px;
+}
+/* Touch: Add screenshot reaches 44 px. */
 @media (pointer: coarse) {
-  .kb-shot-add .ds-field {
-    height: 44px !important;
-  }
   .kb-shot-add .kb-pick {
     height: 44px;
   }

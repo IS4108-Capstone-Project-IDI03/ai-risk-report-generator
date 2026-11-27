@@ -152,10 +152,10 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     const row = screen.getByRole('group', { name: 'scan.pdf' })
     expect(await within(row).findByText('Type needed')).toBeInTheDocument()
     expect(within(row).getByText('Choose its source type in Recent uploads.')).toBeInTheDocument()
-    expect(within(row).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: /^Source type for / })).not.toBeInTheDocument()
     const recent = screen.getByRole('region', { name: 'Recent uploads' })
     expect(
-      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
+      await within(recent).findByRole('button', { name: 'Source type for scan.pdf' }),
     ).toBeInTheDocument()
   })
 
@@ -179,10 +179,8 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     await within(row).findByText('Type needed')
     const recent = screen.getByRole('region', { name: 'Recent uploads' })
 
-    fireEvent.change(
-      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
-      { target: { value: 'nfpa_standard' } },
-    )
+    fireEvent.click(await within(recent).findByRole('button', { name: 'Source type for scan.pdf' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'NFPA standard' }))
     fireEvent.click(within(recent).getByRole('button', { name: 'Start reading' }))
 
     expect(await within(row).findByText('Uploaded')).toBeInTheDocument()

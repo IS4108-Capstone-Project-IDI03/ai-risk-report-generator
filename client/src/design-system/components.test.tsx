@@ -159,8 +159,15 @@ it('lists select options under headings and removes a tag with a real button', (
       </UI.Tag>
     </>,
   )
-  const heading = screen.getByRole('group', { name: 'Block A' })
-  expect(within(heading).getByRole('option', { name: 'Lobby' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('combobox', { name: 'Location' }))
+  const list = screen.getByRole('listbox', { name: 'Location' })
+  // The group's name is a heading row, with its options after it.
+  const heading = within(list).getByText('Block A')
+  expect(heading).toHaveClass('ob-menu-heading')
+  expect(within(list).getByRole('option', { name: 'Lobby' })).toBeInTheDocument()
+  expect(heading.compareDocumentPosition(within(list).getByRole('option', { name: 'Lobby' }))).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Remove Severity: High' }))
   expect(remove).toHaveBeenCalledOnce()
 })

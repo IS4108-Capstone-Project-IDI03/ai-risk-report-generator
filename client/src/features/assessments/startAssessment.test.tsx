@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption, selectField } from '../../design-system/components/forms/selectTestHelpers'
 import { created } from '../new-assessment/testKit'
 import { checkReady } from './generation/fixtures'
 
@@ -286,11 +287,9 @@ function createFromForm() {
     target: { value: 'Jurong Distribution Hub' },
   })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Jurisdiction/), { target: { value: 'MY' } })
+  chooseOption(/^Jurisdiction/, 'Malaysia')
   // The facility type starts empty on the new form, so it is chosen here.
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
 }
 const CREATE_ONE = 'Create'
@@ -342,7 +341,7 @@ describe('Create assessment (CP-01)', () => {
     startFromForm()
     expect(screen.getByLabelText(/^Site name/)).toHaveValue('')
     expect(screen.getByLabelText(/^Client name/)).toHaveValue('')
-    expect(screen.getByLabelText(/^Jurisdiction/)).toHaveValue('SG')
+    expect(selectField(/^Jurisdiction/)).toHaveTextContent('Singapore')
   })
 
   it('opens a created assessment in its workspace, then captures against it', async () => {
@@ -604,7 +603,7 @@ describe('A client’s sites (CP-17)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Kent Ridge campus/ }))
     fireEvent.click(screen.getByRole('button', { name: 'New site' }))
     type(screen.getByLabelText(/^Site name/), 'Outram campus')
-    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse')
     type(screen.getByLabelText(/^Address/), '1 Outram Road')
     create('Create')
     await screen.findByText(/RPT-2026-0001 created/)
@@ -619,7 +618,7 @@ describe('A client’s sites (CP-17)', () => {
     type(screen.getByLabelText(/^Client name/), 'Changi Airprot Group')
     expect(screen.getByText(/Did you mean/)).toHaveTextContent('Did you mean Changi Airport Group?')
     type(screen.getByLabelText(/^Site name/), 'Terminal 5')
-    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse')
     type(screen.getByLabelText(/^Address/), 'Airport Boulevard')
 
     // Creating without taking the suggestion keeps the name as typed.
@@ -1149,9 +1148,7 @@ it('assigns new assessments to me, with no engineer to choose (CP-23 AC10)', asy
   expect(screen.queryByText('Assigned engineer')).not.toBeInTheDocument()
   fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
   await screen.findByText(/RPT-2026-0001 created/)
@@ -1171,9 +1168,7 @@ it('keeps work assigned to someone else out of my list', async () => {
   startFromForm()
   fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
   await screen.findByText(/RPT-2026-0001 created/)
@@ -1441,19 +1436,17 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   // Only this visit's own details, from the saved ones: the site and client
   // change for all their assessments elsewhere (CP-18), and the engineer stays.
   const dialog = screen.getByRole('dialog', { name: 'Edit Assessment Details' })
-  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Property risk survey')
+  expect(selectField(/Assessment Type/, dialog)).toHaveTextContent('Property risk survey')
   expect(within(dialog).getByLabelText(/Survey Date/)).toHaveValue('21/04/2026')
   expect(within(dialog).getByLabelText(/Report Due Date/)).toHaveValue('02/05/2026')
   expect(within(dialog).queryByLabelText(/Site name/)).not.toBeInTheDocument()
   expect(within(dialog).queryByLabelText(/^Client/)).not.toBeInTheDocument()
 
-  fireEvent.change(within(dialog).getByLabelText(/Assessment Type/), {
-    target: { value: 'Follow-up visit' },
-  })
+  chooseOption(/Assessment Type/, 'Follow-up visit', dialog)
   // A rejected save names the problem beside its field and keeps the changes (AC11).
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   expect(await within(dialog).findByText(/on or after the site visit date/)).toBeInTheDocument()
-  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Follow-up visit')
+  expect(selectField(/Assessment Type/, dialog)).toHaveTextContent('Follow-up visit')
 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   await screen.findByText('Details updated')
@@ -1509,9 +1502,7 @@ it('corrects the site from Details for every assessment at it, asking first abou
   expect(
     within(dialog).getByText('Changes apply to the 2 assessments at this site.'),
   ).toBeInTheDocument()
-  fireEvent.change(within(dialog).getByLabelText(/Facility type/), {
-    target: { value: 'Cold store' },
-  })
+  chooseOption(/Facility type/, 'Cold store', dialog)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
   // A new scope changes what drafting retrieves, so it asks first.
   expect(within(dialog).getByText(/standards used for the 2 assessments/)).toBeInTheDocument()

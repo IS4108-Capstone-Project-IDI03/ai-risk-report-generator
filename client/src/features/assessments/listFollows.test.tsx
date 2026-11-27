@@ -6,6 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 import { created, gateway, json, sent } from '../new-assessment/testKit'
 
 const OMAR = { id: '6ab39017e45cf009e4507735', name: 'Omar Khan' }
@@ -77,7 +78,7 @@ async function createOne() {
   const type = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
   type(await screen.findByLabelText(/^Client name/), 'Pacific Crest REIT')
   type(screen.getByLabelText(/^Site name/), 'Tuas Hub')
-  type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   type(screen.getByLabelText(/^Address/), '21 Tuas South Ave 3')
   fireEvent.click(screen.getByRole('button', { name: 'Create' }))
   expect(await screen.findByText(MADE.reference)).toBeInTheDocument()

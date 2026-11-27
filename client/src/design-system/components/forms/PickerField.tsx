@@ -1,10 +1,10 @@
 // Picker field (CP-24, v2 NEW pattern): a v2 field (40 px, radius 10) whose value shows its own
-// icon (category tile, severity symbol, map pin) and opens a list; the design system's Select is
-// native and can't show an option's icon (v2 section 2). States, quietest to loudest: filled,
+// icon (category tile, severity symbol, map pin) and opens a list, with the AI suggestion states a
+// plain Select has no need for (v2 section 2). States, quietest to loudest: filled,
 // suggesting (blue, waiting words), not sure (amber, warning icon), failed (red, alert icon), or a
 // plain error (red border, one line). A not-sure field's Confirm and Change are two shaded icon
-// actions on its label line. The list comes in through `list`, so the design system never imports
-// a feature (features/assessments/components/ChoicePickerField.tsx fills it with ChoiceMenu).
+// actions on its label line. The list comes in through `list` (ChoicePickerField.tsx fills it with
+// ChoiceMenu).
 // Called by the observation page and New Observation. Calls Icon, IconAction, ReadingStatus, useSwap.
 import { useId, type ReactElement, type ReactNode } from 'react'
 import { Icon } from '../core/Icon'
@@ -34,6 +34,8 @@ export type PickerFieldProps = {
   // The suggestion failed (red, louder than not sure). The line saying why sits under the fields.
   failed?: boolean
   error?: string
+  // A grey line under the field, as an Input's hint (hidden while there is an error).
+  description?: ReactNode
   // A (?) beside the label.
   help?: ReactNode
   // View only: marks still show, but the field opens no list and has no Confirm or Change.
@@ -71,6 +73,7 @@ export function PickerField({
   notSure,
   failed,
   error,
+  description,
   help,
   disabled,
   confirmLabel = `Confirm ${label.toLowerCase()}`,
@@ -212,11 +215,13 @@ export function PickerField({
             ),
           })
         : labelLine(noop)}
-      {error && (
+      {error ? (
         <span className="cpf-error" role="alert">
           <Icon name="circle-alert" size={14} />
           {error}
         </span>
+      ) : (
+        description && <span className="cpf-hint">{description}</span>
       )}
     </div>
   )

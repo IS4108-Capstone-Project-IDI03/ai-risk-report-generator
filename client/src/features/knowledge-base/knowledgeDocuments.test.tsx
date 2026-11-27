@@ -7,7 +7,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { dateTime } from './display'
-import { choose, pill, search } from './filterTestHelpers'
+import { choose, pick, pill, search, shown } from './filterTestHelpers'
+import { optionWords } from '../../design-system/components/forms/selectTestHelpers'
 
 const doc = {
   issuingBody: 'NFPA',
@@ -210,12 +211,9 @@ describe('Local standards', () => {
     const dialog = await edit(NFPA.title)
     expect(within(dialog).queryByLabelText(/^Issuing body/)).not.toBeInTheDocument()
 
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'local_standard' },
-    })
-    const country = within(dialog).getByLabelText(/^Country/)
-    expect(within(country).queryByRole('option', { name: 'All countries' })).not.toBeInTheDocument()
-    expect(country).toHaveValue('SG')
+    pick(dialog, 'Source type', 'Local standard')
+    expect(shown(dialog, 'Country')).toBe('Singapore')
+    expect(optionWords('Country', dialog)).not.toContain('All countries')
     fireEvent.change(within(dialog).getByLabelText(/^Standard number/), {
       target: { value: 'CP 52' },
     })
@@ -339,7 +337,7 @@ describe('Knowledge base documents (KB-01)', () => {
     const dialog = await edit(REPORT.title)
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(
@@ -365,7 +363,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(await screen.findByText(`Details saved for ${REPORT.title}.`)).toBeInTheDocument()
@@ -378,9 +376,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(NFPA.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'fm_standard' },
-    })
+    pick(dialog, 'Source type', 'FM standard')
     fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2022' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
@@ -397,9 +393,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
-      target: { value: 'Data centre' },
-    })
+    pick(dialog, 'Facility type', 'Data centre')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(
@@ -518,7 +512,7 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(history).getAllByRole('button', { name: /^Restore/ })[1])
     expect(screen.queryByRole('dialog', { name: 'Edit history' })).not.toBeInTheDocument()
     const dialog = screen.getByRole('dialog', { name: 'Edit details' })
-    expect(within(dialog).getByLabelText(/^Country/)).toHaveValue('MY')
+    expect(shown(dialog, 'Country')).toBe('Malaysia')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     await screen.findByText(`Details saved for ${REPORT.title}.`)
@@ -530,7 +524,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
@@ -1034,15 +1028,13 @@ describe('Knowledge base needs review (IN-05)', () => {
     await openKnowledgeBase()
     const dialog = await openReview(UNREAD.title)
 
-    expect(within(dialog).getByLabelText(/^Source type/)).toHaveValue('')
+    expect(shown(dialog, 'Source type')).toBe('Choose a source type')
     expect(within(dialog).getByText('Unconfirmed — fill this in')).toBeInTheDocument()
 
     // Choosing a source type reveals the rest, each Unconfirmed one empty and marked.
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'nfpa_standard' },
-    })
+    pick(dialog, 'Source type', 'NFPA standard')
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue('')
-    expect(within(dialog).getByLabelText(/^Country/)).toHaveValue('')
+    expect(shown(dialog, 'Country')).toBe('Choose a country')
     expect(within(dialog).getAllByText('Unconfirmed — fill this in').length).toBeGreaterThan(1)
 
     // A standard's facility type is not silently "all": it must be chosen.
@@ -1071,9 +1063,7 @@ describe('Knowledge base needs review (IN-05)', () => {
 
     fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2023' } })
     expect(within(dialog).getAllByText('Unconfirmed — fill this in')).toHaveLength(1)
-    fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
-      target: { value: 'Cold store' },
-    })
+    pick(dialog, 'Facility type', 'Cold store')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     // No match to decide on, so it goes back to the list with a toast.
@@ -1125,7 +1115,7 @@ describe('Source tier (RT-04)', () => {
     const again = mockGateway([{ ...FM, tier: null }], () => json(200, { ...FM }))
     await openKnowledgeBase()
     const d2 = await edit(FM.title)
-    fireEvent.change(within(d2).getByLabelText('Tier'), { target: { value: 'marsh_precedent' } })
+    pick(d2, 'Tier', 'Marsh precedent')
     fireEvent.click(within(d2).getByRole('button', { name: 'Save details' }))
     await vi.waitFor(() => expect(again).toHaveLength(1))
     expect(again[0].body.tier).toBe('marsh_precedent')

@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { signIn } from './test/session'
+import { chooseOption } from './design-system/components/forms/selectTestHelpers'
 import { created, gateway, json } from './features/new-assessment/testKit'
 
 beforeAll(() => {
@@ -85,9 +86,7 @@ describe('Marsh prototype integration', () => {
     expect(screen.getByText('Add the site name')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: 'Demo Client' } })
     fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: 'Demo Warehouse' } })
-    fireEvent.change(screen.getByLabelText(/^Facility type/), {
-      target: { value: 'Distribution warehouse' },
-    })
+    chooseOption(/^Facility type/, 'Distribution warehouse')
     fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '1 Demo Road' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     // CP-23 dropped the demo-only assessment: without the gateway nothing is created.

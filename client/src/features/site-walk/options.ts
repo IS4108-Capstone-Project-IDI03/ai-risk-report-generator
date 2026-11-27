@@ -1,9 +1,8 @@
 // The choices the Review screen's pickers offer (CP-22): severity, category,
 // and locations grouped by building as the Observations tab groups them.
-import { IconRegistry } from '../../design-system'
+import { IconRegistry, type Choice } from '../../design-system'
 import { CAT_ICON } from '../assessments/categories'
 import { groupLocations, type Place } from '../assessments/locations'
-import type { Choice } from '../assessments/components/ChoiceMenu'
 
 // Most severe first; must match server/src/models/observation.model.ts SEVERITIES.
 // Each with the symbol the Observations tab shows for it.

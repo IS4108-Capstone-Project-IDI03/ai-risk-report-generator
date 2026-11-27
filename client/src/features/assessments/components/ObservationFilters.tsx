@@ -6,10 +6,16 @@
 // useAssessmentWorkflow.tsx. PillFilter is shared with All Photos, Pages and Recordings
 // (PhotoTable.tsx); FilterChip below is the older chip, still used by the site walk tables.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FilterPill, Icon, SearchField, useScrollFade } from '../../../design-system'
+import {
+  ChoiceMenu,
+  FilterPill,
+  Icon,
+  SearchField,
+  useScrollFade,
+  type Choice,
+} from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../filterChoices'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { ChoiceMenu, type Choice } from './ChoiceMenu'
 
 type Key = 'cat' | 'sev' | 'type' | 'status'
 

@@ -1,8 +1,9 @@
 // A picker field (design system) whose list is our ChoiceMenu (CP-24): a category, severity or
 // location field with its icon, the usual list, and the not-sure marks with Confirm and Change.
-// Called by the observation page and New Observation. Calls PickerField, ChoiceMenu.
+// Called by the observation page, New Observation and the site walk's proposals. Calls PickerField,
+// ChoiceMenu.
 import type { ReactNode } from 'react'
-import { PickerField, type PickerFieldProps } from '../../../design-system'
+import { PickerField, type PickerFieldProps } from './PickerField'
 import { ChoiceMenu, type Choice } from './ChoiceMenu'
 
 export type ChoicePickerFieldProps = Omit<PickerFieldProps, 'list'> & {

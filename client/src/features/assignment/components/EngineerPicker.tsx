@@ -4,8 +4,7 @@
 // not a native select, which can't draw avatars. Used by the New Assessment form's
 // AssessmentBlock and the Reassign dialog.
 import { useId } from 'react'
-import { Avatar, Icon } from '../../../design-system'
-import { ChoiceMenu } from '../../assessments/components/ChoiceMenu'
+import { Avatar, ChoiceMenu, Icon } from '../../../design-system'
 import { ErrorLine } from '../../new-assessment/components/Field'
 import type { Person } from '../api'
 import { pickable, roleWord } from '../people'

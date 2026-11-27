@@ -4,9 +4,7 @@
 // AI was not sure of shows amber with Confirm and Change; either clears its flag in the proposal
 // (proposal.ts updateObservation), saved with the autosave. Used by screens/ProposalPage.tsx.
 // Calls ChoicePickerField, RecordCard.
-import { Icon } from '../../../design-system'
-import { ChoicePickerField } from '../../assessments/components/ChoicePickerField'
-import type { Choice } from '../../assessments/components/ChoiceMenu'
+import { ChoicePickerField, Icon, type Choice } from '../../../design-system'
 import { CategoryMark, SeverityMark } from '../../assessments/components/ObservationMarks'
 import { RecordCard } from '../../assessments/components/RecordCard'
 import type { ProposedObservation } from '../api'

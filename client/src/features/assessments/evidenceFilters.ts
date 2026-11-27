@@ -2,9 +2,8 @@
 // beside their search: Location, Category and Severity as on the Observations
 // tab, and one about the item itself (a recording's or page's transcription,
 // a photo's description). All in the browser, on the rows already listed.
-import { IconRegistry } from '../../design-system'
+import { IconRegistry, type Choice } from '../../design-system'
 import { hasCategory } from './categories'
-import type { Choice } from './components/ChoiceMenu'
 import { asChoices, catIcons, sevIcons } from './filterChoices'
 import { matchesPlace, placeFilter } from './observationFilters'
 import type { Observation, ObservationPage } from './types'

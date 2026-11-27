@@ -644,13 +644,6 @@
   }
 }
 
-/* A closed select whose chosen text does not fit ends it with "…" (the Voice list on a phone). */
-.st-field select {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Privacy words (PV-09): the add form, the warning under it, and the tables' quieter cells. */
 .st-pw-add {
   display: flex;
@@ -666,7 +659,7 @@
   gap: 12px;
 }
 /* Always masked adds the kind between the name and the reason. */
-.st-pw-fields:has(select) {
+.st-pw-fields:has(.ds-select) {
   grid-template-columns: minmax(160px, 1fr) minmax(120px, 160px) minmax(200px, 2fr) auto;
 }
 /* The button lines up with the inputs, not with their labels. */
@@ -717,7 +710,7 @@
     align-items: flex-start;
   }
   .st-pw-fields,
-  .st-pw-fields:has(select),
+  .st-pw-fields:has(.ds-select),
   .st-pw-filters {
     grid-template-columns: minmax(0, 1fr);
   }

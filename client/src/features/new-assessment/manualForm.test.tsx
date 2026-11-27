@@ -6,6 +6,7 @@ import { Toaster } from '../../design-system'
 import { NewAssessmentButton } from './components/NewAssessmentButton'
 import { NewAssessment } from './screens/NewAssessment'
 import { calls, CLIENTS, created, gateway, json, sent, SITES } from './testKit'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const type = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
 const site = (n: number) => screen.getByRole('region', { name: 'Site ' + n })
@@ -25,7 +26,7 @@ function open(onCreated = vi.fn()) {
 function fillNewClient() {
   type(screen.getByLabelText(/^Client name/), 'Pacific Crest REIT')
   type(within(site(1)).getByLabelText(/^Site name/), 'Tuas Hub')
-  type(within(site(1)).getByLabelText(/^Facility type/), 'Distribution warehouse')
+  chooseOption(/^Facility type/, 'Distribution warehouse', site(1))
   type(within(site(1)).getByLabelText(/^Address/), '21 Tuas South Ave 3')
 }
 // Opens the client card's documents popover and adds files, as the picker would.
@@ -69,8 +70,8 @@ describe('New Assessment by hand (CP-23)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add site' }))
     type(within(site(2)).getByLabelText(/^Site name/), 'Senai Hub')
     type(within(site(2)).getByLabelText(/^Address/), 'PLO 12, Senai')
-    type(within(site(2)).getByLabelText(/^Jurisdiction/), 'MY')
-    type(within(site(2)).getByLabelText(/^Facility type/), 'Cold store')
+    chooseOption(/^Jurisdiction/, 'Malaysia', site(2))
+    chooseOption(/^Facility type/, 'Cold store', site(2))
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 

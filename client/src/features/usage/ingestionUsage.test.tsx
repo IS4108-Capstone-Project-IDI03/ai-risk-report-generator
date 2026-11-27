@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const doc = (key: string, over: Record<string, unknown> = {}) => ({
   key,
@@ -195,11 +196,11 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     const urls = mockGateway()
     await openIngestion()
     await screen.findByRole('table', { name: 'Documents and their cost' })
-    fireEvent.change(screen.getByLabelText('Period'), { target: { value: 'month' } })
+    chooseOption('Period', 'This month')
     await waitFor(() =>
       expect(urls().at(-1)).toBe('/api/usage/ingestion?split=service&range=month'),
     )
-    fireEvent.change(screen.getByLabelText('Split each bar by'), { target: { value: 'feature' } })
+    chooseOption('Split each bar by', 'Feature')
     await waitFor(() =>
       expect(urls().at(-1)).toBe('/api/usage/ingestion?split=feature&range=month'),
     )

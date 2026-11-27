@@ -175,7 +175,7 @@
   align-items: flex-end;
   border-bottom: 1px solid var(--graphite-100);
 }
-.uc-table-toolbar > label:not(.ds-search) {
+.uc-table-toolbar > :is(label:not(.ds-search), .ds-select) {
   min-width: 200px;
 }
 .uc-scroll {

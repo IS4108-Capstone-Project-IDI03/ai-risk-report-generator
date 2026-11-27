@@ -7,6 +7,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { knowledgeTab } from './openTab'
+import { pick } from './filterTestHelpers'
+import { optionWords } from '../../design-system/components/forms/selectTestHelpers'
 
 const STANDARD = {
   issuingBody: 'NFPA',
@@ -184,7 +186,7 @@ function trail(...headings: string[]) {
 
 // Chooses an image for a screenshot of `kind` in the editor.
 function attach(kind: string, name = 'table.png') {
-  fireEvent.change(within(editor()).getByLabelText('Screenshot of a'), { target: { value: kind } })
+  pick(editor(), 'Screenshot of a', kind[0].toUpperCase() + kind.slice(1))
   const file = new File(['png bytes'], name, { type: 'image/png' })
   fireEvent.change(within(editor()).getByLabelText('Add screenshot'), {
     target: { files: [file] },
@@ -218,10 +220,8 @@ describe('starting a manual entry', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
     const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
-    expect(within(dialog).queryByRole('option', { name: 'Marsh report' })).not.toBeInTheDocument()
-    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
-      target: { value: 'nfpa_standard' },
-    })
+    expect(optionWords('Source type', dialog)).not.toContain('Marsh report')
+    pick(dialog, 'Source type', 'NFPA standard')
     fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
       target: { value: '72' },
     })
@@ -253,9 +253,7 @@ describe('starting a manual entry', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
     const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
-    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
-      target: { value: 'nfpa_standard' },
-    })
+    pick(dialog, 'Source type', 'NFPA standard')
     fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
       target: { value: '13' },
     })
@@ -556,8 +554,11 @@ async function startDialog() {
   fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
   const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
+  // Source type is a dropdown (the design system's Select), chosen by its words; the rest are typed.
   const set = (label: string, value: string) =>
-    fireEvent.change(within(dialog).getByLabelText(field(label)), { target: { value } })
+    label === 'Source type'
+      ? pick(dialog, label, value)
+      : fireEvent.change(within(dialog).getByLabelText(field(label)), { target: { value } })
   return { dialog, set }
 }
 
@@ -567,22 +568,18 @@ describe('starting from an earlier edition', () => {
       documents: [DRAFT, EARLIER_PDF, EARLIER_MANUAL, UPLOADED],
     })
     const { dialog, set } = await startDialog()
-    set('Source type', 'nfpa_standard')
+    set('Source type', 'NFPA standard')
     set('Standard number', '13')
     set('Title', 'NFPA 13 Installation of Sprinkler Systems')
     set('Edition', '2026')
 
-    const from = await within(dialog).findByLabelText(field('Start from'))
-    expect(
-      within(from)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual([
+    await within(dialog).findByRole('combobox', { name: 'Start from' })
+    expect(optionWords('Start from', dialog)).toEqual([
       'A blank entry',
       'NFPA 13 Installation of Sprinkler Systems (2022 edition)',
       'NFPA 13 (typed in) (2019 edition, entered manually)',
     ])
-    fireEvent.change(from, { target: { value: 'nfpa13-2022' } })
+    pick(dialog, 'Start from', 'NFPA 13 Installation of Sprinkler Systems (2022 edition)')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Start entering' }))
 
     await waitFor(() => expect(sent[0]?.body).toMatchObject({ copyFrom: 'nfpa13-2022' }))
@@ -591,7 +588,7 @@ describe('starting from an earlier edition', () => {
   it('asks for the standard number before offering editions', async () => {
     mockGateway({ documents: [EARLIER_PDF] })
     const { dialog, set } = await startDialog()
-    set('Source type', 'nfpa_standard')
+    set('Source type', 'NFPA standard')
 
     expect(within(dialog).queryByLabelText(field('Start from'))).not.toBeInTheDocument()
   })

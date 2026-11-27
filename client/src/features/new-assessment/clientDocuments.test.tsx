@@ -7,6 +7,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NewAssessment } from './screens/NewAssessment'
 import { CLIENTS, created, gateway, json, sent, SITES } from './testKit'
+import { chooseOption, selectField } from '../../design-system/components/forms/selectTestHelpers'
 
 const REFUSED =
   'photo.jpg is not a PDF, Word or email file. Add PDF, Word (.docx, .doc), Outlook (.msg) or .eml files.'
@@ -228,8 +229,8 @@ describe('New Assessment from client documents (CP-23)', () => {
     expect(screen.getByRole('button', { name: /Edit contact 1, Priya Nair/ })).toHaveTextContent(
       'Facilities manager',
     )
-    const facility = screen.getByLabelText(/^Facility type/)
-    expect(facility).toHaveValue('')
+    const facility = selectField(/^Facility type/)
+    expect(facility).toHaveTextContent(/^Choose$/)
     expect(
       within(facility.closest('.na-field')!).getByRole('img', { name: 'Not sure' }),
     ).toBeTruthy()
@@ -245,7 +246,7 @@ describe('New Assessment from client documents (CP-23)', () => {
     ).toBeNull()
 
     // Filling a Not sure field in drops its mark.
-    type(facility, 'Cold store')
+    chooseOption(/^Facility type/, 'Cold store')
     expect(
       within(facility.closest('.na-field')!).queryByRole('img', { name: 'Not sure' }),
     ).toBeNull()
@@ -260,7 +261,7 @@ describe('New Assessment from client documents (CP-23)', () => {
     ).toBeInTheDocument()
     fireEvent.click(docs.getByRole('button', { name: 'Tag of Lease.pdf: Whole client' }))
     fireEvent.click(screen.getByRole('option', { name: 'Tuas Distribution Centre · First survey' }))
-    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse')
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     await wait()

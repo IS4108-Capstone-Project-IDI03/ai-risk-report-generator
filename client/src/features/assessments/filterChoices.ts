@@ -1,9 +1,8 @@
 // The filter menus' choices with their icons (CP-22): shared by the
 // Observations tab's filters (components/ObservationFilters.tsx) and a site walk
 // proposal's (site-walk/components/ProposalFilters.tsx), so both look the same.
-import { IconRegistry } from '../../design-system'
+import { IconRegistry, type Choice } from '../../design-system'
 import { CAT_ICON, UNCATEGORISED } from './categories'
-import type { Choice } from './components/ChoiceMenu'
 import { CAT_TINT } from './components/ObservationMarks'
 
 // The workflow lists some options as plain strings.

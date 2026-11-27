@@ -1,15 +1,13 @@
 // The source type picker for an upload whose type labelling couldn't read
 // (IN-19): the document isn't read until a type is chosen here. Used by
-// UploadedDocuments.tsx, in its Status column.
+// UploadedDocuments.tsx, in its Status column. The picker is our own menu (ChoiceMenu on a
+// filter pill), never the browser's select.
 import { useState } from 'react'
-import { Button, Select } from '../../../design-system'
+import { Button, ChoiceMenu, FilterPill } from '../../../design-system'
 import { chooseSourceType, type KnowledgeDocument, type SourceType } from '../api'
 import { SOURCE_LABELS } from '../display'
 
-const OPTIONS = [
-  { value: '', label: 'Choose a type' },
-  ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label })),
-]
+const OPTIONS = Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))
 
 /** Returns the type select and Start reading button for one document. */
 export function ChooseSourceType({
@@ -49,13 +47,21 @@ export function ChooseSourceType({
 
   return (
     <span className="kb-choose-type" data-walk={walk}>
-      <Select
-        aria-label={`Source type for ${document.title}`}
-        size="sm"
-        options={OPTIONS}
-        value={sourceType}
-        disabled={starting}
-        onChange={(e) => setSourceType(e.target.value as SourceType | '')}
+      <ChoiceMenu
+        label={`Source type for ${document.title}`}
+        choices={OPTIONS}
+        selected={[sourceType]}
+        onChoose={(v) => setSourceType(v as SourceType)}
+        trigger={(_open, toggle) => (
+          <FilterPill
+            label={sourceType ? SOURCE_LABELS[sourceType] : 'Choose a type'}
+            aria-label={`Source type for ${document.title}`}
+            aria-haspopup="menu"
+            active={!!sourceType}
+            disabled={starting}
+            onClick={toggle}
+          />
+        )}
       />
       <Button size="sm" pill disabled={!sourceType || starting} onClick={start}>
         {starting ? 'Starting…' : 'Start reading'}

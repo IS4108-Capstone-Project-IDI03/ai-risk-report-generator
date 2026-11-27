@@ -53,7 +53,8 @@ export function FilterPill({ label, icon, active, ...rest }: FilterPillProps) {
       {...rest}
     >
       {icon && <Icon name={icon} size={16} />}
-      {label}
+      {/* Its own box, so a long choice ends in "…" instead of pushing the pill off a phone. */}
+      <span className="ds-filter-pill-label">{label}</span>
       <Icon name="chevron-down" size={16} />
     </button>
   )

@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { SESSIONS, signIn } from '../../test/session'
+import {
+  chooseOption,
+  optionWords,
+  selectField,
+} from '../../design-system/components/forms/selectTestHelpers'
 
 const JIDE = {
   id: '6ab39017e45cf009e4507732',
@@ -109,7 +114,7 @@ describe('User accounts (F-03)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
     fireEvent.change(field(/^Job title/), { target: { value: 'Senior risk engineer · Property' } })
-    fireEvent.change(field(/^Office/), { target: { value: 'MY' } })
+    chooseOption(/^Office/, 'Malaysia')
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findByText('Profile saved')).toBeInTheDocument()
@@ -186,13 +191,8 @@ describe('Role assignment (F-05)', () => {
     await openJide()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
-    const role = field(/^Role/)
-    expect(
-      within(role)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Risk engineer', 'Knowledge admin'])
-    fireEvent.change(role, { target: { value: 'knowledge_admin' } })
+    expect(optionWords(/^Role/)).toEqual(['Risk engineer', 'Knowledge admin'])
+    chooseOption(/^Role/, 'Knowledge admin')
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findByText('Profile saved')).toBeInTheDocument()
@@ -272,7 +272,7 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
+    chooseOption(/^Role/, 'Risk engineer')
     submit()
 
     expect(await screen.findByText('Account created for Priya Nair')).toBeInTheDocument()
@@ -311,7 +311,7 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
+    chooseOption(/^Role/, 'Risk engineer')
     submit()
 
     expect(
@@ -326,13 +326,8 @@ describe('New accounts (F-08)', () => {
     mockGateway(() => respond(200, [ALEX, JIDE]))
     await openNewAccount()
 
-    const role = field(/^Role/)
-    expect(role.value).toBe('')
-    expect(
-      within(role)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Choose a role', 'Risk engineer', 'Knowledge admin'])
+    expect(selectField(/^Role/)).toHaveTextContent(/^Choose a role$/)
+    expect(optionWords(/^Role/)).toEqual(['Choose a role', 'Risk engineer', 'Knowledge admin'])
     expect(field(/^Job title/)).not.toBeRequired()
   })
 
@@ -382,7 +377,7 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Jide Okafor' } })
     fireEvent.change(field(/^Email/), { target: { value: 'jide.okafor@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
+    chooseOption(/^Role/, 'Risk engineer')
     submit()
 
     expect(await screen.findByText('Another account already uses this email.')).toBeVisible()

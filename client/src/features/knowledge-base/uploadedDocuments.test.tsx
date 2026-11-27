@@ -261,7 +261,7 @@ describe('UploadedDocuments awaiting a type', () => {
     expect(
       screen.getByText("Its source type couldn't be read. Choose one to start."),
     ).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Source type for Scan.pdf' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Source type for Scan.pdf' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start reading' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
@@ -270,9 +270,10 @@ describe('UploadedDocuments awaiting a type', () => {
   it('posts the chosen type and refreshes, so the row shows queued', async () => {
     const state = stubGateway([AWAITING])
     renderList()
-    const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
+    const select = await screen.findByRole('button', { name: 'Source type for Scan.pdf' })
 
-    fireEvent.change(select, { target: { value: 'nfpa_standard' } })
+    fireEvent.click(select)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'NFPA standard' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start reading' }))
 
     await waitFor(() => expect(state.chosen).toEqual([['awaiting', 'nfpa_standard']]))
@@ -284,9 +285,10 @@ describe('UploadedDocuments awaiting a type', () => {
     const state = stubGateway([AWAITING])
     state.chooseStatus = 503
     renderList()
-    const select = await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' })
+    const select = await screen.findByRole('button', { name: 'Source type for Scan.pdf' })
 
-    fireEvent.change(select, { target: { value: 'fm_standard' } })
+    fireEvent.click(select)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'FM standard' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start reading' }))
 
     expect(await screen.findByText('Reading not started')).toBeInTheDocument()
@@ -299,7 +301,7 @@ describe('UploadedDocuments awaiting a type', () => {
     renderList()
 
     expect(
-      await screen.findByRole('combobox', { name: 'Source type for Scan.pdf' }),
+      await screen.findByRole('button', { name: 'Source type for Scan.pdf' }),
     ).toBeInTheDocument()
   })
 })

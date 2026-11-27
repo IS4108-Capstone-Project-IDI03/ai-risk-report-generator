@@ -1297,7 +1297,6 @@
 @media (pointer: coarse) {
   /* 16 px so iOS doesn't zoom into a focused field (the controls set 14 inline). */
   .na input,
-  .na select,
   .na textarea,
   .na .ds-datepicker-mask {
     font-size: 16px !important;
@@ -1440,8 +1439,7 @@
   }
 }
 /* 10. A field's border turns red over 120 ms. */
-.na-field input,
-.na-field select {
+.na-field input {
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 /* 11. A failed file's error line fades in, sliding down 3 px under its name. */
@@ -1464,8 +1462,7 @@
 @media (prefers-reduced-motion: reduce) {
   .na-block,
   .na-pick,
-  .na-field input,
-  .na-field select {
+  .na-field input {
     transition: none;
   }
   /* The block only fades; the space closes when it is removed (Block.tsx). */

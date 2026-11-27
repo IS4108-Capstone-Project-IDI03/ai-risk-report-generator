@@ -7,6 +7,11 @@ import type { PrivacyWords, Settings as SettingsData } from './api'
 import { Toaster } from '../../design-system'
 import { Settings } from './Settings'
 import { TIER_IDS } from './tiers'
+import {
+  chooseOption,
+  optionWords,
+  selectField,
+} from '../../design-system/components/forms/selectTestHelpers'
 
 const settings = (canEditGlobal: boolean): SettingsData => ({
   canEditGlobal,
@@ -209,7 +214,7 @@ describe('Privacy words (PV-09)', () => {
     fireEvent.click(within(panel).getByRole('radio', { name: /Always masked/ }))
 
     fireEvent.change(within(panel).getByLabelText(/^Name/), { target: { value: 'Crest Tower' } })
-    fireEvent.change(within(panel).getByLabelText(/^Masked as/), { target: { value: 'SITE' } })
+    chooseOption(/^Masked as/, 'Site', panel)
     fireEvent.change(within(panel).getByLabelText(/^Reason/), { target: { value: 'old report' } })
     fireEvent.submit(within(panel).getByLabelText(/^Name/).closest('form')!)
 
@@ -279,7 +284,7 @@ describe('Privacy words (PV-09)', () => {
     const row = (await within(panel).findByText('Sprinkl')).closest('tr')!
 
     expect(within(row).getByText('Default')).toBeInTheDocument()
-    expect(within(panel).getByRole('option', { name: 'Default' })).toHaveValue('default')
+    expect(optionWords(/^Added by/, panel)).toContain('Default')
     expect(within(panel).queryByText('Shipped with the app')).not.toBeInTheDocument()
   })
 
@@ -308,11 +313,11 @@ describe('Privacy words (PV-09)', () => {
         .slice(1)
         .map((r) => within(r).getAllByRole('cell')[0].textContent)
 
-    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: 'default' } })
+    chooseOption(/^Added by/, 'Default', panel)
     expect(words()).toEqual(['Sprinkl'])
-    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: 'u2' } })
+    chooseOption(/^Added by/, 'Lee', panel)
     expect(words()).toEqual(['Hosereel'])
-    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: '' } })
+    chooseOption(/^Added by/, 'Anyone', panel)
     expect(words()).toEqual(['Sprinkl', 'Hosereel', 'L31'])
   })
 
@@ -335,7 +340,7 @@ describe('Privacy words (PV-09)', () => {
     const panel = await openPrivacyWords()
     await within(panel).findByText('Hosereel')
 
-    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: 'u2' } })
+    chooseOption(/^Added by/, 'Lee', panel)
     fireEvent.change(within(panel).getByLabelText(/^Find on/), { target: { value: 'Default' } })
     expect(within(panel).getByText('Nothing matches.')).toBeInTheDocument()
   })
@@ -403,11 +408,11 @@ describe('Privacy words (PV-09)', () => {
     const panel = await openPrivacyWords()
     await within(panel).findByText('Hosereel')
 
-    fireEvent.change(within(panel).getByLabelText(/^Added by/), { target: { value: 'u2' } })
+    chooseOption(/^Added by/, 'Lee', panel)
     fireEvent.click(within(panel).getByRole('button', { name: 'Remove Hosereel' }))
     await waitFor(() => expect(within(panel).queryByText('Hosereel')).not.toBeInTheDocument())
 
-    expect(within(panel).getByLabelText(/^Added by/)).toBeInTheDocument()
+    expect(selectField(/^Added by/, panel)).toBeInTheDocument()
     expect(within(panel).getByText('Nothing matches.')).toBeInTheDocument()
   })
 

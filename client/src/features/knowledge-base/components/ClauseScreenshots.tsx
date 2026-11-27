@@ -91,7 +91,6 @@ export function ClauseScreenshots({
       })}
       <div className="kb-shot-add">
         <Select
-          size="sm"
           label="Screenshot of a"
           options={KINDS}
           value={kind}

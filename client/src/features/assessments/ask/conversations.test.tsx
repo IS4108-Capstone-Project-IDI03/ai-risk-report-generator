@@ -6,6 +6,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { AskAnswer, AskConversation } from './api'
 import { AskPanel } from './AskPanel'
 import { useAsk } from './useAsk'
+import {
+  chooseOption,
+  optionWords,
+  selectField,
+} from '../../../design-system/components/forms/selectTestHelpers'
 
 // AS-03: the Ask tab keeps questions in conversations. It opens on the latest,
 // lists the others, starts a new one and deletes one after confirming; on an
@@ -118,7 +123,11 @@ function Tab() {
   const ask = useAsk(REF, true)
   return <AskPanel ask={ask} current={null} onCite={() => {}} />
 }
-const picker = () => screen.getByRole('combobox', { name: 'Conversation' }) as HTMLSelectElement
+const picker = () => selectField('Conversation')
+// The conversations the picker lists, by their words (title · time of day).
+const LATEST_WORDS = /^Was the B1 valve shut\? · /
+const OLDER_WORDS = /^When was the pump tested\? · /
+const STARTED_WORDS = /^Is the sprinkler riser tagged\? · /
 const thread = () => screen.getByRole('list', { name: 'Questions and answers' })
 const type = (question: string) => {
   fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
@@ -132,17 +141,16 @@ describe('reopening the Ask tab (AC2)', () => {
     const calls = gateway()
     render(<Tab />)
     expect(await screen.findByText('The answer to Which bay?')).toBeInTheDocument()
-    expect(picker().value).toBe('c2')
-    const options = within(picker()).getAllByRole('option')
-    expect(options.map((o) => o.textContent)).toEqual([
-      expect.stringMatching(/^Was the B1 valve shut\? · /),
-      expect.stringMatching(/^When was the pump tested\? · /),
+    expect(picker()).toHaveTextContent(LATEST_WORDS)
+    expect(optionWords('Conversation')).toEqual([
+      expect.stringMatching(LATEST_WORDS),
+      expect.stringMatching(OLDER_WORDS),
     ])
 
-    fireEvent.change(picker(), { target: { value: 'c1' } })
+    chooseOption('Conversation', OLDER_WORDS)
     expect(await screen.findByText('The answer to When was the pump tested?')).toBeInTheDocument()
     expect(within(thread()).queryByText('The answer to Which bay?')).toBeNull()
-    expect(picker().value).toBe('c1')
+    expect(picker()).toHaveTextContent(OLDER_WORDS)
     expect(calls.at(-1)).toMatchObject({ method: 'GET', url: `${ASK}/conversations/c1` })
   })
 
@@ -188,8 +196,8 @@ describe('New conversation (AC2)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New conversation' }))
     expect(screen.queryByRole('list', { name: 'Questions and answers' })).toBeNull()
-    expect(picker().value).toBe('')
-    expect(within(picker()).getAllByRole('option')[0]).toHaveTextContent('New conversation')
+    expect(picker()).toHaveTextContent(/^New conversation$/)
+    expect(optionWords('Conversation')[0]).toBe('New conversation')
     // Already a new one: nothing more to start, and nothing saved to delete.
     expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Delete conversation' })).toBeNull()
@@ -201,12 +209,12 @@ describe('New conversation (AC2)', () => {
     const [first] = calls.filter((c) => c.method === 'POST')
     expect(first.body).toEqual({ question: 'Is the sprinkler riser tagged?' })
     // Listed first, as the latest, and on screen.
-    await waitFor(() => expect(picker().value).toBe('c3'))
-    expect(
-      within(picker())
-        .getAllByRole('option')
-        .map((o) => o.getAttribute('value')),
-    ).toEqual(['c3', 'c2', 'c1'])
+    await waitFor(() => expect(picker()).toHaveTextContent(STARTED_WORDS))
+    expect(optionWords('Conversation')).toEqual([
+      expect.stringMatching(STARTED_WORDS),
+      expect.stringMatching(LATEST_WORDS),
+      expect.stringMatching(OLDER_WORDS),
+    ])
 
     // The next question goes into it.
     type('Which floor?')
@@ -244,12 +252,8 @@ describe('Delete (AC2)', () => {
     expect(await screen.findByText('The answer to When was the pump tested?')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(calls.find((c) => c.method === 'DELETE')!.url).toBe(`${ASK}/conversations/c2`)
-    expect(picker().value).toBe('c1')
-    expect(
-      within(picker())
-        .getAllByRole('option')
-        .map((o) => o.getAttribute('value')),
-    ).toEqual(['c1'])
+    expect(picker()).toHaveTextContent(OLDER_WORDS)
+    expect(optionWords('Conversation')).toEqual([expect.stringMatching(OLDER_WORDS)])
   })
 
   it('says why a conversation was not deleted, and keeps the dialog open', async () => {
@@ -291,7 +295,7 @@ describe('an archived assessment (AC5)', () => {
     expect(screen.queryByRole('button', { name: 'New conversation' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Delete conversation' })).toBeNull()
     // The others can still be read.
-    fireEvent.change(picker(), { target: { value: 'c1' } })
+    chooseOption('Conversation', OLDER_WORDS)
     expect(await screen.findByText('The answer to When was the pump tested?')).toBeInTheDocument()
   })
 })

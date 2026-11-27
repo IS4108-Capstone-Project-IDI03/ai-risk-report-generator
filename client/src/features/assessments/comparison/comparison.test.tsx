@@ -12,6 +12,7 @@ import {
   outcomePill,
   shownLine,
 } from './comparisonDisplay'
+import { selectField } from '../../../design-system/components/forms/selectTestHelpers'
 
 // RV-13: the Comparison tab, from the gateway's answers (a stubbed fetch).
 
@@ -377,7 +378,7 @@ describe('The Comparison tab (RV-13)', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Roller shutter in the fire wall/ }))
 
-    expect(screen.getByRole('combobox', { name: 'Outcome' })).toHaveValue('unchanged')
+    expect(selectField('Outcome')).toHaveTextContent(/^Unchanged$/)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await vi.waitFor(() =>
       expect(calls.at(-1)).toMatchObject({

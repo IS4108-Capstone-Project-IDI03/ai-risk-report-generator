@@ -5,6 +5,10 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Assessment } from '../api'
 import { EditDetailsDialog } from './EditDetailsDialog'
+import {
+  chooseOption,
+  selectField,
+} from '../../../design-system/components/forms/selectTestHelpers'
 
 beforeAll(() => {
   // jsdom has no native modal implementation.
@@ -52,7 +56,7 @@ describe('the Edit Assessment Details dialog', () => {
     expect(root).toHaveStyle({ width: '520px' })
     expect(dialog.getByLabelText(/Survey Date/)).toHaveValue('11/11/2026')
     expect(dialog.getByLabelText(/Report Due Date/)).toHaveValue('16/12/2026')
-    expect(dialog.getByLabelText(/Assessment Type/)).toHaveValue('First survey')
+    expect(selectField(/Assessment Type/, root)).toHaveTextContent(/^First survey$/)
     for (const name of ['Cancel', 'Save Changes'])
       expect(dialog.getByRole('button', { name }).style.borderRadius).toBe('var(--radius-pill)')
     // The date inputs are the picker's text fields, not the browser's native date inputs.
@@ -95,9 +99,9 @@ describe('the Edit Assessment Details dialog', () => {
   })
 
   it('saves the changed details as ISO dates and tells its opener', async () => {
-    const { dialog, onSaved } = open()
+    const { dialog, root, onSaved } = open()
     type(dialog.getByLabelText(/Report Due Date/), '20/12/2026')
-    fireEvent.change(dialog.getByLabelText(/Assessment Type/), { target: { value: 'Resurvey' } })
+    chooseOption(/Assessment Type/, 'Resurvey', root)
     fireEvent.click(dialog.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(puts[0].body).toEqual({

@@ -9,6 +9,7 @@ import { EngineerPicker } from '../assignment/components/EngineerPicker'
 import { NewAssessment } from './screens/NewAssessment'
 import { blankForm, formFromResult, toBody } from './form'
 import { calls, created, gateway, json, sent } from './testKit'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const SANA = '6ab39017e45cf009e4507734'
 const ALEX = '6ab39017e45cf009e4507731'
@@ -46,7 +47,7 @@ function open(assign: typeof ME | undefined, onCreated = vi.fn()) {
 function fillNewClient() {
   type(screen.getByLabelText(/^Client name/), 'Pacific Crest REIT')
   type(within(site(1)).getByLabelText(/^Site name/), 'Tuas Hub')
-  type(within(site(1)).getByLabelText(/^Facility type/), 'Distribution warehouse')
+  chooseOption(/^Facility type/, 'Distribution warehouse', site(1))
   type(within(site(1)).getByLabelText(/^Address/), '21 Tuas South Ave 3')
 }
 const routes = (extra = {}) => ({

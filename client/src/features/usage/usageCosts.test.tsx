@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const ALEX = '64b000000000000000000a1e'
 const JIDE = '64b000000000000000000a1d'
@@ -325,16 +326,16 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
   it('reloads for the period and split chosen', async () => {
     const urls = mockGateway()
     await openUsage()
-    fireEvent.change(screen.getByLabelText('Period'), { target: { value: '7d' } })
+    chooseOption('Period', 'Last 7 days')
     await waitFor(() => expect(lastQuery(urls()).get('range')).toBe('7d'))
-    fireEvent.change(screen.getByLabelText('Split each bar by'), { target: { value: 'feature' } })
+    chooseOption('Split each bar by', 'Feature')
     await waitFor(() => expect(lastQuery(urls()).get('split')).toBe('feature'))
   })
 
   it('lets a knowledge admin compare engineers, then open one engineer’s assessments', async () => {
     const urls = mockGateway()
     await openUsage()
-    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'engineer' } })
+    chooseOption('Group by', 'Engineer')
     const engineers = await screen.findByRole('table', { name: 'Engineers and their cost' })
     fireEvent.click(within(engineers).getByRole('button', { name: 'Jide Okafor' }))
     await waitFor(() => {
@@ -350,7 +351,7 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
   it('narrows to an engineer chosen in the table filter', async () => {
     const urls = mockGateway()
     await openUsage()
-    fireEvent.change(screen.getByLabelText('Engineer'), { target: { value: JIDE } })
+    chooseOption('Engineer', 'Jide Okafor')
     await waitFor(() => expect(lastQuery(urls()).get('engineer')).toBe(JIDE))
   })
 
@@ -370,7 +371,7 @@ describe('Usage and costs: report generation overview (EV-04)', LAZY_SCREEN, () 
       'href',
       '/api/usage/overview/export.csv?groupBy=assessment&split=service&range=30d',
     )
-    fireEvent.change(screen.getByLabelText('Engineer'), { target: { value: JIDE } })
+    chooseOption('Engineer', 'Jide Okafor')
     await waitFor(() =>
       expect(screen.getByRole('link', { name: 'Export CSV' })).toHaveAttribute(
         'href',

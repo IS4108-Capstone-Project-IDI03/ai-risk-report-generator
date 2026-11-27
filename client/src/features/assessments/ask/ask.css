@@ -21,9 +21,6 @@
   flex: 1;
   min-width: 0;
 }
-.ask-conversation-pick select {
-  text-overflow: ellipsis;
-}
 /* 44px tap targets on a phone or a touch screen. */
 @media (max-width: 767px), (pointer: coarse) {
   .ask-conversations .ds-icon-button {

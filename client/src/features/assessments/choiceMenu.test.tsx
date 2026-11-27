@@ -1,9 +1,9 @@
 // Tests for our own dropdown (CP-22): keyboard use inside the open menu.
-// Covers components/ChoiceMenu.tsx.
+// Covers design-system/components/forms/ChoiceMenu.tsx.
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ChoiceMenu } from './components/ChoiceMenu'
+import { ChoiceMenu } from '../../design-system'
 
 const choices = ['Low', 'Moderate', 'High'].map((l) => ({ value: l.toLowerCase(), label: l }))
 
