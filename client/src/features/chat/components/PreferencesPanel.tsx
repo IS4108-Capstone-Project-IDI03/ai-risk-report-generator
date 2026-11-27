@@ -51,6 +51,8 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
+      // A bottom sheet on a phone, like every other dialog there.
+      className="ds-dialog-sheet"
       title="My preferences"
       description="Lasting facts about your work. MarshBot takes them into account in every chat."
       width={560}

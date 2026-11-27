@@ -72,7 +72,8 @@ export function ChecklistSheet({ v }: { v: AssessmentWorkflow }) {
     <Dialog
       className="ds-dialog-sheet"
       title="Checklist"
-      description={answerPlace(v.currentLocation)}
+      // Only once a place is chosen, as in the pane beside the form on a wide screen.
+      description={v.currentLocation ? answerPlace(v.currentLocation) : undefined}
       width={760}
       onClose={v.closeChecklist}
     >
