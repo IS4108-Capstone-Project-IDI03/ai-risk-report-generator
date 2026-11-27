@@ -91,9 +91,9 @@ export function SidePanel({
         closeWalk={closeWalk}
         unsaved={unsaved}
         className={className ? `ds-side-sheet ${className}` : 'ds-side-sheet'}
+        footer={footer && <div className="ds-side-panel-foot">{footer}</div>}
       >
         <div className="ds-side-panel-content">{children}</div>
-        {footer && <div className="ds-side-panel-foot">{footer}</div>}
       </Sheet>
     )
   if (!open) return null

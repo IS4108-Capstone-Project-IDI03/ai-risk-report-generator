@@ -72,6 +72,7 @@ export function FillRequestDialog({
 
   return (
     <Dialog
+      className="kb-fill-dialog"
       title="Mark as filled"
       description={`Pick the documents you added. ${request.askedBy.name} is told each one's title and upload time.`}
       width={560}

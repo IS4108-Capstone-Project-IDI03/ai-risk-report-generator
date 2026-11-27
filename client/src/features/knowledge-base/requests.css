@@ -130,6 +130,28 @@
   border: 1px solid var(--graphite-200);
   border-radius: 12px;
 }
+/* Mark as filled: the list takes the room the window has and scrolls only past that, instead of
+   inside a 420 px box under a dialog that could have been taller. The flex chain lets it shrink
+   to fit; under 132 px (a tiny window) the dialog scrolls instead. */
+.ds-dialog.kb-fill-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.kb-fill-dialog .ds-dialog-body,
+.kb-fill-dialog .kb-request-dialog {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.kb-fill-dialog .kb-request-dialog {
+  gap: 16px;
+}
+.kb-fill-dialog .kb-request-picker {
+  flex: 0 1 auto;
+  min-height: 132px;
+  max-height: none;
+}
 /* One document per row: a divider between rows, a tint on hover, the selected fill once picked. */
 .kb-request-picker > label {
   padding: 12px 16px;

@@ -388,7 +388,7 @@ button.mb-place-main {
    and only the places list scrolls. */
 /* On the sheet, not its root: the root covers the whole screen, so the scrim does too. */
 .mb-details-map .ds-sheet {
-  height: 85svh;
+  height: var(--sheet-max-height);
 }
 .mb-details-map .ds-sheet-body,
 .mb-details-map .ds-side-panel-content {

@@ -321,6 +321,21 @@
   overflow: auto;
   padding: 12px 16px 16px;
 }
+/* One thread open in the panel: its card runs down to the panel's foot with the Reply box there,
+   like a chat, so the box never floats mid-panel over an empty band. A long thread still scrolls. */
+.cm-panel-body:has(> .cm-card.is-active) {
+  display: flex;
+  flex-direction: column;
+}
+.cm-panel-body > .cm-card.is-active {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+.cm-panel-body > .cm-card.is-active > .cm-composer {
+  margin-top: auto;
+  padding-top: 10px;
+}
 .cm-list {
   display: flex;
   flex-direction: column;

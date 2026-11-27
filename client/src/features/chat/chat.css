@@ -258,11 +258,22 @@
      extra 112 px only pushed a phone's answer off the top. */
   padding-bottom: 24px;
 }
+/* OpenUI's fade over the thread's foot is 72 px: at the end of the chat it lay over the last
+   answer's buttons. As tall as the 24 px padding above, it fades only what is still below. */
+.knowledge-assistant .openui-agent-thread-scroll-container::after {
+  height: 24px;
+}
 .knowledge-assistant .openui-agent-thread-messages,
 .knowledge-assistant .openui-agent-thread-composer {
   width: 100%;
   max-width: calc(var(--chat-column) + 32px);
   margin-inline: auto;
+}
+/* The Hands-free row ends 16 px above the screen's edge on every width (OpenUI used an 18 px
+   margin on a computer and 16 px padding on a phone), and above a phone's home indicator. */
+.knowledge-assistant .openui-agent-thread-composer {
+  margin-bottom: 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 /* A question: a quiet bubble in a faint Marsh light blue (MikeOSS's shape). */
 .knowledge-assistant .openui-shell-thread-message-user__content {

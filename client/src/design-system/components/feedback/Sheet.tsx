@@ -41,6 +41,9 @@ export type SheetProps = {
   closeWalk?: string
   // Unsaved edits in the sheet: Esc and a tap on the scrim do nothing; the close tick still closes.
   unsaved?: boolean
+  // Content mode: a bar pinned under the scrolling content, on the sheet's bottom edge (a side
+  // panel's Cancel and Save). Inside the scroller it could cover the last field.
+  footer?: ReactNode
 }
 
 const EXIT_MS = 200
@@ -86,6 +89,7 @@ export function Sheet({
   headerAction,
   closeWalk,
   unsaved = false,
+  footer,
 }: SheetProps) {
   const panel = useRef<HTMLDivElement>(null)
   // Keep it mounted for the exit motion; jsdom cannot animate, so it unmounts at once there.
@@ -211,6 +215,7 @@ export function Sheet({
         ) : (
           <>
             <div className="ds-sheet-body">{children}</div>
+            {footer ? <div className="ds-sheet-foot">{footer}</div> : null}
             {cancel ? (
               <button type="button" className="ds-sheet-cancel" onClick={onClose}>
                 Cancel

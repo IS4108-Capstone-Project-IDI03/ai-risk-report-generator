@@ -27,14 +27,21 @@
   overflow-y: auto;
   /* Scrolling to its end doesn't carry on into the page behind. */
   overscroll-behavior: contain;
+  /* With .mbt-thread's auto top margin: a short conversation sits at the pane's foot, like a chat,
+     so the spare room is above it and the last reply is never left floating mid-pane. */
+  display: flex;
+  flex-direction: column;
 }
 .mbt-thread {
+  margin-top: auto;
   max-width: 1600px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 32px 24px 24px;
+  /* 12 px at the foot: with the 12 px gap before the end marker (Thread.tsx's .mbt-endmark) the
+     last reply rests 24 px above the pane's edge, not 36. */
+  padding: 20px 32px 12px 24px;
 }
 /* Wide enough to use a collapsed sidebar's room even at 1920 px; past that the column centres. */
 @media (min-width: 1600px) {
@@ -346,7 +353,8 @@ body.mbt-toasts:has(.mbt-away[data-away] .mbt-bar)
     overflow: visible;
   }
   .mbt-thread {
-    padding: 12px 12px 20px;
+    /* With the 10 px gap before the end marker, 24 px under the last reply. */
+    padding: 12px 12px 14px;
     gap: 10px;
   }
   .mbt-session,

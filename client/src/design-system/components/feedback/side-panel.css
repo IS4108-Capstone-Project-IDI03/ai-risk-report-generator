@@ -119,12 +119,10 @@
 .ds-side-sheet .ds-sheet-head {
   gap: 6px;
 }
-/* The footer stays pinned under the content while it scrolls. */
+/* The footer is pinned under the scrolling content (Sheet's footer slot), flush with the sheet's
+   bottom padding: no band of its own under the buttons. */
 .ds-side-sheet .ds-side-panel-foot {
-  position: sticky;
-  bottom: -8px;
-  margin: 8px 0 -8px;
-  padding: 12px 0;
+  padding: 12px 0 0;
 }
 /* Touch: the header's icon actions (Edit, Close) are 44 px targets. */
 @media (max-width: 767px), (pointer: coarse) {

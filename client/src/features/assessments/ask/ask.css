@@ -4,7 +4,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  padding: var(--space-6) var(--space-7) var(--space-7);
+  /* No bottom padding: the pinned question box keeps its own 16 px, so it rests on the panel's
+     foot at the end of the answers as it does while they scroll under it. */
+  padding: var(--space-6) var(--space-7) 0;
 }
 /* The conversation picker (AS-03): which conversation is on screen, with New
    conversation and Delete beside it. */
@@ -365,7 +367,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 0 12px;
+  padding: 12px 0 16px;
   background: linear-gradient(to bottom, transparent, var(--surface-card) 12px);
 }
 .ask-composer-box {
@@ -561,6 +563,8 @@
 .dm-ask .ask-composer {
   bottom: -16px;
   padding-bottom: 16px;
+  /* At the end of the answers too: it rests on the panel's foot, not 16 px above it. */
+  margin-bottom: -16px;
 }
 .dm-ask-source {
   margin-bottom: var(--space-6);

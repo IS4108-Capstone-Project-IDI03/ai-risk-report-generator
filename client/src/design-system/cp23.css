@@ -147,7 +147,8 @@
 .ds-sheet {
   position: absolute;
   inset: auto 0 0 0;
-  max-height: 85svh;
+  /* It hugs its content and grows to near full height before anything scrolls. */
+  max-height: var(--sheet-max-height);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -202,6 +203,16 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 8px 0;
+}
+/* 4 px at the foot: room for a focus ring (2 px + 2 px offset) and no more, so the last row sits
+   on the sheet's own 16 px bottom padding instead of floating 24 px up. */
+.ds-sheet-body {
+  padding-bottom: 4px;
+}
+/* A bar pinned under the scrolling content (a side panel's actions): it never scrolls away, and
+   sits on the sheet's bottom edge with only the sheet's own padding below it. */
+.ds-sheet-foot {
+  flex: none;
 }
 .ds-sheet-row {
   display: flex;

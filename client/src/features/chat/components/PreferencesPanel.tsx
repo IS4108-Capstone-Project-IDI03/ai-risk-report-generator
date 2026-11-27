@@ -119,6 +119,9 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
               icon="brain"
               title="No facts yet"
               description="For example: I mostly survey Singapore offices."
+              // The dialog's last line: the panel's own 20 px is the gap below it; the empty state's
+              // usual 48 px on top of that left an empty band at the foot.
+              style={{ paddingBottom: 0 }}
             />
           ) : (
             <ul className={memory.enabled ? 'fact-list' : 'fact-list fact-list--off'}>
