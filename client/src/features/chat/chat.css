@@ -10,7 +10,8 @@
 .knowledge-assistant {
   /* The app's system font stack (design-system/tokens/fonts.css). */
   --chat-font: var(--font-sans);
-  --chat-sidebar: color-mix(in srgb, var(--ink-50) 55%, var(--surface-card));
+  /* The sidebar and the PDF's ground: v2's page grey. */
+  --chat-sidebar: var(--graphite-50);
   --chat-hover: rgb(0 15 71 / 0.04); /* --marsh-navy at 4% */
   --chat-selected: rgb(0 15 71 / 0.07); /* --marsh-navy at 7% */
   --chat-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
@@ -18,6 +19,7 @@
   --chat-ease: cubic-bezier(0.23, 1, 0.32, 1);
   /* One column for questions, answers and the composer, so their edges line up. */
   --chat-column: 768px;
+  --chat-gutter: 16px;
   /* Quoted words in the source panel (CB-02): a highlighter yellow, chosen by Jesper on 17 Oct
      over the ink blues, which were hard to tell apart. A tint of --amber-100, lighter than the
      amber that marks an unsupported claim. */
@@ -63,110 +65,6 @@
   container: chat-area / inline-size;
 }
 
-/* ---- Sidebar: brand, New chat, Chats ---- */
-
-.knowledge-assistant .openui-agent-sidebar-container {
-  background: var(--chat-sidebar);
-  border-right: 1px solid var(--ink-100);
-}
-.knowledge-assistant .openui-agent-sidebar-header__top-row {
-  gap: 10px;
-}
-.knowledge-assistant .openui-agent-sidebar-header__logo {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  box-shadow: var(--chat-shadow-sm);
-}
-.knowledge-assistant .openui-agent-sidebar-header__agent-name,
-.knowledge-assistant .openui-agent-mobile-header-agent-name {
-  color: var(--marsh-navy);
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-/* The brand row and New chat are one group; OpenUI leaves a 32px hole between them. */
-.knowledge-assistant .openui-agent-sidebar-primary-actions {
-  margin-top: 4px;
-}
-/* New chat: OpenUI's sidebar row (ChatSidebar.tsx), quiet like MikeOSS's items. */
-.knowledge-assistant .openui-agent-sidebar-item {
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-}
-.knowledge-assistant .openui-agent-sidebar-item:hover {
-  background: var(--chat-hover);
-}
-.knowledge-assistant .openui-agent-sidebar-item__icon {
-  color: var(--ink-600);
-}
-/* Collapsed sidebar: the logo would sit on top of the open-sidebar button, so only the
-   button shows (OpenUI otherwise reveals it over the logo). */
-.knowledge-assistant .openui-agent-sidebar-header--collapsed .openui-agent-sidebar-header__logo {
-  display: none;
-}
-.knowledge-assistant
-  .openui-agent-sidebar-header--collapsed
-  .openui-agent-sidebar-header__toggle-button {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* Phone drawer: OpenUI pads the header and list by 16px but not the actions row, so
-   New chat sat flush against the edge. */
-.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-primary-actions {
-  padding: 8px 16px 0;
-  /* OpenUI's drawer puts 24px between New chat and My preferences; they are one group. */
-  gap: 0;
-}
-/* Our "Chats" heading replaces OpenUI's hardcoded "Threads" group label. */
-.knowledge-assistant .openui-agent-thread-list-group {
-  display: none;
-}
-/* Tighter than OpenUI's 36px between the New chat block and the list, and its 12px
-   under the heading: the heading belongs to the list it names. */
-.knowledge-assistant .openui-agent-sidebar-container {
-  gap: 16px;
-}
-.knowledge-assistant .openui-agent-sidebar-content {
-  gap: 4px;
-}
-.chat-sidebar-heading {
-  margin: 0;
-  /* Must match OpenUI's chat-row padding, so the heading and chat titles share one edge. */
-  padding: 0 6px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-}
-/* OpenUI pads chat rows 10px in the phone drawer. */
-.knowledge-assistant .openui-agent-container--mobile .chat-sidebar-heading {
-  padding: 0 10px;
-}
-.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-sidebar-heading {
-  display: none;
-}
-.knowledge-assistant .openui-agent-thread-button {
-  border-radius: var(--radius-lg);
-  transition: background-color 120ms var(--chat-ease);
-}
-.knowledge-assistant .openui-agent-thread-button-title {
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.knowledge-assistant .openui-agent-thread-button:hover {
-  background: var(--chat-hover);
-}
-.knowledge-assistant .openui-agent-thread-button--selected,
-.knowledge-assistant .openui-agent-thread-button--selected:hover {
-  background: var(--chat-selected);
-}
-.knowledge-assistant .openui-agent-thread-button--selected .openui-agent-thread-button-title {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
 /* ---- Welcome (an empty chat) ---- */
 
 /* The greeting sits just above the starters. It gives way first on a short screen: it scrolls in
@@ -209,11 +107,13 @@
   line-height: 1.5;
   text-wrap: balance;
 }
-/* Starters: a 2 x 2 grid of soft cards above the composer (one column on phones). */
+/* Starters: a 2 x 2 grid of white cards above the composer (one column on phones), drawn like the
+   composer under them (radius 16, the v2 border) and hovering by background, grey on white. */
 .knowledge-assistant .openui-agent-conversation-starter--long {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  margin-bottom: 0;
 }
 @media (max-width: 600px) {
   .knowledge-assistant .openui-agent-conversation-starter--long {
@@ -225,27 +125,38 @@
 }
 .knowledge-assistant .openui-agent-conversation-starter-item-long {
   min-height: 48px;
-  padding: 10px 14px;
-  border: 1px solid var(--ink-100);
-  border-radius: var(--radius-popover);
-  background: var(--chat-sidebar);
-  color: var(--ink-800);
-  font-size: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  color: var(--graphite-900);
+  font: 400 14px/20px var(--font-sans);
+  letter-spacing: 0;
   text-align: left;
   transition:
-    background-color 120ms var(--chat-ease),
-    border-color 120ms var(--chat-ease),
-    transform 120ms var(--chat-ease);
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
-.knowledge-assistant .openui-agent-conversation-starter-item-long:hover {
-  border-color: var(--ink-200);
-  background: var(--ink-50);
+.knowledge-assistant .openui-agent-conversation-starter-item-long:not(:disabled):hover {
+  background: var(--hover-bg);
+  color: var(--graphite-900);
 }
-.knowledge-assistant .openui-agent-conversation-starter-item-long:active {
+.knowledge-assistant .openui-agent-conversation-starter-item-long:not(:disabled):active {
   transform: scale(0.98);
 }
-.knowledge-assistant .openui-agent-conversation-starter-item-long__icon {
-  color: var(--ink-500);
+.knowledge-assistant .openui-agent-conversation-starter-item-long__content {
+  align-items: center;
+  gap: 12px;
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long__icon,
+.knowledge-assistant
+  .openui-agent-conversation-starter-item-long:not(:disabled):hover
+  .openui-agent-conversation-starter-item-long__icon {
+  padding-top: 0;
+  color: var(--ink-600);
+}
+.knowledge-assistant .openui-agent-conversation-starter-item-long__arrow {
+  display: none;
 }
 
 /* ---- Conversation ---- */
@@ -263,16 +174,28 @@
 .knowledge-assistant .openui-agent-thread-scroll-container::after {
   height: 24px;
 }
+/* One column for the greeting's starters, the messages and the composer: the same width and the
+   same 16 px sides at every size, so their left and right edges line up (OpenUI gave the phone
+   composer 12 px and the starters their own width). */
 .knowledge-assistant .openui-agent-thread-messages,
-.knowledge-assistant .openui-agent-thread-composer {
+.knowledge-assistant .openui-agent-thread-composer,
+.knowledge-assistant .openui-agent-conversation-starter {
+  box-sizing: border-box;
   width: 100%;
-  max-width: calc(var(--chat-column) + 32px);
+  max-width: calc(var(--chat-column) + 2 * var(--chat-gutter));
   margin-inline: auto;
+  padding-inline: var(--chat-gutter);
 }
-/* The Hands-free row ends 16 px above the screen's edge on every width (OpenUI used an 18 px
-   margin on a computer and 16 px padding on a phone), and above a phone's home indicator. */
+/* The starters sit in the welcome screen, which has its own sides: they span it edge to edge. */
+.knowledge-assistant .openui-agent-welcome-screen {
+  max-width: none;
+  padding-inline: 0;
+}
+/* The composer sits 8 px under the last message, and the Hands-free row ends 16 px above the
+   screen's edge on every width, and above a phone's home indicator. */
 .knowledge-assistant .openui-agent-thread-composer {
-  margin-bottom: 0;
+  margin-block: 0;
+  padding-top: 8px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 /* A question: a quiet bubble in a faint Marsh light blue (MikeOSS's shape). */
@@ -423,7 +346,7 @@
 .chat-table-wrap {
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--ink-100);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-field);
 }
 .chat-table {
@@ -553,85 +476,6 @@
   color: var(--status-critical-fg);
 }
 
-/* ---- Composer: a translucent sheet floating over the conversation ---- */
-
-.knowledge-assistant .openui-agent-composer-slot {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--surface-card) 0%, transparent),
-    var(--surface-card) 40%
-  );
-}
-.knowledge-assistant .openui-agent-thread-composer__input-wrapper {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: 0 4px 12px rgb(15 23 42 / 0.06);
-  transition:
-    border-color 120ms var(--chat-ease),
-    box-shadow 120ms var(--chat-ease);
-}
-.knowledge-assistant .openui-agent-thread-composer__input-wrapper:focus-within {
-  /* --graphite-500 is about 4.5:1 on white; a lighter border fell under 3:1. */
-  border-color: var(--graphite-500);
-  box-shadow: 0 4px 12px rgb(15 23 42 / 0.08);
-}
-.knowledge-assistant .openui-agent-thread-composer__input {
-  font-size: 15px;
-}
-/* The rounded sheet shows focus (:focus-within above); a square ring inside it would clash. */
-.knowledge-assistant .openui-agent-thread-composer__input:focus-visible {
-  outline: none;
-}
-.knowledge-assistant .openui-agent-thread-composer__input::placeholder {
-  color: var(--text-muted);
-}
-.knowledge-assistant .openui-agent-thread-composer__submit-button {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--marsh-navy);
-}
-.knowledge-assistant .openui-agent-thread-composer__submit-button:active {
-  transform: scale(0.97);
-}
-/* Phones and touch screens: Send reaches 44px, and the mic beside it moves over to keep clear. */
-@media (max-width: 767px), (pointer: coarse) {
-  .knowledge-assistant .openui-agent-thread-composer__submit-button {
-    width: 44px;
-    height: 44px;
-  }
-  /* 16 px text stops iOS zooming the page when the chat box is focused. The box is a 44 px
-     tap target: 10 px of padding above and below, taken back by margins so the card keeps its
-     size (OpenUI sizes it to its scrollHeight, padding included with border-box). A tap
-     anywhere else in the card also focuses it (OpenUI's Composer). */
-  .knowledge-assistant .openui-agent-thread-composer__input {
-    font-size: 16px;
-    box-sizing: border-box;
-    min-height: 44px;
-    margin-block: -10px;
-    padding-block: 10px;
-  }
-  /* The logo and name (new chat) reach 44 px like the rows under them. */
-  .knowledge-assistant .chat-brand {
-    min-height: 44px;
-  }
-  .knowledge-assistant .voice-input {
-    right: 64px;
-  }
-  /* Level with the taller Send. */
-  .knowledge-assistant .photo-attach,
-  .knowledge-assistant .pdf-attach,
-  .knowledge-assistant .voice-input {
-    bottom: 13px;
-  }
-  /* OpenUI's phone header: the chats button and New chat. */
-  .knowledge-assistant .openui-agent-mobile-header .openui-icon-button {
-    width: 44px;
-    height: 44px;
-  }
-}
 /* The "latest message" arrow is gone: the thread now follows the answer as it
    streams (scrollVariant="always"), and the arrow confused more than it helped. */
 .knowledge-assistant .openui-agent-thread-scroll-latest {
@@ -645,13 +489,6 @@
     transition-duration: 0ms !important;
   }
 }
-@media (prefers-reduced-transparency: reduce) {
-  .knowledge-assistant .openui-agent-thread-composer__input-wrapper {
-    background: var(--surface-card);
-    backdrop-filter: none;
-  }
-}
-
 /* The opened marker in ink, matching the chat (the review workspace uses AI violet). */
 .knowledge-assistant .chat-cite[aria-current='true'] {
   border-color: var(--ink-600);
@@ -723,14 +560,16 @@
 .knowledge-assistant[data-source-open] .openui-agent-container {
   content-visibility: hidden;
 }
-/* Tabs on the left, the way out on the right; one quiet line under them. */
+/* The side panel's header (design-system SidePanel: 20 px sides, its round 40 px Close), with
+   the Passage and PDF tabs in the title's place and one hairline under them. */
 .chat-source-bar {
   display: flex;
   flex: none;
   align-items: stretch;
   gap: 8px;
+  min-height: 56px;
   padding: 8px 12px 0 20px;
-  border-bottom: 1px solid var(--ink-100);
+  border-bottom: 1px solid var(--border-default);
 }
 .chat-source-bar > button {
   align-self: center;
@@ -772,7 +611,7 @@
     position: relative;
     inset: auto;
     z-index: auto;
-    border-left: 1px solid var(--ink-100);
+    border-left: 1px solid var(--border-default);
   }
   .chat-source-back {
     display: none !important;
@@ -823,31 +662,6 @@
 .chat-resizing .knowledge-assistant {
   pointer-events: none;
 }
-/* The logo and name are a button that starts a new chat (ChatSidebar.tsx): no button look,
-   just the brand, with a focus ring for keyboard users. */
-.knowledge-assistant .chat-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-field);
-  background: none;
-  cursor: pointer;
-  /* Takes the name's old place: it grows, so the collapse button stays at the far edge. */
-  flex-grow: 1;
-  min-width: 0;
-  text-align: left;
-}
-.knowledge-assistant .chat-brand:focus-visible {
-  outline: 2px solid var(--marsh-navy);
-  outline-offset: 2px;
-}
-/* Collapsed sidebar: the name would not fit beside the open-sidebar button. */
-.knowledge-assistant .openui-agent-sidebar-header--collapsed .chat-brand {
-  display: none;
-}
-
 /* CB-02: the Passage and PDF tabs. Each fills the panel below the tab bar and scrolls on its
    own, so the panel itself never does. */
 .chat-tabpanel {
@@ -859,7 +673,7 @@
 }
 .chat-tabpanel--passage {
   overflow-y: auto;
-  padding: 20px 20px 32px;
+  padding: 20px 20px 24px;
 }
 @container chat-area (max-width: 600px) {
   .chat-tabpanel--passage {
@@ -889,20 +703,18 @@
 .chat-details-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 8px;
 }
+/* The document's name in the side panel's title style (19 / 600 navy), its facts under it. */
 .chat-details h3 {
   margin: 0;
-  color: var(--text-primary);
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  color: var(--marsh-navy);
+  font: 600 19px/25px var(--font-sans);
   overflow-wrap: anywhere;
 }
-.chat-details .rv-meta {
-  margin: 10px 0 16px;
+.chat-details .ds-facts {
+  margin: 16px 0;
 }
 .chat-details .ds-callout {
   margin-bottom: 12px;
@@ -955,7 +767,7 @@
   align-items: center;
   gap: 4px 20px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--ink-100);
+  border-bottom: 1px solid var(--border-default);
   color: var(--text-secondary);
   font-size: var(--text-caption-size);
 }
@@ -977,7 +789,7 @@
 .chat-pdf-actions {
   gap: 4px;
   padding-left: 12px;
-  border-left: 1px solid var(--ink-100);
+  border-left: 1px solid var(--border-default);
 }
 /* Phones: one row, so the page keeps the height. */
 @container chat-area (max-width: 600px) {
@@ -1021,7 +833,7 @@
   margin: 0;
   padding: 8px 16px;
   border: 0;
-  border-bottom: 1px solid var(--ink-100);
+  border-bottom: 1px solid var(--border-default);
   background: var(--chat-sidebar);
   color: var(--text-secondary);
   font: inherit;
@@ -1074,104 +886,11 @@
   pointer-events: none;
 }
 
-/* ---- Saved chats (CB-03) ---- */
-
-.chat-thread-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.chat-thread-note {
-  margin: 0;
-  padding: 0 6px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-.chat-thread-row {
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius-lg);
-  transition: background-color 120ms var(--chat-ease);
-}
-.chat-thread-row:hover,
-.chat-thread-row:focus-within {
-  background: var(--chat-hover);
-}
-.chat-thread-row[data-selected] {
-  background: var(--chat-selected);
-}
-.chat-thread-title {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 6px;
-  border: 0;
-  background: none;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chat-thread-row[data-selected] .chat-thread-title {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-/* Shown on hover and keyboard focus; always shown on touch screens, which have no hover. */
-.chat-thread-actions {
-  display: none;
-  flex: none;
-  padding-right: 2px;
-}
-.chat-thread-row:hover .chat-thread-actions,
-.chat-thread-row:focus-within .chat-thread-actions {
-  display: flex;
-}
-@media (hover: none) {
-  .chat-thread-actions {
-    display: flex;
-  }
-}
-/* A collapsed sidebar shows icons only. */
-.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-list,
-.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-note {
-  display: none;
-}
-
 /* A wrapper only so the delete dialog can focus Cancel (DeleteChatDialog.tsx); the buttons
    still lay out as the Dialog's own footer. */
 .chat-dialog-actions {
   display: contents;
 }
-/* Touch screens: the row and its two icon buttons reach 44 px, the smallest comfortable tap
-   target. !important because the shared IconButton sets its size inline. */
-@media (hover: none) {
-  /* The always-shown icons leave little room, and a touch screen has no hover to show the full
-     name, so it takes two lines before the ellipsis. */
-  .chat-thread-title {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    min-height: 44px;
-    /* Space as a clear border, not padding: overflow clips at the padding edge, so with padding
-       a third line peeked out under the second. */
-    padding-block: 0;
-    border-block: 12px solid transparent;
-    white-space: normal;
-  }
-  .chat-thread-actions button {
-    width: 44px !important;
-    height: 44px !important;
-  }
-}
-/* In the phone drawer OpenUI pads the "Chats" heading by 10 px, so the titles do too. */
-.knowledge-assistant .openui-agent-container--mobile .chat-thread-title,
-.knowledge-assistant .openui-agent-container--mobile .chat-thread-note {
-  padding-left: 10px;
-}
-
 /* CB-04: retry, edit and the ‹ 2/3 › switcher. Quiet icon buttons under a message, as in ChatGPT. */
 .message-actions,
 .answer-bar {
@@ -1181,12 +900,18 @@
   font-size: 0.8125rem;
   color: var(--text-secondary);
 }
+/* The bars' outer icons are pulled out by the button's inner space, so the first icon of an
+   answer's bar starts on the answer's text edge, and the question's pencil ends on its bubble's. */
+.message-actions,
+.answer-bar {
+  --bar-inset: 9px; /* (32 px button - 14 px icon) / 2 */
+}
 .message-actions {
   justify-content: flex-end;
-  margin-top: 4px;
+  margin: 4px calc(-1 * var(--bar-inset)) 0 0;
 }
 .answer-bar {
-  margin-top: 8px;
+  margin: 8px 0 0 calc(-1 * var(--bar-inset));
 }
 /* OpenUI lays an answer out in a row; the bar goes under the text, not beside it. */
 .knowledge-assistant .openui-shell-thread-message-assistant__content {
@@ -1254,18 +979,14 @@
 @media (pointer: coarse) {
   .message-actions button,
   .answer-bar button,
-  .voice-input button,
   .fact-row__actions button,
   .version-switcher button {
     min-width: 44px;
     min-height: 44px;
   }
-}
-
-/* The chat sidebar's rows (New chat, My preferences) are at least 44px on a touch screen. */
-@media (pointer: coarse) {
-  .openui-agent-sidebar-primary-actions .openui-agent-sidebar-item {
-    min-height: 44px;
+  .message-actions,
+  .answer-bar {
+    --bar-inset: 15px; /* (44 px - 14 px) / 2 */
   }
 }
 
@@ -1274,21 +995,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-}
-.openui-agent-thread-composer__input-wrapper {
-  position: relative;
-}
-.voice-input {
-  position: absolute;
-  right: 56px;
-  bottom: 10px;
-  display: flex;
-  gap: 2px;
-}
-.voice-input__state,
-.voice-input__note {
-  margin: var(--space-3) var(--space-5) 0;
-  font-size: var(--text-caption-size);
 }
 .voice-input__state {
   color: var(--graphite-600);
@@ -1334,13 +1040,6 @@
     transition: none;
   }
 }
-.voice-input__panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-5);
-  margin: var(--space-3) var(--space-5) 0;
-}
 .voice-input__panel .voice-input__state {
   margin: 0;
 }
@@ -1374,11 +1073,6 @@
 
 /* Ask about a photo (CB-08): the photo button at the left of the chat box, the tray of chosen
    photos under it, the face choice, and the photos shown with a sent question. */
-.photo-attach {
-  position: absolute;
-  left: 8px;
-  bottom: 10px;
-}
 .photo-tray {
   display: flex;
   flex-wrap: wrap;
@@ -1422,20 +1116,9 @@
   border: 1px solid var(--graphite-200);
   border-radius: var(--radius-field);
 }
-@media (pointer: coarse) {
-  .photo-attach button {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
 
 /* Ask about a PDF (CB-09): the PDF button beside the photo button, its chip, the instructions
    warning (amber, as design system v2's "not sure" colour), and the chip on a sent question. */
-.pdf-attach {
-  position: absolute;
-  left: 52px;
-  bottom: 10px;
-}
 .pdf-tray__file {
   display: grid;
   gap: var(--space-3);
@@ -1485,10 +1168,4 @@
 .message-pdf[data-flagged] {
   border-color: var(--amber-600);
   background: var(--amber-50);
-}
-@media (pointer: coarse) {
-  .pdf-attach button {
-    min-width: 44px;
-    min-height: 44px;
-  }
 }

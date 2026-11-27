@@ -202,7 +202,7 @@ describe('chat search (CB-03 AC3)', () => {
       </ChatProvider>,
     )
     await screen.findByText('FM-200 notes')
-    const box = screen.getByRole('textbox', { name: 'Search chats' })
+    const box = screen.getByRole('searchbox', { name: 'Search chats' })
     fireEvent.change(box, { target: { value: 'sprink' } })
     await waitFor(() => expect(screen.queryByText('FM-200 notes')).not.toBeInTheDocument())
     expect(screen.getByText('Sprinkler spacing')).toBeInTheDocument()

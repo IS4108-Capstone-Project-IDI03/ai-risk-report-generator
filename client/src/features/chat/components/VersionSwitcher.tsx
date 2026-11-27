@@ -1,7 +1,7 @@
 // The "‹ 2/3 ›" control under a message that has other versions (CB-04). Used by
 // UserMessage.tsx and AnswerBar.tsx.
 import type { Versions } from '../api'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 
 /** Shows which version is on screen and steps to the one before or after. */
 export function VersionSwitcher({
@@ -16,9 +16,8 @@ export function VersionSwitcher({
   const { ids, index } = info
   return (
     <span className="version-switcher" role="group" aria-label={`${label} versions`}>
-      <IconButton
+      <IconAction
         icon="chevron-left"
-        size="sm"
         label={`Previous ${label}`}
         disabled={index === 0}
         onClick={() => onPick(ids[index - 1])}
@@ -26,9 +25,8 @@ export function VersionSwitcher({
       <span className="version-switcher__count" aria-live="polite">
         {index + 1}/{ids.length}
       </span>
-      <IconButton
+      <IconAction
         icon="chevron-right"
-        size="sm"
         label={`Next ${label}`}
         disabled={index === ids.length - 1}
         onClick={() => onPick(ids[index + 1])}

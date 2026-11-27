@@ -6,7 +6,7 @@
 import { useThread } from '@openuidev/react-headless'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { HelpTip, Icon, IconButton, Switch } from '../../../design-system'
+import { HelpTip, Icon, IconAction, Switch } from '../../../design-system'
 import { useRecorder } from '../../assessments/dictation/useRecorder'
 import { transcribeQuestion } from '../api'
 import { answerSpoken, handsFreeTurn, isStopWord, useVoiceSettings } from '../speech'
@@ -76,17 +76,19 @@ export function VoiceInput() {
     <div className="voice-input">
       {live ? (
         <>
-          <IconButton
+          <IconAction
             icon={state === 'paused' ? 'play' : 'pause'}
             label={state === 'paused' ? 'Resume recording' : 'Pause recording'}
+            size="md"
             onClick={togglePause}
           />
-          <IconButton icon="square" label="Stop recording" onClick={recorder.stop} />
+          <IconAction icon="square" label="Stop recording" size="md" onClick={recorder.stop} />
         </>
       ) : (
-        <IconButton
+        <IconAction
           icon="mic"
           label="Ask by voice"
+          size="md"
           data-walk="chat.attach-voice"
           disabled={state === 'working' || state === 'starting'}
           onClick={() => void start()}

@@ -5,7 +5,7 @@
 import { useThread } from '@openuidev/react-headless'
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, IconButton } from '../../../design-system'
+import { Icon, IconAction, IconButton } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import { removeChatPdf, uploadChatPdf } from '../api'
 import {
@@ -73,9 +73,10 @@ export function PdfAttach() {
 
   const button = (
     <div className="pdf-attach">
-      <IconButton
+      <IconAction
         icon="file-plus"
         label="Attach a PDF"
+        size="md"
         data-walk="chat.attach-pdf"
         disabledReason={
           full

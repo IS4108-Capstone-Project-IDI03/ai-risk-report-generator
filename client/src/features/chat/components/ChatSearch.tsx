@@ -2,12 +2,12 @@
 // Sets the words api.ts's chat storage searches for, then reloads the list.
 import { useThreadList } from '@openuidev/react-headless'
 import { useEffect, useRef } from 'react'
-import { Input } from '../../../design-system'
+import { SearchField } from '../../../design-system'
 import { setChatSearch } from '../api'
 
 type Props = { words: string; onChange: (words: string) => void }
 
-/** A search box; the list reloads 250 ms after typing stops, and again when the box is cleared. */
+/** The v2 search field;  the list reloads 250 ms after typing stops, and again when the box is cleared. */
 export function ChatSearch({ words, onChange }: Props) {
   const loadChats = useThreadList((s) => s.loadThreads)
   // The list loads itself on mount, so the first run (an untouched box) must not reload it too.
@@ -23,10 +23,9 @@ export function ChatSearch({ words, onChange }: Props) {
   // Leaving the screen clears the search, so the next visit lists every chat.
   useEffect(() => () => setChatSearch(''), [])
   return (
-    <Input
-      size="sm"
-      iconLeft="search"
-      aria-label="Search chats"
+    <SearchField
+      className="chat-search-field"
+      label="Search chats"
       placeholder="Search chats"
       value={words}
       onChange={(e) => {

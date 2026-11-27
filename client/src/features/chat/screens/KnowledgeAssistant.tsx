@@ -31,6 +31,8 @@ import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import type { Versions } from '../api'
 import { chatTheme } from '../theme'
 import '../chat.css'
+import '../composer.css'
+import '../sidebar.css'
 
 export function KnowledgeAssistant({
   isAdmin,

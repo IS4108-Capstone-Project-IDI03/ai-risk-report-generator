@@ -1,7 +1,7 @@
 // Reads the latest answer aloud, without its citation markers (CB-10 AC2, AC4). Drawn inside
 // components/AnswerBar.tsx. The answer to a hands-free question starts by itself and tells the mic when it ends.
 import { useEffect, useRef, useState } from 'react'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import { answerSpoken, canSpeak, handsFreeTurn, spokenText, useVoiceSettings } from '../speech'
 import { VoiceSettings } from './VoiceSettings'
 
@@ -79,15 +79,15 @@ function Player({ answer }: { answer: Element | null }) {
   return (
     <>
       {state === 'idle' ? (
-        <IconButton icon="volume-2" label="Read answer aloud" onClick={() => speak()} />
+        <IconAction icon="volume-2" label="Read answer aloud" onClick={() => speak()} />
       ) : (
         <>
-          <IconButton
+          <IconAction
             icon={state === 'playing' ? 'pause' : 'play'}
             label={state === 'playing' ? 'Pause reading' : 'Resume reading'}
             onClick={togglePause}
           />
-          <IconButton icon="square" label="Stop reading" onClick={stop} />
+          <IconAction icon="square" label="Stop reading" onClick={stop} />
         </>
       )}
       <VoiceSettings />

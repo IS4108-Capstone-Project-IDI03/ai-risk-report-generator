@@ -379,8 +379,8 @@
     box-shadow var(--duration-fast) var(--ease-out);
 }
 .ask-composer-box:focus-within {
+  /* Must match the knowledge chat's composer (features/chat/composer.css): a navy border only. */
   border-color: var(--border-focus);
-  box-shadow: var(--focus-ring);
 }
 .ask-composer-box textarea {
   border: 0 !important;

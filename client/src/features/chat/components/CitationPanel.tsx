@@ -3,7 +3,7 @@
 // against the chat (useSplitWidth). Shown by screens/KnowledgeAssistant.tsx. Wide screens dock
 // it beside the chat; narrow ones, or Expand on the PDF tab, cover the chat (chat.css).
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Button, IconButton, Tabs } from '../../../design-system'
+import { Button, IconAction, Tabs } from '../../../design-system'
 import { pages } from '../../assessments/reviewDisplay'
 import type { SelectedCitation } from './citationSelection'
 import { screenshotUrl } from '../../knowledge-base/api'
@@ -148,12 +148,15 @@ export function CitationPanel({ selected, onClose }: Props) {
           // The bar's own full-width line stands in for the tabs' shorter one.
           style={{ flex: 1, borderBottom: 0, marginBottom: -1 }}
         />
-        <IconButton
+        {/* The side panel's round Close (design-system SidePanel), in its 40 px size. */}
+        <IconAction
           className="chat-source-close"
           data-walk="chat.source-close"
           icon="x"
           label="Close source"
-          size="sm"
+          tooltip="Close"
+          size="md"
+          placement="bottom"
           onClick={onClose}
         />
       </div>

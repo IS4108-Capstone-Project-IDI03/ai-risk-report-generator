@@ -1,0 +1,340 @@
+/* MarshBot's chat sidebar (CB-01, CB-03, CB-05; components/ChatSidebar.tsx), laid out like the big
+   chat apps' sidebars in design system v2's colours: the page grey behind, rows that hover by
+   background (--hover-bg) and sit on the ink tint with navy words when chosen.
+   One grid for every row: 12 px sidebar padding, then icons centred 22 px in and words starting
+   14 px in (the search field's magnifier and the chat titles share that 14 px edge). Rows are
+   36–40 px with 4 px between them; 44 px on a touch screen. OpenUI draws the frame (its
+   .openui-agent-sidebar-* classes); these rules replace its spacing and colours. */
+
+.knowledge-assistant {
+  /* The words' left edge inside a sidebar row (chat titles, group labels, notes). */
+  --chat-row-text: 14px;
+}
+
+/* ---- The frame: header, New chat, search, chats, My preferences at the foot ---- */
+
+.knowledge-assistant .openui-agent-sidebar-container {
+  gap: 0;
+  padding: 12px;
+  background: var(--chat-sidebar);
+  border-right: 1px solid var(--border-default);
+  box-shadow: none;
+}
+.knowledge-assistant .openui-agent-sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* The header row: logo and name at the left (one button that starts a new chat), the collapse
+   button at the right, both centred on a 40 px row. */
+.knowledge-assistant .openui-agent-sidebar-header__top-row {
+  min-height: 40px;
+  gap: 8px;
+}
+.knowledge-assistant .chat-brand {
+  display: flex;
+  flex-grow: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 40px;
+  /* The logo's centre lands on the rows' icon column (22 px in). */
+  padding: 0 0 0 8px;
+  border: 0;
+  border-radius: var(--radius-field);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.knowledge-assistant .openui-agent-sidebar-header__logo {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  align-self: center;
+  border-radius: var(--radius-tile);
+  box-shadow: none;
+}
+.knowledge-assistant .openui-agent-sidebar-header__agent-name {
+  color: var(--marsh-navy);
+  font: 700 16px/22px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+/* Collapse: a v2 round icon action (32 px, grey icon, hover by background). */
+.knowledge-assistant .openui-agent-sidebar-header__toggle-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--graphite-600);
+}
+.knowledge-assistant .openui-agent-sidebar-header__toggle-button:not(:disabled):hover {
+  background: var(--hover-bg);
+}
+
+/* Rows built from OpenUI's sidebar item: New chat and My preferences. A 32 px icon box (its
+   centre 22 px in), the label 8 px after it. */
+.knowledge-assistant .openui-agent-sidebar-item {
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-field);
+  color: var(--graphite-900);
+  font: 500 14px/20px var(--font-sans);
+  letter-spacing: 0;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.knowledge-assistant .openui-agent-sidebar-item:not(:disabled):hover {
+  background: var(--hover-bg);
+}
+.knowledge-assistant .openui-agent-sidebar-item__icon {
+  color: var(--graphite-600);
+}
+.knowledge-assistant .openui-agent-sidebar-item__icon > span {
+  display: inline-flex;
+}
+/* New chat leads: a navy round plus and navy words, like the big chat apps' first row. The 28 px
+   disc keeps the 32 px box's centre, so it lines up with the logo above. */
+.knowledge-assistant .chat-new {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+.knowledge-assistant .chat-new .openui-agent-sidebar-item__icon {
+  width: 28px;
+  height: 28px;
+  margin: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+}
+.knowledge-assistant .chat-new:not(:disabled):hover .openui-agent-sidebar-item__icon {
+  background: var(--ink-800);
+}
+
+/* Search and the chats under it: the list scrolls on its own, so the header and My preferences
+   stay put however many chats there are. */
+.knowledge-assistant .openui-agent-sidebar-content {
+  width: auto;
+  gap: 0;
+  margin-top: 12px;
+}
+.knowledge-assistant .chat-search-field {
+  flex: none;
+}
+.knowledge-assistant .chat-thread-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0 -12px;
+  padding: 16px 12px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--graphite-200) transparent;
+}
+.knowledge-assistant .chat-thread-note {
+  margin: 0;
+  padding: 16px var(--chat-row-text) 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* A recency group: a small quiet label (v2 label style, 12 / 600), its rows 4 px apart, and 16 px
+   between groups. */
+.chat-thread-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-thread-group + .chat-thread-group {
+  margin-top: 16px;
+}
+.chat-thread-group-label {
+  margin: 0;
+  padding: 0 var(--chat-row-text) 4px;
+  color: var(--graphite-600);
+  font: 600 12px/16px var(--font-sans);
+}
+
+/* A chat: one line cut with "…", hover by background, chosen = ink tint with navy words. */
+.chat-thread-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: var(--radius-field);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.chat-thread-row:hover,
+.chat-thread-row:focus-within {
+  background: var(--hover-bg);
+}
+.chat-thread-row[data-selected],
+.chat-thread-row[data-selected]:hover {
+  background: var(--ink-50);
+}
+.chat-thread-title {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0 8px 0 var(--chat-row-text);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: var(--graphite-900);
+  font: 400 14px/20px var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-thread-row[data-selected] .chat-thread-title {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
+.chat-thread-title:focus-visible {
+  outline-offset: -2px;
+}
+/* Rename and delete: v2 icon actions at the row's right end, shown on hover and keyboard focus;
+   always shown on touch screens, which have no hover. */
+.chat-thread-actions {
+  display: none;
+  flex: none;
+  gap: 0;
+  padding-right: 2px;
+}
+.chat-thread-row:hover .chat-thread-actions,
+.chat-thread-row:focus-within .chat-thread-actions {
+  display: flex;
+}
+
+/* My preferences, pinned to the sidebar's foot under a hairline, like a chat app's settings row. */
+.chat-sidebar-foot {
+  flex: none;
+  margin: 8px -12px 0;
+  padding: 8px 12px 0;
+  border-top: 1px solid var(--border-default);
+}
+
+/* ---- Collapsed: a 56 px rail of the toggle, the navy plus and the gear ---- */
+
+.knowledge-assistant .openui-agent-sidebar-container--collapsed {
+  background: var(--chat-sidebar);
+}
+.knowledge-assistant .openui-agent-sidebar-container--collapsed .openui-agent-sidebar-item {
+  width: 32px;
+  padding: 0;
+}
+.knowledge-assistant
+  .openui-agent-sidebar-container--collapsed
+  .openui-agent-sidebar-item:not(:disabled):hover
+  .openui-agent-sidebar-item__icon {
+  background: var(--hover-bg);
+}
+.knowledge-assistant
+  .openui-agent-sidebar-container--collapsed
+  .chat-new:not(:disabled):hover
+  .openui-agent-sidebar-item__icon {
+  background: var(--ink-800);
+}
+/* The rail shows the toggle in the logo's place (OpenUI otherwise reveals it over the logo). */
+.knowledge-assistant .openui-agent-sidebar-header--collapsed .chat-brand {
+  display: none;
+}
+.knowledge-assistant
+  .openui-agent-sidebar-header--collapsed
+  .openui-agent-sidebar-header__toggle-button {
+  top: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-list,
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-thread-note,
+.knowledge-assistant .openui-agent-sidebar-content--collapsed .chat-search-field {
+  display: none;
+}
+.knowledge-assistant .openui-agent-sidebar-container--collapsed .chat-sidebar-foot {
+  margin-inline: -12px;
+}
+
+/* ---- The phone drawer: the same sidebar, sliding over the chat ---- */
+
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-container {
+  padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+  background: var(--chat-sidebar);
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-header,
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-content {
+  padding: 0;
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-primary-actions {
+  padding: 0;
+  gap: 0;
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-header__top-row {
+  gap: 8px;
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-header__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-tile);
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-header__agent-name {
+  font: 700 16px/22px var(--font-sans);
+}
+.knowledge-assistant .openui-agent-container--mobile .openui-agent-sidebar-item {
+  gap: 8px;
+  font: 500 14px/20px var(--font-sans);
+}
+.knowledge-assistant .openui-agent-container--mobile .chat-new {
+  font-weight: 600;
+}
+
+/* Above the phone chat: the chats (history) button and New chat at either end, as v2 round icon
+   actions. The page's own title already says MarshBot, so the name isn't repeated here. */
+.knowledge-assistant .openui-agent-mobile-header {
+  padding: 8px 12px 0;
+  background: var(--surface-card);
+}
+.knowledge-assistant .openui-agent-mobile-header-agent-name,
+.knowledge-assistant .openui-agent-mobile-header-logo {
+  display: none;
+}
+.knowledge-assistant .openui-agent-mobile-header .openui-icon-button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: none;
+  color: var(--graphite-600);
+}
+.knowledge-assistant .openui-agent-mobile-header .openui-icon-button:hover {
+  background: var(--hover-bg);
+}
+
+/* ---- Touch screens: every row and its icon actions reach 44 px ---- */
+
+@media (hover: none), (pointer: coarse) {
+  .knowledge-assistant .openui-agent-sidebar-item,
+  .knowledge-assistant .chat-brand,
+  .chat-thread-row {
+    min-height: 44px;
+  }
+  .knowledge-assistant .openui-agent-sidebar-header__toggle-button {
+    width: 44px;
+    height: 44px;
+  }
+  .chat-thread-actions {
+    display: flex;
+    padding-right: 0;
+  }
+  /* !important: the shared IconButton sets its size inline. */
+  .chat-thread-actions button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .knowledge-assistant .chat-search-field {
+    height: 44px;
+  }
+}

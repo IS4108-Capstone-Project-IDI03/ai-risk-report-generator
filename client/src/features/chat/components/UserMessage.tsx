@@ -3,7 +3,7 @@
 import type { UserMessage as Message } from '@openuidev/react-headless'
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useVersions } from '../useVersions'
-import { Button, IconButton } from '../../../design-system'
+import { Button, IconAction } from '../../../design-system'
 import { useSentPdfs, useSentPhotos } from '../photoStore'
 import { MessagePdf } from './MessagePdf'
 import { MessagePhotos } from './MessagePhotos'
@@ -76,7 +76,7 @@ export function UserMessage({ message }: { message: Message }) {
         {info && (
           <VersionSwitcher info={info} label="question" onPick={(id) => void switchTo(id)} />
         )}
-        <IconButton
+        <IconAction
           icon="pencil"
           label="Edit question"
           disabled={running}

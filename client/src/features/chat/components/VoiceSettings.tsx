@@ -2,7 +2,7 @@
 // Hands-free mode is set from the mic's own cog (components/VoiceInput.tsx). Shown in the answer
 // bar by components/PlayAnswer.tsx. Saved by speech.ts.
 import { useState } from 'react'
-import { IconButton, Select } from '../../../design-system'
+import { IconAction, Select } from '../../../design-system'
 import { useVoices, useVoiceSettings } from '../speech'
 
 const SPEEDS = ['0.75', '1', '1.25', '1.5']
@@ -14,10 +14,11 @@ export function VoiceSettings() {
   const voices = useVoices()
   return (
     <>
-      <IconButton
+      <IconAction
         icon="settings"
         label="Voice settings"
-        selected={open}
+        shaded={open}
+        aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
       />
       {open && (

@@ -7,10 +7,11 @@ import { DeleteChatDialog } from './DeleteChatDialog'
 import { RenameChatDialog } from './RenameChatDialog'
 import { closeChatsDrawer } from '../chatsDrawer'
 
-type Props = { id: string; title: string }
+// `createdAt` is passed back on rename, so the renamed chat keeps its recency group.
+type Props = { id: string; title: string; createdAt: string | number }
 
 /** A chat row: the title opens the chat; the pencil and bin open the rename and delete dialogs. */
-export function ChatThreadRow({ id, title }: Props) {
+export function ChatThreadRow({ id, title, createdAt }: Props) {
   const selected = useThreadList((s) => s.selectedThreadId === id)
   const select = useThreadList((s) => s.selectThread)
   const update = useThreadList((s) => s.updateThread)
@@ -52,7 +53,7 @@ export function ChatThreadRow({ id, title }: Props) {
           title={title}
           onClose={close}
           onSave={(name) => {
-            update({ id, title: name, createdAt: 0 })
+            update({ id, title: name, createdAt })
             close()
           }}
         />
