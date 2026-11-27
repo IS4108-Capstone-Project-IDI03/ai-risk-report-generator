@@ -93,8 +93,8 @@
   font-weight: 600;
 }
 
-/* ---- Totals: a row of the shared FigureTiles (CostSummary.tsx, .ds-figure-grid), a third of
-   the width each; each keeps 240 px for the cost's label and (?), so a tablet fits two. ---- */
+/* ---- Totals: a row of the shared FigureTiles (CostSummary.tsx, .ds-figure-grid), each as wide
+   as its figure; each keeps 240 px for the cost's label and (?), so a tablet fits two. ---- */
 .uc-totals-tiles {
   --figure-min: 240px;
 }

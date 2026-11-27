@@ -120,7 +120,7 @@ export function ComparisonSummary({
             )}
           </div>
           <ul
-            className="cmp-tiles ds-figure-grid"
+            className="cmp-tiles ds-figure-grid ds-figure-grid--fill"
             role="group"
             aria-label="Filter by outcome"
             style={{ '--figure-cols': tiles.length } as CSSProperties}

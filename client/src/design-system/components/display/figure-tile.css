@@ -73,21 +73,29 @@ button.ds-figure:focus-visible {
   }
 }
 
-/* A row of figure tiles (Usage and costs, the Comparison tab): --figure-cols tiles to a row
-   while each keeps --figure-min, so a long label ("Total estimated cost") never gets squeezed to
-   a word a line; when they don't fit, fewer and wider columns. Equal heights. On a phone, two
-   to a row, and an odd last tile takes the whole row instead of sitting alone at half width. */
+/* A row of figure tiles (Usage and costs, the Comparison tab). Each tile is as wide as its
+   content, never under --figure-min, and the row starts at the left: two tiles don't stretch
+   across a wide window. `ds-figure-grid--fill` (the Comparison tab's outcomes) instead fills the
+   row: --figure-cols even tiles while each keeps --figure-min, fewer and wider columns when they
+   don't fit. Equal heights. On a phone, two to a row, and an odd last tile takes the whole row
+   instead of sitting alone at half width. */
 .ds-figure-grid {
-  --figure-track: max(
-    var(--figure-min, 200px),
-    (100% - (var(--figure-cols, 3) - 1) * var(--figure-gap, 12px)) / var(--figure-cols, 3)
-  );
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--figure-track)), 1fr));
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--figure-min, 200px)), max-content)
+  );
   gap: var(--figure-gap, 12px);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.ds-figure-grid--fill {
+  --figure-track: max(
+    var(--figure-min, 200px),
+    (100% - (var(--figure-cols, 3) - 1) * var(--figure-gap, 12px)) / var(--figure-cols, 3)
+  );
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--figure-track)), 1fr));
 }
 .ds-figure-grid > * {
   display: flex;
